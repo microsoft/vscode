@@ -59,7 +59,7 @@ import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
 import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type CustomizationEnablement, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type AuthRequiredParams, type SessionAction } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
-import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { getByokLmAgentModelId, resolveByokLmEnablement } from '../../common/agentHostByokLm.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
@@ -67,7 +67,7 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
-import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { applyMcpServerEnablement, buildMcpTopLevelCustomizationId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
 import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
@@ -137,8 +137,9 @@ export async function getCopilotManagedSettingsDiagnostics(
 	signal: AbortSignal,
 	timeoutMs = COPILOT_MANAGED_SETTINGS_QUERY_TIMEOUT_MS,
 	proxy: string | undefined = undefined,
+	noProxy: string | undefined = undefined,
 ): Promise<{ account?: string; resolved: ManagedSettingsResolvedData }> {
-	const request = invokeWithProxyEnvironment(proxy, () => runtimeSdk.getManagedSettings({
+	const request = invokeWithTemporaryProxyEnvironment(proxy, noProxy, () => runtimeSdk.getManagedSettings({
 		...(token ? { authInfo: { type: 'token', host, token } as const, token } : {}),
 		signal,
 	}));
@@ -149,20 +150,32 @@ export async function getCopilotManagedSettingsDiagnostics(
 	return result;
 }
 
-function invokeWithProxyEnvironment<T>(proxy: string | undefined, invoke: () => Promise<T>): Promise<T> {
-	if (!proxy) {
+function invokeWithTemporaryProxyEnvironment<T>(proxy: string | undefined, noProxy: string | undefined, invoke: () => T): T {
+	if (!proxy && !noProxy) {
 		return invoke();
 	}
-	const previousValues = COPILOT_PROXY_SET_ENV_KEYS.map(key => process.env[key]);
-	for (const key of COPILOT_PROXY_SET_ENV_KEYS) {
-		process.env[key] = proxy;
+	const keys = [
+		...(proxy ? COPILOT_PROXY_ENV_KEYS : []),
+		...(noProxy ? COPILOT_NO_PROXY_ENV_KEYS : []),
+	];
+	const previousValues = keys.map(key => process.env[key]);
+	for (const key of keys) {
+		delete process.env[key];
+	}
+	if (proxy) {
+		for (const key of COPILOT_PROXY_SET_ENV_KEYS) {
+			process.env[key] = proxy;
+		}
+	}
+	if (noProxy) {
+		process.env['NO_PROXY'] = noProxy;
 	}
 	try {
 		// The SDK snapshots process.env while constructing the native request.
 		return invoke();
 	} finally {
-		for (let index = 0; index < COPILOT_PROXY_SET_ENV_KEYS.length; index++) {
-			const key = COPILOT_PROXY_SET_ENV_KEYS[index];
+		for (let index = 0; index < keys.length; index++) {
+			const key = keys[index];
 			const value = previousValues[index];
 			if (value === undefined) {
 				delete process.env[key];
@@ -186,9 +199,10 @@ function isCopilotConnectionClosedError(error: unknown): boolean {
 }
 
 /**
- * Proxy env vars that indicate the environment already configures a proxy.
+ * Proxy env vars recognized by the Copilot runtime.
  */
 const COPILOT_PROXY_ENV_KEYS = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy'] as const;
+const COPILOT_NO_PROXY_ENV_KEYS = ['no_proxy', 'NO_PROXY'] as const;
 /**
  * Proxy env vars we set when injecting the resolved CAPI proxy.
  */
@@ -720,9 +734,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * Fires when the native chat catalog may have changed. The {@link AgentService}
 	 * responds with an additive discovery pass.
 	 */
-	private readonly _onDidDiscoverChats = this._register(new Emitter<readonly IAgentDiscoveredChat[]>({
-		onDidAddFirstListener: () => { void this._startCopilotChatDiscovery(); },
-	}));
+	private readonly _onDidDiscoverChats = this._register(new Emitter<readonly IAgentDiscoveredChat[]>());
 	readonly onDidDiscoverChats = this._onDidDiscoverChats.event;
 	/**
 	 * Per-session MCP notifications, fanned in from every active
@@ -800,6 +812,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _proxyRefresh: Promise<void> | undefined;
 	private _proxyResolutionGeneration = 0;
 	private _appliedProxy: string | undefined;
+	private _appliedNoProxy: string | undefined;
 	private _appliedProxyKerberosSpn: string | undefined;
 	/**
 	 * Reasons for a client restart that is parked until every chat is idle. See
@@ -1357,6 +1370,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				AbortSignal.timeout(COPILOT_MANAGED_SETTINGS_DIAGNOSTICS_TIMEOUT_MS),
 				COPILOT_MANAGED_SETTINGS_QUERY_TIMEOUT_MS,
 				proxy,
+				this._readNoProxy(process.env),
 			);
 		})();
 		const result = await raceTimeout(diagnostics, COPILOT_MANAGED_SETTINGS_DIAGNOSTICS_TIMEOUT_MS);
@@ -1652,7 +1666,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const additionalProperties = { initiatorClientType: this._clientTypeForTelemetry(notification.sessionId) };
 		const router = this._githubTelemetryRouter;
 		if (!router?.isTarget(notification)) {
-			this._gitHubTelemetryForwarder.forward(notification, this._turnIdForTelemetry(notification.sessionId));
+			await this._forwardGitHubTelemetry(notification);
 			return;
 		}
 		if (!notification.restricted) {
@@ -1691,8 +1705,31 @@ export class CopilotAgent extends Disposable implements IAgent {
 			: AgentHostClientType.Unknown;
 	}
 
-	private _turnIdForTelemetry(sdkSessionId: string | undefined): string | undefined {
-		return sdkSessionId ? this._findSessionBySdkId(sdkSessionId)?.currentTurnId : undefined;
+	private async _forwardGitHubTelemetry(notification: GitHubTelemetryNotification): Promise<void> {
+		const session = notification.sessionId ? this._findSessionBySdkId(notification.sessionId) : undefined;
+		if (!session) {
+			this._gitHubTelemetryForwarder.forward(notification);
+			return;
+		}
+		const fallbackTurnId = session.currentTurnId;
+		const event = notification.event;
+		if (event.kind === 'response.success' || event.kind === 'response.error') {
+			const modelCallId = event.properties.modelCallId ?? event.model_call_id;
+			if (typeof modelCallId === 'string') {
+				const correlatedTurnId = session.modelCallTurnCorrelation.take(modelCallId);
+				if (correlatedTurnId) {
+					this._gitHubTelemetryForwarder.forward(notification, correlatedTurnId);
+					return;
+				}
+				if (event.properties.initiatorType === 'agent') {
+					const delayedTurnId = await session.modelCallTurnCorrelation.wait(modelCallId);
+					this._gitHubTelemetryForwarder.forward(notification, delayedTurnId);
+					return;
+				}
+				session.modelCallTurnCorrelation.markResponseForwarded(modelCallId);
+			}
+		}
+		this._gitHubTelemetryForwarder.forward(notification, fallbackTurnId);
 	}
 
 	/**
@@ -2009,12 +2046,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
 			// that can interfere with the Node.js process the SDK spawns.
-			const env = createCopilotCliEnvironment();
+			const env = this._createCopilotCliEnvironment();
 			// Family aliases are host-side (prompt and tool-profile routing) and
 			// deliberately never reach the runtime; an ambient value here would
 			// re-introduce a process-wide alias for every session behind its back.
 			delete env['COPILOT_MODEL_FAMILY'];
-			this._applyProxyEnv(env);
 			setCopilotBuiltinGitHubMcpEnvironment(env, startupConfig.githubMcpServer);
 
 			// On Linux the MXC bubblewrap sandbox backend does not forward a PTY into
@@ -2434,6 +2470,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	setKnownSessionsFilter(filter: IAgentKnownSessionsFilter): void {
 		this._knownSessionsFilter = filter;
+	}
+
+	startChatDiscovery(): Promise<void> {
+		return this._startCopilotChatDiscovery();
 	}
 
 	/**
@@ -2983,6 +3023,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return session.getTurnDiagnosticSnapshot(turnId) ?? { state: 'missingTurn' };
 	}
 
+	recordModelCallTurnCorrelation(chat: URI, modelCallId: string, turnId: string): void {
+		this._findChatByUri(chat)?.modelCallTurnCorrelation.record(modelCallId, turnId);
+	}
+
 	/** Creates one exact chat backing: fresh, deferred, imported, or forked. */
 	private async _createChat(chat: URI, context: IAgentChatContext, options: IAgentCreateChatOptions = {}): Promise<IAgentCreateChatResult> {
 		const scope = context.configurationResource;
@@ -3345,16 +3389,34 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Worktree identity the extension host recorded, when its checkout is gone but
-	 * the repository remains. Resume recreates the worktree from this, matching how
-	 * a natively worktree-isolated session recovers.
+	 * Worktree identity the extension host recorded, so the migrated session diffs
+	 * against the same base branch the worktree was branched from. Returned when the
+	 * repository still exists, covering two cases:
+	 *
+	 * - The checkout is gone: resume recreates the worktree from this, matching how
+	 *   a natively worktree-isolated session recovers.
+	 * - The checkout still exists but the marker carries a base branch: the recorded
+	 *   base is authoritative and independent of `refs/remotes/origin/HEAD`, which is
+	 *   the only source the probe-based bridge ({@link IAgentHostWorktreeIsolation.adoptExistingWorktreeMetadata})
+	 *   has. Without this, a worktree session in a repository with no remote (or no
+	 *   `origin/HEAD`) persists no base branch, so its Branch Changes diff falls back
+	 *   to `HEAD` and every committed-on-branch change is invisible (#333642).
+	 *
+	 * A still-existing checkout whose marker has no base branch is left to the
+	 * probe-based bridge so the pre-existing `origin/HEAD` fallback is preserved.
 	 */
 	private async _extensionHostCliAdoptedWorktree(sessionId: string): Promise<IAgentAdoptedWorktree | undefined> {
 		const worktree = (await this._readExtensionHostCliMarker(sessionId))?.worktreeProperties;
 		if (!worktree?.worktreePath || !worktree.repositoryPath || !worktree.branchName) {
 			return undefined;
 		}
-		if (await this._isExistingDirectory(worktree.worktreePath) || !(await this._isExistingDirectory(worktree.repositoryPath))) {
+		if (!(await this._isExistingDirectory(worktree.repositoryPath))) {
+			return undefined;
+		}
+		// The checkout still exists: only take over from the probe-based bridge when
+		// the marker gives us an authoritative base branch to persist; otherwise let
+		// the probe resolve it (e.g. from `origin/HEAD`) exactly as before.
+		if (await this._isExistingDirectory(worktree.worktreePath) && !worktree.baseBranchName) {
 			return undefined;
 		}
 		return {
@@ -3366,10 +3428,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Records the durable adopted-legacy marker on a session adopted by a build
-	 * that predates it. Without this those sessions keep the extension-host marker
-	 * but no provenance, so a worktree one stays filtered out of the window opened
-	 * on its repository. Keyed off the marker, so it never claims a native session.
+	 * Repairs durable metadata on a legacy Copilot CLI session adopted by a build
+	 * that predates it. Keyed off the extension-host marker, so it never claims a
+	 * native session. Backfills, when missing:
+	 * - the adopted-legacy provenance marker (without it a worktree session stays
+	 *   filtered out of the window opened on its repository);
+	 * - the Branch Changes base branch from the marker's recorded worktree base, so
+	 *   a session migrated before this was persisted (e.g. a no-remote repo whose
+	 *   `origin/HEAD` could not answer) stops anchoring its diff to `HEAD` (#333642);
+	 * - the last-migrated-turn boundary, so the chat editor can surface the
+	 *   session-wide changes on the migrated turn.
 	 */
 	private async _backfillAdoptedLegacyMarker(session: URI, sessionId: string): Promise<void> {
 		const ref = await this._sessionDataService.tryOpenDatabase(session);
@@ -3377,16 +3445,40 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		try {
-			if (await ref.object.getMetadata(AH_META_EHCLI_ADOPTED_DB_KEY) !== undefined) {
+			const [existingMarker, existingBaseBranch, existingLastTurn] = await Promise.all([
+				ref.object.getMetadata(AH_META_EHCLI_ADOPTED_DB_KEY),
+				ref.object.getMetadata(META_DIFF_BASE_BRANCH),
+				ref.object.getMetadata(AH_META_EHCLI_LAST_TURN_DB_KEY),
+			]);
+			if (existingMarker !== undefined && existingBaseBranch !== undefined && existingLastTurn !== undefined) {
 				return;
 			}
 			if (!(await this._isExtensionHostCliSession(sessionId))) {
 				return;
 			}
-			await ref.object.setMetadata(AH_META_EHCLI_ADOPTED_DB_KEY, 'true');
-			this._logService.info(`[Copilot] Backfilled the adopted-legacy marker for ${sessionId}, migrated before it was recorded`);
+			const work: Promise<void>[] = [];
+			if (existingMarker === undefined) {
+				work.push(ref.object.setMetadata(AH_META_EHCLI_ADOPTED_DB_KEY, 'true'));
+			}
+			if (existingBaseBranch === undefined) {
+				const recordedBase = (await this._readExtensionHostCliMarker(sessionId))?.worktreeProperties?.baseBranchName;
+				if (recordedBase) {
+					work.push(ref.object.setMetadata(META_DIFF_BASE_BRANCH, recordedBase));
+				}
+			}
+			if (existingLastTurn === undefined) {
+				const lastMigratedTurnId = await this._readExtensionHostCliLastTurnId(sessionId);
+				if (lastMigratedTurnId) {
+					work.push(ref.object.setMetadata(AH_META_EHCLI_LAST_TURN_DB_KEY, lastMigratedTurnId));
+				}
+			}
+			if (work.length === 0) {
+				return;
+			}
+			await Promise.all(work);
+			this._logService.info(`[Copilot] Backfilled durable metadata for ${sessionId} (marker=${existingMarker === undefined} baseBranch=${existingBaseBranch === undefined} lastTurn=${existingLastTurn === undefined}), migrated before it was recorded`);
 		} catch (err) {
-			this._logService.warn(`[Copilot] Failed to backfill the adopted-legacy marker for ${sessionId}`, err);
+			this._logService.warn(`[Copilot] Failed to backfill durable metadata for ${sessionId}`, err);
 		} finally {
 			ref.dispose();
 		}
@@ -3422,7 +3514,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const sdkWorkingDirectory = typeof sdkMetadata?.context?.workingDirectory === 'string' ? sdkMetadata.context.workingDirectory : undefined;
 			// A deleted worktree is recoverable the same way a native session recovers
 			// one: keep it as the working directory and let resume recreate it from the
-			// recorded branch.
+			// recorded branch. A worktree whose checkout still exists is also bridged
+			// (when the marker records its base branch) so the recorded base is
+			// persisted for the Branch Changes diff even without a remote (#333642).
 			const adoptedWorktree = await this._extensionHostCliAdoptedWorktree(sessionId);
 			const workingDirectory = adoptedWorktree?.worktreePath
 				?? (sdkWorkingDirectory && await this._isExistingDirectory(sdkWorkingDirectory) ? URI.file(sdkWorkingDirectory) : undefined)
@@ -3433,7 +3527,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._logService.warn(`[Copilot] Adoption skipped for ${sessionId}: no usable working directory (sdk='${sdkWorkingDirectory ?? '(none)'}' exists=${sdkWorkingDirectory ? await this._isExistingDirectory(sdkWorkingDirectory) : false}, no recorded worktree, no marker fallback). The session stays on the legacy provider.`);
 				return { adopted: false, eligible: true, reason: 'workingDirectoryMissing' };
 			}
-			this._logService.info(`[Copilot] Adopting legacy session ${sessionId} in place (reusing on-disk events.jsonl): cwd=${workingDirectory.fsPath}${adoptedWorktree ? ` worktree=${adoptedWorktree.worktreePath.fsPath} branch=${adoptedWorktree.branchName} base=${adoptedWorktree.baseBranch ?? '(none)'} repo=${adoptedWorktree.repositoryRoot.fsPath} (checkout missing, will be recreated on resume)` : ''}`);
+			const worktreeCheckoutMissing = adoptedWorktree ? !(await this._isExistingDirectory(adoptedWorktree.worktreePath.fsPath)) : false;
+			this._logService.info(`[Copilot] Adopting legacy session ${sessionId} in place (reusing on-disk events.jsonl): cwd=${workingDirectory.fsPath}${adoptedWorktree ? ` worktree=${adoptedWorktree.worktreePath.fsPath} branch=${adoptedWorktree.branchName} base=${adoptedWorktree.baseBranch ?? '(none)'} repo=${adoptedWorktree.repositoryRoot.fsPath}${worktreeCheckoutMissing ? ' (checkout missing, will be recreated on resume)' : ' (checkout present)'}` : ''}`);
 			// Resolve the project from the SDK-derived cwd (authoritative) — the
 			// caller may not have supplied a working directory (e.g. the chat
 			// editor), so we cannot trust a hint.
@@ -3463,7 +3558,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// `isolation: 'folder'` keeps the session in place in the reused cwd —
 			// a git repo would otherwise default to worktree and show a spurious
 			// "Creating worktree…".
-			await this._storeSessionMetadata(session, undefined, workingDirectory, [workingDirectory], workingDirectory, project, project !== undefined, { [SessionConfigKey.Isolation]: 'folder' }, adoptedTitle, /* markRead */ true, archived, /* ehcliAdopted */ true);
+			// The migration boundary: the id of the last turn recorded on disk, so the
+			// chat editor can substitute the session-wide changeset for that migrated
+			// (checkpoint-less) turn without misattributing it to a later, post-adoption turn.
+			const lastMigratedTurnId = await this._readExtensionHostCliLastTurnId(sessionId);
+			await this._storeSessionMetadata(session, undefined, workingDirectory, [workingDirectory], workingDirectory, project, project !== undefined, { [SessionConfigKey.Isolation]: 'folder' }, adoptedTitle, /* markRead */ true, archived, /* ehcliAdopted */ true, lastMigratedTurnId);
 			await this._adoptLegacyTurnUsage(session, sessionId);
 			this._logService.info(`[Copilot] Adopted legacy session ${sessionId}: project=${project ? project.uri.fsPath : '(unresolved)'} archived=${archived} title=${adoptedTitle !== undefined ? (cliName ? 'name' : customTitle ? 'custom' : 'summary') : 'none'} worktreeBridged=${!!adoptedWorktree}`);
 			return { adopted: true, eligible: true, reason: 'adopted', ...(adoptedWorktree ? { worktree: adoptedWorktree } : {}) };
@@ -3524,6 +3623,35 @@ export class CopilotAgent extends Disposable implements IAgent {
 		} catch (err) {
 			this._logService.warn(`[Copilot] Failed to adopt legacy turn usage for session ${sessionId}`, err);
 		}
+	}
+
+	/**
+	 * The id of the final turn recorded in the extension host's request sidecar —
+	 * the migration boundary. Best-effort: absent for sessions predating credit
+	 * tracking, in which case the chat editor simply keeps no migrated-turn fallback.
+	 */
+	private async _readExtensionHostCliLastTurnId(sessionId: string): Promise<string | undefined> {
+		const raw = await fs.readFile(this._extensionHostCliSidecarPath(sessionId, 'vscode.requests.metadata.json'), 'utf8').catch(() => undefined);
+		if (raw === undefined) {
+			return undefined;
+		}
+		try {
+			const parsed: unknown = JSON.parse(raw);
+			if (!Array.isArray(parsed)) {
+				return undefined;
+			}
+			// Entries are in turn order; the last valid `copilotRequestId` is the id
+			// `mapSessionEvents` restores the final turn under.
+			for (let i = parsed.length - 1; i >= 0; i--) {
+				const turnId = (parsed[i] as IExtensionHostCliRequestDetails | undefined)?.copilotRequestId;
+				if (typeof turnId === 'string' && turnId) {
+					return turnId;
+				}
+			}
+		} catch {
+			// Malformed sidecar: treat as no recorded boundary.
+		}
+		return undefined;
 	}
 
 	/** Materializes a provisional chat into a real SDK session immediately before first send. */
@@ -4733,23 +4861,50 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return spn || undefined;
 	}
 
-	private _applyProxyEnv(env: Record<string, string | undefined>): void {
-		const proxy = this._isSystemProxyEnabled() ? this._resolvedProxy : undefined;
+	private _readNoProxy(env: Record<string, string | undefined>): string | undefined {
+		const configuredNoProxy = (this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.NoProxy) ?? [])
+			.map(value => value.trim())
+			.filter(Boolean)
+			.join(',');
+		return configuredNoProxy || (env['no_proxy'] || env['NO_PROXY'] || '').trim() || undefined;
+	}
+
+	private _readConfiguredProxy(): string | undefined {
+		return this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.Proxy)?.trim() || undefined;
+	}
+
+	private _createCopilotCliEnvironment(): Record<string, string | undefined> {
+		const proxy = this._readConfiguredProxy() ?? (this._isSystemProxyEnabled() ? this._resolvedProxy : undefined);
 		this._appliedProxy = proxy;
+		const noProxy = this._readNoProxy(process.env);
+		this._appliedNoProxy = noProxy;
+		const omittedKeys = [
+			...(proxy ? COPILOT_PROXY_ENV_KEYS : []),
+			...(noProxy ? COPILOT_NO_PROXY_ENV_KEYS : []),
+		];
+		const env = createCopilotCliEnvironment(process.env, omittedKeys);
 		if (proxy) {
 			for (const key of COPILOT_PROXY_SET_ENV_KEYS) {
 				env[key] = proxy;
 			}
 			this._logService.info('[Copilot] Resolved CAPI proxy and forwarded HTTP_PROXY/HTTPS_PROXY to Copilot SDK');
 		}
-		const kerberosSpn = this._readKerberosSpn(env);
+		if (noProxy) {
+			env['NO_PROXY'] = noProxy;
+		}
+		const kerberosSpn = this._readKerberosSpn(process.env);
 		this._appliedProxyKerberosSpn = kerberosSpn;
 		if (kerberosSpn && !env['COPILOT_PROXY_KERBEROS_SPN']) {
 			env['COPILOT_PROXY_KERBEROS_SPN'] = kerberosSpn;
 		}
+		return env;
 	}
 
 	private async _resolveProxyForSdk(env: Record<string, string | undefined> = process.env): Promise<string | undefined> {
+		const configuredProxy = this._readConfiguredProxy();
+		if (configuredProxy) {
+			return configuredProxy;
+		}
 		if (!this._isSystemProxyEnabled()) {
 			return undefined;
 		}
@@ -4785,9 +4940,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return;
 			}
 			this._resolvedProxy = proxy;
-			const effectiveProxy = this._isSystemProxyEnabled() ? proxy : undefined;
+			const effectiveProxy = this._readConfiguredProxy() ?? (this._isSystemProxyEnabled() ? proxy : undefined);
+			const effectiveNoProxy = this._readNoProxy(process.env);
 			const effectiveKerberosSpn = this._readKerberosSpn(process.env);
-			if (effectiveProxy === this._appliedProxy && effectiveKerberosSpn === this._appliedProxyKerberosSpn) {
+			if (effectiveProxy === this._appliedProxy && effectiveNoProxy === this._appliedNoProxy && effectiveKerberosSpn === this._appliedProxyKerberosSpn) {
 				return;
 			}
 			if (this._clientStarting) {
@@ -4799,13 +4955,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 				// A newer proxy resolution (or the client start we just awaited)
 				// may have already superseded this one; re-check both so we don't
 				// restart based on a stale comparison.
-				if (generation !== this._proxyResolutionGeneration || (effectiveProxy === this._appliedProxy && effectiveKerberosSpn === this._appliedProxyKerberosSpn)) {
+				if (generation !== this._proxyResolutionGeneration || (effectiveProxy === this._appliedProxy && effectiveNoProxy === this._appliedNoProxy && effectiveKerberosSpn === this._appliedProxyKerberosSpn)) {
 					return;
 				}
 			}
 			const changes: string[] = [];
 			if (effectiveProxy !== this._appliedProxy) {
 				changes.push(`proxy ${this._appliedProxy ?? '(none)'} -> ${effectiveProxy ?? '(none)'}`);
+			}
+			if (effectiveNoProxy !== this._appliedNoProxy) {
+				changes.push('NO_PROXY changed');
 			}
 			if (effectiveKerberosSpn !== this._appliedProxyKerberosSpn) {
 				changes.push('Kerberos SPN changed');
@@ -5091,7 +5250,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 
-	private async _storeSessionMetadata(session: URI, model: ModelSelection | undefined, workingDirectory: URI | undefined, workingDirectories: readonly URI[] | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined, configValues?: Record<string, unknown>, customTitle?: string, markRead?: boolean, archived?: boolean, ehcliAdopted?: boolean): Promise<void> {
+	private async _storeSessionMetadata(session: URI, model: ModelSelection | undefined, workingDirectory: URI | undefined, workingDirectories: readonly URI[] | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined, configValues?: Record<string, unknown>, customTitle?: string, markRead?: boolean, archived?: boolean, ehcliAdopted?: boolean, lastMigratedTurnId?: string): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(session);
 		const db = dbRef.object;
 		try {
@@ -5112,6 +5271,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// keeps being listed like the legacy session it was migrated from.
 			if (ehcliAdopted) {
 				work.push(db.setMetadata(AH_META_EHCLI_ADOPTED_DB_KEY, 'true'));
+			}
+			// The migration boundary: the last turn that existed at adoption. Lets the
+			// chat editor substitute the session-wide changeset only for that turn (a
+			// migrated turn has no per-turn checkpoint) and never a post-adoption one.
+			if (lastMigratedTurnId) {
+				work.push(db.setMetadata(AH_META_EHCLI_LAST_TURN_DB_KEY, lastMigratedTurnId));
 			}
 			if (workingDirectory) {
 				work.push(db.setMetadata(CopilotAgent._META_CWD, workingDirectory.toString()));

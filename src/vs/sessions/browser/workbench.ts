@@ -2526,11 +2526,14 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			};
 		}
 
+		// Suspend chat content before any custom view transition can trigger layout.
+		this.sessionsPartService.setContentVisible(false);
 		this.customViewGridPartService.setView(descriptor);
 		this.partVisibility.customViewGrid = visible;
 		this._customViewVisibleKey.set(visible);
 
 		if (!this.workbenchGrid) {
+			this.sessionsPartService.setContentVisible(!visible);
 			return; // still starting up; the grid descriptor picks this state up
 		}
 
@@ -2550,6 +2553,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				}
 			});
 		} finally {
+			this.sessionsPartService.setContentVisible(!visible);
 			this._applyingCustomViewGridVisibility = false;
 		}
 
