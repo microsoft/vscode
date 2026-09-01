@@ -143,6 +143,28 @@ suite('AgentPluginManager', () => {
 			});
 		});
 
+		test('refreshes Automation plugins when any copied file changes', async () => {
+			const plugin = URI.parse(pluginUri('automation-changing'));
+			const scripts = URI.joinPath(plugin, 'scripts');
+			await fileService.createFolder(scripts);
+			const helper = URI.joinPath(scripts, 'helper.js');
+			await fileService.writeFile(helper, VSBuffer.fromString('first'));
+
+			const first = (await manager.syncCustomizations(AUTOMATION_ACTIVE_CLIENT_ID, [makeRef('automation-changing', 'client-nonce')]))[0];
+			await fileService.writeFile(helper, VSBuffer.fromString('second-version'));
+			const second = (await manager.syncCustomizations(AUTOMATION_ACTIVE_CLIENT_ID, [makeRef('automation-changing', 'client-nonce')]))[0];
+
+			assert.deepStrictEqual({
+				directoryChanged: first.pluginDir?.toString() !== second.pluginDir?.toString(),
+				content: second.pluginDir
+					? (await fileService.readFile(URI.joinPath(second.pluginDir, 'scripts', 'helper.js'))).value.toString()
+					: undefined,
+			}, {
+				directoryChanged: true,
+				content: 'second-version',
+			});
+		});
+
 		test('returns error status without pluginDir when source missing', async () => {
 			const results = await manager.syncCustomizations('test-client', [makeRef('nonexistent')]);
 

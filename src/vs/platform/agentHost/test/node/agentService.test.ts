@@ -30,6 +30,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentChatMigrationDeferred, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY } from '../../common/automationMigration.js';
@@ -44,7 +45,7 @@ import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/ag
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification } from '../../common/state/sessionActions.js';
 import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageHiddenFromTranscript, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
-import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
+import { ChatInteractivity, CustomizationEnablementKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -553,7 +554,7 @@ suite('AgentService (node dispatcher)', () => {
 				uri: 'file:///plugins/local-plugin',
 				displayName: 'Local Plugin',
 				nonce: '1234',
-				enabled: true,
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
 			}],
 		});
 		const automationService = (service as unknown as {
@@ -620,6 +621,92 @@ suite('AgentService (node dispatcher)', () => {
 				nonce: '1234',
 				enabled: true,
 			}],
+		});
+	});
+
+	test('accepts Automation plugins only from a local Editor Window client', () => {
+		const stateManager = getTestAgentStateManager(service);
+		const envelopes: ActionEnvelope[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+		const plugin = {
+			uri: 'file:///plugins/local-plugin',
+			displayName: 'Local Plugin',
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+		};
+		const localEditorContext: IAgentHostClientTelemetryContext = {
+			clientType: AgentHostClientType.EditorWindow,
+			connectionKind: AgentHostClientConnectionKind.Local,
+			transportKind: AgentHostTransportKind.MessagePort,
+			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+		};
+		const dispatch = (clientSeq: number, context: IAgentHostClientTelemetryContext, plugins: unknown) => service.dispatchAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostConfigKey.AutomationClientPlugins]: plugins },
+		}, 'test-client', clientSeq, context);
+
+		dispatch(1, { ...localEditorContext, transportKind: AgentHostTransportKind.WebSocket }, [plugin]);
+		dispatch(2, { ...localEditorContext, clientType: AgentHostClientType.AgentsWindow }, [plugin]);
+		dispatch(3, localEditorContext, [{ ...plugin, uri: 'https://example.com/plugin' }]);
+		dispatch(4, localEditorContext, [plugin]);
+
+		assert.deepStrictEqual({
+			rejections: envelopes.filter(envelope => envelope.rejectionReason).map(envelope => ({
+				clientSeq: envelope.origin?.clientSeq,
+				reason: envelope.rejectionReason,
+			})),
+			plugins: stateManager.rootState.config?.values[AgentHostConfigKey.AutomationClientPlugins],
+		}, {
+			rejections: [
+				{ clientSeq: 1, reason: 'Automation client plugins require a local Editor Window client.' },
+				{ clientSeq: 2, reason: 'Automation client plugins require a local Editor Window client.' },
+				{ clientSeq: 3, reason: 'Invalid Automation client plugin payload.' },
+			],
+			plugins: [plugin],
+		});
+	});
+
+	test('elects one Automation plugin publisher and fails over deterministically', () => {
+		const stateManager = getTestAgentStateManager(service);
+		const envelopes: ActionEnvelope[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+		const localEditorContext: IAgentHostClientTelemetryContext = {
+			clientType: AgentHostClientType.EditorWindow,
+			connectionKind: AgentHostClientConnectionKind.Local,
+			transportKind: AgentHostTransportKind.MessagePort,
+			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+		};
+		const plugin = (name: string) => [{
+			uri: `file:///plugins/${name}`,
+			displayName: name,
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+		}];
+		const dispatch = (clientId: string, clientSeq: number, plugins: ReturnType<typeof plugin>) => service.dispatchAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostConfigKey.AutomationClientPlugins]: plugins },
+		}, clientId, clientSeq, localEditorContext);
+		const root = URI.parse(ROOT_STATE_URI);
+		service.addSubscriber(root, 'z-client');
+		service.addSubscriber(root, 'a-client');
+
+		dispatch('z-client', 1, plugin('z-first'));
+		dispatch('a-client', 2, plugin('a'));
+		dispatch('z-client', 3, plugin('z-latest'));
+		service.unsubscribe(root, 'a-client');
+
+		assert.deepStrictEqual({
+			rejections: envelopes.filter(envelope => envelope.rejectionReason).map(envelope => ({
+				clientId: envelope.origin?.clientId,
+				clientSeq: envelope.origin?.clientSeq,
+				reason: envelope.rejectionReason,
+			})),
+			plugins: stateManager.rootState.config?.values[AgentHostConfigKey.AutomationClientPlugins],
+		}, {
+			rejections: [{
+				clientId: 'z-client',
+				clientSeq: 3,
+				reason: 'Another local Editor Window is the Automation client plugin publisher.',
+			}],
+			plugins: plugin('z-latest'),
 		});
 	});
 

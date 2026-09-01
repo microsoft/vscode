@@ -5,8 +5,7 @@
 
 import { localize } from '../../../nls.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
-import { withCustomizationEnablement } from './customizationEnablement.js';
-import { CustomizationEnablementKind, CustomizationType, type ClientPluginCustomization, type Customization, type PluginCustomization } from './state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationType, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type PluginCustomization } from './state/protocol/state.js';
 import { customizationId } from './state/sessionState.js';
 
 export const AUTOMATION_ACTIVE_CLIENT_ID = 'vscode-automations';
@@ -68,7 +67,7 @@ export interface IAutomationClientPluginConfigEntry {
 	uri: string;
 	displayName: string;
 	nonce?: string;
-	enabled: boolean;
+	enablement: CustomizationEnablement[];
 }
 
 export const agentHostCustomizationConfigSchema = createSchema({
@@ -141,12 +140,28 @@ export const agentHostCustomizationConfigSchema = createSchema({
 					type: 'string',
 					title: localize('agentHost.config.automationClientPlugins.nonce', "Version"),
 				},
-				enabled: {
-					type: 'boolean',
-					title: localize('agentHost.config.automationClientPlugins.enabled', "Enabled"),
+				enablement: {
+					type: 'array',
+					title: localize('agentHost.config.automationClientPlugins.enablement', "Enablement"),
+					items: {
+						type: 'object',
+						title: localize('agentHost.config.automationClientPlugins.enablementItem', "Enablement Decision"),
+						properties: {
+							kind: {
+								type: 'string',
+								enum: [CustomizationEnablementKind.Global],
+								title: localize('agentHost.config.automationClientPlugins.enablementKind', "Scope"),
+							},
+							enabled: {
+								type: 'boolean',
+								title: localize('agentHost.config.automationClientPlugins.enablementValue', "Enabled"),
+							},
+						},
+						required: ['kind', 'enabled'],
+					},
 				},
 			},
-			required: ['uri', 'displayName', 'enabled'],
+			required: ['uri', 'displayName', 'enablement'],
 		},
 	}),
 });
@@ -188,9 +203,28 @@ export function toAutomationClientPluginCustomization(entry: IAutomationClientPl
 		uri: entry.uri,
 		name: entry.displayName,
 		nonce: entry.nonce,
-		enablement: withCustomizationEnablement(undefined, CustomizationEnablementKind.Global, {
-			kind: CustomizationEnablementKind.Global,
-			enabled: entry.enabled,
-		}),
+		enablement: entry.enablement,
 	};
+}
+
+export function migrateAutomationClientPluginConfig(value: unknown): unknown {
+	if (!Array.isArray(value)) {
+		return value;
+	}
+	let changed = false;
+	const migrated = value.map(entry => {
+		if (!entry || typeof entry !== 'object' || Array.isArray(entry) || Reflect.get(entry, 'enablement') !== undefined) {
+			return entry;
+		}
+		const enabled = Reflect.get(entry, 'enabled');
+		if (typeof enabled !== 'boolean') {
+			return entry;
+		}
+		changed = true;
+		return {
+			...entry,
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled }],
+		};
+	});
+	return changed ? migrated : value;
 }

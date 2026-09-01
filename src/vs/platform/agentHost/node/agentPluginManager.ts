@@ -5,6 +5,9 @@
 
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { SequencerByKey } from '../../../base/common/async.js';
+import { hashAsync } from '../../../base/common/hash.js';
+import { stableStringify } from '../../../base/common/objects.js';
+import { compare } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
@@ -117,12 +120,15 @@ export class AgentPluginManager implements IAgentPluginManager {
 		const pluginUri = clientId === AUTOMATION_ACTIVE_CLIENT_ID
 			? URI.parse(ref.uri)
 			: toAgentClientUri(URI.parse(ref.uri), clientId);
-		const destDir = this._dirFor(ref.uri, ref.nonce);
+		const nonce = clientId === AUTOMATION_ACTIVE_CLIENT_ID
+			? await this._computeDirectoryFingerprint(pluginUri)
+			: ref.nonce;
+		const destDir = this._dirFor(ref.uri, nonce);
 
 		// Nonce cache hit — the plugin is already materialized under the nonce
 		// subdirectory, so skip the copy.
-		if (ref.nonce && this._findEntry(ref.uri, ref.nonce) && await this._fileService.exists(destDir)) {
-			this._touchLru(ref.uri, ref.nonce);
+		if (nonce && this._findEntry(ref.uri, nonce) && await this._fileService.exists(destDir)) {
+			this._touchLru(ref.uri, nonce);
 			this._logService.trace(`[AgentPluginManager] Nonce match for ${ref.uri}, skipping copy`);
 			return destDir;
 		}
@@ -131,8 +137,8 @@ export class AgentPluginManager implements IAgentPluginManager {
 
 		await this._fileService.copy(pluginUri, destDir, true);
 
-		this._removeEntry(ref.uri, ref.nonce);
-		this._lru.push({ uri: ref.uri, nonce: ref.nonce ?? '' });
+		this._removeEntry(ref.uri, nonce);
+		this._lru.push({ uri: ref.uri, nonce: nonce ?? '' });
 
 		// Try to clean up superseded nonces of this plugin; undeletable ones stay
 		// in the LRU for a later attempt.
@@ -141,6 +147,30 @@ export class AgentPluginManager implements IAgentPluginManager {
 		await this._persistCache();
 
 		return destDir;
+	}
+
+	private async _computeDirectoryFingerprint(root: URI): Promise<string> {
+		const entries: { resource: string; isDirectory: boolean; isSymbolicLink: boolean; size: number; mtime: number }[] = [];
+		const visit = async (resource: URI): Promise<void> => {
+			const stat = await this._fileService.stat(resource);
+			entries.push({
+				resource: resource.toString().slice(root.toString().length),
+				isDirectory: stat.isDirectory,
+				isSymbolicLink: stat.isSymbolicLink,
+				size: stat.size,
+				mtime: stat.mtime,
+			});
+			if (!stat.isDirectory || stat.isSymbolicLink) {
+				return;
+			}
+			const resolved = await this._fileService.resolve(resource);
+			await Promise.all((resolved.children ?? [])
+				.sort((a, b) => compare(a.resource.toString(), b.resource.toString()))
+				.map(child => visit(child.resource)));
+		};
+		await visit(root);
+		entries.sort((a, b) => compare(a.resource, b.resource));
+		return hashAsync(stableStringify(entries));
 	}
 
 	private _keyForUri(uri: string): string {

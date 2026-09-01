@@ -274,7 +274,7 @@ suite('AgentConfigurationService', () => {
 		const plugins = [{
 			uri: 'file:///plugins/local-plugin',
 			displayName: 'Local Plugin',
-			enabled: true,
+			enablement: [{ kind: 'global', enabled: true }],
 		}];
 
 		localManager.dispatchClientAction(ROOT_STATE_URI, {
@@ -285,6 +285,28 @@ suite('AgentConfigurationService', () => {
 
 		const persisted = JSON.parse(fs.readFileSync(resource.fsPath, 'utf8')) as Record<string, unknown>;
 		assert.deepStrictEqual(persisted[AgentHostConfigKey.AutomationClientPlugins], plugins);
+		fs.rmSync(directory, { recursive: true, force: true });
+	});
+
+	test('migrates persisted Automation client plugin enablement', () => {
+		const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-config-'));
+		const resource = URI.file(join(directory, 'agent-host-config.json'));
+		fs.writeFileSync(resource.fsPath, JSON.stringify({
+			[AgentHostConfigKey.AutomationClientPlugins]: [{
+				uri: 'file:///plugins/local-plugin',
+				displayName: 'Local Plugin',
+				enabled: false,
+			}],
+		}));
+		const localManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		disposables.add(new AgentConfigurationService(localManager, new NullLogService(), resource));
+
+		assert.deepStrictEqual(localManager.rootState.config?.values[AgentHostConfigKey.AutomationClientPlugins], [{
+			uri: 'file:///plugins/local-plugin',
+			displayName: 'Local Plugin',
+			enabled: false,
+			enablement: [{ kind: 'global', enabled: false }],
+		}]);
 		fs.rmSync(directory, { recursive: true, force: true });
 	});
 

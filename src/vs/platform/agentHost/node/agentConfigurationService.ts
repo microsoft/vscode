@@ -11,7 +11,7 @@ import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentHostConfigKey, agentHostCustomizationConfigSchema, defaultAgentHostCustomizationConfigValues } from '../common/agentHostCustomizationConfig.js';
+import { AgentHostConfigKey, agentHostCustomizationConfigSchema, defaultAgentHostCustomizationConfigValues, migrateAutomationClientPluginConfig } from '../common/agentHostCustomizationConfig.js';
 import { getAgentCustomizationSettingsEntries, getProviderBackedRootConfigKeys, withAgentCustomizationSettings, type IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
 import { agentMergeRootConfigSchema } from '../common/agentMerge.js';
@@ -369,6 +369,9 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		try {
 			const raw = fs.readFileSync(this._rootConfigResource.fsPath, 'utf8');
 			const parsed = JSON.parse(raw) as Record<string, unknown>;
+			if (Object.hasOwn(parsed, AgentHostConfigKey.AutomationClientPlugins)) {
+				parsed[AgentHostConfigKey.AutomationClientPlugins] = migrateAutomationClientPluginConfig(parsed[AgentHostConfigKey.AutomationClientPlugins]);
+			}
 			return {
 				...this._loadPersistedPlatformRootConfig(parsed),
 				...agentHostCustomizationConfigSchema.validateOrDefault(parsed, defaults),
