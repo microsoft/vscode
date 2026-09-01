@@ -108,7 +108,7 @@ export function registerAutomationDialogKeyboardNavigation(
 	targetWindow: Window & typeof globalThis,
 	getFocusableElements: () => readonly HTMLElement[],
 	isPopupTarget: (target: HTMLElement) => boolean,
-	isPromptSuggestionActive: () => boolean = () => false,
+	acceptPromptSuggestion: () => boolean = () => false,
 ): IAutomationDialogKeyboardNavigation {
 	const store = new DisposableStore();
 	let suppressPopupEscapeKeyUp = false;
@@ -139,7 +139,9 @@ export function registerAutomationDialogKeyboardNavigation(
 		if (event.key !== 'Tab') {
 			return;
 		}
-		if (!event.shiftKey && isPromptSuggestionActive()) {
+		if (!event.shiftKey && acceptPromptSuggestion()) {
+			event.preventDefault();
+			event.stopImmediatePropagation();
 			return;
 		}
 
@@ -209,7 +211,7 @@ interface IRenderFormHandle {
 	readonly getBranch: () => string | undefined;
 	readonly waitForAutomationSessionSync: () => Promise<void>;
 	readonly getFocusableElements: () => readonly HTMLElement[];
-	readonly isPromptSuggestionActive: () => boolean;
+	readonly acceptPromptSuggestion: () => boolean;
 }
 
 export type AutomationSessionDraftTarget =
@@ -1258,11 +1260,13 @@ export function renderForm(
 			// eslint-disable-next-line no-restricted-syntax -- the dialog owns this form subtree and supplies its dynamic focus order.
 			return Array.from(form.querySelectorAll<HTMLElement>('input, select, textarea, button, a[href], [tabindex]'));
 		},
-		isPromptSuggestionActive: () => {
+		acceptPromptSuggestion: () => {
 			const suggestController = SuggestController.get(chatInput.inputEditor);
-			return !!suggestController
-				&& suggestController.model.state !== SuggestState.Idle
-				&& !!suggestController.widget.value.getFocusedItem();
+			if (!suggestController || suggestController.model.state === SuggestState.Idle || !suggestController.widget.value.getFocusedItem()) {
+				return false;
+			}
+			suggestController.acceptSelectedSuggestion(true, false);
+			return true;
 		},
 	};
 }

@@ -1018,33 +1018,46 @@ suite('Automation dialog keyboard navigation', () => {
 		});
 	});
 
-	test('leaves Tab handling active while prompt suggestions are visible', () => {
+	test('accepts a prompt suggestion before moving focus with Tab', () => {
 		const container = document.createElement('div');
 		document.body.append(container);
 		disposables.add({ dispose: () => container.remove() });
 		const targetWindow = DOM.getWindow(container);
 		const prompt = container.appendChild(document.createElement('textarea'));
 		const next = container.appendChild(document.createElement('button'));
+		let acceptedSuggestions = 0;
 		disposables.add(registerAutomationDialogKeyboardNavigation(
 			targetWindow,
 			() => [prompt, next],
 			() => false,
-			() => true,
+			() => {
+				acceptedSuggestions++;
+				return true;
+			},
 		));
 		let downstreamKeyDowns = 0;
 		disposables.add(DOM.addDisposableListener(targetWindow, DOM.EventType.KEY_DOWN, () => downstreamKeyDowns++, true));
 
 		prompt.focus();
+		const shiftTabEvent = dispatchKey(prompt, 'keydown', 'Tab', true);
+		const activeElementAfterShiftTab = document.activeElement;
+		prompt.focus();
 		const event = dispatchKey(prompt, 'keydown', 'Tab');
 
 		assert.deepStrictEqual({
 			activeElement: document.activeElement,
+			activeElementAfterShiftTab,
+			acceptedSuggestions,
 			defaultPrevented: event.defaultPrevented,
 			downstreamKeyDowns,
+			shiftTabDefaultPrevented: shiftTabEvent.defaultPrevented,
 		}, {
 			activeElement: prompt,
-			defaultPrevented: false,
-			downstreamKeyDowns: 1,
+			activeElementAfterShiftTab: next,
+			acceptedSuggestions: 1,
+			defaultPrevented: true,
+			downstreamKeyDowns: 0,
+			shiftTabDefaultPrevented: true,
 		});
 	});
 
