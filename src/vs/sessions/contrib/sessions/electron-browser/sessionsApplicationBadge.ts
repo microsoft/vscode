@@ -23,10 +23,11 @@ import { BlockedSessions } from '../../blockedSessions/browser/blockedSessions.j
 export const SESSIONS_APPLICATION_BADGE_SETTING = 'sessions.showApplicationBadge';
 
 /**
- * Renders the number of sessions that need the user's attention — unread and
- * no longer in progress, waiting for input, or with failing CI — as a badge on
- * the application icon in the dock (macOS), the launcher (Linux) or the taskbar
- * (Windows).
+ * Renders the number of unarchived sessions that need the user's attention:
+ * unread sessions no longer in progress, sessions waiting for input, and
+ * non-in-progress sessions with failing CI on an open, non-draft pull request.
+ * The badge appears on the application icon in the dock (macOS), the launcher
+ * (Linux) or the taskbar (Windows).
  */
 export class SessionsApplicationBadge extends Disposable implements IWorkbenchContribution {
 
