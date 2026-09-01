@@ -1348,6 +1348,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar {
 	order: 2;
+	flex-shrink: 0;
 }
 
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .actions-container {
@@ -1951,7 +1952,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	order: 0;
 	overflow: hidden;
 	min-width: 0px;
-	width: 100%;
+	flex: 1 1 0;
 	color: var(--vscode-icon-foreground);
 
 	.monaco-action-bar .action-item .codicon {

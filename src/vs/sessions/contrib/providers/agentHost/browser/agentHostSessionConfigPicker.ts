@@ -837,7 +837,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					return toActionItems(property, filteredItems, provider.getSessionConfig(sessionId)?.values[property] ?? schema.default, filteredPolicyRestricted, filteredRepositoryState.branchName, filteredRepositoryState.uncommittedChanges, onShowChanges);
 				})
 				: undefined,
-			onHide: () => trigger.focus(),
+			onHide: () => {
+				trigger.focus();
+			},
 		};
 
 		this._actionWidgetService.show<IConfigPickerItem>(
