@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
-import { MessageAttachmentKind, type MessageAttachment, type MessageEmbeddedResourceAttachment } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, embeddedAttachmentContentType, type MessageAttachment, type MessageEmbeddedResourceAttachment } from '../../common/state/sessionState.js';
 import { isHostSnapshotAttachment } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import type { UserInput } from './protocol/generated/v2/UserInput.js';
 import type { TextElement } from './protocol/generated/v2/TextElement.js';
@@ -89,8 +89,9 @@ export function resolveCodexInput(
 					break;
 				}
 				case MessageAttachmentKind.EmbeddedResource: {
-					if (att.contentType.startsWith('image/')) {
-						const ext = guessImageExtension(att.contentType);
+					const contentType = embeddedAttachmentContentType(att);
+					if (contentType?.startsWith('image/')) {
+						const ext = guessImageExtension(contentType);
 						const tmp = join(os.tmpdir(), `codex-img-${crypto.randomBytes(8).toString('hex')}${ext}`);
 						try {
 							fs.writeFileSync(tmp, Buffer.from(att.data, 'base64'));
@@ -103,7 +104,7 @@ export function resolveCodexInput(
 						}
 						break;
 					}
-					if (isTextualContentType(att.contentType)) {
+					if (contentType !== undefined && isTextualContentType(contentType)) {
 						// The client inlines the live text of an unsaved / dirty
 						// editor (or a selection within one) as a `text/plain`
 						// embedded resource. Decode it and inline it into the

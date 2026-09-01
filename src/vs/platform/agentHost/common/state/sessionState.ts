@@ -56,6 +56,23 @@ import {
 	type Message,
 } from './protocol/state.js';
 
+/**
+ * Content type of an embedded attachment, falling back to what
+ * {@link MessageAttachmentBase.displayKind} already states when the field is
+ * absent.
+ *
+ * The protocol declares `contentType` as required and every current producer
+ * sets it, so this is not a protocol gap and deliberately does not relax the
+ * generated type. It guards persisted records written before that was true,
+ * which stay on disk for the life of the session and which no producer-side
+ * change can reach. The parameter is structural rather than
+ * `MessageEmbeddedResourceAttachment` precisely because it accepts a record
+ * that violates the declared type.
+ */
+export function embeddedAttachmentContentType(attachment: { contentType?: string; displayKind?: string }): string | undefined {
+	return attachment.contentType ?? (attachment.displayKind === 'image' ? 'image/png' : undefined);
+}
+
 // Re-export everything from the protocol state module
 export {
 	ChangesetOperationScope, ChangesetOperationStatus, ChangesetStatus, CustomizationLoadStatus,
