@@ -2048,6 +2048,33 @@ export function withSessionEhcliAdopted(meta: SessionSummaryMeta | undefined, ad
 }
 
 /**
+ * Session-DB key recording the id of the final turn that existed when a legacy
+ * Copilot CLI session was adopted. It marks the boundary between the migrated
+ * (checkpoint-less) history and any turns added after adoption, so a consumer
+ * that substitutes the session-wide changeset for a migrated turn's absent
+ * per-turn changeset (see the chat editor fallback) can target exactly that
+ * turn and never a post-adoption one.
+ */
+export const AH_META_EHCLI_LAST_TURN_DB_KEY = 'agentHost.ehcliLastMigratedTurn';
+
+/** `_meta` key mirroring {@link AH_META_EHCLI_LAST_TURN_DB_KEY} on a summary. */
+export const SESSION_META_EHCLI_LAST_TURN_KEY = 'ehcliLastMigratedTurn';
+
+/** The id of the last turn migrated when the legacy Copilot CLI session was adopted, if recorded. */
+export function readSessionEhcliLastMigratedTurn(meta: SessionSummaryMeta | undefined): string | undefined {
+	const value = meta?.[SESSION_META_EHCLI_LAST_TURN_KEY];
+	return typeof value === 'string' && value ? value : undefined;
+}
+
+/** Returns a copy of `meta` with the last-migrated-turn marker set, or unchanged when `turnId` is empty. */
+export function withSessionEhcliLastMigratedTurn(meta: SessionSummaryMeta | undefined, turnId: string | undefined): SessionSummaryMeta | undefined {
+	if (!turnId) {
+		return meta;
+	}
+	return { ...meta, [SESSION_META_EHCLI_LAST_TURN_KEY]: turnId };
+}
+
+/**
  * Whether a session should be matched against a workspace folder by its project
  * (repository) root in addition to its working directories. True only for
  * legacy Copilot CLI sessions, which run out of a worktree outside the

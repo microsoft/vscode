@@ -14,15 +14,13 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { localize } from '../../../../../nls.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { agentsWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import { DEV_CONTAINER_AGENT_HOST_CHANNEL, IDevContainerAgentHostMainService } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { ReconnectingRelayTransport, type IRelayConnectionHandle } from '../../../../../platform/agentHost/common/relayTransport.js';
-import { getEntryTypeConfig, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { NonReconnectableTransportError } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
-import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -134,7 +132,7 @@ class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector 
 		return isDevContainerWorkspaceAvailable(workspaceUri, this._fileService, this._mainService, this._configurationService);
 	}
 
-	async connect(workspaceUri: URI, token: CancellationToken): Promise<IDevContainerAgentHostConnection> {
+	async createConnection(workspaceUri: URI, address: string, token: CancellationToken): Promise<IDevContainerAgentHostConnection> {
 		ensureDevContainerAgentHostsEnabled(this._configurationService);
 		if (workspaceUri.scheme !== Schemas.file) {
 			throw new Error(localize('devContainerAgentHost.localWorkspaceRequired', "Dev Container Agent Hosts require a local file workspace."));
@@ -148,7 +146,6 @@ class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector 
 				this._logService.warn('[DevContainerAgentHostConnector] Failed to cancel connection', error);
 			});
 		});
-		let protocolClient: AgentHostProtocolClient | undefined;
 		try {
 			const result = await this._mainService.connect({
 				connectionId,
@@ -217,24 +214,10 @@ class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector 
 					AgentHostClientConnectionKind.DevContainer,
 				);
 			};
-			protocolClient = this._instantiationService.createInstance(
-				AgentHostProtocolClient,
-				result.address,
-				transportFactory,
-				{
-					clientInfo: agentsWindowAgentHostClientInfo,
-					reconnectPolicy: getEntryTypeConfig(RemoteAgentHostEntryType.DevContainer).reconnect,
-				},
-			);
-			await protocolClient.connect();
-			if (token.isCancellationRequested) {
-				throw new CancellationError();
-			}
-
 			return {
-				address: result.address,
+				address,
 				name: result.name,
-				connection: protocolClient,
+				transportFactory,
 				transportDisposable: combinedDisposable(
 					outputWriter,
 					toDisposable(() => {
@@ -245,14 +228,13 @@ class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector 
 				),
 				workspaceUri: workspaceUri.with({
 					scheme: AGENT_HOST_SCHEME,
-					authority: agentHostAuthority(result.address),
+					authority: agentHostAuthority(address),
 					path: result.remoteWorkspaceFolder,
 				}),
 				defaultDirectory: result.remoteWorkspaceFolder,
 			};
 		} catch (error) {
 			outputWriter.dispose();
-			protocolClient?.dispose();
 			await this._mainService.disconnect(connectionId);
 			throw error;
 		} finally {
