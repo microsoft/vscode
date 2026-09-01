@@ -22,9 +22,7 @@ import {
 	getInlineToolInput, MessageKind, ROOT_STATE_URI, type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type RootState, type TerminalState,
 	type ToolDefinition, type ToolResultContent,
 } from '../../../../common/state/sessionState.js';
-import { SEMANTIC_SEARCH_TOOL_NAME } from '../../../../common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../../../common/toolSearchConstants.js';
-import { NON_DEFERRED_CLIENT_TOOL_NAMES } from '../../../../node/copilot/toolSearchDeferral.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { TerminalClaimKind } from '../../../../common/state/protocol/channels-terminal/state.js';
 import {
@@ -462,27 +460,23 @@ export async function setRootConfigValues(c: TestProtocolClient, config: Record<
 }
 
 /**
- * The client tools the host's launch gates branch on, built from the
- * production constants. `semanticSearch` is omitted: its client-side setting
- * defaults to off, so the default session never publishes it.
+ * Explicit client-contract data mimicking the tools a default product client
+ * publishes (`semanticSearch` is absent: its setting defaults to off). Not
+ * derived from host internals; update deliberately when the product's client
+ * contract changes.
  */
 export function canonicalClientTools(): ToolDefinition[] {
+	const plain = (name: string): ToolDefinition =>
+		({ name, description: `Client-provided ${name} tool.`, inputSchema: { type: 'object', properties: {} } });
 	return [
 		{
 			name: CLIENT_TOOL_SEARCH_REFERENCE_NAME,
 			description: 'Searches deferred tools by a short description of the needed capability.',
 			inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
 		},
-		...[...NON_DEFERRED_CLIENT_TOOL_NAMES].filter(name => name !== SEMANTIC_SEARCH_TOOL_NAME).map(name => ({
-			name,
-			description: `Client-provided ${name} tool.`,
-			inputSchema: { type: 'object' as const, properties: {} },
-		})),
-		{
-			name: 'e2e_deferred_probe',
-			description: 'Deferrable client tool used to pin tool-search deferral behavior.',
-			inputSchema: { type: 'object', properties: {} },
-		},
+		plain('runTests'),
+		plain('rename'),
+		plain('usages'),
 	];
 }
 

@@ -542,16 +542,6 @@
       "type": "function"
     },
     {
-      "name": "e2e_deferred_probe",
-      "description": "Deferrable client tool used to pin tool-search deferral behavior.",
-      "parameters": {
-        "type": "object",
-        "properties": {}
-      },
-      "strict": false,
-      "type": "function"
-    },
-    {
       "name": "addComment",
       "description": "Add a comment to a file range.",
       "parameters": {
