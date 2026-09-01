@@ -28,11 +28,11 @@ import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/d
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
 import { ChatPillActionViewItem } from '../../../../workbench/browser/chatPills.js';
-import { AGENT_HOST_PULL_REQUEST_OPERATION_IDS } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasOpenPullRequestContext, SessionHasWorkspaceContext, SessionPrimaryPullRequestOperationContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
+import { SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../common/changesViewService.js';
@@ -514,7 +514,66 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 	}
 }
 
+export class NewSessionUncommittedChangesetOperationsActionContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.sessions.newSessionUncommittedChangesetOperationsAction';
+
+	constructor(
+		@ISessionsService sessionsService: ISessionsService,
+	) {
+		super();
+
+		this._register(autorun(reader => {
+			const activeSession = sessionsService.activeSession.read(reader);
+			if (activeSession?.status.read(reader) !== SessionStatus.Untitled) {
+				return;
+			}
+
+			const changeset = activeSession.changesets.read(reader)
+				?.find(candidate => candidate.id === UNCOMMITTED_CHANGES_CHANGESET_ID && candidate.isEnabled.read(reader));
+			const operations = changeset?.operations.read(reader)
+				.filter(operation => operation.id !== AGENT_HOST_SYNC_CHANGESET_OPERATION_ID)
+				.filter(operation => operation.scopes.includes(SessionChangesetOperationScope.Changeset)) ?? [];
+			const hasUncommittedChanges = (activeSession.workspace.read(reader)?.folders[0]?.gitRepository?.uncommittedChanges ?? 0) > 0;
+
+			for (let index = 0; index < operations.length; index++) {
+				const operation = operations[index];
+				const precondition = operation.status === SessionChangesetOperationStatus.Disabled
+					|| operation.status === SessionChangesetOperationStatus.Running
+					|| (operation.id === AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID && !hasUncommittedChanges)
+					? ContextKeyExpr.false()
+					: undefined;
+
+				reader.store.add(registerAction2(class extends Action2 {
+					constructor() {
+						super({
+							id: `workbench.contrib.sessions.newSessionUncommittedChangesetOperation.${operation.id}`,
+							title: operation.label,
+							tooltip: operation.description,
+							icon: operation.icon,
+							precondition,
+							f1: false,
+							menu: {
+								id: Menus.SessionsEditorHeaderLayout,
+								group: 'navigation',
+								order: index,
+								when: operation.id === AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID
+									? ActiveEditorContext.isEqualTo(SessionChangesEditor.ID)
+									: undefined,
+							}
+						});
+					}
+
+					async run(): Promise<void> {
+						await changeset?.invokeOperation(operation.id);
+					}
+				}));
+			}
+		}));
+	}
+}
+
 registerWorkbenchContribution2(ChangesMultiDiffSourceResolverContribution.ID, ChangesMultiDiffSourceResolverContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChangesetOperationsActionControllerContribution.ID, ChangesetOperationsActionControllerContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(NewSessionUncommittedChangesetOperationsActionContribution.ID, NewSessionUncommittedChangesetOperationsActionContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ViewAllChangesActionViewItemContribution.ID, ViewAllChangesActionViewItemContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SessionChangesStatsCacheContribution.ID, SessionChangesStatsCacheContribution, WorkbenchPhase.AfterRestored);

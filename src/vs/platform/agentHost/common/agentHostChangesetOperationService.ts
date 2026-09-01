@@ -13,6 +13,8 @@ import type { ChangesetOperation, ISessionGitHubState, ISessionGitState, URI } f
 export const IAgentHostChangesetOperationService = createDecorator<IAgentHostChangesetOperationService>('agentHostChangesetOperationService');
 
 export const AGENT_HOST_MERGE_CHANGESET_OPERATION_ID = 'merge';
+export const AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID = 'commit';
+export const AGENT_HOST_SYNC_CHANGESET_OPERATION_ID = 'sync';
 
 /**
  * Changeset operations advertised for a branch that already has a pull
