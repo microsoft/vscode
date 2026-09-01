@@ -68,7 +68,7 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 				}
 
 				const textToCopy = result.join(model.getEOL());
-				clipboardService.writeText(textToCopy, 'selection');
+				clipboardService.writeText(textToCopy, 'primary');
 			}, 100));
 
 			this._register(editor.onDidChangeCursorSelection((e: ICursorSelectionChangedEvent) => {
@@ -126,7 +126,7 @@ class PasteSelectionClipboardAction extends EditorAction {
 		const clipboardService = accessor.get(IClipboardService);
 
 		// read selection clipboard
-		const text = await clipboardService.readText('selection');
+		const text = await clipboardService.readText('primary');
 
 		editor.trigger('keyboard', Handler.Paste, {
 			text: text,

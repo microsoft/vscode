@@ -5,7 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { ClipboardTarget, IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { BrowserClipboardService as BaseBrowserClipboardService } from '../../../../platform/clipboard/browser/clipboardService.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -28,24 +28,33 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 		super(layoutService, logService);
 	}
 
-	override async writeText(text: string, type?: string): Promise<void> {
-		this.logService.trace('BrowserClipboardService#writeText called with type:', type, ' with text.length:', text.length);
-		if (!!this.environmentService.extensionTestsLocationURI && typeof type !== 'string') {
-			type = 'vscode-tests'; // force in-memory clipboard for tests to avoid permission issues
-		}
-		this.logService.trace('BrowserClipboardService#super.writeText');
-		return super.writeText(text, type);
+	// Extension tests run without a user gesture and without clipboard permissions, so
+	// their reads and writes are kept in memory rather than reaching the host clipboard.
+	private readonly inMemoryClipboard = new Map<ClipboardTarget, string>();
+
+	private get useInMemoryClipboard(): boolean {
+		return !!this.environmentService.extensionTestsLocationURI;
 	}
 
-	override async readText(type?: string): Promise<string> {
-		this.logService.trace('BrowserClipboardService#readText called with type:', type);
-		if (!!this.environmentService.extensionTestsLocationURI && typeof type !== 'string') {
-			type = 'vscode-tests'; // force in-memory clipboard for tests to avoid permission issues
+	override async writeText(text: string, target: ClipboardTarget = 'system'): Promise<void> {
+		this.logService.trace('BrowserClipboardService#writeText called with target:', target, ' with text.length:', text.length);
+		if (this.useInMemoryClipboard) {
+			this.inMemoryClipboard.set(target, text);
+			return;
+		}
+		this.logService.trace('BrowserClipboardService#super.writeText');
+		return super.writeText(text, target);
+	}
+
+	override async readText(target: ClipboardTarget = 'system'): Promise<string> {
+		this.logService.trace('BrowserClipboardService#readText called with target:', target);
+		if (this.useInMemoryClipboard) {
+			return this.inMemoryClipboard.get(target) ?? '';
 		}
 
-		if (type) {
+		if (target === 'primary') {
 			this.logService.trace('BrowserClipboardService#super.readText');
-			return super.readText(type);
+			return super.readText(target);
 		}
 
 		try {
@@ -64,7 +73,7 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 						label: localize('retry', "Retry"),
 						run: async () => {
 							listener.dispose();
-							resolve(await this.readText(type));
+							resolve(await this.readText(target));
 						}
 					}, {
 						label: localize('learnMore', "Learn More"),

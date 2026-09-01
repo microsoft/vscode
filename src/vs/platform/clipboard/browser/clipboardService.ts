@@ -6,12 +6,13 @@
 import { isSafari, isWebkitWebView } from '../../../base/browser/browser.js';
 import { $, addDisposableListener, getActiveDocument, getActiveWindow, isHTMLElement, onDidRegisterWindow } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
+import { assertNever } from '../../../base/common/assert.js';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Event } from '../../../base/common/event.js';
 import { hash } from '../../../base/common/hash.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { IClipboardService } from '../common/clipboardService.js';
+import { ClipboardTarget, IClipboardService } from '../common/clipboardService.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { ILogService } from '../../log/common/log.js';
 
@@ -117,20 +118,27 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		}, { container: this.layoutService.mainContainer, disposables: this._store }));
 	}
 
-	private readonly mapTextToType = new Map<string, string>(); // unsupported in web (only in-memory)
+	private primarySelectionText: string | undefined; // no web equivalent (only in-memory)
 
-	async writeText(text: string, type?: string): Promise<void> {
-		this.logService.trace('BrowserClipboardService#writeText called with type:', type, ' text.length:', text.length);
+	async writeText(text: string, target: ClipboardTarget = 'system'): Promise<void> {
+		this.logService.trace('BrowserClipboardService#writeText called with target:', target, ' text.length:', text.length);
 		// Clear resources given we are writing text
 		this.clearResourcesState();
 
-		// With type: only in-memory is supported
-		if (type) {
-			this.mapTextToType.set(type, text);
-			this.logService.trace('BrowserClipboardService#writeText');
-			return;
+		switch (target) {
+			case 'primary':
+				// The X11 PRIMARY selection has no web equivalent, so it is kept in
+				// memory and never reaches the host clipboard.
+				this.primarySelectionText = text;
+				return;
+			case 'system':
+				return this.writeSystemClipboard(text);
+			default:
+				assertNever(target);
 		}
+	}
 
+	private async writeSystemClipboard(text: string): Promise<void> {
 		if (this.webKitPendingClipboardWritePromise) {
 			// For Safari, we complete this Promise which allows the call to `navigator.clipboard.write()`
 			// above to resolve and successfully copy to the clipboard. If we let this continue, Safari
@@ -175,15 +183,20 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		textArea.remove();
 	}
 
-	async readText(type?: string): Promise<string> {
-		this.logService.trace('BrowserClipboardService#readText called with type:', type);
-		// With type: only in-memory is supported
-		if (type) {
-			const readText = this.mapTextToType.get(type) || '';
-			this.logService.trace('BrowserClipboardService#readText text.length:', readText.length);
-			return readText;
-		}
+	async readText(target: ClipboardTarget = 'system'): Promise<string> {
+		this.logService.trace('BrowserClipboardService#readText called with target:', target);
 
+		switch (target) {
+			case 'primary':
+				return this.primarySelectionText ?? '';
+			case 'system':
+				return this.readSystemClipboard();
+			default:
+				assertNever(target);
+		}
+	}
+
+	private async readSystemClipboard(): Promise<string> {
 		// Guard access to navigator.clipboard with try/catch
 		// as we have seen DOMExceptions in certain browsers
 		// due to security policies.
