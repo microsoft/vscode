@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { EXTENSION_IDENTIFIER_PATTERN, EXTENSION_PUBLISHER_IDENTIFIER_PATTERN } from '../../common/extensionManagement.js';
-import { ExtensionKey } from '../../common/extensionManagementUtil.js';
+import { EXTENSION_IDENTIFIER_PATTERN, EXTENSION_PUBLISHER_IDENTIFIER_PATTERN, ExtensionBlockingOrigin } from '../../common/extensionManagement.js';
+import { ExtensionKey, getExtensionBlockedMessage } from '../../common/extensionManagementUtil.js';
 import { TargetPlatform } from '../../../extensions/common/extensions.js';
 
 suite('Extension Identifier Pattern', () => {
@@ -55,5 +55,20 @@ suite('Extension Identifier Pattern', () => {
 		assert.strictEqual(ExtensionKey.parse('pub.extension-name@1.2.3'), null);
 		assert.strictEqual(ExtensionKey.parse('pub.extension-name-1.0.1')?.toString(), 'pub.extension-name-1.0.1');
 		assert.strictEqual(ExtensionKey.parse('pub.extension-name-1.0.1-win32-x64')?.toString(), 'pub.extension-name-1.0.1-win32-x64');
+	});
+});
+
+suite('Extension Blocked Message', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('the summary names the organization or the marketplace, per origin', () => {
+		assert.deepStrictEqual(
+			[ExtensionBlockingOrigin.Policy, ExtensionBlockingOrigin.Service]
+				.map(origin => getExtensionBlockedMessage({ origin }).value),
+			[
+				'This extension is not permitted by your organization\'s policy.',
+				'This extension has been blocked by the Extension Marketplace and must not be used.'
+			]);
 	});
 });
