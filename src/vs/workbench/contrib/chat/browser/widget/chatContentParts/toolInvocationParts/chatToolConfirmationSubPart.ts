@@ -157,14 +157,8 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 		}
 		const { message, disclaimer } = state.confirmationMessages!;
 		const toolInvocation = this.toolInvocation as IChatToolInvocation;
-		const hasRenderableInput = toolInvocation.toolSpecificData?.kind === 'input'
-			&& !!toolInvocation.toolSpecificData.rawInput
-			&& !isEmptyObject(toolInvocation.toolSpecificData.rawInput);
 
-		// A plain-string message alone needs no surrounding structure, but the
-		// input editor below does — skipping it would hide what is being
-		// approved.
-		if (typeof message === 'string' && !disclaimer && !hasRenderableInput) {
+		if (typeof message === 'string' && !disclaimer) {
 			return message;
 		} else {
 			const codeBlockRenderOptions: ICodeBlockRenderOptions = {

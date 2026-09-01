@@ -2334,12 +2334,11 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 			};
 		} else if (getToolKind(tc) === 'terminal' && getInlineToolInput(tc.toolInput)) {
 			toolSpecificData = buildTerminalToolSpecificData(tc, sessionResource);
-		} else {
-			const writePermission = remoteWritePermission(tc);
+		} else if (!remoteWriteInvocationMessage(tc)) {
+			// A write's only argument is the file the message already names,
+			// so there is nothing left for the raw input view to add.
 			const toolInput = getInlineToolInput(tc.toolInput);
-			if (writePermission) {
-				toolSpecificData = { kind: 'input', rawInput: writePermission.rawInput };
-			} else if (toolInput) {
+			if (toolInput) {
 				let rawInput: unknown;
 				try { rawInput = JSON.parse(toolInput); } catch { rawInput = { input: toolInput }; }
 				toolSpecificData = { kind: 'input', rawInput };
@@ -2348,7 +2347,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 
 		return new ChatToolInvocation(
 			{
-				invocationMessage: stringOrMarkdownToString(tc.invocationMessage, connectionAuthority),
+				invocationMessage: stringOrMarkdownToString(remoteWriteInvocationMessage(tc) ?? tc.invocationMessage, connectionAuthority),
 				confirmationMessages,
 				presentation: ToolInvocationPresentation.HiddenAfterComplete,
 				toolSpecificData,
@@ -2415,19 +2414,25 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 }
 
 /**
- * A remote host names a write's target file in `_meta` and sends a plain-text
- * message, where a local host sends the file link and a `{ path }` input.
- * Restates the remote request in that same shape so both render identically.
+ * The invocation message for a remote host's write permission.
  *
- * The link is left as a plain `file:` URI, exactly as a local host emits it;
- * {@link stringOrMarkdownToString} rewrites it to address the remote host.
+ * A remote host names the target file in `_meta` and sends a plain-text
+ * message, where a local host sends the shared `Edit <file link>` message.
+ * Restating it in that form is what gives both hosts the same file pill, in
+ * the confirmation card and anywhere else the message is summarized.
+ *
+ * The path is normalized the same way {@link parseAbsoluteFileLinkTarget}
+ * normalizes a remote link: `URI.file` only rewrites separators when the
+ * *client* runs Windows, so a Windows host paired with a non-Windows client
+ * would otherwise keep `C:\repo\file.ts` verbatim and yield a single-segment
+ * basename. The link itself stays a plain `file:` URI, exactly as a local host
+ * emits it; {@link stringOrMarkdownToString} rewrites it to address the host.
  */
-function remoteWritePermission(tc: ToolCallPendingConfirmationState): { readonly message: StringOrMarkdown; readonly rawInput: { readonly path: string } } | undefined {
+function remoteWriteInvocationMessage(tc: ToolCallPendingConfirmationState): StringOrMarkdown | undefined {
 	const { kind, fileName } = readAgentPermissionRequestMeta(tc);
-	if (kind !== AgentPermissionRequestKind.Write || !fileName) {
-		return undefined;
-	}
-	return { message: getEditFileMessage(fileName), rawInput: { path: fileName } };
+	return kind === AgentPermissionRequestKind.Write && fileName
+		? getEditFileMessage(fileName, path => win32.isAbsolute(path) ? path.replaceAll('\\', '/') : path)
+		: undefined;
 }
 
 export function toolCallConfirmationMessages(tc: ToolCallPendingConfirmationState, connectionAuthority: string): IToolConfirmationMessages {
@@ -2448,7 +2453,7 @@ export function toolCallConfirmationMessages(tc: ToolCallPendingConfirmationStat
 			: stringOrMarkdownToString(tc.confirmationTitle, connectionAuthority) ?? tc.displayName,
 		message: isViewUnreviewedCommentsTool(tc.toolName)
 			? localize('agentFeedback.reviewMessage', "Choose which comments to reveal to the agent. Unchecked comments stay hidden.")
-			: stringOrMarkdownToString(remoteWritePermission(tc)?.message ?? tc.invocationMessage, connectionAuthority),
+			: stringOrMarkdownToString(remoteWriteInvocationMessage(tc) ?? tc.invocationMessage, connectionAuthority),
 		approvalReason,
 		...(tc.options ? { customOptions: tc.options } : {}),
 	};

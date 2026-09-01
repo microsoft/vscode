@@ -1615,8 +1615,9 @@ suite('stateToProgressAdapter', () => {
 
 		test('restates a remote host write permission in the local shape', () => {
 			// A remote host names the file in `_meta` and sends a plain-text
-			// message; a local host sends the shared `Edit <link>` message and a
-			// `{ path }` input. Both must render through the same path.
+			// message; a local host sends the shared `Edit <link>` message.
+			// Both the confirmation card and the sessions list read
+			// `invocationMessage`, so it must carry the file too.
 			const tc: ToolCallPendingConfirmationState = {
 				toolCallId: 'tc-write',
 				toolName: 'str_replace_editor',
@@ -1638,14 +1639,40 @@ suite('stateToProgressAdapter', () => {
 				: undefined;
 
 			assert.deepStrictEqual({
+				invocationMessage: typeof invocation.invocationMessage === 'string' ? invocation.invocationMessage : invocation.invocationMessage?.value,
 				markdown: typeof message === 'string' ? message : message?.value,
 				toolSpecificData: invocation.toolSpecificData,
 			}, {
 				// Link rewriting drops the label so the renderer shows a file
 				// widget; a local host's message collapses to the same form.
+				invocationMessage: 'Edit [](file:///workspaces/simple-server/index.js)',
 				markdown: 'Edit [](file:///workspaces/simple-server/index.js)',
-				toolSpecificData: { kind: 'input', rawInput: { path: '/workspaces/simple-server/index.js' } },
+				// The message names the file, so raw input would only repeat it.
+				toolSpecificData: undefined,
 			});
+		});
+
+		test('normalizes a Windows host path regardless of the client platform', () => {
+			// `URI.file` only rewrites separators when the *client* runs
+			// Windows, so a Windows host paired with a POSIX client would
+			// otherwise yield a single-segment basename.
+			const tc: ToolCallPendingConfirmationState = {
+				toolCallId: 'tc-write-win',
+				toolName: 'str_replace_editor',
+				displayName: 'Edit',
+				invocationMessage: 'Edit file',
+				status: ToolCallStatus.PendingConfirmation,
+				toolInput: 'C:\\repo\\src\\index.ts',
+				_meta: { requestId: 'req-w2', promptRequest: { kind: 'write', fileName: 'C:\\repo\\src\\index.ts' } },
+			};
+
+			const invocation = toolCallStateToInvocation(tc);
+			const message = invocation.invocationMessage;
+
+			assert.strictEqual(
+				typeof message === 'string' ? message : message?.value,
+				'Edit [](file:///c%3A/repo/src/index.ts)',
+			);
 		});
 
 		test('keeps the host message for a write permission that names no file', () => {
@@ -1656,7 +1683,7 @@ suite('stateToProgressAdapter', () => {
 				invocationMessage: 'Edit file',
 				status: ToolCallStatus.PendingConfirmation,
 				toolInput: '{"path":"/tmp/a.txt"}',
-				_meta: { requestId: 'req-w2', promptRequest: { kind: 'write' } },
+				_meta: { requestId: 'req-w3', promptRequest: { kind: 'write' } },
 			};
 
 			const invocation = toolCallStateToInvocation(tc);
@@ -1678,7 +1705,6 @@ suite('stateToProgressAdapter', () => {
 			const tc = createToolCallState({
 				_meta: { toolKind: 'subagent', subagentDescription: 'Review code', subagentAgentName: 'code-reviewer' },
 			});
-
 			const invocation = toolCallStateToInvocation(tc);
 			assert.ok(invocation.toolSpecificData);
 			assert.strictEqual(invocation.toolSpecificData.kind, 'subagent');
