@@ -607,18 +607,19 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(result.snapshots[0].resource.toString(), sessionUri.toString());
 	});
 
-	test('automation catalogue subscription and run command preserve canonical channels', async () => {
-		stateManager.setAutomationCatalogState({ automations: [] });
+	test('automation catalogue accepts URI-equivalent channels', async () => {
+		const normalizedCatalogUri = URI.parse(AUTOMATION_CATALOG_URI).toString();
+		stateManager.setAutomationCatalogState({ entries: [] });
 		agentService.automationCapabilities = { create: {}, schedules: {}, runCancellation: {} };
 		agentService.automationRunResult = { resource: 'ahp-automation-run:/run-1' };
 		const transport = connectClient('automation-client');
 		const responsePromise = waitForResponse(transport, 2);
-		transport.simulateMessage(request(2, 'subscribe', { channel: AUTOMATION_CATALOG_URI }));
+		transport.simulateMessage(request(2, 'subscribe', { channel: normalizedCatalogUri }));
 		const subscription = await responsePromise;
 		const runResponsePromise = waitForResponse(transport, 3);
 
 		transport.simulateMessage(request(3, 'runAutomation', {
-			channel: AUTOMATION_CATALOG_URI,
+			channel: normalizedCatalogUri,
 			automation: 'ahp-automation:/automation-1',
 			requestId: 'request-1',
 		}));
@@ -631,21 +632,29 @@ suite('ProtocolServerHandler', () => {
 			response: hasKey(response, { result: true }) ? response.result : undefined,
 		}, {
 			snapshot: {
-				resource: AUTOMATION_CATALOG_URI,
-				state: { automations: [] },
+				resource: normalizedCatalogUri,
+				state: { entries: [] },
 				fromSeq: stateManager.serverSeq,
 			},
 			requests: [{
-				channel: AUTOMATION_CATALOG_URI,
+				channel: normalizedCatalogUri,
 				automation: 'ahp-automation:/automation-1',
 				requestId: 'request-1',
 			}],
 			response: { resource: 'ahp-automation-run:/run-1' },
 		});
+
+		transport.sent.length = 0;
+		stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, {
+			type: ActionType.AutomationRemoved,
+			resource: 'ahp-automation:/automation-1',
+		});
+		const action = findNotifications(transport.sent, 'action')[0]?.params as ActionEnvelope | undefined;
+		assert.strictEqual(action?.channel, AUTOMATION_CATALOG_URI);
 	});
 
 	test('automation catalogue subscription rejects an inactive client before adding it', async () => {
-		stateManager.setAutomationCatalogState({ automations: [] });
+		stateManager.setAutomationCatalogState({ entries: [] });
 		let subscriberAdded = false;
 		agentService.addSubscriber = () => subscriberAdded = true;
 		const target = handler as unknown as {

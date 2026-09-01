@@ -37,7 +37,7 @@ import {
 	type PendingMessage,
 	type Turn,
 	type AnnotationsState,
-	type AutomationCatalogState,
+	type AutomationState,
 	type AutomationRunState,
 	type URI as ProtocolURI,
 	type RootState,
@@ -76,7 +76,7 @@ export {
 	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
 	type ErrorResponsePart, type ResponsePart,
 	type RootState, type RuleCustomization, type SessionActiveClient,
-	type AutomationCatalogState, type AutomationRunState,
+	type AutomationState, type AutomationRunState,
 	type SessionConfigState,
 	type SessionModelInfo,
 	type SessionState,
@@ -249,18 +249,23 @@ export interface UsageInfoMeta {
 
 /**
  * Singleton channel containing the host-owned automation catalogue.
- *
- * The `catalog` authority is appended so the URI round-trips through
- * `.toString()`. Without an authority, `ahp-automations://` serializes back to
- * `ahp-automations:` and no longer matches. Comparing catalogue channels as
- * URIs everywhere (ResourceMap/isEqual) is the intended followup. See
- * https://github.com/microsoft/vscode/pull/331796#discussion_r3857160917.
  */
-export const AUTOMATION_CATALOG_URI = 'ahp-automations://catalog';
+export const AHP_AUTOMATIONS_SCHEME = 'ahp-automations';
+export const AUTOMATION_CATALOG_URI = `${AHP_AUTOMATIONS_SCHEME}://`;
 
-/** Returns whether `uri` identifies the singleton automation catalogue channel. */
+/**
+ * Returns whether `uri` identifies the singleton automation catalogue channel,
+ * including forms normalized by the workbench {@link ResourceURI} class.
+ */
 export function isAhpAutomationCatalogChannel(uri: string): boolean {
-	return uri === AUTOMATION_CATALOG_URI;
+	if (uri === AUTOMATION_CATALOG_URI) {
+		return true;
+	}
+	try {
+		return ResourceURI.parse(uri).scheme === AHP_AUTOMATIONS_SCHEME;
+	} catch {
+		return false;
+	}
 }
 
 /** Returns whether `uri` identifies one automation-run channel. */
@@ -1068,7 +1073,7 @@ export type ComponentToState = {
 	[StateComponents.Terminal]: TerminalState;
 	[StateComponents.Changeset]: ChangesetState;
 	[StateComponents.Annotations]: AnnotationsState;
-	[StateComponents.AutomationCatalog]: AutomationCatalogState;
+	[StateComponents.AutomationCatalog]: AutomationState;
 	[StateComponents.AutomationRun]: AutomationRunState;
 };
 

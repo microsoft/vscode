@@ -186,13 +186,18 @@ const INPUT_EDITOR_PADDING = { compact: { top: 2, bottom: 2 }, default: { top: 1
 const CachedLanguageModelsKey = 'chat.cachedLanguageModels.v2';
 const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
 
-function getToolbarPickerResponsiveItems(toolbar: MenuWorkbenchToolBar, compactStates: ReadonlyMap<string, ISettableObservable<boolean>>): IChatInputPickerResponsiveLayoutItem[] {
+function getToolbarPickerResponsiveItems(
+	toolbar: MenuWorkbenchToolBar,
+	compactStates: ReadonlyMap<string, ISettableObservable<boolean>>,
+	minimalStates?: ReadonlyMap<string, ISettableObservable<boolean>>,
+): IChatInputPickerResponsiveLayoutItem[] {
 	const items: IChatInputPickerResponsiveLayoutItem[] = [];
 	const visibleActionIds = new Set<string>();
 
 	for (let index = 0; index < toolbar.getItemsLength(); index++) {
 		const action = toolbar.getItemAction(index);
 		const state = action && compactStates.get(action.id);
+		const minimalState = action && minimalStates?.get(action.id);
 		const viewItem = toolbar.getItemViewItem(index);
 		const viewItemState = isChatInputPickerResponsiveState(viewItem) ? viewItem : undefined;
 		if (!action || (!state && !viewItemState)) {
@@ -202,21 +207,27 @@ function getToolbarPickerResponsiveItems(toolbar: MenuWorkbenchToolBar, compactS
 		const element = toolbar.getItemElement(index);
 		items.push({
 			element,
+			canShrink: action.id === OpenModelPickerAction.ID,
 			isCompact: () => viewItemState?.isCompact() ?? state!.get(),
+			isMinimal: minimalState ? () => minimalState.get() : undefined,
 			setCompact: compact => {
 				state?.set(compact, undefined);
 				viewItemState?.setCompact(compact);
 				element?.classList.toggle('compact-picker', compact);
 			},
+			setMinimal: minimalState ? minimal => minimalState.set(minimal, undefined) : undefined,
 		});
 	}
 
 	for (const [actionId, state] of compactStates) {
 		if (!visibleActionIds.has(actionId)) {
+			const minimalState = minimalStates?.get(actionId);
 			items.push({
 				element: undefined,
 				isCompact: () => state.get(),
+				isMinimal: minimalState ? () => minimalState.get() : undefined,
 				setCompact: compact => state.set(compact, undefined),
+				setMinimal: minimalState ? minimal => minimalState.set(minimal, undefined) : undefined,
 			});
 		}
 	}
@@ -3445,6 +3456,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		});
 
 		const inputPickerCompactStates = new Map<string, ISettableObservable<boolean>>();
+		const inputPickerMinimalStates = new Map<string, ISettableObservable<boolean>>();
 		const secondaryPickerCompactStates = new Map<string, ISettableObservable<boolean>>();
 		const inputOverflowPickerHandlers = new Map<string, (anchor: HTMLElement) => void>();
 		const secondaryOverflowPickerHandlers = new Map<string, (anchor: HTMLElement) => void>();
@@ -3460,6 +3472,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			getOverflowAnchor: () => this.inputActionsToolbar.getElement(),
 			actionContext: { widget },
 			compact: getCompactState(inputPickerCompactStates, actionId),
+			minimal: actionId === OpenModelPickerAction.ID ? getCompactState(inputPickerMinimalStates, actionId) : undefined,
 		});
 		const getSecondaryPickerOptions = (actionId: string): IChatInputPickerOptions => ({
 			getOverflowAnchor: () => this.secondaryToolbar.getElement(),
@@ -3522,6 +3535,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			ConfigureToolsAction.ID,
 		]);
 		const getInputActionMinWidth = (action: IAction): number | undefined => {
+			if (action.id === OpenModelPickerAction.ID) {
+				return this.modelWidget?.minimumWidth ?? 60;
+			}
 			if (shorterChatInputActionIds.has(action.id)) {
 				return 22;
 			}
@@ -3538,7 +3554,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			responsiveBehavior: {
 				enabled: true,
 				kind: 'last',
-				minItems: 1,
+				minItems: 2,
 				actionMinWidth: 48,
 				getActionMinWidth: getInputActionMinWidth,
 				allowOverflow: () => this._inputPickerResponsiveLayout?.areAllItemsCompact() === true,
@@ -3925,7 +3941,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const inputToolbarElement = this.inputActionsToolbar.getElement();
 		this._inputPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('ChatInputPart.primaryPicker', inputToolbarElement, {
-			getItems: () => getToolbarPickerResponsiveItems(this.inputActionsToolbar, inputPickerCompactStates),
+			getItems: () => getToolbarPickerResponsiveItems(this.inputActionsToolbar, inputPickerCompactStates, inputPickerMinimalStates),
 			hasOverflow: () => this.inputActionsToolbar.hasOverflow(),
 			relayout: () => this.inputActionsToolbar.relayout(),
 		}));

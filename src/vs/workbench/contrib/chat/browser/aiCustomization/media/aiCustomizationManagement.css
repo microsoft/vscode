@@ -805,6 +805,7 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-list-widget .section-title-header .section-title-link,
 .ai-customization-management-editor .prompt-migration-content-container > .section-title-link,
+.ai-customization-management-editor .customization-migration-banner .section-title-link,
 .mcp-list-widget .section-title-header .section-title-link,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link {
 	font-size: var(--vscode-fontSize-body1);
@@ -821,6 +822,7 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-list-widget .section-title-header .section-title-link:hover,
 .ai-customization-management-editor .prompt-migration-content-container > .section-title-link:hover,
+.ai-customization-management-editor .customization-migration-banner .section-title-link:hover,
 .mcp-list-widget .section-title-header .section-title-link:hover,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link:hover {
 	text-decoration: underline;
@@ -829,6 +831,7 @@ per-word capitalization does not survive translation. */
 /* Inset the focus ring so it isn't clipped by the widget's overflow:hidden at the header's edge. */
 .ai-customization-list-widget .section-title-header .section-title-link:focus-visible,
 .ai-customization-management-editor .prompt-migration-content-container > .section-title-link:focus-visible,
+.ai-customization-management-editor .customization-migration-banner .section-title-link:focus-visible,
 .mcp-list-widget .section-title-header .section-title-link:focus-visible,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link:focus-visible {
 	outline-offset: -1px;
