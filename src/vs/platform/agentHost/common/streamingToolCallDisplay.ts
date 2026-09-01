@@ -51,20 +51,6 @@ export function streamingToolTextLineCount(value: unknown): number | undefined {
 	return typeof value === 'string' ? splitLines(value).length : undefined;
 }
 
-/**
- * The message naming an edit's target file, e.g. `Edit [index.js](file:///…)`.
- *
- * Shared so every agent host presents an edit the same way: the local adapters
- * build it from the tool's `path` argument, and the client rebuilds it for a
- * remote host that names the file separately from its message.
- */
-export function getEditFileMessage(path: unknown, resolvePath: ToolPathResolver = identityPathResolver): StringOrMarkdown {
-	const file = formatPath(path, resolvePath);
-	return file
-		? markdown(localize('toolInvoke.editFile', "Edit {0}", file))
-		: localize('toolInvoke.edit', "Edit file");
-}
-
 export function getStreamingEditMessage(
 	path: unknown,
 	lineCount: number | undefined,

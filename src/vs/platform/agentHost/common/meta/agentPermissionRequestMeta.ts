@@ -26,14 +26,10 @@ export const enum AgentPermissionRequestKind {
 	Commands = 'commands',
 	/** Read a single file. */
 	Read = 'read',
-	/** Write to a single file. */
-	Write = 'write',
 }
 
 export interface IAgentPermissionRequestMeta {
 	readonly kind?: AgentPermissionRequestKind;
-	/** Absolute path of the file a write request targets. */
-	readonly fileName?: string;
 }
 
 /**
@@ -50,17 +46,16 @@ function normalizeKind(value: unknown): AgentPermissionRequestKind | undefined {
 			return AgentPermissionRequestKind.Commands;
 		case 'read':
 			return AgentPermissionRequestKind.Read;
-		case 'write':
-			return AgentPermissionRequestKind.Write;
 		default:
 			return undefined;
 	}
 }
 
-function readRequest(value: unknown): Record<string, unknown> | undefined {
-	return value && typeof value === 'object' && !Array.isArray(value)
-		? value as Record<string, unknown>
-		: undefined;
+function readKind(value: unknown): AgentPermissionRequestKind | undefined {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	return normalizeKind((value as Record<string, unknown>)['kind']);
 }
 
 /**
@@ -75,14 +70,6 @@ export function readAgentPermissionRequestMeta(source: IHasPermissionRequestMeta
 	if (!meta) {
 		return {};
 	}
-	const prompt = readRequest(meta['promptRequest']);
-	const permission = readRequest(meta['permissionRequest']);
-	const kind = normalizeKind(prompt?.['kind']) ?? normalizeKind(permission?.['kind']);
-	if (!kind) {
-		return {};
-	}
-	const fileName = prompt?.['fileName'] ?? permission?.['fileName'];
-	return typeof fileName === 'string' && fileName
-		? { kind, fileName }
-		: { kind };
+	const kind = readKind(meta['promptRequest']) ?? readKind(meta['permissionRequest']);
+	return kind ? { kind } : {};
 }

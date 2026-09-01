@@ -17,8 +17,6 @@ import { buildSubagentChatUri, getTurnError, isMessageHiddenFromTranscript, Mess
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
-import { AgentPermissionRequestKind, readAgentPermissionRequestMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionRequestMeta.js';
-import { getEditFileMessage } from '../../../../../../platform/agentHost/common/streamingToolCallDisplay.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationId } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
@@ -2334,9 +2332,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 			};
 		} else if (getToolKind(tc) === 'terminal' && getInlineToolInput(tc.toolInput)) {
 			toolSpecificData = buildTerminalToolSpecificData(tc, sessionResource);
-		} else if (!remoteWriteInvocationMessage(tc)) {
-			// A write's only argument is the file the message already names,
-			// so there is nothing left for the raw input view to add.
+		} else {
 			const toolInput = getInlineToolInput(tc.toolInput);
 			if (toolInput) {
 				let rawInput: unknown;
@@ -2347,7 +2343,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 
 		return new ChatToolInvocation(
 			{
-				invocationMessage: stringOrMarkdownToString(remoteWriteInvocationMessage(tc) ?? tc.invocationMessage, connectionAuthority),
+				invocationMessage: stringOrMarkdownToString(tc.invocationMessage, connectionAuthority),
 				confirmationMessages,
 				presentation: ToolInvocationPresentation.HiddenAfterComplete,
 				toolSpecificData,
@@ -2413,28 +2409,6 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 	return invocation;
 }
 
-/**
- * The invocation message for a remote host's write permission.
- *
- * A remote host names the target file in `_meta` and sends a plain-text
- * message, where a local host sends the shared `Edit <file link>` message.
- * Restating it in that form is what gives both hosts the same file pill, in
- * the confirmation card and anywhere else the message is summarized.
- *
- * The path is normalized the same way {@link parseAbsoluteFileLinkTarget}
- * normalizes a remote link: `URI.file` only rewrites separators when the
- * *client* runs Windows, so a Windows host paired with a non-Windows client
- * would otherwise keep `C:\repo\file.ts` verbatim and yield a single-segment
- * basename. The link itself stays a plain `file:` URI, exactly as a local host
- * emits it; {@link stringOrMarkdownToString} rewrites it to address the host.
- */
-function remoteWriteInvocationMessage(tc: ToolCallPendingConfirmationState): StringOrMarkdown | undefined {
-	const { kind, fileName } = readAgentPermissionRequestMeta(tc);
-	return kind === AgentPermissionRequestKind.Write && fileName
-		? getEditFileMessage(fileName, path => win32.isAbsolute(path) ? path.replaceAll('\\', '/') : path)
-		: undefined;
-}
-
 export function toolCallConfirmationMessages(tc: ToolCallPendingConfirmationState, connectionAuthority: string): IToolConfirmationMessages {
 	const riskAssessment = tc.riskAssessment;
 	let approvalReason: IToolConfirmationMessages['approvalReason'];
@@ -2453,7 +2427,7 @@ export function toolCallConfirmationMessages(tc: ToolCallPendingConfirmationStat
 			: stringOrMarkdownToString(tc.confirmationTitle, connectionAuthority) ?? tc.displayName,
 		message: isViewUnreviewedCommentsTool(tc.toolName)
 			? localize('agentFeedback.reviewMessage', "Choose which comments to reveal to the agent. Unchecked comments stay hidden.")
-			: stringOrMarkdownToString(remoteWriteInvocationMessage(tc) ?? tc.invocationMessage, connectionAuthority),
+			: stringOrMarkdownToString(tc.invocationMessage, connectionAuthority),
 		approvalReason,
 		...(tc.options ? { customOptions: tc.options } : {}),
 	};
