@@ -249,7 +249,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 	}
 
 	public getExpandedContentHeight(): number {
-		return this._editorContentHeight.get() + this._outerEditorHeight;
+		return this._observedEditorContentHeight + this._outerEditorHeight;
 	}
 
 	private readonly _dataStore;
@@ -259,7 +259,11 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 		try {
 			this.setItem(item, context.initialSize);
 		} catch (error) {
-			this._bindingContext = undefined;
+			try {
+				this.setItem(undefined);
+			} finally {
+				this._bindingContext = undefined;
+			}
 			throw error;
 		}
 		return new DiffEditorItemBinding(item, this);

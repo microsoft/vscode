@@ -31,6 +31,7 @@ import product from '../../../product/common/product.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { getCopilotHomePath } from '../../common/copilotHome.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import type { AutoModeTier } from '../../common/autoModeTiers.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { gitHubMcpServerUrl } from '../../common/githubEndpoints.js';
@@ -55,7 +56,7 @@ import { ActionType, isChatAction, type ChatAction, type SessionAction } from '.
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, parseRequiredSessionUriFromChatUri, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
-import { clientToolNamesFromSnapshot, isMcpServerExplicitlyProjected, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
+import { clientToolNamesFromSnapshot, isMcpServerExplicitlyProjected, resolveCopilotAutoTier, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME } from './toolSearchDeferral.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { AgentHostTelemetryReporter, toInitiatorTelemetry, type IAgentHostInitiatorClassification, type IAgentHostInitiatorTelemetry } from '../agentHostTelemetryReporter.js';
@@ -85,6 +86,7 @@ import type { ErrorInfo, ProtectedResourceMetadata } from '../../common/state/pr
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 import { createCopilotFailureCorrelation, reportCopilotModelCallFailure, reportCopilotSdkSessionError } from './copilotFailureTelemetry.js';
 import { reportCopilotTodoStoreOperation } from './copilotTodoStoreTelemetry.js';
+import { ModelCallTurnCorrelation } from './modelCallTurnCorrelation.js';
 
 type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
 type CopilotCommandInvocationResult = Awaited<ReturnType<CopilotSession['rpc']['commands']['invoke']>>;
@@ -746,6 +748,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _parentToolCallIdsByAgentId = new Map<string, string>();
 	private readonly _rootTurnIdBySubagentToolCallId = new Map<string, string>();
+	readonly modelCallTurnCorrelation = new ModelCallTurnCorrelation();
 	private readonly _subagentDirectUsageByToolCallId = new Map<string, DirectUsageAccumulator>();
 	private readonly _lastSubagentUsageByToolCallId = new Map<string, UsageInfo>();
 	/**
@@ -1594,7 +1597,7 @@ export class CopilotAgentSession extends Disposable {
 			type: ActionType.ChatError,
 			turnId: turn.id,
 			duration: turn.duration,
-			part: createErrorResponsePart(error, true),
+			part: createErrorResponsePart(error),
 		});
 		this._clearActiveTurn();
 		return turn.id;
@@ -2655,7 +2658,7 @@ export class CopilotAgentSession extends Disposable {
 			part: createErrorResponsePart({
 				errorType: 'developmentRecoverableError',
 				message: localize('copilotAgent.developmentRecoverableError', "Injected recoverable development error ({0}/{1}).", attempt, totalFailures),
-			}, true),
+			}),
 		});
 		this._clearActiveTurn();
 	}
@@ -3083,6 +3086,15 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to flush edit attribution: ${error}`);
 		}
 		await this._wrapper.disconnect();
+	}
+
+	/**
+	 * The Auto routing profile this session launched with, which the runtime fixes for the session's
+	 * lifetime. `undefined` when the session routes with the service default.
+	 */
+	get launchAutoTier(): AutoModeTier | undefined {
+		const model = this._launchPlan.kind === 'create' ? this._launchPlan.model : this._launchPlan.fallback.model;
+		return resolveCopilotAutoTier(model, this._configurationService, this._logService, this.sessionId);
 	}
 
 	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier']): Promise<void> {
@@ -5029,7 +5041,7 @@ export class CopilotAgentSession extends Disposable {
 				type: ActionType.ChatError,
 				turnId: this._turnId,
 				duration: turn?.duration ?? 0,
-				part: createErrorResponsePart(buildChatErrorInfoFromCopilotSdkFields(e.data), !e.agentId && turn !== undefined),
+				part: createErrorResponsePart(buildChatErrorInfoFromCopilotSdkFields(e.data)),
 			}, parentToolCallId);
 			if (!parentToolCallId) {
 				this._clearActiveTurn();

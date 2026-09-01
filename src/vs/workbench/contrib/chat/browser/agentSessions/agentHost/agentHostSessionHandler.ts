@@ -435,6 +435,10 @@ export class DraftSyncState {
 		return this._synced;
 	}
 
+	/**
+	 * The chosen model the channel holds, which a local fallback must not overwrite. Recorded on
+	 * publish as well as on receive: a window never sees its own draft echo back through the channel.
+	 */
 	get remoteModel(): ModelSelection | undefined {
 		return this._remoteModel;
 	}
@@ -444,11 +448,15 @@ export class DraftSyncState {
 		this._remoteModel = remoteDraft?.model;
 	}
 
-	shouldPublish(outgoing: Message | undefined): boolean {
+	shouldPublish(outgoing: Message | undefined, chosen = false): boolean {
 		if (equals(this._synced, outgoing)) {
 			return false;
 		}
 		this._synced = outgoing;
+		// Only a chosen model is worth protecting; recording a stand-in would pin the channel to it.
+		if (chosen) {
+			this._remoteModel = outgoing?.model;
+		}
 		return true;
 	}
 }
@@ -1326,6 +1334,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					return this._createCompletionItem(raw, text, {
 						kind: 'command',
 						command: completionMeta.command,
+						...(completionMeta.isSkill ? { isSkill: true } : {}),
 						description: completionMeta.description ?? '',
 						...(attachment._meta !== undefined && { _meta: attachment._meta }),
 					}, attachment.label !== raw.insertText ? attachment.label : undefined);
@@ -5534,11 +5543,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 			let draft = this._inputStateToDraft(sessionResource, state);
+			const chosen = isInConversationModelChoice(state?.selectedModelReason);
 			// Don't overwrite the channel's model with one we only fell back to.
-			if (draft && draftState.remoteModel && !isInConversationModelChoice(state?.selectedModelReason)) {
+			if (draft && draftState.remoteModel && !chosen) {
 				draft = { ...draft, model: draftState.remoteModel };
 			}
-			if (!draftState.shouldPublish(draft)) {
+			if (!draftState.shouldPublish(draft, chosen)) {
 				return;
 			}
 
@@ -6811,7 +6821,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	resolveChatResponseUri(_sessionResource: URI, href: string, _kind: 'link' | 'image'): string {
-		return rewriteAgentHostLinkTarget(href, this._config.connectionAuthority);
+		return rewriteAgentHostLinkTarget(href, this._config.connectionAuthority, this._config.connection.resourceUris);
 	}
 
 	/**

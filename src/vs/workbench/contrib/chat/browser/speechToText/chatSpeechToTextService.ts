@@ -37,7 +37,6 @@ import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
 import { getMediaCaptureWindow } from '../voiceClient/micCaptureService.js';
 import { resolveDictationLanguage } from './dictationLanguage.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 
 export const IChatSpeechToTextService = createDecorator<IChatSpeechToTextService>('chatSpeechToTextService');
 
@@ -136,7 +135,6 @@ const LLM_CLEANUP_TIMEOUT_MS = 5000;
 /** Utility model used for transcript cleanup, currently backed by gpt-4o-mini. */
 const LLM_CLEANUP_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-small' } as const;
 
-const LLM_CLEANUP_MODEL_TREATMENT = 'dictationLlmCleanupModel';
 const LLM_CLEANUP_MODEL_SETTING = 'dictation.experimental.llmCleanupModel';
 const LLM_CLEANUP_NANO_MODEL_ID = 'gpt-5.4-nano';
 const LLM_CLEANUP_NANO_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-dictation-cleanup-nano' } as const;
@@ -519,7 +517,6 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	/** Milliseconds from stopping recording to the final transcript resolving; -1 until measured. */
 	private _finalizeMs = -1;
 	private _sessionCleanupModel: DictationCleanupModel = 'none';
-	private _llmCleanupModelTreatment: string | undefined;
 
 	/** Cancellation for the in-flight experimental LLM cleanup request, aborted when the session is cancelled or disposed. */
 	private readonly _cleanupCts = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -548,7 +545,6 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
-		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService,
 	) {
 		super();
 		this._recordingContextKey = ChatContextKeys.speechToTextRecording.bindTo(contextKeyService);
@@ -578,16 +574,6 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				}
 			});
 		}));
-		this._refreshLlmCleanupModelTreatment();
-		this._register(this._assignmentService.onDidRefetchAssignments(() => this._refreshLlmCleanupModelTreatment()));
-	}
-
-	private _refreshLlmCleanupModelTreatment(): void {
-		void this._assignmentService.getTreatment<string>(LLM_CLEANUP_MODEL_TREATMENT).then(treatment => {
-			if (!this._store.isDisposed) {
-				this._llmCleanupModelTreatment = treatment;
-			}
-		}, err => this._logService.warn('[chat-stt] failed to resolve dictation cleanup model treatment', err));
 	}
 
 	private _getLlmCleanupModel(): Exclude<DictationCleanupModel, 'none'> {
@@ -595,10 +581,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		if (configuredModel === LLM_CLEANUP_NANO_MODEL_ID || configuredModel === LLM_CLEANUP_LUNA_MODEL_ID || configuredModel === LLM_CLEANUP_MODEL_SELECTOR.id) {
 			return configuredModel;
 		}
-		switch (this._llmCleanupModelTreatment) {
+		const experimentDefault = this._configurationService.inspect<string>(LLM_CLEANUP_MODEL_SETTING).defaultValue;
+		switch (experimentDefault) {
 			case LLM_CLEANUP_NANO_MODEL_ID:
 			case LLM_CLEANUP_LUNA_MODEL_ID:
-				return this._llmCleanupModelTreatment;
+				return experimentDefault;
 			default:
 				return LLM_CLEANUP_MODEL_SELECTOR.id;
 		}

@@ -11,7 +11,7 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IReader, observableFromEvent } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { localize2 } from '../../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
@@ -20,7 +20,6 @@ import { EditorInput } from '../../../../../workbench/common/editor/editorInput.
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { Menus } from '../../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { HasDockedDetailsContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -448,7 +447,7 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 							SinglePaneLayoutEnabledContext)
 					},
 					menu: {
-						id: Menus.SessionsEditorHeaderLayout,
+						id: MenuId.EditorTitleLayout,
 						group: 'navigation',
 						order: singlePaneHeaderToggleDetailsOrder,
 						// Not every tab type has a detail panel to show/hide (e.g. browser and

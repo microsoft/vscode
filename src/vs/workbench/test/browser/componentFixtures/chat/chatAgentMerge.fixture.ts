@@ -11,6 +11,7 @@ import { buildAgentMergePrompt, IAgentMergePromptSummary, parseAgentMergePrompt 
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ChatContentMarkdownRenderer } from '../../../../contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
 import { ChatAgentMergeContentPart } from '../../../../contrib/chat/browser/widget/chatContentParts/chatAgentMergeContentPart.js';
@@ -178,6 +179,9 @@ function renderAgentMerge({ container, disposableStore, theme }: ComponentFixtur
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: theme,
 		additionalServices: (reg) => {
+			reg.defineInstance(ILabelService, new class extends mock<ILabelService>() {
+				override getUriLabel(uri: URI): string { return uri.path; }
+			}());
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.defineInstance(ICommandService, commandService);
 		},

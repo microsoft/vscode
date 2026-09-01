@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { systemNotificationToChatPart } from '../../../../contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { ChatContentMarkdownRenderer } from '../../../../contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
@@ -35,6 +37,9 @@ function renderNotice(context: ComponentFixtureContext, content: string, kind: A
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
+			reg.defineInstance(ILabelService, new class extends mock<ILabelService>() {
+				override getUriLabel(uri: URI): string { return uri.path; }
+			}());
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.defineInstance(IChatMarkdownAnchorService, anchorService);
 		},

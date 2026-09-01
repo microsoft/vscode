@@ -169,6 +169,7 @@ interface IRenderOptions {
 	readonly grouping?: SessionsGrouping;
 	readonly width?: number;
 	readonly phone?: boolean;
+	readonly revealHierarchyGuides?: boolean;
 }
 
 function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOptions): void {
@@ -298,6 +299,14 @@ function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOption
 		approvalModel,
 	}));
 	list.layout(options.phone ? 260 : 220, width);
+
+	if (options.revealHierarchyGuides) {
+		const sessionItem = listHost.querySelector<HTMLElement>('.session-item');
+		if (!sessionItem) {
+			throw new Error('Expected a session row to reveal its hierarchy guides.');
+		}
+		sessionItem.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+	}
 }
 
 const GROUP: ISessionGroup = { id: 'group-1', name: 'Release work', createdAt: Date.now() };
@@ -359,6 +368,26 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 					],
 				},
 			],
+			width: 340,
+		}),
+	}),
+	SessionsList_NestedChatHierarchyGuides: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['An expanded session has two nested chat rows. A single vertical hierarchy guide runs continuously from below the parent session icon through the first child and ends in an L-shaped connector at the final child, with no gaps between rows.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [
+				{
+					id: 'a',
+					title: 'HTTP Client Retry Plan',
+					workspace: 'vscode-tools',
+					minutesAgo: 2,
+					chats: [
+						{ id: 'task-a', title: 'Task A' },
+						{ id: 'task-b', title: 'Task B' },
+					],
+				},
+			],
+			revealHierarchyGuides: true,
 			width: 340,
 		}),
 	}),
