@@ -278,6 +278,55 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('keeps existing codicons stable when the background grid resizes', () => {
+		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+		const part = dom.append(workbench, dom.$('.part.sessionspart'));
+		part.style.width = '960px';
+		part.style.height = '800px';
+		dom.getWindow(workbench).document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+		const renderer = disposables.add(new SessionsChatBackgroundRenderer(part));
+		renderer.setBackground({ kind: 'codicons' });
+		const layer = part.querySelector<HTMLElement>(':scope > .sessions-chat-background > .sessions-chat-codicon-background');
+		const firstIcon = layer?.querySelector<HTMLElement>('.codicon');
+		const firstIconLeft = firstIcon?.style.left;
+		const firstIconTop = firstIcon?.style.top;
+		const initialIconCount = layer?.querySelectorAll('.codicon').length;
+
+		part.style.width = '961px';
+		renderer.setBackground({ kind: 'codicons' });
+		const expandedFirstIcon = layer?.querySelector<HTMLElement>('.codicon');
+		const expandedIconCount = layer?.querySelectorAll('.codicon').length;
+
+		part.style.width = '960px';
+		renderer.setBackground({ kind: 'codicons' });
+		const shrunkFirstIcon = layer?.querySelector<HTMLElement>('.codicon');
+
+		assert.deepStrictEqual({
+			initialIconCount,
+			expandedIconCount,
+			shrunkIconCount: layer?.querySelectorAll('.codicon').length,
+			reusedFirstIconWhenExpanded: expandedFirstIcon === firstIcon,
+			reusedFirstIconWhenShrunk: shrunkFirstIcon === firstIcon,
+			firstIconPositions: [
+				{ left: firstIconLeft, top: firstIconTop },
+				{ left: expandedFirstIcon?.style.left, top: expandedFirstIcon?.style.top },
+				{ left: shrunkFirstIcon?.style.left, top: shrunkFirstIcon?.style.top },
+			],
+		}, {
+			initialIconCount: 109,
+			expandedIconCount: 117,
+			shrunkIconCount: 109,
+			reusedFirstIconWhenExpanded: true,
+			reusedFirstIconWhenShrunk: true,
+			firstIconPositions: [
+				{ left: '125.6px', top: '46.4px' },
+				{ left: '125.6px', top: '46.4px' },
+				{ left: '125.6px', top: '46.4px' },
+			],
+		});
+	});
+
 	test('keeps the user request bubble opaque over the chat background', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#202020');
