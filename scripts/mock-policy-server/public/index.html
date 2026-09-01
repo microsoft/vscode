@@ -61,23 +61,17 @@
 				<div>
 					<p class="eyebrow">Connect a client</p>
 					<h2 id="setup-title">Route policy requests to this server</h2>
-					<p class="setup-lede">Select a connection method below to enable its steps. You can switch methods at any time.</p>
+					<p class="setup-lede">Route this server through your system proxy so every client — Code OSS, Stable, Insiders, Copilot CLI, and SDK/runtime — picks it up. For a Code OSS build from this checkout, use the one-click Product Overrides in the Policies sidebar instead.</p>
 				</div>
 			</div>
 
-			<fieldset class="setup-method-picker">
-				<legend class="sr-only">Connection method</legend>
-				<div class="setup-methods">
-				<article id="proxy-method" class="setup-method recommended" data-selected="true">
+			<div class="setup-methods">
+				<article id="proxy-method" class="setup-method">
 					<div class="method-heading">
-						<div class="method-choice">
-							<input id="setup-method-proxy" type="radio" name="setup-method" value="proxy" checked>
-							<label class="method-label" for="setup-method-proxy">
-								<span class="method-badge">Recommended</span>
-								<h3>System Proxy</h3>
-								<span class="method-recommendation">Recommended on macOS and Windows: Proxyman</span>
-								<p>Routes policy requests from Code OSS, Stable, Insiders, Copilot CLI, and SDK/runtime clients. VS Code clients also require the proxy setting shown below.</p>
-							</label>
+						<div class="method-intro">
+							<h3>System Proxy</h3>
+							<span class="method-recommendation">Recommended on macOS and Windows: Proxyman</span>
+							<p>Routes policy requests from Code OSS, Stable, Insiders, Copilot CLI, and SDK/runtime clients. VS Code clients also require the proxy setting shown below.</p>
 						</div>
 						<div class="method-status">
 							<div id="proxy-status" class="status-pill" data-state="checking" role="status" aria-live="polite">Checking…</div>
@@ -146,41 +140,7 @@
 						</li>
 					</ol>
 				</article>
-
-				<article id="overrides-method" class="setup-method alternative" data-selected="false">
-					<div class="method-heading">
-						<div class="method-choice">
-							<input id="setup-method-overrides" type="radio" name="setup-method" value="overrides">
-							<label class="method-label" for="setup-method-overrides">
-								<span class="method-badge secondary">Code OSS only</span>
-								<h3>Product overrides</h3>
-								<p>The fastest option for Code OSS built from this checkout. It does not route SDK/runtime requests.</p>
-							</label>
-						</div>
-						<div id="override-status" class="status-pill" data-state="pending" role="status" aria-live="polite">Not applied</div>
-					</div>
-
-					<ol id="overrides-method-steps" class="setup-steps compact" inert>
-						<li>
-							<div class="step-number" aria-hidden="true">1</div>
-							<div class="step-content">
-								<h4>Apply the local endpoint URLs</h4>
-								<p>The server updates <code>product.overrides.json</code> and preserves any other top-level overrides.</p>
-								<button id="overrides-action" type="button" class="btn-primary">Apply Overrides</button>
-							</div>
-						</li>
-						<li>
-							<div class="step-number" aria-hidden="true">2</div>
-							<div class="step-content">
-								<h4>Reload and request policy</h4>
-								<p>Reload Code OSS, sign in, open the Command Palette, and run <code>&gt; Developer: Sync Account Policy</code>.</p>
-								<p class="helper-text">If no request appears under Live Requests on the Policies page, open Clear SDK Policy Cache in the header, copy the command for your platform, run it in a terminal, and then run the command again.</p>
-							</div>
-						</li>
-					</ol>
-				</article>
-				</div>
-			</fieldset>
+			</div>
 
 			</section>
 		</dialog>
@@ -250,6 +210,22 @@
 				</section>
 
 				<aside class="sidebar-panel">
+					<div class="section-block overrides-block">
+						<div class="section-header">
+							<h2 id="overrides-title">Product Overrides</h2>
+							<div id="override-status" class="status-pill" data-state="pending" role="status" aria-live="polite">Not applied</div>
+							<span class="info-popover">
+								<button type="button" id="overrides-info" class="info-trigger" aria-label="About product overrides" aria-describedby="overrides-info-note">i</button>
+								<div id="overrides-info-note" class="info-popover-panel" role="note">
+									<p>Writes <code>product.overrides.json</code> so this Code OSS build — from this checkout — routes every policy request to this server. Other top-level overrides are preserved. It does not route SDK or runtime requests.</p>
+									<p>After applying, reload Code OSS, sign in, then run <code>&gt; Developer: Sync Account Policy</code> from the Command Palette.</p>
+									<p>No request under Live Requests? Open <strong>Clear SDK Policy Cache</strong> in the header, run the copied command in a terminal, then sync again.</p>
+								</div>
+							</span>
+						</div>
+						<button id="overrides-action" type="button" class="btn-primary btn-full">Apply Overrides</button>
+					</div>
+
 					<div class="section-block">
 						<div class="section-header">
 							<h2 id="live-requests-title">Live Requests</h2>

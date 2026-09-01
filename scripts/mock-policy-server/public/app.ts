@@ -83,8 +83,6 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		editorText: string;
 	}
 
-	type SetupMethod = 'proxy' | 'overrides';
-
 	const $ = (id: string): HTMLElement => document.getElementById(id)!;
 	const tabs = $('tabs');
 	const editor = $('editor') as HTMLTextAreaElement;
@@ -457,7 +455,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		status.dataset.state = state.wired ? 'ready' : 'pending';
 		const action = $('overrides-action');
 		action.textContent = state.wired ? 'Restore Original' : 'Apply Overrides';
-		action.className = state.wired ? 'btn-secondary' : 'btn-primary';
+		action.className = state.wired ? 'btn-secondary btn-full' : 'btn-primary btn-full';
 		updateReadiness();
 	}
 
@@ -493,15 +491,6 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		const endpoint = endpoints.find(candidate => candidate.id === 'managedSettings') ?? endpoints[0];
 		$('map-from').textContent = endpoint && proxyUpstream ? `${proxyUpstream}${endpoint.path}` : '';
 		$('map-to').textContent = endpoint && proxyBaseUrl ? `${proxyBaseUrl}${endpoint.path}` : '';
-	}
-
-	function selectSetupMethod(method: SetupMethod): void {
-		for (const candidate of ['proxy', 'overrides'] as const) {
-			const selected = candidate === method;
-			$(`${candidate}-method`).dataset.selected = String(selected);
-			$(`${candidate}-method-steps`).toggleAttribute('inert', !selected);
-			($(`setup-method-${candidate}`) as HTMLInputElement).checked = selected;
-		}
 	}
 
 	function updateReadiness(): void {
@@ -941,6 +930,26 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		toastTimer = setTimeout(() => { node.hidden = true; }, 3000);
 	}
 
+	/**
+	 * The info (i) panel opens on hover and focus via CSS. Escape must also
+	 * dismiss it without moving focus off the trigger (WCAG 1.4.13); a following
+	 * hover or re-focus clears the dismissed state so it can open again.
+	 */
+	function setupInfoPopover(): void {
+		const trigger = $('overrides-info');
+		const popover = trigger.closest('.info-popover');
+		if (!popover) {
+			return;
+		}
+		trigger.addEventListener('keydown', event => {
+			if (event.key === 'Escape') {
+				popover.classList.add('dismissed');
+			}
+		});
+		popover.addEventListener('mouseenter', () => popover.classList.remove('dismissed'));
+		popover.addEventListener('focusout', () => popover.classList.remove('dismissed'));
+	}
+
 	async function init(): Promise<void> {
 		$('proxy-settings').textContent = vscodeProxySetting;
 		$('macos-cache-command').textContent = macOsCacheClearCommand;
@@ -966,6 +975,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		});
 		presetSelect.addEventListener('change', applyPreset);
 		$('overrides-action').addEventListener('click', () => wire(!overridesWired));
+		setupInfoPopover();
 		$('copy-map').addEventListener('click', e => {
 			copy(`${$('map-from').textContent}\n${$('map-to').textContent}`, e.currentTarget as HTMLElement);
 		});
@@ -978,9 +988,6 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		$('copy-windows-cache-command').addEventListener('click', e => {
 			copy(windowsCacheClearCommand, e.currentTarget as HTMLElement);
 		});
-		for (const method of ['proxy', 'overrides'] as const) {
-			$(`setup-method-${method}`).addEventListener('change', () => selectSetupMethod(method));
-		}
 		$('setup-nav').addEventListener('click', openSetupDialog);
 		$('close-setup').addEventListener('click', () => setupDialog.close());
 		$('policies-nav').addEventListener('click', () => {
@@ -1029,14 +1036,12 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 
 		try {
 			const state = await api<ServerState>('/api/state');
-			selectSetupMethod(state.wired ? 'overrides' : 'proxy');
 			applyState(state);
 			if (endpoints.length) {
 				selectEndpoint(endpoints[0].id);
 			}
 			syncSetupDialog();
 		} catch (e) {
-			selectSetupMethod('proxy');
 			// Fall back to the shared endpoint definitions so the GUI still shows
 			// what exists (read-only) rather than rendering a blank page.
 			endpoints = MOCK_POLICY_ENDPOINTS.map(def => ({ ...def, status: def.presets[0]?.status ?? 200, body: def.presets[0]?.body ?? {}, mode: 'json' }));

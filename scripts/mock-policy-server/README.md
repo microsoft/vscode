@@ -14,29 +14,32 @@ Open `http://127.0.0.1:3000`. Managed settings is mocked by default. Use the
 switch beside each endpoint tab to choose mock or passthrough. Presets apply
 immediately; response behavior, status, and JSON edits auto-save.
 
-The GUI opens on the **Policies** workspace. Select **Setup** in the header to
-open a modal that guides you through either connection method:
+The GUI opens on the **Policies** workspace. Pick whichever connection method
+fits the client:
 
-- **System proxy (recommended):** works with Code OSS, Stable, Insiders, Copilot
-  CLI, and SDK/runtime clients. The page recommends Proxyman on macOS and Windows
-  and provides a **Map Remote** rule, along with the per-platform toggle that
-  routes system traffic through Proxyman (**Tools > macOS Proxy** on macOS,
-  **Tools > Override Windows Proxy** on Windows). VS Code clients must also add
-  the displayed `http.proxy` property to `settings.json`; the copy action copies
-  only the property, without surrounding object braces.
-- **Code OSS overrides:** the quicker option for Code OSS from this checkout.
-  Select **Apply Overrides**, reload, and sign in. This option does not redirect
-  SDK/runtime requests.
+- **Product overrides** (Policies sidebar): the quickest option for a Code OSS
+  build from this checkout. Select **Apply Overrides**, reload, and sign in;
+  **Restore Original** reverts it. It writes `product.overrides.json` and does
+  not redirect SDK/runtime requests. Hover or focus the **(i)** for the full
+  steps.
+- **System proxy** (**Setup** dialog in the header): works with Code OSS, Stable,
+  Insiders, Copilot CLI, and SDK/runtime clients. The dialog recommends Proxyman
+  on macOS and Windows and provides a **Map Remote** rule, along with the
+  per-platform toggle that routes system traffic through Proxyman (**Tools >
+  macOS Proxy** on macOS, **Tools > Override Windows Proxy** on Windows). VS Code
+  clients must also add the displayed `http.proxy` property to `settings.json`;
+  the copy action copies only the property, without surrounding object braces.
 
 After connecting, open the VS Code Command Palette and run **> Developer: Sync
 Account Policy**. To refresh the policy used by Local Agent Host, also run
 **> Developer: Restart Local Agent Host**.
 
-The Setup dialog checks Code OSS overrides directly. It tests the system proxy by
-sending a request without credentials to the managed settings URL and confirming
-that the response came from this local server. It does not inspect Proxyman or
-the operating system's proxy configuration. The test runs automatically, and the
-global header always shows a green or red connection indicator.
+The **Product Overrides** panel reflects the overrides state directly. The Setup
+dialog tests the system proxy by sending a request without credentials to the
+managed settings URL and confirming that the response came from this local
+server. It does not inspect Proxyman or the operating system's proxy
+configuration. The test runs automatically, and the global header always shows a
+green or red connection indicator.
 
 If no real request appears in **Live Requests**, open **Clear SDK Policy Cache**,
 expand the section for the client platform, and run the copied command in a
