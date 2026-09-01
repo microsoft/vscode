@@ -101,6 +101,7 @@ import { TestChatAgentService } from './testChatAgentService';
 import { TestWorkbenchService } from './testWorkbenchService';
 import { TestWorkspaceService } from './testWorkspaceService';
 import { IGrepResultService, NullGrepResultService } from '../../../extension/tools/node/grepResultService';
+import { IRegionContextProviderService, NullRegionContextProviderService } from '../../languageContextProvider/common/regionContextProvider';
 
 /**
  * Collects descriptors for services to use in testing.
@@ -269,6 +270,7 @@ export function createPlatformServices(disposables: Pick<DisposableStore, 'add'>
 	testingServiceCollection.define(ILanguageContextService, NullLanguageContextService);
 	testingServiceCollection.define(ILanguageContextProviderService, new SyncDescriptor(NullLanguageContextProviderService));
 	testingServiceCollection.define(IGrepResultService, new SyncDescriptor(NullGrepResultService));
+	testingServiceCollection.define(IRegionContextProviderService, new SyncDescriptor(NullRegionContextProviderService));
 	testingServiceCollection.define(ILanguageDiagnosticsService, new SyncDescriptor(TestLanguageDiagnosticsService));
 	testingServiceCollection.define(IPromptPathRepresentationService, new SyncDescriptor(TestPromptPathRepresentationService));
 	testingServiceCollection.define(IRequestLogger, new SyncDescriptor(NullRequestLogger));

@@ -36,10 +36,10 @@ suite('GrepResultService', () => {
 		expect(service.getGrepResult('request', uri, 4, 8)).toEqual([first, second]);
 	});
 
-	test('returns an empty array when no results are available', () => {
+	test('returns undefined when no results are available', () => {
 		const service = new GrepResultService();
 
-		expect(service.getGrepResult('unknown', uri, 0, 10)).toEqual([]);
-		expect(new NullGrepResultService().getGrepResult('request', uri, 0, 10)).toEqual([]);
+		expect(service.getGrepResult('unknown', uri, 0, 10)).toBeUndefined();
+		expect(new NullGrepResultService().getGrepResult('request', uri, 0, 10)).toBeUndefined();
 	});
 });
