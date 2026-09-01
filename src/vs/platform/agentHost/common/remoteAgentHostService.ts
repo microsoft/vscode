@@ -114,10 +114,7 @@ export const RemoteAgentHostsSettingId = 'chat.remoteAgentHosts';
 /** Configuration key to enable remote agent host connections. */
 export const RemoteAgentHostsEnabledSettingId = 'chat.remoteAgentHostsEnabled';
 
-/**
- * Configuration key that controls whether online dev tunnels and
- * WSL remote agent hosts are auto-connected at startup.
- */
+/** Configuration key that controls whether online dev tunnels, configured SSH remote agent hosts, and WSL remote agent hosts are auto-connected at startup. */
 export const RemoteAgentHostAutoConnectSettingId = 'chat.remoteAgentHostsAutoConnect';
 
 export const enum RemoteAgentHostEntryType {
@@ -213,8 +210,7 @@ export interface IRemoteAgentHostCloudSandboxConnection {
 
 /**
  * A runtime-only connection to an agent host running inside a Dev Container.
- * The owning Dev Container integration establishes the transport and registers
- * the connected client through {@link IRemoteAgentHostService.addManagedConnection}.
+ * The Dev Container integration stages its transport for its connection factory.
  */
 export interface IRemoteAgentHostDevContainerConnection {
 	readonly type: RemoteAgentHostEntryType.DevContainer;
@@ -272,6 +268,11 @@ export interface IRemoteAgentHostCreatedConnection {
 	 * (e.g. a shared-process relay channel). Disposed with the connection entry.
 	 */
 	readonly transportDisposable?: IDisposable;
+	/**
+	 * Whether a redial transfers transport teardown ownership to the new connection.
+	 * Defaults to `false`.
+	 */
+	readonly reconnectTransfersTransportOwnership?: boolean;
 }
 
 /** Builds agent host connections of one {@link RemoteAgentHostEntryType}. */
@@ -347,10 +348,15 @@ export type RemoteAgentHostEntryStore = 'settings' | 'storage' | 'runtime';
 interface IRemoteAgentHostEntryTypeConfigBase<TConnection extends RemoteAgentHostConnection> {
 	readonly type: TConnection['type'];
 	/**
-	 * Whether RemoteAgentHostService can dial this entry from its address alone.
-	 * When `false`, an owning transport service registers the connection.
+	 * Whether this entry-driven kind is dialed during reconciliation from the factory's entries.
+	 * On-demand kinds set this to `false`, but an explicit {@link IRemoteAgentHostService.reconnect} still dials their staged entries.
 	 */
-	readonly dialableByService: boolean;
+	readonly dialedFromEntries: boolean;
+	/**
+	 * Whether background dialing is controlled by {@link RemoteAgentHostAutoConnectSettingId}.
+	 * Defaults to `false`.
+	 */
+	readonly autoConnectGated?: boolean;
 	/** Whether the address is subject to `normalizeRemoteAgentHostAddress`. */
 	readonly normalizedAddress: boolean;
 	/** Policy for restoring a dropped transport. */
@@ -384,7 +390,8 @@ export type IRemoteAgentHostEntryTypeConfig<TConnection extends RemoteAgentHostC
 export const WEBSOCKET_ENTRY_TYPE_CONFIG: IPersistedEntryTypeConfig<IRemoteAgentHostWebSocketConnection> = {
 	type: RemoteAgentHostEntryType.WebSocket,
 	store: 'settings',
-	dialableByService: true,
+	dialedFromEntries: true,
+	autoConnectGated: false,
 	normalizedAddress: true,
 	reconnect: DEFAULT_RECONNECT_POLICY,
 	address: connection => connection.address,
@@ -397,7 +404,8 @@ export const WEBSOCKET_ENTRY_TYPE_CONFIG: IPersistedEntryTypeConfig<IRemoteAgent
 export const SSH_ENTRY_TYPE_CONFIG: IPersistedEntryTypeConfig<IRemoteAgentHostSSHConnection> = {
 	type: RemoteAgentHostEntryType.SSH,
 	store: 'storage',
-	dialableByService: true,
+	dialedFromEntries: true,
+	autoConnectGated: true,
 	normalizedAddress: true,
 	reconnect: DEFAULT_RECONNECT_POLICY,
 	address: connection => connection.address,
@@ -572,11 +580,19 @@ export function removeSSHRemoteAgentHostEntry(storageService: IStorageService, a
 }
 
 function runtimeEntryTypeConfig<TConnection extends RemoteAgentHostConnection>(type: TConnection['type'], normalizedAddress: boolean, address: (connection: TConnection) => string, reconnect: IRemoteAgentHostReconnectPolicy = DEFAULT_RECONNECT_POLICY): IRuntimeEntryTypeConfig<TConnection> {
-	return { type, store: 'runtime', dialableByService: false, normalizedAddress, reconnect, address };
+	return { type, store: 'runtime', dialedFromEntries: false, normalizedAddress, reconnect, address };
 }
 
-const WSL_ENTRY_TYPE_CONFIG = runtimeEntryTypeConfig<IRemoteAgentHostWSLConnection>(RemoteAgentHostEntryType.WSL, true, connection => connection.address);
-const TUNNEL_ENTRY_TYPE_CONFIG = runtimeEntryTypeConfig<IRemoteAgentHostTunnelConnection>(RemoteAgentHostEntryType.Tunnel, false, connection => `${TUNNEL_ADDRESS_PREFIX}${connection.tunnelId}`);
+const WSL_ENTRY_TYPE_CONFIG: IRemoteAgentHostEntryTypeConfig<IRemoteAgentHostWSLConnection> = {
+	...runtimeEntryTypeConfig<IRemoteAgentHostWSLConnection>(RemoteAgentHostEntryType.WSL, true, connection => connection.address),
+	dialedFromEntries: true,
+	autoConnectGated: true,
+};
+const TUNNEL_ENTRY_TYPE_CONFIG: IRemoteAgentHostEntryTypeConfig<IRemoteAgentHostTunnelConnection> = {
+	...runtimeEntryTypeConfig<IRemoteAgentHostTunnelConnection>(RemoteAgentHostEntryType.Tunnel, false, connection => `${TUNNEL_ADDRESS_PREFIX}${connection.tunnelId}`),
+	dialedFromEntries: true,
+	autoConnectGated: true,
+};
 const CLOUD_SANDBOX_ENTRY_TYPE_CONFIG = runtimeEntryTypeConfig<IRemoteAgentHostCloudSandboxConnection>(RemoteAgentHostEntryType.CloudSandbox, true, connection => connection.address);
 // Relay failures are cheap, but a cold container can make `devcontainer up` rebuild Docker for minutes; retry slower and favor explicit recovery.
 const DEV_CONTAINER_RECONNECT_POLICY: IRemoteAgentHostReconnectPolicy = {
@@ -634,10 +650,8 @@ export type RemoteAgentHostInputParseResult =
 export const IRemoteAgentHostService = createDecorator<IRemoteAgentHostService>('remoteAgentHostService');
 
 /**
- * Manages connections to one or more remote agent host processes. Each
- * connection is identified by its address string and
- * exposed as an {@link IAgentConnection}, the same interface used for
- * the local agent host.
+ * Owns factory-built remote agent host connections, including handshake, status,
+ * retry, and disposal. Each connection is identified by address and exposed as an {@link IAgentConnection}.
  */
 export interface IRemoteAgentHostService {
 	readonly _serviceBrand: undefined;
@@ -648,7 +662,7 @@ export interface IRemoteAgentHostService {
 	/** Currently connected remote addresses with metadata. */
 	readonly connections: readonly IRemoteAgentHostConnectionInfo[];
 
-	/** All configured remote agent host entries, regardless of connection status. */
+	/** All remote agent host entries exposed by registered factories, regardless of connection status. */
 	readonly configuredEntries: readonly IRemoteAgentHostEntry[];
 
 	/** Registers a factory for one connection kind. Throws if that kind already has one. */
@@ -688,28 +702,6 @@ export interface IRemoteAgentHostService {
 	reconnect(address: string, userInitiated?: boolean): void;
 
 	/**
-	 * Register a pre-connected agent connection.
-	 * Used by transport services that do not yet provide a connection factory
-	 * to inject relay-backed connections.
-	 *
-	 * The optional `transportDisposable` represents the underlying transport
-	 * (e.g. an SSH tunnel relay or tunnel-relay session) and is owned by this
-	 * service for the lifetime of the entry. It will be disposed when:
-	 *   - the entry is removed via {@link removeRemoteAgentHost}
-	 *   - the entry is reconciled away (config-driven removal)
-	 *   - this service itself is disposed
-	 * Callers should put any teardown that needs to happen on entry removal
-	 * (e.g. closing the shared-process tunnel, dropping renderer-side handles)
-	 * into this disposable, so a single removal path tears down the whole stack.
-	 *
-	 * `status` defaults to `connected`. Pass `incompatible` when the managed
-	 * transport is alive but the protocol handshake rejected the client version;
-	 * this keeps recovery actions (such as server upgrade) addressable without
-	 * exposing the connection as ready for session traffic.
-	 */
-	addManagedConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection, transportDisposable?: IDisposable, status?: RemoteAgentHostConnectionStatus): Promise<IRemoteAgentHostConnectionInfo>;
-
-	/**
 	 * Force the protocol client at `address` (if any) to treat its
 	 * transport as closed. Used by services that learn about a
 	 * connection loss out-of-band — e.g. the SSH service receiving an
@@ -726,8 +718,7 @@ export interface IRemoteAgentHostService {
 
 	/**
 	 * Look up the {@link IRemoteAgentHostEntry} for a given address.
-	 * Checks both configured entries from settings and dynamically
-	 * registered entries (e.g. tunnel connections).
+	 * Entries are supplied by registered connection factories.
 	 */
 	getEntryByAddress(address: string): IRemoteAgentHostEntry | undefined;
 
@@ -773,9 +764,6 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	async removeRemoteAgentHost(_address: string): Promise<void> { }
 	reconnect(_address: string, _userInitiated?: boolean): void { }
 	notifyConnectionClosed(_address: string): void { }
-	async addManagedConnection(): Promise<IRemoteAgentHostConnectionInfo> {
-		throw new Error('Remote agent host connections are not supported in this environment.');
-	}
 	getEntryByAddress(): IRemoteAgentHostEntry | undefined { return undefined; }
 	async triggerServerUpgrade(): Promise<IVscodeUpgradeResult> {
 		throw new Error('Remote agent host connections are not supported in this environment.');
