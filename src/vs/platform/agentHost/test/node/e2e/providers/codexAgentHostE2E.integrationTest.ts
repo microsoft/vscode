@@ -18,7 +18,7 @@ import { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, ROOT_STATE_URI } from '../../../../common/state/sessionState.js';
-import { AgentHostE2EServerLease, dispatchTurn, removeTempDirs, resolveGitHubToken, startBackgroundApprovalLoop } from '../harness/agentHostE2ETestHarness.js';
+import { AgentHostE2EServerLease, dispatchTurn, removeTempDirs, resolveGitHubToken, setRootConfigValues, startBackgroundApprovalLoop } from '../harness/agentHostE2ETestHarness.js';
 import { defineAgentHostE2ETests } from '../suites/agentHostE2ESuites.js';
 import { getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { CODEX_CONFIG } from './codexTestConfiguration.js';
@@ -98,18 +98,7 @@ defineAgentHostE2ETests(CODEX_CONFIG);
 		let multiRootEnabled = false;
 
 		try {
-			client.dispatch({
-				channel: ROOT_STATE_URI,
-				clientSeq: 0,
-				action: { type: ActionType.RootConfigChanged, config: { [AgentHostCodexMultiRootEnabledConfigKey]: true } },
-			});
-			await client.waitForNotification(n => {
-				if (!isActionNotification(n, ActionType.RootConfigChanged)) {
-					return false;
-				}
-				const action = getActionEnvelope(n).action as { readonly config?: Readonly<Record<string, boolean>> };
-				return action.config?.[AgentHostCodexMultiRootEnabledConfigKey] === true;
-			}, 30_000);
+			await setRootConfigValues(client, { [AgentHostCodexMultiRootEnabledConfigKey]: true }, 0);
 			multiRootEnabled = true;
 
 			const sessionUri = URI.from({ scheme: CODEX_CONFIG.scheme, path: `/${generateUuid()}` }).toString();
@@ -157,18 +146,7 @@ defineAgentHostE2ETests(CODEX_CONFIG);
 			});
 		} finally {
 			if (multiRootEnabled) {
-				client.dispatch({
-					channel: ROOT_STATE_URI,
-					clientSeq: 3,
-					action: { type: ActionType.RootConfigChanged, config: { [AgentHostCodexMultiRootEnabledConfigKey]: false } },
-				});
-				await client.waitForNotification(n => {
-					if (!isActionNotification(n, ActionType.RootConfigChanged)) {
-						return false;
-					}
-					const action = getActionEnvelope(n).action as { readonly config?: Readonly<Record<string, boolean>> };
-					return action.config?.[AgentHostCodexMultiRootEnabledConfigKey] === false;
-				}, 30_000);
+				await setRootConfigValues(client, { [AgentHostCodexMultiRootEnabledConfigKey]: false }, 3);
 			}
 		}
 	});

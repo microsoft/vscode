@@ -133,6 +133,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 					continue;
 				}
 				const isSearch = toolName === 'toolSearch' || toolName === 'tool_search_tool';
+				const isMagicWord = toolName === 'get_magic_word';
 				context.client.dispatch({
 					channel: chatUri,
 					clientSeq: clientSeq++,
@@ -141,11 +142,11 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 						turnId,
 						toolCallId: action.toolCallId,
 						result: {
-							success: true,
-							pastTenseMessage: isSearch ? 'Searched tools' : 'Got the magic word',
+							success: isSearch || isMagicWord,
+							pastTenseMessage: isSearch ? 'Searched tools' : isMagicWord ? 'Got the magic word' : `Rejected unexpected ${toolName} call`,
 							content: [{
 								type: ToolResultContentType.Text,
-								text: isSearch ? toolSearchResult : 'MAGIC_WORD',
+								text: isSearch ? toolSearchResult : isMagicWord ? 'MAGIC_WORD' : `Unexpected client tool call: ${toolName}`,
 							}],
 						},
 					},
@@ -154,6 +155,10 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 			}
 			break;
 		}
+		const unexpectedToolNames = [...starts.values()].filter(name =>
+			name !== 'toolSearch' && name !== 'tool_search_tool' && name !== 'get_magic_word'
+		);
+		assert.deepStrictEqual(unexpectedToolNames, [], `Unexpected client tool calls: ${unexpectedToolNames.join(', ')}`);
 		return { toolNames: [...starts.values()], responseText: getMarkdownResponseText(context.client) };
 	}
 
@@ -305,6 +310,26 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 			assert.strictEqual(result.responseText.trim(), 'MALFORMED_MCP_IGNORED');
 		} finally {
 			await setRootConfig({ mcpServers: {} }, 101);
+		}
+	});
+
+	test('root config helper treats reordered object values as already satisfied', async function () {
+		this.timeout(60_000);
+		await createWorkspaceSession('root-config-structural-equality');
+		const first = {
+			alpha: { family: 'gpt-5', reasoningEffort: 'low' },
+			beta: { family: 'gpt-5.6-sol', reasoningEffort: 'high' },
+		};
+		try {
+			await setRootConfig({ [CopilotCliConfigKey.ModelCapabilityOverrides]: first }, 100);
+			await setRootConfig({
+				[CopilotCliConfigKey.ModelCapabilityOverrides]: {
+					beta: { reasoningEffort: 'high', family: 'gpt-5.6-sol' },
+					alpha: { reasoningEffort: 'low', family: 'gpt-5' },
+				},
+			}, 101);
+		} finally {
+			await setRootConfig({ [CopilotCliConfigKey.ModelCapabilityOverrides]: {} }, 102);
 		}
 	});
 
