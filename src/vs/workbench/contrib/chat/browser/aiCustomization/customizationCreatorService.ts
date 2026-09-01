@@ -11,8 +11,9 @@ import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { getPromptFileDefaultLocations } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { localize } from '../../../../../nls.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -20,6 +21,7 @@ import { PromptsServiceCustomizationItemProvider } from './promptsServiceCustomi
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 
 /**
  * Service that opens an AI-guided chat session to help the user create
@@ -130,7 +132,8 @@ export class CustomizationLocationPicker {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) { }
 
 	/**
@@ -165,16 +168,47 @@ export class CustomizationLocationPicker {
 			return undefined;
 		}
 
-		// if (matchingFolders.length === 1) {
-		// 	return matchingFolders[0].uri;
-		// }
+		const { folders: workspaceFolders } = this.workspaceContextService.getWorkspace();
+		const isMultiRoot = workspaceFolders.length > 1 && target === 'local';
 
-		// Multiple directories — ask the user which one to use
-		const items: (IQuickPickItem & { uri: URI })[] = matchingFolders.map(folder => ({
-			label: folder.label,
-			description: this.labelService.getUriLabel(folder.uri, { relative: true }),
-			uri: folder.uri,
-		}));
+		let items: (IQuickPickItem & { uri: URI } | IQuickPickSeparator)[];
+		if (isMultiRoot) {
+			items = [];
+			const mappedFolders = new Set<ICustomizationSourceFolder>();
+			for (const wsFolder of workspaceFolders) {
+				const wsFolders = matchingFolders.filter(f => isEqual(this.workspaceContextService.getWorkspaceFolder(f.uri)?.uri, wsFolder.uri));
+				if (wsFolders.length > 0) {
+					items.push({ type: 'separator', label: wsFolder.name });
+					for (const folder of wsFolders) {
+						mappedFolders.add(folder);
+						items.push({
+							label: folder.label,
+							description: this.labelService.getUriLabel(folder.uri, { relative: true }),
+							uri: folder.uri,
+						});
+					}
+				}
+			}
+			const otherFolders = matchingFolders.filter(f => !mappedFolders.has(f));
+			if (otherFolders.length > 0) {
+				if (items.length > 0) {
+					items.push({ type: 'separator', label: localize('separator.otherWorkspace', "Other Locations") });
+				}
+				for (const folder of otherFolders) {
+					items.push({
+						label: folder.label,
+						description: this.labelService.getUriLabel(folder.uri, { relative: true }),
+						uri: folder.uri,
+					});
+				}
+			}
+		} else {
+			items = matchingFolders.map(folder => ({
+				label: folder.label,
+				description: this.labelService.getUriLabel(folder.uri, { relative: true }),
+				uri: folder.uri,
+			}));
+		}
 
 		const picked = await this.quickInputService.pick(items, {
 			placeHolder: localize('selectTargetDirectory', "Select a directory for the new customization file"),

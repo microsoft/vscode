@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { PROMPT_DOCUMENTATION_URL, PromptsType, getSourceDescription } from '../../../common/promptSyntax/promptTypes.js';
-import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IPickOptions, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 
@@ -59,17 +59,15 @@ export async function askForPromptSourceFolder(
 	const isMultiRoot = workspaceFolders.length > 1;
 
 	// create list of source folder locations
-	const foldersList = resolvedFolders.map<IFolderQuickPickItem>(resolved => {
+	const items: (IFolderQuickPickItem | IQuickPickSeparator)[] = [];
+
+	const createFolderPickItem = (resolved: (typeof resolvedFolders)[number], useRelativePath: boolean = false): IFolderQuickPickItem => {
 		const folderUri = resolved.searchRoot;
 		const isDefault = defaultFolder && isEqual(folderUri, defaultFolder.searchRoot);
 		const sourceDescription = getSourceDescription(resolved.source);
 		const detail = (existingFolder && isEqual(folderUri, existingFolder)) ? localize('current.folder', "Current Location") : undefined;
 
-		// In multi-root workspaces, use workspace-relative labels (which include
-		// the workspace folder name prefix). Otherwise use displayPath.
-		const basePath = (isMultiRoot && resolved.storage === PromptsStorage.local)
-			? labelService.getUriLabel(folderUri, { relative: true })
-			: resolved.displayPath ?? labelService.getUriLabel(folderUri, { relative: resolved.storage === PromptsStorage.local });
+		const basePath = resolved.displayPath ?? labelService.getUriLabel(folderUri, { relative: useRelativePath });
 		const label = isDefault ? localize('pathWithDefault', "{0} (default)", basePath) : basePath;
 
 		const folder: IPromptPath = { uri: folderUri, storage: resolved.storage, type };
@@ -83,27 +81,60 @@ export async function askForPromptSourceFolder(
 			picked: isDefault,
 			folder,
 		};
-	});
+	};
 
-	// In multi-root workspaces, sort so items from the same workspace folder
-	// are grouped together instead of being interleaved by source type.
 	if (isMultiRoot) {
-		const getWorkspaceFolderIndex = (uri: URI, storage: PromptsStorage): number => {
-			if (storage !== PromptsStorage.local) {
-				return workspaceFolders.length; // global items go last
+		const mappedRoots = new Set<IResolvedFolder>();
+		for (const wsFolder of workspaceFolders) {
+			const wsResolvedFolders = resolvedFolders.filter(r =>
+				r.storage === PromptsStorage.local &&
+				isEqual(workspaceService.getWorkspaceFolder(r.searchRoot)?.uri, wsFolder.uri)
+			);
+			if (wsResolvedFolders.length > 0) {
+				items.push({ type: 'separator', label: wsFolder.name });
+				for (const resolved of wsResolvedFolders) {
+					mappedRoots.add(resolved);
+					items.push(createFolderPickItem(resolved, true));
+				}
 			}
-			const wsFolder = workspaceService.getWorkspaceFolder(uri);
-			return wsFolder?.index ?? workspaceFolders.length;
-		};
+		}
 
-		foldersList.sort((a, b) => {
-			const aIndex = getWorkspaceFolderIndex(a.folder.uri, a.folder.storage);
-			const bIndex = getWorkspaceFolderIndex(b.folder.uri, b.folder.storage);
-			return aIndex - bIndex;
-		});
+		const otherLocalFolders = resolvedFolders.filter(r => r.storage === PromptsStorage.local && !mappedRoots.has(r));
+		if (otherLocalFolders.length > 0) {
+			items.push({ type: 'separator', label: localize('separator.otherWorkspace', "Other Locations") });
+			for (const resolved of otherLocalFolders) {
+				items.push(createFolderPickItem(resolved, false));
+			}
+		}
+
+		const userResolvedFolders = resolvedFolders.filter(r => r.storage === PromptsStorage.user);
+		if (userResolvedFolders.length > 0) {
+			items.push({ type: 'separator', label: localize('separator.user', "User Data") });
+			for (const resolved of userResolvedFolders) {
+				items.push(createFolderPickItem(resolved, false));
+			}
+		}
+	} else {
+		const localResolvedFolders = resolvedFolders.filter(r => r.storage === PromptsStorage.local);
+		const userResolvedFolders = resolvedFolders.filter(r => r.storage === PromptsStorage.user);
+		const hasBoth = localResolvedFolders.length > 0 && userResolvedFolders.length > 0;
+
+		if (hasBoth) {
+			items.push({ type: 'separator', label: localize('separator.workspace', "Workspace") });
+		}
+		for (const resolved of localResolvedFolders) {
+			items.push(createFolderPickItem(resolved, true));
+		}
+
+		if (hasBoth) {
+			items.push({ type: 'separator', label: localize('separator.user', "User Data") });
+		}
+		for (const resolved of userResolvedFolders) {
+			items.push(createFolderPickItem(resolved, false));
+		}
 	}
 
-	const answer = await quickInputService.pick(foldersList, pickOptions);
+	const answer = await quickInputService.pick(items, pickOptions);
 	if (!answer) {
 		return;
 	}
