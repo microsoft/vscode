@@ -5,12 +5,16 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatSpeechToTextService, createDictationCleanupSystemPrompt, isDictationEntitled, selectFinalDictationTranscript, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { resolveDictationLanguage } from '../../browser/speechToText/dictationLanguage.js';
 import { ChatEntitlement } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
+import { IVoiceClientService, IVoiceFatalDisconnect } from '../../common/voiceClient/voiceClientService.js';
 
 type CleanupTestService = {
 	_configurationService: {
@@ -27,6 +31,37 @@ type CleanupTestService = {
 		trace: (message: string) => void;
 	};
 	_cleanupWithLanguageModel: (text: string, token: CancellationToken) => Promise<string | undefined>;
+};
+
+type ConfiguredTestService = {
+	_configurationService: { getValue: () => boolean };
+	_getBackend: () => 'mai';
+	_isEntitledForBackend: () => boolean;
+	_voiceWsUrl: () => string;
+	_hasGitHubSession: boolean;
+	_localTranscription: { isSupported: boolean };
+	readonly isConfigured: boolean;
+};
+
+type ConnectionTestService = {
+	_voiceClientService: Pick<IVoiceClientService, 'isConnected' | 'onDidChangeConnectionState' | 'onFatalDisconnect'>;
+	_maiSessionDisposables: DisposableStore;
+	_sessionErrorCode: string;
+	_sessionCloseCode: number;
+	_awaitVoiceConnected: () => Promise<void>;
+};
+
+type FinalizationTestService = {
+	_activeBackend: 'nemo';
+	_localTranscription: {
+		stop: () => Promise<string>;
+		cancel: () => Promise<void>;
+	};
+	_finalizedText: string;
+	_deltaText: string;
+	_logService: Pick<Console, 'warn'>;
+	_pendingLocalTeardown: Promise<void> | undefined;
+	_finishBackend: () => Promise<string | undefined>;
 };
 
 suite('ChatSpeechToTextService', () => {
@@ -59,6 +94,88 @@ suite('ChatSpeechToTextService', () => {
 			enterpriseMai: false,
 			internalEnterpriseMai: true,
 		});
+	});
+
+	test('requires a GitHub session before cloud dictation is configured', () => {
+		const service = Object.create(ChatSpeechToTextService.prototype) as ConfiguredTestService;
+		service._configurationService = { getValue: () => true };
+		service._getBackend = () => 'mai';
+		service._isEntitledForBackend = () => true;
+		service._voiceWsUrl = () => 'wss://voice.example.com';
+		service._localTranscription = { isSupported: true };
+
+		service._hasGitHubSession = false;
+		const signedOut = service.isConfigured;
+		service._hasGitHubSession = true;
+		const signedIn = service.isConfigured;
+
+		assert.deepStrictEqual({ signedOut, signedIn }, { signedOut: false, signedIn: true });
+	});
+
+	test('rejects cloud connection immediately on a fatal disconnect', async () => {
+		const fatalDisconnect = new Emitter<IVoiceFatalDisconnect>();
+		const sessionDisposables = new DisposableStore();
+		const service = Object.create(ChatSpeechToTextService.prototype) as ConnectionTestService;
+		service._voiceClientService = {
+			isConnected: false,
+			onDidChangeConnectionState: Event.None,
+			onFatalDisconnect: fatalDisconnect.event,
+		};
+		service._maiSessionDisposables = sessionDisposables;
+		service._sessionErrorCode = '';
+		service._sessionCloseCode = 0;
+
+		const connected = service._awaitVoiceConnected();
+		fatalDisconnect.fire({ code: 4008, reason: 'rejected' });
+
+		await assert.rejects(connected, /code 4008/);
+		assert.deepStrictEqual({
+			errorCode: service._sessionErrorCode,
+			closeCode: service._sessionCloseCode,
+		}, {
+			errorCode: 'connect.rejected.4008',
+			closeCode: 4008,
+		});
+
+		fatalDisconnect.dispose();
+		sessionDisposables.dispose();
+	});
+
+	test('returns the streamed transcript when on-device finalization times out', async () => {
+		const clock = sinon.useFakeTimers();
+		const warnings: string[] = [];
+		const stop = new DeferredPromise<string>();
+		let cancellations = 0;
+		const service = Object.create(ChatSpeechToTextService.prototype) as FinalizationTestService;
+		service._activeBackend = 'nemo';
+		service._finalizedText = 'streamed transcript';
+		service._deltaText = '';
+		service._logService = { warn: message => warnings.push(message) };
+		service._localTranscription = {
+			stop: () => stop.p,
+			cancel: async () => { cancellations++; },
+		};
+
+		try {
+			const resultPromise = service._finishBackend();
+			await clock.tickAsync(8000);
+
+			assert.deepStrictEqual({
+				result: await resultPromise,
+				cancellations,
+				teardownPending: service._pendingLocalTeardown !== undefined,
+				warnings,
+			}, {
+				result: 'streamed transcript',
+				cancellations: 1,
+				teardownPending: true,
+				warnings: ['[chat-stt] on-device final transcription timed out after 8000ms; using streamed transcript'],
+			});
+			stop.complete('');
+			await service._pendingLocalTeardown;
+		} finally {
+			clock.restore();
+		}
 	});
 
 	test('resolves the dictation language from Voice Mode configuration, display language, and browser locale', () => {

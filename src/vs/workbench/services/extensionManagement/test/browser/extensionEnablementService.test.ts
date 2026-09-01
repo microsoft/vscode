@@ -1294,6 +1294,21 @@ suite('ExtensionEnablementService Test', () => {
 		]);
 	});
 
+	test('test extensions declaring agents window support are enabled in sessions window', () => {
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+
+		const supported = aLocalExtension2('pub.supported', { main: 'main.js', enabledApiProposals: ['agentsWindowActivation'], capabilities: { agentsWindow: { supported: true } } });
+		const unsupported = aLocalExtension2('pub.unsupported', { enabledApiProposals: ['agentsWindowActivation'], capabilities: { agentsWindow: { supported: false } }, contributes: aContributes('themes') });
+		const unsupportedWithoutProposal = aLocalExtension2('pub.unsupportedWithoutProposal', { main: 'main.js', capabilities: { agentsWindow: { supported: true } } });
+
+		assert.deepStrictEqual([supported, unsupported, unsupportedWithoutProposal].map(ext => testObject.getEnablementState(ext)), [
+			EnablementState.EnabledGlobally,
+			EnablementState.DisabledByEnvironment,
+			EnablementState.DisabledByEnvironment,
+		]);
+	});
+
 	test('test extensions are not disabled in non-sessions window', () => {
 		const withMain = aLocalExtension2('pub.withMain', { main: 'main.js' });
 		const withBrowser = aLocalExtension2('pub.withBrowser', { browser: 'main.browser.js' });

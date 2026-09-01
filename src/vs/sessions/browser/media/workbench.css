@@ -147,7 +147,7 @@
 
 .agent-sessions-workbench:not(.dock-detail-panel) .part.auxiliarybar {
 	margin: 0 0 0 0;
-	padding-left: 5px;
+	padding-left: var(--vscode-spacing-size60);
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-top-left-radius: 0;
@@ -291,8 +291,19 @@
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor:not(.modal-editor-part) .editor-group-container > .title {
-	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	box-sizing: border-box;
+	position: relative;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor:not(.modal-editor-part) .editor-group-container > .title::after {
+	content: '';
+	position: absolute;
+	right: var(--vscode-spacing-size100);
+	bottom: 0;
+	left: var(--vscode-spacing-size100);
+	height: var(--vscode-strokeThickness);
+	background: var(--vscode-agentsPanel-border);
+	pointer-events: none;
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar > .content .pane-body,
