@@ -28,6 +28,7 @@ import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/gi
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
+import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -206,6 +207,7 @@ interface ISerializedSessionMetadata {
 	readonly external?: boolean;
 	readonly multiRoot?: ISessionMultiRootMetadata;
 	readonly createdBySession?: IProtocolSessionCreationReference;
+	readonly devContainerWorktree?: IAgentDevContainerWorktreeMetadata;
 }
 
 /**
@@ -230,6 +232,7 @@ function serializeMetadata(meta: IAgentSessionMetadata): ISerializedSessionMetad
 		external: readSessionExternal(meta._meta) || undefined,
 		multiRoot: readSessionMultiRootMetadata(meta._meta),
 		createdBySession: readSessionCreationReference(meta._meta),
+		devContainerWorktree: readAgentDevContainerWorktreeMetadata(meta._meta),
 	};
 }
 
@@ -241,6 +244,9 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 		_meta = withSessionGitHubState(_meta, raw.github);
 		if (raw.createdBySession) {
 			_meta = withSessionCreationReference(_meta, raw.createdBySession);
+		}
+		if (raw.devContainerWorktree) {
+			_meta = withAgentDevContainerWorktreeMetadata(_meta, raw.devContainerWorktree.handle);
 		}
 		return {
 			session: URI.parse(raw.session),
@@ -1973,6 +1979,7 @@ class NewSession extends Disposable {
 
 	private readonly _activeClientScope: IAgentCustomizationScope;
 	private readonly _initialMetadata: Record<string, unknown> | undefined;
+	get initialMetadata(): Record<string, unknown> | undefined { return this._initialMetadata; }
 
 	private readonly _logService: ILogService;
 	private readonly _providerId: string;
@@ -2667,7 +2674,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!rawId) {
 			return undefined;
 		}
+
 		return this._sessionCache.get(rawId)?.backendUri ?? this._newSessions.get(sessionId)?.backendUri;
+	}
+
+	protected _hasSession(sessionId: string): boolean {
+		const rawId = this._rawIdFromChatId(sessionId);
+		return !!rawId && this._sessionCache.has(rawId);
 	}
 
 	/**
@@ -2676,15 +2689,34 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * connection drops and the composed-but-unsent drafts can no longer commit.
 	 */
 	protected _disposeAllNewSessions(): void {
+		for (const sessionId of this._newSessions.keys()) {
+			this._onNewSessionAbandoned(sessionId, 'providerDisposed');
+		}
 		this._newSessions.clearAndDisposeAll();
 		this._onDidChangeDraftSessions.fire();
 	}
 
 	deleteNewSession(sessionId: string): void {
 		if (this._newSessions.has(sessionId)) {
+			this._onNewSessionAbandoned(sessionId, 'discarded');
 			this._newSessions.deleteAndDispose(sessionId);
 			this._onDidChangeDraftSessions.fire();
 		}
+	}
+
+	protected _onNewSessionAbandoned(_sessionId: string, _reason: 'discarded' | 'sendFailed' | 'providerDisposed'): void { }
+
+	protected _getSessionMetadata(sessionId: string): Record<string, unknown> | undefined {
+		const draft = this._newSessions.get(sessionId);
+		if (draft) {
+			return draft.initialMetadata;
+		}
+		const rawId = this._rawIdFromChatId(sessionId);
+		return rawId ? this._metaByRawId.get(rawId)?._meta : undefined;
+	}
+
+	protected _getSessionMetadataByRawId(rawId: string): Record<string, unknown> | undefined {
+		return this._metaByRawId.get(rawId)?._meta;
 	}
 
 	/** Full resolved config (schema + values) for running sessions, keyed by session ID. */
@@ -3833,6 +3865,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	clearSessionConfig(sessionId: string): void {
 		if (this._newSessions.has(sessionId)) {
+			this._onNewSessionAbandoned(sessionId, 'discarded');
 			this._newSessions.deleteAndDispose(sessionId);
 			this._onDidChangeDraftSessions.fire();
 		}
@@ -4212,16 +4245,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * Skips the local flip when disconnected: showing a session as archived when
 	 * the change can never be recorded is worse than appearing not to archive.
 	 */
-	private _setSessionArchived(sessionId: string, isArchived: boolean): void {
+	protected _setSessionArchived(sessionId: string, isArchived: boolean): boolean {
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
 		if (!cached || !rawId || !connection) {
-			return;
+			return false;
 		}
 		cached.isArchived.set(isArchived, undefined);
 		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		connection.dispatch(cached.backendUri.toString(), { type: ActionType.SessionIsArchivedChanged as const, isArchived });
+		return true;
 	}
 
 	async setSessionReadState(sessionId: string, isRead: boolean): Promise<void> {
@@ -4794,6 +4828,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// than risking a double-dispose race on transient failures.
 		newSession.graduate();
 		if (this._newSessions.get(newSession.sessionId) === newSession) {
+			this._onNewSessionAbandoned(newSession.sessionId, 'sendFailed');
 			this._newSessions.deleteAndDispose(newSession.sessionId);
 			this._onDidChangeDraftSessions.fire();
 		}
@@ -5465,6 +5500,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					removed.push(cached);
 				}
 			}
+			this._onHostReconciledSessions(new Set(this._sessionCache.keys()));
 
 			if (added.length > 0 || removed.length > 0 || changed.length > 0) {
 				this._onDidChangeSessions.fire({ added, removed, changed });
@@ -5498,6 +5534,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/** Raw ids the host listed, reported before eviction runs so subclasses can retire protections. */
 	protected _onHostListedSessions(_rawIds: ReadonlySet<string>): void { }
+
+	/** Raw ids retained after authoritative-list eviction and partial-provider guards have applied. */
+	protected _onHostReconciledSessions(_rawIds: ReadonlySet<string>): void { }
 
 	/**
 	 * Arm a backoff retry of {@link _refreshSessions}. Used after a failed
@@ -5684,6 +5723,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	private _handleSessionRemoved(session: URI | string): void {
 		const rawId = AgentSession.id(session);
+		this._onBackendSessionRemoved(rawId);
 		const cached = this._removeCachedSession(rawId);
 		if (cached) {
 			this._onDidChangeSessionsFromNotifications.fire({ added: [], removed: [cached], changed: [] });
@@ -5691,6 +5731,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		this._syncActiveClient();
 	}
+
+	protected _onBackendSessionRemoved(_rawId: string): void { }
 
 	private _removeCachedSession(rawId: string, expected?: AgentHostSessionAdapter): AgentHostSessionAdapter | undefined {
 		const cached = this._sessionCache.get(rawId);

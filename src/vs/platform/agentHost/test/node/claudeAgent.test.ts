@@ -5250,6 +5250,7 @@ suite('ClaudeAgent', () => {
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 		const discoveredChats: number[] = [];
 		disposables.add(agent.onDidDiscoverChats(chats => discoveredChats.push(chats.length)));
+		void agent.startChatDiscovery();
 
 		const sessionUri = AgentSession.uri('claude', 'materialized');
 		const chat = defaultChatUri(sessionUri);
@@ -6228,9 +6229,9 @@ suite('ClaudeAgent — agent SDK setup channel', () => {
 		const ctx = createTestContext(disposables);
 		ctx.sdk.canLoadWithoutDownloadResult = false;
 		ctx.sdk.sessionList = [{ sessionId: 'from-claude-code', summary: 'An existing chat', lastModified: 1000, createdAt: 900 }];
-		// Subscribing is what starts discovery.
 		const discovered: number[] = [];
 		disposables.add(ctx.agent.onDidDiscoverChats(chats => discovered.push(chats.length)));
+		void ctx.agent.startChatDiscovery();
 		await settle();
 		const cold = {
 			discovered: [...discovered],

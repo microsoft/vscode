@@ -50,7 +50,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 				kind: 'tool_call_executed',
 				created_at: '2026-07-10T12:00:00Z',
 				model_call_id: 'model-call',
-				properties: { tool_name: 'grep' },
+				properties: { tool_name: 'grep', secondary_assignment_context: 'secondary:1' },
 				metrics: { duration_ms: 42 },
 				exp_assignment_context: 'experiment',
 				features: { featureA: 'enabled' },

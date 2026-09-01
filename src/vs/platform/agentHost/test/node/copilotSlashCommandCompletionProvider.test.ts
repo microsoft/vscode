@@ -489,7 +489,10 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				{ name: 'my-skill', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true },
 			]);
 			const items = await run(provider, '/');
-			assert.deepStrictEqual(runtimeOnly(items).map(i => i.insertText), ['/my-skill ']);
+			assert.deepStrictEqual(runtimeOnly(items).map(i => ({
+				insertText: i.insertText,
+				isSkill: i.attachment?._meta?.isSkill,
+			})), [{ insertText: '/my-skill ', isSkill: true }]);
 		});
 
 		test('excludes runtime skills that match a known plugin skill (with plugin prefix)', async () => {
@@ -613,6 +616,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 					type: MessageAttachmentKind.Simple,
 					meta: {
 						command: 'my-skill',
+						isSkill: true,
 						description: 'Runtime skill',
 						argumentHint: 'do stuff',
 					},

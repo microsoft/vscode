@@ -18,7 +18,7 @@ import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../.
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
-import { CollectAgentHostDebugLogsExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, supportsAgentHostChatStateFile, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult } from '../common/agentHostExtensionProtocol.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult } from '../common/agentHostExtensionProtocol.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
@@ -97,6 +97,15 @@ function transportLostError(address: string): ProtocolError {
 	return new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, `Transport lost (reconnecting): ${address}`);
 }
 
+/**
+ * Whether an error means the transport went away rather than the request
+ * being rejected on its merits. Such a failure is transient and must stay
+ * recoverable, so it is never reclassified as a terminal condition.
+ */
+function isConnectionClosedError(error: unknown): boolean {
+	return error instanceof ProtocolError && error.code === AHP_CLIENT_CONNECTION_CLOSED;
+}
+
 interface IRemoteAgentHostExtensionNotificationMap {
 	'setClientManagedSettingsPermissions': { params: { permissions: IAgentHostManagedSettingsPermissions } };
 }
@@ -172,6 +181,16 @@ export interface IAgentHostProtocolClientOptions {
 	readonly clientInfo?: Implementation;
 	/** How a dropped transport is restored. Defaults to {@link DEFAULT_RECONNECT_POLICY}. */
 	readonly reconnectPolicy?: IRemoteAgentHostReconnectPolicy;
+	/** Resolves authentication to restore immediately after every fresh initialize. */
+	readonly resolveInitialAuthentication?: () => Promise<AuthenticateParams | undefined>;
+}
+
+/** An initial authentication resolver failed after a successful initialize. */
+export class InitialAuthenticationError extends Error {
+	constructor(error: unknown) {
+		super(`Initial authentication failed: ${error instanceof Error ? error.message : String(error)}`);
+		this.name = 'InitialAuthenticationError';
+	}
 }
 
 /**
@@ -285,6 +304,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _loadEstimator: ILoadEstimator;
 	private readonly _clientInfo: Implementation | undefined;
 	private readonly _reconnectPolicy: IRemoteAgentHostReconnectPolicy;
+	private readonly _resolveInitialAuthentication: (() => Promise<AuthenticateParams | undefined>) | undefined;
 
 	/**
 	 * URIs we have already granted implicit read access for on this connection.
@@ -339,6 +359,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._loadEstimator = options?.loadEstimator ?? LoadEstimator.getInstance();
 		this._clientInfo = options?.clientInfo;
 		this._reconnectPolicy = options?.reconnectPolicy ?? DEFAULT_RECONNECT_POLICY;
+		this._resolveInitialAuthentication = options?.resolveInitialAuthentication;
 
 		if (typeof transportOrFactory === 'function') {
 			this._transportFactory = transportOrFactory;
@@ -481,6 +502,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				initialSubscriptions: [ROOT_STATE_URI],
 			}, { bypassInitializeQueue: true });
 			this._applyInitializeResult(result);
+			if (this._resolveInitialAuthentication || this._authentication.size > 0) {
+				await this._restoreAuthenticationAfterFreshInitialize(AgentHostClientState.Connecting);
+				if (this._state.kind !== AgentHostClientState.Connecting) {
+					throw transportLostError(this._address);
+				}
+			}
 
 			// Hydrate root state from the initial snapshot
 			for (const snapshot of result.snapshots ?? []) {
@@ -501,7 +528,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			const protocolError = error instanceof ProtocolError
 				? error
 				: new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, error instanceof Error ? error.message : String(error));
-			if (protocolError.code === AhpErrorCodes.UnsupportedProtocolVersion) {
+			if (protocolError.code === AhpErrorCodes.UnsupportedProtocolVersion || error instanceof InitialAuthenticationError) {
 				this._cancelLivenessTimers();
 				if (this._state.kind === AgentHostClientState.Connecting) {
 					this._state.outbox.length = 0;
@@ -699,7 +726,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._applyReconnectResult(result, freshInitialize);
 			this._updateManagedSettingsPermissions(true);
 			if (freshInitialize && result.type === ReconnectResultType.Snapshot) {
-				await this._restoreAuthenticationAfterFreshInitialize();
+				await this._restoreAuthenticationAfterFreshInitialize(AgentHostClientState.Reconnecting);
+				if (this._state.kind !== AgentHostClientState.Reconnecting) {
+					return;
+				}
 				await this._restoreSubscriptionsAfterFreshInitialize(result.snapshots);
 			}
 			if (this._state.kind !== AgentHostClientState.Reconnecting) {
@@ -733,6 +763,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			if (err instanceof NonReconnectableTransportError) {
 				const protocolError = new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, err.message);
 				this._handleFatalClose(protocolError);
+				return;
+			}
+			if (err instanceof InitialAuthenticationError) {
+				const protocolError = new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, err.message);
+				this._cancelLivenessTimers();
+				this._rejectPendingRequests(protocolError);
+				reconnect.gate.error(err);
+				this._transitionTo({ kind: AgentHostClientState.Incompatible, error: protocolError });
 				return;
 			}
 			// Replace the gate so awaiting callers see the failure but new
@@ -812,12 +850,40 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		]);
 	}
 
-	private async _restoreAuthenticationAfterFreshInitialize(): Promise<void> {
-		await Promise.all([...this._authentication.values()].map(params => this._dispatchRequest<CommandMap['authenticate']['result']>('authenticate', {
-			channel: ROOT_STATE_URI,
-			...params,
-			scopes: params.scopes ? [...params.scopes] : undefined,
-		}, { bypassReconnectGate: true })));
+	private async _restoreAuthenticationAfterFreshInitialize(expectedState: AgentHostClientState.Connecting | AgentHostClientState.Reconnecting): Promise<void> {
+		let resolvedInitialAuthentication = false;
+		if (this._resolveInitialAuthentication) {
+			try {
+				const initialAuthentication = await this._resolveInitialAuthentication();
+				if (initialAuthentication) {
+					const normalizedParams = this._normalizeAuthenticationParams(initialAuthentication);
+					this._authentication.set(this._authenticationKey(normalizedParams), normalizedParams);
+					resolvedInitialAuthentication = true;
+				}
+			} catch (error) {
+				throw new InitialAuthenticationError(error);
+			}
+			if (this._state.kind !== expectedState) {
+				return;
+			}
+		}
+		try {
+			await Promise.all([...this._authentication.values()].map(params => this._dispatchRequest<CommandMap['authenticate']['result']>('authenticate', {
+				channel: ROOT_STATE_URI,
+				...params,
+				scopes: params.scopes ? [...params.scopes] : undefined,
+			}, this._state.kind === AgentHostClientState.Connecting
+				? { bypassInitializeQueue: true, bypassReconnectGate: true }
+				: { bypassReconnectGate: true })));
+		} catch (error) {
+			// A dropped transport is not an authentication failure. Wrapping it
+			// would classify a momentary blip as terminally incompatible and
+			// permanently stop recovery, so let it stay a reconnectable error.
+			if (resolvedInitialAuthentication && !isConnectionClosedError(error)) {
+				throw new InitialAuthenticationError(error);
+			}
+			throw error;
+		}
 	}
 
 	private _clientMeta(): Record<string, unknown> {
@@ -1073,6 +1139,36 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return promise;
 	}
 
+	async createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
+		const result = await this._sendExtensionRequest(CreateAgentHostDetachedWorktreeExtensionMethod, {
+			session: session.toString(),
+			prompt,
+		});
+		if (!result) {
+			throw new Error('Agent Host does not support detached worktrees.');
+		}
+		return { handle: result.handle, worktree: URI.parse(result.resource) };
+	}
+
+	async setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {
+		await this._sendExtensionRequest(SetAgentHostDetachedWorktreeArchivedExtensionMethod, {
+			handle,
+			archived,
+		});
+	}
+
+	async claimDetachedWorktree(handle: string): Promise<void> {
+		await this._sendExtensionRequest(ClaimAgentHostDetachedWorktreeExtensionMethod, { handle });
+	}
+
+	async deleteDetachedWorktree(handle: string): Promise<void> {
+		await this._sendExtensionRequest(DeleteAgentHostDetachedWorktreeExtensionMethod, { handle });
+	}
+
+	async reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
+		await this._sendExtensionRequest(ReconcileAgentHostDetachedWorktreesExtensionMethod, { scope, activeHandles: [...activeHandles] });
+	}
+
 	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
 		return this._sendRequest('resolveSessionConfig', {
 			channel: ROOT_STATE_URI,
@@ -1143,22 +1239,30 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * Authenticate with the remote agent host using a specific scheme.
 	 */
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
-		const normalizedParams: AuthenticateParams = {
-			...params,
-			scopes: params.scopes ? [...new Set(params.scopes)].sort() : undefined,
-		};
+		const normalizedParams = this._normalizeAuthenticationParams(params);
 		await this._sendRequest('authenticate', {
 			channel: ROOT_STATE_URI,
 			...normalizedParams,
 			scopes: normalizedParams.scopes ? [...normalizedParams.scopes] : undefined,
 		});
-		const key = `${normalizedParams.resource}\0${JSON.stringify(normalizedParams.scopes ?? [])}`;
+		const key = this._authenticationKey(normalizedParams);
 		if (params.token) {
 			this._authentication.set(key, normalizedParams);
 		} else {
 			this._authentication.delete(key);
 		}
 		return { authenticated: true };
+	}
+
+	private _normalizeAuthenticationParams(params: AuthenticateParams): AuthenticateParams {
+		return {
+			...params,
+			scopes: params.scopes ? [...new Set(params.scopes)].sort() : undefined,
+		};
+	}
+
+	private _authenticationKey(params: AuthenticateParams): string {
+		return `${params.resource}\0${JSON.stringify(params.scopes ?? [])}`;
 	}
 
 	/**

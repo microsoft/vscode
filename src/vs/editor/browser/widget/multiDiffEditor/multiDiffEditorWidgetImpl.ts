@@ -394,7 +394,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			scrollTop: `${this._scrollView.getScrollPosition().scrollTop} -> ${scrollTop}`,
 			range: options?.range,
 		});
-		this._scrollView.setScrollPosition({ scrollTop });
+		this._scrollView.setLogicalScrollPosition(scrollTop);
 
 		const diffEditor = viewItem.template.get()?.editor;
 		const editor = 'original' in resource ? diffEditor?.getOriginalEditor() : diffEditor?.getModifiedEditor();

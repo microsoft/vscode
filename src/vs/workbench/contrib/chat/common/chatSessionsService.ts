@@ -562,6 +562,7 @@ export interface IChatInputCompletionResourceAttachment {
 export interface IChatInputCompletionCommandAttachment {
 	readonly kind: 'command';
 	readonly command: string;
+	readonly isSkill?: true;
 	readonly description: string;
 	/**
 	 * Implementation-defined metadata that MUST be preserved by the

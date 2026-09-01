@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
 import { hash } from '../../../../../../base/common/hash.js';
-import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -86,6 +86,7 @@ suite('ModePicker', () => {
 		}());
 
 		let selectCustomAgent: (() => void) | undefined;
+		let hidePicker: (() => void) | undefined;
 		const requestedChatResources: string[] = [];
 		const picker = store.add(new ModePicker(
 			model,
@@ -103,6 +104,7 @@ suite('ModePicker', () => {
 					assert.ok(item?.item);
 					const modeItem = item.item;
 					selectCustomAgent = () => delegate.onSelect(modeItem);
+					hidePicker = () => delegate.onHide();
 				}
 				override hide(): void { }
 			}(),
@@ -124,14 +126,33 @@ suite('ModePicker', () => {
 			}(),
 		));
 		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
 		picker.render(container);
-		container.querySelector<HTMLElement>('a.action-label')?.click();
+		const trigger = container.querySelector<HTMLElement>('a.action-label');
+		let focusCalls = 0;
+		if (trigger) {
+			trigger.focus = () => focusCalls++;
+		}
+		trigger?.click();
+		assert.ok(hidePicker);
+		hidePicker();
+		const pointerFocusCalls = focusCalls;
+
+		trigger?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		assert.ok(hidePicker);
+		hidePicker();
+		const keyboardFocusCalls = focusCalls;
+
+		trigger?.click();
 		assert.ok(selectCustomAgent);
 		selectCustomAgent();
 
 		assert.deepStrictEqual({
 			events: telemetryService.events.filter(event => event.name === 'chat.modeChange'),
 			requestedChatResources,
+			pointerFocusCalls,
+			keyboardFocusCalls,
 		}, {
 			events: [{
 				name: 'chat.modeChange',
@@ -147,6 +168,8 @@ suite('ModePicker', () => {
 				},
 			}],
 			requestedChatResources: [chatResource.toString()],
+			pointerFocusCalls: 1,
+			keyboardFocusCalls: 2,
 		});
 	});
 });
