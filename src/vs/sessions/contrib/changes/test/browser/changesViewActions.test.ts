@@ -95,6 +95,7 @@ suite('Changes View Actions', () => {
 			'create-pr-auto-merge',
 			'create-pr-auto-squash',
 			'create-pr-auto-rebase',
+			'create-pr-agent-merge',
 			'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR',
 			'workbench.action.agentSessions.runSkill.createPR',
 			'create-draft-pr',
@@ -103,8 +104,8 @@ suite('Changes View Actions', () => {
 		].map(actionId => unlockChatPetCreatePullRequestAchievement(actionId, chatPetService));
 
 		assert.deepStrictEqual({ results, attemptedUnlocks }, {
-			results: [true, true, true, true, true, true, false, false, false],
-			attemptedUnlocks: Array(6).fill(ChatPetAchievementIds.CreatePullRequest),
+			results: [true, true, true, true, true, true, true, false, false, false],
+			attemptedUnlocks: Array(7).fill(ChatPetAchievementIds.CreatePullRequest),
 		});
 	});
 

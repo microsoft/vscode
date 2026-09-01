@@ -15,6 +15,7 @@ import { IAgentHostGitStateService } from '../../common/agentHostGitStateService
 import { IAgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
 import { activateAgentHostContributions } from '../../node/agentHostContributions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 
 class FailingChangesetOperationService extends Disposable implements IAgentHostChangesetOperationService {
 	declare readonly _serviceBrand: undefined;
@@ -64,12 +65,15 @@ suite('AgentHostContributions', () => {
 
 	test('disposes earlier registrations when activation fails', () => {
 		const changesetOperationService = disposables.add(new FailingChangesetOperationService());
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const services = new ServiceCollection(
-			[IAgentHostStateManager, disposables.add(new AgentHostStateManager(new NullLogService()))],
+			[IAgentHostStateManager, stateManager],
 			[IAgentHostChangesetOperationService, changesetOperationService],
 			[IAgentHostGitStateService, nullGitStateService],
 			[IAgentHostPullRequestStatusService, nullPullRequestStatusService],
-			[ILogService, new NullLogService()],
+			[IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService))],
+			[ILogService, logService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 

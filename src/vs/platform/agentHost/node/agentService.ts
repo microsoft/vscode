@@ -90,6 +90,7 @@ import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../c
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
+import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
@@ -124,7 +125,7 @@ interface ISessionListComputation {
 	trailing?: Promise<readonly IAgentSessionMetadata[]>;
 }
 
-type AgentHostLegacyMigrationEvent = {
+type AgentHostLegacyMigrationEvent = IAgentHostCopilotSkuTelemetry & {
 	provider: string;
 	outcome: 'migrated' | 'skipped' | 'failed';
 	success: boolean;
@@ -137,7 +138,7 @@ type AgentHostLegacyMigrationEvent = {
 	reason: string;
 };
 
-type AgentHostLegacyMigrationClassification = {
+type AgentHostLegacyMigrationClassification = IAgentHostCopilotSkuClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent provider id whose legacy session was migrated (e.g. copilotcli).' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Migration outcome: migrated (adoption + restore completed), skipped (eligible legacy session not adopted this pass, e.g. migrate flag not yet applied), or failed (adoption or restore threw).' };
 	success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the migration completed with at least one restored turn.' };

@@ -1170,6 +1170,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	if (options.scrollToBottom) {
 		editor.revealLastItem();
+		// Allow the 500ms hide delay and 800ms fade transition to complete.
+		await new Promise(resolve => setTimeout(resolve, 1400));
 	}
 
 	if (options.migrationCategory) {
@@ -2136,6 +2138,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Scrolled-to-bottom variants — verify last items are fully visible above footer
 	PromptsTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		virtualTime: { durationMs: 1500 },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Prompts,
@@ -2145,6 +2148,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	McpServersTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		virtualTime: { durationMs: 1500 },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -2154,6 +2158,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	PluginsTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		virtualTime: { durationMs: 1500 },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
