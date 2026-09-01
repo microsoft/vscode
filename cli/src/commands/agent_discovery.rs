@@ -139,6 +139,7 @@ async fn probe_host(
 			channel: ROOT_RESOURCE_URI.to_string(),
 			limit: None,
 			cursor: None,
+			meta: None,
 		},
 	)
 	.await;

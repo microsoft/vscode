@@ -2639,7 +2639,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const gitHubInfo = currentWorkspace?.folders
 			.map(folder => folder.gitRepository?.gitHubInfo.get())
 			.find(info => info !== undefined);
-		const repoId = gitHubInfo ? `${gitHubInfo.owner}/${gitHubInfo.repo}` : undefined;
+		const repoId = gitHubInfo
+			? `${gitHubInfo.owner}/${gitHubInfo.repo}`
+			: currentWorkspace?.folders.map(folder => githubRemoteRepoLabel(folder.root)).find(id => id !== undefined);
 		const selection = await this.commandService.executeCommand<IGitHubContextSelection>(commandId, repoId);
 		if (!selection) {
 			return undefined;

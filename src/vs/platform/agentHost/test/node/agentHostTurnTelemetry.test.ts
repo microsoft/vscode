@@ -387,6 +387,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 	test('attributes subagent model responses only to the subagent turn', () => {
 		setupSession();
+		setSessionConfig({ mode: 'plan' });
 		startTurn('turn-parent');
 		const subagentChatUri = buildSubagentChatUri(sessionUri, 'call-subagent');
 		stateManager.addChat(sessionKey, subagentChatUri);
@@ -417,13 +418,23 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		fire({ type: ActionType.ChatTurnComplete, turnId: subagentTurnId, duration: 1000 }, subagentChatUri);
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-parent', duration: 1000 });
 
-		assert.deepStrictEqual(completedEvents().map(event => {
-			const data = event.data as Record<string, unknown>;
-			return { isSubagentSession: data.isSubagentSession, modelCallCount: data.modelCallCount };
-		}), [
-			{ isSubagentSession: true, modelCallCount: 1 },
-			{ isSubagentSession: false, modelCallCount: 0 },
-		]);
+		assert.deepStrictEqual({
+			completed: completedEvents().map(event => {
+				const data = event.data as Record<string, unknown>;
+				return { isSubagentSession: data.isSubagentSession, interactionMode: data.interactionMode, modelCallCount: data.modelCallCount };
+			}),
+			correlations: agent.modelCallTurnCorrelationCalls.map(({ chat, ...correlation }) => ({ chat: chat.toString(), ...correlation })),
+		}, {
+			completed: [
+				{ isSubagentSession: true, interactionMode: 'plan', modelCallCount: 1 },
+				{ isSubagentSession: false, interactionMode: 'plan', modelCallCount: 0 },
+			],
+			correlations: [{
+				chat: defaultChatUri,
+				modelCallId: 'subagent-model-call',
+				turnId: subagentTurnId,
+			}],
+		});
 	});
 
 	test('correlates first-level and nested subagent turns with their immediate parent', () => {

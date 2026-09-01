@@ -43,7 +43,7 @@
 		var(--vscode-cornerRadius-large, 8px);
 }
 
-.new-chat-in-session .new-chat-input-area:focus-within {
+.new-chat-in-session .new-chat-input-area.focused {
 	border-color: var(--vscode-agentsChatInput-focusBorder, var(--vscode-focusBorder)) !important;
 }
 
