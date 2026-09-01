@@ -40,10 +40,11 @@ const retiredAutoModeTiers: Readonly<Record<string, AutoModeTier>> = {
 
 /**
  * Maps a retired tier name to its current one, leaving anything else untouched.
- * Only raw inputs that bypass the picker schema need this, notably the override setting.
+ * Applied to raw inputs that may predate the rename: the override setting, and a persisted picker
+ * value restored before its model's schema has loaded (see the `restoreModelConfiguration` race).
  */
-export function normalizeAutoModeTier(value: string): string {
-	return retiredAutoModeTiers[value] ?? value;
+export function normalizeAutoModeTier(value: unknown): unknown {
+	return typeof value === 'string' ? retiredAutoModeTiers[value] ?? value : value;
 }
 
 /**
