@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -14,6 +16,7 @@ import { CompletionItem, CompletionItemKind } from '../../../../editor/common/la
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatInputCompletionItem, IChatSessionsService, isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { AgentHostInputCompletionsBase } from '../../../../workbench/contrib/chat/browser/widget/input/editor/agentHostInputCompletionsBase.js';
@@ -36,7 +39,10 @@ CommandsRegistry.registerCommand(ACCEPT_AUTOMATION_SKILL_COMPLETION_COMMAND, (_a
 export class AutomationInputCompletions extends AgentHostInputCompletionsBase<void, string> {
 
 	private readonly registration = this._register(new MutableDisposable());
+	private readonly restoreRequest = this._register(new MutableDisposable<IDisposable>());
+	private readonly restoreScheduler = this._register(new RunOnceScheduler(() => this.restorePersistedSkillReferences(), 200));
 	private references: Array<{ decorationId: string; text: string }> = [];
+	private triggerCharacters: readonly string[] = [];
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -44,11 +50,16 @@ export class AutomationInputCompletions extends AgentHostInputCompletionsBase<vo
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(languageFeaturesService, chatSessionsService);
 
 		this._register(registerChatInputReferenceDecorationType(codeEditorService, AUTOMATION_SKILL_DECORATION_TYPE));
-		this._register(this.editor.onDidChangeModelContent(() => this.updateDecorations()));
+		this._register(this.editor.onDidChangeModelContent(() => {
+			this.restoreRequest.clear();
+			this.updateDecorations();
+			this.restoreScheduler.schedule();
+		}));
 
 		let currentScheme: string | undefined;
 		this._register(autorun(reader => {
@@ -59,6 +70,9 @@ export class AutomationInputCompletions extends AgentHostInputCompletionsBase<vo
 			}
 			currentScheme = scheme;
 			this.registration.clear();
+			this.restoreRequest.clear();
+			this.restoreScheduler.cancel();
+			this.triggerCharacters = [];
 			if (scheme && isAgentHostTarget(scheme)) {
 				void this.registerForScheme(scheme);
 			}
@@ -83,6 +97,8 @@ export class AutomationInputCompletions extends AgentHostInputCompletionsBase<vo
 			triggerCharacters,
 			scheme,
 		);
+		this.triggerCharacters = triggerCharacters;
+		this.restorePersistedSkillReferences();
 	}
 
 	protected override _resolveContext(model: ITextModel, scheme: string): { sessionResource: URI; context: void } | undefined {
@@ -122,19 +138,72 @@ export class AutomationInputCompletions extends AgentHostInputCompletionsBase<vo
 		this.updateDecorations({ range, text });
 	}
 
-	private updateDecorations(accepted?: { range: Range; text: string }): void {
+	private restorePersistedSkillReferences(): void {
+		const session = this.sessionsManagementService.automationSession.get();
+		const model = this.editor.getModel();
+		if (!session || !model || this.triggerCharacters.length === 0) {
+			return;
+		}
+		const value = model.getValue();
+		const tokens = [...value.matchAll(/\S+/g)]
+			.map(match => ({ text: match[0], start: match.index, end: match.index + match[0].length }))
+			.filter(token => this.triggerCharacters.includes(token.text[0]));
+		if (tokens.length === 0) {
+			return;
+		}
+
+		this.restoreRequest.clear();
+		const request = new CancellationTokenSource();
+		this.restoreRequest.value = toDisposable(() => request.dispose(true));
+		void (async () => {
+			const distinctTokens = [...new Map(tokens.map(token => [token.text, token])).values()];
+			const skillResults = await Promise.all(distinctTokens.map(async token => {
+				const result = await this._chatSessionsService.provideChatInputCompletions(session.resource, { text: value, offset: token.end }, request.token);
+				return [token.text, result?.items.some(item =>
+					(item.attachment.kind === 'skill' || (item.attachment.kind === 'command' && item.attachment.isSkill))
+					&& item.insertText.trimEnd() === token.text
+				) === true] as const;
+			}));
+			if (request.token.isCancellationRequested) {
+				return;
+			}
+			const skillTexts = new Set(skillResults.filter(([, isSkill]) => isSkill).map(([text]) => text));
+			const restored = tokens.flatMap(token =>
+				skillTexts.has(token.text)
+					? [{
+						range: Range.fromPositions(model.getPositionAt(token.start), model.getPositionAt(token.end)),
+						text: token.text,
+					}]
+					: []
+			);
+			if (session === this.sessionsManagementService.automationSession.get() && model === this.editor.getModel() && model.getValue() === value) {
+				this.updateDecorations(undefined, restored, true);
+			}
+		})().catch(error => {
+			if (!request.token.isCancellationRequested) {
+				this.logService.error('[AutomationInputCompletions] Failed to restore persisted skill references', error);
+			}
+		});
+	}
+
+	private updateDecorations(accepted?: { range: Range; text: string }, restored: readonly { range: Range; text: string }[] = [], replace = false): void {
 		const model = this.editor.getModel();
 		if (!model) {
 			this.references = [];
 			return;
 		}
 
-		const references = this.references.flatMap(reference => {
+		const references = replace ? [] : this.references.flatMap(reference => {
 			const range = model.getDecorationRange(reference.decorationId);
 			return range && model.getValueInRange(range) === reference.text ? [{ range, text: reference.text }] : [];
 		});
 		if (accepted) {
 			references.push(accepted);
+		}
+		for (const reference of restored) {
+			if (!references.some(existing => existing.text === reference.text && Range.equalsRange(existing.range, reference.range))) {
+				references.push(reference);
+			}
 		}
 		const decorationIds = this.editor.setDecorationsByType('chat', AUTOMATION_SKILL_DECORATION_TYPE, references.map(reference => ({ range: reference.range })));
 		this.references = decorationIds.map((decorationId, index) => ({ decorationId, text: references[index].text }));

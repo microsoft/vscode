@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -17,9 +17,11 @@ import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { CompletionItemKind, CompletionTriggerKind } from '../../../../../editor/common/languages.js';
 import { LanguageFeaturesService } from '../../../../../editor/common/services/languageFeaturesService.js';
+import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IChatInputCompletionsParams, IChatInputCompletionsResult, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -77,7 +79,7 @@ suite('AutomationInputCompletions', () => {
 		const sessionsManagementService = upcastPartial<ISessionsManagementService>({
 			automationSession: constObservable(session),
 		});
-		store.add(new AutomationInputCompletions(editor, languageFeaturesService, new TestChatSessionsService(), sessionsManagementService, codeEditorService));
+		store.add(new AutomationInputCompletions(editor, languageFeaturesService, new TestChatSessionsService(), sessionsManagementService, codeEditorService, new NullLogService()));
 		await timeout(0);
 
 		const provider = languageFeaturesService.completionProvider.ordered(model)[0];
@@ -118,5 +120,51 @@ suite('AutomationInputCompletions', () => {
 			],
 			decorations: [new Range(1, 1, 1, 8)],
 		});
+	});
+
+	test('restores persisted skill references and removes stale decorations after edits', async () => {
+		const languageFeaturesService = new LanguageFeaturesService();
+		const model = store.add(createTextModel(
+			'/review then /plan and /runtime-skill plus /unknown',
+			null,
+			undefined,
+			URI.parse('vscode-chat-input:automation'),
+		));
+		let decorations: readonly Range[] = [];
+		const decorationRanges = new Map<string, Range>();
+		const onDidChangeModelContent = store.add(new Emitter<IModelContentChangedEvent>());
+		const editor = upcastPartial<ICodeEditor>({
+			getModel: () => model,
+			getDecorationRange: decorationId => decorationRanges.get(decorationId) ?? null,
+			onDidChangeModelContent: onDidChangeModelContent.event,
+			setDecorationsByType: (_description, _key, options) => {
+				decorations = options.map(option => Range.lift(option.range));
+				decorationRanges.clear();
+				return decorations.map((range, index) => {
+					const id = `decoration-${index}`;
+					decorationRanges.set(id, range);
+					return id;
+				});
+			},
+		});
+		const codeEditorService = upcastPartial<ICodeEditorService>({
+			registerDecorationType: () => ({ dispose() { } }),
+		});
+		const session = upcastPartial<ISession>({
+			sessionId: 'automation',
+			resource: URI.parse('agent-host-copilot:automation'),
+		});
+		const sessionsManagementService = upcastPartial<ISessionsManagementService>({
+			automationSession: constObservable(session),
+		});
+		store.add(new AutomationInputCompletions(editor, languageFeaturesService, new TestChatSessionsService(), sessionsManagementService, codeEditorService, new NullLogService()));
+		await timeout(0);
+		model.setValue('/reviewx then /plan and /runtime-skill plus /unknown');
+		onDidChangeModelContent.fire(upcastPartial<IModelContentChangedEvent>({}));
+		await timeout(250);
+
+		assert.deepStrictEqual(decorations, [
+			new Range(1, 25, 1, 39),
+		]);
 	});
 });
