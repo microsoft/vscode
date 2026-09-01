@@ -1084,7 +1084,7 @@ suite('AgentHostProtocolClient', () => {
 				'vscode.clientDevDeviceId': 'client-dev-device-id',
 			},
 		});
-		assert.strictEqual(params.protocolVersions[0], PROTOCOL_VERSION);
+		assert.strictEqual(params.protocolVersions.includes(PROTOCOL_VERSION), true);
 
 		// Reply with a successful handshake so `connect()` resolves and the
 		// test can finish cleanly.

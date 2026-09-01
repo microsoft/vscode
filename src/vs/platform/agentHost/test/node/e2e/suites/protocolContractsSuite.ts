@@ -416,7 +416,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 				channel: ROOT_STATE_URI,
 				protocolVersions: [PROTOCOL_VERSION],
 				clientId: `server-identity-${config.provider}`,
-				clientInfo: { name: 'agent-host-e2e', version: '1.0.0' },
+				clientInfo: { name: 'agent-host-e2e', version: PROTOCOL_VERSION },
 			});
 
 			assert.deepStrictEqual({
