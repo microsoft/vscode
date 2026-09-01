@@ -122,10 +122,10 @@ jobs:
               # Rebuild each modified build subfolder separately
               for folder in $MODIFIED_BUILD_FOLDERS; do
                 echo "Rebuilding modified $folder..."
-              if ! (cd "$folder" && npm i --ignore-scripts); then
-                echo "npm i failed for $folder on attempt $attempt"
-                continue 2
-              fi
+                if ! (cd "$folder" && npm i --ignore-scripts); then
+                  echo "npm i failed for $folder on attempt $attempt"
+                  continue 2
+                fi
               done
 
               if node build/npm/postinstall.ts; then
