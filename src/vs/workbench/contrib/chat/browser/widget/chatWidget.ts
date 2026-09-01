@@ -983,7 +983,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private isSessionStateIndicatorEnabled(): boolean {
-		if (this.viewOptions.enableSessionStateIndicator !== true) {
+		if (isInlineChat(this) || isQuickChat(this) || this.viewOptions.enableSessionStateIndicator !== true) {
 			return false;
 		}
 
