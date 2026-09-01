@@ -1549,6 +1549,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		this._logService.info(`[Copilot] Auth token ${token ? 'updated' : 'cleared'}`);
+		this._telemetryService.setCommonProperty('copilotSku', undefined);
 		this._githubToken = token;
 		this._updateRestrictedTelemetry(token);
 		this._refreshProxy();
