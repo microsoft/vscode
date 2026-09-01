@@ -12335,6 +12335,21 @@ Use the attached image as context.
 			]);
 		});
 
+		test('keeps the last valid registration when config becomes malformed', async () => {
+			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables);
+			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+			await session.send('go', undefined, 'turn-1', 'interactive');
+			const registered = mockSession.shellInitScriptUpdates.at(-1);
+
+			const malformed = [initScript, { ...initScript, script: 'second' }];
+			setConfigValue(SessionConfigKey.ShellInitSnippets, malformed);
+			fireSessionConfigChange({ [SessionConfigKey.ShellInitSnippets]: malformed });
+			await timeout(0);
+			await session.send('go', undefined, 'turn-2', 'interactive');
+
+			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, [registered]);
+		});
+
 		test('each instance owns a distinct directory so a stale cleanup cannot delete a successor script', async () => {
 			// dispose() queues the deletion without awaiting it; a resumed
 			// replacement for the same SDK session may register its script first.

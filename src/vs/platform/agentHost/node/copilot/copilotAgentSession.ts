@@ -3876,8 +3876,18 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		try {
+			const ownConfigValues = this._configurationService.getSessionConfigValues(this._ownerSessionUri.toString());
+			const ownConfigured = ownConfigValues?.[SessionConfigKey.ShellInitSnippets];
+			if (ownConfigValues && Object.hasOwn(ownConfigValues, SessionConfigKey.ShellInitSnippets) && !isShellInitScriptList(ownConfigured)) {
+				this._logService.warn(`[Copilot:${this.sessionId}] Ignoring malformed shell init script config`);
+				return;
+			}
 			const configured = this._configurationService.getEffectiveValue(this._ownerSessionUri.toString(), platformSessionSchema, SessionConfigKey.ShellInitSnippets);
-			const snippets = isShellInitScriptList(configured) ? configured : [];
+			if (configured !== undefined && !isShellInitScriptList(configured)) {
+				this._logService.warn(`[Copilot:${this.sessionId}] Ignoring malformed inherited shell init script config`);
+				return;
+			}
+			const snippets = configured ?? [];
 			const serialized = JSON.stringify(snippets);
 			if (this._lastAppliedShellInitScripts === serialized) {
 				return;
