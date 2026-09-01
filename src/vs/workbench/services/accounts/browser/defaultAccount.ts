@@ -1016,7 +1016,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	private async getEntitlements(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: IDefaultAccountRefreshOptions): Promise<{ data: IEntitlementsData | undefined | null; fetchedAt: number | undefined }> {
 		const accountId = sessions[0].account.id;
 		const existingData = this._defaultAccount?.accountId === accountId ? this._defaultAccount?.defaultAccount.entitlementsData : undefined;
-		if (!options?.forceRefresh && existingData && accountPolicyData?.entitlementsFetchedAt && !this.isDataStale(accountPolicyData.entitlementsFetchedAt)) {
+		if (!options?.forceRefresh && !options?.refreshEntitlements && existingData && accountPolicyData?.entitlementsFetchedAt && !this.isDataStale(accountPolicyData.entitlementsFetchedAt)) {
 			this.logService.debug('[DefaultAccount] Using last fetched entitlements data');
 			return { data: existingData, fetchedAt: accountPolicyData.entitlementsFetchedAt };
 		}

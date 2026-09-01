@@ -164,6 +164,14 @@ suite('DefaultAccountProvider', () => {
 			sessions
 		);
 		const normalRequestCount = requestService.requestCount;
+		const refreshedEntitlements = await provider['getDefaultAccountFromAuthenticatedSessions'](
+			{ id: 'github', name: 'GitHub', enterprise: false },
+			sessions,
+			{ refreshEntitlements: true }
+		);
+		const entitlementRefreshCallSites = requestService.requests.map(request => request.callSite);
+		requestService.requestCount = 0;
+		requestService.requests.length = 0;
 		const forced = await provider['getDefaultAccountFromAuthenticatedSessions'](
 			{ id: 'github', name: 'GitHub', enterprise: false },
 			sessions,
@@ -173,11 +181,15 @@ suite('DefaultAccountProvider', () => {
 		assert.deepStrictEqual({
 			normalRequestCount,
 			normalCopilotPlan: normal?.defaultAccount.entitlementsData?.copilot_plan,
+			entitlementRefreshCallSites,
+			refreshedCopilotPlan: refreshedEntitlements?.defaultAccount.entitlementsData?.copilot_plan,
 			callSites: requestService.requests.map(request => request.callSite),
 			forcedCopilotPlan: forced?.defaultAccount.entitlementsData?.copilot_plan,
 		}, {
 			normalRequestCount: 0,
 			normalCopilotPlan: 'individual',
+			entitlementRefreshCallSites: ['defaultAccount.entitlements'],
+			refreshedCopilotPlan: 'business',
 			callSites: [
 				'defaultAccount.entitlements',
 				'defaultAccount.tokenEntitlements',
