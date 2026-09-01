@@ -5408,7 +5408,7 @@ suite('AgentService (node dispatcher)', () => {
 					registrations: [verified.toString(), incomplete.toString(), missing.toString()].sort(),
 					catalog: [verified.toString(), incomplete.toString(), missing.toString()].sort(),
 					verifiedGeneration: 'verified-generation',
-					missingRevisions: [0, 0],
+					missingRevisions: [undefined, 0],
 					currentMarker: true,
 					catalogCalls: 2,
 				});
@@ -5834,6 +5834,7 @@ suite('AgentService (node dispatcher)', () => {
 				registerTestAgentProvider(svc, agent);
 
 				await svc.listSessions();
+				await (svc as unknown as { _awaitInitialProviderMigrationForProvider(provider: IAgent): Promise<boolean> })._awaitInitialProviderMigrationForProvider(agent);
 				const exclusionAfterEnumeration = await database.getSessionsV2Exclusion('copilot', absent.toString());
 				const incompleteIdentityAfterEnumeration = await database.getSessionV2Registration(absent.toString());
 				perSession.databaseOpens.length = 0;
@@ -5865,7 +5866,7 @@ suite('AgentService (node dispatcher)', () => {
 					},
 					incompleteIdentityAfterEnumeration: undefined,
 					marker: true,
-					markerFastPass: { catalogCalls: 1, metadataCalls: 1, databaseOpens: [] },
+					markerFastPass: { catalogCalls: 1, metadataCalls: 2, databaseOpens: [] },
 					revivedExclusion: undefined,
 					revived: absent.toString(),
 				});
@@ -6243,7 +6244,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(agent.listExternalChatsCalls, 1, 'ordinary list refreshes must not re-enumerate the provider');
 		});
 
-		test('concurrent listSessions calls share one registry discovery pass', async () => {
+		test('concurrent first listings serve registered fallback data while sharing background migration', async () => {
 			const gate = new DeferredPromise<void>();
 			class GatedListAgent extends MockAgent {
 				override readonly onDidDiscoverChats = Event.None;
@@ -6254,18 +6255,30 @@ suite('AgentService (node dispatcher)', () => {
 					return super.listExternalChats();
 				}
 			}
-			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const legacy = AgentSession.uri('copilot', 'legacy-concurrent');
+			const database = new TransientRegistryWriteDatabase();
+			await database.registerRuntimeSession(legacy.toString(), {
+				provider: 'copilot',
+				startTime: 1,
+				source: 'restore',
+			}, { checkTombstone: false });
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database));
 			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			const agent = disposables.add(new GatedListAgent('copilot'));
-			registerTestAgentProvider(svc, agent);
-			const legacy = AgentSession.uri('copilot', 'legacy-concurrent');
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
+			registerTestAgentProvider(svc, agent);
 
 			const first = svc.listSessions();
 			const second = svc.listSessions();
 			for (let i = 0; i < 20 && agent.listCalls === 0; i++) {
 				await timeout(0);
 			}
+			let listingSettled = false;
+			void first.then(() => listingSettled = true);
+			for (let i = 0; i < 20 && !listingSettled; i++) {
+				await timeout(0);
+			}
+			assert.strictEqual(listingSettled, true, 'first listing must not wait for provider migration');
 			gate.complete();
 
 			const [firstResult, secondResult] = await Promise.all([first, second]);
@@ -6278,6 +6291,46 @@ suite('AgentService (node dispatcher)', () => {
 				first: [legacy.toString()],
 				second: [legacy.toString()],
 			});
+		});
+
+		test('first listing recomputes when background migration changes the registry before fallback returns', async () => {
+			const fallbackStarted = new DeferredPromise<void>();
+			const releaseFallback = new DeferredPromise<void>();
+			const existing = AgentSession.uri('copilot', 'existing-during-migration');
+			const discovered = AgentSession.uri('copilot', 'discovered-during-migration');
+			const database = new TransientRegistryWriteDatabase();
+			await database.registerRuntimeSession(existing.toString(), {
+				provider: 'copilot',
+				startTime: 1,
+				source: 'restore',
+			}, { checkTombstone: false });
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database));
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			const agent = disposables.add(new MockAgent('copilot'));
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(existing), existing);
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(discovered), discovered);
+			const internals = svc as unknown as {
+				_legacyRegisteredSessionMetadata(registered: IRegisteredSession): Promise<IAgentSessionMetadata | undefined>;
+			};
+			const originalFallback = internals._legacyRegisteredSessionMetadata.bind(svc);
+			internals._legacyRegisteredSessionMetadata = async registered => {
+				fallbackStarted.complete();
+				await releaseFallback.p;
+				return originalFallback(registered);
+			};
+			registerTestAgentProvider(svc, agent);
+
+			const listing = svc.listSessions();
+			await fallbackStarted.p;
+			for (let i = 0; i < 50 && !await database.getSessionV2(discovered.toString()); i++) {
+				await timeout(0);
+			}
+			releaseFallback.complete();
+
+			assert.deepStrictEqual(
+				(await listing).map(session => session.session.toString()).sort(),
+				[existing.toString(), discovered.toString()].sort(),
+			);
 		});
 
 		test('a readiness signal retries provider-native discovery after a transient provider failure', async () => {
@@ -6833,6 +6886,10 @@ suite('AgentService (node dispatcher)', () => {
 			await assert.rejects(Promise.all([svc.listSessions(), svc.listSessions()]), /cannot enumerate its native session catalog yet/);
 			const callsAfterFailure = { copilot: copilot.catalogCalls, claude: claude.catalogCalls };
 			claude.available = true;
+			await svc.listSessions();
+			for (let i = 0; i < 50 && !await db.isSessionsV2Backfilled('claude', AGENT_HOST_CATALOG_PAYLOAD_VERSION); i++) {
+				await timeout(0);
+			}
 			const [first, second] = await Promise.all([svc.listSessions(), svc.listSessions()]);
 
 			assert.deepStrictEqual({

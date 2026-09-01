@@ -853,6 +853,7 @@ export class AgentService extends Disposable implements IAgentService {
 	/** External sessions registered without a provider title, awaiting a generated one. */
 	private readonly _untitledExternalSessions = new Map<string, IAgentSessionMetadata>();
 	private _externalSessionTitlingQueued = false;
+	private readonly _backgroundInitialMigrationRetries = new Map<AgentProvider, Promise<void>>();
 
 	async whenCatalogReconciliationIdle(): Promise<void> {
 		await this._catalogReconciliationService.whenIdle();
@@ -1877,20 +1878,36 @@ export class AgentService extends Disposable implements IAgentService {
 			.catch(err => this._logService.warn(`[AgentService] Failed to update the Agent Merge index for ${session.toString()}`, err));
 	}
 
-	/**
-	 * Awaits the direct v2 import started at provider registration.
-	 * Provider-owned discovery still surfaces later unknown chats additively.
-	 */
+	/** Awaits provider discovery only when no persisted registry can serve the first list. */
 	private async _awaitInitialProviderMigration(): Promise<void> {
 		await Promise.all(this._providerService.getProviders().map(provider => this._awaitInitialProviderMigrationForProvider(provider)));
+	}
+
+	private _retryInitialProviderMigrationsInBackground(): void {
+		for (const provider of this._providerService.getProviders()) {
+			if (this._backgroundInitialMigrationRetries.has(provider.id)) {
+				continue;
+			}
+			const retry = this._awaitInitialProviderMigrationForProvider(provider).then(
+				() => { },
+				error => {
+					this._logService.warn(`[AgentService] Background catalog migration retry failed for ${provider.id}`, error);
+				},
+			);
+			const tracked = retry.finally(() => {
+				if (this._backgroundInitialMigrationRetries.get(provider.id) === tracked) {
+					this._backgroundInitialMigrationRetries.delete(provider.id);
+				}
+			});
+			this._backgroundInitialMigrationRetries.set(provider.id, tracked);
+		}
 	}
 
 	/**
 	 * Awaits the registration-time direct import for a single provider,
 	 * retrying once if that initial catalog pass was unavailable. Rejects only if
 	 * the retry also fails. Restore uses this to wait for its own provider's
-	 * catalog before reading per-session metadata, mirroring what
-	 * {@link _awaitInitialProviderMigration} does for `listSessions`.
+	 * catalog before reading per-session metadata.
 	 */
 	private async _awaitInitialProviderMigrationForProvider(provider: IAgent, requireReadableCatalog = false): Promise<boolean> {
 		const migration = this._initialProviderMigrations.get(provider.id);
@@ -2467,13 +2484,17 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _computeSessions(mode: AgentHostExternalSessionsMode, epoch = this._registryEpoch): Promise<readonly IAgentSessionMetadata[]> {
 		this._logService.trace('[AgentService] listSessions computation started');
 		const startedAt = Date.now();
-		// The first list waits for registration-time legacy migration if it is still in flight.
-		await this._awaitInitialProviderMigration();
 		// The registry is the source of truth for top-level sessions. Internal
 		// chat backings and subagent sessions never enter it; ephemeral sessions
 		// are tombstoned at creation. A transiently missing provider snapshot no
 		// longer evicts a session.
-		const allRegistered = await this._listRegisteredSessions();
+		let allRegistered = await this._listRegisteredSessions();
+		if (allRegistered.length === 0) {
+			await this._awaitInitialProviderMigration();
+			allRegistered = await this._listRegisteredSessions();
+		} else {
+			this._retryInitialProviderMigrationsInBackground();
+		}
 		// External sessions that the current mode hides outright are dropped
 		// before any provider or database read. On a large catalogue these are
 		// most of the registry, and each one otherwise costs a provider metadata
@@ -2629,7 +2650,26 @@ export class AgentService extends Disposable implements IAgentService {
 		} else {
 			this._logService.trace(message);
 		}
+		if (epoch !== this._registryEpoch) {
+			const currentRegistered = await this._listRegisteredSessions();
+			if (!this._sameSessionRegistrations(allRegistered, currentRegistered)) {
+				return this._computeSessions(mode, this._registryEpoch);
+			}
+		}
 		return visible;
+	}
+
+	private _sameSessionRegistrations(first: readonly IRegisteredSession[], second: readonly IRegisteredSession[]): boolean {
+		if (first.length !== second.length) {
+			return false;
+		}
+		const secondBySession = new Map(second.map(session => [session.session.toString(), session]));
+		return first.every(session => {
+			const candidate = secondBySession.get(session.session.toString());
+			return candidate?.provider === session.provider
+				&& candidate.external === session.external
+				&& candidate.source === session.source;
+		});
 	}
 
 	/** Last `hidden/total/mode` triple reported by {@link _logHiddenSessions}, so a steady state is logged once instead of on every refresh. */
