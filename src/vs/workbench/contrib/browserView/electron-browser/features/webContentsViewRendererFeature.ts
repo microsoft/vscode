@@ -242,7 +242,9 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 				this.tryFocus();
 			}
 		} else {
-			void this._doScreenshot();
+			if (placeholderActive) {
+				void this._doScreenshot();
+			}
 			// Defer the hide one frame so the latest screenshot has a chance to paint first.
 			this.editor.window.requestAnimationFrame(() => {
 				// Double check that we should still hide the page.
