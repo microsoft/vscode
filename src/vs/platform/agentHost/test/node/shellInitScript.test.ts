@@ -138,17 +138,18 @@ suite('shellInitScript', () => {
 			);
 		});
 
-		(process.platform === 'win32' ? suite : suite.skip)('PowerShell behavior', () => {
-			test('decodes and executes the activation payload', async () => {
-				const { script } = createShellInitScript('powershell', `$env:VSCODE_TEST_ACTIVATION = 'loaded'`);
-				const command = [
-					`$PROFILE = [pscustomobject]@{ CurrentUserAllHosts = ''; CurrentUserCurrentHost = '' }`,
-					script,
-					`Write-Output "activation=$env:VSCODE_TEST_ACTIVATION"`,
-				].join('\n');
-				const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command]);
-				assert.strictEqual(stdout.trim(), 'activation=loaded');
-			});
+	});
+
+	(process.platform === 'win32' ? suite : suite.skip)('PowerShell behavior', () => {
+		test('decodes and executes the activation payload', async () => {
+			const { script } = createShellInitScript('powershell', `$env:VSCODE_TEST_ACTIVATION = 'loaded'`);
+			const command = [
+				`$PROFILE = [pscustomobject]@{ CurrentUserAllHosts = ''; CurrentUserCurrentHost = '' }`,
+				script,
+				`Write-Output "activation=$env:VSCODE_TEST_ACTIVATION"`,
+			].join('\n');
+			const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command]);
+			assert.strictEqual(stdout.trim(), 'activation=loaded');
 		});
 	});
 });
