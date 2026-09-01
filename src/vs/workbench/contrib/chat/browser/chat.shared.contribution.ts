@@ -1004,6 +1004,12 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			markdownDescription: nls.localize('chat.progressBorder.enabled', "Show an animated gradient border around the chat input while the agent is working or thinking. Has no effect when reduced motion is enabled."),
 		},
+		[ChatConfiguration.SessionStateIndicatorEnabled]: {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.experimental.sessionStateIndicator.enabled', "Enable state indicators around chat editor sessions."),
+			tags: ['experimental'],
+		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'string',
 			enum: ['off', 'windowNotFocused', 'always'],
