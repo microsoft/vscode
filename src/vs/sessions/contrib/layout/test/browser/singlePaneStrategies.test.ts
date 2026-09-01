@@ -153,6 +153,8 @@ suite('SinglePane layout strategies', () => {
 
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
 		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+		harness.editorMaximized = true;
+		harness.onDidChangeEditorMaximized.fire();
 
 		assert.deepStrictEqual({
 			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
@@ -225,6 +227,18 @@ suite('SinglePane layout strategies', () => {
 			],
 		});
 
+		harness.editorMaximized = true;
+		harness.onDidChangeEditorMaximized.fire();
+
+		assert.deepStrictEqual({
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			lastVisibilityChange: harness.setPartHiddenCalls.at(-1),
+		}, {
+			auxiliaryBarVisible: false,
+			lastVisibilityChange: { hidden: true, part: Parts.AUXILIARYBAR_PART },
+		});
+
+		harness.editorMaximized = false;
 		harness.activeEditorInput = otherEditor;
 		harness.onDidActiveEditorChange.fire();
 		harness.activeEditorInput = emptyFiles;

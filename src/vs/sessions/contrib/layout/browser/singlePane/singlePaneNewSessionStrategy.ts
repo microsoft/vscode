@@ -301,21 +301,37 @@ export class SinglePaneNewSessionStrategy extends SinglePaneLayoutStrategy {
 			this._layoutService.onDidChangeEditorMaximized,
 			() => this._layoutService.isEditorMaximized(),
 		);
+		let previousActiveEditor: EditorInput | undefined;
+		let previousEditorPartVisible = false;
+		let previousEditorSessionKey: string | undefined;
 
 		this._register(
 			autorun((reader) => {
 				const activeSession = this._sessionsService.activeSession.read(reader);
 				if (!activeSession) {
+					previousActiveEditor = undefined;
+					previousEditorPartVisible = false;
+					previousEditorSessionKey = undefined;
 					return;
 				}
 				const isQuickChat = activeSession.isQuickChat?.read(reader) ?? false;
 				const workspace = activeSession.workspace.read(reader);
 				if (isQuickChat || !workspace || activeSession.isCreated.read(reader)) {
+					previousActiveEditor = undefined;
+					previousEditorPartVisible = false;
+					previousEditorSessionKey = undefined;
 					return;
 				}
 
 				const activeEditor = activeEditorObs.read(reader);
 				const editorPartVisible = editorPartVisibleObs.read(reader);
+				const sessionKey = activeSession.resource.toString();
+				const emptyFilesShown = activeEditor instanceof EmptyFileEditorInput
+					&& editorPartVisible
+					&& (activeEditor !== previousActiveEditor || !previousEditorPartVisible || sessionKey !== previousEditorSessionKey);
+				previousActiveEditor = activeEditor;
+				previousEditorPartVisible = editorPartVisible;
+				previousEditorSessionKey = sessionKey;
 				const target = this._computeTarget(
 					reader,
 					activeEditor,
@@ -323,7 +339,7 @@ export class SinglePaneNewSessionStrategy extends SinglePaneLayoutStrategy {
 					editorPartVisible,
 				);
 				const revealOnly = this._ctx.multipleSessionsVisibleObs.read(reader);
-				this._syncDetailVisibility(target, revealOnly, activeEditor, editorPartVisible);
+				this._syncDetailVisibility(target, revealOnly, emptyFilesShown);
 				this._detailPanel.sync(target);
 			}),
 		);
@@ -343,11 +359,10 @@ export class SinglePaneNewSessionStrategy extends SinglePaneLayoutStrategy {
 	private _syncDetailVisibility(
 		target: DetailPanelTarget,
 		revealOnly: boolean,
-		activeEditor: EditorInput | undefined,
-		editorPartVisible: boolean,
+		emptyFilesShown: boolean,
 	): void {
 		const detailVisible = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
-		if (activeEditor instanceof EmptyFileEditorInput && editorPartVisible && !detailVisible) {
+		if (emptyFilesShown && !detailVisible) {
 			this._detailHiddenTransiently = false;
 			this._detailHiddenByEditor = false;
 			this._layoutService.setAuxiliaryBarHiddenForResize(false);

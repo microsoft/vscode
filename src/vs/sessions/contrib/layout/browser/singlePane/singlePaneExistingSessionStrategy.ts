@@ -270,6 +270,9 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 		let activeSessionKey: string | undefined;
 		let pendingSessionKey: string | undefined;
 		let pendingOutgoingEditor: EditorInput | undefined;
+		let previousActiveEditor: EditorInput | undefined;
+		let previousEditorPartVisible = false;
+		let previousEditorSessionKey: string | undefined;
 
 		const sync = (reader: IReader | undefined) => {
 			const activeSession = this._sessionsService.activeSession.read(reader);
@@ -278,6 +281,9 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 				|| !activeSession.workspace.read(reader)
 				|| !activeSession.isCreated.read(reader)) {
 				wasExistingActive = false;
+				previousActiveEditor = undefined;
+				previousEditorPartVisible = false;
+				previousEditorSessionKey = undefined;
 				return;
 			}
 
@@ -305,9 +311,15 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 				return;
 			}
 
+			const emptyFilesShown = activeEditor instanceof EmptyFileEditorInput
+				&& editorPartVisible
+				&& (activeEditor !== previousActiveEditor || !previousEditorPartVisible || sessionKey !== previousEditorSessionKey);
+			previousActiveEditor = activeEditor;
+			previousEditorPartVisible = editorPartVisible;
+			previousEditorSessionKey = sessionKey;
 			const target = this._computeTarget(activeEditor, mainPartEmpty, editorMaximized, editorPartVisible);
 			const revealOnly = this._ctx.multipleSessionsVisibleObs.read(reader);
-			this._syncDetailVisibility(target, revealOnly, activeEditor, editorPartVisible);
+			this._syncDetailVisibility(target, revealOnly, emptyFilesShown);
 			this._detailPanel.sync(target);
 		};
 
@@ -329,9 +341,9 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 		}));
 	}
 
-	private _syncDetailVisibility(target: DetailPanelTarget, revealOnly: boolean, activeEditor: EditorInput | undefined, editorPartVisible: boolean): void {
+	private _syncDetailVisibility(target: DetailPanelTarget, revealOnly: boolean, emptyFilesShown: boolean): void {
 		const detailVisible = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
-		if (activeEditor instanceof EmptyFileEditorInput && editorPartVisible && !detailVisible) {
+		if (emptyFilesShown && !detailVisible) {
 			this._detailHiddenTransiently = false;
 			this._detailHiddenByEditor = false;
 			this._setDetailHiddenTransiently(false);
