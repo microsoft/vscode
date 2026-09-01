@@ -1604,7 +1604,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostShellToolInitScriptEnabledSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.shellTool.initScript.enabled', "When enabled, commands run by the SDK shell tool load Bash `~/.bashrc` on macOS and Linux or current-user PowerShell profiles on Windows, then activate the Python environment selected for the workspace. The SDK tool does not load Zsh profiles, and non-interactive guards in Bash profiles can skip setup. Direct script commands may require explicit approval because the init script can alter their shell environment. Python activation requires the Python Environments extension with `#python-envs.terminal.autoActivationType#` set to `shellStartup`."),
+			markdownDescription: nls.localize('chat.agentHost.shellTool.initScript.enabled', "When enabled in a local window, commands run by the SDK shell tool load Bash `~/.bashrc` on macOS and Linux or current-user PowerShell profiles on Windows, then activate the Python environment selected for the workspace. Remote development windows, including SSH and WSL, do not apply this setting. The SDK tool does not load Zsh profiles, and non-interactive guards in Bash profiles can skip setup. Direct script commands may require explicit approval because the init script can alter their shell environment. Python activation requires the Python Environments extension with `#python-envs.terminal.autoActivationType#` set to `shellStartup`."),
 			default: false,
 			tags: ['experimental', 'advanced'],
 			scope: ConfigurationScope.APPLICATION,
