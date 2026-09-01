@@ -19,7 +19,7 @@ import { join, sep } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { FileSystemProviderCapabilities, IFileService, type IWriteFileOptions } from '../../../files/common/files.js';
+import { FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService, type IWriteFileOptions } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
@@ -717,6 +717,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	shellInitWriteGate?: Promise<void>;
 	onShellInitWrite?: () => void;
 	shellInitWriteFailureLeavesArtifact?: boolean;
+	shellInitDeleteMissingThrows?: boolean;
 	sessionDatabase?: ISessionDatabase;
 	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
 	configureMockSession?: (session: MockCopilotSession) => void;
@@ -891,6 +892,9 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 				mockSession.operationLog.push('file.delete:shellInit');
 			}
 			const matches = [...storedFileContents.keys()].filter(key => key.startsWith(resource.toString()) || key.startsWith(resource.fsPath));
+			if (options?.shellInitDeleteMissingThrows && resource.fsPath.includes('/agentHost/shellInit/') && matches.length === 0) {
+				throw new FileOperationError('not found', FileOperationResult.FILE_NOT_FOUND);
+			}
 			// Like the disk provider, a non-recursive delete removes only an
 			// empty directory and fails while descendants remain.
 			if (!delOptions?.recursive && matches.some(key => key !== resource.toString() && key !== resource.fsPath)) {
@@ -12383,6 +12387,22 @@ Use the attached image as context.
 				hasGrant: false,
 				hasArtifact: false,
 			});
+		});
+
+		test('does not retry cleanup when a failed write created no directory', async () => {
+			const { session, mockSession, setConfigValue } = await createAgentSession(disposables, {
+				shellInitWriteFailures: 1,
+				shellInitDeleteMissingThrows: true,
+			});
+			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			setConfigValue(SessionConfigKey.ShellInitSnippets, []);
+			await session.send('go', undefined, 'turn-2', 'interactive');
+			const deletesAfterClear = mockSession.operationLog.filter(operation => operation === 'file.delete:shellInit').length;
+			await session.send('go', undefined, 'turn-3', 'interactive');
+
+			assert.strictEqual(mockSession.operationLog.filter(operation => operation === 'file.delete:shellInit').length, deletesAfterClear);
 		});
 
 		test('uses atomic writes when the file provider supports them', async () => {

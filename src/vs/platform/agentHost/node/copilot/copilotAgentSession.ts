@@ -3957,7 +3957,9 @@ export class CopilotAgentSession extends Disposable {
 			await this._fileService.del(this._shellInitScriptInstanceDirectory(), { recursive: true });
 			this._shellInitScriptMaterializationAttempted = false;
 		} catch (error) {
-			if (!(error instanceof Error) || toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+			if (error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
+				this._shellInitScriptMaterializationAttempted = false;
+			} else {
 				this._logService.warn(`[Copilot:${this.sessionId}] Failed to remove shell init script: ${getErrorMessage(error)}`);
 			}
 		}
