@@ -85,6 +85,10 @@ interface IUpdateAndSaveDraftStateHarness extends IUpdateDraftStateHarness {
 }
 
 interface ISyncInputGitHubContextHarness {
+	_inputGitHubRepository: string | undefined;
+	readonly _onDidChangeInputGitHubRepository: {
+		fire(repositoryId: string | undefined): void;
+	};
 	readonly _editor: {
 		getValue(): string;
 	};
@@ -410,7 +414,10 @@ suite('NewChatInputWidget', () => {
 			id: 'github-context:https://github.com/microsoft/vscode/issues/1',
 		});
 		let attachments: readonly IChatRequestVariableEntry[] = [manualAttachment];
+		const repositoryChanges: Array<string | undefined> = [];
 		const harness: ISyncInputGitHubContextHarness = {
+			_inputGitHubRepository: undefined,
+			_onDidChangeInputGitHubRepository: { fire: repositoryId => repositoryChanges.push(repositoryId) },
 			_editor: { getValue: () => input },
 			_contextAttachments: {
 				get attachments() { return attachments; },
@@ -428,6 +435,8 @@ suite('NewChatInputWidget', () => {
 		input = 'Review https://github.com/microsoft/vscode/pull/333575.';
 		syncInputGitHubContext.call(harness);
 		const afterRemovingIssueLink = snapshot();
+		input += ' Compare https://github.com/microsoft/typescript/issues/1.';
+		syncInputGitHubContext.call(harness);
 		input = '';
 		syncInputGitHubContext.call(harness);
 
@@ -435,6 +444,7 @@ suite('NewChatInputWidget', () => {
 			withLinks,
 			afterRemovingIssueLink,
 			afterRemovingAllLinks: snapshot(),
+			repositoryChanges,
 		}, {
 			withLinks: [
 				{ id: manualAttachment.id, name: 'Manually attached', icon: undefined },
@@ -448,6 +458,7 @@ suite('NewChatInputWidget', () => {
 			afterRemovingAllLinks: [
 				{ id: manualAttachment.id, name: 'Manually attached', icon: undefined },
 			],
+			repositoryChanges: ['microsoft/vscode', undefined],
 		});
 	});
 
@@ -461,6 +472,8 @@ suite('NewChatInputWidget', () => {
 			setAttachments: (entries: readonly IChatRequestVariableEntry[]) => attachments = entries,
 		};
 		const syncHarness: ISyncInputGitHubContextHarness = {
+			_inputGitHubRepository: undefined,
+			_onDidChangeInputGitHubRepository: { fire: () => { } },
 			_editor: { getValue: () => input },
 			_contextAttachments: contextAttachments,
 		};

@@ -214,9 +214,15 @@ export function hasSendableNewChatContent(query: string, attachments: readonly I
 	return !!query.trim() || attachments.some(isExplicitFileOrImageVariableEntry) || hasAdditionalSendContent;
 }
 
-function getInputGitHubContextAttachments(input: string): readonly IChatRequestVariableEntry[] {
+interface IInputGitHubContext {
+	readonly attachments: readonly IChatRequestVariableEntry[];
+	readonly repositoryId: string | undefined;
+}
+
+function getInputGitHubContext(input: string): IInputGitHubContext {
 	const attachments: IChatRequestVariableEntry[] = [];
 	const ids = new Set<string>();
+	const repositoryIds = new Set<string>();
 	for (const match of input.matchAll(GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN)) {
 		const groups = match.groups;
 		const number = Number(groups?.['number']);
@@ -226,6 +232,7 @@ function getInputGitHubContextAttachments(input: string): readonly IChatRequestV
 		const owner = groups['owner'];
 		const repo = groups['repo'];
 		const kind = groups['kind'].toLowerCase();
+		repositoryIds.add(`${owner}/${repo}`.toLowerCase());
 		const uri = `https://github.com/${owner}/${repo}/${kind}/${number}`;
 		const id = `github-context:${uri}`;
 		if (ids.has(id)) {
@@ -238,7 +245,10 @@ function getInputGitHubContextAttachments(input: string): readonly IChatRequestV
 			_meta: toInputGitHubContextMetadata(),
 		}));
 	}
-	return attachments;
+	return {
+		attachments,
+		repositoryId: repositoryIds.size === 1 ? repositoryIds.values().next().value : undefined,
+	};
 }
 
 class NewChatInputStatusActionViewItem extends MenuEntryActionViewItem {
@@ -411,6 +421,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	readonly onDidFocus = this._onDidFocus.event;
 	private readonly _onDidBlur = this._register(new Emitter<void>());
 	readonly onDidBlur = this._onDidBlur.event;
+	private readonly _onDidChangeInputGitHubRepository = this._register(new Emitter<string | undefined>());
+	readonly onDidChangeInputGitHubRepository = this._onDidChangeInputGitHubRepository.event;
+	private _inputGitHubRepository: string | undefined;
 	get element(): HTMLElement { return this._editorContainer; }
 
 	/** The underlying input editor. Exposed for component fixtures. */
@@ -1428,7 +1441,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	private _syncInputGitHubContext(): void {
-		const inputAttachments = getInputGitHubContextAttachments(this._editor?.getValue() ?? '');
+		const inputContext = getInputGitHubContext(this._editor?.getValue() ?? '');
+		const inputAttachments = inputContext.attachments;
 		const inputAttachmentIds = new Set(inputAttachments.map(attachment => attachment.id));
 		const attachments = this._contextAttachments.attachments.filter(attachment =>
 			!isInputGitHubContext(attachment) || inputAttachmentIds.has(attachment.id)
@@ -1443,6 +1457,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		if (attachments.length !== this._contextAttachments.attachments.length
 			|| attachments.some((attachment, index) => attachment !== this._contextAttachments.attachments[index])) {
 			this._contextAttachments.setAttachments(attachments);
+		}
+		if (inputContext.repositoryId !== this._inputGitHubRepository) {
+			this._inputGitHubRepository = inputContext.repositoryId;
+			this._onDidChangeInputGitHubRepository.fire(inputContext.repositoryId);
 		}
 	}
 
@@ -1846,6 +1864,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	get attachments(): readonly IChatRequestVariableEntry[] {
 		return this._contextAttachments.attachments;
+	}
+
+	get inputGitHubRepository(): string | undefined {
+		return this._inputGitHubRepository;
 	}
 
 	getVoiceModels() {

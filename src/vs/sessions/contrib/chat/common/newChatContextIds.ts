@@ -7,6 +7,7 @@ import { URI } from '../../../../base/common/uri.js';
 
 export const ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX = 'sessions-additional-folder:';
 export const ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX = 'sessions-additional-repository:';
+export const INFER_WORKSPACE_FROM_GITHUB_CONTEXT_SETTING = 'chat.experimental.inferAgentSessionWorkspaceFromIssueOrPullRequest';
 const INPUT_GITHUB_CONTEXT_METADATA_KEY = 'sessionsInputGitHubContext';
 
 interface IHasInputGitHubContextMetadata {

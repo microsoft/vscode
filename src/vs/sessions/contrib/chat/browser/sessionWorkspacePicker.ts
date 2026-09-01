@@ -31,7 +31,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IGitHubInfo, isActiveSessionStatus, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, isActiveSessionStatus, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService, isWorktreeWorkspaceUri } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
@@ -184,6 +184,9 @@ export class WorkspacePicker extends Disposable {
 	private _selectedFolderUri: URI | undefined;
 	private _selectedResolved: IResolvedFolderWorkspace | undefined;
 	private _preselectionSource = NewSessionWorkspacePreselectionSource.None;
+	private _inputGitHubRepositoryId: string | undefined;
+	private _inputGitHubWorkspaceApplied = false;
+	private _selectionBeforeInputGitHubWorkspace: IRestoredWorkspaceSelection | undefined;
 	private _selectionGeneration = 0;
 	private _sessionRestoreGeneration = 0;
 	private readonly _sessionWorkspaceFallback: SessionWorkspaceFallback | undefined;
@@ -412,6 +415,9 @@ export class WorkspacePicker extends Disposable {
 				}
 			}
 			this._restoreAutomaticSelection();
+			if (this._inputGitHubWorkspaceApplied) {
+				this.syncInputGitHubRepository(this._inputGitHubRepositoryId);
+			}
 			this._syncAttachedContext();
 			const activeTrigger = this._activeTriggerElement;
 			if (activeTrigger && (this.actionWidgetService.isVisible || this._tabbedWidget.isVisible)) {
@@ -421,7 +427,11 @@ export class WorkspacePicker extends Disposable {
 
 		// VS Code's recent-workspace history is loaded asynchronously.
 		this._register(this.recentWorkspacesService.onDidChangeRecentWorkspaces(() => {
-			this._restoreAutomaticSelection();
+			if (this._inputGitHubWorkspaceApplied) {
+				this.syncInputGitHubRepository(this._inputGitHubRepositoryId);
+			} else {
+				this._restoreAutomaticSelection();
+			}
 		}));
 		// Re-arm auto-tab whenever the workspace selection changes to a new
 		// value, but only while the picker is closed. This way picking a tab
@@ -901,6 +911,118 @@ export class WorkspacePicker extends Disposable {
 			: undefined;
 	}
 
+	syncInputGitHubRepository(repositoryId: string | undefined): boolean {
+		if (this._userHasPicked) {
+			return false;
+		}
+
+		const normalizedRepositoryId = repositoryId?.toLowerCase();
+		this._inputGitHubRepositoryId = normalizedRepositoryId;
+		if (!normalizedRepositoryId) {
+			return this._restoreSelectionBeforeInputGitHubWorkspace();
+		}
+
+		if (this._selectedResolved
+			&& this._selectedResolved.workspace.group === SESSION_WORKSPACE_GROUP_LOCAL
+			&& this._getRepositoryIdForResolvedWorkspace(this._selectedResolved) === normalizedRepositoryId) {
+			return false;
+		}
+
+		const resolved = this._findWorkspaceForRepository(normalizedRepositoryId);
+		if (!resolved) {
+			return false;
+		}
+		if (this._selectedResolved?.providerId === resolved.providerId
+			&& this.uriIdentityService.extUri.isEqual(this._selectedFolderUri, resolved.workspace.folders[0]?.root)) {
+			return false;
+		}
+
+		if (!this._inputGitHubWorkspaceApplied) {
+			this._selectionBeforeInputGitHubWorkspace = this._selectedResolved
+				? { resolved: this._selectedResolved, source: this._preselectionSource }
+				: undefined;
+		}
+		this._inputGitHubWorkspaceApplied = true;
+		this._selectionGeneration++;
+		this._sessionRestoreGeneration++;
+		this._connectionStatusWatch.clear();
+		this._applySelection(resolved, NewSessionWorkspacePreselectionSource.InputGitHubContext);
+		this._updateTriggerLabel();
+		this._onDidChangeSelection.fire();
+		this._onDidSelectWorkspace.fire(this._selectedFolderUri);
+		status(localize('workspacePicker.inputGitHubWorkspaceSelected', "Workspace changed to {0} based on the GitHub link.", resolved.workspace.label));
+		return true;
+	}
+
+	private _findWorkspaceForRepository(repositoryId: string): IResolvedFolderWorkspace | undefined {
+		const matchesRepository = (candidate: IResolvedFolderWorkspace) =>
+			this._getRepositoryIdForResolvedWorkspace(candidate) === repositoryId;
+		const localWorkspace = this._getRecentWorkspaces().find(candidate =>
+			this._canRestoreProviderWorkspace(candidate.providerId)
+			&& candidate.workspace.group === SESSION_WORKSPACE_GROUP_LOCAL
+			&& matchesRepository(candidate)
+		);
+		if (localWorkspace) {
+			return localWorkspace;
+		}
+
+		const [owner, repo] = repositoryId.split('/');
+		if (!owner || !repo) {
+			return undefined;
+		}
+		const uri = URI.from({
+			scheme: GITHUB_REMOTE_FILE_SCHEME,
+			authority: 'github',
+			path: `/${owner}/${repo}/HEAD`,
+		});
+		for (const provider of this.sessionsProvidersService.getProviders()) {
+			if (!this._canRestoreProviderWorkspace(provider.id)) {
+				continue;
+			}
+			const workspace = provider.resolveWorkspace(uri);
+			if (workspace) {
+				return { providerId: provider.id, workspace };
+			}
+		}
+		return undefined;
+	}
+
+	private _restoreSelectionBeforeInputGitHubWorkspace(): boolean {
+		if (!this._inputGitHubWorkspaceApplied) {
+			return false;
+		}
+
+		const previous = this._selectionBeforeInputGitHubWorkspace;
+		this._clearInputGitHubWorkspaceState();
+		this._selectionGeneration++;
+		this._sessionRestoreGeneration++;
+		this._connectionStatusWatch.clear();
+		const previousFolderUri = previous?.resolved.workspace.folders[0]?.root;
+		const previousProvider = previous && this._canRestoreProviderWorkspace(previous.resolved.providerId)
+			? this.sessionsProvidersService.getProvider(previous.resolved.providerId)
+			: undefined;
+		const previousWorkspace = previousFolderUri && previousProvider?.resolveWorkspace(previousFolderUri);
+		this._applySelection(
+			previousWorkspace && previous
+				? { providerId: previous.resolved.providerId, workspace: previousWorkspace }
+				: undefined,
+			previous?.source
+		);
+		this._updateTriggerLabel();
+		this._onDidChangeSelection.fire();
+		if (!previousWorkspace && this._restoreAutomaticSelection()) {
+			return true;
+		}
+		this._onDidSelectWorkspace.fire(this._selectedFolderUri);
+		return true;
+	}
+
+	private _clearInputGitHubWorkspaceState(): void {
+		this._inputGitHubRepositoryId = undefined;
+		this._inputGitHubWorkspaceApplied = false;
+		this._selectionBeforeInputGitHubWorkspace = undefined;
+	}
+
 	private _getCurrentRepositoryId(): string | undefined {
 		const workspace = this._getSelectedRepositoryWorkspace();
 		return workspace && this._getRepositoryId(workspace);
@@ -973,6 +1095,7 @@ export class WorkspacePicker extends Disposable {
 		this._selectionGeneration++;
 		this._hidePicker();
 		this._userHasPicked = true;
+		this._clearInputGitHubWorkspaceState();
 		this._connectionStatusWatch.clear();
 		this._selectedFolderUri = undefined;
 		this._selectedResolved = undefined;
@@ -1003,6 +1126,7 @@ export class WorkspacePicker extends Disposable {
 	): void {
 		this._selectionGeneration++;
 		this._userHasPicked = true;
+		this._clearInputGitHubWorkspaceState();
 		this._connectionStatusWatch.clear();
 		// Prefer the caller-supplied providerId hint, then the historical
 		// providerId stored in the recents for this URI, so re-picking a
@@ -1615,9 +1739,11 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	protected _resetAutomaticSelection(): void {
+		const inputGitHubRepositoryId = this._inputGitHubRepositoryId;
 		this._selectionGeneration++;
 		this._sessionRestoreGeneration++;
 		this._userHasPicked = false;
+		this._clearInputGitHubWorkspaceState();
 		this._connectionStatusWatch.clear();
 		this._applySelection(undefined);
 		this._updateTriggerLabel();
@@ -1625,6 +1751,7 @@ export class WorkspacePicker extends Disposable {
 		this._onDidSelectWorkspace.fire(undefined);
 		this._sessionWorkspaceFallback?.refreshProviders();
 		this._restoreAutomaticSelection();
+		this.syncInputGitHubRepository(inputGitHubRepositoryId);
 	}
 
 	/** Re-runs automatic selection and reports whether it changed synchronously. */
@@ -1633,7 +1760,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	private _restoreAutomaticSelection(): boolean {
-		if (this._userHasPicked || !this._canRestoreWorkspace()) {
+		if (this._userHasPicked || this._inputGitHubWorkspaceApplied || !this._canRestoreWorkspace()) {
 			return false;
 		}
 		const restored = this._restoreSelectedWorkspace();

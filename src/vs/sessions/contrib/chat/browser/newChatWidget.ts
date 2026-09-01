@@ -52,7 +52,7 @@ import { IStorageService, StorageScope } from '../../../../platform/storage/comm
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { Menus } from '../../../browser/menus.js';
-import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
+import { getAdditionalFolderContextId, getAdditionalRepositoryContextId, INFER_WORKSPACE_FROM_GITHUB_CONTEXT_SETTING } from '../common/newChatContextIds.js';
 
 // #region --- New Chat Widget ---
 
@@ -286,9 +286,19 @@ export class NewChatWidget extends Disposable {
 		}));
 		this._register(this._workspacePicker.onDidRemoveAttachedContext(id => this._newChatInput.removeAttachment(id)));
 		const syncAttachedContext = () => this._workspacePicker.syncAttachedContext(this._newChatInput.attachments);
+		const syncInputGitHubRepository = () => this._workspacePicker.syncInputGitHubRepository(
+			!this._isQuickChatComposer.get() && this.configurationService.getValue<boolean>(INFER_WORKSPACE_FROM_GITHUB_CONTEXT_SETTING)
+				? this._newChatInput.inputGitHubRepository
+				: undefined
+		);
 		syncAttachedContext();
 		this._register(this._newChatInput.onDidChangeAttachments(() => {
 			syncAttachedContext();
+		}));
+		this._register(this._newChatInput.onDidChangeInputGitHubRepository(() => syncInputGitHubRepository()));
+		this._register(autorun(reader => {
+			this._isQuickChatComposer.read(reader);
+			syncInputGitHubRepository();
 		}));
 		this._register(this._newChatInput.sessionTypePicker.onDidSelectSessionType(async pick => {
 			// A quick chat has no folder: re-create the draft with the picked
@@ -303,6 +313,9 @@ export class NewChatWidget extends Disposable {
 		}));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(INFER_WORKSPACE_FROM_GITHUB_CONTEXT_SETTING)) {
+				syncInputGitHubRepository();
+			}
 			if (!e.affectsConfiguration('chat.tips.enabled')) {
 				return;
 			}

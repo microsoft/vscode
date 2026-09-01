@@ -55,6 +55,7 @@ import { SessionsChatResponseFileChangesService } from './sessionTurnChanges.js'
 import { IChatResponseFileChangesService } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { SessionsChatPetAchievementContribution } from './chatPetAchievements.js';
 import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, chatBackgroundImageLayoutValues, ChatBackgroundImageLayout, ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
+import { INFER_WORKSPACE_FROM_GITHUB_CONTEXT_SETTING } from '../common/newChatContextIds.js';
 
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_COMMAND_ID = 'workbench.action.chat.changeAgentSessionsBackground';
 const CLEAR_AGENT_SESSIONS_CHAT_BACKGROUND_COMMAND_ID = 'workbench.action.chat.clearAgentSessionsBackground';
@@ -384,6 +385,13 @@ AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp());
 // register configuration
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	properties: {
+		[INFER_WORKSPACE_FROM_GITHUB_CONTEXT_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('chat.experimental.inferAgentSessionWorkspaceFromIssueOrPullRequest', "Controls whether pasting a GitHub issue or pull request link into the new-session input automatically selects a workspace for that repository."),
+			tags: ['experimental'],
+		},
 		[AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING]: {
 			type: 'boolean',
 			default: true,

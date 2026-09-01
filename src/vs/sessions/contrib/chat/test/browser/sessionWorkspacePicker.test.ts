@@ -11,6 +11,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -33,7 +34,7 @@ import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from '../../browser/webWorkspacePicker.js';
 import { NewSessionWorkspacePreselectionSource } from '../../browser/newSessionComposerService.js';
@@ -405,6 +406,142 @@ function assertSelectedProvider(picker: WorkspacePicker, expectedProviderId: str
 }
 
 // ---- Tests ------------------------------------------------------------------
+
+suite('WorkspacePicker - Input GitHub Repository', () => {
+
+	const disposables = new DisposableStore();
+	let providersService: MockSessionsProvidersService;
+
+	setup(() => {
+		providersService = new MockSessionsProvidersService();
+		disposables.add(providersService);
+	});
+
+	teardown(() => disposables.clear());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createRepositoryProvider(): ISessionsProvider {
+		const provider = createMockProvider('default-copilot');
+		return {
+			...provider,
+			resolveWorkspace: uri => {
+				if (uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+					return {
+						uri,
+						label: uri.path.split('/').filter(Boolean).slice(0, 2).join('/'),
+						icon: Codicon.github,
+						group: SESSION_WORKSPACE_GROUP_GITHUB,
+						folders: [{
+							root: uri,
+							workingDirectory: uri,
+							name: uri.path,
+							description: undefined,
+							gitRepository: undefined,
+						}],
+						requiresWorkspaceTrust: false,
+						isVirtualWorkspace: true,
+					};
+				}
+				if (uri.scheme !== Schemas.file) {
+					return undefined;
+				}
+				const repository = uri.path.endsWith('/vscode') ? 'vscode' : 'other';
+				return {
+					uri,
+					label: repository,
+					icon: Codicon.repo,
+					group: SESSION_WORKSPACE_GROUP_LOCAL,
+					folders: [{
+						root: uri,
+						workingDirectory: uri,
+						name: repository,
+						description: undefined,
+						gitRepository: {
+							uri,
+							workTreeUri: uri,
+							baseBranchName: undefined,
+							gitHubInfo: constObservable({ owner: 'microsoft', repo: repository }),
+						},
+					}],
+					requiresWorkspaceTrust: false,
+					isVirtualWorkspace: false,
+				};
+			},
+		};
+	}
+
+	test('prefers a known local workspace and restores the prior automatic selection', () => {
+		const provider = createRepositoryProvider();
+		providersService.setProviders([provider]);
+		const storage = disposables.add(new TestStorageService());
+		const previous = URI.file('/local/other');
+		const localRepository = URI.file('/local/vscode');
+		seedStorage(storage, [
+			{ uri: previous, providerId: provider.id, checked: true },
+			{ uri: localRepository, providerId: provider.id, checked: false },
+		]);
+		const picker = createTestPicker(disposables, providersService, storage);
+		const selected: Array<string | undefined> = [];
+		disposables.add(picker.onDidSelectWorkspace(uri => selected.push(uri?.toString())));
+
+		const inferred = picker.syncInputGitHubRepository('Microsoft/VSCode');
+		const inferredState = {
+			uri: picker.selectedFolderUri?.toString(),
+			source: picker.preselectionSource,
+		};
+		const restored = picker.syncInputGitHubRepository(undefined);
+
+		assert.deepStrictEqual({
+			inferred,
+			inferredState,
+			restored,
+			restoredUri: picker.selectedFolderUri?.toString(),
+			selected,
+		}, {
+			inferred: true,
+			inferredState: {
+				uri: localRepository.toString(),
+				source: NewSessionWorkspacePreselectionSource.InputGitHubContext,
+			},
+			restored: true,
+			restoredUri: previous.toString(),
+			selected: [localRepository.toString(), previous.toString()],
+		});
+	});
+
+	test('uses a GitHub workspace fallback and respects a later explicit selection', () => {
+		const provider = createRepositoryProvider();
+		providersService.setProviders([provider]);
+		const picker = createTestPicker(disposables, providersService);
+
+		picker.syncInputGitHubRepository('microsoft/typescript');
+		const inferred = {
+			uri: picker.selectedFolderUri?.toString(),
+			group: picker.selectedResolved?.workspace.group,
+		};
+		const explicit = URI.file('/local/other');
+		picker.setSelectedWorkspace(explicit, { fireEvent: false, persist: false });
+		const changedAfterExplicitPick = picker.syncInputGitHubRepository('microsoft/vscode');
+
+		assert.deepStrictEqual({
+			inferred,
+			changedAfterExplicitPick,
+			finalUri: picker.selectedFolderUri?.toString(),
+		}, {
+			inferred: {
+				uri: URI.from({
+					scheme: GITHUB_REMOTE_FILE_SCHEME,
+					authority: 'github',
+					path: '/microsoft/typescript/HEAD',
+				}).toString(),
+				group: SESSION_WORKSPACE_GROUP_GITHUB,
+			},
+			changedAfterExplicitPick: false,
+			finalUri: explicit.toString(),
+		});
+	});
+});
 
 suite('WorkspacePicker - Connection Status', () => {
 
