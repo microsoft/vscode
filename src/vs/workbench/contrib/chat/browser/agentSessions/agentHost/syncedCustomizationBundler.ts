@@ -9,7 +9,7 @@ import { equals } from '../../../../../../base/common/objects.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { hash } from '../../../../../../base/common/hash.js';
+import { hash, hashAsync } from '../../../../../../base/common/hash.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
@@ -184,7 +184,7 @@ export class SyncedCustomizationBundler extends Disposable {
 		const originByDest = new ResourceMap<ISyncedCustomizationOrigin>();
 		const addEntry = async (file: ISyncableFile, sourceUri: URI, destUri: URI, hashKey: string): Promise<void> => {
 			const content = (await this._fileService.readFile(sourceUri)).value;
-			entries.push({ destUri, content, hashPart: `${hashKey}:${content.toString()}` });
+			entries.push({ destUri, content, hashPart: `${hashKey}:${await hashAsync(content)}` });
 			if (file.source !== undefined) {
 				originByDest.set(destUri, {
 					uri: sourceUri,

@@ -62,6 +62,12 @@ suite('SyncedCustomizationBundler', () => {
 		return uri;
 	}
 
+	async function seedBinaryFile(path: string, content: number[]): Promise<URI> {
+		const uri = URI.from({ scheme: Schemas.inMemory, path });
+		await fileService.writeFile(uri, VSBuffer.fromByteArray(content));
+		return uri;
+	}
+
 	test('returns undefined for empty file list', async () => {
 		const bundler = createBundler();
 		const result = await bundler.bundle([]);
@@ -177,6 +183,23 @@ suite('SyncedCustomizationBundler', () => {
 		const updatedResult = await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
 		assert.notStrictEqual(updatedResult!.ref.nonce, result.ref.nonce);
 		assert.strictEqual((await fileService.readFile(referenceUri)).value.toString(), 'updated reference');
+	});
+
+	test('bundles binary skill resources without lossy nonce computation', async () => {
+		const bundler = createBundler();
+		const skill = await seedFile('/skills/binary/SKILL.md', 'skill content');
+		const binary = await seedBinaryFile('/skills/binary/assets/data.bin', [0x80]);
+
+		const result = await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+		assert.ok(result);
+
+		const binaryDest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/binary/assets/data.bin' });
+		assert.deepStrictEqual([...((await fileService.readFile(binaryDest)).value.buffer)], [0x80]);
+
+		await fileService.writeFile(binary, VSBuffer.fromByteArray([0x81]));
+		const updatedResult = await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+		assert.notStrictEqual(updatedResult!.ref.nonce, result.ref.nonce);
+		assert.deepStrictEqual([...((await fileService.readFile(binaryDest)).value.buffer)], [0x81]);
 	});
 
 	test('writes plugin manifest', async () => {
