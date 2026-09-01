@@ -121,7 +121,8 @@ export const SessionWorkspacePickerGroupContext = new RawContextKey<string>('ses
 //#region < --- New Session Pickers --- >
 
 export const SessionWorkspacePickerVisibleContext = new RawContextKey<boolean>('sessionWorkspacePickerVisible', false, localize('sessionWorkspacePickerVisible', "Whether the new-session view's workspace picker is rendered (as opposed to being replaced by the no-agent-host empty state)"));
-export const SessionHarnessPickerVisibleContext = new RawContextKey<boolean>('sessionHarnessPickerVisible', false, localize('sessionHarnessPickerVisible', "Whether the new-session view's harness (session type) picker is visible — it is hidden when at most one harness can serve the selected workspace"));
+export const SessionHarnessPickerVisibleContext = new RawContextKey<boolean>('sessionHarnessPickerVisible', false, localize('sessionHarnessPickerVisible', "Whether the new-session view's harness (session type) picker is rendered"));
+export const SessionHarnessPickerInteractiveContext = new RawContextKey<boolean>('sessionHarnessPickerInteractive', false, localize('sessionHarnessPickerInteractive', "Whether the new-session view's harness (session type) picker can be interacted with"));
 export const SessionIsolationPickerVisibleContext = new RawContextKey<boolean>('sessionIsolationPickerVisible', false, localize('sessionIsolationPickerVisible', "Whether the new-session view's isolation picker is visible — it is shown only when the isolation option is enabled and the workspace has a git repository"));
 export const AgentHostSessionTypesAvailableContext = new RawContextKey<boolean>('agentHostSessionTypesAvailable', false, localize('agentHostSessionTypesAvailable', "Whether at least one connected agent-host provider has advertised session types"));
 

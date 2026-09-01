@@ -2561,6 +2561,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	protected readonly _onDidChangeCustomizations = this._register(new Emitter<void>());
 	readonly onDidChangeCustomizations = this._onDidChangeCustomizations.event;
+	readonly onDidChangeModels: Event<void>;
 	/** Last-known root config state (schema + values), seeded from `RootState.config`. */
 	protected _rootConfig: RootConfigState | undefined;
 
@@ -2775,6 +2776,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@IWorkspaceTrustManagementService protected readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
+		this.onDidChangeModels = Event.defer(Event.any(
+			this._languageModelsService.onDidChangeLanguageModels,
+			this._languageModelsService.onDidChangeModelVisibility,
+		), false, this._store);
 		this._downloadProgress = this._register(this._instantiationService.createInstance(AgentHostDownloadProgress));
 		this._register(toDisposable(() => {
 			for (const cached of this._sessionCache.values()) {
@@ -3912,13 +3917,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	// -- Model selection ------------------------------------------------------
-
-	get onDidChangeModels(): Event<void> {
-		return Event.signal(Event.any(
-			this._languageModelsService.onDidChangeLanguageModels,
-			this._languageModelsService.onDidChangeModelVisibility,
-		));
-	}
 
 	getModelsSnapshot(sessionId: string, desiredModelId?: string): ISessionModelsSnapshot {
 		// Agent-host models are registered against the session's resource

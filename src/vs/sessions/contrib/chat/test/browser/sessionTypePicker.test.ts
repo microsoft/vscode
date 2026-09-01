@@ -24,6 +24,7 @@ import { IChatSessionsService } from '../../../../../workbench/contrib/chat/comm
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { SessionHarnessPickerInteractiveContext, SessionHarnessPickerVisibleContext } from '../../../../common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionTypeAuthRequirement, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -116,6 +117,7 @@ function createPicker(
 	storage: IStorageService,
 	options?: ISessionTypePickerOptions,
 	actionWidgetService: Partial<IActionWidgetService> = { isVisible: false, hide: () => { }, show: () => { } },
+	contextKeyService: IContextKeyService = new MockContextKeyService(),
 ): TestSessionTypePicker {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stub(IActionWidgetService, actionWidgetService);
@@ -135,7 +137,7 @@ function createPicker(
 	});
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(IChatInputNotificationService, { getActiveNotification: () => undefined });
-	instantiationService.stub(IContextKeyService, new MockContextKeyService());
+	instantiationService.stub(IContextKeyService, contextKeyService);
 	return disposables.add(instantiationService.createInstance(TestSessionTypePicker, session, options));
 }
 
@@ -261,6 +263,60 @@ suite('SessionTypePicker', () => {
 		}, {
 			stored: { providerId: 'copilot', sessionTypeId: 'copilot-cli' },
 			selected: { providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+		});
+	});
+
+	test('disables the trigger when the selected workspace has only one session type', () => {
+		management.setSessionTypes([
+			sessionType('copilot', 'cloud', 'Cloud'),
+		]);
+		const contextKeyService = new MockContextKeyService();
+		const picker = createPicker(disposables, session, management, storage, undefined, undefined, contextKeyService);
+		session.set(createFakeSession('copilot', 'cloud', folder), undefined);
+		const container = document.createElement('div');
+		picker.render(container);
+		const trigger = container.querySelector<HTMLElement>('.action-label');
+		const singleType = {
+			hidden: trigger?.classList.contains('hidden'),
+			disabled: trigger?.getAttribute('aria-disabled'),
+			tabIndex: trigger?.tabIndex,
+			label: trigger?.getAttribute('aria-label'),
+			visible: contextKeyService.getContextKeyValue(SessionHarnessPickerVisibleContext.key),
+			interactive: contextKeyService.getContextKeyValue(SessionHarnessPickerInteractiveContext.key),
+		};
+
+		management.setSessionTypes([
+			sessionType('copilot', 'cloud', 'Cloud'),
+			sessionType('local-agent-host', 'local', 'Local'),
+		]);
+
+		assert.deepStrictEqual({
+			singleType,
+			multipleTypes: {
+				hidden: trigger?.classList.contains('hidden'),
+				disabled: trigger?.getAttribute('aria-disabled'),
+				tabIndex: trigger?.tabIndex,
+				label: trigger?.getAttribute('aria-label'),
+				visible: contextKeyService.getContextKeyValue(SessionHarnessPickerVisibleContext.key),
+				interactive: contextKeyService.getContextKeyValue(SessionHarnessPickerInteractiveContext.key),
+			},
+		}, {
+			singleType: {
+				hidden: false,
+				disabled: 'true',
+				tabIndex: -1,
+				label: 'Session Type, Cloud',
+				visible: true,
+				interactive: false,
+			},
+			multipleTypes: {
+				hidden: false,
+				disabled: 'false',
+				tabIndex: 0,
+				label: 'Pick Session Type, Cloud',
+				visible: true,
+				interactive: true,
+			},
 		});
 	});
 
