@@ -23,7 +23,7 @@ import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, I
 import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
-import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { omitTransientSessionConfigValues, SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
 import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, isAgentHostAutomationMigrationCompletion } from '../common/automationMigration.js';
@@ -2973,9 +2973,12 @@ export class AgentService extends Disposable implements IAgentService {
 		this._syncAgentMergeIndex(session, undefined, sessionConfig);
 		this._serverToolHost.advertise(session.toString());
 		// Persist resolved config values for restore. Mid-session updates are
-		// persisted by `AgentSideEffects` on `SessionConfigChanged`.
+		// persisted by `SessionFlagsContribution` on `SessionConfigChanged`.
 		if (sessionConfig?.values && Object.keys(sessionConfig.values).length > 0 && !created.provisional) {
-			this._persistConfigValues(session, sessionConfig.values);
+			const persistedConfigValues = omitTransientSessionConfigValues(sessionConfig.values);
+			if (Object.keys(persistedConfigValues).length > 0) {
+				this._persistConfigValues(session, persistedConfigValues);
+			}
 		}
 
 		this._changesetCoordinator.onSessionCreated(session.toString());
@@ -3705,7 +3708,10 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 		const configValues = state.config?.values;
 		if (configValues && Object.keys(configValues).length > 0) {
-			this._persistConfigValues(session, configValues);
+			const persistedConfigValues = omitTransientSessionConfigValues(configValues);
+			if (Object.keys(persistedConfigValues).length > 0) {
+				this._persistConfigValues(session, persistedConfigValues);
+			}
 		}
 		// Persist the AH-owned workspace-less marker now that the session has a
 		// real on-disk database (deferred from create for provisional sessions).
@@ -5562,7 +5568,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 						if (m.configValues) {
 							try {
-								persistedConfigValues = JSON.parse(m.configValues);
+								persistedConfigValues = omitTransientSessionConfigValues(JSON.parse(m.configValues));
 							} catch (err) {
 								this._logService.warn(`[AgentService] Failed to parse persisted configValues for ${sessionStr}: ${toErrorMessage(err)}`);
 							}

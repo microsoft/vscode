@@ -71,10 +71,9 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 	}
 
 	register(session: URI, subscription: IAgentSubscription<SessionState>): IDisposable {
-		// The Agents window has no workspace-scoped Python environment to own.
 		// Remote-development windows can run a host on a different OS, so the
 		// renderer cannot safely choose Bash versus PowerShell for them.
-		if (this._environmentService.isSessionsWindow || this._environmentService.remoteAuthority) {
+		if (this._environmentService.remoteAuthority) {
 			return Disposable.None;
 		}
 		const key = session.toString();
@@ -113,18 +112,15 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 			return;
 		}
 
-		// Only the window that owns the session's workspace folder may publish,
-		// including the clearing dispatch when the setting is off. Other windows
-		// can subscribe to the same shared session state; a non-owning window
-		// clearing the value would fight an owning window that re-publishes it.
-		const folder = this._resolveFolder(state);
-		if (!folder) {
+		const enabled = this._configurationService.getValue<boolean>(AgentHostShellToolInitScriptEnabledSettingId) === true;
+		const folder = enabled ? this._resolveFolder(state) : undefined;
+		// A non-empty script belongs to the window that owns the session folder.
+		// The application-scoped disabled value is authoritative from any local
+		// window, including the Agents window.
+		if (enabled && !folder) {
 			return;
 		}
-		const enabled = this._configurationService.getValue<boolean>(AgentHostShellToolInitScriptEnabledSettingId) === true;
-		const desired = enabled
-			? [createShellInitScript(TOOL_SHELL, this._readPythonActivation(folder))]
-			: [];
+		const desired = enabled && folder ? [createShellInitScript(TOOL_SHELL, this._readPythonActivation(folder))] : [];
 		const current = state.config.values[SessionConfigKey.ShellInitSnippets] as readonly IShellInitScript[] | undefined;
 		if (structuralEquals(current, desired) || (!desired.length && current === undefined)) {
 			return;

@@ -217,20 +217,26 @@ suite('AgentHostShellInitSynchronizer', () => {
 		assert.deepStrictEqual(dispatched, []);
 	});
 
-	test('a non-owning window with the setting disabled does not clear the script', async () => {
-		// A clearing dispatch from a non-owning window would fight the owning
-		// window, which re-publishes its script on every echoed update.
+	test('a non-owning local window can clear the script when disabled', async () => {
 		const { synchronizer, dispatched } = create({ enabled: false, folders: [folderB] });
 		await register(synchronizer, state({
 			values: { [SessionConfigKey.ShellInitSnippets]: [{ shell: 'bash', script: 'old' }] },
 		}));
+		assert.deepStrictEqual(dispatched, [{ [SessionConfigKey.ShellInitSnippets]: [] }]);
+	});
+
+	test('does not publish a script from the Agents window', async () => {
+		const { synchronizer, dispatched } = create({ enabled: true, sessionsWindow: true, folders: [] });
+		await register(synchronizer, state());
 		assert.deepStrictEqual(dispatched, []);
 	});
 
-	test('does not publish from the Agents window', async () => {
-		const { synchronizer, dispatched } = create({ enabled: true, sessionsWindow: true });
-		await register(synchronizer, state());
-		assert.deepStrictEqual(dispatched, []);
+	test('the Agents window can clear a stale script when disabled', async () => {
+		const { synchronizer, dispatched } = create({ enabled: false, sessionsWindow: true, folders: [] });
+		await register(synchronizer, state({
+			values: { [SessionConfigKey.ShellInitSnippets]: [{ shell: 'bash', script: 'old' }] },
+		}));
+		assert.deepStrictEqual(dispatched, [{ [SessionConfigKey.ShellInitSnippets]: [] }]);
 	});
 
 	test('does not publish when the Agent Host can run on a remote OS', async () => {

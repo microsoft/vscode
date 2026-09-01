@@ -13987,7 +13987,13 @@ suite('AgentService (node dispatcher)', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			registerTestAgentProvider(localService, localAgent);
 
-			await localService.createSession({ provider: 'copilot', config: { autoApprove: 'autoApprove' } });
+			await localService.createSession({
+				provider: 'copilot',
+				config: {
+					autoApprove: 'autoApprove',
+					[SessionConfigKey.ShellInitSnippets]: [{ shell: 'bash', script: 'export TRANSIENT=1' }],
+				},
+			});
 
 			// Persistence is fire-and-forget; wait for it to flush
 			await new Promise(r => setTimeout(r, 50));
@@ -14034,7 +14040,10 @@ suite('AgentService (node dispatcher)', () => {
 			)));
 			registerTestAgentProvider(localService, localAgent);
 
-			await sessionDb.setMetadata('configValues', JSON.stringify({ autoApprove: 'autoApprove' }));
+			await sessionDb.setMetadata('configValues', JSON.stringify({
+				autoApprove: 'autoApprove',
+				[SessionConfigKey.ShellInitSnippets]: [{ shell: 'bash', script: 'export STALE=1' }],
+			}));
 			const { session } = await createAgentSession(localAgent);
 			localAgent.sessionMessages = [
 				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
@@ -14047,9 +14056,11 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				isolation: values?.[SessionConfigKey.Isolation],
 				autoApprove: values?.autoApprove,
+				shellInitSnippets: values?.[SessionConfigKey.ShellInitSnippets],
 			}, {
 				isolation: 'folder',
 				autoApprove: 'autoApprove',
+				shellInitSnippets: undefined,
 			});
 		});
 
