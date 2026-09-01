@@ -272,6 +272,11 @@ export interface ICopilotCreateSessionLaunchPlan extends ICopilotSessionLaunchBa
 	readonly model: ModelSelection | undefined;
 	readonly longContextWindow?: number;
 	readonly freeLongContext?: boolean;
+	/**
+	 * The Auto routing profile to send, already resolved against the gate. Frozen here so the profile
+	 * the runtime receives always matches the one the caller persists.
+	 */
+	readonly autoTier?: AutoModeTier;
 }
 
 export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBase {
@@ -281,6 +286,7 @@ export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBa
 		readonly model: ModelSelection | undefined;
 		readonly longContextWindow?: number;
 		readonly freeLongContext?: boolean;
+		readonly autoTier?: AutoModeTier;
 	};
 }
 
@@ -647,6 +653,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				model: fallbackPlan.fallback.model,
 				longContextWindow: fallbackPlan.fallback.longContextWindow,
 				freeLongContext: fallbackPlan.fallback.freeLongContext,
+				autoTier: fallbackPlan.fallback.autoTier,
 			}, fallbackConfig, sandboxConfig);
 			this._sessionOpenTelemetry.sdkResumeFallbackCreated(session);
 			this._logService.info(`[Copilot:${plan.sessionId}] Fallback createSession succeeded`);
@@ -674,9 +681,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			model: plan.model?.id,
 			reasoningEffort: resolveCopilotReasoningEffort(plan.model, this._configurationService, this._logService, plan.sessionId),
 			contextTier: getCopilotContextTier(plan.model, plan.longContextWindow, plan.freeLongContext),
-			// Create-time only: the runtime then owns the profile, keeping it fixed while the session is
-			// resident and restoring it on cold resume.
-			...toSdkCapiSessionOptions(resolveCopilotAutoTier(plan.model, this._configurationService, this._logService, plan.sessionId)),
+			// Create-time only. Taken from the plan rather than resolved again, so the profile sent
+			// always matches the one the caller persists.
+			...toSdkCapiSessionOptions(plan.autoTier),
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		}));

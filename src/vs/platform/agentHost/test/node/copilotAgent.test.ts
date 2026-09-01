@@ -10053,6 +10053,38 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('drops a provisional Auto routing profile when the gate turns off before the first send', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+			client.createSession = async () => new MockCopilotSession() as unknown as CopilotSession;
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				sessionDataService,
+				copilotClient: client,
+				rootConfig: { [CopilotCliConfigKey.AutoModeTiers]: true },
+			});
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await waitForState(agent.models, m => m.length > 0);
+				const session = AgentSession.uri('copilotcli', 'auto-tier-provisional');
+				const chat = defaultChatUri(session);
+				const result = await provisionSession(agent, {
+					session,
+					workingDirectories: [URI.file('/workspace')],
+					model: { id: 'auto', config: { tier: 'intelligence' } },
+				});
+
+				// Still provisional, so the launcher has not run. With the gate off it omits
+				// `capi.autoTier`, so persisting the selection would claim a profile never sent.
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: false });
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, chat, result.session));
+
+				const stored = await sessionDataService.openDatabase(session).object.getMetadata('copilot.model');
+				assert.deepStrictEqual(JSON.parse(stored ?? 'null'), { id: 'auto' });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('changeAgent resolves and applies the agent to the targeted chat, and clears it with undefined', async () => {
 			const agent = createTestAgent(disposables);
 			try {
