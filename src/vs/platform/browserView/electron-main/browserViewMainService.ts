@@ -215,10 +215,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	onDynamicDidClose(id: string) {
 		const view = this.browserViews.get(id);
 		if (!view) {
-			// `onDidClose` is terminal: the consumer (`BrowserEditorInput`) only
-			// auto-disposes from this event. If the view is already gone when the
-			// subscription loses the IPC race, emit a single close notification so
-			// the stale editor/model is torn down instead of leaking.
+			// Terminal event: emit one close so a consumer that lost the IPC race still tears down its stale editor/model.
 			return this._onceClosed;
 		}
 		return view.onDidClose;
