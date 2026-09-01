@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { AgentHostSessionTypesAvailableContext, IsNewChatSessionContext, SessionHarnessPickerVisibleContext, SessionHasWorkspaceContext } from '../../../../common/contextkeys.js';
+import { AgentHostSessionTypesAvailableContext, IsNewChatSessionContext, SessionHarnessPickerInteractiveContext, SessionHasWorkspaceContext } from '../../../../common/contextkeys.js';
 import { createNewSessionViewV2Tour, NEW_SESSION_VIEW_V2_TOUR_ID } from '../../browser/tours/newSessionViewV2Tour.js';
 import { createNewSessionViewV3Tour } from '../../browser/tours/newSessionViewV3Tour.js';
 import { NEW_SESSION_ONBOARDING_SEEN_KEY } from '../../browser/tours/newSessionTour.js';
@@ -34,7 +34,7 @@ suite('NewSessionViewV2Tour', () => {
 				openTarget: step.openTarget,
 				allowTargetInteraction: step.allowTargetInteraction,
 				advanceWhenWorkspaceSelected: step.advanceWhen === SessionHasWorkspaceContext,
-				requiresInteractiveHarnessPicker: step.when === SessionHarnessPickerVisibleContext,
+				requiresInteractiveHarnessPicker: step.when === SessionHarnessPickerInteractiveContext,
 			})),
 		}, {
 			id: NEW_SESSION_VIEW_V2_TOUR_ID,

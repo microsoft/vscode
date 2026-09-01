@@ -30,7 +30,7 @@ import { IChatInputNotificationService } from '../../../../workbench/contrib/cha
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
-import { SessionHarnessPickerVisibleContext } from '../../../common/contextkeys.js';
+import { SessionHarnessPickerInteractiveContext, SessionHarnessPickerVisibleContext } from '../../../common/contextkeys.js';
 import { isAllowSignedOutWhenUsableEnabled } from '../../../browser/sessionsAuthGate.js';
 
 const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.userSelectedSessionType';
@@ -148,12 +148,8 @@ export class SessionTypePicker extends Disposable {
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	protected _triggerElement: HTMLElement | undefined;
 
-	/**
-	 * Tracks whether the harness picker trigger is currently interactive, so the
-	 * new-session-view onboarding tour can skip the harness step when only a
-	 * single harness can serve the selected workspace.
-	 */
 	private readonly _visibleKey: IContextKey<boolean>;
+	private readonly _interactiveKey: IContextKey<boolean>;
 
 	constructor(
 		private readonly _session: IObservable<ISession | undefined>,
@@ -174,6 +170,8 @@ export class SessionTypePicker extends Disposable {
 
 		this._visibleKey = SessionHarnessPickerVisibleContext.bindTo(contextKeyService);
 		this._register(toDisposable(() => this._visibleKey.reset()));
+		this._interactiveKey = SessionHarnessPickerInteractiveContext.bindTo(contextKeyService);
+		this._register(toDisposable(() => this._interactiveKey.reset()));
 
 		// Restore the previously selected session type from storage
 		this._picked = this._readStoredPick();
@@ -630,6 +628,7 @@ export class SessionTypePicker extends Disposable {
 	private _updateTriggerLabel(): void {
 		if (!this._triggerElement) {
 			this._visibleKey.set(false);
+			this._interactiveKey.set(false);
 			return;
 		}
 
@@ -639,6 +638,7 @@ export class SessionTypePicker extends Disposable {
 			this._triggerElement.classList.add('hidden');
 			this._triggerElement.parentElement?.classList.remove('disabled');
 			this._visibleKey.set(false);
+			this._interactiveKey.set(false);
 			return;
 		}
 
@@ -647,7 +647,8 @@ export class SessionTypePicker extends Disposable {
 		this._triggerElement.parentElement?.classList.toggle('disabled', disabled);
 		this._triggerElement.tabIndex = disabled ? -1 : 0;
 		this._triggerElement.setAttribute('aria-disabled', String(disabled));
-		this._visibleKey.set(!disabled);
+		this._visibleKey.set(true);
+		this._interactiveKey.set(!disabled);
 		const currentType = this._folderSessionTypes.find(t =>
 			t.providerId === this._picked?.providerId && t.sessionType.id === this._picked?.sessionTypeId)?.sessionType
 			?? this._folderSessionTypes.find(t => t.sessionType.id === this._picked?.sessionTypeId)?.sessionType;
