@@ -134,6 +134,8 @@ const OTEL_STATUS_COMMAND = 'github.copilot.chat.otel.statusActive';
 const OTEL_STATUS_ENTRY_ID = 'copilot.otelStatus';
 const OTEL_DOCS_URL = 'https://code.visualstudio.com/docs/agents/guides/monitoring-agents';
 const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
+const INPUT_GITHUB_CONTEXT_METADATA_KEY = 'sessionsInputGitHubContext';
+const GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN = /\bhttps?:\/\/(?:www\.)?github\.com\/(?<owner>[\w.-]+)\/(?<repo>[\w.-]+)\/(?<kind>issues|pull)\/(?<number>\d+)\b/gi;
 const MIN_EDITOR_HEIGHT = 50;
 const MAX_EDITOR_HEIGHT = 200;
 const NEW_CHAT_INPUT_FONT_FAMILY = 'system-ui, -apple-system, sans-serif';
@@ -210,6 +212,37 @@ interface IDraftState {
 
 export function hasSendableNewChatContent(query: string, attachments: readonly IChatRequestVariableEntry[], hasAdditionalSendContent = false): boolean {
 	return !!query.trim() || attachments.some(isExplicitFileOrImageVariableEntry) || hasAdditionalSendContent;
+}
+
+function getInputGitHubContextAttachments(input: string): readonly IChatRequestVariableEntry[] {
+	const attachments: IChatRequestVariableEntry[] = [];
+	const ids = new Set<string>();
+	for (const match of input.matchAll(GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN)) {
+		const groups = match.groups;
+		const number = Number(groups?.['number']);
+		if (!groups || !Number.isSafeInteger(number) || number <= 0) {
+			continue;
+		}
+		const owner = groups['owner'];
+		const repo = groups['repo'];
+		const kind = groups['kind'].toLowerCase();
+		const uri = `https://github.com/${owner}/${repo}/${kind}/${number}`;
+		const id = `github-context:${uri}`;
+		if (ids.has(id)) {
+			continue;
+		}
+		ids.add(id);
+		attachments.push(toPasteVariableEntry(`${owner}/${repo}#${number}`, `GitHub context: ${uri}`, {
+			id,
+			icon: kind === 'issues' ? Codicon.issues : Codicon.gitPullRequest,
+			_meta: { [INPUT_GITHUB_CONTEXT_METADATA_KEY]: true },
+		}));
+	}
+	return attachments;
+}
+
+function isInputGitHubContextAttachment(attachment: IChatRequestVariableEntry): boolean {
+	return attachment._meta?.[INPUT_GITHUB_CONTEXT_METADATA_KEY] === true;
 }
 
 class NewChatInputStatusActionViewItem extends MenuEntryActionViewItem {
@@ -996,6 +1029,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		)));
 
 		this._register(this._editor.onDidChangeModelContent(() => {
+			this._syncInputGitHubContext();
 			this._updateDraftState();
 			this._updateSendButtonState();
 			this._updateEditorFontFamily();
@@ -1397,6 +1431,25 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this.saveState();
 	}
 
+	private _syncInputGitHubContext(): void {
+		const inputAttachments = getInputGitHubContextAttachments(this._editor?.getValue() ?? '');
+		const inputAttachmentIds = new Set(inputAttachments.map(attachment => attachment.id));
+		const attachments = this._contextAttachments.attachments.filter(attachment =>
+			!isInputGitHubContextAttachment(attachment) || inputAttachmentIds.has(attachment.id)
+		);
+		const attachmentIds = new Set(attachments.map(attachment => attachment.id));
+		for (const attachment of inputAttachments) {
+			if (!attachmentIds.has(attachment.id)) {
+				attachments.push(attachment);
+				attachmentIds.add(attachment.id);
+			}
+		}
+		if (attachments.length !== this._contextAttachments.attachments.length
+			|| attachments.some((attachment, index) => attachment !== this._contextAttachments.attachments[index])) {
+			this._contextAttachments.setAttachments(attachments);
+		}
+	}
+
 	private _toHistoryEntry(draft: IDraftState): IChatModelInputState {
 		return {
 			...draft,
@@ -1534,6 +1587,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			if (draft.attachments?.length) {
 				this._contextAttachments.setAttachments(draft.attachments.map(IChatRequestVariableEntry.fromExport));
 			}
+			this._syncInputGitHubContext();
 		}
 		this._updateSendButtonState();
 	}
@@ -1768,10 +1822,18 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	attachTextContext(name: string, content: string, icon: ThemeIcon, id = `context:${content}`): void {
-		this._contextAttachments.addAttachments(toPasteVariableEntry(name, content, {
+		const attachment = toPasteVariableEntry(name, content, {
 			id,
 			icon,
-		}));
+		});
+		const index = this._contextAttachments.attachments.findIndex(entry => entry.id === id);
+		if (index < 0) {
+			this._contextAttachments.addAttachments(attachment);
+		} else {
+			const attachments = [...this._contextAttachments.attachments];
+			attachments[index] = attachment;
+			this._contextAttachments.setAttachments(attachments);
+		}
 	}
 
 	addAttachments(...attachments: IChatRequestVariableEntry[]): void {
