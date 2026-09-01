@@ -67,11 +67,11 @@ export class AgentFeedbackPRReviewSeederContribution extends Disposable implemen
 			if (prReviewState.kind !== PRReviewStateKind.Loaded) {
 				return;
 			}
-			this._sync(sessionResource, prReviewState.comments);
+			this._sync(sessionResource, prReviewState.comments, prReviewState.incompletePullRequests);
 		}));
 	}
 
-	private _sync(sessionResource: URI, comments: readonly IPRReviewComment[]): void {
+	private _sync(sessionResource: URI, comments: readonly IPRReviewComment[], incompletePullRequests: readonly Pick<IPRReviewComment['pullRequest'], 'owner' | 'repo' | 'number'>[]): void {
 		// Only act once the authoritative feedback set is available; seeding off
 		// a transiently-empty list would create duplicate mirrors on reload.
 		if (!this._agentFeedbackService.hasLoadedFeedback(sessionResource)) {
@@ -80,6 +80,7 @@ export class AgentFeedbackPRReviewSeederContribution extends Disposable implemen
 
 		const feedback = this._agentFeedbackService.getFeedback(sessionResource);
 		const mirroredSourceIds = new Set<string>();
+		const mirrorBySource = new Map<string, IAgentFeedback>();
 		const createdMirrorBySource = new Map<string, IAgentFeedback>();
 		// Extra created mirrors that share a source with one already seen. These
 		// arise from a benign race (a second seed dispatched before the first
@@ -89,6 +90,9 @@ export class AgentFeedbackPRReviewSeederContribution extends Disposable implemen
 		for (const item of feedback) {
 			if (item.kind === AgentFeedbackKind.PRReview && item.sourcePRReviewCommentId) {
 				mirroredSourceIds.add(item.sourcePRReviewCommentId);
+				if (!mirrorBySource.has(item.sourcePRReviewCommentId)) {
+					mirrorBySource.set(item.sourcePRReviewCommentId, item);
+				}
 				if (item.state === AgentFeedbackState.Created) {
 					if (createdMirrorBySource.has(item.sourcePRReviewCommentId)) {
 						duplicateCreatedMirrors.push(item);
@@ -103,6 +107,14 @@ export class AgentFeedbackPRReviewSeederContribution extends Disposable implemen
 		}
 
 		for (const comment of comments) {
+			const mirror = mirrorBySource.get(comment.id);
+			if (mirror && !mirror.sourcePullRequest) {
+				this._agentFeedbackService.updateFeedbackSourcePullRequest(sessionResource, mirror.id, {
+					owner: comment.pullRequest.owner,
+					repo: comment.pullRequest.repo,
+					number: comment.pullRequest.number,
+				});
+			}
 			const createdMirror = createdMirrorBySource.get(comment.id);
 			if (createdMirror) {
 				// Keep an existing un-accepted mirror in sync with edits to the
@@ -125,6 +137,11 @@ export class AgentFeedbackPRReviewSeederContribution extends Disposable implemen
 					comment.id,
 					AgentFeedbackKind.PRReview,
 					AgentFeedbackState.Created,
+					{
+						owner: comment.pullRequest.owner,
+						repo: comment.pullRequest.repo,
+						number: comment.pullRequest.number,
+					},
 				);
 			}
 		}
@@ -133,6 +150,7 @@ export class AgentFeedbackPRReviewSeederContribution extends Disposable implemen
 		// a separate accepted item from the editor, or dismissed) while still
 		// un-accepted; accepted/submitted mirrors are kept since the user acted
 		// on them.
+		const incompletePullRequestKeys = new Set(incompletePullRequests.map(pullRequest => this._pullRequestKey(pullRequest)));
 		const liveSourceIds = new Set(comments.map(comment => comment.id));
 		for (const item of feedback) {
 			if (item.kind === AgentFeedbackKind.PRReview
@@ -140,8 +158,18 @@ export class AgentFeedbackPRReviewSeederContribution extends Disposable implemen
 				&& item.sourcePRReviewCommentId
 				&& !liveSourceIds.has(item.sourcePRReviewCommentId)
 			) {
+				if (!item.sourcePullRequest
+					? incompletePullRequestKeys.size > 0
+					: incompletePullRequestKeys.has(this._pullRequestKey(item.sourcePullRequest))
+				) {
+					continue;
+				}
 				this._agentFeedbackService.removeFeedback(sessionResource, item.id);
 			}
 		}
+	}
+
+	private _pullRequestKey(pullRequest: Pick<IPRReviewComment['pullRequest'], 'owner' | 'repo' | 'number'>): string {
+		return `${pullRequest.owner.toLowerCase()}/${pullRequest.repo.toLowerCase()}#${pullRequest.number}`;
 	}
 }

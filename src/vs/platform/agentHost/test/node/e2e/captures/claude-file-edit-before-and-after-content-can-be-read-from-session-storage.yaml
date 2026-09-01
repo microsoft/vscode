@@ -9,8 +9,6 @@ exchanges:
           content: Replace the complete contents of stored-edit.txt with AFTER_STORED_VALUE using your file edit tool; do not run a shell command. Then reply exactly "done".
     response:
       content:
-        - type: text
-          text: I'll read the file first, then replace its contents.
         - type: tool_use
           id: toolcall_0
           name: Read
@@ -25,8 +23,6 @@ exchanges:
           content: Replace the complete contents of stored-edit.txt with AFTER_STORED_VALUE using your file edit tool; do not run a shell command. Then reply exactly "done".
         - role: assistant
           content:
-            - type: text
-              text: I'll read the file first, then replace its contents.
             - type: tool_use
               name: Read
               input:
@@ -54,8 +50,6 @@ exchanges:
           content: Replace the complete contents of stored-edit.txt with AFTER_STORED_VALUE using your file edit tool; do not run a shell command. Then reply exactly "done".
         - role: assistant
           content:
-            - type: text
-              text: I'll read the file first, then replace its contents.
             - type: tool_use
               name: Read
               input:

@@ -16,7 +16,9 @@ import { IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnab
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../common/agentService.js';
-import { WSLRelayTransport } from './wslRelayTransport.js';
+import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
+import { ReconnectingRelayTransport } from '../common/relayTransport.js';
+import { NonReconnectableTransportError } from '../common/state/sessionTransport.js';
 import { AgentHostProtocolClient } from '../browser/agentHostProtocolClient.js';
 import { agentsWindowAgentHostClientInfo } from '../common/agentHostClientInfo.js';
 import {
@@ -35,7 +37,7 @@ export const IWSLRelayClientFactory = createDecorator<IWSLRelayClientFactory>('w
 
 export interface IWSLRelayClientFactory {
 	readonly _serviceBrand: undefined;
-	createClient(mainService: IWSLRemoteAgentHostMainService, connectionId: string, address: string): AgentHostProtocolClient;
+	createClient(mainService: IWSLRemoteAgentHostMainService, connectionId: string, address: string, connection: IWSLConnectResult, remoteAgentHostCommand: string | undefined): AgentHostProtocolClient;
 }
 
 export class WSLRelayClientFactory implements IWSLRelayClientFactory {
@@ -45,16 +47,57 @@ export class WSLRelayClientFactory implements IWSLRelayClientFactory {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@ILogService private readonly _logService: ILogService,
 	) { }
 
-	createClient(mainService: IWSLRemoteAgentHostMainService, connectionId: string, address: string): AgentHostProtocolClient {
-		const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
-		const logger = ahpLoggingEnabled ? this._instantiationService.createInstance(
-			AhpJsonlLogger,
-			{ logsHome: this._environmentService.logsHome, connectionId, transport: 'wsl' },
-		) : undefined;
-		const transport = this._instantiationService.createInstance(WSLRelayTransport, connectionId, mainService, logger);
-		return this._instantiationService.createInstance(AgentHostProtocolClient, address, transport, undefined, undefined, agentsWindowAgentHostClientInfo);
+	createClient(mainService: IWSLRemoteAgentHostMainService, connectionId: string, address: string, connection: IWSLConnectResult, remoteAgentHostCommand: string | undefined): AgentHostProtocolClient {
+		const config: IWSLAgentHostConfig = {
+			distro: connection.distro,
+			name: connection.name,
+			remoteAgentHostCommand,
+		};
+		let seedConnection = true;
+		const establish = async () => {
+			// WSL disconnect is distro-scoped, so handles own no teardown; reconnect supersedes stale channels.
+			if (seedConnection) {
+				// The caller owns teardown of the channel established before the protocol client was created.
+				seedConnection = false;
+				return { connectionId };
+			}
+
+			try {
+				const result = await mainService.reconnect(config.distro, config.name, config.remoteAgentHostCommand);
+				return {
+					connectionId: result.connectionId,
+				};
+			} catch (error) {
+				const [isWSLAvailable, distros] = await Promise.all([
+					mainService.isWSLAvailable().catch(() => true),
+					mainService.listDistros().catch(() => []),
+				]);
+				if (!isWSLAvailable || (distros.length > 0 && !distros.some(distro => distro.name === config.distro))) {
+					throw new NonReconnectableTransportError(error instanceof Error ? error.message : String(error));
+				}
+				throw error;
+			}
+		};
+		const transportFactory = () => {
+			const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
+			const createLogger = () => ahpLoggingEnabled ? this._instantiationService.createInstance(
+				AhpJsonlLogger,
+				{ logsHome: this._environmentService.logsHome, connectionId, transport: 'wsl' },
+			) : undefined;
+			return this._instantiationService.createInstance(
+				ReconnectingRelayTransport,
+				establish,
+				mainService,
+				createLogger,
+				this._logService,
+				'[WSLRelayTransport]',
+				AgentHostClientConnectionKind.WSL,
+			);
+		};
+		return this._instantiationService.createInstance(AgentHostProtocolClient, address, transportFactory, { clientInfo: agentsWindowAgentHostClientInfo });
 	}
 }
 
@@ -109,7 +152,7 @@ export class WSLRemoteAgentHostService extends Disposable implements IWSLRemoteA
 				this._onDidChangeConnections.fire();
 
 				// Defense-in-depth: also signal the protocol client directly.
-				// The WSLRelayTransport normally observes `onDidRelayClose`
+				// ReconnectingRelayTransport normally observes `onDidRelayClose`
 				// (fired from the same shared-process code path as this
 				// event) and calls back into the client. If that IPC
 				// delivery is missed for any reason, the renderer-side
@@ -148,7 +191,7 @@ export class WSLRemoteAgentHostService extends Disposable implements IWSLRemoteA
 		this._logService.info(`[WSLRemoteAgentHost] Connecting to distro ${config.distro}`);
 		const result = await this._mainService.connect(augmentedConfig);
 		this._logService.trace(`[WSLRemoteAgentHost] WSL relay established, connectionId=${result.connectionId}`);
-		return this._setupConnection(result);
+		return this._setupConnection(result, augmentedConfig.remoteAgentHostCommand);
 	}
 
 	async disconnect(distro: string): Promise<void> {
@@ -164,7 +207,7 @@ export class WSLRemoteAgentHostService extends Disposable implements IWSLRemoteA
 		const commandOverride = this._getRemoteAgentHostCommand();
 		this._logService.info(`[WSLRemoteAgentHost] Reconnecting to distro ${distro}`);
 		const result = await this._mainService.reconnect(distro, name, commandOverride);
-		return this._setupConnection(result);
+		return this._setupConnection(result, commandOverride);
 	}
 
 	/**
@@ -172,7 +215,7 @@ export class WSLRemoteAgentHostService extends Disposable implements IWSLRemoteA
 	 * with IRemoteAgentHostService. Any failure after the shared-process tunnel
 	 * was established tears it back down so we don't leak it.
 	 */
-	private async _setupConnection(result: IWSLConnectResult): Promise<IWSLAgentHostConnection> {
+	private async _setupConnection(result: IWSLConnectResult, remoteAgentHostCommand: string | undefined): Promise<IWSLAgentHostConnection> {
 		const existing = this._connections.get(result.connectionId);
 		if (existing) {
 			if (this._remoteAgentHostService.getConnection(result.address)) {
@@ -194,7 +237,7 @@ export class WSLRemoteAgentHostService extends Disposable implements IWSLRemoteA
 				connectionKey: result.address,
 				message: localize('wslProgressHandshake', "Establishing connection to {0}...", result.name),
 			});
-			protocolClient = this._relayClientFactory.createClient(this._mainService, result.connectionId, result.address);
+			protocolClient = this._relayClientFactory.createClient(this._mainService, result.connectionId, result.address, result, remoteAgentHostCommand);
 			await protocolClient.connect();
 			this._logService.trace('[WSLRemoteAgentHost] Protocol handshake completed');
 

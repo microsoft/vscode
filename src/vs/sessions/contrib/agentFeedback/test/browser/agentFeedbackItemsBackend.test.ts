@@ -40,9 +40,11 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 				entries: [{ id: 'feedback-1:0', text: 'Review this code.' }],
 				_meta: {
 					[FEEDBACK_ANNOTATION_META_KEY]: {
-						kind: 'codeReview',
+						kind: 'prReview',
 						state: 'created',
 						sessionResource: sessionResource.toString(),
+						sourcePRReviewCommentId: 'thread-1',
+						sourcePullRequest: { owner: 'owner', repo: 'repo', number: 42 },
 					},
 				},
 			}],
@@ -94,13 +96,28 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		const feedback = backend.getItems(sessionResource)[0];
 		assert.ok(feedback);
 		backend.upsert(feedback);
+		const encodedMeta = dispatchedActions.find(action => action.type === ActionType.AnnotationsSet)?.annotation._meta?.[FEEDBACK_ANNOTATION_META_KEY];
 
 		assert.deepStrictEqual({
 			decoded: feedback.resourceUri.toString(),
 			encoded: dispatchedActions.find(action => action.type === ActionType.AnnotationsSet)?.annotation.resource,
+			decodedPullRequest: feedback.sourcePullRequest,
+			encodedMeta,
 		}, {
 			decoded: resourceUris.fromAgentHost(agentHostResource).toString(),
 			encoded: agentHostResource.toString(),
+			decodedPullRequest: { owner: 'owner', repo: 'repo', number: 42 },
+			encodedMeta: {
+				kind: 'prReview',
+				state: 'created',
+				sessionResource: sessionResource.toString(),
+				suggestion: undefined,
+				codeSelection: undefined,
+				diffHunks: undefined,
+				sourcePRReviewCommentId: 'thread-1',
+				sourcePullRequest: { owner: 'owner', repo: 'repo', number: 42 },
+				pendingAgentReveal: undefined,
+			},
 		});
 	});
 });

@@ -17,10 +17,14 @@ export interface IChatInputPickerResponsiveLayoutDelegate {
 export interface IChatInputPickerResponsiveState {
 	isCompact(): boolean;
 	setCompact(compact: boolean): void;
+	isMinimal?(): boolean;
+	setMinimal?(minimal: boolean): void;
 }
 
 export interface IChatInputPickerResponsiveLayoutItem extends IChatInputPickerResponsiveState {
 	readonly element: HTMLElement | undefined;
+	/** Let the item's CSS minimum width determine when its expanded form compacts. */
+	readonly canShrink?: boolean;
 }
 
 export function isChatInputPickerResponsiveState(candidate: object | undefined): candidate is IChatInputPickerResponsiveState {
@@ -68,29 +72,28 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 		this._isLayouting = true;
 		this._mutationObserver.disconnect();
 		try {
-			// Restore as many hidden actions as possible in their shortest form
-			// before measuring. Otherwise an overflow menu can hide the very items
-			// whose expanded width should keep the lane compact.
-			this._setAllCompact(true);
-			this._delegate.relayout?.();
-			this._setAllCompact(true);
-			this._delegate.relayout?.();
-			if (this._delegate.hasOverflow?.()) {
+			if (!this._restoreCompactItems()) {
 				return;
 			}
 
 			const items = this._getOrderedVisibleItems();
 			for (const item of items) {
+				item.setMinimal?.(false);
 				item.setCompact(false);
 			}
+			this._delegate.relayout?.();
 
 			for (const item of items) {
 				if (this._fitsAvailableWidth(availableWidth)) {
 					break;
 				}
 				item.setCompact(true);
+				this._delegate.relayout?.();
+				if (!this._fitsAvailableWidth(availableWidth)) {
+					item.setMinimal?.(true);
+					this._delegate.relayout?.();
+				}
 			}
-			this._delegate.relayout?.();
 		} finally {
 			this._observeMutations();
 			this._isLayouting = false;
@@ -98,12 +101,36 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 	}
 
 	areAllItemsCompact(): boolean {
-		return this._delegate.getItems().every(item => item.isCompact());
+		return this._delegate.getItems().every(item => item.isCompact() && (!item.isMinimal || item.isMinimal()));
 	}
 
-	private _setAllCompact(compact: boolean): void {
+	private _restoreCompactItems(): boolean {
+		if (!this._delegate.hasOverflow?.()) {
+			return true;
+		}
+
+		let visibleItemCount = this._getOrderedVisibleItems().length;
+		while (true) {
+			this._setHiddenItemsCompact();
+			this._delegate.relayout?.();
+			if (!this._delegate.hasOverflow?.()) {
+				return true;
+			}
+
+			const nextVisibleItemCount = this._getOrderedVisibleItems().length;
+			if (nextVisibleItemCount <= visibleItemCount) {
+				return false;
+			}
+			visibleItemCount = nextVisibleItemCount;
+		}
+	}
+
+	private _setHiddenItemsCompact(): void {
 		for (const item of this._delegate.getItems()) {
-			item.setCompact(compact);
+			if (!item.element?.isConnected) {
+				item.setCompact(true);
+				item.setMinimal?.(true);
+			}
 		}
 	}
 
@@ -116,7 +143,7 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 	private _fitsAvailableWidth(availableWidth: number): boolean {
 		const items = this._getOrderedVisibleItems();
 		const preferredLayout = this._measurePreferredLayout(items);
-		if (preferredLayout.width > availableWidth + WIDTH_TOLERANCE) {
+		if (!items.some(item => item.canShrink) && preferredLayout.width > availableWidth + WIDTH_TOLERANCE) {
 			return false;
 		}
 
@@ -133,7 +160,7 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 				return false;
 			}
 			const preferredWidth = preferredLayout.itemWidths.get(item);
-			if (preferredWidth !== undefined && bounds.width < preferredWidth - WIDTH_TOLERANCE) {
+			if (!item.canShrink && preferredWidth !== undefined && bounds.width < preferredWidth - WIDTH_TOLERANCE) {
 				return false;
 			}
 		}

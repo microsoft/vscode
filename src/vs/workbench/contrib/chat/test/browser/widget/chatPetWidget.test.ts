@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -171,6 +172,66 @@ suite('ChatPetWidget', () => {
 		assert.strictEqual(observedTargets.size, 0);
 	});
 
+	test('resets pet size from the context menu', async () => {
+		const parent = mainWindow.document.createElement('div');
+		const dragBounds = mainWindow.document.createElement('div');
+		const movementBounds = mainWindow.document.createElement('div');
+		mainWindow.document.body.append(parent, dragBounds, movementBounds);
+		disposables.add(toDisposable(() => {
+			parent.remove();
+			dragBounds.remove();
+			movementBounds.remove();
+		}));
+		let contextMenuDelegate: IContextMenuDelegate | undefined;
+		const contextMenuService = new class extends mock<IContextMenuService>() {
+			override showContextMenu(delegate: IContextMenuDelegate): void {
+				contextMenuDelegate = delegate;
+			}
+		}();
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		service.toggle();
+		service.setScale(4);
+		disposables.add(new ChatPetWidget(
+			createPetHost(parent, dragBounds, movementBounds),
+			undefined,
+			service,
+			new TestAccessibilityService(),
+			contextMenuService,
+			new class extends mock<ICommandService>() { }(),
+			new NullLogService(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
+		));
+		const button = parent.getElementsByClassName('chat-pet-button')[0] as HTMLElement;
+
+		button.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		assert.ok(contextMenuDelegate);
+		const resetSizeAction = contextMenuDelegate.getActions().find(action => action.id === 'chat.pet.resetSize');
+		assert.ok(resetSizeAction);
+		const enabledBeforeReset = resetSizeAction.enabled;
+		await resetSizeAction.run();
+		button.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		assert.ok(contextMenuDelegate);
+		const resetSizeActionAtDefault = contextMenuDelegate.getActions().find(action => action.id === 'chat.pet.resetSize');
+
+		assert.deepStrictEqual({
+			label: resetSizeAction.label,
+			enabledBeforeReset,
+			scale: service.scale.get(),
+			displaySize: button.style.width,
+			enabledAtDefault: resetSizeActionAtDefault?.enabled,
+		}, {
+			label: 'Reset Size',
+			enabledBeforeReset: true,
+			scale: 1,
+			displaySize: '48px',
+			enabledAtDefault: false,
+		});
+	});
+
 	test('stacks the run cycle behind the input', () => {
 		const parent = mainWindow.document.createElement('div');
 		const input = mainWindow.document.createElement('div');
@@ -246,6 +307,47 @@ suite('ChatPetWidget', () => {
 				zIndex: '1',
 			},
 		});
+	});
+
+	test('keeps the on-the-run pet still', () => {
+		const clock = sinon.useFakeTimers();
+		const parent = mainWindow.document.createElement('div');
+		const input = mainWindow.document.createElement('div');
+		const movementBounds = mainWindow.document.createElement('div');
+		parent.append(input);
+		mainWindow.document.body.append(parent, movementBounds);
+		const storageService = new TestStorageService();
+		const service = new ChatPetService(storageService, new TestTelemetryService(), new NullLogService());
+		service.toggle();
+		const widget = new ChatPetWidget(
+			createPetHost(parent, input, movementBounds),
+			undefined,
+			service,
+			new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return false; }
+			}(),
+			new class extends mock<IContextMenuService>() { }(),
+			new class extends mock<ICommandService>() { }(),
+			new NullLogService(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
+		);
+		try {
+			service.setOnTheRun(true);
+			clock.tick(10_000);
+
+			assert.strictEqual(Reflect.get(widget, '_transientState').get(), undefined);
+		} finally {
+			widget.dispose();
+			service.dispose();
+			storageService.dispose();
+			parent.remove();
+			movementBounds.remove();
+			clock.restore();
+		}
 	});
 
 	test('moves one pet instance between chat hosts without respawning it', () => {
@@ -508,8 +610,18 @@ suite('ChatPetWidget', () => {
 
 		mainWindow.dispatchEvent(new FocusEvent('blur'));
 		const hiddenAfterExternalBlur = button.classList.contains('hidden');
+		const windowTransferred = new Promise<void>(resolve => {
+			const observer = new mainWindow.MutationObserver(() => {
+				if (button.classList.contains('hidden')) {
+					observer.disconnect();
+					resolve();
+				}
+			});
+			disposables.add(toDisposable(() => observer.disconnect()));
+			observer.observe(button, { attributes: true, attributeFilter: ['class'] });
+		});
 		ownershipChannel.postMessage({ windowId: mainWindow.vscodeWindowId + 1 });
-		await new Promise(resolve => mainWindow.setTimeout(resolve, 10));
+		await windowTransferred;
 		const hiddenAfterWindowTransfer = button.classList.contains('hidden');
 		mainWindow.dispatchEvent(new FocusEvent('focus'));
 		const hiddenAfterReturn = button.classList.contains('hidden');

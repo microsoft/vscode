@@ -32,6 +32,11 @@ export const enum CopilotCliConfigKey {
 	ReasoningSummary = 'reasoningSummary',
 	/** Let the Auto router score prior turns instead of the latest message alone. Off by default. */
 	MultiTurnContextRouting = 'multiTurnContextRouting',
+	/**
+	 * Offer the Auto model's routing-profile ("Optimize for") picker. Off by default. Separate from
+	 * the extension's gate, which tracks CAPI readiness rather than the bundled runtime's support.
+	 */
+	AutoModeTiers = 'autoModeTiers',
 	/** Tell the model to keep subagents on their default model unless the user asks otherwise. Off by default. */
 	SubagentModelGuidance = 'subagentModelGuidance',
 	/** Per-model capability overrides (family aliases) keyed by model id. */
@@ -60,6 +65,14 @@ export const AgentHostReasoningEffortOverrideSettingId = 'chat.agentHost.copilot
 export const AgentHostReasoningSummaryEnabledSettingId = 'chat.agentHost.copilot.reasoningSummary.enabled';
 
 export const AgentHostMultiTurnContextRoutingEnabledSettingId = 'chat.agentHost.copilot.multiTurnContextRouting.enabled';
+
+export const AgentHostAutoModeTiersEnabledSettingId = 'chat.agentHost.copilot.autoModeTiers.enabled';
+
+/**
+ * ExP treatment gating the Auto routing-profile picker. The Copilot extension gates its own picker
+ * on this same name, so one assignment turns tiers on for both harnesses.
+ */
+export const AutoModeTiersExperimentName = 'copilotchat.autoModeTiersEnabled';
 
 export const CopilotSubagentModelGuidanceEnabledSettingId = 'chat.copilot.subagentModelGuidance.enabled';
 
@@ -176,6 +189,12 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.multiTurnContextRouting.title', "Auto Multi-Turn Context Routing"),
 		description: localize('agentHost.config.multiTurnContextRouting.description', "When enabled, Auto model selection sends prior user messages to the router so it scores the conversation so far instead of the latest message alone."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.AutoModeTiers]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.autoModeTiers.title', "Auto Routing Profiles"),
+		description: localize('agentHost.config.autoModeTiers.description', "When enabled, the Auto model offers an \"Optimize for\" picker that biases routing toward efficiency, balance, or intelligence. The profile is chosen before a session starts and applies for its lifetime."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.SubagentModelGuidance]: schemaProperty<boolean>({

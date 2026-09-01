@@ -30,7 +30,7 @@ import { ResourceSet } from '../../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { mixin } from '../../../../../../base/common/objects.js';
-import { autorun, derived, derivedOpts, IObservable, ISettableObservable, ITransaction, observableFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, ISettableObservable, ITransaction, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
@@ -154,7 +154,7 @@ import { ChatDynamicVariableModel } from '../../attachments/chatDynamicVariables
 import { ChatDragAndDrop } from '../chatDragAndDrop.js';
 import { getChatPetPillPlatformTop, getChatPetStackPlatformTop } from '../chatPetWidget.js';
 import { ChatFollowups } from './chatFollowups.js';
-import { IChatInputNotificationService } from './chatInputNotificationService.js';
+import { IChatInputNotificationContext, IChatInputNotificationService } from './chatInputNotificationService.js';
 import { ChatGoalBannerWidget } from './chatGoalBannerWidget.js';
 import { ChatInputNotificationWidget } from './chatInputNotificationWidget.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from './chatInputNoticeHost.js';
@@ -162,7 +162,7 @@ import { registerChatInputOnboardingHosts } from './chatInputOnboardingHosts.js'
 import { IChatInputNoticeHubService } from './chatInputNoticeHub.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ChatInputPickerResponsiveLayout, IChatInputPickerResponsiveLayoutItem, isChatInputPickerResponsiveState } from './chatInputPickerResponsiveLayout.js';
-import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, setChatInputStackInputFocused, setChatInputStackSlot } from './chatInputStack.js';
+import { chatInputStackClass, chatInputStackSlotClass, chatInputSurfaceStackClass, chatInputSurfaceStackSlotClass, ChatInputStackSlot, setChatInputStackInputFocused, setChatInputStackSlot } from './chatInputStack.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
 import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../chatPetAchievements.js';
 import { IChatPetService } from '../../chatPetService.js';
@@ -186,13 +186,18 @@ const INPUT_EDITOR_PADDING = { compact: { top: 2, bottom: 2 }, default: { top: 1
 const CachedLanguageModelsKey = 'chat.cachedLanguageModels.v2';
 const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
 
-function getToolbarPickerResponsiveItems(toolbar: MenuWorkbenchToolBar, compactStates: ReadonlyMap<string, ISettableObservable<boolean>>): IChatInputPickerResponsiveLayoutItem[] {
+function getToolbarPickerResponsiveItems(
+	toolbar: MenuWorkbenchToolBar,
+	compactStates: ReadonlyMap<string, ISettableObservable<boolean>>,
+	minimalStates?: ReadonlyMap<string, ISettableObservable<boolean>>,
+): IChatInputPickerResponsiveLayoutItem[] {
 	const items: IChatInputPickerResponsiveLayoutItem[] = [];
 	const visibleActionIds = new Set<string>();
 
 	for (let index = 0; index < toolbar.getItemsLength(); index++) {
 		const action = toolbar.getItemAction(index);
 		const state = action && compactStates.get(action.id);
+		const minimalState = action && minimalStates?.get(action.id);
 		const viewItem = toolbar.getItemViewItem(index);
 		const viewItemState = isChatInputPickerResponsiveState(viewItem) ? viewItem : undefined;
 		if (!action || (!state && !viewItemState)) {
@@ -202,21 +207,27 @@ function getToolbarPickerResponsiveItems(toolbar: MenuWorkbenchToolBar, compactS
 		const element = toolbar.getItemElement(index);
 		items.push({
 			element,
+			canShrink: action.id === OpenModelPickerAction.ID,
 			isCompact: () => viewItemState?.isCompact() ?? state!.get(),
+			isMinimal: minimalState ? () => minimalState.get() : undefined,
 			setCompact: compact => {
 				state?.set(compact, undefined);
 				viewItemState?.setCompact(compact);
 				element?.classList.toggle('compact-picker', compact);
 			},
+			setMinimal: minimalState ? minimal => minimalState.set(minimal, undefined) : undefined,
 		});
 	}
 
 	for (const [actionId, state] of compactStates) {
 		if (!visibleActionIds.has(actionId)) {
+			const minimalState = minimalStates?.get(actionId);
 			items.push({
 				element: undefined,
 				isCompact: () => state.get(),
+				isMinimal: minimalState ? () => minimalState.get() : undefined,
 				setCompact: compact => state.set(compact, undefined),
+				setMinimal: minimalState ? minimal => minimalState.set(minimal, undefined) : undefined,
 			});
 		}
 	}
@@ -725,7 +736,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._currentLanguageModel;
 	}
 
-	/** Models the current input can select, for frontend-owned voice actions. */
+	/** Models the current input can select. */
 	get availableLanguageModels(): readonly ILanguageModelChatMetadataAndIdentifier[] {
 		return this.getModels();
 	}
@@ -844,6 +855,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _currentSessionResourceObservable = observableValue<URI | undefined>(this, undefined);
 	private readonly _currentSessionModelObservable = observableValue<IChatModel | undefined>(this, undefined);
 	private readonly _deferredNotificationsEnabled = observableValue(this, true);
+	private readonly _notificationAvailableLanguageModels = observableValue<readonly ILanguageModelChatMetadataAndIdentifier[]>(this, []);
+	private readonly _notificationModelState = derived(this, reader => {
+		const models = this._notificationAvailableLanguageModels.read(reader);
+		const currentModel = this.selectedLanguageModel.read(reader);
+		return {
+			currentModel: models.find(model => model.identifier === currentModel?.identifier),
+			models,
+		};
+	});
 	private _isFirstWorkbenchSession: boolean | undefined;
 
 	/** Whether the session this input is bound to already has a request. */
@@ -963,6 +983,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._currentChatModes.value = localModes;
 		this._currentChatModesObservable = observableValue<IChatModes>('currentChatModes', localModes);
 		this._currentPermissionLevel = observableValue<ChatPermissionLevel>('permissionLevel', this.getDefaultPermissionLevel());
+		const languageModelListChanged = observableSignalFromEvent(this, Event.any(
+			this.languageModelsService.onDidChangeLanguageModels,
+			this.languageModelsService.onDidChangeModelVisibility,
+		));
+		this._register(autorun(reader => {
+			languageModelListChanged.read(reader);
+			const sessionType = this._notificationModelTargetChatSessionType.read(reader);
+			this._currentModeObservable.read(reader);
+			this._notificationAvailableLanguageModels.set(this.getModelsForSessionType(sessionType), undefined);
+		}));
 		this._register(this.editorService.onDidActiveEditorChange(() => {
 			this._indexOfLastOpenedContext = -1;
 			this.refreshChatSessionPickers();
@@ -2337,10 +2367,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Auto-dismiss notifications that requested it. Scope to this input's
 		// session so a message here doesn't hide notifications for other sessions.
-		this.chatInputNotificationService.handleMessageSent({
-			sessionType: this._notificationModelTargetChatSessionType.get(),
-			sessionResource: this._currentSessionResourceObservable.get(),
-		});
+		this.chatInputNotificationService.handleMessageSent(this.getNotificationContext());
 
 		if (this._chatSessionIsEmpty) {
 			this._chatSessionIsEmpty = false;
@@ -2841,7 +2868,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (!this._notificationWidget.value) {
 			// Fall back to `getCurrentSessionType()` so the session-type
 			// picker delegate is consulted before any real session exists
-			// (e.g. empty workspace + Copilot CLI [Agent Host] selected). Without
+			// (e.g. empty workspace + Copilot CLI selected). Without
 			// this fallback, `_currentSessionType` stays undefined until
 			// the user creates a session and `sessionTypes`-gated
 			// notifications never render.
@@ -2849,16 +2876,50 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				modelTargetChatSessionType: this._notificationModelTargetChatSessionType,
 				sessionResource: this._currentSessionResourceObservable,
 				deferredNotificationsEnabled: this._deferredNotificationsEnabled,
-				isTransientChat: this.options.isTransientChat,
+				isTransientChat: constObservable(this.options.isTransientChat ?? false),
 				sessionStarted: this._sessionStarted,
-				selectedLanguageModel: this.selectedLanguageModel,
-				openModelPicker: () => this.openModelPicker(),
-				switchToModel: modelIdentifier => this.switchModelByIdentifier(modelIdentifier, /* storeSelection */ true, /* isUserAction */ true),
+				modelSelection: {
+					state: this._notificationModelState,
+					openPicker: () => this.openModelPicker(),
+					selectModel: modelIdentifier => this.selectNotificationModel(modelIdentifier),
+					applyModelConfiguration: (modelIdentifier, values) => this.applyNotificationModelConfiguration(modelIdentifier, values),
+				},
 				onDidChangeVisibility: (visible, focusTarget) => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible, focusTarget),
 				focusInput: () => this.focus(),
 			});
 			this._notificationWidget.value.attachTo(this.chatInputNotificationContainer);
 		}
+	}
+
+	private getNotificationContext(): IChatInputNotificationContext {
+		return {
+			sessionType: this._notificationModelTargetChatSessionType.get(),
+			sessionResource: this._currentSessionResourceObservable.get(),
+			deferredNotificationsEnabled: this._deferredNotificationsEnabled.get(),
+			isTransientChat: this.options.isTransientChat ?? false,
+			sessionStarted: this._sessionStarted.get(),
+			modelState: this._notificationModelState.get(),
+		};
+	}
+
+	private selectNotificationModel(identifier: string): boolean {
+		const model = this._notificationModelState.get().models.find(model => model.identifier === identifier);
+		if (!model) {
+			return false;
+		}
+		this.setCurrentLanguageModel(model, true, !this._pendingDelegationTarget);
+		return true;
+	}
+
+	/**
+	 * The store is scoped to the active session, so while a delegation is pending the write
+	 * would land on the source session rather than the target the models belong to.
+	 */
+	private async applyNotificationModelConfiguration(modelIdentifier: string, values: IStringDictionary<unknown>): Promise<void> {
+		if (this._pendingDelegationTarget) {
+			return;
+		}
+		await this._modelConfigStore.setModelConfiguration(modelIdentifier, values);
 	}
 
 	/**
@@ -3091,12 +3152,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		let elements;
 		if (this.options.renderStyle === 'compact') {
-			elements = dom.h('.interactive-input-part', [
+			elements = dom.h(`.interactive-input-part.${chatInputSurfaceStackClass}`, [
 				dom.h('.chat-input-persistent-content@persistentContentContainer'),
-				dom.h('.interactive-input-and-edit-session', [
-					dom.h('.chat-plan-review-widget-container@chatPlanReviewContainer'),
-					dom.h('.chat-question-carousel-widget-container@chatQuestionCarouselContainer'),
-					dom.h('.chat-tool-confirmation-carousel-container@chatToolConfirmationCarouselContainer'),
+				dom.h(`.interactive-input-and-edit-session.${chatInputSurfaceStackClass}`, [
+					dom.h(`.chat-plan-review-widget-container.${chatInputSurfaceStackSlotClass}@chatPlanReviewContainer`),
+					dom.h(`.chat-question-carousel-widget-container.${chatInputSurfaceStackSlotClass}@chatQuestionCarouselContainer`),
+					dom.h(`.chat-tool-confirmation-carousel-container.${chatInputSurfaceStackSlotClass}@chatToolConfirmationCarouselContainer`),
 					dom.h(`.${chatInputStackClass}`, [
 						dom.h(`.chat-input-notification-container.${chatInputStackSlotClass}@chatInputNotificationContainer`),
 						dom.h(`.voice-mode-onboarding-container.${chatInputStackSlotClass}@voiceModeOnboardingContainer`),
@@ -3118,19 +3179,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						dom.h('.chat-context-usage-container@contextUsageWidgetContainer'),
 						dom.h('.chat-input-status-container@statusToolbarContainer'),
 					]),
-					dom.h('.chat-attachments-container@attachmentsContainer', [
+					dom.h(`.chat-attachments-container.${chatInputSurfaceStackSlotClass}@attachmentsContainer`, [
 						dom.h('.chat-attached-context@attachedContextContainer'),
 					]),
-					dom.h('.interactive-input-followups@followupsContainer'),
+					dom.h(`.interactive-input-followups.${chatInputSurfaceStackSlotClass}@followupsContainer`),
 				])
 			]);
 		} else {
-			elements = dom.h('.interactive-input-part', [
+			elements = dom.h(`.interactive-input-part.${chatInputSurfaceStackClass}`, [
 				dom.h('.chat-input-persistent-content@persistentContentContainer'),
-				dom.h('.chat-plan-review-widget-container@chatPlanReviewContainer'),
-				dom.h('.chat-question-carousel-widget-container@chatQuestionCarouselContainer'),
-				dom.h('.chat-tool-confirmation-carousel-container@chatToolConfirmationCarouselContainer'),
-				dom.h('.interactive-input-followups@followupsContainer'),
+				dom.h(`.chat-plan-review-widget-container.${chatInputSurfaceStackSlotClass}@chatPlanReviewContainer`),
+				dom.h(`.chat-question-carousel-widget-container.${chatInputSurfaceStackSlotClass}@chatQuestionCarouselContainer`),
+				dom.h(`.chat-tool-confirmation-carousel-container.${chatInputSurfaceStackSlotClass}@chatToolConfirmationCarouselContainer`),
+				dom.h(`.interactive-input-followups.${chatInputSurfaceStackSlotClass}@followupsContainer`),
 				dom.h(`.${chatInputStackClass}`, [
 					dom.h(`.chat-input-notification-container.${chatInputStackSlotClass}@chatInputNotificationContainer`),
 					dom.h(`.voice-mode-onboarding-container.${chatInputStackSlotClass}@voiceModeOnboardingContainer`),
@@ -3395,6 +3456,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		});
 
 		const inputPickerCompactStates = new Map<string, ISettableObservable<boolean>>();
+		const inputPickerMinimalStates = new Map<string, ISettableObservable<boolean>>();
 		const secondaryPickerCompactStates = new Map<string, ISettableObservable<boolean>>();
 		const inputOverflowPickerHandlers = new Map<string, (anchor: HTMLElement) => void>();
 		const secondaryOverflowPickerHandlers = new Map<string, (anchor: HTMLElement) => void>();
@@ -3410,6 +3472,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			getOverflowAnchor: () => this.inputActionsToolbar.getElement(),
 			actionContext: { widget },
 			compact: getCompactState(inputPickerCompactStates, actionId),
+			minimal: actionId === OpenModelPickerAction.ID ? getCompactState(inputPickerMinimalStates, actionId) : undefined,
 		});
 		const getSecondaryPickerOptions = (actionId: string): IChatInputPickerOptions => ({
 			getOverflowAnchor: () => this.secondaryToolbar.getElement(),
@@ -3472,6 +3535,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			ConfigureToolsAction.ID,
 		]);
 		const getInputActionMinWidth = (action: IAction): number | undefined => {
+			if (action.id === OpenModelPickerAction.ID) {
+				return this.modelWidget?.minimumWidth ?? 60;
+			}
 			if (shorterChatInputActionIds.has(action.id)) {
 				return 22;
 			}
@@ -3488,7 +3554,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			responsiveBehavior: {
 				enabled: true,
 				kind: 'last',
-				minItems: 1,
+				minItems: 2,
 				actionMinWidth: 48,
 				getActionMinWidth: getInputActionMinWidth,
 				allowOverflow: () => this._inputPickerResponsiveLayout?.areAllItemsCompact() === true,
@@ -3875,7 +3941,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const inputToolbarElement = this.inputActionsToolbar.getElement();
 		this._inputPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('ChatInputPart.primaryPicker', inputToolbarElement, {
-			getItems: () => getToolbarPickerResponsiveItems(this.inputActionsToolbar, inputPickerCompactStates),
+			getItems: () => getToolbarPickerResponsiveItems(this.inputActionsToolbar, inputPickerCompactStates, inputPickerMinimalStates),
 			hasOverflow: () => this.inputActionsToolbar.hasOverflow(),
 			relayout: () => this.inputActionsToolbar.relayout(),
 		}));

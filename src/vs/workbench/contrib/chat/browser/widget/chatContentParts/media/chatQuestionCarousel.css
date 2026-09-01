@@ -3,12 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* question carousel - this is above edits and todos */
-.interactive-session .interactive-input-part > .chat-question-carousel-widget-container:empty,
-.interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-question-carousel-widget-container:empty {
-	display: none;
-}
-
 /* input specific styling - box look comes from the shared container rule below */
 .interactive-session .interactive-input-part > .chat-question-carousel-widget-container .chat-question-carousel-container,
 .interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-question-carousel-widget-container .chat-question-carousel-container {
@@ -39,11 +33,6 @@
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
-}
-
-.interactive-session .interactive-input-part > .chat-question-carousel-widget-container:not(:empty),
-.interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-question-carousel-widget-container:not(:empty) {
-	margin-top: 8px;
 }
 
 .interactive-session .interactive-input-part > .chat-question-carousel-widget-container .chat-question-carousel-content,
