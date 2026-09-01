@@ -4,17 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../../base/common/objects.js';
-import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { hash } from '../../../../../../base/common/hash.js';
-import * as marked from '../../../../../../base/common/marked/marked.js';
-import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../../platform/files/common/files.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { AICustomizationSource } from '../../../common/aiCustomizationWorkspaceService.js';
 import { toClientPluginMcpDefaultCwdsMeta, type ClientPluginMcpDefaultCwds } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
@@ -51,28 +48,18 @@ function pluginDirForType(type: PromptsType): string | undefined {
 	}
 }
 
-function getRelativeSkillFileReferences(skillUri: URI, content: string): readonly URI[] {
-	const skillRoot = dirname(skillUri);
-	const references = new ResourceSet();
-	marked.walkTokens(marked.lexer(content), token => {
-		if (token.type !== 'link') {
-			return;
+async function collectDirectoryFiles(fileService: IFileService, directory: URI): Promise<URI[]> {
+	const stat = await fileService.resolve(directory);
+	const files = await Promise.all((stat.children ?? []).map(async child => {
+		if (child.isSymbolicLink) {
+			return [];
 		}
-
-		if (/^[a-z][a-z\d+.-]*:/i.test(token.href)) {
-			return;
+		if (child.isDirectory) {
+			return collectDirectoryFiles(fileService, child.resource);
 		}
-		const target = URI.parse(`skill-reference:${token.href}`, true);
-		if (target.authority || !target.path || target.path.startsWith('/')) {
-			return;
-		}
-
-		const reference = extUri.resolvePath(skillRoot, target.path);
-		if (!extUri.isEqual(reference, skillUri) && extUri.isEqualOrParent(reference, skillRoot)) {
-			references.add(reference);
-		}
-	});
-	return [...references];
+		return child.isFile ? [child.resource] : [];
+	}));
+	return files.flat();
 }
 
 export interface ISyncableFile {
@@ -140,7 +127,7 @@ interface IBundleResult {
  * rules/          ← instruction files
  * commands/       ← prompt files
  * agents/         ← agent files
- * skills/         ← skill files
+ * skills/         ← skill directories
  * ```
  *
  * The bundler computes a content-based nonce so the agent host can
@@ -158,7 +145,6 @@ export class SyncedCustomizationBundler extends Disposable {
 		authority: string,
 		@IFileService private readonly _fileService: IFileService,
 		@IAgentHostFileSystemService agentHostFileSystemService: IAgentHostFileSystemService,
-		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._authority = authority;
@@ -196,7 +182,7 @@ export class SyncedCustomizationBundler extends Disposable {
 		// identical).
 		const entries: { destUri: URI; content: VSBuffer; hashPart: string }[] = [];
 		const originByDest = new ResourceMap<ISyncedCustomizationOrigin>();
-		const addEntry = async (file: ISyncableFile, sourceUri: URI, destUri: URI, hashKey: string): Promise<VSBuffer> => {
+		const addEntry = async (file: ISyncableFile, sourceUri: URI, destUri: URI, hashKey: string): Promise<void> => {
 			const content = (await this._fileService.readFile(sourceUri)).value;
 			entries.push({ destUri, content, hashPart: `${hashKey}:${content.toString()}` });
 			if (file.source !== undefined) {
@@ -207,7 +193,6 @@ export class SyncedCustomizationBundler extends Disposable {
 					pluginUri: file.pluginUri,
 				});
 			}
-			return content;
 		};
 		await Promise.all(syncable.map(async file => {
 			const dir = pluginDirForType(file.type)!;
@@ -217,44 +202,23 @@ export class SyncedCustomizationBundler extends Disposable {
 			// The file locator returns the SKILL.md URI, so basename is
 			// always "SKILL.md" — which would cause every skill to collide.
 			// Preserve the directory structure: skills/{skillName}/SKILL.md.
-			let destUri: URI;
-			let hashKey: string;
 			if (file.type === PromptsType.skill && fileName.toLowerCase() === 'skill.md') {
-				const skillDirName = basename(dirname(file.uri));
-				destUri = URI.joinPath(this._rootUri, dir, skillDirName, fileName);
-				hashKey = `${dir}/${skillDirName}/${fileName}`;
-				const content = await addEntry(file, file.uri, destUri, hashKey);
 				const skillRoot = dirname(file.uri);
-				await Promise.all(getRelativeSkillFileReferences(file.uri, content.toString()).map(async reference => {
-					const relativePath = extUri.relativePath(skillRoot, reference);
-					if (relativePath) {
-						try {
-							await addEntry(
-								file,
-								reference,
-								URI.joinPath(this._rootUri, dir, skillDirName, relativePath),
-								`${dir}/${skillDirName}/${relativePath}`,
-							);
-						} catch (error) {
-							switch (toFileOperationResult(error)) {
-								case FileOperationResult.FILE_IS_DIRECTORY:
-								case FileOperationResult.FILE_NOT_FOUND:
-								case FileOperationResult.FILE_PERMISSION_DENIED:
-								case FileOperationResult.FILE_TOO_LARGE:
-								case FileOperationResult.FILE_INVALID_PATH:
-								case FileOperationResult.FILE_NOT_DIRECTORY:
-									this._logService.warn(`[SyncedCustomizationBundler] Skipping unreadable skill reference ${reference.toString()}: ${toErrorMessage(error)}`);
-									return;
-								default:
-									throw error;
-							}
-						}
+				const skillDirName = basename(skillRoot);
+				await Promise.all((await collectDirectoryFiles(this._fileService, skillRoot)).map(async sourceUri => {
+					const relativePath = extUri.relativePath(skillRoot, sourceUri);
+					if (relativePath === undefined) {
+						throw new Error(`Unable to resolve skill resource path: ${sourceUri.toString()}`);
 					}
+					await addEntry(
+						file,
+						sourceUri,
+						URI.joinPath(this._rootUri, dir, skillDirName, relativePath),
+						`${dir}/${skillDirName}/${relativePath}`,
+					);
 				}));
 			} else {
-				destUri = URI.joinPath(this._rootUri, dir, fileName);
-				hashKey = `${dir}/${fileName}`;
-				await addEntry(file, file.uri, destUri, hashKey);
+				await addEntry(file, file.uri, URI.joinPath(this._rootUri, dir, fileName), `${dir}/${fileName}`);
 			}
 		}));
 

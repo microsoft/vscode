@@ -146,19 +146,12 @@ suite('SyncedCustomizationBundler', () => {
 		assert.strictEqual(contentC.value.toString(), 'skill C content');
 	});
 
-	test('bundles files referenced by relative Markdown links from SKILL.md', async () => {
+	test('bundles complete SKILL.md directories', async () => {
 		const bundler = createBundler();
-		const skill = await seedFile('/skills/my-skill/SKILL.md', [
-			'See [the reference](references/notes.md#details).',
-			'Run [the script][script].',
-			'',
-			'[script]: ./scripts/run.sh?mode=test',
-			'',
-			'Ignore [external](https://example.com/reference.md), [outside](../outside.md), [directory](references/), and [missing](missing.md).',
-		].join('\n'));
+		const skill = await seedFile('/skills/my-skill/SKILL.md', 'skill content');
 		await seedFile('/skills/my-skill/references/notes.md', 'reference content');
 		await seedFile('/skills/my-skill/scripts/run.sh', 'script content');
-		await seedFile('/skills/my-skill/unreferenced.md', 'unreferenced content');
+		await seedFile('/skills/my-skill/assets/templates/default.txt', 'template content');
 		await seedFile('/skills/outside.md', 'outside content');
 
 		const result = await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
@@ -167,15 +160,16 @@ suite('SyncedCustomizationBundler', () => {
 		const referenceUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill/references/notes.md' });
 		const reference = await fileService.readFile(referenceUri);
 		const script = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill/scripts/run.sh' }));
+		const template = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill/assets/templates/default.txt' }));
 		assert.deepStrictEqual({
 			reference: reference.value.toString(),
 			script: script.value.toString(),
-			unreferencedExists: await fileService.exists(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill/unreferenced.md' })),
+			template: template.value.toString(),
 			outsideExists: await fileService.exists(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/outside.md' })),
 		}, {
 			reference: 'reference content',
 			script: 'script content',
-			unreferencedExists: false,
+			template: 'template content',
 			outsideExists: false,
 		});
 
@@ -556,6 +550,7 @@ suite('SyncedCustomizationBundler', () => {
 		const bundler = createBundler();
 		const extUri = await seedFile('/ext/rule.md', 'ext rule');
 		const skillMd = await seedFile('/plugins/my-skill/SKILL.md', '# skill');
+		const skillReference = await seedFile('/plugins/my-skill/references/notes.md', '# reference');
 
 		await bundler.bundle([
 			{ uri: extUri, type: PromptsType.instructions, source: 'extension', extensionId: 'pub.ext' },
@@ -574,6 +569,14 @@ suite('SyncedCustomizationBundler', () => {
 		const skillDest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill/SKILL.md' });
 		assert.deepStrictEqual(bundler.getOrigin(skillDest), {
 			uri: skillMd,
+			source: 'plugin',
+			extensionId: undefined,
+			pluginUri: URI.from({ scheme: Schemas.inMemory, path: '/plugins/my-skill' }),
+		});
+
+		const skillReferenceDest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill/references/notes.md' });
+		assert.deepStrictEqual(bundler.getOrigin(skillReferenceDest), {
+			uri: skillReference,
 			source: 'plugin',
 			extensionId: undefined,
 			pluginUri: URI.from({ scheme: Schemas.inMemory, path: '/plugins/my-skill' }),
