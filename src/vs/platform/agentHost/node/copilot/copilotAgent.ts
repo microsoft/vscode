@@ -585,6 +585,8 @@ const COPILOT_EXTERNAL_SESSION_CLIENT_NAMES = new Set(['github/cli', 'github/aut
 const COPILOT_EXTERNAL_SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 /** How many SDK sessions are classified before the batch is published to clients. */
 const COPILOT_DISCOVERY_BATCH_SIZE = 250;
+type CopilotSessionListEntry = Awaited<ReturnType<CopilotClient['rpc']['sessions']['list']>>['sessions'][number];
+type CopilotRemoteSessionListEntry = Extract<CopilotSessionListEntry, { isRemote: true }>;
 
 /**
  * Backoff between initial chat-discovery attempts. The common failure is the CLI
@@ -828,6 +830,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _chatEntriesBySdkId = this._register(new DisposableMap<string, CopilotChatEntry>());
 	/** Exact host chat URI -> persisted provider backing; live SDK sessions are tracked separately. */
 	private readonly _chatBackings = new Map<string, IPersistedChat>();
+	private readonly _remoteSessionMetadata = new Map<string, CopilotRemoteSessionListEntry>();
+	private _remoteSessionMetadataLoaded = false;
 
 	/** Exact chat -> recorded configuration scope, used for fork/restore paths that only know the chat URI. */
 	private readonly _chatScopes = new Map<string, URI>();
@@ -2547,11 +2551,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 *
 	 * - a legacy extension-host Copilot CLI chat is *internal* and adoptable in
 	 *   place (see {@link ensureChatAdopted}), so it keeps `external: false`;
-	 * - a non-adoptable chat is external only when its persisted `clientName`
-	 *   identifies the standalone CLI or GitHub Copilot app. This value records
-	 *   the runtime client that created or last resumed the chat, not immutable
-	 *   creator provenance. External chats must also have repository metadata
-	 *   and have been modified within the last seven days.
+	 * - a non-adoptable local chat is external only when its persisted
+	 *   `clientName` identifies the standalone CLI or GitHub Copilot app;
+	 * - a remote SDK chat is external and is connected lazily when opened.
+	 *   External chats must also have repository metadata and have been modified
+	 *   within the last seven days.
 	 *
 	 * Registered chats are filtered by the host, with stored metadata as a
 	 * fallback when no host filter is installed. A chat the SDK reports
@@ -2568,10 +2572,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * authoritative empty result.
 	 */
 	private async _discoverCopilotChats(publish: (chats: readonly IAgentDiscoveredChat[]) => void): Promise<boolean> {
-		const sessions = await this._listSdkSessions('discoverable chats', async client => (await client.rpc.sessions.list({})).sessions);
+		const sessions = await this._listSdkSessions('discoverable chats', async client => (await client.rpc.sessions.list({ source: 'all' })).sessions);
 		if (!sessions) {
 			return false;
 		}
+		this._remoteSessionMetadata.clear();
+		for (const session of sessions) {
+			if (session.isRemote) {
+				this._remoteSessionMetadata.set(session.sessionId, session);
+			}
+		}
+		this._remoteSessionMetadataLoaded = true;
 		// Filter registered candidates with one registry query.
 		const knownSessions = this._knownSessionsFilter
 			? await this._knownSessionsFilter(sessions.map(s => AgentSession.uri(this.id, s.sessionId)))
@@ -2584,7 +2595,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const earliestExternalModifiedTime = this._now() - COPILOT_EXTERNAL_SESSION_MAX_AGE_MS;
 		let known = 0;
 		let withoutWorkingDirectory = 0;
-		let unsupportedClientName = 0;
+		let unsupportedLocalClientName = 0;
 		let outsideImportWindow = 0;
 		let withoutRepository = 0;
 		let suppressedAdoptable = 0;
@@ -2623,16 +2634,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 				const modifiedTime = new Date(s.modifiedTime).getTime();
 				if (!adoptable) {
-					const clientName = s.isRemote ? undefined : s.clientName;
-					if (clientName === undefined || !COPILOT_EXTERNAL_SESSION_CLIENT_NAMES.has(clientName)) {
-						unsupportedClientName++;
+					if (!s.isRemote && (s.clientName === undefined || !COPILOT_EXTERNAL_SESSION_CLIENT_NAMES.has(s.clientName))) {
+						unsupportedLocalClientName++;
 						return undefined;
 					}
 					if (!Number.isFinite(modifiedTime) || modifiedTime < earliestExternalModifiedTime) {
 						outsideImportWindow++;
 						return undefined;
 					}
-					if (typeof s.context?.repository !== 'string' || s.context.repository.trim().length === 0) {
+					const repository = s.isRemote ? this._remoteSessionContext(s).repository : s.context?.repository;
+					if (typeof repository !== 'string' || repository.trim().length === 0) {
 						withoutRepository++;
 						return undefined;
 					}
@@ -2644,7 +2655,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 					// Always key the project off the resolved working directory: a worktree
 					// session's context repository/gitRoot would resolve to the repo root.
 					project: await this._localProject(
-						await this._resolveSessionProject({ ...s.context, cwd: workingDirectory.fsPath }, projectLimiter, projectByContext),
+						await this._resolveSessionProject({
+							...(s.isRemote ? this._remoteSessionContext(s) : s.context),
+							cwd: workingDirectory.fsPath,
+						}, projectLimiter, projectByContext),
 						adoptable ? s.sessionId : undefined,
 					),
 					summary: s.summary,
@@ -2670,8 +2684,38 @@ export class CopilotAgent extends Disposable implements IAgent {
 				publish(chats);
 			}
 		}
-		this._logService.info(`[Copilot] Chat discovery: ${sessions.length} SDK session(s) -> ${external} external, ${discovered - external} adoptable legacy extension-host, ${suppressedAdoptable} suppressed adoptable legacy extension-host, ${suppressedArchived} suppressed archived legacy extension-host, ${known} already known to Agent Host, ${withoutWorkingDirectory} without a working directory, ${unsupportedClientName} with unsupported or missing client name, ${outsideImportWindow} outside the import window, ${withoutRepository} without repository metadata, ${failed} failed to classify (adopt legacy extension-host chats: ${emitAdoptable})`);
+		this._logService.info(`[Copilot] Chat discovery: ${sessions.length} SDK session(s) -> ${external} external, ${discovered - external} adoptable legacy extension-host, ${suppressedAdoptable} suppressed adoptable legacy extension-host, ${suppressedArchived} suppressed archived legacy extension-host, ${known} already known to Agent Host, ${withoutWorkingDirectory} without a working directory, ${unsupportedLocalClientName} local with unsupported or missing client name, ${outsideImportWindow} outside the import window, ${withoutRepository} without repository metadata, ${failed} failed to classify (adopt legacy extension-host chats: ${emitAdoptable})`);
 		return true;
+	}
+
+	private _remoteSessionContext(session: CopilotRemoteSessionListEntry): ICopilotSessionContext {
+		const owner = session.repository.owner.trim();
+		const name = session.repository.name.trim();
+		return {
+			...session.context,
+			...(owner && name ? { repository: `${owner}/${name}` } : {}),
+		};
+	}
+
+	private async _getRemoteSessionMetadata(sessionId: string): Promise<CopilotRemoteSessionListEntry | undefined> {
+		const known = this._remoteSessionMetadata.get(sessionId);
+		if (known) {
+			return known;
+		}
+		if (this._remoteSessionMetadataLoaded) {
+			return undefined;
+		}
+		const sessions = await this._listSdkSessions('remote session metadata', async client => (await client.rpc.sessions.list({ source: 'remote' })).sessions);
+		if (!sessions) {
+			return undefined;
+		}
+		for (const session of sessions) {
+			if (session.isRemote) {
+				this._remoteSessionMetadata.set(session.sessionId, session);
+			}
+		}
+		this._remoteSessionMetadataLoaded = true;
+		return this._remoteSessionMetadata.get(sessionId);
 	}
 
 	private async _listSdkSessions<T>(reason: string, listSessions: (client: CopilotClient) => Promise<readonly T[]>): Promise<readonly T[] | undefined> {
@@ -2696,29 +2740,38 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 		const storedMetadata = await this._readStoredSessionMetadata(session);
+		const remoteSessionMetadata = providerData === undefined ? await this._getRemoteSessionMetadata(sessionId) : undefined;
 
-		const sessionMetadata = await this._retryAfterClosedConnection('getSessionMetadata', client => client.getSessionMetadata(sessionId), createCopilotFailureCorrelation(session, chat, undefined, sessionId));
-		if (!sessionMetadata) {
+		const sessionMetadata = remoteSessionMetadata
+			? undefined
+			: await this._retryAfterClosedConnection('getSessionMetadata', client => client.getSessionMetadata(sessionId), createCopilotFailureCorrelation(session, chat, undefined, sessionId));
+		if (!remoteSessionMetadata && !sessionMetadata) {
 			return undefined;
 		}
 
 		let project = storedMetadata?.project;
 		if (!storedMetadata?.resolved) {
 			const projectLimiter = new Limiter<IAgentSessionProjectInfo | undefined>(1);
-			project = await this._resolveSessionProject(sessionMetadata?.context, projectLimiter, new Map<string, Promise<IAgentSessionProjectInfo | undefined>>());
+			project = await this._resolveSessionProject(remoteSessionMetadata ? this._remoteSessionContext(remoteSessionMetadata) : sessionMetadata?.context, projectLimiter, new Map<string, Promise<IAgentSessionProjectInfo | undefined>>());
 			if (storedMetadata) {
 				void this._storeSessionProjectResolution(session, project);
 			}
 		}
 
-		const workingDirectories = storedMetadata?.workingDirectories ?? (typeof sessionMetadata?.context?.workingDirectory === 'string' ? [URI.file(sessionMetadata.context.workingDirectory)] : undefined);
-		const adoptable = !storedMetadata && await this._isExtensionHostCliSession(sessionId);
+		const remoteWorkingDirectory = remoteSessionMetadata?.context?.cwd;
+		const workingDirectories = storedMetadata?.workingDirectories
+			?? (typeof remoteWorkingDirectory === 'string'
+				? [URI.file(remoteWorkingDirectory)]
+				: typeof sessionMetadata?.context?.workingDirectory === 'string'
+					? [URI.file(sessionMetadata.context.workingDirectory)]
+					: undefined);
+		const adoptable = !remoteSessionMetadata && !storedMetadata && await this._isExtensionHostCliSession(sessionId);
 		return {
 			chat,
-			startTime: sessionMetadata?.startTime.getTime() ?? Date.now(),
-			modifiedTime: sessionMetadata?.modifiedTime.getTime() ?? Date.now(),
+			startTime: remoteSessionMetadata ? new Date(remoteSessionMetadata.startTime).getTime() : sessionMetadata?.startTime.getTime() ?? Date.now(),
+			modifiedTime: remoteSessionMetadata ? new Date(remoteSessionMetadata.modifiedTime).getTime() : sessionMetadata?.modifiedTime.getTime() ?? Date.now(),
 			project,
-			summary: sessionMetadata?.summary,
+			summary: remoteSessionMetadata?.summary ?? sessionMetadata?.summary,
 			workingDirectories,
 			_meta: adoptable ? withSessionEhcliAdoptable(undefined) : undefined,
 		};
@@ -4498,6 +4551,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (providerData === undefined) {
 			if (!isDefaultChatUri(chat)) {
 				return;
+			}
+			const remoteSession = await this._getRemoteSessionMetadata(AgentSession.id(resolved.configurationResource));
+			if (remoteSession) {
+				const remoteWorkingDirectory = remoteSession.context?.cwd;
+				if (typeof remoteWorkingDirectory !== 'string') {
+					throw new Error(`workingDirectory is required to connect Copilot remote session '${remoteSession.sessionId}'`);
+				}
+				const client = await this._ensureClient();
+				const connected = await client.rpc.sessions.connect({ sessionId: remoteSession.sessionId });
+				const workingDirectory = URI.file(remoteWorkingDirectory);
+				await this._storeSessionMetadata(resolved.configurationResource, undefined, workingDirectory, [workingDirectory], undefined, undefined);
+				const backing = { sdkSessionId: connected.sessionId };
+				this._chatBackings.set(chatKey, backing);
+				return this._chatBackingResult(AgentSession.id(resolved.configurationResource), backing);
 			}
 			const backing = { sdkSessionId: AgentSession.id(resolved.configurationResource) };
 			this._chatBackings.set(chatKey, backing);
