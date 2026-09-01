@@ -6,16 +6,19 @@
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, isLanguageModelVendorAbsenceConclusive } from '../../../common/languageModels.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { localChatSessionType } from '../../../common/chatSessionsService.js';
+import { isAgentHostTarget, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { isByokModel } from '../../../common/chatSelectedModel.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 
 /**
- * Describes the context needed for model selection decisions.
+ * Whether the surface can run this model at all, given the mode it is in and where it is shown.
+ * Supplied by the surface so these rules do not have to be restated in terms of its inputs.
  */
-interface IModelSelectionContext {
-	readonly location: ChatAgentLocation;
-	readonly currentModeKind: ChatModeKind;
-	readonly sessionType: string | undefined;
+export type IsModelSupportedHere = (model: ILanguageModelChatMetadataAndIdentifier) => boolean;
+
+/** Whether the vendor published this itself, rather than it being an agent-host copy of a BYOK model. */
+function isOwnModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
+	return model.metadata.byokModelIdentifier === undefined;
 }
 
 /**
@@ -166,6 +169,17 @@ export function isNewConversation(sessionResource: URI, hasNoRequests: boolean):
 }
 
 /**
+ * Whether a chat input counts as bound to a conversation that is already underway.
+ *
+ * An unbound input counts as started: a session switch clears the bound model for the duration of
+ * an async load while the outgoing session type is still published, and a notice must not surface
+ * in that window. Only a model seen to be request-free is unstarted.
+ */
+export function isSessionStarted(hasBoundModel: boolean, hasRequests: boolean): boolean {
+	return !hasBoundModel || hasRequests;
+}
+
+/**
  * Whether the persisted per-session-type model should be restored (into the picker) when the
  * input switches to a session.
  *
@@ -178,10 +192,28 @@ export function shouldRestorePerTypeModelOnSessionSwitch(isEmpty: boolean, sessi
 }
 
 /**
+ * Whether two models bill the same way. A BYOK model and a first-party one can share id, family and
+ * name, so matching across them changes which account is billed; two copies of one key do match.
+ */
+function isSameBillingIdentity(
+	a: ILanguageModelChatMetadataAndIdentifier,
+	b: ILanguageModelChatMetadataAndIdentifier,
+): boolean {
+	if (isByokModel(a.metadata) !== isByokModel(b.metadata)) {
+		return false;
+	}
+	if (!isByokModel(a.metadata)) {
+		return true;
+	}
+	return (a.metadata.byokModelIdentifier ?? a.identifier) === (b.metadata.byokModelIdentifier ?? b.identifier);
+}
+
+/**
  * Find a model in `pool` that matches `previous` by id, then family, then
  * name (case-insensitive). Used to carry a selection across model pools
  * (e.g. `copilot/claude-sonnet-4.6` → `agent-host-copilotcli:claude-sonnet-4.6`).
  * Returns `undefined` when no candidate matches.
+ * Candidates that would change which account is billed are never matches.
  */
 export function findBestMatchingModel(
 	previous: ILanguageModelChatMetadataAndIdentifier | undefined,
@@ -190,23 +222,16 @@ export function findBestMatchingModel(
 	if (!previous || pool.length === 0) {
 		return undefined;
 	}
+	const candidates = pool.filter(m => isSameBillingIdentity(previous, m));
+	if (candidates.length === 0) {
+		return undefined;
+	}
 	const id = previous.metadata.id?.trim().toLowerCase();
 	const family = previous.metadata.family?.trim().toLowerCase();
 	const name = previous.metadata.name?.trim().toLowerCase();
-	return (id ? pool.find(m => m.metadata.id?.trim().toLowerCase() === id) : undefined)
-		?? (family ? pool.find(m => m.metadata.family?.trim().toLowerCase() === family) : undefined)
-		?? (name ? pool.find(m => m.metadata.name?.trim().toLowerCase() === name) : undefined);
-}
-
-/**
- * Find the default model for a given location from a list of models.
- * Prefers the model marked as default for the location, falls back to the first model.
- */
-export function findDefaultModel(
-	models: ILanguageModelChatMetadataAndIdentifier[],
-	location: ChatAgentLocation,
-): ILanguageModelChatMetadataAndIdentifier | undefined {
-	return models.find(m => m.metadata.isDefaultForLocation[location]) || models[0];
+	return (id ? candidates.find(m => m.metadata.id?.trim().toLowerCase() === id) : undefined)
+		?? (family ? candidates.find(m => m.metadata.family?.trim().toLowerCase() === family) : undefined)
+		?? (name ? candidates.find(m => m.metadata.name?.trim().toLowerCase() === name) : undefined);
 }
 
 /**
@@ -218,8 +243,9 @@ export function findDefaultModel(
 export function shouldResetModelToDefault(
 	currentModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 	availableModels: ILanguageModelChatMetadataAndIdentifier[],
-	context: IModelSelectionContext,
+	isModelSupportedHere: IsModelSupportedHere,
 	allModels: ILanguageModelChatMetadataAndIdentifier[],
+	sessionType: string | undefined,
 ): boolean {
 	// Nothing selected yet is not a reason to reset: with an empty catalog there is nothing to
 	// reset *to*, and with a partly-published one the first model to arrive is an arbitrary
@@ -233,18 +259,13 @@ export function shouldResetModelToDefault(
 		return true;
 	}
 
-	// Model not supported for current mode
-	if (!isModelSupportedForMode(currentModel, context.currentModeKind)) {
-		return true;
-	}
-
-	// Model not supported for inline chat
-	if (!isModelSupportedForInlineChat(currentModel, context.location)) {
+	// Model not usable on this surface (mode, or where it is shown)
+	if (!isModelSupportedHere(currentModel)) {
 		return true;
 	}
 
 	// Model not valid for current session
-	if (!isModelValidForSession(currentModel, allModels, context.sessionType)) {
+	if (!isModelValidForSession(currentModel, allModels, sessionType)) {
 		return true;
 	}
 
@@ -261,17 +282,16 @@ export function shouldResetModelToDefault(
  *                 mode, or missing inline-chat capability); the caller should fall
  *                 back to the default model for the current location.
  *
- * @param context Optional because some callers (e.g. unit tests, or code paths
- *   that only care about session-pool validation) don't have a full UI context
- *   available. When omitted, mode and inline-chat checks are skipped and only
- *   session-pool membership is validated.
+ * @param isModelSupportedHere Optional because some callers (e.g. unit tests, or
+ *   code paths that only care about session-pool validation) cannot say. When
+ *   omitted, only session-pool membership is validated.
  */
 export function resolveModelFromSyncState(
 	stateModel: ILanguageModelChatMetadataAndIdentifier,
 	currentModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 	allModels: ILanguageModelChatMetadataAndIdentifier[],
 	sessionType: string | undefined,
-	context?: IModelSelectionContext,
+	isModelSupportedHere?: IsModelSupportedHere,
 ): { action: 'keep' | 'apply' | 'default' } {
 	// Validate the state model belongs to this session's model pool first.
 	if (!isModelValidForSession(stateModel, allModels, sessionType)) {
@@ -283,14 +303,9 @@ export function resolveModelFromSyncState(
 		return { action: 'keep' };
 	}
 
-	// When a UI context is available, also validate mode and inline-chat compatibility
-	if (context) {
-		if (!isModelSupportedForMode(stateModel, context.currentModeKind)) {
-			return { action: 'default' };
-		}
-		if (!isModelSupportedForInlineChat(stateModel, context.location)) {
-			return { action: 'default' };
-		}
+	// When the surface can say, also validate that it can run the model at all
+	if (isModelSupportedHere && !isModelSupportedHere(stateModel)) {
+		return { action: 'default' };
 	}
 
 	return { action: 'apply' };
@@ -304,6 +319,8 @@ export function resolveModelFromSyncState(
  * - Copilot is the exception: its models are gated on an async token that can resolve slower than fast/local BYOK
  *   providers, so an early empty resolution is transient. Keeping its cache avoids resetting (and persisting) a
  *   restored Copilot selection to a BYOK default, which also preserves the selection across sign-out/in (see #321037).
+ * - An agent-host vendor is judged on models of its OWN: it also publishes bridged copies of the workbench's
+ *   BYOK models, and counting those as live evicts the cache mid-publication and persists the gap.
  * - When nothing is contributed yet and there are no live models (startup / reload), the full cache is returned to
  *   avoid flickering the picker to empty.
  */
@@ -317,10 +334,16 @@ export function mergeModelsWithCache(
 		return cachedModels;
 	}
 	const liveVendors = new Set(liveModels.map(m => m.metadata.vendor));
+	const ownLiveVendors = new Set(liveModels.filter(m => isOwnModel(m)).map(m => m.metadata.vendor));
 	const usableCached = cachedModels.filter(m => {
 		const vendor = m.metadata.vendor;
-		if (!contributedVendors.has(vendor) || liveVendors.has(vendor)) {
+		if (!contributedVendors.has(vendor) || ownLiveVendors.has(vendor)) {
 			return false;
+		}
+		// Only bridged copies so far, so the vendor has not finished publishing. Its own models are
+		// kept; the bridged ones are already live, so a removed key must not come back from cache.
+		if (liveVendors.has(vendor) && isAgentHostTarget(vendor)) {
+			return isOwnModel(m);
 		}
 		if (isLanguageModelVendorAbsenceConclusive(vendor, liveVendors.has(vendor), resolvedVendors?.has(vendor) ?? false)) {
 			return false;

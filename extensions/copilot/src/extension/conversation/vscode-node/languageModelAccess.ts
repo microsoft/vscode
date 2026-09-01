@@ -45,7 +45,7 @@ import { IExtensionContribution } from '../../common/contributions';
 import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
 import { isImageDataPart } from '../common/languageModelChatMessageHelpers';
 import { LanguageModelAccessPrompt } from './languageModelAccessPrompt';
-import { formatPricingLabel, formatTokenCount, getAutoModelDescription, getAutoModelDiscountLabel, getModelCapabilitiesDescription, buildReasoningEffortSchemaProperty, buildAutoModeTierSchemaProperty } from '../common/languageModelAccess';
+import { formatPricingLabel, formatTokenCount, getAutoModelDescription, getAutoModelDiscountLabel, getModelCapabilitiesDescription, resolveModelWarnings, buildReasoningEffortSchemaProperty, buildAutoModeTierSchemaProperty } from '../common/languageModelAccess';
 
 /**
  * Builds a configurationSchema for the model picker based on the endpoint's supported capabilities.
@@ -156,7 +156,10 @@ function buildConfigurationSchema(endpoint: IChatEndpoint, autoTiersEnabled: boo
 	return { configurationSchema: { properties } };
 }
 
-const utilityAliasFamilies: readonly ChatEndpointFamily[] = ['copilot-utility-small', 'copilot-utility'];
+const DICTATION_CLEANUP_NANO_ALIAS = 'copilot-dictation-cleanup-nano';
+const DICTATION_CLEANUP_LUNA_ALIAS = 'copilot-dictation-cleanup-luna';
+const dictationCleanupAliases: ReadonlySet<string> = new Set([DICTATION_CLEANUP_NANO_ALIAS, DICTATION_CLEANUP_LUNA_ALIAS]);
+const utilityAliasFamilies: readonly ChatEndpointFamily[] = ['copilot-utility-small', 'copilot-utility', DICTATION_CLEANUP_NANO_ALIAS, DICTATION_CLEANUP_LUNA_ALIAS];
 
 /**
  * Builds the {@link vscode.LanguageModelChatInformation} entry that publishes a
@@ -295,6 +298,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			// honored while routing goes through `POST /auto`.
 			this._onDidChange.fire();
 		}));
+		void this._refreshUtilityOverrides().catch(err => {
+			this._logService.warn(`[LanguageModelAccess] Failed to pre-resolve internal model aliases: ${err}`);
+		});
 	}
 
 	private async _provideLanguageModelChatInfo(options: { silent: boolean }, token: vscode.CancellationToken): Promise<vscode.LanguageModelChatInformation[]> {
@@ -335,9 +341,13 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			const sanitizedModelName = endpoint.name
 				.replace(/\([^)]*\bcontext\)/gi, '')
 				.trim();
+
+			// Auto wraps another endpoint, so it must not inherit that model's warnings.
+			const warnings = endpoint instanceof AutoChatEndpoint ? undefined : resolveModelWarnings(endpoint);
+
 			let modelTooltip: string | undefined;
-			if (endpoint.degradationReason) {
-				modelTooltip = endpoint.degradationReason;
+			if (warnings?.rowWarning) {
+				modelTooltip = warnings.rowWarning;
 			} else if (endpoint instanceof AutoChatEndpoint) {
 				modelTooltip = getAutoModelDescription(endpoint.discountRange);
 			} else {
@@ -380,7 +390,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				priceCategory: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.priceCategory,
 				category: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.modelPickerCategory,
 				detail: modelDetail,
-				statusIcon: endpoint.degradationReason ? new vscode.ThemeIcon('warning') : undefined,
+				statusIcon: warnings?.rowWarning ? new vscode.ThemeIcon('warning') : undefined,
 				version: endpoint.version,
 				maxInputTokens: endpoint.modelMaxPromptTokens - baseCount - BaseTokensPerCompletion,
 				maxOutputTokens: endpoint.maxOutputTokens,
@@ -392,13 +402,8 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 					[ApiChatLocation.Editor]: endpoint instanceof AutoChatEndpoint, // inline chat gets 'Auto' by default
 				},
 				isUserSelectable: endpoint.showInModelPicker,
-				warningText: endpoint instanceof AutoChatEndpoint ? undefined : (() => {
-					const texts: Record<string, string> = { ...endpoint.warningText };
-					if (endpoint.degradationReason) {
-						texts['degradation'] = endpoint.degradationReason;
-					}
-					return Object.keys(texts).length > 0 ? texts : undefined;
-				})(),
+				warningText: warnings?.texts,
+				infoText: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.infoText,
 				promo: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.promo,
 				capabilities: {
 					imageInput: endpoint instanceof AutoChatEndpoint ? true : endpoint.supportsVision,
@@ -541,6 +546,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
 		token: vscode.CancellationToken
 	): Promise<void> {
+		if (dictationCleanupAliases.has(model.id) && options.requestInitiator !== 'core') {
+			throw new Error(`Model ${model.id} is only available to VS Code core.`);
+		}
 		let endpoint = await this._getEndpointForModel(model, buildAutoRoutingContext(messages, options));
 		if (!endpoint) {
 			throw new Error(`Endpoint not found for model ${model.id}`);
@@ -805,6 +813,7 @@ export class CopilotLanguageModelWrapper extends Disposable {
 			source: { extensionId },
 			requestOptions: options,
 			userInitiatedRequest: !!extensionId,
+			conversationId: internalModelOptions?._conversationId,
 			telemetryProperties,
 			modelCapabilities: {
 				enableThinking: internalModelOptions?._enableThinking,

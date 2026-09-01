@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
@@ -23,7 +23,7 @@ import { ModelService } from '../../../../../../../editor/common/services/modelS
 import { IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
-import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { IFileContent, IFileService, IReadFileOptions } from '../../../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -930,6 +930,73 @@ suite('PromptsService', () => {
 	suite('getCustomAgents', () => {
 		teardown(() => {
 			sinon.restore();
+		});
+
+
+		test('reads agent files with bounded concurrency', async () => {
+			const rootFolder = '/custom-agents-concurrency';
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const agentCount = 40;
+			await mockFiles(fileService, Array.from({ length: agentCount }, (_, index) => ({
+				path: `${rootFolder}/.github/agents/agent${index}.agent.md`,
+				contents: [
+					'---',
+					`description: 'Agent file ${index}.'`,
+					'---',
+				]
+			})));
+
+			let inFlight = 0;
+			let maxInFlight = 0;
+			const readFile = fileService.readFile.bind(fileService);
+			sinon.stub(fileService, 'readFile').callsFake(async (resource: URI, options?: IReadFileOptions, token?: CancellationToken): Promise<IFileContent> => {
+				inFlight++;
+				maxInFlight = Math.max(maxInFlight, inFlight);
+				try {
+					// Yield so that overlapping reads are observable.
+					await timeout(0);
+					return await readFile(resource, options, token);
+				} finally {
+					inFlight--;
+				}
+			});
+
+			const agents = await service.getCustomAgents(CancellationToken.None);
+
+			assert.strictEqual(agents.length, agentCount, 'Must discover every agent file.');
+			assert.ok(maxInFlight > 1, 'Must read agent files concurrently.');
+			assert.ok(
+				maxInFlight < agentCount,
+				`Must not read all ${agentCount} agent files at once, but read ${maxInFlight} concurrently.`,
+			);
+
+			// A discovery pass can be invalidated while it is still running, which
+			// starts a second pass alongside the first. Both passes must share the
+			// same quota, otherwise the number of open files grows with the number
+			// of passes.
+			const singlePassPeak = maxInFlight;
+			maxInFlight = 0;
+
+			const firstPass = service.getCustomAgents(CancellationToken.None);
+			const contributedAgent = URI.joinPath(rootFolderUri, '.github/agents/agent0.agent.md');
+			const registered = service.registerContributedFile(
+				PromptsType.agent,
+				contributedAgent,
+				{ identifier: new ExtensionIdentifier('test.extension'), name: 'test' } as IExtensionDescription,
+				undefined,
+				undefined,
+			);
+			const secondPass = service.getCustomAgents(CancellationToken.None);
+			await Promise.all([firstPass, secondPass]);
+			registered.dispose();
+
+			assert.ok(
+				maxInFlight <= singlePassPeak,
+				`Overlapping discovery passes must share one quota, but read ${maxInFlight} concurrently versus ${singlePassPeak} for a single pass.`,
+			);
 		});
 
 
@@ -4736,7 +4803,7 @@ suite('PromptsService', () => {
 				format: PluginFormat.Copilot,
 				label: 'my-plugin',
 				enablement,
-				remove: () => { },
+				remove: async () => true,
 				hooks: observableValue('testPluginHooks', []),
 				commands: observableValue('testPluginCommands', []),
 				skills: observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', [{ uri: skillUri, name: 'deploy' }]),
@@ -4782,7 +4849,7 @@ suite('PromptsService', () => {
 				format: PluginFormat.Copilot,
 				label: 'devtools',
 				enablement,
-				remove: () => { },
+				remove: async () => true,
 				hooks: observableValue('testPluginHooks', []),
 				commands: observableValue('testPluginCommands', []),
 				skills: observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', [{ uri: skillUri, name: 'ci' }]),
@@ -4835,7 +4902,7 @@ suite('PromptsService', () => {
 				format: PluginFormat.Copilot,
 				label: 'datadog',
 				enablement,
-				remove: () => { },
+				remove: async () => true,
 				hooks: observableValue('testPluginHooks', []),
 				commands: observableValue('testPluginCommands', []),
 				skills: observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', [{ uri: skillUri, name: 'ddsetup' }]),
@@ -5071,7 +5138,7 @@ suite('PromptsService', () => {
 					format: PluginFormat.Copilot,
 					label: basename(URI.file(path)),
 					enablement,
-					remove: () => { },
+					remove: async () => true,
 					hooks,
 					commands,
 					skills,
@@ -5344,7 +5411,7 @@ suite('PromptsService', () => {
 					format: PluginFormat.Copilot,
 					label: basename(URI.file(path)),
 					enablement,
-					remove: () => { },
+					remove: async () => true,
 					hooks,
 					commands,
 					skills,

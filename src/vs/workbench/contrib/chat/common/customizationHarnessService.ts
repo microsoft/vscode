@@ -133,6 +133,12 @@ export interface IHarnessDescriptor {
 	 * a remote agent host). The create action remains a separate toolbar button.
 	 */
 	readonly pluginActions?: readonly ICustomizationItemAction[];
+	/**
+	 * Local MCP collection identifiers that do not apply to this harness.
+	 * Host-published MCP servers remain visible even when their local counterpart
+	 * belongs to a hidden collection.
+	 */
+	readonly hiddenMcpServerCollectionIds?: readonly string[];
 }
 
 /**

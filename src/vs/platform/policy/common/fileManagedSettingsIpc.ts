@@ -27,8 +27,8 @@ export class FileManagedSettingsChannel implements IServerChannel {
 
 	call<T>(_: unknown, command: string): Promise<T> {
 		switch (command) {
-			case 'getRawManagedSettings': return Promise.resolve(this.service.rawManagedSettings as T);
-			case 'getManagedSettings': return Promise.resolve(this.service.managedSettings as T);
+			case 'getRawManagedSettings': return this.service.initialize().then(() => this.service.rawManagedSettings as T);
+			case 'getManagedSettings': return this.service.initialize().then(() => this.service.managedSettings as T);
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -57,20 +57,28 @@ export class FileManagedSettingsChannelClient extends Disposable implements IFil
 	private readonly _onDidChangeManagedSettings = this._register(new Emitter<ManagedSettingsData>());
 	readonly onDidChangeManagedSettings = this._onDidChangeManagedSettings.event;
 
+	private readonly initialSnapshot: Promise<void>;
+
 	constructor(channel: IChannel) {
 		super();
 		this._register(channel.listen<RawManagedSettingsData>('onDidChangeRawManagedSettings')(managedSettings => this.updateRawManagedSettings(managedSettings, true)));
 		this._register(channel.listen<ManagedSettingsData>('onDidChangeManagedSettings')(managedSettings => this.updateManagedSettings(managedSettings, true)));
-		channel.call<RawManagedSettingsData>('getRawManagedSettings').then(managedSettings => {
+		const rawSnapshot = channel.call<RawManagedSettingsData>('getRawManagedSettings').then(managedSettings => {
 			if (!this.hasReceivedRawManagedSettings) {
 				this.updateRawManagedSettings(managedSettings, true);
 			}
 		});
-		channel.call<ManagedSettingsData>('getManagedSettings').then(managedSettings => {
+		const managedSnapshot = channel.call<ManagedSettingsData>('getManagedSettings').then(managedSettings => {
 			if (!this.hasReceivedManagedSettings) {
 				this.updateManagedSettings(managedSettings, true);
 			}
 		});
+		this.initialSnapshot = Promise.all([rawSnapshot, managedSnapshot]).then(() => undefined);
+	}
+
+	async initialize(): Promise<ManagedSettingsData> {
+		await this.initialSnapshot;
+		return this._managedSettings;
 	}
 
 	private updateRawManagedSettings(managedSettings: RawManagedSettingsData, fireEvent: boolean): void {

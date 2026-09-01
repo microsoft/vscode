@@ -14,7 +14,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ChatResponseAccessibleView, CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, getToolSpecificDataDescription, getResultDetailsDescription, getToolInvocationA11yDescription } from '../../../browser/accessibility/chatResponseAccessibleView.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { IChatExtensionsContent, IChatPullRequestContent, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolResourcesInvocationData } from '../../../common/chatService/chatService.js';
+import { IChatExtensionsContent, IChatPullRequestContent, IChatSessionCreatedData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolResourcesInvocationData } from '../../../common/chatService/chatService.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 
 suite('ChatResponseAccessibleView', () => {
@@ -65,14 +65,13 @@ suite('ChatResponseAccessibleView', () => {
 		test('returns description for subagent data', () => {
 			const subagentData: IChatSubagentToolInvocationData = {
 				kind: 'subagent',
-				agentName: 'TestAgent',
+				agentDisplayName: 'Test Agent',
+				agentName: 'test-agent',
 				description: 'Running analysis',
 				prompt: 'Analyze the code'
 			};
 			const result = getToolSpecificDataDescription(subagentData);
-			assert.ok(result.includes('TestAgent'));
-			assert.ok(result.includes('Running analysis'));
-			assert.ok(result.includes('Analyze the code'));
+			assert.strictEqual(result, 'Agent: Test Agent. Running analysis. Task: Analyze the code');
 		});
 
 		test('handles subagent with only description', () => {
@@ -228,6 +227,16 @@ suite('ChatResponseAccessibleView', () => {
 				'Created an automation: Morning review',
 				'Edited an automation: Morning review',
 			]);
+		});
+
+		test('describes a created session using its full title when available', () => {
+			const sessionData: IChatSessionCreatedData = {
+				kind: 'sessionCreated',
+				openLink: 'agent-host-session://local/session',
+				label: 'Implement issue',
+				fullTitle: 'Implement issue and validate the fix',
+			};
+			assert.strictEqual(getToolSpecificDataDescription(sessionData), 'Implement issue and validate the fix');
 		});
 	});
 

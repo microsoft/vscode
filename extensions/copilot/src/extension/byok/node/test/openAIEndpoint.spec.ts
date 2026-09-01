@@ -489,14 +489,74 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 			expect(parentRequestSpy.mock.calls[0][0].ignoreStatefulMarker).toBe(false);
 		});
 
-		it('disables marker reuse and store for ZDR Responses requests', () => {
+		// Regression for https://github.com/microsoft/vscode/issues/330408
+		//
+		// BYOK promotes the serialized stream error to the whole user-facing reason. A
+		// message-less error must not displace the reason the fetcher already computed,
+		// otherwise the user is left with an empty struct and nothing to act on.
+		it('issue #330408: keeps the original reason when a stream error carries no message', async () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				modelMetadata,
+				'test-api-key',
+				'https://api.openai.com/v1/responses');
+			const parentResponse: ChatResponse = {
+				type: ChatFetchResponseType.Failed,
+				requestId: 'request-id',
+				serverRequestId: 'server-request-id',
+				reason: 'Server error. Stream terminated',
+				streamError: { code: 0, message: '', metadata: {} },
+			};
+			vi.spyOn(ChatEndpoint.prototype, 'makeChatRequest2').mockResolvedValue(parentResponse);
+
+			const response = await endpoint.makeChatRequest2(
+				createMakeRequestOptions([
+					{
+						role: Raw.ChatRole.User,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' }]
+					}
+				]),
+				CancellationToken.None,
+			);
+
+			expect(response.type === ChatFetchResponseType.Failed && response.reason).toBe('Server error. Stream terminated');
+		});
+
+		it('surfaces the serialized stream error when it carries a message', async () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				modelMetadata,
+				'test-api-key',
+				'https://api.openai.com/v1/responses');
+			const parentResponse: ChatResponse = {
+				type: ChatFetchResponseType.Failed,
+				requestId: 'request-id',
+				serverRequestId: 'server-request-id',
+				reason: 'Server error. Stream terminated',
+				streamError: { code: 0, message: 'something broke', metadata: { code: 'server_error' } },
+			};
+			vi.spyOn(ChatEndpoint.prototype, 'makeChatRequest2').mockResolvedValue(parentResponse);
+
+			const response = await endpoint.makeChatRequest2(
+				createMakeRequestOptions([
+					{
+						role: Raw.ChatRole.User,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' }]
+					}
+				]),
+				CancellationToken.None,
+			);
+
+			expect(response.type === ChatFetchResponseType.Failed && response.reason).toBe('{"code":0,"message":"something broke","metadata":{"code":"server_error"}}');
+		});
+
+		it('keeps store and marker reuse disabled for ordinary OpenAI BYOK ZDR Responses requests', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
 				{
 					...modelMetadata,
+					vendor: 'OpenAI',
 					zeroDataRetentionEnabled: true,
 				},
 				'test-api-key',
-				'https://api.openai.com/v1/chat/completions');
+				'https://api.openai.com/v1/responses');
 			const messages: Raw.ChatMessage[] = [
 				{
 					role: Raw.ChatRole.User,

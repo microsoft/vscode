@@ -9,6 +9,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { derived } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { GroupModelChangeKind } from '../../../../../workbench/common/editor.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -222,29 +223,40 @@ suite('SinglePane layout strategies', () => {
 		const ctx = setup();
 		const session = makeSession(URI.parse('session:/existing'));
 		const editor = store.add(new TestStubEditorInput(URI.file('/repo/file.ts')));
+		const visibilityStore = harness.instaService.createInstance(SinglePaneVisibilityProfileStore);
 		harness.activeGroupEditors.push(editor);
 		store.add(harness.instaService.createInstance(
 			SinglePaneExistingSessionStrategy,
 			ctx,
-			harness.instaService.createInstance(SinglePaneVisibilityProfileStore),
+			visibilityStore,
 			createDetailPanel()
 		));
 		activate(session);
 		harness.partVisibility.set(Parts.EDITOR_PART, true);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.setPartHiddenCalls.length = 0;
 
 		harness.activeGroupEditors.length = 0;
 		harness.editorGroupsHaveContent = false;
-		harness.onDidCloseEditor.fire({ editor, groupId: 1 });
-		harness.onDidEditorsChange.fire();
+		harness.onDidEditorsChange.fire({ groupId: 1, event: { kind: GroupModelChangeKind.EDITOR_CLOSE } });
 		await Promise.resolve();
 
 		assert.deepStrictEqual({
 			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
 			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			partVisibilityChanges: harness.setPartHiddenCalls,
+			existingProfile: visibilityStore.get(SessionVisibilityProfile.Existing),
 		}, {
 			editorVisible: false,
 			auxiliaryBarVisible: false,
+			partVisibilityChanges: [
+				{ hidden: true, part: Parts.EDITOR_PART },
+				{ hidden: true, part: Parts.AUXILIARYBAR_PART },
+			],
+			existingProfile: {
+				editorVisible: false,
+				auxiliaryBarVisible: false,
+			},
 		});
 	});
 

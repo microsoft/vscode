@@ -7,8 +7,8 @@ import { Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IMainProcessService } from '../../ipc/common/mainProcessService.js';
-import { IBrowserViewGroup, IBrowserViewGroupService, IBrowserViewGroupViewEvent, ipcBrowserViewGroupChannelName } from '../common/browserViewGroup.js';
-import { IBrowserViewOwner } from '../common/browserView.js';
+import { IBrowserViewGroup, IBrowserViewGroupFilter, IBrowserViewGroupService, ipcBrowserViewGroupChannelName } from '../common/browserViewGroup.js';
+import { IBrowserViewCreationContext } from '../common/browserView.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../common/cdp/types.js';
 
 /**
@@ -23,9 +23,8 @@ import { CDPEvent, CDPRequest, CDPResponse } from '../common/cdp/types.js';
 export interface IBrowserViewGroupRemoteService {
 	/**
 	 * Create a new browser view group.
-	 * @param owner The owner of the group's lifecycle.
 	 */
-	createGroup(owner: IBrowserViewOwner): Promise<IBrowserViewGroup>;
+	createGroup(filter: IBrowserViewGroupFilter, targetContext: IBrowserViewCreationContext): Promise<IBrowserViewGroup>;
 }
 
 /**
@@ -44,24 +43,8 @@ class RemoteBrowserViewGroup extends Disposable implements IBrowserViewGroup {
 		}));
 	}
 
-	get onDidAddView(): Event<IBrowserViewGroupViewEvent> {
-		return this.groupService.onDynamicDidAddView(this.id);
-	}
-
-	get onDidRemoveView(): Event<IBrowserViewGroupViewEvent> {
-		return this.groupService.onDynamicDidRemoveView(this.id);
-	}
-
 	get onDidDestroy(): Event<void> {
 		return this.groupService.onDynamicDidDestroy(this.id);
-	}
-
-	async addView(viewId: string): Promise<void> {
-		return this.groupService.addViewToGroup(this.id, viewId);
-	}
-
-	async removeView(viewId: string): Promise<void> {
-		return this.groupService.removeViewFromGroup(this.id, viewId);
 	}
 
 	async sendCDPMessage(msg: CDPRequest): Promise<void> {
@@ -91,8 +74,8 @@ export class BrowserViewGroupRemoteService implements IBrowserViewGroupRemoteSer
 		this._groupService = ProxyChannel.toService<IBrowserViewGroupService>(channel);
 	}
 
-	async createGroup(owner: IBrowserViewOwner): Promise<IBrowserViewGroup> {
-		const id = await this._groupService.createGroup(owner);
+	async createGroup(filter: IBrowserViewGroupFilter, targetContext: IBrowserViewCreationContext): Promise<IBrowserViewGroup> {
+		const id = await this._groupService.createGroup(filter, targetContext);
 		return this._wrap(id);
 	}
 

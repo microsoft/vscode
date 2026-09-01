@@ -47,7 +47,7 @@ export function activateShared(
 	context.subscriptions.push(registerMarkdownLanguageFeatures(client, commandManager, engine));
 	context.subscriptions.push(registerMarkdownCommands(commandManager, previewManager, telemetryReporter, cspArbiter, engine));
 
-	const linkPresentationService = createSharedLinkPresentationService(context.globalState, logger);
+	const linkPresentationService = createSharedLinkPresentationService(logger);
 	context.subscriptions.push(
 		linkPresentationService,
 		registerLinkPresentationProvider(linkPresentationService),

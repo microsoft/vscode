@@ -12,6 +12,7 @@ import { RootedLineEdit } from '../../../platform/inlineEdits/common/dataTypes/r
 import { isRejectedEditMemoryEnabled, SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsCursorPlacement, SpeculativeRequestsEnablement } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext, type MarkdownLoggable } from '../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
+import { resolveModelConfigValue } from '../../../platform/inlineEdits/common/modelConfigurationResolution';
 import { IObservableDocument, ObservableWorkspace } from '../../../platform/inlineEdits/common/observableWorkspace';
 import { IStatelessNextEditModelTelemetry, IStatelessNextEditProvider, IStatelessNextEditTelemetry, NoNextEditReason, StatelessNextEditDocument, StatelessNextEditRequest, StatelessNextEditResult, StatelessNextEditTelemetryBuilder, StreamedEdit } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { autorunWithChanges } from '../../../platform/inlineEdits/common/utils/observable';
@@ -1136,8 +1137,9 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			return 0;
 		}
 
-		const cacheDelay = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, this._expService);
-		const rebasedCacheDelay = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsRebasedCacheDelay, this._expService);
+		const modelConfig = this._modelService.selectedModelConfiguration();
+		const cacheDelay = resolveModelConfigValue(this._configService, this._expService, ConfigKey.TeamInternal.InlineEditsCacheDelay, modelConfig.cacheDelay);
+		const rebasedCacheDelay = resolveModelConfigValue(this._configService, this._expService, ConfigKey.TeamInternal.InlineEditsRebasedCacheDelay, modelConfig.rebasedCacheDelay);
 		const subsequentCacheDelay = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsSubsequentCacheDelay, this._expService);
 		const speculativeRequestDelay = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequestDelay, this._expService);
 

@@ -25,6 +25,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat, ISession, ISessionCapabilities, ISessionChangesSummary, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IDeleteChatOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
 
@@ -42,6 +43,10 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 	sessions: ISession[];
 	readonly readSessions: ISession[] = [];
 	readonly renamed: { readonly session: ISession; readonly title: string }[] = [];
+	readonly archived: ISession[] = [];
+	readonly renamedChats: { readonly session: ISession; readonly chatResource: URI; readonly title: string }[] = [];
+	readonly deletedChats: { readonly session: ISession; readonly chatResource: URI }[] = [];
+	readonly deleteChatOptions: (IDeleteChatOptions | undefined)[] = [];
 	renameError: Error | undefined;
 
 	constructor(sessions: ISession[]) {
@@ -62,6 +67,19 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 		if (this.renameError) {
 			throw this.renameError;
 		}
+	}
+
+	override async archiveSession(session: ISession): Promise<void> {
+		this.archived.push(session);
+	}
+
+	override async deleteChat(session: ISession, chatResource: URI, options?: IDeleteChatOptions): Promise<void> {
+		this.deletedChats.push({ session, chatResource });
+		this.deleteChatOptions.push(options);
+	}
+
+	override async renameChat(session: ISession, chatResource: URI, title: string): Promise<void> {
+		this.renamedChats.push({ session, chatResource, title });
 	}
 }
 
@@ -87,6 +105,10 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 	const resource = URI.parse(`test-session://${resourceId}`);
 	const capabilities = observableValue<ISessionCapabilities>(`capabilities-${resourceId}`, { supportsMultipleChats: false, supportsRename: true });
 	const status = observableValue(`status-${resourceId}`, options.status ?? SessionStatus.Completed);
+	const mainChat = new class extends mock<IChat>() {
+		override readonly resource = resource.with({ fragment: 'main' });
+		override readonly status = status;
+	}();
 	const isArchived = observableValue(`archived-${resourceId}`, options.isArchived ?? false);
 	const workspaceLabel = options.workspaceLabel ?? 'Workspace';
 	const isQuickChat = options.isQuickChat ?? false;
@@ -120,7 +142,7 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable<readonly IChat[]>([]),
-		mainChat: constObservable(new class extends mock<IChat>() { }),
+		mainChat: constObservable(mainChat),
 		capabilities,
 	};
 	return { session, capabilities, status, isArchived };
@@ -170,7 +192,9 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override getSortKey(session: ISession, mode: SessionSortMode): number {
 			return mode === 'created' ? session.createdAt.getTime() : session.updatedAt.get().getTime();
 		}
-		override getStatusIcon() { return Codicon.circleSmallFilled; }
+		override getStatusIcon(status: SessionStatus) {
+			return status === SessionStatus.Error ? Codicon.error : Codicon.circleSmallFilled;
+		}
 	});
 	instantiationService.stub(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
 		override readonly onDidChange = Event.None;
@@ -189,7 +213,8 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	});
 	instantiationService.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
 		override readonly onDidChange = Event.None;
-		override readonly selectedProviderId = undefined;
+		override readonly selectedHostId = undefined;
+		override readonly selectedHost = undefined;
 	});
 	instantiationService.stub(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() {
 		override readonly onDidRefetchAssignments = Event.None;

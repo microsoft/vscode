@@ -314,81 +314,135 @@
 	line-height: inherit;
 }
 
-.chat-rich-link[data-chat-rich-link-kind='session'] {
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+) {
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
-	padding: 1px var(--vscode-spacing-size60);
-	border-color: var(--vscode-chat-requestBorder, var(--vscode-input-border));
+	max-width: 100%;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size100);
+	border-color: var(--vscode-button-secondaryBorder, var(--vscode-button-border, transparent));
 	background: var(--vscode-button-secondaryBackground);
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-button-secondaryForeground);
+	font-size: var(--vscode-fontSize-label1);
 	font-weight: var(--vscode-fontWeight-regular);
+	line-height: 16px;
 }
 
-.chat-rich-link[data-chat-rich-link-kind='session']:hover {
-	border-color: var(--vscode-chat-requestBorder, var(--vscode-input-border));
-	background: var(--vscode-toolbar-hoverBackground);
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+):visited {
+	color: var(--vscode-button-secondaryForeground);
 }
 
-.chat-rich-link[data-chat-rich-link-kind='session'] :is(.chat-rich-link-label, .chat-rich-link-title) {
-	color: inherit;
-	font-weight: var(--vscode-fontWeight-regular);
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+):is(:hover, :active) {
+	border-color: var(--vscode-button-secondaryBorder, var(--vscode-button-border, transparent));
+	background: var(--vscode-button-secondaryHoverBackground);
+	color: var(--vscode-button-secondaryForeground);
 }
 
-.chat-rich-link[data-chat-rich-link-kind='session'] .chat-rich-link-primary-status {
-	align-self: center;
-	align-items: center;
-	width: var(--vscode-spacing-size120);
-	height: var(--vscode-spacing-size120);
-	margin: 0;
-	padding: 0;
-	border: 0;
-	border-radius: 0;
-	background: transparent;
-	font-size: 1em;
-	line-height: inherit;
-}
-
-.chat-rich-link[data-chat-rich-link-kind='session'] .chat-rich-link-primary-status .chat-rich-link-status-label {
-	display: none;
-}
-
-.chat-rich-link[data-chat-rich-link-kind='session'] .chat-rich-link-status-icon:not(.monaco-pixel-spinner, [hidden]) {
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+) .chat-rich-link-icon {
 	display: inline-flex;
+	flex: 0 0 var(--vscode-codiconFontSize);
 	align-items: center;
 	justify-content: center;
-	width: var(--vscode-spacing-size120);
-	height: var(--vscode-spacing-size120);
-	font-size: var(--vscode-codiconFontSize-compact);
-	line-height: var(--vscode-spacing-size120);
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-codiconFontSize);
+	color: inherit;
+	font-size: var(--vscode-codiconFontSize);
+	line-height: var(--vscode-codiconFontSize);
 }
 
-.chat-rich-link .chat-rich-link-status-icon[hidden] {
+.interactive-item-container .value .rendered-markdown .chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+) .chat-rich-link-icon {
+	position: static;
+	top: auto;
+}
+
+.interactive-item-container .value .rendered-markdown a.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+) {
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+) :is(.chat-rich-link-label, .chat-rich-link-title) {
+	flex: 1 1 auto;
+	min-width: 0;
+	max-width: 100%;
+	overflow: hidden;
+	color: inherit;
+	font-weight: inherit;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+) :is(
+	.chat-rich-link-detail,
+	.chat-rich-link-reference,
+	.chat-rich-link-changes,
+	.chat-rich-link-secondary-status
+) {
 	display: none;
 }
 
-.chat-rich-link[data-chat-rich-link-kind='session'][data-chat-rich-link-status='neutral'] .chat-rich-link-primary-status,
-.chat-rich-link[data-chat-rich-link-kind='session'][data-chat-rich-link-status='success'] .chat-rich-link-primary-status,
-.chat-rich-link[data-chat-rich-link-kind='session'][data-chat-rich-link-status='pending'] .chat-rich-link-primary-status {
-	color: var(--vscode-descriptionForeground);
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+) .chat-rich-link-primary-status {
+	display: none;
+	align-items: center;
+	height: var(--vscode-codiconFontSize-compact);
+	margin-left: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-codiconFontSize-compact);
 }
 
-.chat-rich-link[data-chat-rich-link-kind='session'] .monaco-pixel-spinner {
-	width: var(--vscode-spacing-size120);
-	height: var(--vscode-spacing-size120);
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+):is(
+	[data-chat-rich-link-status='pending'],
+	[data-chat-rich-link-status='warning'],
+	[data-chat-rich-link-status='error']
+) .chat-rich-link-primary-status {
+	display: inline-flex;
 }
 
-.chat-rich-link[data-chat-rich-link-kind='session'][data-chat-rich-link-status='warning'] .chat-rich-link-primary-status,
-.chat-rich-link[data-chat-rich-link-kind='session'][data-chat-rich-link-status='warning'] {
-	color: var(--vscode-list-warningForeground);
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+) .chat-rich-link-primary-status .chat-rich-link-status-label {
+	display: none;
 }
 
-.chat-rich-link[data-chat-rich-link-kind='session'][data-chat-rich-link-status='warning'] {
-	border-color: var(--vscode-list-warningForeground);
-	background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 12%, transparent);
-}
-
-.chat-rich-link[data-chat-rich-link-kind='session'][data-chat-rich-link-status='error'] .chat-rich-link-primary-status {
-	color: var(--vscode-errorForeground);
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+) .chat-rich-link-primary-status :is(
+	.chat-rich-link-status-icon,
+	.monaco-pixel-spinner
+) {
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	font-size: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-codiconFontSize-compact);
 }
 
 .hc-black .chat-rich-link,
