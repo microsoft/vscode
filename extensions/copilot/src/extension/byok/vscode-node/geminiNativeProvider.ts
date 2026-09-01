@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ApiError, GenerateContentParameters, GoogleGenAI, ThinkingLevel, Tool, Type } from '@google/genai';
+import { ApiError, GenerateContentParameters, GenerateContentResponse, GoogleGenAI, ThinkingLevel, Tool, Type } from '@google/genai';
 import { CancellationToken, LanguageModelChatInformation, LanguageModelChatMessage, LanguageModelChatMessage2, LanguageModelDataPart, LanguageModelResponsePart2, LanguageModelTextPart, LanguageModelThinkingPart, LanguageModelToolCallPart, Progress, ProvideLanguageModelChatResponseOptions } from 'vscode';
 import { ChatFetchResponseType, ChatLocation } from '../../../platform/chat/common/commonTypes';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IResponseDelta, OpenAiFunctionTool } from '../../../platform/networking/common/fetch';
 import { APIUsage } from '../../../platform/networking/common/openai';
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
+import { IChatModelRequestOptions } from '../../../platform/endpoint/common/endpointProvider';
 import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, type OTelModelOptions, StdAttr, stringifyToolDefinitionsForOTel, toSystemInstructions, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
@@ -26,7 +27,38 @@ import { AbstractLanguageModelChatProvider, ExtendedLanguageModelChatInformation
 import { IBYOKStorageService } from './byokStorageService';
 import { byokKnownModelsToAPIInfoWithEffort } from './byokModelInfo';
 
-export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvider {
+/** Adds an optional custom endpoint to the base BYOK config. Unset, behavior is unchanged. */
+export interface GeminiModelConfiguration extends LanguageModelChatConfiguration {
+	readonly baseUrl?: string;
+	readonly apiVersion?: string;
+	readonly headers?: Record<string, string>;
+	readonly modelOptions?: IChatModelRequestOptions;
+	/** Defaults to `true`, matching this provider's original always-streaming behavior. */
+	readonly streaming?: boolean;
+	/** Overrides the constructor-time knownModels lookup for reasoning effort support. */
+	readonly supportsReasoningEffort?: string[];
+	/**
+	 * Custom Endpoint delegation only: allows an absent `apiKey`, matching
+	 * `CustomEndpointOAIEndpoint`'s support for endpoints that are either
+	 * unauthenticated or authenticated solely via a `requestHeaders` entry. The
+	 * native provider (talking to the official Google API) always requires a key.
+	 */
+	readonly apiKeyOptional?: boolean;
+}
+
+/** OTel server-address host: the custom base URL's host, or the default Gemini API host. */
+function getGeminiServerAddress(baseUrl: string | undefined): string {
+	if (!baseUrl) {
+		return 'generativelanguage.googleapis.com';
+	}
+	try {
+		return new URL(baseUrl).hostname;
+	} catch {
+		return 'generativelanguage.googleapis.com';
+	}
+}
+
+export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvider<GeminiModelConfiguration> {
 
 	public static readonly providerName = 'Gemini';
 	public static readonly providerId = this.providerName.toLowerCase();
@@ -42,7 +74,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 		super(GeminiNativeBYOKLMProvider.providerId, GeminiNativeBYOKLMProvider.providerName, knownModels, byokStorageService, logService);
 	}
 
-	protected async getAllModels(silent: boolean, apiKey: string | undefined): Promise<ExtendedLanguageModelChatInformation<LanguageModelChatConfiguration>[]> {
+	protected async getAllModels(silent: boolean, apiKey: string | undefined): Promise<ExtendedLanguageModelChatInformation<GeminiModelConfiguration>[]> {
 		if (!apiKey && silent) {
 			return [];
 		}
@@ -78,7 +110,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 		}
 	}
 
-	async provideLanguageModelChatResponse(model: ExtendedLanguageModelChatInformation<LanguageModelChatConfiguration>, messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart2>, token: CancellationToken): Promise<any> {
+	async provideLanguageModelChatResponse(model: ExtendedLanguageModelChatInformation<GeminiModelConfiguration>, messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart2>, token: CancellationToken): Promise<any> {
 		// Restore CapturingToken context if correlation ID was passed through modelOptions.
 		// This handles the case where AsyncLocalStorage context was lost crossing VS Code IPC.
 		const correlationId = (options as { modelOptions?: OTelModelOptions }).modelOptions?._capturingTokenCorrelationId;
@@ -94,11 +126,27 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 		const doRequest = async () => {
 			const issuedTime = Date.now();
 			const apiKey = model.configuration?.apiKey;
-			if (!apiKey) {
+			if (!apiKey && !model.configuration?.apiKeyOptional) {
 				throw new Error('API key not found for the model');
 			}
 
-			const client = new GoogleGenAI({ apiKey });
+			// Set only when delegated to by Custom Endpoint; otherwise matches prior behavior exactly.
+			const baseUrl = model.configuration?.baseUrl;
+			// sanitizeCustomHeaders always returns an object, even with nothing to forward, so an
+			// empty one is treated the same as "no headers" rather than sent to the SDK as-is.
+			const headers = model.configuration?.headers;
+			const hasHeaders = !!headers && Object.keys(headers).length > 0;
+			const client = new GoogleGenAI({
+				// An explicit '' rather than undefined: passing undefined makes the SDK fall back to
+				// ambient Application Default Credentials lookup instead of using no credential at all.
+				apiKey: apiKey ?? '',
+				...(baseUrl || hasHeaders ? {
+					httpOptions: {
+						...(baseUrl ? { baseUrl, apiVersion: model.configuration?.apiVersion } : {}),
+						...(hasHeaders ? { headers } : {}),
+					}
+				} : {})
+			});
 			// Convert the messages from the API format into messages that we can use against Gemini
 			const { contents, systemInstruction } = apiMessageToGeminiMessage(messages as LanguageModelChatMessage[]);
 
@@ -108,7 +156,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 				{
 					model: model.id,
 					modelMaxPromptTokens: model.maxInputTokens,
-					urlOrRequestMetadata: 'https://generativelanguage.googleapis.com',
+					urlOrRequestMetadata: baseUrl ?? 'https://generativelanguage.googleapis.com',
 				},
 				{
 					model: model.id,
@@ -157,11 +205,19 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 			});
 
 			const rawEffort = options.modelConfiguration?.reasoningEffort;
-			const supportedEffortLevels = this._knownModels?.[model.id]?.supportsReasoningEffort;
+			// Per-request configuration (Custom Endpoint) takes priority over the constructor-time
+			// knownModels registry (native vendor: gemini), which the delegate never has populated.
+			const supportedEffortLevels = model.configuration?.supportsReasoningEffort ?? this._knownModels?.[model.id]?.supportsReasoningEffort;
 			const thinkingLevel = typeof rawEffort === 'string' && supportedEffortLevels?.includes(rawEffort)
 				? Object.values(ThinkingLevel).find(level => level.toLowerCase() === rawEffort)
 				: undefined;
 
+			// Per-request values (Custom Endpoint's `modelOptions` request option) take priority over the
+			// model's configured defaults; an explicit null on either side means "no override here", not
+			// "send null to the SDK", so it falls through to the next source instead of being forwarded.
+			const modelOptions = model.configuration?.modelOptions;
+			const temperature = options.modelOptions?.temperature ?? modelOptions?.temperature;
+			const topP = options.modelOptions?.top_p ?? modelOptions?.top_p;
 			const params: GenerateContentParameters = {
 				model: model.id,
 				contents: contents,
@@ -173,14 +229,18 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 						includeThoughts: true,
 						thinkingLevel,
 					},
-					abortSignal: abortController.signal
+					abortSignal: abortController.signal,
+					...(temperature != null ? { temperature } : {}),
+					...(topP != null ? { topP } : {}),
 				}
 			};
 
 			const wrappedProgress = new RecordedProgress(progress);
 
+			const streaming = model.configuration?.streaming ?? true;
+
 			try {
-				const result = await this._makeRequest(client, wrappedProgress, params, token, issuedTime);
+				const result = await this._makeRequest(client, wrappedProgress, params, token, issuedTime, streaming);
 				if (result.ttft) {
 					pendingLoggedChatRequest.markTimeToFirstToken(result.ttft);
 				}
@@ -217,7 +277,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 						[GenAiAttr.RESPONSE_MODEL]: model.id,
 						[GenAiAttr.RESPONSE_ID]: requestId,
 						[GenAiAttr.RESPONSE_FINISH_REASONS]: ['stop'],
-						[GenAiAttr.REQUEST_STREAM]: true,
+						[GenAiAttr.REQUEST_STREAM]: streaming,
 						...(result.ttft ? { [CopilotChatAttr.TIME_TO_FIRST_TOKEN]: result.ttft } : {}),
 						...(result.ttft ? { [GenAiAttr.RESPONSE_TIME_TO_FIRST_CHUNK]: result.ttft / 1000 } : {}),
 						[GenAiAttr.REQUEST_MAX_TOKENS]: model.maxOutputTokens ?? 0,
@@ -395,7 +455,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 					...(debugLogLabel ? { [CopilotChatAttr.DEBUG_LOG_LABEL]: debugLogLabel } : {}),
 					[GenAiAttr.AGENT_NAME]: 'GeminiBYOK',
 					[CopilotChatAttr.MAX_PROMPT_TOKENS]: model.maxInputTokens,
-					[StdAttr.SERVER_ADDRESS]: 'generativelanguage.googleapis.com',
+					[StdAttr.SERVER_ADDRESS]: getGeminiServerAddress(model.configuration?.baseUrl),
 				},
 			});
 			// Opt-in: capture input messages in OTel GenAI format
@@ -440,14 +500,19 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 		return Math.ceil(text.toString().length / 4);
 	}
 
-	private async _makeRequest(client: GoogleGenAI, progress: Progress<LMResponsePart>, params: GenerateContentParameters, token: CancellationToken, issuedTime: number): Promise<{ ttft: number | undefined; ttfte: number | undefined; usage: APIUsage | undefined }> {
+	private async _makeRequest(client: GoogleGenAI, progress: Progress<LMResponsePart>, params: GenerateContentParameters, token: CancellationToken, issuedTime: number, streaming: boolean): Promise<{ ttft: number | undefined; ttfte: number | undefined; usage: APIUsage | undefined }> {
 		const start = Date.now();
 		let ttft: number | undefined;
 		let ttfte: number | undefined;
 		let usage: APIUsage | undefined;
 
 		try {
-			const stream = await client.models.generateContentStream(params);
+			// A non-streaming request is treated as a single-chunk stream so the chunk-processing
+			// loop below (thought signatures, tool calls, usage accumulation) stays shared: some
+			// gateways only implement the unary `generateContent` route, not `streamGenerateContent`.
+			const stream: AsyncIterable<GenerateContentResponse> | Iterable<GenerateContentResponse> = streaming
+				? await client.models.generateContentStream(params)
+				: [await client.models.generateContent(params)];
 
 			let pendingThinkingSignature: string | undefined;
 
