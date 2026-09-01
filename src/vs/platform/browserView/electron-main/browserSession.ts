@@ -19,6 +19,7 @@ import { BrowserSessionRemote, IBrowserSessionRemote } from './browserSessionRem
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { localize } from '../../../nls.js';
+import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
 
 /**
  * Holds an Electron session along with its storage scope and unique browser
@@ -66,8 +67,8 @@ export class BrowserSession {
 	 * Cleans up stale {@link _byId} entries when the Electron session
 	 * they point to is garbage-collected.
 	 */
-	private static readonly _finalizer = new FinalizationRegistry<string>((id) => {
-		BrowserSession._byId.delete(id);
+	private static readonly _finalizer = new FinalizationRegistry<string>(id => {
+		this._byId.delete(id);
 	});
 
 	/**
@@ -244,11 +245,13 @@ export class BrowserSession {
 		readonly electronSession: Electron.Session,
 		/** Resolved storage scope. */
 		readonly storageScope: BrowserViewStorageScope,
+		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 	) {
 		this._trust = new BrowserSessionTrust(this);
 		this._history = new BrowserSessionHistory(this);
 		this._remote = new BrowserSessionRemote(this);
 		this._permissions = new BrowserSessionPermissions(this);
+		this.configureNetworkFilter();
 		this.configure();
 		BrowserSession.knownSessions.add(electronSession);
 		BrowserSession._bySession.set(electronSession, this);
@@ -289,7 +292,38 @@ export class BrowserSession {
 	}
 
 	/**
-	 * Apply the permission policy and preload scripts to the session.
+	 * Dynamically apply network filtering to Agent sessions.
+	 */
+	private configureNetworkFilter(): void {
+		if (this.storageScope !== BrowserViewStorageScope.Agent) {
+			return;
+		}
+
+		const listener: Parameters<Electron.WebRequest['onBeforeRequest']>[0] = (details, callback) => {
+			let uri: URI;
+			try {
+				uri = URI.parse(details.url, true);
+			} catch {
+				callback({ cancel: true });
+				return;
+			}
+			callback({ cancel: !this.agentNetworkFilterService.isUriAllowed(uri) });
+		};
+		let enabled = false;
+		const updateNetworkFilter = () => {
+			const newEnabled = this.agentNetworkFilterService.isEnabled();
+			if (enabled === newEnabled) {
+				return;
+			}
+			enabled = newEnabled;
+			this.electronSession.webRequest.onBeforeRequest(enabled ? listener : null);
+		};
+		updateNetworkFilter();
+		this.agentNetworkFilterService.onDidChange(updateNetworkFilter);
+	}
+
+	/**
+	 * Apply permissions, protocols, and preload scripts to the session.
 	 */
 	private configure(): void {
 		this._permissions.configure(this.electronSession);
