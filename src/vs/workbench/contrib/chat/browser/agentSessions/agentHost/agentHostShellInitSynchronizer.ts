@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise, raceCancellation, RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellation, RunOnceScheduler, Sequencer } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -44,8 +44,9 @@ interface IRegistration {
 	readonly subscription: IAgentSubscription<SessionState>;
 	readonly store: DisposableStore;
 	readonly scheduler: RunOnceScheduler;
+	readonly sequencer: Sequencer;
 	schemaReady: boolean;
-	pendingPublication: { readonly serialized: string; readonly desired: readonly IShellInitScript[]; readonly applied: DeferredPromise<ActionEnvelope> } | undefined;
+	pendingPublication: { readonly serialized: string; readonly desired: readonly IShellInitScript[]; readonly applied: DeferredPromise<ActionEnvelope | undefined> } | undefined;
 }
 
 /**
@@ -84,11 +85,12 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 		this._registrations.get(key)?.store.dispose();
 
 		const store = new DisposableStore();
-		const scheduler = store.add(new RunOnceScheduler(() => { void this._publish(key); }, 0));
+		const scheduler = store.add(new RunOnceScheduler(() => { void this._enqueuePublish(key); }, 0));
 		const registration: IRegistration = {
 			subscription,
 			store,
 			scheduler,
+			sequencer: new Sequencer(),
 			schemaReady: this._supportsShellInit(subscription.value),
 			pendingPublication: undefined,
 		};
@@ -112,6 +114,7 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 			}
 		}));
 		store.add(toDisposable(() => {
+			void registration.pendingPublication?.applied.complete(undefined);
 			if (this._registrations.get(key) === registration) {
 				this._registrations.delete(key);
 			}
@@ -124,7 +127,7 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 		const key = session.toString();
 		const registration = this._registrations.get(key);
 		registration?.scheduler.cancel();
-		return this._publish(key, token);
+		return this._enqueuePublish(key, token);
 	}
 
 	private _scheduleAll(): void {
@@ -135,6 +138,11 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 
 	private _supportsShellInit(state: SessionState | Error | undefined): state is SessionState {
 		return !!state && !(state instanceof Error) && !!state.config?.schema.properties[SessionConfigKey.ShellInitSnippets];
+	}
+
+	private _enqueuePublish(key: string, token?: CancellationToken): Promise<void> {
+		const registration = this._registrations.get(key);
+		return registration?.sequencer.queue(() => this._publish(key, token)) ?? Promise.resolve();
 	}
 
 	private async _publish(key: string, token?: CancellationToken): Promise<void> {
@@ -173,7 +181,7 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 		const publication = {
 			serialized,
 			desired,
-			applied: new DeferredPromise<ActionEnvelope>(),
+			applied: new DeferredPromise<ActionEnvelope | undefined>(),
 		};
 		registration.pendingPublication = publication;
 		void publication.applied.p.then(() => {
@@ -182,17 +190,17 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 			}
 		});
 		this._agentHostService.dispatch(key, action);
-		if (token) {
-			await this._awaitPublication(registration, publication, token);
-		}
+		await this._awaitPublication(registration, publication, token);
 	}
 
-	private async _awaitPublication(registration: IRegistration, publication: NonNullable<IRegistration['pendingPublication']>, token: CancellationToken): Promise<void> {
-		const envelope = await raceCancellation(publication.applied.p, token);
+	private async _awaitPublication(registration: IRegistration, publication: NonNullable<IRegistration['pendingPublication']>, token?: CancellationToken): Promise<void> {
+		const envelope = token
+			? await raceCancellation(publication.applied.p, token)
+			: await publication.applied.p;
 		if (registration.pendingPublication === publication) {
 			registration.pendingPublication = undefined;
 		}
-		if (envelope?.rejectionReason) {
+		if (token && envelope?.rejectionReason) {
 			throw new Error(`Agent Host rejected shell init config: ${envelope.rejectionReason}`);
 		}
 	}

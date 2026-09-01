@@ -112,6 +112,7 @@ suite('AgentHostShellInitSynchronizer', () => {
 		remoteAuthority?: string;
 		onDidChangeCollections?: Event<MergedEnvironmentVariableCollection>;
 		onDispatch?: (config: Record<string, unknown>) => void;
+		getCollection?: () => MergedEnvironmentVariableCollection;
 	}) {
 		const dispatched: Record<string, unknown>[] = [];
 		const agentHostService = new class extends mock<IAgentHostService>() {
@@ -130,7 +131,7 @@ suite('AgentHostShellInitSynchronizer', () => {
 		};
 		const environmentService = new class extends mock<IEnvironmentVariableService>() {
 			override readonly onDidChangeCollections = options?.onDidChangeCollections ?? Event.None;
-			override readonly mergedCollection = options?.collection ?? collection([]);
+			override get mergedCollection() { return options?.getCollection?.() ?? options?.collection ?? collection([]); }
 		};
 		const folders = options?.folders ?? [folderA];
 		const workspaceService = new class extends mock<IWorkspaceContextService>() {
@@ -193,6 +194,7 @@ suite('AgentHostShellInitSynchronizer', () => {
 		const subscription = disposables.add(new TestSubscription(state()));
 		disposables.add(synchronizer.register(session, subscription));
 		const reconcile = synchronizer.reconcile(session, CancellationToken.None);
+		await timeout(0);
 
 		subscription.applyConfig(dispatched[0], 'not authorized');
 
@@ -212,6 +214,31 @@ suite('AgentHostShellInitSynchronizer', () => {
 		assert.strictEqual(resolved, false);
 
 		subscription.applyConfig(dispatched[0]);
+		await reconcile;
+		assert.strictEqual(resolved, true);
+	});
+
+	test('a changed desired value waits for the previous publication before dispatching', async () => {
+		let currentCollection = collection([{ variable: ACTIVATION_VARIABLE, value: 'activate-a', folder: folderA }]);
+		const { synchronizer, dispatched } = create({
+			enabled: true,
+			getCollection: () => currentCollection,
+		});
+		const subscription = disposables.add(new TestSubscription(state()));
+		disposables.add(synchronizer.register(session, subscription));
+		await timeout(0);
+		currentCollection = collection([{ variable: ACTIVATION_VARIABLE, value: 'activate-b', folder: folderA }]);
+
+		let resolved = false;
+		const reconcile = synchronizer.reconcile(session, CancellationToken.None).then(() => resolved = true);
+		await timeout(0);
+		assert.deepStrictEqual({ dispatches: dispatched.length, resolved }, { dispatches: 1, resolved: false });
+
+		subscription.applyConfig(dispatched[0]);
+		await timeout(0);
+		assert.deepStrictEqual({ dispatches: dispatched.length, resolved }, { dispatches: 2, resolved: false });
+
+		subscription.applyConfig(dispatched[1]);
 		await reconcile;
 		assert.strictEqual(resolved, true);
 	});
