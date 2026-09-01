@@ -281,13 +281,14 @@
 								</div>
 							</div>
 
-							<div class="form-group">
-								<div class="label-row">
-									<label for="editor">Response body (JSON)</label>
-									<span id="save-state" class="save-state" aria-live="polite"></span>
-								</div>
-								<textarea id="editor" spellcheck="false" autocomplete="off"
-									aria-describedby="editor-status"></textarea>
+							 <div class="form-group">
+							<div class="label-row">
+								<label for="editor">Response body (JSON)</label>
+								<button id="format-editor" type="button" class="btn-secondary">Format JSON</button>
+								<span id="save-state" class="save-state" aria-live="polite"></span>
+							</div>
+							<textarea id="editor" spellcheck="false" autocomplete="off"
+								aria-describedby="editor-status"></textarea>
 								<p id="editor-status" class="status" aria-live="polite"></p>
 								<div id="validation-results" hidden></div>
 							</div>
