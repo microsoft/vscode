@@ -54,7 +54,7 @@ import { ISessionsChatViewStateService, SessionsChatViewStateService } from './c
 import { SessionsChatResponseFileChangesService } from './sessionTurnChanges.js';
 import { IChatResponseFileChangesService } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { SessionsChatPetAchievementContribution } from './chatPetAchievements.js';
-import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, chatBackgroundImageLayoutValues, ChatBackgroundImageLayout, ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
+import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, chatBackgroundImageLayoutValues, ChatBackgroundImageLayout, ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
 
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_COMMAND_ID = 'workbench.action.chat.changeAgentSessionsBackground';
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_LAYOUT_COMMAND_ID = 'workbench.action.chat.changeAgentSessionsBackgroundLayout';
@@ -139,6 +139,12 @@ const chatBackgroundImageLayoutItems = chatBackgroundImageLayoutValues.map(layou
 	layout,
 	...chatBackgroundImageLayoutMetadata[layout],
 }));
+
+const chatBackgroundImageLayoutEnumConfiguration = {
+	enum: [...chatBackgroundImageLayoutValues],
+	enumItemLabels: chatBackgroundImageLayoutItems.map(item => item.label),
+	enumDescriptions: chatBackgroundImageLayoutItems.map(item => item.detail),
+};
 
 class NewChatInSessionsWindowAction extends Action2 {
 
@@ -392,15 +398,23 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['experimental'],
 			ignoreSync: true,
 		},
-		[AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING]: {
+		[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING]: {
 			type: 'string',
-			enum: [...chatBackgroundImageLayoutValues],
-			enumItemLabels: chatBackgroundImageLayoutItems.map(item => item.label),
-			enumDescriptions: chatBackgroundImageLayoutItems.map(item => item.detail),
+			...chatBackgroundImageLayoutEnumConfiguration,
 			default: 'repeat',
-			scope: ConfigurationScope.APPLICATION,
-			markdownDescription: localize('chat.agentSessions.backgroundImageLayout', "Controls how the dark and light chat background images are laid out in the Agents Window."),
+			scope: ConfigurationScope.MACHINE,
+			markdownDescription: localize('chat.agentSessions.preferredDarkBackgroundImageLayout', "Controls how the chat background image is laid out in the Agents Window when using a dark color theme."),
 			tags: ['experimental'],
+			ignoreSync: true,
+		},
+		[AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING]: {
+			type: 'string',
+			...chatBackgroundImageLayoutEnumConfiguration,
+			default: 'repeat',
+			scope: ConfigurationScope.MACHINE,
+			markdownDescription: localize('chat.agentSessions.preferredLightBackgroundImageLayout', "Controls how the chat background image is laid out in the Agents Window when using a light color theme."),
+			tags: ['experimental'],
+			ignoreSync: true,
 		},
 	},
 });
