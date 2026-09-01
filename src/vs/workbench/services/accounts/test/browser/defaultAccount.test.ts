@@ -90,7 +90,7 @@ suite('DefaultAccountProvider', () => {
 		});
 	});
 
-	test('entitlement refresh target preserves the managed-settings cache until an explicit policy refresh', async () => {
+	test('forceRefresh bypasses a fresh managed-settings cache', async () => {
 		const requestService = new TestRequestService(async () => jsonResponse({
 			permissions: { disableBypassPermissionsMode: 'disable' },
 		}));
@@ -98,35 +98,44 @@ suite('DefaultAccountProvider', () => {
 		const cachedPolicy = createCachedPolicy(false);
 
 		const cached = await provider['getManagedSettings'](sessions, cachedPolicy);
-		const entitlementRefresh = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: 'entitlements' });
-		const policyRefresh = await provider['getManagedSettings'](sessions, cachedPolicy, { retryManagedSettings: true });
+		const forced = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true, retryManagedSettings: true });
 
 		assert.deepStrictEqual({
 			requestCount: requestService.requestCount,
 			cached: cached.data,
-			entitlementRefresh: entitlementRefresh.data,
-			policyRefresh: policyRefresh.data,
+			forced: forced.data,
 		}, {
 			requestCount: 1,
 			cached: cachedPolicy.policyData,
-			entitlementRefresh: cachedPolicy.policyData,
-			policyRefresh: { managedSettings: { 'permissions.disableBypassPermissionsMode': 'disable' } },
+			forced: { managedSettings: { 'permissions.disableBypassPermissionsMode': 'disable' } },
 		});
 	});
 
-	test('entitlement refresh target bypasses only the account entitlement cache', async () => {
+	test('normal refresh uses all fresh caches and forceRefresh bypasses all of them', async () => {
 		const requestService = new TestRequestService(async options => {
-			if (options.callSite === 'defaultAccount.entitlements') {
-				return jsonResponse(createEntitlementsData('business'));
+			switch (options.callSite) {
+				case 'defaultAccount.entitlements':
+					return jsonResponse(createEntitlementsData('business'));
+				case 'defaultAccount.tokenEntitlements':
+					return jsonResponse({ token: 'sn=fresh;fcv1=fresh;mcp=1;editor_preview_features=1;agent_mode=1:' });
+				case 'defaultAccount.managedSettings':
+					return jsonResponse({ permissions: { disableBypassPermissionsMode: 'disable' } });
+				case 'defaultAccount.mcpRegistryProvider':
+					return jsonResponse({ mcp_registries: [{ url: 'https://fresh-registry.example.com', registry_access: 'allow_all' }] });
+				default:
+					throw new Error(`Unexpected request: ${options.url}`);
 			}
-			throw new Error(`Unexpected request: ${options.url}`);
 		});
-		const provider = await createProvider(requestService);
+		const provider = await createProvider(requestService, {}, {}, 'https://api.github.com/copilot_internal/managed_settings', {}, {
+			tokenEntitlementUrl: 'https://api.github.com/copilot_internal/v2/token',
+			mcpRegistryDataUrl: 'https://api.github.com/copilot/mcp_registry',
+		});
 		const fetchedAt = Date.now() - 1000;
+		const cachedPolicy = createCachedPolicy(false);
 		const policyData = {
-			...createCachedPolicy(false),
+			...cachedPolicy,
 			policyData: {
-				...createCachedPolicy(false).policyData,
+				...cachedPolicy.policyData,
 				chat_agent_enabled: true,
 				mcp: true,
 				mcpRegistryUrl: 'https://registry.example.com',
@@ -150,26 +159,32 @@ suite('DefaultAccountProvider', () => {
 			copilotTokenInfo: { sn: 'cached-token' },
 		});
 
-		const result = await provider['getDefaultAccountFromAuthenticatedSessions'](
+		const normal = await provider['getDefaultAccountFromAuthenticatedSessions'](
+			{ id: 'github', name: 'GitHub', enterprise: false },
+			sessions
+		);
+		const normalRequestCount = requestService.requestCount;
+		const forced = await provider['getDefaultAccountFromAuthenticatedSessions'](
 			{ id: 'github', name: 'GitHub', enterprise: false },
 			sessions,
-			{ forceRefresh: 'entitlements' }
+			{ forceRefresh: true }
 		);
 
 		assert.deepStrictEqual({
+			normalRequestCount,
+			normalCopilotPlan: normal?.defaultAccount.entitlementsData?.copilot_plan,
 			callSites: requestService.requests.map(request => request.callSite),
-			copilotPlan: result?.defaultAccount.entitlementsData?.copilot_plan,
-			entitlementsRefreshed: result?.policyData?.entitlementsFetchedAt !== fetchedAt,
-			tokenEntitlementsFetchedAt: result?.policyData?.tokenEntitlementsFetchedAt,
-			mcpRegistryDataFetchedAt: result?.policyData?.mcpRegistryDataFetchedAt,
-			managedSettingsFetchedAt: result?.policyData?.managedSettingsFetchedAt,
+			forcedCopilotPlan: forced?.defaultAccount.entitlementsData?.copilot_plan,
 		}, {
-			callSites: ['defaultAccount.entitlements'],
-			copilotPlan: 'business',
-			entitlementsRefreshed: true,
-			tokenEntitlementsFetchedAt: fetchedAt,
-			mcpRegistryDataFetchedAt: fetchedAt,
-			managedSettingsFetchedAt: fetchedAt,
+			normalRequestCount: 0,
+			normalCopilotPlan: 'individual',
+			callSites: [
+				'defaultAccount.entitlements',
+				'defaultAccount.tokenEntitlements',
+				'defaultAccount.managedSettings',
+				'defaultAccount.mcpRegistryProvider',
+			],
+			forcedCopilotPlan: 'business',
 		});
 	});
 
@@ -388,7 +403,7 @@ suite('DefaultAccountProvider', () => {
 		const provider = await createProvider(requestService);
 		const cachedPolicy = createCachedPolicy(false);
 
-		const result = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: 'managedSettings' });
+		const result = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
 
 		assert.deepStrictEqual({
 			status: provider.managedSettingsFetchStatus,
@@ -409,7 +424,7 @@ suite('DefaultAccountProvider', () => {
 		const requestService = new TestRequestService(async () => jsonResponse({ error_code: 'unexpected' }, 466));
 		const provider = await createProvider(requestService);
 
-		const result = await provider['getManagedSettings'](sessions, createCachedPolicy(false), { forceRefresh: 'managedSettings' });
+		const result = await provider['getManagedSettings'](sessions, createCachedPolicy(false), { forceRefresh: true });
 
 		assert.deepStrictEqual({
 			data: result.data,
@@ -452,7 +467,7 @@ suite('DefaultAccountProvider', () => {
 		const provider = await createProvider(requestService);
 		const cachedPolicy = createCachedPolicy(false);
 
-		const result = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: 'managedSettings' });
+		const result = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
 
 		assert.deepStrictEqual({
 			requestCount: requestService.requestCount,
@@ -508,7 +523,7 @@ suite('DefaultAccountProvider', () => {
 			policyData: first.data ?? {},
 			managedSettingsFetchedAt: first.fetchedAt,
 		};
-		await provider['getManagedSettings'](sessions, retryPolicy, { retryManagedSettings: true });
+		await provider['getManagedSettings'](sessions, retryPolicy, { forceRefresh: true, retryManagedSettings: true });
 
 		assert.deepStrictEqual({
 			requestCount: requestService.requestCount,
@@ -533,8 +548,8 @@ suite('DefaultAccountProvider', () => {
 		const cachedPolicy = createCachedPolicy(true);
 
 		await provider['getManagedSettings'](sessions, cachedPolicy);
-		await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: 'managedSettings' });
-		await provider['getManagedSettings'](sessions, cachedPolicy, { retryManagedSettings: true });
+		await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
+		await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true, retryManagedSettings: true });
 
 		assert.deepStrictEqual({
 			requestCount: requestService.requestCount,
@@ -558,8 +573,8 @@ suite('DefaultAccountProvider', () => {
 		const provider = await createProvider(requestService);
 		const cachedPolicy = createCachedPolicy(false);
 
-		await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: 'managedSettings' });
-		await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: 'managedSettings' });
+		await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
+		await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
 
 		assert.strictEqual(requestService.requestCount, 2);
 	});
@@ -576,7 +591,7 @@ suite('DefaultAccountProvider', () => {
 		await provider['getDefaultAccountFromAuthenticatedSessions'](
 			{ id: 'github', name: 'GitHub', enterprise: false },
 			sessions,
-			{ forceRefresh: 'managedSettings' }
+			{ forceRefresh: true }
 		);
 
 		assert.deepStrictEqual({
@@ -717,7 +732,7 @@ suite('DefaultAccountProvider', () => {
 			...cachedPolicy,
 			policyData: failed.data ?? {},
 			managedSettingsFetchedAt: failed.fetchedAt,
-		}, { retryManagedSettings: true });
+		}, { forceRefresh: true, retryManagedSettings: true });
 
 		assert.deepStrictEqual({
 			requestCount,
@@ -742,7 +757,7 @@ suite('DefaultAccountProvider', () => {
 		const account = await provider['getDefaultAccountFromAuthenticatedSessions'](
 			{ id: 'github', name: 'GitHub', enterprise: false },
 			sessions,
-			{ forceRefresh: 'managedSettings' }
+			{ forceRefresh: true }
 		);
 		assert.ok(account);
 		provider['setDefaultAccount'](account);
@@ -820,9 +835,9 @@ suite('DefaultAccountProvider', () => {
 		const provider = await createProvider(requestService, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true });
 
 		await provider['getManagedSettings'](sessions, undefined);
-		await provider['getManagedSettings'](sessions, undefined, { forceRefresh: 'managedSettings' });
+		await provider['getManagedSettings'](sessions, undefined, { forceRefresh: true });
 		provider['_rateLimitBackoffUntil'] = 0;
-		await provider['getManagedSettings'](sessions, undefined, { retryManagedSettings: true });
+		await provider['getManagedSettings'](sessions, undefined, { forceRefresh: true, retryManagedSettings: true });
 
 		assert.deepStrictEqual({
 			requestCount: requestService.requestCount,
@@ -918,7 +933,7 @@ suite('DefaultAccountProvider', () => {
 
 		await provider['getManagedSettings'](sessions, undefined);
 		provider['setManagedSettingsFreshness']({ state: ManagedSettingsFreshnessState.NotRequired });
-		await provider['getManagedSettings'](sessions, undefined, { forceRefresh: 'managedSettings' });
+		await provider['getManagedSettings'](sessions, undefined, { forceRefresh: true });
 
 		assert.deepStrictEqual({
 			requestCount: requestService.requestCount,
@@ -955,11 +970,11 @@ suite('DefaultAccountProvider', () => {
 		const freshlyCached = createCachedPolicy(false);
 		const staleFetchedAt = Date.now() - 2 * 60 * 60 * 1000; // twice the one-hour poll interval
 
-		const whileFresh = await provider['getManagedSettings'](sessions, freshlyCached, { forceRefresh: 'managedSettings' });
+		const whileFresh = await provider['getManagedSettings'](sessions, freshlyCached, { forceRefresh: true });
 		const onceStale = await provider['getManagedSettings'](
 			sessions,
 			{ ...freshlyCached, managedSettingsFetchedAt: staleFetchedAt },
-			{ forceRefresh: 'managedSettings' }
+			{ forceRefresh: true }
 		);
 
 		assert.deepStrictEqual({
@@ -987,8 +1002,8 @@ suite('DefaultAccountProvider', () => {
 		const provider = await createProvider(requestService);
 		const cachedPolicy = createCachedPolicy(false);
 
-		await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: 'managedSettings' });
-		const result = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: 'managedSettings' });
+		await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
+		const result = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
 
 		assert.deepStrictEqual({
 			status: provider.managedSettingsFetchStatus,
@@ -1001,7 +1016,7 @@ suite('DefaultAccountProvider', () => {
 		});
 	});
 
-	test('successful managed-settings refresh clears a prior update-required state', async () => {
+	test('successful full refresh clears a prior update-required state', async () => {
 		const requestService = new TestRequestService(async options => {
 			if (options.url?.endsWith('/copilot_internal/user')) {
 				return jsonResponse({ chat_enabled: true });
@@ -1017,7 +1032,7 @@ suite('DefaultAccountProvider', () => {
 		const account = await provider['getDefaultAccountFromAuthenticatedSessions'](
 			{ id: 'github', name: 'GitHub', enterprise: false },
 			sessions,
-			{ forceRefresh: 'managedSettings' }
+			{ forceRefresh: true }
 		);
 		assert.ok(account);
 		provider['setDefaultAccount'](account);
@@ -1117,7 +1132,7 @@ suite('DefaultAccountProvider', () => {
 			label: 'GitHub',
 			event: { added: [replacementSession], removed: sessions, changed: [] },
 		});
-		const replacementRefresh = provider.refresh({ forceRefresh: 'entitlements' });
+		const replacementRefresh = provider.refresh({ forceRefresh: true });
 		await refreshStarted.p;
 
 		authenticationSessions = [];
@@ -1147,6 +1162,7 @@ suite('DefaultAccountProvider', () => {
 		fileManagedSettings: ManagedSettingsData = {},
 		managedSettingsUrl = 'https://api.github.com/copilot_internal/managed_settings',
 		authenticationServiceOverrides: Partial<IAuthenticationService> = {},
+		accountDataUrls: { tokenEntitlementUrl?: string; mcpRegistryDataUrl?: string } = {},
 	): Promise<DefaultAccountProvider> {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
@@ -1210,9 +1226,9 @@ suite('DefaultAccountProvider', () => {
 				enterpriseProviderUriSetting: 'github-enterprise.uri',
 				scopes: [['user:email']],
 			},
-			tokenEntitlementUrl: '',
+			tokenEntitlementUrl: accountDataUrls.tokenEntitlementUrl ?? '',
 			entitlementUrl: 'https://api.github.com/copilot_internal/user',
-			mcpRegistryDataUrl: '',
+			mcpRegistryDataUrl: accountDataUrls.mcpRegistryDataUrl ?? '',
 			managedSettingsUrl,
 		}));
 		await provider.refresh();

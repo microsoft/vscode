@@ -1391,7 +1391,7 @@ class SyncAccountPolicyAction extends Action2 {
 
 		try {
 			logService.info('[DefaultAccount] Manually syncing account policy');
-			await defaultAccountService.refresh({ retryManagedSettings: true });
+			await defaultAccountService.refresh({ forceRefresh: true, retryManagedSettings: true });
 			if (isManagedSettingsFreshnessBlocking(defaultAccountService.managedSettingsFreshness)) {
 				logService.warn('[DefaultAccount] Account policy sync completed without satisfying managed settings freshness');
 				await dialogService.error(localize('syncAccountPolicy.blocked', "Failed to sync account policy."), localize('syncAccountPolicy.blocked.detail', "The required managed settings could not be refreshed."));

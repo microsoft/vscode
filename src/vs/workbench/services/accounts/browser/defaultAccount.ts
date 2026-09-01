@@ -700,7 +700,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 
 	private onManagedSettingsSourceChanged(): void {
 		if (this.initialized) {
-			void this.updateDefaultAccount({ forceRefresh: 'managedSettings' });
+			void this.updateDefaultAccount();
 		}
 	}
 
@@ -834,7 +834,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				: undefined;
 			if (!requirement.effective) {
 				this.setManagedSettingsFreshness(MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED);
-			} else if ((!scope || !isManagedSettingsFreshnessSatisfiedFor(this._managedSettingsFreshness, scope) || options?.forceRefresh === 'managedSettings') && this.canRequestManagedSettings(options, scope)) {
+			} else if ((!scope || !isManagedSettingsFreshnessSatisfiedFor(this._managedSettingsFreshness, scope) || options?.forceRefresh) && this.canRequestManagedSettings(options, scope)) {
 				this.setManagedSettingsFreshness({
 					state: ManagedSettingsFreshnessState.Pending,
 					source: requirement.source,
@@ -846,7 +846,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			const entitlementsData = entitlementsResult?.data;
 			const entitlementsFetchedAt = entitlementsResult?.fetchedAt;
 			const [tokenEntitlementsResult, managedSettingsResult] = await Promise.all([
-				entitlementsData?.chat_enabled ? this.getTokenEntitlements(sessions, accountPolicyData) : undefined,
+				entitlementsData?.chat_enabled ? this.getTokenEntitlements(sessions, accountPolicyData, options) : undefined,
 				entitlementsData?.chat_enabled || requirement.effective
 					? this.getManagedSettings(sessions, accountPolicyData, options, authenticationProvider, sources, requirement)
 					: undefined,
@@ -871,7 +871,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				policyData.chat_preview_features_enabled = tokenEntitlementsData.policyData.chat_preview_features_enabled;
 				policyData.mcp = tokenEntitlementsData.policyData.mcp;
 				if (policyData.mcp) {
-					const mcpRegistryResult = await this.getMcpRegistryProvider(sessions, accountPolicyData);
+					const mcpRegistryResult = await this.getMcpRegistryProvider(sessions, accountPolicyData, options);
 					mcpRegistryDataFetchedAt = mcpRegistryResult?.fetchedAt;
 					policyData.mcpRegistryUrl = mcpRegistryResult?.data?.url;
 					policyData.mcpAccess = mcpRegistryResult?.data?.registry_access;
@@ -960,8 +960,8 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		return expectedScopes.every(scope => scopes.includes(scope));
 	}
 
-	private async getTokenEntitlements(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined): Promise<{ data: { policyData: Partial<IPolicyData>; copilotTokenInfo: ICopilotTokenInfo } | undefined; fetchedAt: number }> {
-		if (accountPolicyData?.tokenEntitlementsFetchedAt && !this.isDataStale(accountPolicyData.tokenEntitlementsFetchedAt)) {
+	private async getTokenEntitlements(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: IDefaultAccountRefreshOptions): Promise<{ data: { policyData: Partial<IPolicyData>; copilotTokenInfo: ICopilotTokenInfo } | undefined; fetchedAt: number }> {
+		if (!options?.forceRefresh && accountPolicyData?.tokenEntitlementsFetchedAt && !this.isDataStale(accountPolicyData.tokenEntitlementsFetchedAt)) {
 			this.logService.debug('[DefaultAccount] Using last fetched token entitlements data');
 			return { data: { policyData: accountPolicyData.policyData, copilotTokenInfo: this._copilotTokenInfo ?? {} }, fetchedAt: accountPolicyData.tokenEntitlementsFetchedAt };
 		}
@@ -1016,7 +1016,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	private async getEntitlements(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: IDefaultAccountRefreshOptions): Promise<{ data: IEntitlementsData | undefined | null; fetchedAt: number | undefined }> {
 		const accountId = sessions[0].account.id;
 		const existingData = this._defaultAccount?.accountId === accountId ? this._defaultAccount?.defaultAccount.entitlementsData : undefined;
-		if (options?.forceRefresh !== 'entitlements' && existingData && accountPolicyData?.entitlementsFetchedAt && !this.isDataStale(accountPolicyData.entitlementsFetchedAt)) {
+		if (!options?.forceRefresh && existingData && accountPolicyData?.entitlementsFetchedAt && !this.isDataStale(accountPolicyData.entitlementsFetchedAt)) {
 			this.logService.debug('[DefaultAccount] Using last fetched entitlements data');
 			return { data: existingData, fetchedAt: accountPolicyData.entitlementsFetchedAt };
 		}
@@ -1054,8 +1054,8 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		return { data: undefined, fetchedAt: Date.now() };
 	}
 
-	private async getMcpRegistryProvider(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined): Promise<{ data: IMcpRegistryProvider | null; fetchedAt: number } | undefined> {
-		if (accountPolicyData?.mcpRegistryDataFetchedAt && !this.isDataStale(accountPolicyData.mcpRegistryDataFetchedAt)) {
+	private async getMcpRegistryProvider(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: IDefaultAccountRefreshOptions): Promise<{ data: IMcpRegistryProvider | null; fetchedAt: number } | undefined> {
+		if (!options?.forceRefresh && accountPolicyData?.mcpRegistryDataFetchedAt && !this.isDataStale(accountPolicyData.mcpRegistryDataFetchedAt)) {
 			this.logService.debug('[DefaultAccount] Using last fetched MCP registry data');
 			const data = accountPolicyData.policyData.mcpRegistryUrl && accountPolicyData.policyData.mcpAccess ? { url: accountPolicyData.policyData.mcpRegistryUrl, registry_access: accountPolicyData.policyData.mcpAccess } : null;
 			return { data, fetchedAt: accountPolicyData.mcpRegistryDataFetchedAt };
@@ -1170,7 +1170,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		// When forceRemoteSettingsRefresh is effective, reuse also requires this scope's freshness to be
 		// satisfied; an outstanding compatibility error always forces revalidation.
 		const forceManagedSettingsRefresh = options?.retryManagedSettings === true
-			|| options?.forceRefresh === 'managedSettings';
+			|| options?.forceRefresh === true;
 		if (!forceManagedSettingsRefresh && scopedCachedManagedSettings && (!requirement.effective || freshnessSatisfied) && !this._managedSettingsCompatibilityError) {
 			this.logService.debug('[DefaultAccount] Using last fetched managed settings data');
 			return { ...scopedCachedManagedSettings, scope, compatibilityError: this._managedSettingsCompatibilityError };

@@ -1221,7 +1221,7 @@ export class ChatEntitlementRequests extends Disposable {
 	}
 
 	async forceResolveEntitlement(token = CancellationToken.None): Promise<IEntitlements | undefined> {
-		const defaultAccount = await this.defaultAccountService.refresh({ forceRefresh: 'entitlements' });
+		const defaultAccount = await this.defaultAccountService.refresh();
 		if (!defaultAccount) {
 			return undefined;
 		}

@@ -348,7 +348,7 @@ suite('AccountPolicyGateContribution', () => {
 				},
 			],
 			notificationCount: 0,
-			retryOptions: [{ retryManagedSettings: true }],
+			retryOptions: [{ forceRefresh: true, retryManagedSettings: true }],
 			retryResult: undefined,
 		});
 		assert.match(promptStub.getCall(5).args[0].message, /requires Code to refresh managed settings whenever it starts or reloads\.\n\nAn error prevented the required policy/);

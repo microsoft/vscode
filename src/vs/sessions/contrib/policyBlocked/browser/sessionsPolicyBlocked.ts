@@ -195,7 +195,7 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 			&& freshness?.failure !== ManagedSettingsFreshnessFailure.UpdateRequired) {
 			const retryButton = this._register(new Button(card, { ...defaultButtonStyles }));
 			retryButton.label = localize('managedSettingsRefresh.retry', "Retry");
-			this._register(retryButton.onDidClick(() => this.defaultAccountService.refresh({ retryManagedSettings: true })));
+			this._register(retryButton.onDidClick(() => this.defaultAccountService.refresh({ forceRefresh: true, retryManagedSettings: true })));
 		}
 
 		const openVSCodeButton = this._register(new Button(card, { ...defaultButtonStyles, secondary: true }));

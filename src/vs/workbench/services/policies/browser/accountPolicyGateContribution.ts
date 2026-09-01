@@ -348,7 +348,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 			buttons.push({
 				label: localize('managedSettingsRefresh.dialog.retry', "Retry"),
 				run: () => {
-					void this.defaultAccountService.refresh({ retryManagedSettings: true });
+					void this.defaultAccountService.refresh({ forceRefresh: true, retryManagedSettings: true });
 				},
 			});
 		}

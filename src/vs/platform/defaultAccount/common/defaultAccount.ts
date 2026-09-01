@@ -37,8 +37,7 @@ export interface IManagedSettingsCompatibilityError {
 }
 
 export interface IDefaultAccountRefreshOptions {
-	/** Account data whose fresh cache should be bypassed. */
-	readonly forceRefresh?: 'entitlements' | 'managedSettings';
+	readonly forceRefresh?: boolean;
 	/** Forces managed-settings revalidation and allows an explicit retry after a failed attempt. */
 	readonly retryManagedSettings?: boolean;
 }
