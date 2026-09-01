@@ -556,9 +556,7 @@ export class NewSessionUncommittedChangesetOperationsActionContribution extends 
 								id: Menus.SessionsEditorHeaderLayout,
 								group: 'navigation',
 								order: index,
-								when: operation.id === AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID
-									? ActiveEditorContext.isEqualTo(SessionChangesEditor.ID)
-									: undefined,
+								when: ActiveEditorContext.isEqualTo(SessionChangesEditor.ID),
 							}
 						});
 					}
