@@ -267,6 +267,9 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		}
 		this._sessionVisible = visible;
 		this._currentView.value?.setVisible(visible);
+		if (visible) {
+			this._layoutChildren();
+		}
 	}
 
 	submitInput(): Promise<boolean> {
@@ -296,7 +299,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	}
 
 	private _layoutChildren(): void {
-		if (!this._lastLayout) {
+		if (!this._lastLayout || !this._sessionVisible) {
 			return;
 		}
 		const { width, height, top, left } = this._lastLayout;
