@@ -36,6 +36,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 		 * snapshot for the session yet.
 		 */
 		private readonly _getHostCustomizations: (session: URI | string) => readonly Customization[] | undefined = () => undefined,
+		private readonly _resolveSessionCustomizations?: (agent: IAgent, session: URI) => Promise<readonly Customization[]>,
 	) {
 		super();
 	}
@@ -88,7 +89,9 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 
 	private async _getCandidates(agent: IAgent, session: URI): Promise<readonly SlashCommmandCandidate[]> {
 		const chat = URI.parse(buildDefaultChatUri(session));
-		const customizations = await agent.getChatCustomizations(chat, { configurationResource: session, resource: session }, this._getHostCustomizations(session));
+		const customizations = this._resolveSessionCustomizations
+			? await this._resolveSessionCustomizations(agent, session)
+			: await agent.getChatCustomizations(chat, { configurationResource: session, resource: session }, this._getHostCustomizations(session));
 		const result: SlashCommmandCandidate[] = [];
 		for (const c of customizations) {
 			if (c.type === CustomizationType.McpServer || (c.type === CustomizationType.Plugin ? !isCustomizationEnabled(c) : !c.enabled) || !c.children) {

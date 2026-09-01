@@ -43,6 +43,7 @@ import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification } from '../../common/state/sessionActions.js';
 import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageHiddenFromTranscript, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
+import { CompletionItemKind } from '../../common/state/protocol/commands.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -541,6 +542,40 @@ suite('AgentService (node dispatcher)', () => {
 			total: 100,
 			message: 'Downloading Codex agent',
 		}]);
+	});
+
+	test('publishes a newly discovered skill before returning its completion', async () => {
+		registerTestAgentProvider(service, copilotAgent);
+		const session = await service.createSession({ provider: 'copilot' });
+		const customization = {
+			type: CustomizationType.Plugin,
+			id: customizationId('file:///dummy'),
+			uri: 'file:///dummy',
+			name: 'dummy',
+			children: [{
+				type: CustomizationType.Skill,
+				id: customizationId('file:///dummy/skills/print-hello-world/SKILL.md'),
+				uri: 'file:///dummy/skills/print-hello-world/SKILL.md',
+				name: 'print-hello-world',
+				description: 'Calculate the sum of 3+3 and output it.',
+			}],
+		} as const;
+		copilotAgent.customizations = [customization];
+
+		const result = await service.completions({
+			kind: CompletionItemKind.UserMessage,
+			channel: session.toString(),
+			text: '/print',
+			offset: '/print'.length,
+		});
+
+		assert.deepStrictEqual({
+			items: result.items.map(item => item.insertText),
+			published: getStateManager(service).getSessionState(session.toString())?.customizations,
+		}, {
+			items: ['/dummy:print-hello-world '],
+			published: [customization],
+		});
 	});
 
 	// ---- Provider registration ------------------------------------------

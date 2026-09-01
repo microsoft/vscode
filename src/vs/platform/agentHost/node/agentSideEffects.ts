@@ -449,7 +449,7 @@ export class AgentSideEffects extends Disposable {
 		this._stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents: infos });
 	}
 
-	private async _publishSessionCustomizations(agent: IAgent, session: ProtocolURI, supersededRetries: number): Promise<void> {
+	private async _publishSessionCustomizations(agent: IAgent, session: ProtocolURI, supersededRetries: number): Promise<readonly Customization[]> {
 		const currentBeforeFetch = this._stateManager.getSessionState(session)?.customizations;
 		const chat = URI.parse(this._stateManager.getSessionState(session)?.defaultChat ?? buildDefaultChatUri(session));
 		const customizations = await agent.getChatCustomizations(chat, this._chatContext(session, chat.toString()), currentBeforeFetch);
@@ -473,29 +473,39 @@ export class AgentSideEffects extends Disposable {
 			if (supersededRetries < MAX_SUPERSEDED_CUSTOMIZATION_PUBLISH_RETRIES) {
 				this._publishSessionCustomizationsSoon(agent, session, supersededRetries + 1);
 			}
-			return;
+			return current ?? [];
 		}
 		if (current && equals(current, customizations)) {
-			return;
+			return current;
 		}
 
 		this._stateManager.dispatchServerAction(session, {
 			type: ActionType.SessionCustomizationsChanged,
 			customizations: [...customizations],
 		});
+		return customizations;
 	}
 
 	private _publishSessionCustomizationsSoon(agent: IAgent, session: ProtocolURI, supersededRetries = 0): void {
+		void this.refreshSessionCustomizations(agent, session, supersededRetries).catch(() => { });
+	}
+
+	/**
+	 * Resolves and publishes the session's effective customizations in serialization order.
+	 */
+	refreshSessionCustomizations(agent: IAgent, session: ProtocolURI, supersededRetries = 0): Promise<readonly Customization[]> {
 		const previous = this._pendingSessionCustomizationPublishes.get(session) ?? Promise.resolve();
-		const publish = previous.then(() => this._publishSessionCustomizations(agent, session, supersededRetries)).catch(err => {
+		const publish = previous.then(() => this._publishSessionCustomizations(agent, session, supersededRetries));
+		const tracked = publish.then(() => undefined, err => {
 			this._logService.error('[AgentSideEffects] getChatCustomizations failed', err);
 		});
-		this._pendingSessionCustomizationPublishes.set(session, publish);
-		void publish.finally(() => {
-			if (this._pendingSessionCustomizationPublishes.get(session) === publish) {
+		this._pendingSessionCustomizationPublishes.set(session, tracked);
+		void tracked.finally(() => {
+			if (this._pendingSessionCustomizationPublishes.get(session) === tracked) {
 				this._pendingSessionCustomizationPublishes.delete(session);
 			}
 		});
+		return publish;
 	}
 
 	private _publishPendingCustomizationEnablementRefreshes(): void {
