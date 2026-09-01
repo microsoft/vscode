@@ -19,6 +19,11 @@ import { ensureDevContainerAgentHostsEnabled, isDevContainerWorkspaceAvailable }
 suite('Dev Container Agent Host Connector', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+	// Capture these before configuration registry tests clear global registrations.
+	const devContainerAgentHostEnabledProperty = configurationRegistry.getConfigurationProperties()[DevContainerAgentHostEnabledSettingId];
+	const devContainerWorktreeEnabledProperty = configurationRegistry.getExcludedConfigurationProperties()[DevContainerWorktreeEnabledSettingId];
+
 	test('requires Docker and a default Dev Container configuration', async () => {
 		const workspaceUri = URI.file('/workspace');
 		const check = (existingPaths: readonly string[], dockerAvailable: boolean, devContainerAgentHostsEnabled = true, remoteAgentHostsEnabled = true, uri = workspaceUri) => {
@@ -59,14 +64,11 @@ suite('Dev Container Agent Host Connector', () => {
 	});
 
 	test('registers an experimental, disabled-by-default user setting', () => {
-		const property = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-			.getConfigurationProperties()[DevContainerAgentHostEnabledSettingId];
-
 		assert.deepStrictEqual({
-			default: property.default,
-			scope: property.scope,
-			tags: property.tags,
-			experiment: property.experiment,
+			default: devContainerAgentHostEnabledProperty.default,
+			scope: devContainerAgentHostEnabledProperty.scope,
+			tags: devContainerAgentHostEnabledProperty.tags,
+			experiment: devContainerAgentHostEnabledProperty.experiment,
 		}, {
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
@@ -76,14 +78,11 @@ suite('Dev Container Agent Host Connector', () => {
 	});
 
 	test('registers a hidden experimental setting for combining Dev Containers and worktrees', () => {
-		const property = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-			.getExcludedConfigurationProperties()[DevContainerWorktreeEnabledSettingId];
-
 		assert.deepStrictEqual({
-			default: property.default,
-			scope: property.scope,
-			tags: property.tags,
-			experiment: property.experiment,
+			default: devContainerWorktreeEnabledProperty.default,
+			scope: devContainerWorktreeEnabledProperty.scope,
+			tags: devContainerWorktreeEnabledProperty.tags,
+			experiment: devContainerWorktreeEnabledProperty.experiment,
 		}, {
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
