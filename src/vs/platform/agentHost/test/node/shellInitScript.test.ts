@@ -9,6 +9,7 @@ import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
 import { join } from '../../../../base/common/path.js';
+import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { createShellInitScript, isShellInitScriptList } from '../../common/shellInitScript.js';
 
@@ -34,7 +35,7 @@ suite('shellInitScript', () => {
 
 	test('combines PowerShell profile loading before Python activation', () => {
 		const { script } = createShellInitScript('powershell', `& 'C:\\repo\\.venv\\Scripts\\Activate.ps1'`);
-		assert.ok(script.indexOf('$PROFILE.CurrentUserAllHosts') < script.indexOf('Activate.ps1'));
+		assert.ok(script.indexOf('$PROFILE.CurrentUserAllHosts') < script.indexOf('FromBase64String'));
 		assert.ok(script.trimEnd().endsWith('$global:LASTEXITCODE = 0'));
 	});
 
@@ -54,8 +55,18 @@ suite('shellInitScript', () => {
 		});
 	});
 
-	test('rejects a PowerShell payload that terminates the here-string', () => {
-		assert.throws(() => createShellInitScript('powershell', `conda activate x\n'@\nWrite-Output pwned`), /here-string/);
+	test('PowerShell activation uses total UTF-8 base64 encoding', () => {
+		const activation = `$value = @'\ncontains the old terminator\n'@\n$env:VSCODE_TEST_ACTIVATION = $value`;
+		const { script } = createShellInitScript('powershell', activation);
+		const match = /FromBase64String\('(?<encoded>[A-Za-z0-9+/=]+)'\)/.exec(script);
+		assert.ok(match?.groups?.encoded);
+		assert.deepStrictEqual({
+			decoded: decodeBase64(match.groups.encoded).toString(),
+			rawPayloadEmbedded: script.includes(activation),
+		}, {
+			decoded: activation,
+			rawPayloadEmbedded: false,
+		});
 	});
 
 	test('accepts only an empty list or one valid script', () => {
@@ -125,6 +136,19 @@ suite('shellInitScript', () => {
 					'command-ran status=0',
 				],
 			);
+		});
+
+		(process.platform === 'win32' ? suite : suite.skip)('PowerShell behavior', () => {
+			test('decodes and executes the activation payload', async () => {
+				const { script } = createShellInitScript('powershell', `$env:VSCODE_TEST_ACTIVATION = 'loaded'`);
+				const command = [
+					`$PROFILE = [pscustomobject]@{ CurrentUserAllHosts = ''; CurrentUserCurrentHost = '' }`,
+					script,
+					`Write-Output "activation=$env:VSCODE_TEST_ACTIVATION"`,
+				].join('\n');
+				const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command]);
+				assert.strictEqual(stdout.trim(), 'activation=loaded');
+			});
 		});
 	});
 });

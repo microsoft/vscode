@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+
 export type ShellInitScriptShell = 'bash' | 'powershell';
 
 /**
@@ -19,11 +21,9 @@ function quoteBash(value: string): string {
 	return `'${value.replaceAll(`'`, `'\\''`)}'`;
 }
 
-function powerShellHereString(value: string): string {
-	if (value.split(/\r?\n/).some(line => line.trimEnd() === `'@`)) {
-		throw new Error(`Cannot embed a PowerShell here-string payload containing a line equal to "'@"`);
-	}
-	return `@'\n${value}\n'@`;
+function encodedPowerShellExpression(value: string): string {
+	const encoded = encodeBase64(VSBuffer.fromString(value));
+	return `[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${encoded}'))`;
 }
 
 function powerShellBlock(body: readonly string[], failureMessage: string): string[] {
@@ -98,7 +98,7 @@ function createPowerShellInitScript(pythonActivation: string | undefined): IShel
 	];
 	if (pythonActivation?.trim()) {
 		lines.push(...powerShellBlock(
-			[`\tInvoke-Expression ${powerShellHereString(pythonActivation)}`],
+			[`\tInvoke-Expression (${encodedPowerShellExpression(pythonActivation)})`],
 			'copilot shell init: Python activation failed; continuing without the selected environment.',
 		));
 	}
