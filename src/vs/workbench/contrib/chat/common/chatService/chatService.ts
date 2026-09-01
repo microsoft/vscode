@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../../nls.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
 import { autorun, autorunSelfDisposable, IObservable, IReader } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -52,6 +53,10 @@ export interface IChatResponseErrorDetailsConfirmationButton {
 	data: any;
 	label: string;
 	isSecondary?: boolean;
+	/** Replace and resend the request associated with this response instead of adding a new request. */
+	resend?: boolean;
+	/** Reuse the existing request model and identifier when resending. */
+	preserveRequestId?: boolean;
 }
 
 export interface IChatResponseErrorDetails {
@@ -214,6 +219,17 @@ export function formatCopilotCredits(credits: number): string {
 	return parseFloat(credits.toFixed(1)).toString();
 }
 
+/**
+ * Formats a credit value as a pluralized label such as "1 credit" or "2.5 credits".
+ * Shared so every credit readout agrees.
+ */
+export function formatCopilotCreditsLabel(credits: number): string {
+	const formatted = formatCopilotCredits(credits);
+	return formatted === '1'
+		? localize('chat.credit', "{0} credit", formatted)
+		: localize('chat.credits', "{0} credits", formatted);
+}
+
 export interface IChatContentInlineReference {
 	resolveId?: string;
 	inlineReference: URI | Location | IWorkspaceSymbol;
@@ -300,6 +316,11 @@ export interface IChatProgressMessage {
 export interface IChatSystemNotificationPart {
 	content: IMarkdownString;
 	kind: 'systemNotification';
+	/**
+	 * Icon shown beside the notification. Defaults to a check, which only suits
+	 * notifications that report something completing.
+	 */
+	icon?: ThemeIcon;
 }
 
 export interface IChatTask extends IChatTaskDto {
@@ -584,20 +605,15 @@ export interface IChatThinkingPart {
 }
 
 /**
- * A progress part representing an auto-mode model routing resolution.
- * Shown as a collapsible widget in the chat stream: collapsed displays
- * "Routed to <model>", expanded shows routing details and confidence.
+ * Explains what the "Auto" model routed a turn to, as a single status line.
+ *
+ * A resolved part replaces the row that is still routing; Auto can route more
+ * than once per turn, and each later route gets its own row.
  */
 export interface IChatAutoModeResolutionPart {
 	kind: 'autoModeResolution';
-	/** The model ID that was selected by the router */
-	resolvedModel: string;
-	/** The user-facing display name of the resolved model */
-	resolvedModelName: string;
-	/** The router's classification label */
-	predictedLabel: 'needs_reasoning' | 'no_reasoning' | 'fallback';
-	/** Confidence score (0-1) from the router */
-	confidence: number;
+	/** The model the router picked, or `undefined` while routing is in flight. */
+	resolved?: { readonly id: string; readonly name: string };
 }
 
 /**
@@ -761,6 +777,8 @@ export type ChatMcpAppData =
 		kind: 'agentHost';
 		/** URI of the UI resource for rendering (e.g., "ui://weather-server/dashboard") */
 		resourceUri: string;
+		/** Sanitized connection identifier used to resolve App-provided resource URIs. */
+		connectionAuthority: string;
 		/** AHP `mcp://` channel URI for the originating server. */
 		channel: string;
 		/**
@@ -1202,18 +1220,19 @@ export interface IChatToolResourcesInvocationData {
 }
 
 /**
- * Tool-specific data for a completed `create_session` / `create_chat`
- * agent-host tool call. Carries a clickable link so the renderer can show a
- * deterministic confirmation + "open" button instead of relying on the model
- * to echo a markdown link.
+ * Tool-specific data for a completed `create_session`, `create_chat`, or
+ * `send_message` agent-host tool call. Carries a clickable link so the renderer
+ * can show the target title without relying on the model to echo a markdown link.
  */
 export interface IChatSessionCreatedData {
 	readonly kind: 'sessionCreated';
 	/** The `agent-host-session://` link that opens the created/owning session. */
 	readonly openLink: string;
-	/** Label for the button (e.g. the session title / prompt). */
+	/** The session title / prompt shown as the link label. */
 	readonly label: string;
-	/** Whether this is a `create_chat` result (vs `create_session`); selects the pill icon. */
+	/** The unabbreviated session title / prompt shown when hovering over the link. */
+	readonly fullTitle?: string;
+	/** Whether the link targets a specific chat rather than its owning session. */
 	readonly isChat?: boolean;
 }
 
@@ -1965,6 +1984,8 @@ export interface IChatService {
 
 	readonly onDidCreateModel: Event<IChatModel>;
 
+	registerCustomizationMigrationHintProvider(provider: (sessionResource: URI) => Promise<string | undefined>): IDisposable;
+
 	/**
 	 * An observable containing all live chat models.
 	 */
@@ -2022,7 +2043,7 @@ export interface IChatService {
 	setSessionTitle(sessionResource: URI, title: string): void;
 
 	appendProgress(request: IChatRequestModel, progress: IChatProgress): void;
-	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void>;
+	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions, preserveRequestId?: boolean): Promise<void>;
 	adoptRequest(sessionResource: URI, request: IChatRequestModel): Promise<void>;
 	removeRequest(sessionResource: URI, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionResource: URI, source?: string): Promise<void>;

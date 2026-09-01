@@ -28,7 +28,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRoot
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentChatConfigCompletionsParams, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IAgentSpawnedChatParent, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent } from '../../common/agent.js';
+import { AgentChatMigrationDeferred, type AgentChatMigrationResult, AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentChatConfigCompletionsParams, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IAgentSpawnedChatParent, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent } from '../../common/agent.js';
 import { ensureWorkspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -429,12 +429,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private readonly _onDidSpawnChat = this._register(new Emitter<IAgentSpawnChatEvent>());
 	readonly onDidSpawnChat: Event<IAgentSpawnChatEvent> = this._onDidSpawnChat.event;
 
-	private readonly _onDidDiscoverChats = this._register(new Emitter<readonly IAgentDiscoveredChat[]>({
-		// Discovery is provider-owned and only has observable value once the host
-		// subscribes. Registered chats remain independently available through
-		// listChatsToMigrate().
-		onDidAddFirstListener: () => { void this._startClaudeCodeChatDiscovery(); },
-	}));
+	private readonly _onDidDiscoverChats = this._register(new Emitter<readonly IAgentDiscoveredChat[]>());
 	readonly onDidDiscoverChats = this._onDidDiscoverChats.event;
 	private _claudeCodeChatDiscovery: Promise<void> | undefined;
 
@@ -2054,13 +2049,14 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}));
 	}
 
-	async listChatsToMigrate(): Promise<IAgentChatMetadata[] | undefined> {
-		// `undefined` is "can't enumerate yet", which is the honest answer while the
-		// SDK is absent: the catalog lives inside it, but fetching one is the user's
-		// call. {@link _restartChatDiscovery} revisits this once they make it.
+	startChatDiscovery(): Promise<void> {
+		return this._startClaudeCodeChatDiscovery();
+	}
+
+	async listChatsToMigrate(): Promise<AgentChatMigrationResult> {
 		if (!(await this._sdkService.canLoadWithoutDownload())) {
 			this._logService.info('[Claude] SDK not downloaded yet; deferring the migratable chat list');
-			return undefined;
+			return AgentChatMigrationDeferred;
 		}
 		const chats = await this._listClaudeCodeChats();
 		if (!chats) {

@@ -11,7 +11,6 @@ import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/tel
 		"created_at": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Timestamp when the SDK created the event." },
 		"model_call_id": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "SDK identifier for the model call." },
 		"exp_assignment_context": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Experiment assignment context from the Copilot CLI runtime." },
-		"secondary_assignment_context": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Secondary experiment assignment context assigned by CAPI during model calls." },
 		"session_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier for the Copilot CLI session." },
 		"sdk_session_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier for the SDK session that forwarded the event." },
 		"copilot_tracking_id": { "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight", "comment": "Pseudonymous Copilot user identifier supplied by the runtime." },
@@ -204,7 +203,6 @@ export class CopilotGitHubTelemetryForwarder {
 
 	constructor(
 		private readonly _isRestrictedTelemetryEnabled: () => boolean,
-		private readonly _getVSCodeAssignmentContext: () => string | undefined,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) { }
 
@@ -227,20 +225,13 @@ export class CopilotGitHubTelemetryForwarder {
 			kind: event.kind,
 			restricted: notification.restricted,
 		};
+		delete data.secondary_assignment_context;
 		if (event.kind === 'response.success' || event.kind === 'response.error') {
 			if (agentHostTurnId) {
 				data.turnId = agentHostTurnId;
 			} else {
 				delete data.turnId;
 			}
-		}
-
-		// VS Code's TAS assignment context, scoped to forwarded Copilot CLI
-		// events only — deliberately not a telemetry-service-wide experiment
-		// property, so Claude/Codex/host events stay unstamped.
-		const assignmentContext = this._getVSCodeAssignmentContext();
-		if (assignmentContext) {
-			data['abexp.assignmentcontext'] = assignmentContext;
 		}
 
 		if (event.features) {

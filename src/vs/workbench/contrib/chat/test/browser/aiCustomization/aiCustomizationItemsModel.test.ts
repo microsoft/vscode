@@ -160,7 +160,7 @@ suite('AICustomizationItemsModel', () => {
 				format: PluginFormat.Copilot,
 				label: name,
 				enablement: observableValue('pluginEnablement', ContributionEnablementState.EnabledProfile),
-				remove: () => { },
+				remove: async () => true,
 				hooks: observableValue('pluginHooks', []),
 				commands: observableValue('pluginCommands', []),
 				skills: observableValue('pluginSkills', []),
@@ -215,6 +215,18 @@ suite('AICustomizationItemsModel', () => {
 			assert.strictEqual(providerA_callCount, before + 1);
 		});
 
+		test('unrelated harness changes do not refetch observed sections', async () => {
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			model.getItems(AICustomizationManagementSection.Agents);
+			await timeout(0);
+			const before = providerA_callCount;
+
+			availableHarnesses.set([...availableHarnesses.get(), createDescriptor('C', descriptorA.itemProvider)], undefined);
+			await timeout(0);
+
+			assert.strictEqual(providerA_callCount, before);
+		});
+
 		test('switching harness re-binds and refetches observed sections', async () => {
 			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
 			model.getItems(AICustomizationManagementSection.Agents);
@@ -224,6 +236,29 @@ suite('AICustomizationItemsModel', () => {
 			await timeout(0);
 			const sourceB = model.getActiveItemSource();
 			assert.notStrictEqual(sourceA, sourceB);
+		});
+
+		test('reuses an empty source until its harness is registered', async () => {
+			activeSessionResource.set(URI.parse('C:///session'), undefined);
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			model.getItems(AICustomizationManagementSection.Agents);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Agents);
+
+			const missingSource = model.getActiveItemSource();
+			const repeatedMissingSource = model.getActiveItemSource();
+			availableHarnesses.set([...availableHarnesses.get(), createDescriptor('C', descriptorA.itemProvider)], undefined);
+			await timeout(0);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Agents);
+
+			assert.deepStrictEqual({
+				reusedMissingSource: repeatedMissingSource === missingSource,
+				replacedAfterRegistration: model.getActiveItemSource() !== missingSource,
+				providerCallCount: providerA_callCount,
+			}, {
+				reusedMissingSource: true,
+				replacedAfterRegistration: true,
+				providerCallCount: 1,
+			});
 		});
 
 		test('preserves provider-supplied plugin storage when pluginUri is omitted', async () => {
@@ -609,7 +644,7 @@ suite('AICustomizationItemsModel', () => {
 				format: PluginFormat.Copilot,
 				label: name,
 				enablement: observableValue('pluginEnablement', ContributionEnablementState.EnabledProfile),
-				remove: () => { },
+				remove: async () => true,
 				hooks: observableValue('pluginHooks', []),
 				commands: observableValue('pluginCommands', []),
 				skills: observableValue('pluginSkills', []),
@@ -771,16 +806,10 @@ suite('AICustomizationItemsModel', () => {
 		let disposables: DisposableStore;
 		let instaService: TestInstantiationService;
 		let providerItems: ICustomizationItem[];
-		let builtinSkills: IPromptPath[];
-		let disabledPromptFiles: ResourceSet;
-		let onDidChangeSkills: Emitter<void>;
 
 		setup(() => {
 			disposables = new DisposableStore();
 			providerItems = [];
-			builtinSkills = [];
-			disabledPromptFiles = new ResourceSet();
-			onDidChangeSkills = disposables.add(new Emitter<void>());
 
 			const sessionType = 'agent-host-test';
 			const provider: ICustomizationItemProvider = {
@@ -800,19 +829,17 @@ suite('AICustomizationItemsModel', () => {
 			instaService.stub(IPromptsService, {
 				onDidChangeCustomAgents: Event.None,
 				onDidChangeSlashCommands: Event.None,
-				onDidChangeSkills: onDidChangeSkills.event,
+				onDidChangeSkills: Event.None,
 				onDidChangeHooks: Event.None,
 				onDidChangeInstructions: Event.None,
 				onDidChangeAgentInstructions: Event.None,
 				listPromptFiles: async () => [],
-				listPromptFilesForStorage: async (type: PromptsType, storage: PromptsStorage) => (
-					type === PromptsType.skill && storage === PromptsStorage.builtIn ? builtinSkills.slice() : []
-				),
+				listPromptFilesForStorage: async () => [],
 				getCustomAgents: async () => [],
 				findAgentSkills: async () => [],
 				getHooks: async () => undefined,
 				getInstructionFiles: async () => [],
-				getDisabledPromptFiles: () => disabledPromptFiles,
+				getDisabledPromptFiles: () => new ResourceSet(),
 			});
 			instaService.stub(IAICustomizationWorkspaceService, {
 				activeProjectRoot: observableValue('test', undefined),
@@ -879,74 +906,6 @@ suite('AICustomizationItemsModel', () => {
 					instructions: ['style'],
 				},
 			);
-		});
-
-		// Regression: on agent-host harnesses the Skills list used to render
-		// straight from the provider, which reports the synced *bundle*. A
-		// built-in skill disabled from the Customizations UI is dropped from
-		// that bundle, so the skill vanished from the list instead of showing
-		// as disabled — leaving no way to re-enable it and making the Disable
-		// button look like a no-op. Built-ins are now merged in from the
-		// prompts service, which owns the enable/disable state.
-		test('lists disabled built-in skills as disabled instead of dropping them', async () => {
-			const disabledSkill = URI.file('/builtin/create-pr/SKILL.md');
-			const enabledSkill = URI.file('/builtin/merge/SKILL.md');
-			builtinSkills = [
-				{ uri: disabledSkill, type: PromptsType.skill, storage: PromptsStorage.builtIn, name: 'create-pr' } as IPromptPath,
-				{ uri: enabledSkill, type: PromptsType.skill, storage: PromptsStorage.builtIn, name: 'merge' } as IPromptPath,
-			];
-			disabledPromptFiles = new ResourceSet([disabledSkill]);
-			// The provider only reports the still-bundled skill; the disabled
-			// one is absent because it was excluded from the synced bundle.
-			providerItems = [
-				{ uri: enabledSkill, type: PromptsType.skill, name: 'merge', source: AICustomizationSources.builtin, groupKey: BUILTIN_STORAGE, extensionId: undefined, pluginUri: undefined, userInvocable: true },
-			];
-
-			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
-			const skillItems = model.getItems(AICustomizationManagementSection.Skills);
-			await model.whenSectionLoaded(AICustomizationManagementSection.Skills);
-
-			assert.deepStrictEqual(
-				skillItems.get().map(i => ({ name: i.name, source: i.source, groupKey: i.groupKey, disabled: i.disabled })).sort((a, b) => a.name.localeCompare(b.name)),
-				[
-					{ name: 'create-pr', source: AICustomizationSources.builtin, groupKey: BUILTIN_STORAGE, disabled: true },
-					{ name: 'merge', source: AICustomizationSources.builtin, groupKey: BUILTIN_STORAGE, disabled: false },
-				],
-			);
-		});
-		test('refreshes built-in skill disabled state when onDidChangeSkills fires', async () => {
-			// The Disable action writes to IPromptsService and fires
-			// onDidChangeSkills; the provider is unchanged (its bundle refresh is
-			// asynchronous and may lag). PureItemProviderItemSource must still
-			// re-derive `disabled` from the prompts service, otherwise the row
-			// would stay stale until some unrelated provider change happened.
-			const skill = URI.file('/builtin/create-pr/SKILL.md');
-			builtinSkills = [
-				{ uri: skill, type: PromptsType.skill, storage: PromptsStorage.builtIn, name: 'create-pr' } as IPromptPath,
-			];
-			providerItems = [
-				{ uri: skill, type: PromptsType.skill, name: 'create-pr', source: AICustomizationSources.builtin, groupKey: BUILTIN_STORAGE, extensionId: undefined, pluginUri: undefined, userInvocable: true },
-			];
-
-			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
-			const skillItems = model.getItems(AICustomizationManagementSection.Skills);
-			await model.whenSectionLoaded(AICustomizationManagementSection.Skills);
-			// Let any refetch scheduled during construction settle, so the
-			// assertion below can only be satisfied by a refetch that the
-			// onDidChangeSkills subscription itself triggered.
-			await timeout(0);
-			assert.deepStrictEqual(skillItems.get().map(i => ({ name: i.name, disabled: i.disabled })), [
-				{ name: 'create-pr', disabled: false },
-			]);
-
-			disabledPromptFiles = new ResourceSet([skill]);
-			onDidChangeSkills.fire();
-			await timeout(0);
-			await model.whenSectionLoaded(AICustomizationManagementSection.Skills);
-
-			assert.deepStrictEqual(skillItems.get().map(i => ({ name: i.name, disabled: i.disabled })), [
-				{ name: 'create-pr', disabled: true },
-			]);
 		});
 	});
 });

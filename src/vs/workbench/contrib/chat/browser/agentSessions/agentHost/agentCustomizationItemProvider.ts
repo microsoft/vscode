@@ -9,7 +9,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { autorun, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, type CustomizationDisabledReason } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type DirectoryCustomization, PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -23,7 +23,7 @@ import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js
 import { AgentCustomizationContentExpander } from './agentCustomizationContentExpander.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { type ISyncedCustomizationOrigin } from './syncedCustomizationBundler.js';
-import { IAgentSource, ICustomAgent, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IAgentSource, ICustomAgent, IPromptsService, PromptsStorage as PromptStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { localize } from '../../../../../../nls.js';
 import { getAgentHostPluginEnablementActions } from '../../agentPluginActions.js';
@@ -53,11 +53,15 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostCustomizationService private readonly _customAgentsService: IAgentHostCustomizationService,
+		@IPromptsService private readonly _promptsService: IPromptsService,
 	) {
 		super();
 		this._contentExpander = new AgentCustomizationContentExpander(this._fileService, this._logService);
 
 		this._register(this._customAgentsService.onDidChangeCustomizations(() => {
+			this._onDidChange.fire();
+		}));
+		this._register(this._promptsService.onDidChangeSkills(() => {
 			this._onDidChange.fire();
 		}));
 	}
@@ -219,7 +223,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			enabled: true,
 			// fill default/empty values for all other properties they will not be used by the UI
 			// when making a request, all that's needed is the agent id.
-			source: { storage: PromptsStorage.local } satisfies IAgentSource,
+			source: { storage: PromptStorage.local } satisfies IAgentSource,
 			tools: undefined,
 			agents: undefined,
 			argumentHint: undefined,
@@ -240,26 +244,9 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		const items = new Map<string, ICustomizationItem>();
 		const workingDirectories = this._customAgentsService.getWorkingDirectories(sessionResource);
 
-		for (const agent of this.getCustomAgents(sessionResource)) {
-			const source = isUnderAnyRoot(workingDirectories, agent.uri) ? AICustomizationSources.local : AICustomizationSources.user;
-			items.set(agent.id, {
-				itemKey: agent.id,
-				uri: this.toRemoteUri(agent.uri),
-				type: PromptsType.agent,
-				name: agent.name,
-				description: agent.description,
-				source,
-				extensionId: undefined,
-				pluginUri: undefined,
-				enabled: agent.enabled !== false,
-				userInvocable: readAgentCustomizationMeta(agent).userInvocable !== false,
-			});
-		}
-
 		// Build parent plugin items keyed by customization ref
 		const plugins: PluginMeta[] = [];
 		const expandPromises: Promise<readonly ICustomizationItem[]>[] = [];
-
 
 		const customizations = this.getCustomizations(sessionResource);
 
@@ -340,6 +327,31 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 					enabled: sessionCustomization.enabled,
 				});
 			}
+		}
+
+		const disabledBuiltinSkills = this._promptsService.getDisabledPromptFiles(PromptsType.skill);
+		const builtinSkills = await this._promptsService.listPromptFilesForStorage(PromptsType.skill, PromptStorage.builtIn, token);
+		if (token.isCancellationRequested) {
+			return [];
+		}
+		for (const skill of builtinSkills) {
+			if (!disabledBuiltinSkills.has(skill.uri)) {
+				continue;
+			}
+			const key = skill.uri.toString();
+			const existing = items.get(key);
+			items.set(key, {
+				...existing,
+				uri: skill.uri,
+				type: PromptsType.skill,
+				name: skill.name ?? existing?.name ?? basename(dirname(skill.uri)),
+				description: skill.description ?? existing?.description,
+				source: AICustomizationSources.builtin,
+				extensionId: undefined,
+				pluginUri: undefined,
+				enabled: false,
+				userInvocable: true,
+			});
 		}
 		return [...items.values()];
 	}

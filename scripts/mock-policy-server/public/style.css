@@ -202,6 +202,120 @@ h2 {
 	color: var(--text);
 }
 
+.cache-command-picker {
+	position: relative;
+}
+
+.cache-command-picker > summary {
+	display: block;
+	list-style: none;
+	cursor: pointer;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	font-family: inherit;
+	font-size: inherit;
+	transition: all 0.2s ease;
+	white-space: nowrap;
+	user-select: none;
+}
+
+.cache-command-picker > summary::-webkit-details-marker {
+	display: none;
+}
+
+.cache-command-picker[open] > summary {
+	border-color: var(--border);
+	background: var(--surface-alt);
+	color: var(--text);
+}
+
+.cache-command-popover {
+	position: absolute;
+	inset-block-start: calc(100% + 8px);
+	inset-inline-end: 0;
+	z-index: 10;
+	display: flex;
+	width: min(560px, calc(100vw - 48px));
+	flex-direction: column;
+	gap: 8px;
+	padding: 12px;
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	background: var(--surface);
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.cache-platform {
+	border-top: 1px solid var(--border);
+	padding-top: 8px;
+}
+
+.cache-platform > summary {
+	width: fit-content;
+	cursor: pointer;
+	font-weight: 600;
+}
+
+.cache-platform .cache-command {
+	margin: 8px 0;
+	max-height: 160px;
+	overflow: auto;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.file-deploy-details {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.file-deploy-details a,
+.step-content a {
+	color: var(--focus);
+}
+
+.file-deploy-badge {
+	display: inline-flex;
+	padding: 2px 8px;
+	border-radius: 999px;
+	background: var(--surface-alt);
+	color: var(--text-secondary);
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	text-transform: none;
+}
+
+.file-deploy-commands {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.file-deploy-commands[hidden] {
+	display: none;
+}
+
+.file-deploy-platform {
+	border-top: 1px solid var(--border);
+	padding-top: 8px;
+}
+
+.file-deploy-platform > summary {
+	width: fit-content;
+	cursor: pointer;
+	font-weight: 600;
+}
+
+.file-deploy-command {
+	margin: 8px 0;
+	max-height: 220px;
+	overflow: auto;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
 .app-main {
 	max-width: 1400px;
 	margin: 0 auto;
@@ -256,6 +370,17 @@ h2 {
 	min-width: 0;
 }
 
+.response-configuration {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+	min-width: 0;
+}
+
+.response-configuration[hidden] {
+	display: none;
+}
+
 .section-block {
 	background: var(--surface);
 	border: 1px solid var(--border);
@@ -278,7 +403,8 @@ h2 {
 }
 
 .section-header h2,
-.schema-heading {
+.schema-heading,
+.file-deploy-heading {
 	font-size: 12px;
 	font-weight: 600;
 	text-transform: uppercase;
@@ -358,6 +484,13 @@ h2 {
 	grid-template-columns: minmax(0, 1.2fr) minmax(400px, 0.8fr);
 	gap: 20px;
 	align-items: start;
+}
+
+.setup-alternatives {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+	min-width: 0;
 }
 
 .setup-method-picker {
@@ -593,6 +726,25 @@ h2 {
 	min-height: 56px;
 }
 
+.required-setting {
+	margin-top: 16px;
+	padding-top: 16px;
+	border-top: 1px solid var(--border);
+}
+
+.required-setting > p {
+	margin: 0 0 10px;
+	color: var(--text-secondary);
+}
+
+.required-setting .code-field {
+	margin-bottom: 10px;
+}
+
+.required-setting .code-field code.block {
+	min-height: 0;
+}
+
 .step-content details {
 	margin-top: 12px;
 	color: var(--text-secondary);
@@ -616,6 +768,24 @@ h2 {
 
 .step-content details .code-field {
 	margin-bottom: 10px;
+}
+
+.platform-tips {
+	display: grid;
+	gap: 12px;
+	margin-top: 12px;
+}
+
+.platform-tips h5 {
+	margin: 0;
+	color: var(--text);
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.platform-tips ul {
+	margin: 6px 0 0;
+	padding-left: 20px;
 }
 
 .setup-steps.compact .step-content > p {
@@ -1276,17 +1446,33 @@ code {
 	font-size: 11px;
 }
 
+.log-row {
+	margin: 0;
+	padding: 0;
+}
+
 .log-item {
 	display: flex;
+	width: 100%;
 	gap: 8px;
 	align-items: baseline;
 	padding: 3px 6px;
+	border: 0;
 	border-left: 2px solid transparent;
 	border-radius: 2px;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	transition: background 0.2s ease;
 }
 
-.log-item:nth-child(odd) {
+.log-row:nth-child(odd) .log-item {
 	background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+
+.log-item.clickable:hover {
+	background: var(--accent-soft);
 }
 
 .log-item.mocked {

@@ -18,7 +18,6 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { isWeb } from '../../../../base/common/platform.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -150,8 +149,7 @@ export class SessionTypePicker extends Disposable {
 	protected _triggerElement: HTMLElement | undefined;
 
 	/**
-	 * Tracks whether the harness picker trigger is currently visible. Mirrors
-	 * the `.hidden` state computed in {@link _updateTriggerLabel}, so the
+	 * Tracks whether the harness picker trigger is currently interactive, so the
 	 * new-session-view onboarding tour can skip the harness step when only a
 	 * single harness can serve the selected workspace.
 	 */
@@ -401,8 +399,12 @@ export class SessionTypePicker extends Disposable {
 	 * the override can decide where to anchor (or that it doesn't need
 	 * anchoring at all, e.g. for a bottom sheet).
 	 */
-	protected _showPicker(): void {
-		if (!this._triggerElement || this.actionWidgetService.isVisible) {
+	showPicker(anchor?: HTMLElement): void {
+		this._showPicker(anchor);
+	}
+
+	protected _showPicker(anchor = this._triggerElement): void {
+		if (!anchor || this.actionWidgetService.isVisible) {
 			return;
 		}
 
@@ -498,7 +500,11 @@ export class SessionTypePicker extends Disposable {
 				this.actionWidgetService.hide();
 				this._handleSelectedSessionType(item);
 			},
-			onHide: () => { triggerElement.focus(); },
+			onHide: () => {
+				if (triggerElement?.isConnected) {
+					triggerElement.focus();
+				}
+			},
 		};
 
 		this.actionWidgetService.show<ISessionTypePickerItem>(
@@ -506,7 +512,7 @@ export class SessionTypePicker extends Disposable {
 			false,
 			groupedItems,
 			delegate,
-			this._triggerElement,
+			anchor,
 			undefined,
 			[],
 			{
@@ -629,21 +635,19 @@ export class SessionTypePicker extends Disposable {
 
 		dom.clearNode(this._triggerElement);
 
-		// In web (vscode.dev/agents) the host filter already scopes the
-		// workbench to a single agent host, so when that host advertises only
-		// one harness there is nothing to pick — hide the trigger entirely.
-		// Note: the existing CSS rule on `.session-workspace-picker-with-label`
-		// uses `:has(+ .sessions-chat-session-type-picker .action-label.hidden)`
-		// to also hide the "with" connector when the trigger is hidden.
-		const hideForSingleHarness = isWeb && this._folderSessionTypes.length <= 1 && this._pickServedByFolder(this._picked);
-		if (this._folderSessionTypes.length === 0 || hideForSingleHarness) {
+		if (this._folderSessionTypes.length === 0) {
 			this._triggerElement.classList.add('hidden');
+			this._triggerElement.parentElement?.classList.remove('disabled');
 			this._visibleKey.set(false);
 			return;
 		}
 
+		const disabled = this._folderSessionTypes.length === 1 && this._pickServedByFolder(this._picked);
 		this._triggerElement.classList.remove('hidden');
-		this._visibleKey.set(true);
+		this._triggerElement.parentElement?.classList.toggle('disabled', disabled);
+		this._triggerElement.tabIndex = disabled ? -1 : 0;
+		this._triggerElement.setAttribute('aria-disabled', String(disabled));
+		this._visibleKey.set(!disabled);
 		const currentType = this._folderSessionTypes.find(t =>
 			t.providerId === this._picked?.providerId && t.sessionType.id === this._picked?.sessionTypeId)?.sessionType
 			?? this._folderSessionTypes.find(t => t.sessionType.id === this._picked?.sessionTypeId)?.sessionType;
@@ -654,11 +658,13 @@ export class SessionTypePicker extends Disposable {
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = modeLabel;
 
-		if (this._options?.showChevron !== false) {
+		if (!disabled && this._options?.showChevron !== false) {
 			const chevron = dom.append(this._triggerElement, renderIcon(Codicon.chevronDownCompact));
 			chevron.classList.add('sessions-chat-dropdown-chevron');
 		}
 
-		this._triggerElement.ariaLabel = localize('sessionTypePicker.triggerAriaLabel', "Pick Session Type, {0}", modeLabel);
+		this._triggerElement.ariaLabel = disabled
+			? localize('sessionTypePicker.disabledTriggerAriaLabel', "Session Type, {0}", modeLabel)
+			: localize('sessionTypePicker.triggerAriaLabel', "Pick Session Type, {0}", modeLabel);
 	}
 }

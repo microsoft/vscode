@@ -4,22 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
-import { derived, IObservable } from '../../../../base/common/observable.js';
+import { matchesSomeScheme, Schemas } from '../../../../base/common/network.js';
+import { derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { basename, getComparisonKey } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { toAction } from '../../../../base/common/actions.js';
+import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import type { IChatPillEntry, IChatPillSection } from '../../../../workbench/browser/chatPills.js';
+import { ChatPillSingleEntry, type IChatDropdownPillOptions } from '../../../../workbench/browser/chatDropdownPill.js';
 import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import type { IImageCarouselCollection } from '../../../../workbench/contrib/imageCarousel/browser/imageCarouselTypes.js';
@@ -27,6 +33,27 @@ import { SessionArtifactKind, type ISessionArtifact } from '../../../services/se
 import type { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 
 const OPEN_IMAGE_CAROUSEL_COMMAND_ID = 'workbench.action.chat.openImageInCarousel';
+
+/** Action id of the references pill. */
+export const SESSION_REFERENCES_PILL_ID = 'sessions.chatPills.references';
+
+/**
+ * Presentation of the references pill. References are always summarized: the
+ * pill answers "what did this session point me at" with a count, rather than
+ * turning into whichever single reference happens to be recorded.
+ */
+export const sessionReferencesPillOptions: IChatDropdownPillOptions = {
+	widgetId: 'sessionReferences',
+	icon: Codicon.bookmark,
+	title: localize('sessionReferences.title', "References"),
+	summaryLabel: count => count === 1
+		? localize('sessionReferences.countSingle', "1 Reference")
+		: localize('sessionReferences.count', "{0} References", count),
+	summaryAriaLabel: count => count === 1
+		? localize('sessionReferences.showSingle', "Show 1 reference")
+		: localize('sessionReferences.show', "Show {0} references", count),
+	singleEntry: ChatPillSingleEntry.Summary,
+};
 
 const artifactIcons: ReadonlyMap<SessionArtifactKind, ThemeIcon> = new Map([
 	[SessionArtifactKind.PullRequest, Codicon.gitPullRequest],
@@ -67,17 +94,37 @@ function artifactValueKey(artifact: ISessionArtifact): string {
 }
 
 /**
- * The location details shown for an artifact: its URI/link as the hover beside
+ * Schemes naming a file on a file system. Their URIs read as paths, while
+ * everything else — a web link, a scheme an agent made up — keeps its URI,
+ * since a path label drops the scheme, authority and query and would leave
+ * such a location reading like a file that is nowhere to be found.
+ */
+const pathSchemes = [Schemas.file, Schemas.vscodeRemote, Schemas.vscodeUserData, AGENT_HOST_SCHEME];
+
+/**
+ * How an artifact's location reads: a link keeps its URL, while a file reads as
+ * a path — no scheme, tildified when it is under the user home, and relative to
+ * the workspace folder holding it. A folder that is itself the workspace root
+ * has no relative path, so it falls back to its full path.
+ */
+export function sessionArtifactLocationText(uri: URI, labelService: Pick<ILabelService, 'getUriLabel'>): string {
+	if (!matchesSomeScheme(uri, ...pathSchemes)) {
+		return uri.toString(true);
+	}
+	return labelService.getUriLabel(uri, { relative: true }) || labelService.getUriLabel(uri);
+}
+
+/**
+ * The location details shown for an artifact: its path/link as the hover beside
  * the dropdown row, the plain-text screen reader description, and the tooltip,
  * while the accessible name stays the action the entry performs.
  */
-export function sessionArtifactLocation(uri: URI, label: string): Pick<IChatPillEntry, 'ariaDescription' | 'ariaLabel' | 'hover' | 'tooltip'> {
-	const value = uri.toString(true);
+export function sessionArtifactLocation(location: string, label: string): Pick<IChatPillEntry, 'ariaDescription' | 'ariaLabel' | 'hover' | 'tooltip'> {
 	return {
-		ariaDescription: value,
+		ariaDescription: location,
 		ariaLabel: localize('sessionArtifacts.open', "Open {0}", label),
-		hover: { content: new MarkdownString().appendText(value) },
-		tooltip: value,
+		hover: { content: new MarkdownString().appendText(location) },
+		tooltip: location,
 	};
 }
 
@@ -108,14 +155,14 @@ function isShownInBrowser(link: URI | undefined, browserKeys: ReadonlySet<string
 	return !!key && browserKeys.has(key);
 }
 
-function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions): IChatPillEntry | undefined {
+function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>): IChatPillEntry | undefined {
 	if (artifact.kind === SessionArtifactKind.File) {
 		if (!artifact.uri) {
 			return undefined;
 		}
 		const uri = artifact.uri;
 		const label = basename(uri);
-		return { id: artifact.id, label, resource: uri, ...sessionArtifactLocation(uri, label), open: () => actions.openResource(uri) };
+		return { id: artifact.id, label, resource: uri, ...sessionArtifactLocation(sessionArtifactLocationText(uri, labelService), label), open: () => actions.openResource(uri) };
 	}
 
 	const icon = artifactIcons.get(artifact.kind) ?? Codicon.archive;
@@ -132,7 +179,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions): 
 				run: () => actions.copy(artifact.commitHash!),
 			})]
 			: [];
-		return { id: artifact.id, label: artifact.label, icon, toolbarActions: copyAction, ...sessionArtifactLocation(link, artifact.label), open: () => actions.openExternal(link) };
+		return { id: artifact.id, label: artifact.label, icon, toolbarActions: copyAction, ...sessionArtifactLocation(sessionArtifactLocationText(link, labelService), artifact.label), open: () => actions.openExternal(link) };
 	}
 
 	if (artifact.kind === SessionArtifactKind.Resource) {
@@ -140,22 +187,34 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions): 
 			return undefined;
 		}
 		const uri = artifact.uri;
-		return { id: artifact.id, label: artifact.label, icon, ...sessionArtifactLocation(uri, artifact.label), open: () => actions.openResource(uri) };
+		return { id: artifact.id, label: artifact.label, icon, ...sessionArtifactLocation(sessionArtifactLocationText(uri, labelService), artifact.label), open: () => actions.openResource(uri) };
 	}
 
 	if (!artifact.link) {
 		return undefined;
 	}
 	const link = artifact.link;
-	return { id: artifact.id, label: artifact.label, icon, ...sessionArtifactLocation(link, artifact.label), open: () => actions.openExternal(link) };
+	const isGitHubReference = artifact.kind === SessionArtifactKind.PullRequest || artifact.kind === SessionArtifactKind.Issue;
+	const copyLinkAction = isGitHubReference
+		? [toAction({
+			id: 'sessions.artifacts.copyLink',
+			label: artifact.kind === SessionArtifactKind.PullRequest
+				? localize('sessionArtifacts.copyPullRequestLink', "Copy Pull Request Link")
+				: localize('sessionArtifacts.copyIssueLink', "Copy Issue Link"),
+			class: ThemeIcon.asClassName(Codicon.copy),
+			run: () => actions.copy(link.toString(true)),
+		})]
+		: [];
+	return { id: artifact.id, label: artifact.label, icon, toolbarActions: copyLinkAction, ...sessionArtifactLocation(sessionArtifactLocationText(link, labelService), artifact.label), open: () => actions.openExternal(link) };
 }
 
 /**
- * Builds the artifact sections shown in the pill from the agent-set artifacts.
- * Websites the browsers pill already lists are left out, so the same page is
- * offered once across the two pills.
+ * Builds the sections shown in a pill from one group of agent-set entries —
+ * the artifacts pill and the references pill each build their own. Websites
+ * the browsers pill already lists are left out, so the same page is offered
+ * once across the pills.
  */
-export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], actions: ISessionArtifactActions, imageCarouselEnabled: boolean, browserUrls: ReadonlySet<string>): readonly IChatPillSection[] {
+export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, imageCarouselEnabled: boolean, browserUrls: ReadonlySet<string>): readonly IChatPillSection[] {
 	const entriesByKind = new Map<SessionArtifactKind, IChatPillEntry[]>();
 	const images: ISessionArtifactImage[] = [];
 	const seen = new Set<string>();
@@ -179,7 +238,7 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 			}
 			continue;
 		}
-		const entry = toEntry(artifact, actions);
+		const entry = toEntry(artifact, actions, labelService);
 		if (!entry || seen.has(artifactValueKey(artifact))) {
 			continue;
 		}
@@ -200,7 +259,7 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 						id: uri.toString(),
 						label,
 						resource: uri,
-						...sessionArtifactLocation(uri, label),
+						...sessionArtifactLocation(sessionArtifactLocationText(uri, labelService), label),
 						...(imageCarouselEnabled
 							? {
 								ariaLabel: localize('sessionArtifacts.openImage', "Open {0} in Images Preview", label),
@@ -219,36 +278,48 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 	return sections;
 }
 
-/** Publishes a session's artifact sections for the chat input pill. */
+/** Publishes a session's artifact and reference sections for the chat input pills. */
 export class SessionArtifacts extends Disposable {
 
+	/** Sections for the artifacts pill: what the session produced. */
 	readonly sections: IObservable<readonly IChatPillSection[]>;
+	/** Sections for the references pill: what the session points the user at. */
+	readonly referenceSections: IObservable<readonly IChatPillSection[]>;
 
 	constructor(
 		session: IObservable<IActiveSession | undefined>,
-		/** The URLs the browsers pill lists; website artifacts for them are left out. */
+		/** The URLs the browsers pill lists; website entries for them are left out. */
 		private readonly _browserUrls: IObservable<ReadonlySet<string>>,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ILabelService private readonly _labelService: ILabelService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
 		const imageCarouselEnabled = observableConfigValue<boolean>(ChatConfiguration.ImageCarouselEnabled, true, this._configurationService);
+		// Rebuild after formatter/folder changes because the session folder mounts after activation.
+		const locationFormatting = observableSignalFromEvent(this, Event.any<unknown>(this._labelService.onDidChangeFormatters, workspaceContextService.onDidChangeWorkspaceFolders));
 
-		this.sections = derived(this, reader => {
+		const sectionsFor = (isArtifact: boolean) => derived(this, reader => {
 			const current = session.read(reader);
 			if (!current) {
 				return [];
 			}
+			locationFormatting.read(reader);
 			return buildSessionArtifactSections(
-				current.artifacts?.read(reader) ?? [],
+				(current.artifacts?.read(reader) ?? []).filter(artifact => artifact.isArtifact === isArtifact),
 				this._actions(),
+				this._labelService,
 				imageCarouselEnabled.read(reader),
 				this._browserUrls.read(reader),
 			);
 		});
+
+		this.sections = sectionsFor(true);
+		this.referenceSections = sectionsFor(false);
 	}
 
 	private _actions(): ISessionArtifactActions {

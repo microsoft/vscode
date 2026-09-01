@@ -9,6 +9,7 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import type { ChatErrorAction } from '../../../../common/state/protocol/actions.js';
 import { CompletionItemKind, type CompletionsResult, type ResolveSessionConfigResult, type SessionConfigCompletionsResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import type { RootState } from '../../../../common/state/protocol/state.js';
@@ -24,7 +25,7 @@ import {
 	resolveGitHubToken,
 } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
-import { summarizeAnthropicRequest, type IReadableAnthropicRequest } from '../harness/capiWireCodec.js';
+import { summarizeAnthropicRequest, summarizeResponsesRequest, type IReadableAnthropicRequest } from '../harness/capiWireCodec.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
@@ -32,7 +33,9 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
 	const behaviorSnapshot = { profile: 'behavior' } as const;
 	const modelSwitchTarget = config.modelSwitchTarget;
+	const modelSwitchWireTarget = config.modelSwitchWireTarget ?? modelSwitchTarget;
 	const modelSwitchReturnTarget = config.modelSwitchReturnTarget;
+	const modelSwitchWireReturnTarget = config.modelSwitchWireReturnTarget ?? modelSwitchReturnTarget;
 	const interactiveInputPrompt = config.interactiveInputPrompt;
 	const cancelledInputPrompt = config.cancelledInputPrompt;
 	const textInputPrompt = config.textInputPrompt;
@@ -40,8 +43,8 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 
 	function observedModelRequest(body: string | undefined): IReadableAnthropicRequest {
 		assert.ok(body, 'Expected an observed model request');
-		const request = summarizeAnthropicRequest(body);
-		assert.ok(request, `Expected an Anthropic model request: ${body}`);
+		const request = summarizeAnthropicRequest(body) ?? summarizeResponsesRequest(body);
+		assert.ok(request, `Expected an Anthropic or Responses model request: ${body}`);
 		return request;
 	}
 
@@ -124,6 +127,24 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		context.client.clearReceived();
 		return sessionUri;
 	}
+
+	async function prepareInputSession(sessionUri: string): Promise<number> {
+		if (!config.inputRequestMode) {
+			return 1;
+		}
+		context.client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: { type: ActionType.SessionConfigChanged, config: { mode: config.inputRequestMode } },
+		});
+		await context.client.waitForNotification(n =>
+			isActionNotification(n, 'session/configChanged')
+			&& getActionEnvelope(n).channel === sessionUri,
+			30_000,
+		);
+		return 2;
+	}
+
 	test('sends a simple message and receives a response', async function () {
 		this.timeout(120_000);
 
@@ -260,7 +281,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			model: observedModelRequest(context.observedModelRequestBodies.at(-1)).model,
 			response: result.responseText.trim(),
 		}, {
-			model: modelSwitchTarget,
+			model: modelSwitchWireTarget,
 			response: 'model selected',
 		});
 	});
@@ -271,13 +292,14 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-input-request-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `input-request-${config.provider}`, createdSessions, URI.file(workspace));
+		const clientSeq = await prepareInputSession(sessionUri);
 
 		const result = await driveTurnToCompletion(
 			context.client,
 			sessionUri,
 			'turn-input-request',
 			interactiveInputPrompt,
-			1,
+			clientSeq,
 		);
 
 		assert.deepStrictEqual({
@@ -319,7 +341,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			first: first.responseText.trim(),
 			secondRemembersCodeWord: /MARIGOLD/i.test(second.responseText),
 		}, {
-			models: [modelSwitchTarget, modelSwitchReturnTarget],
+			models: [modelSwitchWireTarget, modelSwitchWireReturnTarget],
 			first: 'ready',
 			secondRemembersCodeWord: true,
 		});
@@ -331,13 +353,14 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-input-cancel-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `input-cancel-${config.provider}`, createdSessions, URI.file(workspace));
+		const clientSeq = await prepareInputSession(sessionUri);
 
 		const result = await driveTurnWithCancelledInputToCompletion(
 			context.client,
 			sessionUri,
 			'turn-input-cancel',
 			cancelledInputPrompt,
-			1,
+			clientSeq,
 		);
 
 		assert.deepStrictEqual({
@@ -355,9 +378,10 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-cancel-input-turn-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `cancel-input-turn-${config.provider}`, createdSessions, URI.file(workspace));
+		const clientSeq = await prepareInputSession(sessionUri);
 		const chatUri = buildDefaultChatUri(sessionUri);
 		const turnId = 'turn-cancel-input';
-		dispatchTurn(context.client, sessionUri, turnId, interactiveInputPrompt, 1);
+		dispatchTurn(context.client, sessionUri, turnId, interactiveInputPrompt, clientSeq);
 		await context.client.waitForNotification(n =>
 			isActionNotification(n, 'chat/inputRequested')
 			&& getActionEnvelope(n).channel === chatUri,
@@ -365,7 +389,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		);
 		context.client.dispatch({
 			channel: chatUri,
-			clientSeq: 2,
+			clientSeq: clientSeq + 1,
 			action: { type: ActionType.ChatTurnCancelled, turnId, duration: 0 },
 		});
 		await context.client.waitForNotification(n =>
@@ -378,7 +402,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			sessionUri,
 			'turn-after-input-cancel',
 			'Reply exactly "replacement".',
-			3,
+			clientSeq + 2,
 		);
 
 		assert.strictEqual(replacement.responseText.trim(), 'replacement');
@@ -390,8 +414,9 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-input-text-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `input-text-${config.provider}`, createdSessions, URI.file(workspace));
+		const clientSeq = await prepareInputSession(sessionUri);
 
-		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-input-text', textInputPrompt, 1);
+		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-input-text', textInputPrompt, clientSeq);
 
 		assert.deepStrictEqual({
 			sawInputRequest: result.sawInputRequest,
@@ -470,7 +495,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 				context.client,
 				sessionUri,
 				'turn-simple-attachment',
-				'Reply with only the value from the attachment.',
+				'Reply with only the value provided directly in the attachment. Do not inspect the workspace or use tools.',
 				attachments,
 				1,
 			);
@@ -707,11 +732,11 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			&& (getActionEnvelope(n).action as { readonly turnId: string }).turnId === turnId,
 			30_000,
 		);
-		const action = getActionEnvelope(failed).action as { readonly error: { readonly errorType: string; readonly message: string } };
+		const action = getActionEnvelope(failed).action as ChatErrorAction;
 
 		assert.deepStrictEqual({
-			errorType: action.error.errorType,
-			mentionsModel: /model/i.test(action.error.message),
+			errorType: action.part.error.errorType,
+			mentionsModel: /model/i.test(action.part.error.message),
 		}, {
 			errorType: config.provider === 'copilotcli' ? 'sendFailed' : config.provider === 'claude' ? 'success' : 'modelSelectionFailed',
 			mentionsModel: true,

@@ -256,6 +256,36 @@ suite('ChatTurnPills', () => {
 		});
 	});
 
+	test('summarizes a lone artifact, keeping only a file artifact inline', () => {
+		const renderArtifact = (section: IChatPillSection) => {
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			const widget = disposables.add(instantiationService.createInstance(ChatTurnPillsWidget, {
+				stats: constObservable(EMPTY_DIFF_STATS),
+				artifacts: constObservable<readonly IChatPillSection[]>([section]),
+				changesEnabled: constObservable(false),
+				artifactsEnabled: constObservable(true),
+				openChanges() { },
+			}));
+			mainWindow.document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+
+			const button = widget.element.querySelector<HTMLElement>('.chat-pill-button');
+			return {
+				rendering: button?.classList.contains('chat-resource-pill-button') ? 'resource' : 'dropdown',
+				label: button?.querySelector<HTMLElement>('.chat-pill-label')?.textContent,
+				ariaLabel: button?.getAttribute('aria-label'),
+			};
+		};
+
+		assert.deepStrictEqual({
+			pullRequest: renderArtifact({ title: 'Pull Requests', entries: [{ id: 'pr', label: '#12', icon: Codicon.gitPullRequest, ariaLabel: 'Open #12', open: () => { } }] }),
+			file: renderArtifact({ title: 'Files', entries: [{ id: 'file', label: 'plan.md', resource: URI.file('/artifacts/plan.md'), ariaLabel: 'Open plan.md', open: () => { } }] }),
+		}, {
+			pullRequest: { rendering: 'dropdown', label: '1 Artifact', ariaLabel: 'Show 1 artifact' },
+			file: { rendering: 'resource', label: undefined, ariaLabel: 'Open plan.md' },
+		});
+	});
+
 	test('opens a markdown resource with its configured chat editor association', async () => {
 		const resource = URI.file('/workspace/README.md');
 		let opened: { resource: string; options: OpenInternalOptions | OpenExternalOptions | undefined } | undefined;

@@ -523,7 +523,7 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 				if (!startup?.onElicitation) {
 					throw new Error('integration test: elicitation marker but Options.onElicitation not wired');
 				}
-				const result = await startup.onElicitation(item.request, { signal: new AbortController().signal });
+				const result = await startup.onElicitation(item.request, { signal: new AbortController().signal, requestId: 'integration-elicitation' });
 				this._sdk.elicitationResults.push(result);
 				continue;
 			}

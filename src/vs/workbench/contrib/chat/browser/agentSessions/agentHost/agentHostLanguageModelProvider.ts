@@ -12,7 +12,7 @@ import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema } from '../../../common/languageModels.js';
+import { AUTO_RAW_MODEL_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema } from '../../../common/languageModels.js';
 
 /**
  * Returns whether an agent host provider exposes a synthetic "Auto" model to
@@ -67,7 +67,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				const pricing = readAgentModelPricingMeta(m);
 				const multiplierNumeric = pricing.multiplierNumeric;
 				// "Auto" advertises the auto-mode discount (detail) + description (tooltip). microsoft/vscode#321778, #321659.
-				const isAuto = m.id === 'auto';
+				const isAuto = m.id === AUTO_RAW_MODEL_ID;
 				const discountPercent = pricing.discountPercent;
 				// Guard against a non-finite or out-of-range value from the open `_meta` bag so we never render
 				// nonsense like "Infinity% discount"; the documented range is a whole number in (0, 100].
@@ -150,6 +150,9 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 
 	private static _groupForConfigKey(key: string): string | undefined {
 		switch (key) {
+			// The Auto model has no thinking level, so its routing-profile picker takes that slot,
+			// matching how the Copilot Chat extension groups it.
+			case 'tier':
 			case 'thinkingLevel': return 'navigation';
 			case 'contextSize': return 'tokens';
 			default: return undefined;

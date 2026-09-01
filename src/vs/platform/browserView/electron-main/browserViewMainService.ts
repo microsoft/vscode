@@ -109,7 +109,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			id,
 			selector,
 			this.environmentMainService.workspaceStorageHome,
-			hostWindow.openedWorkspace?.id
+			hostWindow.openedWorkspace?.id,
+			hostWindowId
 		);
 	}
 
@@ -562,6 +563,30 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 				label: localize('browser.contextMenu.copyImageUrl', 'Copy Image URL'),
 				click: () => { clipboard.writeText(params.srcURL!); }
 			}));
+		}
+
+		const spellingSuggestions = params.dictionarySuggestions ?? [];
+		const canAddToDictionary = !!params.misspelledWord && webContents.session.isPersistent();
+		if (params.misspelledWord && (spellingSuggestions.length > 0 || canAddToDictionary)) {
+			if (menu.items.length > 0) {
+				menu.append(new MenuItem({ type: 'separator' }));
+			}
+			for (const suggestion of spellingSuggestions) {
+				menu.append(new MenuItem({
+					label: suggestion,
+					click: () => webContents.replaceMisspelling(suggestion)
+				}));
+			}
+			if (canAddToDictionary) {
+				if (spellingSuggestions.length > 0) {
+					menu.append(new MenuItem({ type: 'separator' }));
+				}
+				menu.append(new MenuItem({
+					label: localize('browser.contextMenu.addToDictionary', 'Add to Dictionary'),
+					click: () => webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord)
+				}));
+			}
+			menu.append(new MenuItem({ type: 'separator' }));
 		}
 
 		if (params.isEditable) {

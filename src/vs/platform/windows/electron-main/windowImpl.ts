@@ -45,7 +45,7 @@ import { ILoggerMainService } from '../../log/electron-main/loggerService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { errorHandler } from '../../../base/common/errors.js';
-import { FocusMode } from '../../native/common/native.js';
+import { FocusMode, IApplicationBadge } from '../../native/common/native.js';
 import { Color } from '../../../base/common/color.js';
 
 export interface IWindowCreationOptions {
@@ -86,26 +86,57 @@ const enum ReadyState {
 	READY
 }
 
+/**
+ * Owns the single, application-wide badge (`app.setBadgeCount`) so that the
+ * transient attention dot from {@link FocusMode.Notify} and the counts pushed
+ * by individual windows via {@link IBaseWindow.setApplicationBadge} cannot
+ * overwrite each other. A count always wins over the dot because it carries
+ * more information, and counts from multiple windows add up.
+ */
 class DockBadgeManager {
 
 	static readonly INSTANCE = new DockBadgeManager();
 
-	private readonly windows = new Set<number>();
+	private readonly attention = new Set<number>();
+	private readonly counts = new Map<number, number>();
 
 	acquireBadge(window: IBaseWindow): IDisposable {
-		this.windows.add(window.id);
+		this.attention.add(window.id);
 
-		electron.app.setBadgeCount(isLinux ? 1 /* only numbers supported */ : undefined /* generic dot */);
+		this.update();
 
 		return {
 			dispose: () => {
-				this.windows.delete(window.id);
+				this.attention.delete(window.id);
 
-				if (this.windows.size === 0) {
-					electron.app.setBadgeCount(0);
-				}
+				this.update();
 			}
 		};
+	}
+
+	setCount(window: IBaseWindow, count: number): void {
+		if (count > 0) {
+			this.counts.set(window.id, count);
+		} else if (!this.counts.delete(window.id)) {
+			return; // window had no count to begin with
+		}
+
+		this.update();
+	}
+
+	private update(): void {
+		let total = 0;
+		for (const count of this.counts.values()) {
+			total += count;
+		}
+
+		if (total > 0) {
+			electron.app.setBadgeCount(total);
+		} else if (this.attention.size > 0) {
+			electron.app.setBadgeCount(isLinux ? 1 /* only numbers supported */ : undefined /* generic dot */);
+		} else {
+			electron.app.setBadgeCount(0);
+		}
 	}
 }
 
@@ -261,6 +292,10 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		protected readonly logService: ILogService
 	) {
 		super();
+
+		// Release this window's share of the application wide badge, so that a
+		// closed or crashed window cannot leave a phantom count behind.
+		this._register(toDisposable(() => DockBadgeManager.INSTANCE.setCount(this, 0)));
 	}
 
 	protected applyState(state: IWindowState, hasMultipleDisplays = electron.screen.getAllDisplays().length > 0): void {
@@ -340,6 +375,27 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}
 
 		return !!this.documentEdited;
+	}
+
+	setApplicationBadge(badge: IApplicationBadge | undefined): void {
+		const count = badge && badge.count > 0 ? badge.count : 0;
+
+		// Windows has no application wide badge, instead an overlay is
+		// rendered over the taskbar icon of this window. The image is drawn
+		// by the renderer because the main process cannot draw.
+		if (isWindows) {
+			if (count === 0 || !badge?.iconDataURL) {
+				this.win?.setOverlayIcon(null, '');
+			} else {
+				this.win?.setOverlayIcon(electron.nativeImage.createFromDataURL(badge.iconDataURL), badge.description);
+			}
+		}
+
+		// macOS (dock) and Linux (Unity launcher) render the count themselves,
+		// on a badge shared by the whole application.
+		else {
+			DockBadgeManager.INSTANCE.setCount(this, count);
+		}
 	}
 
 	focus(options?: { mode: FocusMode }): void {

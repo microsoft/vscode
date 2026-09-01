@@ -51,6 +51,9 @@ import { MockLabelService } from '../../../../../services/label/test/common/mock
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
+import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
+import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
@@ -68,7 +71,7 @@ import { IDefaultAccountService } from '../../../../../../platform/defaultAccoun
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
+import { IMcpService, IMcpWorkbenchService, LazyCollectionState } from '../../../../mcp/common/mcpTypes.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 
 // =============================================================================
@@ -101,7 +104,11 @@ suite('AgentHostClientTools', () => {
 			override readonly extUri = extUriBiasedIgnorePathCase;
 		});
 		instantiationService.stub(IConfigurationService, {
-			getValue: (section: string) => section === CopilotSemanticSearchEnabledSettingId ? semanticSearchEnabled : false,
+			getValue: (section: string) => section === CopilotSemanticSearchEnabledSettingId
+				? semanticSearchEnabled
+				: section === mcpAccessConfig
+					? McpAccessValue.All
+					: false,
 			onDidChangeConfiguration: onDidChangeConfiguration.event,
 		} as Partial<IConfigurationService> as IConfigurationService);
 		instantiationService.stub(IConfigurationResolverService, {} as Partial<IConfigurationResolverService>);
@@ -120,7 +127,13 @@ suite('AgentHostClientTools', () => {
 		});
 		instantiationService.stub(IMcpService, {
 			servers: observableValue('mcpServers', []),
+			lazyCollectionState: observableValue('mcpLazyCollectionState', { state: LazyCollectionState.AllKnown, collections: [] }),
 		});
+		instantiationService.stub(IMcpWorkbenchService, {
+			local: [],
+			onChange: Event.None,
+			whenInitialLocalMcpServersLoaded: Promise.resolve(),
+		} as Partial<IMcpWorkbenchService> as IMcpWorkbenchService);
 		instantiationService.stub(ILanguageModelToolsService, {
 			observeTools: () => tools,
 			toolSets,
@@ -146,18 +159,18 @@ suite('AgentHostClientTools', () => {
 		};
 	}
 
-	test('shares a customization scope for equivalent root sets', async () => {
+	test('lazily creates scopes and shares them for equivalent root sets', async () => {
 		const { service } = createActiveClientService();
-		const registration = disposables.add(service.registerForAgent('agent-host-claude'));
 		const rootA = URI.file('/Workspace-A');
 		const rootB = URI.file('/Workspace-B');
-		const unregisteredScope = service.acquireScope('unregistered-agent', []);
-		const unresolvedScope = registration.acquireScope([URI.file('/unresolved-workspace')]);
+		const unregisteredScope = disposables.add(service.acquireScope('unregistered-agent', []));
+		await unregisteredScope.whenResolved();
+		const unresolvedScope = service.acquireScope('agent-host-claude', [URI.file('/unresolved-workspace')]);
 		const unresolved = unresolvedScope.whenResolved();
 		unresolvedScope.dispose();
 		assert.strictEqual(await unresolved, undefined);
-		const first = registration.acquireScope([rootB, rootA, rootA]);
-		const second = registration.acquireScope([rootA, rootB]);
+		const first = service.acquireScope('agent-host-claude', [rootB, rootA, rootA]);
+		const second = service.acquireScope('agent-host-claude', [rootA, rootB]);
 		await first.whenResolved();
 
 		const sharedScopeState = {
@@ -166,20 +179,64 @@ suite('AgentHostClientTools', () => {
 		};
 		first.dispose();
 		second.dispose();
-		registration.dispose();
+		const syncProvider = service.getSyncProvider('agent-host-claude');
+		const scopeAfterRelease = service.acquireScope('agent-host-claude', []);
+		await scopeAfterRelease.whenResolved();
+		scopeAfterRelease.dispose();
 
 		assert.deepStrictEqual({
-			unregisteredScope,
+			unregisteredScopeIsResolved: unregisteredScope.isResolved.get(),
 			sharedScopeState,
-			scopeAfterRegistrationDisposal: service.acquireScope('agent-host-claude', []),
+			syncProviderIsStable: syncProvider === service.getSyncProvider('agent-host-claude'),
+			scopeAfterReleaseIsResolved: scopeAfterRelease.isResolved.get(),
 		}, {
-			unregisteredScope: undefined,
+			unregisteredScopeIsResolved: true,
 			sharedScopeState: {
 				customizations: true,
 				customAgents: true,
 			},
-			scopeAfterRegistrationDisposal: undefined,
+			syncProviderIsStable: true,
+			scopeAfterReleaseIsResolved: true,
 		});
+	});
+
+	test('provides MCP support before a session and keeps unavailable roots distinct from no roots', async () => {
+		const { service } = createActiveClientService();
+		const unavailable = service.acquireMcpServerSupportScope(AGENT_HOST_COPILOT_CLI_SESSION_TYPE, undefined);
+		const workspaceless = service.acquireMcpServerSupportScope(AGENT_HOST_COPILOT_CLI_SESSION_TYPE, []);
+		const workspacelessAgain = service.acquireMcpServerSupportScope(AGENT_HOST_COPILOT_CLI_SESSION_TYPE, []);
+		const otherHarness = service.acquireMcpServerSupportScope('agent-host-claude', []);
+		assert.ok(unavailable);
+		assert.ok(workspaceless);
+		assert.ok(workspacelessAgain);
+		await Promise.all([unavailable.whenResolved(), workspaceless.whenResolved()]);
+
+		assert.deepStrictEqual({
+			unavailableResolved: unavailable.isResolved.get(),
+			workspacelessResolved: workspaceless.isResolved.get(),
+			sameWorkspacelessObservable: workspaceless.support === workspacelessAgain.support,
+			unavailableIsDistinct: unavailable.support !== workspaceless.support,
+			snapshot: workspaceless.support.get(),
+			otherHarness,
+		}, {
+			unavailableResolved: true,
+			workspacelessResolved: true,
+			sameWorkspacelessObservable: true,
+			unavailableIsDistinct: true,
+			snapshot: {
+				servers: [],
+				discoveryComplete: true,
+				coverage: {
+					restrictedByMcpAccess: false,
+					restrictedByCustomizationPolicy: false,
+				},
+			},
+			otherHarness: undefined,
+		});
+
+		unavailable.dispose();
+		workspaceless.dispose();
+		workspacelessAgain.dispose();
 	});
 
 	const semanticSearchTool: IToolData = {
@@ -222,8 +279,7 @@ suite('AgentHostClientTools', () => {
 			override getTools(): Iterable<IToolData> { return tools.filter(tool => tool.id !== CLIENT_SEMANTIC_SEARCH_TOOL_ID); }
 		};
 		const client = createActiveClientService(constObservable(tools), constObservable([searchToolSet, enabledToolSet]));
-		const registration = disposables.add(client.service.registerForAgent(sessionType));
-		const scope = disposables.add(registration.acquireScope([]));
+		const scope = disposables.add(client.service.acquireScope(sessionType, []));
 		await scope.whenResolved();
 		client.setSemanticSearchEnabled(enabled);
 		return scope.tools.get().map(tool => [tool.name, tool.title]);
@@ -780,6 +836,12 @@ suite('AgentHostClientTools', () => {
 			instantiationService.stub(IAgentPluginService, {
 				plugins: observableValue('plugins', []),
 			});
+			// Acquiring a customization scope is now infallible, so the handler
+			// constructs a real one — which reads these on its first autorun.
+			instantiationService.stub(IMcpService, {
+				servers: observableValue('mcpServers', []),
+			});
+			instantiationService.stub(IConfigurationResolverService, {} as Partial<IConfigurationResolverService>);
 			instantiationService.stub(IPromptsService, new class extends mock<IPromptsService>() {
 				override readonly onDidChangeCustomAgents = Event.None;
 				override readonly onDidChangeSlashCommands = Event.None;
@@ -787,6 +849,7 @@ suite('AgentHostClientTools', () => {
 				override readonly onDidChangeInstructions = Event.None;
 				override readonly onDidChangeAgentInstructions = Event.None;
 
+				override getDisabledPromptFiles() { return new ResourceSet(); }
 				override async listPromptFilesForStorage() {
 					return [];
 				}
@@ -816,6 +879,7 @@ suite('AgentHostClientTools', () => {
 				register: () => toDisposable(() => { }),
 				reconcile: () => { },
 			});
+			instantiationService.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
 				onDidChange: Event.None,
 				get: () => undefined,

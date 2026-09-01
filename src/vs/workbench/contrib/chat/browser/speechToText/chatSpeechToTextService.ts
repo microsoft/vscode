@@ -18,6 +18,7 @@ import { INotificationService, Severity } from '../../../../../platform/notifica
 import { IProgress, IProgressService, IProgressStep, Progress, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { DeferredPromise, raceCancellation } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { localize } from '../../../../../nls.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
@@ -37,7 +38,6 @@ import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
 import { getMediaCaptureWindow } from '../voiceClient/micCaptureService.js';
 import { resolveDictationLanguage } from './dictationLanguage.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 
 export const IChatSpeechToTextService = createDecorator<IChatSpeechToTextService>('chatSpeechToTextService');
 
@@ -61,6 +61,14 @@ export function stripDictationFillers(text: string): string {
 		.replace(/([,;])[ \t]*[,;]+/g, '$1')
 		.replace(/[ \t]{2,}/g, ' ')
 		.replace(/^[ \t]+|[ \t]+$/g, '');
+}
+
+export function selectFinalDictationTranscript(liveTranscript: string, backendTranscript: string | undefined, preserveLiveTranscript: boolean): string {
+	const visibleLiveTranscript = stripDictationFillers(liveTranscript);
+	if (preserveLiveTranscript && visibleLiveTranscript && !stripDictationFillers(backendTranscript ?? '').startsWith(visibleLiveTranscript)) {
+		return liveTranscript;
+	}
+	return backendTranscript || liveTranscript;
 }
 
 function isRefusalLikeCleanupOutput(text: string): boolean {
@@ -128,12 +136,13 @@ const LLM_CLEANUP_TIMEOUT_MS = 5000;
 /** Utility model used for transcript cleanup, currently backed by gpt-4o-mini. */
 const LLM_CLEANUP_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-small' } as const;
 
-const LLM_CLEANUP_MODEL_TREATMENT = 'dictationLlmCleanupModel';
 const LLM_CLEANUP_MODEL_SETTING = 'dictation.experimental.llmCleanupModel';
+const LLM_CLEANUP_NANO_MODEL_ID = 'gpt-5.4-nano';
+const LLM_CLEANUP_NANO_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-dictation-cleanup-nano' } as const;
 const LLM_CLEANUP_LUNA_MODEL_ID = 'gpt-5.6-luna';
 const LLM_CLEANUP_LUNA_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-dictation-cleanup-luna' } as const;
 
-type DictationCleanupModel = 'none' | 'copilot-utility-small' | 'gpt-5.6-luna';
+type DictationCleanupModel = 'none' | 'copilot-utility-small' | 'gpt-5.4-nano' | 'gpt-5.6-luna';
 
 /**
  * Which backend transcribes dictation audio:
@@ -164,6 +173,8 @@ type SpeechToTextSessionEvent = {
 	timeToFirstTranscriptMs: number;
 	finalizeMs: number;
 	errorCode: string;
+	errorName: string;
+	closeCode: number;
 	cleanupModel: DictationCleanupModel;
 };
 type SpeechToTextSessionClassification = {
@@ -179,6 +190,8 @@ type SpeechToTextSessionClassification = {
 	timeToFirstTranscriptMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from the first streamed audio chunk to the first transcript update; the backend transcription latency (excludes mic acquisition and model download). -1 when no transcript arrived.' };
 	finalizeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from the user stopping recording until the final transcript resolved; the post-stop wait. -1 when not applicable.' };
 	errorCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Short error identifier when the session failed, else empty.' };
+	errorName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Error type reported by the platform when the session failed, else empty.' };
+	closeCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Voice websocket close code when a cloud dictation session failed, else 0.' };
 	cleanupModel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language model used to attempt dictation cleanup, or none when no model request was made.' };
 };
 
@@ -265,6 +278,11 @@ export interface IChatDictationTranscript {
 	readonly finalizedText: string;
 }
 
+export interface IChatSpeechToTextStopOptions {
+	/** Keep the cumulative transcript emitted while recording unless the backend's post-stop hypothesis extends it. */
+	readonly preserveLiveTranscript?: boolean;
+}
+
 export interface IChatSpeechToTextService {
 	readonly _serviceBrand: undefined;
 
@@ -343,7 +361,7 @@ export interface IChatSpeechToTextService {
 	 * Stop capturing, flush the final utterance, and resolve with the complete
 	 * cumulative transcript (or `undefined` when nothing was transcribed).
 	 */
-	stopAndTranscribe(): Promise<string | undefined>;
+	stopAndTranscribe(options?: IChatSpeechToTextStopOptions): Promise<string | undefined>;
 
 	/** Abort an in-progress recording without keeping the transcript. */
 	cancel(): Promise<void>;
@@ -415,9 +433,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _entitlementCheckScheduled = false;
 	private _startGeneration = 0;
 	private _startInProgress: number | undefined;
+	private _hasGitHubSession = false;
+	private _githubSessionGeneration = 0;
 
 	get isBusy(): boolean {
-		return this._state !== ChatSpeechToTextState.Idle || this._pendingStart !== undefined || this._pendingStop !== undefined;
+		return this._state !== ChatSpeechToTextState.Idle || this._pendingStart !== undefined || this._pendingStop !== undefined || this._startInProgress !== undefined;
 	}
 
 	get currentSurface(): ChatDictationSurface {
@@ -454,6 +474,8 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _maiRevision = -1;
 	/** Whether this dictation established the shared voice connection (and may thus tear it down). */
 	private _maiOwnsConnection = false;
+	/** Whether the active MAI startup reached a connected voice socket. */
+	private _maiConnected = false;
 	/** Resolves when the backend emits the final transcript after `ptt_end`. */
 	private _maiFinalTranscript: DeferredPromise<void> | undefined;
 
@@ -466,9 +488,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			return false;
 		}
 		if (backend === 'mai') {
-			// The cloud backend needs a configured voice websocket endpoint;
-			// GitHub sign-in and connectivity are validated when a session starts.
-			return !!this._voiceWsUrl();
+			return !!this._voiceWsUrl() && this._hasGitHubSession;
 		}
 		// On-device transcription needs no configuration — the model downloads
 		// on first use. It is only unavailable where the platform lacks native
@@ -496,6 +516,8 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _sessionSegments = 0;
 	private _sessionPartialUpdates = 0;
 	private _sessionErrorCode = '';
+	private _sessionErrorName = '';
+	private _sessionCloseCode = 0;
 	private _sessionSurface: ChatDictationSurface = 'chat';
 	/** Timestamp of the first streamed audio chunk, to measure transcription latency. */
 	private _firstAudioMs = 0;
@@ -504,7 +526,6 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	/** Milliseconds from stopping recording to the final transcript resolving; -1 until measured. */
 	private _finalizeMs = -1;
 	private _sessionCleanupModel: DictationCleanupModel = 'none';
-	private _llmCleanupModelTreatment: string | undefined;
 
 	/** Cancellation for the in-flight experimental LLM cleanup request, aborted when the session is cancelled or disposed. */
 	private readonly _cleanupCts = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -533,13 +554,30 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
-		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService,
 	) {
 		super();
 		this._recordingContextKey = ChatContextKeys.speechToTextRecording.bindTo(contextKeyService);
 		this._configuredContextKey = ChatContextKeys.speechToTextConfigured.bindTo(contextKeyService);
 		this._preparingContextKey = ChatContextKeys.speechToTextPreparing.bindTo(contextKeyService);
 		this._updateConfiguredContextKey();
+		void this._refreshGitHubSession();
+		this._register(this._authenticationService.onDidChangeSessions(e => {
+			if (e.providerId === 'github') {
+				void this._refreshGitHubSession();
+			}
+		}));
+		this._register(this._authenticationService.onDidRegisterAuthenticationProvider(e => {
+			if (e.id === 'github') {
+				void this._refreshGitHubSession();
+			}
+		}));
+		this._register(this._authenticationService.onDidUnregisterAuthenticationProvider(e => {
+			if (e.id === 'github') {
+				this._githubSessionGeneration++;
+				this._hasGitHubSession = false;
+				this._updateConfiguredContextKey();
+			}
+		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ENABLED_SETTING) || e.affectsConfiguration(DICTATION_MODEL_SETTING)) {
 				this._updateConfiguredContextKey();
@@ -563,26 +601,21 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				}
 			});
 		}));
-		this._refreshLlmCleanupModelTreatment();
-		this._register(this._assignmentService.onDidRefetchAssignments(() => this._refreshLlmCleanupModelTreatment()));
-	}
-
-	private _refreshLlmCleanupModelTreatment(): void {
-		void this._assignmentService.getTreatment<string>(LLM_CLEANUP_MODEL_TREATMENT).then(treatment => {
-			if (!this._store.isDisposed) {
-				this._llmCleanupModelTreatment = treatment;
-			}
-		}, err => this._logService.warn('[chat-stt] failed to resolve dictation cleanup model treatment', err));
 	}
 
 	private _getLlmCleanupModel(): Exclude<DictationCleanupModel, 'none'> {
 		const configuredModel = this._configurationService.getValue<string>(LLM_CLEANUP_MODEL_SETTING);
-		if (configuredModel === LLM_CLEANUP_LUNA_MODEL_ID || configuredModel === LLM_CLEANUP_MODEL_SELECTOR.id) {
+		if (configuredModel === LLM_CLEANUP_NANO_MODEL_ID || configuredModel === LLM_CLEANUP_LUNA_MODEL_ID || configuredModel === LLM_CLEANUP_MODEL_SELECTOR.id) {
 			return configuredModel;
 		}
-		return this._llmCleanupModelTreatment === LLM_CLEANUP_LUNA_MODEL_ID
-			? LLM_CLEANUP_LUNA_MODEL_ID
-			: LLM_CLEANUP_MODEL_SELECTOR.id;
+		const experimentDefault = this._configurationService.inspect<string>(LLM_CLEANUP_MODEL_SETTING).defaultValue;
+		switch (experimentDefault) {
+			case LLM_CLEANUP_NANO_MODEL_ID:
+			case LLM_CLEANUP_LUNA_MODEL_ID:
+				return experimentDefault;
+			default:
+				return LLM_CLEANUP_MODEL_SELECTOR.id;
+		}
 	}
 
 	/** Read the configured dictation backend, derived from the selected model. */
@@ -625,6 +658,23 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 	private _updateConfiguredContextKey(): void {
 		this._configuredContextKey.set(this.isConfigured);
+	}
+
+	private async _refreshGitHubSession(): Promise<void> {
+		const generation = ++this._githubSessionGeneration;
+		try {
+			const sessions = await this._authenticationService.getSessions('github', [], { silent: true });
+			if (generation !== this._githubSessionGeneration || this._store.isDisposed) {
+				return;
+			}
+			const hasGitHubSession = sessions.length > 0;
+			if (this._hasGitHubSession !== hasGitHubSession) {
+				this._hasGitHubSession = hasGitHubSession;
+				this._updateConfiguredContextKey();
+			}
+		} catch (err) {
+			this._logService.warn('[chat-stt] could not refresh GitHub session state for cloud dictation', err);
+		}
 	}
 
 	private _setPreparingModel(preparing: boolean): void {
@@ -677,6 +727,8 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			timeToFirstTranscriptMs,
 			finalizeMs: this._finalizeMs,
 			errorCode: this._sessionErrorCode,
+			errorName: this._sessionErrorName,
+			closeCode: this._sessionCloseCode,
 			cleanupModel: this._sessionCleanupModel,
 		});
 		this._sessionStartMs = 0;
@@ -778,6 +830,8 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._sessionSegments = 0;
 		this._sessionPartialUpdates = 0;
 		this._sessionErrorCode = '';
+		this._sessionErrorName = '';
+		this._sessionCloseCode = 0;
 		this._sessionSurface = surface;
 		this._firstAudioMs = 0;
 		this._firstTranscriptMs = 0;
@@ -798,6 +852,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				return;
 			}
 			this._sessionErrorCode = this._sessionErrorCode || 'microphone';
+			this._sessionErrorName = err instanceof Error ? err.name : '';
 			this._logSessionTelemetry('error');
 			this._logService.error('[chat-stt] microphone acquisition failed', err);
 			this._notificationService.error(localize('chatStt.micError', "Could not access the microphone for speech-to-text: {0}", toErrorMessage(err)));
@@ -909,6 +964,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	 */
 	private async _startMaiSession(window: Window & typeof globalThis, generation: number): Promise<void> {
 		if (this._voiceClientService.isConnected) {
+			this._sessionErrorCode = this._sessionErrorCode || 'connect.busy';
 			throw new Error(localize('chatStt.maiBusy', "Cloud dictation is unavailable while Voice Mode is connected."));
 		}
 		const authToken = await this._getGitHubToken();
@@ -916,6 +972,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			return;
 		}
 		if (!authToken) {
+			this._sessionErrorCode = this._sessionErrorCode || 'connect.noauth';
 			throw new Error(localize('chatStt.maiSignIn', "Sign in to GitHub to use cloud dictation."));
 		}
 
@@ -925,8 +982,12 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		// A terminal close (e.g. code 4008 when another window takes over the
 		// single voice session) stops reconnection; without this the mic would
 		// stay open in Recording while audio is silently dropped.
-		this._maiSessionDisposables.add(this._voiceClientService.onFatalDisconnect(() =>
-			this._failMaiSession(localize('chatStt.maiDisconnected', "Cloud dictation was disconnected."))));
+		this._maiSessionDisposables.add(this._voiceClientService.onFatalDisconnect(e => {
+			if (this._maiConnected || this._state !== ChatSpeechToTextState.Idle) {
+				this._sessionCloseCode = e.code;
+				this._failMaiSession(localize('chatStt.maiDisconnected', "Cloud dictation was disconnected."));
+			}
+		}));
 		this._maiSessionDisposables.add(this._voiceClientService.onError(msg =>
 			this._logService.warn(`[chat-stt] voice service error during dictation: ${msg}`)));
 
@@ -1023,9 +1084,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	 * tear down the mic/session, and surface an actionable message.
 	 */
 	private _failMaiSession(message: string): void {
-		if (this._activeBackend !== 'mai' || this._state === ChatSpeechToTextState.Idle) {
+		if (this._activeBackend !== 'mai' || (this._state === ChatSpeechToTextState.Idle && !this._maiConnected)) {
 			return;
 		}
+		this._sessionGeneration++;
+		this._startGeneration++;
 		this._sessionErrorCode = this._sessionErrorCode || 'disconnect';
 		this._logSessionTelemetry('error');
 		this._maiFinalTranscript?.complete();
@@ -1039,7 +1102,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private async _getGitHubToken(): Promise<string | undefined> {
 		try {
 			const sessions = await this._authenticationService.getSessions('github');
-			return sessions[0]?.accessToken;
+			if (sessions[0]) {
+				return sessions[0].accessToken;
+			}
+			const session = await this._authenticationService.createSession('github', []);
+			return session.accessToken;
 		} catch (err) {
 			this._logService.warn('[chat-stt] could not resolve a GitHub session for cloud dictation', err);
 			return undefined;
@@ -1049,21 +1116,46 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	/** Wait for the voice websocket to report connected, or reject on timeout. */
 	private async _awaitVoiceConnected(): Promise<void> {
 		if (this._voiceClientService.isConnected) {
+			this._maiConnected = true;
 			return;
 		}
 		await new Promise<void>((resolve, reject) => {
 			const store = new DisposableStore();
 			this._maiSessionDisposables.add(store);
-			store.add(toDisposable(resolve));
-			const timer = setTimeout(() => {
-				reject(new Error('Timed out connecting to the voice service.'));
+			let settled = false;
+			const settle = (error?: Error) => {
+				if (settled) {
+					return;
+				}
+				settled = true;
 				store.dispose();
+				if (error) {
+					reject(error);
+				} else {
+					resolve();
+				}
+			};
+			store.add(toDisposable(() => {
+				if (!settled) {
+					settled = true;
+					reject(new CancellationError());
+				}
+			}));
+			const timer = setTimeout(() => {
+				this._sessionErrorCode = this._sessionErrorCode || 'connect.timeout';
+				settle(new Error(localize('chatStt.maiConnectTimeout', "Timed out connecting to the voice service.")));
 			}, MAI_CONNECT_TIMEOUT_MS);
 			store.add(toDisposable(() => clearTimeout(timer)));
 			store.add(this._voiceClientService.onDidChangeConnectionState(connected => {
 				if (connected) {
-					store.dispose();
+					this._maiConnected = true;
+					settle();
 				}
+			}));
+			store.add(this._voiceClientService.onFatalDisconnect(e => {
+				this._sessionCloseCode = e.code;
+				this._sessionErrorCode = this._sessionErrorCode || `connect.rejected.${e.code}`;
+				settle(new Error(localize('chatStt.maiConnectRejected', "The voice service rejected the connection (code {0}).", e.code)));
 			}));
 		});
 	}
@@ -1306,13 +1398,13 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._failSession('audio', localize('chatStt.audioError', "Speech-to-text stopped because audio could not be sent for transcription: {0}", toErrorMessage(err instanceof Error ? err : new Error(String(err)))));
 	}
 
-	async stopAndTranscribe(): Promise<string | undefined> {
+	async stopAndTranscribe(options?: IChatSpeechToTextStopOptions): Promise<string | undefined> {
 		if (this._state !== ChatSpeechToTextState.Recording || this._pendingStop) {
 			return undefined;
 		}
 
 		const generation = this._sessionGeneration;
-		const operation = this._stopAndTranscribe(generation);
+		const operation = this._stopAndTranscribe(generation, options);
 		const pendingStop = operation.then(() => undefined, () => undefined);
 		this._pendingStop = pendingStop;
 		try {
@@ -1324,7 +1416,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}
 	}
 
-	private async _stopAndTranscribe(generation: number): Promise<string | undefined> {
+	private async _stopAndTranscribe(generation: number, options?: IChatSpeechToTextStopOptions): Promise<string | undefined> {
 		this._setState(ChatSpeechToTextState.Transcribing);
 		// Flush trailing audio before stopping the backend so transport ordering is preserved.
 		await this._flushCapture?.();
@@ -1332,15 +1424,14 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStopped);
 
 		const stopMs = Date.now();
-		let text = this._transcript;
+		const liveTranscript = this._transcript;
+		let text = liveTranscript;
 		try {
 			const finalText = await this._finishBackend();
 			if (generation !== this._sessionGeneration) {
 				return undefined;
 			}
-			if (finalText) {
-				text = finalText;
-			}
+			text = selectFinalDictationTranscript(liveTranscript, finalText, options?.preserveLiveTranscript === true);
 		} catch (err) {
 			if (generation !== this._sessionGeneration) {
 				return undefined;
@@ -1410,9 +1501,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}, LLM_CLEANUP_TIMEOUT_MS);
 		try {
 			const cleanupModel = this._getLlmCleanupModel();
-			const modelSelector = cleanupModel === LLM_CLEANUP_LUNA_MODEL_ID
-				? LLM_CLEANUP_LUNA_MODEL_SELECTOR
-				: LLM_CLEANUP_MODEL_SELECTOR;
+			const modelSelector = cleanupModel === LLM_CLEANUP_NANO_MODEL_ID
+				? LLM_CLEANUP_NANO_MODEL_SELECTOR
+				: cleanupModel === LLM_CLEANUP_LUNA_MODEL_ID
+					? LLM_CLEANUP_LUNA_MODEL_SELECTOR
+					: LLM_CLEANUP_MODEL_SELECTOR;
 			let models = await raceCancellation(
 				this._languageModelsService.selectLanguageModels(modelSelector),
 				cts.token,
@@ -1423,8 +1516,8 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				this._logService.info(`[chat-stt] skipped language model cleanup (reason=${timedOut ? 'timeout' : 'cancelledBeforeRequest'}, phase=${phase}, elapsedMs=${Date.now() - cleanupStartMs}); using raw transcript`);
 				return undefined;
 			}
-			if (!models.length && cleanupModel === LLM_CLEANUP_LUNA_MODEL_ID) {
-				this._logService.info('[chat-stt] Luna cleanup model unavailable; falling back to copilot-utility-small');
+			if (!models.length && cleanupModel !== LLM_CLEANUP_MODEL_SELECTOR.id) {
+				this._logService.info(`[chat-stt] ${cleanupModel} cleanup model unavailable; falling back to copilot-utility-small`);
 				models = await raceCancellation(
 					this._languageModelsService.selectLanguageModels(LLM_CLEANUP_MODEL_SELECTOR),
 					cts.token,
@@ -1464,7 +1557,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			this._sessionCleanupModel = selectedCleanupModel;
 			phase = 'startRequest';
 			this._logService.trace(`[chat-stt] language model cleanup sending request (elapsedMs=${Date.now() - cleanupStartMs})`);
-			const requestOptions = selectedCleanupModel === LLM_CLEANUP_LUNA_MODEL_ID
+			const requestOptions = selectedCleanupModel === LLM_CLEANUP_NANO_MODEL_ID || selectedCleanupModel === LLM_CLEANUP_LUNA_MODEL_ID
 				? { configuration: { reasoningEffort: 'none' } }
 				: {};
 			const response = await raceCancellation(
@@ -1716,6 +1809,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._maiFinalTranscript = undefined;
 		this._maiTurnId = '';
 		this._maiRevision = -1;
+		this._maiConnected = false;
 		// Release the shared voice connection only if this dictation owns it, so
 		// tearing down never disconnects a session Voice Mode established.
 		if (this._activeBackend === 'mai' && this._maiOwnsConnection) {

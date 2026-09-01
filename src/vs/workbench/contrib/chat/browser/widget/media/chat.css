@@ -1348,6 +1348,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar {
 	order: 2;
+	flex-shrink: 0;
 }
 
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .actions-container {
@@ -1843,6 +1844,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
+.interactive-session .chat-secondary-toolbar .chat-responsive-picker-container {
+	display: flex;
+	align-items: center;
+	flex: 1 1 0;
+	min-width: 0;
+	gap: 2px;
+}
+
 .interactive-session .chat-secondary-toolbar .chat-secondary-generic-chips {
 	display: flex;
 	align-items: center;
@@ -1850,10 +1859,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 2px;
 }
 
+.interactive-session .chat-secondary-toolbar .chat-secondary-generic-chips:empty {
+	display: none;
+}
+
 .interactive-session .chat-secondary-toolbar .chat-secondary-input-toolbar {
 	overflow: hidden;
 	min-width: 0px;
-	flex: 1 1 0;
+	flex: 0 1 auto;
 	color: var(--vscode-icon-foreground);
 
 	.monaco-action-bar .action-item .codicon {
@@ -1865,16 +1878,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.chat-input-picker-item {
 		min-width: 0px;
-		overflow: hidden;
+		overflow: visible;
+		flex-shrink: 0;
 
 		.action-label {
 			min-width: 0px;
-			overflow: hidden;
+			overflow: visible;
 			position: relative;
 
 			.chat-input-picker-label {
-				overflow: hidden;
-				text-overflow: ellipsis;
+				flex-shrink: 0;
+				overflow: visible;
+				text-overflow: clip;
+				white-space: nowrap;
 			}
 
 			.codicon + .chat-input-picker-label {
@@ -1936,7 +1952,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	order: 0;
 	overflow: hidden;
 	min-width: 0px;
-	width: 100%;
+	flex: 1 1 0;
 	color: var(--vscode-icon-foreground);
 
 	.monaco-action-bar .action-item .codicon {
@@ -1945,16 +1961,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.chat-input-picker-item {
 		min-width: 0px;
-		overflow: hidden;
+		overflow: visible;
+		flex-shrink: 0;
 
 		.action-label {
 			min-width: 0px;
-			overflow: hidden;
+			overflow: visible;
 			position: relative;
 
 			.chat-input-picker-label {
-				overflow: hidden;
-				text-overflow: ellipsis;
+				flex-shrink: 0;
+				overflow: visible;
+				text-overflow: clip;
+				white-space: nowrap;
 			}
 
 			.model-picker-badge {
@@ -2020,11 +2039,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-/* When chevrons are hidden and only showing an icon (no label), size to 22x22 with centered icon */
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.compact:not(:has(.chat-input-picker-label)),
-.interactive-session .chat-input-toolbar .chat-input-picker-item.compact .action-label:not(:has(.chat-input-picker-label)),
-.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.compact:not(:has(.chat-input-picker-label)),
-.interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label.compact:not(:has(.chat-input-picker-label)) {
+/* When only the icon remains, keep the expanded control's leading inset so
+ * the glyph does not move as the label disappears. */
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.icon-only,
+.interactive-session .chat-secondary-input-toolbar .chat-input-picker-item .action-label.icon-only,
+.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.icon-only,
+.interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label.icon-only {
 	width: 22px;
 	min-width: 22px;
 	height: 22px;
@@ -2037,6 +2057,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.codicon {
 		justify-content: center;
 	}
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.icon-only:not(.model-picker-split),
+.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.icon-only {
+	padding-left: var(--vscode-spacing-size60);
+	justify-content: flex-start;
+}
+
+.interactive-session .chat-secondary-input-toolbar .chat-input-picker-item .action-label.icon-only,
+.interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label.icon-only {
+	padding-left: var(--vscode-spacing-size80);
+	justify-content: flex-start;
 }
 
 
@@ -2239,14 +2271,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .interactive-input-part {
 	margin: 0px 12px;
 	padding: 4px 0 4px 0px;
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
 	position: relative;
 }
 
-/* The stack lays out as a column here. Set by the host, since the stack itself
-	stays layout-agnostic. */
+/* The docked stack joins surfaces without gaps inside the regularly spaced
+	input-area surface stack. */
 .interactive-session .chat-input-stack {
 	display: flex;
 	flex-direction: column;
@@ -2257,24 +2286,49 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Opted in via `IChatWidgetViewOptions.persistentContentHeight`: the content
-	floats above the input so the transcript scrolls underneath it, landing where
-	it sat in flow - `bottom: 100%` leaves the flex `gap` it used to have below it,
-	since the gap and the input part's `padding-top` are both 4px. */
+	floats above the input so the transcript scrolls underneath it. Its bottom
+	padding occupies the input part's top inset, leaving one shared spacing tier
+	before the first visible surface. */
 .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content {
 	position: absolute;
 	inset-inline: 0;
-	bottom: 100%;
+	bottom: calc(100% - var(--vscode-spacing-size40));
 	/* Match the input part's own horizontal padding. */
 	padding-inline: inherit;
 	box-sizing: border-box;
 	/* Clicks fall through to the transcript; the pills opt back in. */
 	pointer-events: none;
+	isolation: isolate;
+	z-index: 0;
 }
 
-/* The composer is hidden, so there is no in-flow sibling left to gap against
-	and the row would sit one gap too high. */
-.interactive-session.chat-floating-persistent-content .interactive-input-part.chat-input-hidden > .chat-input-persistent-content {
-	bottom: calc(100% - var(--vscode-spacing-size40));
+/* Separate floating controls from transcript content without masking the list,
+	so the treatment remains stable while content streams or scrolls. */
+.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
+	content: '';
+	position: absolute;
+	inset-inline: 0;
+	top: calc(-1 * var(--vscode-spacing-size160));
+	bottom: 0;
+	z-index: 0;
+	pointer-events: none;
+	background: linear-gradient(
+		to bottom,
+		transparent 0,
+		var(--vscode-chat-list-background, var(--vscode-editor-background)) var(--vscode-spacing-size160)
+	);
+}
+
+.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content > * {
+	position: relative;
+	z-index: 1;
+}
+
+.hc-black .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before,
+.hc-light .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
+	background: var(--vscode-chat-list-background, var(--vscode-editor-background));
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
+	box-sizing: border-box;
 }
 
 .interactive-session .interactive-input-part.chat-input-hidden > :not(.chat-input-persistent-content, .chat-tool-confirmation-carousel-container) {
@@ -3033,11 +3087,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
-/* Turn changes summary: reuses the compact checkpoint summary styling and adds an
-	inline resource-label action shown when the turn produced a previewable file. */
-
-/* In the pill part the +/- counts are themselves the "View All File Changes" button,
-	so reset the native button chrome and add the standard toolbar hover/focus affordances. */
+/* Turn changes summary: reuses the compact checkpoint summary styling. The +/- counts
+	are themselves the "View All File Changes" button, so reset the native button chrome
+	and add the standard toolbar hover/focus affordances. */
 .interactive-session .chat-turn-pills-part .chat-file-changes-counts {
 	align-items: center;
 	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size20);
@@ -3058,80 +3110,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
-/* The pill header already spaces its children with `gap`, so the label's own
-	margin-right (needed in the standalone checkpoint summary) is redundant here
-	and leaves unwanted trailing space. The counts label also keeps its intrinsic
-	width so the preview action is the part that shrinks when space runs out. */
-.interactive-session .chat-turn-pills-part .checkpoint-file-changes-summary-header .chat-file-changes-label {
+/* The header already spaces its children with `gap`, so the label's own margin
+	needed in the standalone checkpoint summary is redundant here. */
+.interactive-session .chat-turn-pills-part .chat-file-changes-label {
 	margin-right: 0;
-	flex: none;
-}
-
-.interactive-session .chat-turn-pills-part .chat-turn-preview {
-	display: flex;
-	align-items: center;
-	flex: 0 1 auto;
-	gap: var(--vscode-spacing-size40);
+	flex: 1 1 auto;
 	min-width: 0;
-	overflow: hidden;
-}
-
-.interactive-session .chat-turn-pills-part .chat-turn-preview.hidden,
-.interactive-session .chat-turn-pills-part > .checkpoint-file-changes-summary > .checkpoint-file-changes-disclosure > .checkpoint-file-changes-summary-header > .hidden {
-	display: none;
-}
-
-.interactive-session .chat-turn-pills-part .chat-turn-preview-separator {
-	flex: none;
-	width: var(--vscode-strokeThickness);
-	align-self: stretch;
-	margin: var(--vscode-spacing-size20) 0;
-	background-color: var(--vscode-chat-requestBorder);
-}
-
-/* In preview-only mode the changes summary (and its label) is hidden, leaving the
-	preview action as the only header content — drop its leading separator so there
-	is no divider with nothing before it. */
-.interactive-session .chat-turn-pills-part .chat-file-changes-label.hidden ~ .chat-turn-preview .chat-turn-preview-separator {
-	display: none;
-}
-
-/* The file name is only ellipsized when the header actually runs out of room, so
-	the action shrinks with the available width instead of at a fixed cap. */
-.interactive-session .chat-turn-pills-part .chat-turn-preview-action {
-	display: inline-flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size40);
-	min-width: 0;
-	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size40) var(--vscode-spacing-sizeNone) var(--vscode-spacing-size20);
-	border: none;
-	border-radius: var(--vscode-cornerRadius-small);
-	color: inherit;
-	background: transparent;
-	font: inherit;
-	cursor: pointer;
-	overflow: hidden;
-}
-
-.interactive-session .chat-turn-pills-part .chat-turn-preview-action:hover {
-	color: var(--vscode-foreground);
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.interactive-session .chat-turn-pills-part .chat-turn-preview-action:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: calc(-1 * var(--vscode-strokeThickness));
-}
-
-.interactive-session .chat-turn-pills-part .chat-turn-preview-action .monaco-icon-label {
-	min-width: 0;
-	align-items: center;
-	overflow: hidden;
-}
-
-.interactive-session .chat-turn-pills-part .chat-turn-preview-action .monaco-icon-label:before {
-	height: 18px;
-	width: 16px;
 }
 
 /* Per-row action bar in the changed-files list (e.g. the "Preview" action). The
@@ -3233,7 +3217,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-used-context-label {
-	font-size: var(--vscode-fontSize-body1);
+	font-size: var(--vscode-chat-font-size-body-m);
 	font-family: var(--vscode-chat-font-family, inherit);
 	color: var(--vscode-descriptionForeground);
 	user-select: none;
@@ -3351,10 +3335,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-item-container .progress-container {
 	display: flex;
-	align-items: center;
+	/* Keep the icon on the first line: a wrapped message must not drag it down
+	to the middle of the block. */
+	align-items: flex-start;
 	gap: 4px;
 	margin: 0 0 var(--vscode-spacing-size160) 0;
-	font-size: var(--vscode-fontSize-body1);
+	font-size: var(--vscode-chat-font-size-body-m);
 
 	/* Tool calls transition from a progress to a collapsible list part, which needs to have this top padding.
 	The working progress also can be replaced by a tool progress part. So align this padding so the text doesn't appear to shift. */
@@ -3362,6 +3348,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	> .codicon[class*='codicon-'] {
 		font-size: var(--vscode-codiconFontSize-compact);
+		/* Makes the glyph box exactly one text line tall, so it stays optically
+		centred on the first line at any font size. */
+		line-height: inherit;
 
 		&::before {
 			font-size: var(--vscode-codiconFontSize-compact);

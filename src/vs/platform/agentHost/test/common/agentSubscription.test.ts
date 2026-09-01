@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ActionType, type ActionEnvelope, type ClientChangesetAction } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, MessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TerminalLifecycleStatus, TurnState, type AnnotationsState, type ChangesetState, type RootState, type SessionState, type SessionSummary, type TerminalState } from '../../common/state/protocol/state.js';
-import { buildDefaultChatUri, createChatState, createDefaultChatSummary, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
-import { AgentSubscriptionManager, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
+import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, ChangesetStatus, MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TerminalLifecycleStatus, TurnState, type AnnotationsState, type AutomationRunState, type AutomationState, type ChangesetState, type ErrorInfo, type RootState, type SessionState, type SessionSummary, type TerminalState, type Turn } from '../../common/state/protocol/state.js';
+import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, createChatState, createDefaultChatSummary, getTurnError, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
+import { AgentSubscriptionManager, AutomationCatalogSubscription, AutomationRunSubscription, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
+import { normalizeLegacyActionEnvelope, readLegacyTurnError } from '../../common/state/legacyProtocolCompatibility.js';
 
 // Helpers
 
@@ -82,6 +84,121 @@ const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toStri
 const terminalUri = URI.from({ scheme: 'agenthost-terminal', path: '/term1' }).toString();
 const chatUri = buildDefaultChatUri(sessionUri);
 const changesetUri = `${sessionUri}/changeset/session`;
+const automationUri = 'ahp-automation:/test-automation';
+const automationRunUri = 'ahp-automation-run:/test-run';
+
+function makeAutomationCatalogState(): AutomationState {
+	return { entries: [] };
+}
+
+function makeAutomationRunState(): AutomationRunState {
+	return {
+		resource: automationRunUri,
+		automation: automationUri,
+		origin: { kind: AutomationRunOriginKind.Manual },
+		lifecycle: { status: AutomationRunStatus.Pending, createdAt: new Date(1).toISOString() },
+		sessions: [],
+	};
+}
+
+suite('Automation subscriptions', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('catalogue changes only after the authoritative set action', () => {
+		const subscription = disposables.add(new AutomationCatalogSubscription('c1', noop));
+		subscription.handleSnapshot(makeAutomationCatalogState(), 0);
+		const definition = {
+			title: 'Daily summary',
+			message: { text: 'Summarize the repository.', origin: { kind: MessageKind.Automation } },
+			session: {},
+			enabled: true,
+			triggers: [],
+		};
+
+		subscription.receiveEnvelope(makeEnvelope({
+			type: ActionType.AutomationCreateRequested,
+			resource: automationUri,
+			definition,
+		}, 1, { clientId: 'c1', clientSeq: 1 }, undefined, AUTOMATION_CATALOG_URI));
+
+		const requested = subscription.value as AutomationState;
+		subscription.receiveEnvelope(makeEnvelope({
+			type: ActionType.AutomationSet,
+			automation: {
+				resource: automationUri,
+				definition,
+				runs: [],
+				operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+				createdAt: new Date(1).toISOString(),
+				modifiedAt: new Date(1).toISOString(),
+			},
+		}, 2, undefined, undefined, AUTOMATION_CATALOG_URI));
+
+		assert.deepStrictEqual({
+			requested: requested.entries,
+			authoritative: (subscription.value as AutomationState).entries.map(automation => automation.resource),
+		}, {
+			requested: [],
+			authoritative: [automationUri],
+		});
+	});
+
+	test('run cancellation remains side-effect-only until the lifecycle changes', () => {
+		const subscription = disposables.add(new AutomationRunSubscription(automationRunUri, 'c1', noop));
+		subscription.handleSnapshot(makeAutomationRunState(), 0);
+		subscription.receiveEnvelope(makeEnvelope({
+			type: ActionType.AutomationRunCancelRequested,
+		}, 1, { clientId: 'c1', clientSeq: 1 }, undefined, automationRunUri));
+		const requested = (subscription.value as AutomationRunState).lifecycle.status;
+		subscription.receiveEnvelope(makeEnvelope({
+			type: ActionType.AutomationRunLifecycleChanged,
+			lifecycle: {
+				status: AutomationRunStatus.Cancelled,
+				createdAt: new Date(1).toISOString(),
+				completedAt: new Date(2).toISOString(),
+			},
+		}, 2, undefined, undefined, automationRunUri));
+
+		assert.deepStrictEqual({
+			requested,
+			authoritative: (subscription.value as AutomationRunState).lifecycle.status,
+		}, {
+			requested: AutomationRunStatus.Pending,
+			authoritative: AutomationRunStatus.Cancelled,
+		});
+	});
+
+	test('rejected removal does not mutate the catalogue', () => {
+		const subscription = disposables.add(new AutomationCatalogSubscription('c1', noop));
+		const definition = {
+			title: 'Daily summary',
+			message: { text: 'Summarize the repository.', origin: { kind: MessageKind.Automation } },
+			session: {},
+			enabled: true,
+			triggers: [],
+		};
+		subscription.handleSnapshot({
+			entries: [{
+				resource: automationUri,
+				definition,
+				runs: [],
+				operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+				createdAt: new Date(1).toISOString(),
+				modifiedAt: new Date(1).toISOString(),
+			}],
+		}, 0);
+
+		subscription.receiveEnvelope(makeEnvelope({
+			type: ActionType.AutomationRemoved,
+			resource: automationUri,
+		}, 1, { clientId: 'c1', clientSeq: 1 }, 'Automation has an active run.', AUTOMATION_CATALOG_URI));
+
+		assert.deepStrictEqual(
+			(subscription.value as AutomationState).entries.map(automation => automation.resource),
+			[automationUri],
+		);
+	});
+});
 
 suite('ChangesetStateSubscription', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -509,6 +626,83 @@ suite('ChatStateSubscription', () => {
 		return disposables.add(new ChatStateSubscription(uri, clientId, () => ++seq, noop));
 	}
 
+	function makeLegacyErrorTurn(error: ErrorInfo): Turn & { readonly error: ErrorInfo } {
+		return {
+			id: 'turn-1',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+			responseParts: [],
+			usage: undefined,
+			state: TurnState.Error,
+			error,
+		};
+	}
+
+	test('normalizes legacy live errors to durable response parts', () => {
+		const error: ErrorInfo = { errorType: 'LegacyError', message: 'legacy failure' };
+		const envelope = normalizeLegacyActionEnvelope({
+			channel: chatUri,
+			serverSeq: 1,
+			origin: undefined,
+			action: {
+				type: ActionType.ChatError,
+				turnId: 'turn-1',
+				duration: 1000,
+				error,
+			},
+		});
+
+		assert.deepStrictEqual(envelope.action, {
+			type: ActionType.ChatError,
+			turnId: 'turn-1',
+			duration: 1000,
+			part: { kind: ResponsePartKind.Error, error },
+		});
+	});
+
+	test('normalizes legacy loaded turn errors to durable response parts', () => {
+		const error: ErrorInfo = { errorType: 'LegacyError', message: 'legacy failure' };
+		const envelope = normalizeLegacyActionEnvelope({
+			channel: chatUri,
+			serverSeq: 1,
+			origin: undefined,
+			action: {
+				type: ActionType.ChatTurnsLoaded,
+				turns: [makeLegacyErrorTurn(error)],
+			},
+		});
+
+		assert.deepStrictEqual(envelope.action, {
+			type: ActionType.ChatTurnsLoaded,
+			turns: [{
+				id: 'turn-1',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Error, error }],
+				usage: undefined,
+				state: TurnState.Error,
+			}],
+		});
+	});
+
+	test('normalizes legacy snapshot errors to durable response parts', () => {
+		const error: ErrorInfo = { errorType: 'LegacyError', message: 'legacy failure' };
+		const legacyTurn = makeLegacyErrorTurn(error);
+		const sub = createSub();
+
+		sub.handleSnapshot(makeChatState(chatUri, undefined, { turns: [legacyTurn] }), 0);
+
+		assert.deepStrictEqual({
+			legacyError: getTurnError(legacyTurn),
+			error: getTurnError(sub.verifiedValue?.turns[0]),
+			responseParts: sub.verifiedValue?.turns[0].responseParts,
+			legacyField: sub.verifiedValue?.turns[0] && readLegacyTurnError(sub.verifiedValue.turns[0]),
+		}, {
+			legacyError: error,
+			error,
+			responseParts: [{ kind: ResponsePartKind.Error, error }],
+			legacyField: undefined,
+		});
+	});
+
 	test('server terminal turn action drops stale optimistic turn start', () => {
 		const sub = createSub();
 		sub.handleSnapshot(makeChatState(chatUri), 0);
@@ -658,9 +852,9 @@ suite('AgentSubscriptionManager', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createManager(subscribe: (resource: URI) => Promise<{ resource: string; state: SessionState | TerminalState | ChangesetState | AnnotationsState; fromSeq: number }> = async (resource) => {
-		subscribedResources.push(resource.toString());
+	function createManager(subscribe: (resource: URI) => Promise<{ resource: string; state: SessionState | TerminalState | ChangesetState | AnnotationsState | AutomationState; fromSeq: number }> = async resource => {
 		const key = resource.toString();
+		subscribedResources.push(key);
 		if (key.endsWith('/annotations')) {
 			return { resource: key, state: { annotations: [] }, fromSeq: 0 };
 		}
@@ -674,7 +868,7 @@ suite('AgentSubscriptionManager', () => {
 			() => ++seq,
 			noop,
 			subscribe,
-			(resource) => {
+			resource => {
 				unsubscribedResources.push(resource.toString());
 			},
 		));
@@ -778,10 +972,15 @@ suite('AgentSubscriptionManager', () => {
 				makeEnvelope({ type: ActionType.SessionTitleChanged, title: 'Yep' }, 3),
 				['ahp-root:', sessionUri],
 			),
+			automationVariant: isActionEnvelopeRelevantToSubscriptionUris(
+				makeEnvelope({ type: ActionType.AutomationRemoved, resource: automationUri }, 4, undefined, undefined, AUTOMATION_CATALOG_URI),
+				[URI.parse(AUTOMATION_CATALOG_URI).toString()],
+			),
 		}, {
 			rootVariant: true,
 			rootOnlyGetsSession: false,
 			exactSession: true,
+			automationVariant: true,
 		});
 	});
 
@@ -807,6 +1006,29 @@ suite('AgentSubscriptionManager', () => {
 		assert.ok(subscribedResources.includes(terminalUri));
 
 		ref.dispose();
+	});
+
+	test('uses the normalized automation catalogue URI internally', async () => {
+		const normalizedCatalogUri = URI.parse(AUTOMATION_CATALOG_URI).toString();
+		const mgr = createManager(async resource => {
+			subscribedResources.push(resource.toString());
+			return { resource: resource.toString(), state: { entries: [] }, fromSeq: 0 };
+		});
+		const ref = mgr.getSubscription<AutomationState>(StateComponents.AutomationCatalog, URI.parse(AUTOMATION_CATALOG_URI), 'AutomationHolder');
+		await Event.toPromise(ref.object.onDidChange);
+
+		assert.deepStrictEqual({
+			subscribedResources,
+			resources: mgr.currentSubscriptionUris().map(resource => resource.toString()),
+			activeResource: mgr.getActiveSubscriptions()[0].resource.toString(),
+		}, {
+			subscribedResources: [normalizedCatalogUri],
+			resources: [normalizedCatalogUri],
+			activeResource: normalizedCatalogUri,
+		});
+
+		ref.dispose();
+		assert.deepStrictEqual(unsubscribedResources, [normalizedCatalogUri]);
 	});
 
 	test('dispatchOptimistic applies to matching session subscription', async () => {
@@ -1050,6 +1272,27 @@ suite('AgentSubscriptionManager', () => {
 
 			assert.ok(ref.object.value instanceof Error);
 			assert.deepStrictEqual(mgr.getPendingActions(), []);
+			ref.dispose();
+		});
+
+		test('markSubscriptionsMissing handles the Automation catalogue URI', async () => {
+			const mgr = createManager(async resource => ({
+				resource: resource.toString(),
+				state: { entries: [] },
+				fromSeq: 0,
+			}));
+			const ref = mgr.getSubscription<AutomationState>(StateComponents.AutomationCatalog, URI.parse(AUTOMATION_CATALOG_URI), 'test');
+			await Event.toPromise(ref.object.onDidChange);
+
+			mgr.markSubscriptionsMissing([URI.parse(AUTOMATION_CATALOG_URI)]);
+
+			assert.deepStrictEqual({
+				valueIsError: ref.object.value instanceof Error,
+				resource: mgr.getActiveSubscriptions()[0].resource.toString(),
+			}, {
+				valueIsError: true,
+				resource: URI.parse(AUTOMATION_CATALOG_URI).toString(),
+			});
 			ref.dispose();
 		});
 

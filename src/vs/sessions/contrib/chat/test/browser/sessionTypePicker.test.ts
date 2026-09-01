@@ -107,10 +107,6 @@ class TestSessionTypePicker extends SessionTypePicker {
 	pick(p: IPickedSessionType): void {
 		this._handleSelectedSessionType(p);
 	}
-
-	showPicker(): void {
-		this._showPicker();
-	}
 }
 
 function createPicker(
@@ -265,6 +261,51 @@ suite('SessionTypePicker', () => {
 		}, {
 			stored: { providerId: 'copilot', sessionTypeId: 'copilot-cli' },
 			selected: { providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+		});
+	});
+
+	test('disables the trigger when the selected workspace has only one session type', () => {
+		management.setSessionTypes([
+			sessionType('copilot', 'cloud', 'Cloud'),
+		]);
+		const picker = createPicker(disposables, session, management, storage);
+		session.set(createFakeSession('copilot', 'cloud', folder), undefined);
+		const container = document.createElement('div');
+		picker.render(container);
+		const trigger = container.querySelector<HTMLElement>('.action-label');
+		const singleType = {
+			hidden: trigger?.classList.contains('hidden'),
+			disabled: trigger?.getAttribute('aria-disabled'),
+			tabIndex: trigger?.tabIndex,
+			label: trigger?.getAttribute('aria-label'),
+		};
+
+		management.setSessionTypes([
+			sessionType('copilot', 'cloud', 'Cloud'),
+			sessionType('local-agent-host', 'local', 'Local'),
+		]);
+
+		assert.deepStrictEqual({
+			singleType,
+			multipleTypes: {
+				hidden: trigger?.classList.contains('hidden'),
+				disabled: trigger?.getAttribute('aria-disabled'),
+				tabIndex: trigger?.tabIndex,
+				label: trigger?.getAttribute('aria-label'),
+			},
+		}, {
+			singleType: {
+				hidden: false,
+				disabled: 'true',
+				tabIndex: -1,
+				label: 'Session Type, Cloud',
+			},
+			multipleTypes: {
+				hidden: false,
+				disabled: 'false',
+				tabIndex: 0,
+				label: 'Pick Session Type, Cloud',
+			},
 		});
 	});
 

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Limiter, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
@@ -90,6 +91,42 @@ const DISCOVERY_TASK_SCAN_LIMIT = 100;
 
 /** Bounds sequential page fetches. Hitting it leaves tasks unscanned, so the result is `partial`. */
 const DISCOVERY_TASK_PAGE_LIMIT = 10;
+
+/**
+ * Max concurrent task-detail fetches during discovery.
+ *
+ * Discovery used to resolve every sandbox task at once, which meant a user with a few dozen
+ * sandbox tasks issued that many simultaneous requests and tripped GitHub's rate limit. Each
+ * rejected fetch drops its session from the pass, and the burst also starves the `listTasks` call
+ * of whichever pass runs next — including the one a freshly reloaded window depends on.
+ */
+const DISCOVERY_TASK_FETCH_CONCURRENCY = 5;
+
+/** HTTP status GitHub answers a rate-limited request with. */
+const HTTP_TOO_MANY_REQUESTS = 429;
+
+/** How many times a rate-limited discovery read is re-issued before it is given up on. */
+const RATE_LIMIT_MAX_RETRIES = 3;
+
+/** First backoff step (ms) for a rate-limited read whose response names no `Retry-After`. */
+const RATE_LIMIT_BASE_DELAY_MS = 1_000;
+
+/**
+ * Cap (ms) on a backoff this client computes for itself. It deliberately does not apply to a
+ * server-supplied `Retry-After`: shortening that would re-issue the request inside the window the
+ * server just asked us to stay out of, earning another 429 and adding to the very traffic that
+ * caused it.
+ */
+const RATE_LIMIT_MAX_BACKOFF_MS = 8_000;
+
+/**
+ * Total time (ms) a single read may spend waiting out rate limits before it gives up.
+ *
+ * Bounds the pass without ever shortening a wait: a `Retry-After` longer than what is left is not
+ * trimmed to fit, it ends the retries. The read then reports its 429 and leaves the scan `partial`,
+ * so the caller keeps the sessions it could not resolve and a later pass picks them up.
+ */
+const RATE_LIMIT_WAIT_BUDGET_MS = 15_000;
 
 /** Fallback scopes when the product does not configure `defaultChatAgent.providerScopes`. */
 const FALLBACK_SCOPES = ['read:user', 'user:email', 'repo', 'workflow'];
@@ -195,35 +232,43 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 
 		const sandboxTasks = tasks.filter(task => !task.archived_at && isCloudSandboxTask(task));
 		let unresolved = 0;
-		const discovered = await Promise.all(sandboxTasks.map(async (task): Promise<ICloudSandboxDiscoveredSession | undefined> => {
-			try {
-				const context = await this._sendTask(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(task.id)}`, 'get', token);
-				const full = await this._readJson<ITaskDetail>(context);
-				if (!full) {
+		// Bounded fan-out: resolving every task at once trips the rate limit, and each rejected
+		// fetch silently drops its session from this pass.
+		const limiter = new Limiter<ICloudSandboxDiscoveredSession | undefined>(DISCOVERY_TASK_FETCH_CONCURRENCY);
+		let discovered: (ICloudSandboxDiscoveredSession | undefined)[];
+		try {
+			discovered = await Promise.all(sandboxTasks.map(task => limiter.queue(async (): Promise<ICloudSandboxDiscoveredSession | undefined> => {
+				try {
+					const context = await this._sendTask(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(task.id)}`, 'get', token);
+					const full = await this._readJson<ITaskDetail>(context);
+					if (!full) {
+						unresolved++;
+						return undefined;
+					}
+					const binding = getTaskEnvironmentBinding(full);
+					if (!binding) {
+						// No environment bound yet — a real state, not a failure to resolve.
+						return undefined;
+					}
+					const repositoryId = full.repository?.id ?? task.repository?.id;
+					const repoName = repositoryId !== undefined ? await this._resolveRepositoryName(repositoryId, token) : undefined;
+					return {
+						environmentId: binding.environmentId,
+						sessionId: binding.sessionId,
+						taskId: task.id,
+						name: full.name ?? task.name ?? `Sandbox ${task.id}`,
+						repoName,
+						updatedAt: full.updated_at ?? task.updated_at,
+					};
+				} catch (error) {
+					this._logService.warn(`${LOG_PREFIX} Discovery getTask ${task.id} failed: ${toErrorMessage(error)}`);
 					unresolved++;
 					return undefined;
 				}
-				const binding = getTaskEnvironmentBinding(full);
-				if (!binding) {
-					// No environment bound yet — a real state, not a failure to resolve.
-					return undefined;
-				}
-				const repositoryId = full.repository?.id ?? task.repository?.id;
-				const repoName = repositoryId !== undefined ? await this._resolveRepositoryName(repositoryId, token) : undefined;
-				return {
-					environmentId: binding.environmentId,
-					sessionId: binding.sessionId,
-					taskId: task.id,
-					name: full.name ?? task.name ?? `Sandbox ${task.id}`,
-					repoName,
-					updatedAt: full.updated_at ?? task.updated_at,
-				};
-			} catch (error) {
-				this._logService.warn(`${LOG_PREFIX} Discovery getTask ${task.id} failed: ${toErrorMessage(error)}`);
-				unresolved++;
-				return undefined;
-			}
-		}));
+			})));
+		} finally {
+			limiter.dispose();
+		}
 
 		const sessions = discovered.filter((session): session is ICloudSandboxDiscoveredSession => session !== undefined);
 		const unnamed = sessions.filter(session => !session.repoName).length;
@@ -344,9 +389,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const pending = (async () => {
 			try {
 				const url = `${GITHUB_DOT_COM_API_BASE_URI}/repositories/${repositoryId}`;
-				const context = await this._request(url, 'mc.repositoryClient.get', 'getRepository', {
+				const context = await this._retryWhileRateLimited('repository get', token, () => this._request(url, 'mc.repositoryClient.get', 'getRepository', {
 					'Accept': 'application/vnd.github.v3+json',
-				}, token, DISCOVERY_TIMEOUT_MS);
+				}, token, DISCOVERY_TIMEOUT_MS));
 				if (!isSuccess(context)) {
 					throw new CloudSandboxRequestError(context.res.statusCode, `HTTP ${context.res.statusCode ?? 'none'}`);
 				}
@@ -410,17 +455,47 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 
 	/** Issue a task API request, throwing on a non-success status. */
 	private async _sendTask(url: string, action: 'list' | 'get', token: CancellationToken): Promise<IRequestContext> {
-		const context = await this._request(url, `mc.taskClient.${action}`, action === 'list' ? 'listTasks' : 'getTask', {
+		const context = await this._retryWhileRateLimited(`task ${action}`, token, () => this._request(url, `mc.taskClient.${action}`, action === 'list' ? 'listTasks' : 'getTask', {
 			'Accept': 'application/json',
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
-		}, token, DISCOVERY_TIMEOUT_MS);
+		}, token, DISCOVERY_TIMEOUT_MS));
 		if (!isSuccess(context)) {
 			await this._throwForStatus(`task ${action}`, context);
 		}
 		return context;
 	}
 
-	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeout: number = REQUEST_TIMEOUT_MS, body?: unknown, method?: 'GET' | 'POST' | 'DELETE'): Promise<IRequestContext> {
+	/**
+	 * Re-issue a discovery read that came back rate-limited, waiting for `Retry-After` when the
+	 * response names one and backing off exponentially when it does not.
+	 *
+	 * Discovery reads the API far harder than any other sandbox call, so it is the one path that
+	 * routinely trips the limit. Reporting a 429 rather than retrying it loses the session being
+	 * resolved for the rest of the window, because nothing re-runs a pass that otherwise succeeded.
+	 */
+	private async _retryWhileRateLimited(action: string, token: CancellationToken, send: () => Promise<IRequestContext>): Promise<IRequestContext> {
+		let waited = 0;
+		for (let attempt = 0; ; attempt++) {
+			const context = await send();
+			if (context.res.statusCode !== HTTP_TOO_MANY_REQUESTS || attempt >= RATE_LIMIT_MAX_RETRIES || token.isCancellationRequested) {
+				return context;
+			}
+			const delay = rateLimitDelay(context.res.headers?.['retry-after'], attempt);
+			// Waiting less than asked would re-issue inside the server's window, so a delay that
+			// does not fit ends the retries rather than being trimmed to fit.
+			if (waited + delay > RATE_LIMIT_WAIT_BUDGET_MS) {
+				this._logService.warn(`${LOG_PREFIX} ${action} was rate limited and asks for another ${delay}ms, beyond what is left of its ${RATE_LIMIT_WAIT_BUDGET_MS}ms budget; giving up so the pass stays bounded. A later pass retries it.`);
+				return context;
+			}
+			// Nothing reads the body on this path, and an unconsumed stream holds its connection.
+			await asText(context).catch(() => undefined);
+			this._logService.warn(`${LOG_PREFIX} ${action} was rate limited; retrying in ${delay}ms (attempt ${attempt + 1} of ${RATE_LIMIT_MAX_RETRIES}).`);
+			await timeout(delay, token);
+			waited += delay;
+		}
+	}
+
+	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeoutMs: number = REQUEST_TIMEOUT_MS, body?: unknown, method?: 'GET' | 'POST' | 'DELETE'): Promise<IRequestContext> {
 		const accessToken = await this._resolveGitHubToken();
 		if (!accessToken) {
 			// No request is issued, so there is no request outcome to count.
@@ -439,13 +514,13 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					['Authorization']: `Bearer ${accessToken}`
 				},
 				...(body === undefined ? undefined : { data: JSON.stringify(body) }),
-				timeout,
+				timeout: timeoutMs,
 				callSite,
 			}, token);
 			this._telemetry.reportRequest(action, requestOutcomeForStatus(context.res.statusCode));
 			// Latency against its budget: `/connect` blocks on a compute resume, so how close a reply
 			// came to being cut off separates "Mission Control is silent" from "we stopped listening".
-			this._logService.trace(`${LOG_PREFIX} ${action} -> HTTP ${context.res.statusCode ?? 'none'} in ${Date.now() - started}ms (budget ${timeout}ms)${context.res.headers?.['retry-after'] ? `, Retry-After: ${context.res.headers['retry-after']}` : ''}`);
+			this._logService.trace(`${LOG_PREFIX} ${action} -> HTTP ${context.res.statusCode ?? 'none'} in ${Date.now() - started}ms (budget ${timeoutMs}ms)${context.res.headers?.['retry-after'] ? `, Retry-After: ${context.res.headers['retry-after']}` : ''}`);
 			return context;
 		} catch (error) {
 			// A cancelled request was never answered, so it is not a failure worth counting.
@@ -453,7 +528,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				this._telemetry.reportRequest(action, 'networkError');
 			}
 			// Elapsed at the budget means our own timeout fired; shorter means something else did.
-			this._logService.trace(`${LOG_PREFIX} ${action} -> failed after ${Date.now() - started}ms (budget ${timeout}ms)`);
+			this._logService.trace(`${LOG_PREFIX} ${action} -> failed after ${Date.now() - started}ms (budget ${timeoutMs}ms)`);
 			this._logService.error(`${LOG_PREFIX} ${requestMethod} ${url} failed: ${toErrorMessage(error)}`);
 			throw error;
 		}
@@ -577,8 +652,8 @@ function toQuery(searchParams: Record<string, string> | undefined): string {
 	return search ? `?${search}` : '';
 }
 
-/** Parse a `Retry-After` header (delta-seconds); fall back to a small default. */
-function parseRetryAfter(value: string | string[] | undefined): number {
+/** Parse a `Retry-After` header (delta-seconds), or `undefined` when absent or unusable. */
+function retryAfterSeconds(value: string | string[] | undefined): number | undefined {
 	const raw = Array.isArray(value) ? value[0] : value;
 	if (raw) {
 		const seconds = Number.parseInt(raw, 10);
@@ -586,7 +661,25 @@ function parseRetryAfter(value: string | string[] | undefined): number {
 			return seconds;
 		}
 	}
-	return DEFAULT_WAKING_RETRY_AFTER_SECONDS;
+	return undefined;
+}
+
+/** Parse a `Retry-After` header (delta-seconds); fall back to a small default. */
+function parseRetryAfter(value: string | string[] | undefined): number {
+	return retryAfterSeconds(value) ?? DEFAULT_WAKING_RETRY_AFTER_SECONDS;
+}
+
+/**
+ * How long to wait before re-issuing a rate-limited request: the server's `Retry-After` verbatim
+ * when it names one, otherwise an exponential backoff of our own, capped. A server delay is never
+ * shortened — the caller decides whether it still fits its budget, since retrying early only earns
+ * another 429.
+ */
+function rateLimitDelay(retryAfter: string | string[] | undefined, attempt: number): number {
+	const seconds = retryAfterSeconds(retryAfter);
+	return seconds !== undefined
+		? seconds * 1000
+		: Math.min(RATE_LIMIT_BASE_DELAY_MS * Math.pow(2, attempt), RATE_LIMIT_MAX_BACKOFF_MS);
 }
 
 /**

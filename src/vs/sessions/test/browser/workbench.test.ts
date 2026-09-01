@@ -51,6 +51,7 @@ suite('Sessions - Workbench', () => {
 	const restoreAttachedEditorMaximizedState = Reflect.get(Workbench.prototype, 'restoreAttachedEditorMaximizedState') as (this: IWorkbenchTestHarness) => void;
 	const loadPartVisibility = Reflect.get(Workbench.prototype, '_loadPartVisibility') as (this: IWorkbenchTestHarness, storageService: { get(): string | undefined; remove(): void }) => { editor?: boolean; auxiliaryBar?: boolean; sidebar?: boolean };
 	const savePartVisibility = Reflect.get(Workbench.prototype, '_savePartVisibility') as (this: IWorkbenchTestHarness) => void;
+	const applyPersistedPartVisibility = Reflect.get(Workbench.prototype, '_applyPersistedPartVisibility') as (this: IWorkbenchTestHarness) => void;
 	const revealEditorOnOpen = Reflect.get(Workbench.prototype, 'revealEditorOnOpen') as (this: IWillOpenTestHarness, e: { groupId: number; editor: unknown }) => void;
 	const revealEditorOnOpenSinglePane = Reflect.get(SinglePaneWorkbench.prototype, 'revealEditorOnOpen') as (this: IWillOpenTestHarness, e: { groupId: number; editor: unknown }) => void;
 	const createDesktopGridDescriptor = Reflect.get(Workbench.prototype, 'createDesktopGridDescriptor') as (this: IGridDescriptorTestHarness, width: number, height: number) => { root: { data: readonly unknown[] } };
@@ -103,6 +104,7 @@ suite('Sessions - Workbench', () => {
 		readonly gridVisibility: Map<object, boolean>;
 		readonly mobileNavLayers: string[];
 		readonly focusedSessions: number;
+		readonly customViewTransitionSteps: string[];
 		readonly sidePaneToggleEvents: ('will' | { readonly did: ISidePaneToggleEvent })[];
 		layoutPolicy: { viewportClass: { get(): string } };
 		sessionsPartView: object;
@@ -211,7 +213,9 @@ suite('Sessions - Workbench', () => {
 		const renderedCustomViews: (object | undefined)[] = [];
 		const gridVisibility = new Map<object, boolean>();
 		const mobileNavLayers: string[] = [];
+		const customViewTransitionSteps: string[] = [];
 		let focusedSessions = 0;
+		let sessionsContentVisible = true;
 		const sidePaneToggleEvents: ('will' | { did: ISidePaneToggleEvent })[] = [];
 		const notifyPartVisibility = (view: object, visible: boolean) => notifyPartVisibilityOn(host as unknown as ITestWorkbench, view, visible);
 		let editorNodeVisible = (options.partVisibility?.editor ?? false) || (options.partVisibility?.auxiliaryBar ?? true);
@@ -243,6 +247,11 @@ suite('Sessions - Workbench', () => {
 				hasMaximizedView: () => false,
 				exitMaximizedView: () => { },
 				setViewVisible: (view: object, visible: boolean, sizing?: { type: string }) => {
+					if (view === customViewGridPartView) {
+						customViewTransitionSteps.push(`grid:customView:${visible}`);
+					} else if (view === sessionsPartView) {
+						customViewTransitionSteps.push(`grid:sessions:${visible}`);
+					}
 					if (view === editorPartView) {
 						editorNodeVisible = visible;
 						if (visible && partVisibility.editor && options.panelHeightOnEditorShow !== undefined) {
@@ -322,7 +331,15 @@ suite('Sessions - Workbench', () => {
 			},
 			customViewGridPartService: { setView: (descriptor: object | undefined) => { renderedCustomViews.push(descriptor); }, focusActiveView: () => { } },
 			_customViewVisibleKey: { set: () => { } },
-			sessionsPartService: { focusSession: () => { focusedSessions++; } },
+			sessionsPartService: {
+				focusSession: () => { focusedSessions++; },
+				setContentVisible: (visible: boolean) => {
+					if (sessionsContentVisible !== visible) {
+						sessionsContentVisible = visible;
+						customViewTransitionSteps.push(`content:${visible}`);
+					}
+				},
+			},
 			sessionsService: { activeSession: { get: () => undefined } },
 			// captures
 			resizes,
@@ -336,6 +353,7 @@ suite('Sessions - Workbench', () => {
 			renderedCustomViews,
 			gridVisibility,
 			mobileNavLayers,
+			customViewTransitionSteps,
 			sidePaneToggleEvents,
 			get focusedSessions() { return focusedSessions; },
 		};
@@ -2350,6 +2368,8 @@ suite('Sessions - Workbench', () => {
 		partVisibility: { sidebar: boolean; auxiliaryBar: boolean; editor: boolean; panel: boolean; sessions: boolean };
 		layoutPolicy: { viewportClass: { get(): 'phone' | 'tablet' | 'desktop' } };
 		storageService: { store(...args: unknown[]): void };
+		isSinglePaneLayoutEnabled: boolean;
+		_loadPartVisibility(storageService: unknown): { editor?: boolean; auxiliaryBar?: boolean; sidebar?: boolean; panel?: boolean };
 		_editorPartAutoVisibilitySuppressionCount: number;
 		_editorMaximized: boolean;
 		_restoreAttachedEditorMaximizedOnShow: boolean;
@@ -2362,6 +2382,8 @@ suite('Sessions - Workbench', () => {
 			partVisibility: { sidebar: true, auxiliaryBar: true, editor: true, panel: false, sessions: true },
 			layoutPolicy: { viewportClass: { get: () => 'desktop' } },
 			storageService: { store: () => { } },
+			isSinglePaneLayoutEnabled: false,
+			_loadPartVisibility: () => ({}),
 			_editorPartAutoVisibilitySuppressionCount: 0,
 			_editorMaximized: false,
 			_restoreAttachedEditorMaximizedOnShow: false,
@@ -2699,6 +2721,39 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
+	test('suspends session content throughout the custom view grid swap', () => {
+		const host = createHost();
+
+		applyCustomViewGridVisibility.call(host, {});
+		applyCustomViewGridVisibility.call(host, undefined);
+
+		assert.deepStrictEqual(host.customViewTransitionSteps, [
+			'content:false',
+			'grid:customView:true',
+			'grid:sessions:false',
+			'grid:sessions:true',
+			'grid:customView:false',
+			'content:true',
+		]);
+	});
+
+	test('keeps session content suspended when a custom view opens before grid creation', () => {
+		const host = createHost();
+		Object.assign(host, { workbenchGrid: undefined });
+
+		applyCustomViewGridVisibility.call(host, {});
+		const whileShown = [...host.customViewTransitionSteps];
+		applyCustomViewGridVisibility.call(host, undefined);
+
+		assert.deepStrictEqual({
+			whileShown,
+			afterHide: host.customViewTransitionSteps,
+		}, {
+			whileShown: ['content:false'],
+			afterHide: ['content:false', 'content:true'],
+		});
+	});
+
 	test('hiding the custom view restores the desired part visibility, including changes made while it was shown', () => {
 		const host = createHost({ partVisibility: { editor: true, auxiliaryBar: true, panel: false, sessions: true } });
 
@@ -2887,5 +2942,40 @@ suite('Sessions - Workbench', () => {
 		savePartVisibility.call(workbench);
 
 		assert.strictEqual(storeCalled, false);
+	});
+
+	test('restores saved panel visibility only in single-pane mode', () => {
+		function restoredPanel(isSinglePaneLayoutEnabled: boolean): boolean {
+			const workbench = createWorkbenchHarness();
+			workbench.isSinglePaneLayoutEnabled = isSinglePaneLayoutEnabled;
+			workbench.partVisibility.panel = false;
+			workbench._loadPartVisibility = () => ({ panel: true });
+
+			applyPersistedPartVisibility.call(workbench);
+			return workbench.partVisibility.panel;
+		}
+
+		assert.deepStrictEqual(
+			{ singlePane: restoredPanel(true), classic: restoredPanel(false) },
+			{ singlePane: true, classic: false }
+		);
+	});
+
+	test('persists panel visibility only in single-pane mode', () => {
+		function persistedPanel(isSinglePaneLayoutEnabled: boolean): boolean | undefined {
+			const workbench = createWorkbenchHarness();
+			workbench.isSinglePaneLayoutEnabled = isSinglePaneLayoutEnabled;
+			workbench.partVisibility.panel = true;
+			let stored: { panel?: boolean } | undefined;
+			workbench.storageService.store = (_key, value) => { stored = JSON.parse(String(value)); };
+
+			savePartVisibility.call(workbench);
+			return stored?.panel;
+		}
+
+		assert.deepStrictEqual(
+			{ singlePane: persistedPanel(true), classic: persistedPanel(false) },
+			{ singlePane: true, classic: undefined }
+		);
 	});
 });

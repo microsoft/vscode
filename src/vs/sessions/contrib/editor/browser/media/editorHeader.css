@@ -24,7 +24,7 @@
 	width: 100%;
 	min-height: 29px;
 	overflow: hidden;
-	padding: var(--vscode-spacing-size20, 2px) var(--vscode-spacing-size40, 4px) var(--vscode-spacing-size20, 2px) var(--vscode-spacing-size80, 8px);
+	padding: var(--vscode-spacing-size20, 2px) var(--vscode-spacing-size40, 4px);
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-actions {

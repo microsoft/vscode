@@ -350,6 +350,7 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		addExistingWorktree: async () => { },
 		removeWorktree: async () => { },
 		branchExists: async () => false,
+		createBranch: async () => { },
 		hasUncommittedChanges: async () => false,
 		commitAll: async () => { },
 		mergeBranch: async () => '',
@@ -398,7 +399,6 @@ export function createNoopChangesetService(): import('../../common/agentHostChan
 		refreshSessionChangeset: () => { },
 		onWorkingDirectoryAvailable: () => { },
 		recomputeSubscribedChangesets: () => { },
-		onSessionDisposed: () => { },
 		computeTurnChangeset: async session => session,
 		computeCompareTurnsChangeset: async session => session,
 		computeUncommittedChangeset: async session => session,
@@ -418,7 +418,6 @@ export function createNoopGitStateService(): IAgentHostGitStateService {
 		setSessionGitHubState: async (_sessionKey: string, _state: ISessionGitHubState) => { },
 		recordSessionMerge: async (_sessionKey: string, _commit: string) => { },
 		attachSessionGitHubPullRequest: async (_sessionKey: string, _workingDirectory?: URI) => { },
-		attachSessionGitHubReferences: async (_sessionKey: string, _text: string) => { },
 	};
 }
 
