@@ -126,15 +126,9 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	/**
 	 * Resolve a dynamic event for a browser view, returning {@link Event.None}
-	 * when the view no longer exists.
-	 *
-	 * Event subscriptions are established asynchronously over IPC: a renderer
-	 * issues a `listen` request and the main process resolves the event getter
-	 * when the message arrives. The view can be destroyed in the window between
-	 * the renderer subscribing and the request being handled, so a missing view
-	 * here is an expected race rather than a bug. In that case there are no
-	 * further events to deliver, so an empty event is the correct result — the
-	 * getter must not throw across the process boundary.
+	 * when the view no longer exists. A missing view is an expected IPC
+	 * subscription race (the view can be destroyed before the renderer's
+	 * `listen` request is handled), not a bug, so the getter must not throw.
 	 */
 	private _getBrowserViewEvent<T>(id: string, getEvent: (view: BrowserView) => Event<T>): Event<T> {
 		const view = this.browserViews.get(id);
