@@ -610,8 +610,18 @@ suite('ChatPetWidget', () => {
 
 		mainWindow.dispatchEvent(new FocusEvent('blur'));
 		const hiddenAfterExternalBlur = button.classList.contains('hidden');
+		const windowTransferred = new Promise<void>(resolve => {
+			const observer = new mainWindow.MutationObserver(() => {
+				if (button.classList.contains('hidden')) {
+					observer.disconnect();
+					resolve();
+				}
+			});
+			disposables.add(toDisposable(() => observer.disconnect()));
+			observer.observe(button, { attributes: true, attributeFilter: ['class'] });
+		});
 		ownershipChannel.postMessage({ windowId: mainWindow.vscodeWindowId + 1 });
-		await new Promise(resolve => mainWindow.setTimeout(resolve, 10));
+		await windowTransferred;
 		const hiddenAfterWindowTransfer = button.classList.contains('hidden');
 		mainWindow.dispatchEvent(new FocusEvent('focus'));
 		const hiddenAfterReturn = button.classList.contains('hidden');

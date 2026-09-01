@@ -1034,7 +1034,7 @@ async function collectDiscoveredChats(agent: CopilotAgent): Promise<Array<{ id: 
 	const discovered: IAgentDiscoveredChat[] = [];
 	const listener = agent.onDidDiscoverChats(chats => discovered.push(...chats));
 	try {
-		await (agent as unknown as { _startCopilotChatDiscovery(): Promise<void> })._startCopilotChatDiscovery();
+		await agent.startChatDiscovery();
 		return discovered.map(chat => ({
 			id: sessionIdOfChat(chat.chat),
 			external: chat.external,
@@ -1167,7 +1167,7 @@ suite('CopilotAgent', () => {
 			});
 
 			assert.deepStrictEqual(telemetryService.experimentProperties, {
-				secondary_assignment_context: 'secondary:1',
+				'secondary.assignmentcontext': 'secondary:1',
 			});
 		} finally {
 			await disposeAgent(agent);
@@ -1214,47 +1214,67 @@ suite('CopilotAgent', () => {
 			const forward = getCreatedClientOptions(agent).at(-1)?.onGitHubTelemetry;
 			assert.ok(forward);
 
-			chatEntriesBySdkId(agent).set('active-session', {
-				chatSession: { currentTurnId: 'turn-1' } as CopilotAgentSession,
-				dispose() { },
+			const subagentCorrelation = new DeferredPromise<string>();
+			const forwardedModelCallIds: string[] = [];
+			const activeSession: Pick<CopilotAgentSession, 'currentTurnId'> & {
+				modelCallTurnCorrelation: Pick<CopilotAgentSession['modelCallTurnCorrelation'], 'take' | 'wait' | 'markResponseForwarded'>;
+			} = {
+				currentTurnId: 'turn-1',
+				modelCallTurnCorrelation: {
+					take: () => undefined,
+					wait: modelCallId => modelCallId === 'unresolved-model-call' ? Promise.resolve(undefined) : subagentCorrelation.p,
+					markResponseForwarded: modelCallId => forwardedModelCallIds.push(modelCallId),
+				},
+			};
+			setLiveChatStub(agent, 'active-session', activeSession);
+			setLiveChatStub(agent, 'second-active-session', {
+				currentTurnId: 'turn-2',
 			});
-			chatEntriesBySdkId(agent).set('second-active-session', {
-				chatSession: { currentTurnId: 'turn-2' } as CopilotAgentSession,
-				dispose() { },
+			setLiveChatStub(agent, 'idle-session', {
+				currentTurnId: undefined,
 			});
-			chatEntriesBySdkId(agent).set('idle-session', {
-				chatSession: { currentTurnId: undefined } as CopilotAgentSession,
-				dispose() { },
-			});
-			const notification = (sessionId: string, turnId: string): GitHubTelemetryNotification => ({
+			const notification = (sessionId: string, turnId: string, modelCallId?: string, initiatorType?: string): GitHubTelemetryNotification => ({
 				sessionId,
 				restricted: false,
 				event: {
 					kind: 'response.success',
-					properties: { turnId },
+					properties: { turnId, ...(modelCallId ? { modelCallId } : {}), ...(initiatorType ? { initiatorType } : {}) },
 					metrics: {},
 				},
 			});
 
-			await forward(notification('active-session', 'runtime-active'));
+			await forward(notification('active-session', 'runtime-active', 'root-model-call', 'user'));
+			await forward(notification('active-session', 'runtime-subagent', 'subagent-model-call', 'agent'));
+			subagentCorrelation.complete('subagent-turn');
+			await timeout(0);
+			await forward(notification('active-session', 'runtime-unresolved', 'unresolved-model-call', 'agent'));
+			await timeout(0);
 			await forward(notification('second-active-session', 'runtime-second-active'));
 			await forward(notification('active-session', 'runtime-active-again'));
 			await forward(notification('idle-session', 'runtime-idle'));
 			await forward(notification('unknown-session', 'runtime-unknown'));
 
-			assert.deepStrictEqual(telemetryService.events.map(event => {
-				const data = event.data as Record<string, unknown>;
-				return event.eventName === 'agentHost.copilotClientStartup'
-					? { eventName: event.eventName, outcome: data.outcome, durationMs: typeof data.durationMs, attemptNumber: data.attemptNumber }
-					: { eventName: event.eventName, sessionId: data.sdk_session_id, turnId: data.turnId };
-			}), [
-				{ eventName: 'agentHost.copilotClientStartup', outcome: 'success', durationMs: 'number', attemptNumber: 1 },
-				{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'turn-1' },
-				{ eventName: 'copilotSdk/response.success', sessionId: 'second-active-session', turnId: 'turn-2' },
-				{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'turn-1' },
-				{ eventName: 'copilotSdk/response.success', sessionId: 'idle-session', turnId: undefined },
-				{ eventName: 'copilotSdk/response.success', sessionId: 'unknown-session', turnId: undefined },
-			]);
+			assert.deepStrictEqual({
+				events: telemetryService.events.map(event => {
+					const data = event.data as Record<string, unknown>;
+					return event.eventName === 'agentHost.copilotClientStartup'
+						? { eventName: event.eventName, outcome: data.outcome, durationMs: typeof data.durationMs, attemptNumber: data.attemptNumber }
+						: { eventName: event.eventName, sessionId: data.sdk_session_id, turnId: data.turnId };
+				}),
+				forwardedModelCallIds,
+			}, {
+				events: [
+					{ eventName: 'agentHost.copilotClientStartup', outcome: 'success', durationMs: 'number', attemptNumber: 1 },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'turn-1' },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'subagent-turn' },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: undefined },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'second-active-session', turnId: 'turn-2' },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'turn-1' },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'idle-session', turnId: undefined },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'unknown-session', turnId: undefined },
+				],
+				forwardedModelCallIds: ['root-model-call'],
+			});
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -5624,6 +5644,7 @@ suite('CopilotAgent', () => {
 			const discoveredChats: Array<readonly IAgentChatMetadata[]> = [];
 			const listener = agent.onDidDiscoverChats(chats => discoveredChats.push(chats));
 			try {
+				void agent.startChatDiscovery();
 				for (let i = 0; i < 10; i++) {
 					await timeout(0);
 				}
@@ -5658,6 +5679,7 @@ suite('CopilotAgent', () => {
 			const discoveredChats: Array<readonly IAgentChatMetadata[]> = [];
 			const listener = agent.onDidDiscoverChats(chats => discoveredChats.push(chats));
 			try {
+				void agent.startChatDiscovery();
 				for (let i = 0; i < 50 && discoveredChats.length === 0; i++) {
 					await timeout(0);
 				}
@@ -5688,6 +5710,7 @@ suite('CopilotAgent', () => {
 			const discoveredChats: Array<readonly IAgentChatMetadata[]> = [];
 			const listener = agent.onDidDiscoverChats(chats => discoveredChats.push(chats));
 			try {
+				void agent.startChatDiscovery();
 				await listStarted.p;
 				// The gate was snapshotted as enabled at startup, so disabling it mid
 				// discovery is ignored: the adoptable chat still surfaces.
@@ -5722,6 +5745,7 @@ suite('CopilotAgent', () => {
 			const discoveredChats: Array<readonly IAgentChatMetadata[]> = [];
 			const listener = agent.onDidDiscoverChats(chats => discoveredChats.push(chats));
 			try {
+				void agent.startChatDiscovery();
 				for (let i = 0; i < 50 && discoveredChats.length === 0; i++) {
 					await timeout(0);
 				}
@@ -6055,7 +6079,7 @@ suite('CopilotAgent', () => {
 			const discovered: IAgentDiscoveredChat[] = [];
 			const listener = agent.onDidDiscoverChats(chats => discovered.push(...chats));
 			try {
-				await (agent as unknown as { _startCopilotChatDiscovery(): Promise<void> })._startCopilotChatDiscovery();
+				await agent.startChatDiscovery();
 				return discovered.map(chat => ({
 					id: sessionIdOfChat(chat.chat),
 					workingDirectory: chat.workingDirectories?.[0]?.fsPath,
@@ -11768,6 +11792,87 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('bridges an existing worktree checkout so the recorded base branch survives without a remote', async () => {
+			// #333642: the CLI committed the session's work onto the worktree branch.
+			// The checkout still exists, so the old bridge skipped it and — with no
+			// remote to resolve a default branch — persisted no base branch, hiding
+			// every committed-on-branch change. The marker's recorded base must flow
+			// through so Branch Changes diffs against the merge-base.
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const repositoryRoot = await fs.mkdtemp(`${os.tmpdir()}/adopt-repo-`);
+			const worktreePath = join(repositoryRoot, '..', `present.worktrees-${Date.now()}`, 'feature-z');
+			await fs.mkdir(worktreePath, { recursive: true });
+			const sessionId = 'legacy-worktree-present';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, worktreePath)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId, {
+					origin: 'vscode',
+					worktreeProperties: { worktreePath, repositoryPath: repositoryRoot, branchName: 'feature/z', baseBranchName: 'main' },
+				});
+
+				const adopted = await ensureDefaultChatAdopted(agent, session);
+
+				assert.deepStrictEqual(
+					{
+						adopted: adopted.adopted,
+						worktree: adopted.worktree && {
+							branchName: adopted.worktree.branchName,
+							baseBranch: adopted.worktree.baseBranch,
+							worktreePath: adopted.worktree.worktreePath.fsPath,
+							repositoryRoot: adopted.worktree.repositoryRoot.fsPath,
+						},
+					},
+					{
+						adopted: true,
+						worktree: { branchName: 'feature/z', baseBranch: 'main', worktreePath: URI.file(worktreePath).fsPath, repositoryRoot: URI.file(repositoryRoot).fsPath },
+					},
+				);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(repositoryRoot, { recursive: true, force: true });
+				await fs.rm(join(worktreePath, '..'), { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('leaves an existing worktree checkout without a recorded base branch to the probe-based bridge', async () => {
+			// An older marker carries no base branch. Taking over here would drop the
+			// probe's `origin/HEAD` fallback, so the checkout-exists case must defer to
+			// it (adoption still succeeds, just with no worktree in the result).
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const repositoryRoot = await fs.mkdtemp(`${os.tmpdir()}/adopt-repo-`);
+			const worktreePath = join(repositoryRoot, '..', `present.worktrees-${Date.now()}-nb`, 'feature-w');
+			await fs.mkdir(worktreePath, { recursive: true });
+			const sessionId = 'legacy-worktree-present-no-base';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, worktreePath)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId, {
+					origin: 'vscode',
+					worktreeProperties: { worktreePath, repositoryPath: repositoryRoot, branchName: 'feature/w' },
+				});
+
+				const adopted = await ensureDefaultChatAdopted(agent, session);
+
+				assert.deepStrictEqual(
+					{ adopted: adopted.adopted, worktree: adopted.worktree },
+					{ adopted: true, worktree: undefined },
+				);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(repositoryRoot, { recursive: true, force: true });
+				await fs.rm(join(worktreePath, '..'), { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
 		test('adopts a deleted worktree with the local repository as its project, not the remote', async () => {
 			// Git resolution runs in the (missing) checkout and falls back to the
 			// remote, whose URI is not a path — the session could then never be
@@ -11834,6 +11939,82 @@ suite('CopilotAgent', () => {
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('persists the last migrated turn id from the request sidecar on adoption', async () => {
+			// The chat editor uses this migration boundary to attribute the session's
+			// committed changes to the final migrated turn and no post-adoption turn.
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-lastturn-`);
+			const sessionId = 'legacy-lastturn';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId);
+				await writeExtensionHostRequestDetails(userHome, sessionId, [
+					{ copilotRequestId: 'turn-1', creditsUsed: 1 },
+					{ copilotRequestId: 'turn-2', creditsUsed: 2 },
+				]);
+
+				await ensureDefaultChatAdopted(agent, session);
+
+				const db = await sessionDataService.tryOpenDatabase(session);
+				const lastTurn = await db?.object.getMetadata('agentHost.ehcliLastMigratedTurn');
+				db?.dispose();
+
+				assert.strictEqual(lastTurn, 'turn-2');
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('backfills the base branch and last migrated turn for a session migrated by an older build', async () => {
+			// A no-remote worktree session migrated by the previous code kept a working
+			// directory (so adoption short-circuits as `alreadyNative`) but no base
+			// branch, leaving its diff anchored to HEAD. Repair it in place (#333642).
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const repositoryRoot = await fs.mkdtemp(`${os.tmpdir()}/adopt-old-repo-`);
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-old-wt-`);
+			const sessionId = 'legacy-old-no-base';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId, {
+					origin: 'vscode',
+					worktreeProperties: { worktreePath: workingDirectory, repositoryPath: repositoryRoot, branchName: 'feature/x', baseBranchName: 'main' },
+				});
+				await writeExtensionHostRequestDetails(userHome, sessionId, [{ copilotRequestId: 'turn-9', creditsUsed: 1 }]);
+				// Metadata the older build wrote: adopted with a working directory, but no base branch or boundary.
+				const seed = sessionDataService.openDatabase(session);
+				await seed.object.setMetadata('copilot.workingDirectory', URI.file(workingDirectory).toString());
+				await seed.object.setMetadata('agentHost.ehcliAdopted', 'true');
+				seed.dispose();
+
+				const adopted = await ensureDefaultChatAdopted(agent, session);
+
+				const db = await sessionDataService.tryOpenDatabase(session);
+				const baseBranch = await db?.object.getMetadata('agentHost.diffBaseBranch');
+				const lastTurn = await db?.object.getMetadata('agentHost.ehcliLastMigratedTurn');
+				db?.dispose();
+
+				assert.deepStrictEqual(
+					{ reason: adopted.reason, baseBranch, lastTurn },
+					{ reason: 'alreadyNative', baseBranch: 'main', lastTurn: 'turn-9' },
+				);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(repositoryRoot, { recursive: true, force: true });
 				await fs.rm(workingDirectory, { recursive: true, force: true });
 				await disposeAgent(agent);
 			}

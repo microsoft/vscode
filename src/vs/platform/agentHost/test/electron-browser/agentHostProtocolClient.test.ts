@@ -1072,9 +1072,9 @@ suite('AgentHostProtocolClient', () => {
 			clientInfo: params.clientInfo,
 			_meta: params._meta,
 		}, {
-			// Every negotiable version is offered so an older host can negotiate down,
+			// Every compatible version is offered so an older host can negotiate down,
 			// newest first so a current host still picks it.
-			protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
+			protocolVersions: SUPPORTED_PROTOCOL_VERSIONS.filter(version => version !== '0.8.0'),
 			clientId: 'renderer-client-id',
 			clientInfo,
 			_meta: {
@@ -1085,6 +1085,7 @@ suite('AgentHostProtocolClient', () => {
 			},
 		});
 		assert.strictEqual(params.protocolVersions[0], PROTOCOL_VERSION);
+		assert.ok(!params.protocolVersions.includes('0.8.0'));
 
 		// Reply with a successful handshake so `connect()` resolves and the
 		// test can finish cleanly.
@@ -2670,7 +2671,7 @@ suite('AgentHostProtocolClient', () => {
 			const initialSubscribe = await waitForRequest(transports[0], 'subscribe');
 			transports[0].fireMessage({
 				jsonrpc: '2.0', id: initialSubscribe.id,
-				result: { snapshot: { resource: AUTOMATION_CATALOG_URI, state: { automations: [] }, fromSeq: 5 } },
+				result: { snapshot: { resource: AUTOMATION_CATALOG_URI, state: { entries: [] }, fromSeq: 5 } },
 			});
 			await flushMicrotasks();
 
@@ -2701,10 +2702,12 @@ suite('AgentHostProtocolClient', () => {
 			await flushMicrotasks();
 
 			assert.deepStrictEqual({
-				channel: (restoredSubscribe.params as { channel: string }).channel,
+				initialChannel: (initialSubscribe.params as { channel: string }).channel,
+				restoredChannel: (restoredSubscribe.params as { channel: string }).channel,
 				valueIsError: catalogRef.object.value instanceof Error,
 			}, {
-				channel: AUTOMATION_CATALOG_URI,
+				initialChannel: URI.parse(AUTOMATION_CATALOG_URI).toString(),
+				restoredChannel: URI.parse(AUTOMATION_CATALOG_URI).toString(),
 				valueIsError: true,
 			});
 

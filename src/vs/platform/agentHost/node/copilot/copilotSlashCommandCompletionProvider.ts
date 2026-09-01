@@ -221,6 +221,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 									label: insertText,
 									_meta: toCommandCompletionAttachmentMeta({
 										command: command.name,
+										...(command.kind === 'skill' ? { isSkill: true } : {}),
 										...(description !== undefined ? { description } : {}),
 										...(argumentHint !== undefined ? { argumentHint } : {})
 									}),

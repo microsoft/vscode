@@ -341,7 +341,6 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	private readonly initPromise: Promise<void>;
 	private readonly updateThrottler = this._register(new ThrottledDelayer(100));
 	private readonly accountDataPollScheduler = this._register(new RunOnceScheduler(() => this.refetchDefaultAccount(), ACCOUNT_DATA_POLL_INTERVAL_MS));
-	private readonly managedSettingsFetchAttemptedAccounts = new Set<string>();
 	private readonly failedManagedSettingsFreshness = new Map<string, ManagedSettingsBlockedFreshness>();
 
 	constructor(
@@ -443,10 +442,22 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			if (e.providerId !== defaultAccountProvider.id) {
 				return;
 			}
-			if (this.defaultAccount && e.event.removed?.some(session => session.id === this.defaultAccount?.sessionId)) {
+			// Providers can atomically replace a session, so only removal-only events represent an immediate sign-out.
+			const added = e.event.added?.length ?? 0;
+			const removed = e.event.removed?.length ?? 0;
+			const changed = e.event.changed?.length ?? 0;
+			const currentSessionRemoved = this.defaultAccount !== null && (e.event.removed?.some(session => session.id === this.defaultAccount?.sessionId) ?? false);
+			const hasReplacementCandidates = added > 0 || changed > 0;
+			const clearDefaultAccount = currentSessionRemoved && !hasReplacementCandidates;
+			const message = `[DefaultAccount] Authentication sessions changed: added=${added}, removed=${removed}, changed=${changed}, currentSessionRemoved=${currentSessionRemoved}, hasReplacementCandidates=${hasReplacementCandidates}, decision=${clearDefaultAccount ? 'clear' : 'reconcile'}`;
+			if (currentSessionRemoved || (added > 0 && removed > 0)) {
+				this.logService.info(message);
+			} else {
+				this.logService.trace(message);
+			}
+			if (clearDefaultAccount) {
 				this.setDefaultAccount(null);
 			} else {
-				this.logService.debug('[DefaultAccount] Sessions changed for default account provider, updating default account');
 				this.updateDefaultAccount();
 			}
 		}));
@@ -561,8 +572,13 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	}
 
 	private async doUpdateDefaultAccount(options?: IDefaultAccountRefreshOptions): Promise<void> {
+		const currentSessionId = this.defaultAccount?.sessionId;
 		try {
 			const defaultAccount = await this.fetchDefaultAccount(options);
+			if (currentSessionId && this.defaultAccount?.sessionId !== currentSessionId) {
+				this.logService.info('[DefaultAccount] Discarding default account update because the current session changed while the update was in progress');
+				return;
+			}
 			this.setDefaultAccount(defaultAccount);
 			this.scheduleAccountDataPoll();
 		} catch (error) {
@@ -1130,6 +1146,13 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		}
 
 		const scope = this.createManagedSettingsFreshnessScope(accountId, authenticationProvider.id, managedSettingsUrl);
+		const cachedScope = accountPolicyData?.managedSettingsScope;
+		// Only reuse a cache captured for the current provider and endpoint (a legacy cache with no recorded
+		// scope is trusted), so a previous GitHub Enterprise host's policy is not applied after a scope switch.
+		const cacheScopeMatches = !cachedScope || this.getManagedSettingsScopeKey(cachedScope) === this.getManagedSettingsScopeKey(scope);
+		const scopedManagedSettings = cacheScopeMatches ? accountPolicyData?.policyData.managedSettings : undefined;
+		const scopedManagedSettingsFetchedAt = cacheScopeMatches ? accountPolicyData?.managedSettingsFetchedAt : undefined;
+		const scopedCachedManagedSettings = cacheScopeMatches ? cachedManagedSettings : undefined;
 		if (requirement.effective && !this.canRequestManagedSettings(options, scope)) {
 			this.logService.debug('[DefaultAccount] Skipping automatic managed settings retry after a prior failure');
 			const failedFreshness = this.failedManagedSettingsFreshness.get(this.getManagedSettingsScopeKey(scope));
@@ -1137,18 +1160,18 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				this.setManagedSettingsFreshness({ ...failedFreshness, source: requirement.source });
 			}
 			return {
-				data: { managedSettings: accountPolicyData?.policyData.managedSettings },
-				fetchedAt: accountPolicyData?.managedSettingsFetchedAt,
-				scope: accountPolicyData?.managedSettingsScope ?? scope,
+				data: { managedSettings: scopedManagedSettings },
+				fetchedAt: scopedManagedSettingsFetchedAt,
+				scope,
 				compatibilityError: this._managedSettingsCompatibilityError,
 			};
 		}
-		const fetchScopeKey = this.getManagedSettingsScopeKey(scope);
-		const hasFetchedThisProcess = this.managedSettingsFetchAttemptedAccounts.has(fetchScopeKey);
 		const freshnessSatisfied = requirement.effective && isManagedSettingsFreshnessSatisfiedFor(this._managedSettingsFreshness, scope);
-		if (!options?.forceRefresh && cachedManagedSettings && ((hasFetchedThisProcess && !requirement.effective) || freshnessSatisfied)) {
+		// When forceRemoteSettingsRefresh is effective, reuse also requires this scope's freshness to be
+		// satisfied; an outstanding compatibility error always forces revalidation.
+		if (!options?.forceRefresh && scopedCachedManagedSettings && (!requirement.effective || freshnessSatisfied) && !this._managedSettingsCompatibilityError) {
 			this.logService.debug('[DefaultAccount] Using last fetched managed settings data');
-			return { ...cachedManagedSettings, scope, compatibilityError: this._managedSettingsCompatibilityError };
+			return { ...scopedCachedManagedSettings, scope, compatibilityError: this._managedSettingsCompatibilityError };
 		}
 
 		const lastAttemptAt = Date.now();
@@ -1160,7 +1183,6 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				lastAttemptAt,
 			});
 		}
-		this.managedSettingsFetchAttemptedAccounts.add(fetchScopeKey);
 		const sharedBackoffActive = Date.now() < this._rateLimitBackoffUntil;
 		const result = await this.requestManagedSettings(requirement.effective ? [sessions[0]] : sessions, managedSettingsUrl);
 		if (requirement.effective && !sharedBackoffActive) {
@@ -1188,8 +1210,8 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 					});
 				}
 				return {
-					data: requirement.effective ? { managedSettings: accountPolicyData?.policyData.managedSettings } : { managedSettings: undefined },
-					fetchedAt: requirement.effective ? accountPolicyData?.managedSettingsFetchedAt : Date.now(),
+					data: requirement.effective ? { managedSettings: scopedManagedSettings } : { managedSettings: undefined },
+					fetchedAt: requirement.effective ? scopedManagedSettingsFetchedAt : Date.now(),
 					scope,
 					compatibilityError: result.error,
 				};
@@ -1200,14 +1222,14 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				if (requirement.effective) {
 					this.setManagedSettingsFreshness(this.toBlockedManagedSettingsFreshness(requirement.source, result, lastAttemptAt, scope));
 					return {
-						data: { managedSettings: accountPolicyData?.policyData.managedSettings },
-						fetchedAt: accountPolicyData?.managedSettingsFetchedAt,
+						data: { managedSettings: scopedManagedSettings },
+						fetchedAt: scopedManagedSettingsFetchedAt,
 						scope,
 						compatibilityError: this._managedSettingsCompatibilityError,
 					};
 				}
 				// A failed fetch must not extend the life of the cached response: carry the cache's timestamp for expiry
-				const retained = this._managedSettingsCompatibilityError ? undefined : cachedManagedSettings;
+				const retained = this._managedSettingsCompatibilityError ? undefined : scopedCachedManagedSettings;
 				return {
 					data: { managedSettings: retained?.data.managedSettings },
 					fetchedAt: retained?.fetchedAt,
