@@ -244,6 +244,15 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 				const prefix = remoteAgentHostSessionTypeAuthorityPrefix(this._connectionAuthority);
 				return scheme.startsWith(prefix) ? scheme.slice(prefix.length) : undefined;
 			},
+			resolveActiveClient: async (sessionType, roots, clientId) => {
+				const scope = activeClientService.acquireScope(sessionType, roots);
+				try {
+					await scope.whenResolved();
+					return scope.activeClient(clientId).get();
+				} finally {
+					scope.dispose();
+				}
+			},
 		}));
 		this.automations = this._automationStore;
 

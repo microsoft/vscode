@@ -15,7 +15,6 @@ import { IFileDeleteOptions } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientUri.js';
-import { AUTOMATION_ACTIVE_CLIENT_ID } from '../../common/agentHostCustomizationConfig.js';
 import { customizationId, type ClientPluginCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
 import { AgentPluginManager } from '../../node/agentPluginManager.js';
@@ -123,46 +122,6 @@ suite('AgentPluginManager', () => {
 			assert.ok(results[0].pluginDir, 'should have pluginDir');
 			assert.strictEqual(results[1].customization.load?.kind, 'loaded');
 			assert.ok(results[1].pluginDir, 'should have pluginDir');
-		});
-
-		test('copies Automation plugins directly from the host filesystem', async () => {
-			const plugin = URI.parse(pluginUri('automation'));
-			await fileService.createFolder(plugin);
-			await fileService.writeFile(URI.joinPath(plugin, 'index.js'), VSBuffer.fromString('automation'));
-
-			const results = await manager.syncCustomizations(AUTOMATION_ACTIVE_CLIENT_ID, [makeRef('automation', 'n1')]);
-
-			assert.deepStrictEqual({
-				load: results[0].customization.load,
-				content: results[0].pluginDir
-					? (await fileService.readFile(URI.joinPath(results[0].pluginDir, 'index.js'))).value.toString()
-					: undefined,
-			}, {
-				load: { kind: 'loaded' },
-				content: 'automation',
-			});
-		});
-
-		test('refreshes Automation plugins when any copied file changes', async () => {
-			const plugin = URI.parse(pluginUri('automation-changing'));
-			const scripts = URI.joinPath(plugin, 'scripts');
-			await fileService.createFolder(scripts);
-			const helper = URI.joinPath(scripts, 'helper.js');
-			await fileService.writeFile(helper, VSBuffer.fromString('first'));
-
-			const first = (await manager.syncCustomizations(AUTOMATION_ACTIVE_CLIENT_ID, [makeRef('automation-changing', 'client-nonce')]))[0];
-			await fileService.writeFile(helper, VSBuffer.fromString('second-version'));
-			const second = (await manager.syncCustomizations(AUTOMATION_ACTIVE_CLIENT_ID, [makeRef('automation-changing', 'client-nonce')]))[0];
-
-			assert.deepStrictEqual({
-				directoryChanged: first.pluginDir?.toString() !== second.pluginDir?.toString(),
-				content: second.pluginDir
-					? (await fileService.readFile(URI.joinPath(second.pluginDir, 'scripts', 'helper.js'))).value.toString()
-					: undefined,
-			}, {
-				directoryChanged: true,
-				content: 'second-version',
-			});
 		});
 
 		test('returns error status without pluginDir when source missing', async () => {
@@ -350,6 +309,38 @@ suite('AgentPluginManager', () => {
 			// plugin-1 should survive (locked) and plugin-2 should be evicted instead.
 			assert.strictEqual(await fileService.exists(dir1), true, 'locked plugin-1 should be retained');
 			assert.strictEqual(await fileService.exists(dir2), false, 'unlocked plugin-2 should be evicted');
+		});
+
+		test('does not evict revisions retained by a durable owner', async () => {
+			const smallManager = new AgentPluginManager(basePath, fileService, new NullLogService(), 2);
+			const retained = makeRef('plugin-1', 'n1');
+
+			await seedPluginDir('plugin-1', { 'index.js': 'p1' });
+			const retainedDir = (await smallManager.syncCustomizations('test-client', [retained]))[0].pluginDir!;
+			smallManager.retainCustomizations('automation-1', [retained]);
+
+			for (let i = 2; i <= 3; i++) {
+				await seedPluginDir(`plugin-${i}`, { 'index.js': `p${i}` });
+				await smallManager.syncCustomizations('test-client', [makeRef(`plugin-${i}`, `n${i}`)]);
+			}
+			assert.strictEqual(await fileService.exists(retainedDir), true);
+
+			smallManager.retainCustomizations('automation-1', []);
+			await seedPluginDir('plugin-4', { 'index.js': 'p4' });
+			await smallManager.syncCustomizations('test-client', [makeRef('plugin-4', 'n4')]);
+			assert.strictEqual(await fileService.exists(retainedDir), false);
+		});
+
+		test('does not evict members of the current sync batch', async () => {
+			const smallManager = new AgentPluginManager(basePath, fileService, new NullLogService(), 2);
+			const customizations = [makeRef('plugin-1', 'n1'), makeRef('plugin-2', 'n2'), makeRef('plugin-3', 'n3')];
+			for (let i = 1; i <= customizations.length; i++) {
+				await seedPluginDir(`plugin-${i}`, { 'index.js': `p${i}` });
+			}
+
+			const results = await smallManager.syncCustomizations('test-client', customizations);
+
+			assert.deepStrictEqual(await Promise.all(results.map(result => fileService.exists(result.pluginDir!))), [true, true, true]);
 		});
 	});
 

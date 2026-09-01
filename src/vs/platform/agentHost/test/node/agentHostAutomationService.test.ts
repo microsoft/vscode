@@ -13,10 +13,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY, AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY } from '../../common/automationMigration.js';
+import type { IAgentPluginManager } from '../../common/agentPluginManager.js';
+import { withAutomationActiveClient } from '../../common/meta/automationActiveClientMeta.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
-import { buildDefaultChatUri, MessageKind, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
+import type { ClientPluginCustomization, SessionActiveClient } from '../../common/state/protocol/channels-session/state.js';
+import { buildDefaultChatUri, customizationId, CustomizationType, MessageKind, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostAutomationService, type IAgentHostAutomationExecution } from '../../node/agentHostAutomationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostStorageService, type IAgentHostStorageWriter } from '../../node/agentHostStorageService.js';
@@ -76,13 +79,21 @@ suite('AgentHostAutomationService', () => {
 		} as const;
 	}
 
-	function createService(execution?: Partial<IAgentHostAutomationExecution>): AgentHostAutomationService {
+	function createService(execution?: Partial<IAgentHostAutomationExecution>, pluginManager?: IAgentPluginManager): AgentHostAutomationService {
 		const service = new AgentHostAutomationService({
 			isSessionTemplateAvailable: execution?.isSessionTemplateAvailable ?? (() => true),
 			createSession: execution?.createSession ?? (async () => { throw new Error('Unexpected session creation'); }),
 			startSession: execution?.startSession ?? (async () => { throw new Error('Unexpected session start'); }),
 			cancelSession: execution?.cancelSession ?? (async () => false),
-		}, stateManager, storageService, new NullLogService());
+		}, stateManager, storageService, new NullLogService(), pluginManager ?? {
+			_serviceBrand: undefined,
+			basePath: URI.file('/agent-plugins'),
+			syncCustomizations: async (_clientId, customizations) => customizations.map(customization => ({
+				customization,
+				pluginDir: URI.file(`/agent-plugins/${customization.id}`),
+			})),
+			retainCustomizations: () => { },
+		});
 		return disposables.add(service);
 	}
 
@@ -334,6 +345,128 @@ suite('AgentHostAutomationService', () => {
 			run: AutomationRunStatus.Completed,
 			summary: AutomationRunStatus.Completed,
 		});
+	});
+
+	test('materializes and reuses the Automation active client customizations', async () => {
+		const plugin = {
+			type: CustomizationType.Plugin,
+			id: customizationId('file:///plugins/local'),
+			uri: 'file:///plugins/local',
+			name: 'Local Plugin',
+			nonce: 'revision-1',
+		} as const;
+		const activeClient = {
+			clientId: 'editor-client',
+			tools: [],
+			customizations: [plugin],
+		};
+		const synced: string[] = [];
+		const retained = new Map<string, readonly ClientPluginCustomization[]>();
+		let createdActiveClient: SessionActiveClient | undefined;
+		const started = new DeferredPromise<void>();
+		const session = URI.parse('mock:/customized-automation');
+		const service = createService({
+			createSession: async (_template, _run, value) => {
+				createdActiveClient = value;
+				stateManager.createSession({
+					resource: session.toString(),
+					provider: 'mock',
+					title: '',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				});
+				return session;
+			},
+			startSession: async () => started.complete(),
+		}, {
+			_serviceBrand: undefined,
+			basePath: URI.file('/agent-plugins'),
+			syncCustomizations: async (clientId, customizations) => {
+				synced.push(clientId);
+				return customizations.map(customization => ({
+					customization,
+					pluginDir: URI.file(`/agent-plugins/${customization.id}`),
+				}));
+			},
+			retainCustomizations: (owner, customizations) => retained.set(owner, customizations),
+		});
+		await service.completeMigration();
+		await service.handleCreate({
+			type: ActionType.AutomationCreateRequested,
+			resource: 'ahp-automation:/customized',
+			definition: {
+				...definition(),
+				_meta: withAutomationActiveClient(undefined, activeClient),
+			},
+		}, activeClient.clientId);
+
+		await service.runAutomation({
+			channel: 'ahp-automations://',
+			automation: 'ahp-automation:/customized',
+			requestId: 'customized-run',
+		});
+		await started.p;
+
+		assert.deepStrictEqual({
+			synced,
+			retained: retained.get('ahp-automation:/customized'),
+			createdActiveClient,
+		}, {
+			synced: ['editor-client'],
+			retained: [plugin],
+			createdActiveClient: activeClient,
+		});
+	});
+
+	test('rejects Automation customizations published by a different client', async () => {
+		const service = createService();
+		await service.completeMigration();
+
+		await assert.rejects(service.handleCreate({
+			type: ActionType.AutomationCreateRequested,
+			resource: 'ahp-automation:/unauthorized',
+			definition: {
+				...definition(),
+				_meta: withAutomationActiveClient(undefined, {
+					clientId: 'other-client',
+					tools: [],
+					customizations: [],
+				}),
+			},
+		}, 'editor-client'), /must be published by their active client/);
+	});
+
+	test('persists an Automation when one customization cannot be materialized', async () => {
+		const plugin = {
+			type: CustomizationType.Plugin,
+			id: customizationId('file:///plugins/missing'),
+			uri: 'file:///plugins/missing',
+			name: 'Missing Plugin',
+			nonce: 'revision-1',
+		} as const;
+		const service = createService(undefined, {
+			_serviceBrand: undefined,
+			basePath: URI.file('/agent-plugins'),
+			syncCustomizations: async () => [{ customization: plugin }],
+			retainCustomizations: () => { },
+		});
+		await service.completeMigration();
+
+		await service.handleCreate({
+			type: ActionType.AutomationCreateRequested,
+			resource: 'ahp-automation:/degraded',
+			definition: {
+				...definition(),
+				_meta: withAutomationActiveClient(undefined, {
+					clientId: 'editor-client',
+					tools: [],
+					customizations: [plugin],
+				}),
+			},
+		}, 'editor-client');
+
+		assert.strictEqual(stateManager.getAutomationCatalogState()?.entries[0].resource, 'ahp-automation:/degraded');
 	});
 
 	test('run persistence failure prevents session side effects', async () => {

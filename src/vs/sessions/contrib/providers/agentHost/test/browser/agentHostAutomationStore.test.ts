@@ -15,10 +15,11 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY } from '../../../../../../platform/agentHost/common/automationMigration.js';
+import { readAutomationActiveClient } from '../../../../../../platform/agentHost/common/meta/automationActiveClientMeta.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationEntry, type AutomationState, type RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { AUTOMATION_CATALOG_URI, ROOT_STATE_URI, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, CustomizationType, MessageKind, type AutomationEntry, type AutomationState, type RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AUTOMATION_CATALOG_URI, customizationId, ROOT_STATE_URI, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -35,6 +36,7 @@ import { ReconnectableAgentHostAutomationStore } from '../../browser/reconnectab
 
 class TestAutomationConnection {
 
+	readonly clientId = 'test-client';
 	private readonly _onDidAction = new Emitter<ActionEnvelope>();
 	readonly onDidAction = this._onDidAction.event;
 	private readonly _onDidCatalogChange = new Emitter<AutomationState>();
@@ -406,6 +408,7 @@ suite('AgentHostAutomationStore', () => {
 			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
 			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
 		});
+
 		const create = connection.dispatched[0].action;
 		const trigger = create.type === ActionType.AutomationCreateRequested ? create.definition.triggers[0] : undefined;
 
@@ -432,6 +435,67 @@ suite('AgentHostAutomationStore', () => {
 				schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
 				target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
 				enabled: true,
+			},
+		});
+	});
+
+	test('captures the regular active client customization scope in the definition', async () => {
+		const connection = new TestAutomationConnection(true);
+		disposables.add(connection);
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const resolutions: { sessionType: string; roots: readonly string[]; clientId: string }[] = [];
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, {
+			toHost: resource => resource,
+			fromHost: resource => resource,
+			resourceSchemeForProvider: provider => `agent-host-${provider}`,
+			resolveActiveClient: async (sessionType, roots, clientId) => {
+				resolutions.push({ sessionType, roots: roots.map(root => root.toString()), clientId });
+				return {
+					clientId,
+					tools: [{ name: 'client-tool', description: 'Client tool', inputSchema: { type: 'object' } }],
+					customizations: [{
+						type: CustomizationType.Plugin,
+						id: customizationId('file:///plugins/local'),
+						uri: 'file:///plugins/local',
+						name: 'Local Plugin',
+						nonce: 'revision-1',
+						_meta: undefined,
+					}],
+				};
+			},
+		}, new NullLogService(), storage, NullTelemetryService, automationStorage));
+
+		await store.createAutomation({
+			name: 'Review changes',
+			prompt: 'Review the current changes.',
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+			target: { kind: 'workspace', providerId: 'local-agent-host', sessionTypeId: 'mock', folderUri: URI.file('/workspace'), isolation: { kind: 'default' } },
+		});
+		const create = connection.dispatched.find(entry => entry.action.type === ActionType.AutomationCreateRequested)?.action;
+		const activeClient = create?.type === ActionType.AutomationCreateRequested
+			? readAutomationActiveClient(create.definition._meta)
+			: undefined;
+
+		assert.deepStrictEqual({
+			resolutions,
+			activeClient,
+		}, {
+			resolutions: [{
+				sessionType: 'agent-host-mock',
+				roots: ['file:///workspace'],
+				clientId: 'test-client',
+			}],
+			activeClient: {
+				clientId: 'test-client',
+				tools: [],
+				customizations: [{
+					type: CustomizationType.Plugin,
+					id: customizationId('file:///plugins/local'),
+					uri: 'file:///plugins/local',
+					name: 'Local Plugin',
+					nonce: 'revision-1',
+				}],
 			},
 		});
 	});

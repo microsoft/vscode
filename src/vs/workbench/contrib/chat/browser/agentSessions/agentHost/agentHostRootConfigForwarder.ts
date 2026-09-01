@@ -23,12 +23,6 @@ export interface IForwardedRootConfigKey {
 	/** Compute the desired value; return `undefined` to skip the push. May be async. */
 	computeValue(): unknown | Promise<unknown>;
 
-	/**
-	 * Dispatch even when the host already exposes the computed value. Use this
-	 * when the host tracks publishers independently of the effective root value.
-	 */
-	readonly dispatchWhenUnchanged?: boolean;
-
 	/** Wire up the triggers that should re-push this key; add disposables to `store`, call `push`. */
 	registerTriggers(store: DisposableStore, push: () => void): void;
 }
@@ -67,7 +61,6 @@ export interface IForwardedRootConfigKey {
 export class AgentHostRootConfigForwarder extends Disposable {
 
 	private readonly _listeners = this._register(new MutableDisposable<DisposableStore>());
-	private readonly _pushVersions = new Map<AgentHostConfigKey | CopilotCliConfigKey, number>();
 
 	/**
 	 * Managed keys whose schema the host has already advertised, so a key is
@@ -112,9 +105,6 @@ export class AgentHostRootConfigForwarder extends Disposable {
 	stop(): void {
 		this._schemaSeen.clear();
 		this._listeners.value = undefined;
-		for (const entry of this._keys) {
-			this._pushVersions.set(entry.key, (this._pushVersions.get(entry.key) ?? 0) + 1);
-		}
 	}
 
 	/** Push every managed key (e.g. on start and after an agent-host restart). */
@@ -162,8 +152,6 @@ export class AgentHostRootConfigForwarder extends Disposable {
 		if (!this._schemaHasKey(entry.key)) {
 			return;
 		}
-		const version = (this._pushVersions.get(entry.key) ?? 0) + 1;
-		this._pushVersions.set(entry.key, version);
 
 		let value: unknown;
 		try {
@@ -172,9 +160,6 @@ export class AgentHostRootConfigForwarder extends Disposable {
 			return;
 		}
 		if (value === undefined) {
-			return;
-		}
-		if (this._pushVersions.get(entry.key) !== version) {
 			return;
 		}
 
@@ -187,7 +172,7 @@ export class AgentHostRootConfigForwarder extends Disposable {
 		if (!rootState || rootState instanceof Error || !rootState.config) {
 			return;
 		}
-		if (!entry.dispatchWhenUnchanged && structuralEquals(rootState.config.values[entry.key], value)) {
+		if (structuralEquals(rootState.config.values[entry.key], value)) {
 			return;
 		}
 

@@ -5,14 +5,10 @@
 
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { SequencerByKey } from '../../../base/common/async.js';
-import { hashAsync } from '../../../base/common/hash.js';
-import { stableStringify } from '../../../base/common/objects.js';
-import { compare } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentPluginManager, type ISyncedCustomization } from '../common/agentPluginManager.js';
-import { AUTOMATION_ACTIVE_CLIENT_ID } from '../common/agentHostCustomizationConfig.js';
 import { CustomizationLoadStatus, type ClientPluginCustomization, type PluginCustomization } from '../common/state/sessionState.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
 
@@ -61,6 +57,8 @@ export class AgentPluginManager implements IAgentPluginManager {
 	 * disk under `{key}/{nonce}`.
 	 */
 	private readonly _lru: ICacheEntry[] = [];
+	private readonly _retained = new Map<string, Set<string>>();
+	private readonly _syncing = new Map<string, number>();
 
 	private _cacheLoadPromise: Promise<void> | undefined;
 
@@ -79,6 +77,14 @@ export class AgentPluginManager implements IAgentPluginManager {
 		return this._basePath;
 	}
 
+	retainCustomizations(owner: string, customizations: readonly ClientPluginCustomization[]): void {
+		if (customizations.length === 0) {
+			this._retained.delete(owner);
+			return;
+		}
+		this._retained.set(owner, new Set(customizations.map(customization => this._cacheEntryKey(customization.uri, customization.nonce))));
+	}
+
 	async syncCustomizations(
 		clientId: string,
 		customizations: ClientPluginCustomization[],
@@ -86,25 +92,32 @@ export class AgentPluginManager implements IAgentPluginManager {
 	): Promise<ISyncedCustomization[]> {
 		await this._ensureCacheLoaded();
 
-		// Sync each customization in parallel, serialized per URI
-		const results = await Promise.all(customizations.map(ref =>
-			this._sequencer.queue(ref.uri, async (): Promise<ISyncedCustomization> => {
-				try {
-					const pluginDir = await this._syncPlugin(clientId, ref);
-					const customization: PluginCustomization = { ...ref, load: { kind: CustomizationLoadStatus.Loaded } };
-					progress?.(customization);
-					return { customization, pluginDir };
-				} catch (err) {
-					const message = err instanceof Error ? err.message : String(err);
-					this._logService.error(`[AgentPluginManager] Failed to sync plugin ${ref.uri}: ${message}`);
-					const customization: PluginCustomization = { ...ref, load: { kind: CustomizationLoadStatus.Error, message } };
-					progress?.(customization);
-					return { customization };
-				}
-			})
-		));
-
-		return results;
+		for (const customization of customizations) {
+			this._incrementSyncing(customization);
+		}
+		try {
+			// Sync each customization in parallel, serialized per URI
+			return await Promise.all(customizations.map(ref =>
+				this._sequencer.queue(ref.uri, async (): Promise<ISyncedCustomization> => {
+					try {
+						const pluginDir = await this._syncPlugin(clientId, ref);
+						const customization: PluginCustomization = { ...ref, load: { kind: CustomizationLoadStatus.Loaded } };
+						progress?.(customization);
+						return { customization, pluginDir };
+					} catch (err) {
+						const message = err instanceof Error ? err.message : String(err);
+						this._logService.error(`[AgentPluginManager] Failed to sync plugin ${ref.uri}: ${message}`);
+						const customization: PluginCustomization = { ...ref, load: { kind: CustomizationLoadStatus.Error, message } };
+						progress?.(customization);
+						return { customization };
+					}
+				})
+			));
+		} finally {
+			for (const customization of customizations) {
+				this._decrementSyncing(customization);
+			}
+		}
 	}
 
 	// ---- plugin storage logic -----------------------------------------------
@@ -117,18 +130,15 @@ export class AgentPluginManager implements IAgentPluginManager {
 	 * Returns the local directory URI.
 	 */
 	private async _syncPlugin(clientId: string, ref: ClientPluginCustomization): Promise<URI> {
-		const pluginUri = clientId === AUTOMATION_ACTIVE_CLIENT_ID
-			? URI.parse(ref.uri)
-			: toAgentClientUri(URI.parse(ref.uri), clientId);
-		const nonce = clientId === AUTOMATION_ACTIVE_CLIENT_ID
-			? await this._computeDirectoryFingerprint(pluginUri)
-			: ref.nonce;
-		const destDir = this._dirFor(ref.uri, nonce);
+		const pluginUri = toAgentClientUri(URI.parse(ref.uri), clientId);
+		const destDir = this._dirFor(ref.uri, ref.nonce);
 
 		// Nonce cache hit — the plugin is already materialized under the nonce
 		// subdirectory, so skip the copy.
-		if (nonce && this._findEntry(ref.uri, nonce) && await this._fileService.exists(destDir)) {
-			this._touchLru(ref.uri, nonce);
+		if ((ref.nonce || this._isProtected(ref.uri, ref.nonce))
+			&& this._findEntry(ref.uri, ref.nonce)
+			&& await this._fileService.exists(destDir)) {
+			this._touchLru(ref.uri, ref.nonce);
 			this._logService.trace(`[AgentPluginManager] Nonce match for ${ref.uri}, skipping copy`);
 			return destDir;
 		}
@@ -137,8 +147,8 @@ export class AgentPluginManager implements IAgentPluginManager {
 
 		await this._fileService.copy(pluginUri, destDir, true);
 
-		this._removeEntry(ref.uri, nonce);
-		this._lru.push({ uri: ref.uri, nonce: nonce ?? '' });
+		this._removeEntry(ref.uri, ref.nonce);
+		this._lru.push({ uri: ref.uri, nonce: ref.nonce ?? '' });
 
 		// Try to clean up superseded nonces of this plugin; undeletable ones stay
 		// in the LRU for a later attempt.
@@ -147,30 +157,6 @@ export class AgentPluginManager implements IAgentPluginManager {
 		await this._persistCache();
 
 		return destDir;
-	}
-
-	private async _computeDirectoryFingerprint(root: URI): Promise<string> {
-		const entries: { resource: string; isDirectory: boolean; isSymbolicLink: boolean; size: number; mtime: number }[] = [];
-		const visit = async (resource: URI): Promise<void> => {
-			const stat = await this._fileService.stat(resource);
-			entries.push({
-				resource: resource.toString().slice(root.toString().length),
-				isDirectory: stat.isDirectory,
-				isSymbolicLink: stat.isSymbolicLink,
-				size: stat.size,
-				mtime: stat.mtime,
-			});
-			if (!stat.isDirectory || stat.isSymbolicLink) {
-				return;
-			}
-			const resolved = await this._fileService.resolve(resource);
-			await Promise.all((resolved.children ?? [])
-				.sort((a, b) => compare(a.resource.toString(), b.resource.toString()))
-				.map(child => visit(child.resource)));
-		};
-		await visit(root);
-		entries.sort((a, b) => compare(a.resource, b.resource));
-		return hashAsync(stableStringify(entries));
 	}
 
 	private _keyForUri(uri: string): string {
@@ -253,6 +239,9 @@ export class AgentPluginManager implements IAgentPluginManager {
 		// `entries` preserves LRU order; the last is the current revision.
 		const stale = entries.slice(0, -1);
 		for (const entry of stale) {
+			if (this._isProtected(entry.uri, entry.nonce)) {
+				continue;
+			}
 			this._logService.info(`[AgentPluginManager] Evicting stale nonce for plugin: ${uri}`);
 			if (await this._tryDeleteDir(this._dirFor(entry.uri, entry.nonce))) {
 				this._removeEntryRef(entry);
@@ -268,6 +257,10 @@ export class AgentPluginManager implements IAgentPluginManager {
 		let i = 0;
 		while (this._lru.length > this._maxPlugins && i < this._lru.length) {
 			const candidate = this._lru[i];
+			if (this._isProtected(candidate.uri, candidate.nonce)) {
+				i++;
+				continue;
+			}
 			this._logService.info(`[AgentPluginManager] Evicting plugin: ${candidate.uri}`);
 			if (await this._tryDeleteDir(this._dirFor(candidate.uri, candidate.nonce))) {
 				this._lru.splice(i, 1);
@@ -279,6 +272,38 @@ export class AgentPluginManager implements IAgentPluginManager {
 				i++;
 			}
 		}
+	}
+
+	private _isProtected(uri: string, nonce: string | undefined): boolean {
+		const key = this._cacheEntryKey(uri, nonce);
+		if (this._syncing.has(key)) {
+			return true;
+		}
+		for (const entries of this._retained.values()) {
+			if (entries.has(key)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private _incrementSyncing(customization: ClientPluginCustomization): void {
+		const key = this._cacheEntryKey(customization.uri, customization.nonce);
+		this._syncing.set(key, (this._syncing.get(key) ?? 0) + 1);
+	}
+
+	private _decrementSyncing(customization: ClientPluginCustomization): void {
+		const key = this._cacheEntryKey(customization.uri, customization.nonce);
+		const count = this._syncing.get(key);
+		if (count === undefined || count === 1) {
+			this._syncing.delete(key);
+		} else {
+			this._syncing.set(key, count - 1);
+		}
+	}
+
+	private _cacheEntryKey(uri: string, nonce: string | undefined): string {
+		return `${uri}\0${nonce ?? ''}`;
 	}
 
 	// ---- cache persistence --------------------------------------------------

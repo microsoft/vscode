@@ -18,6 +18,7 @@ import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema } from
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
+import { IAgentPluginManager } from '../../common/agentPluginManager.js';
 import { IAgentService } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
@@ -160,6 +161,12 @@ export function createTestAgentService(
 		[IAgentHostGitService, gitService],
 		[ITelemetryService, telemetryService],
 		[IAgentHostClientConnectionService, clientConnectionService],
+		[IAgentPluginManager, {
+			_serviceBrand: undefined,
+			basePath: URI.file('/agent-plugins'),
+			syncCustomizations: async () => [],
+			retainCustomizations: () => { },
+		}],
 	);
 	const options = {
 		rootConfigResource,

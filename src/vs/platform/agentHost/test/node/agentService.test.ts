@@ -30,10 +30,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentChatMigrationDeferred, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
-import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
-import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY } from '../../common/automationMigration.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
@@ -45,7 +42,7 @@ import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/ag
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification } from '../../common/state/sessionActions.js';
 import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageHiddenFromTranscript, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
-import { ChatInteractivity, CustomizationEnablementKind, type MessageAttachment } from '../../common/state/protocol/state.js';
+import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -544,170 +541,6 @@ suite('AgentService (node dispatcher)', () => {
 			total: 100,
 			message: 'Downloading Codex agent',
 		}]);
-	});
-
-	test('seeds host-owned Automation sessions with client-local plugins', async () => {
-		registerTestAgentProvider(service, copilotAgent);
-		getTestAgentServiceComposition(service).configurationService.updateRootConfig({
-			[AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: true,
-			[AgentHostConfigKey.AutomationClientPlugins]: [{
-				uri: 'file:///plugins/local-plugin',
-				displayName: 'Local Plugin',
-				nonce: '1234',
-				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
-			}],
-		});
-		const automationService = (service as unknown as {
-			_automationService: {
-				completeMigration(): Promise<void>;
-				handleCreate(action: {
-					type: ActionType.AutomationCreateRequested;
-					resource: string;
-					definition: {
-						title: string;
-						message: { text: string; origin: { kind: MessageKind.Automation } };
-						session: { provider: string };
-						enabled: boolean;
-						triggers: [];
-					};
-				}): Promise<void>;
-			};
-		})._automationService;
-		await automationService.completeMigration();
-		await automationService.handleCreate({
-			type: ActionType.AutomationCreateRequested,
-			resource: 'ahp-automation:/local-plugin',
-			definition: {
-				title: 'Use local plugin',
-				message: { text: 'Use the local plugin.', origin: { kind: MessageKind.Automation } },
-				session: { provider: 'copilot' },
-				enabled: true,
-				triggers: [],
-			},
-		});
-
-		const result = await service.runAutomation({
-			channel: 'ahp-automations://',
-			automation: 'ahp-automation:/local-plugin',
-			requestId: 'local-plugin-run',
-		});
-
-		const stateManager = getTestAgentStateManager(service);
-		let primarySession = stateManager.getAutomationRunState(result.resource)?.primarySession;
-		for (let i = 0; i < 20 && !primarySession; i++) {
-			await timeout(0);
-			primarySession = stateManager.getAutomationRunState(result.resource)?.primarySession;
-		}
-		const activeClient = primarySession ? stateManager.getSessionState(primarySession)?.activeClients[0] : undefined;
-		assert.deepStrictEqual({
-			clientId: activeClient?.clientId,
-			displayName: activeClient?.displayName,
-			tools: activeClient?.tools,
-			customizations: activeClient?.customizations?.map(customization => ({
-				type: customization.type,
-				uri: customization.uri,
-				name: customization.name,
-				nonce: customization.nonce,
-				enabled: isCustomizationEnabled(customization),
-			})),
-		}, {
-			clientId: 'vscode-automations',
-			displayName: 'VS Code Automations',
-			tools: [],
-			customizations: [{
-				type: CustomizationType.Plugin,
-				uri: 'file:///plugins/local-plugin',
-				name: 'Local Plugin',
-				nonce: '1234',
-				enabled: true,
-			}],
-		});
-	});
-
-	test('accepts Automation plugins only from a local Editor Window client', () => {
-		const stateManager = getTestAgentStateManager(service);
-		const envelopes: ActionEnvelope[] = [];
-		disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
-		const plugin = {
-			uri: 'file:///plugins/local-plugin',
-			displayName: 'Local Plugin',
-			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
-		};
-		const localEditorContext: IAgentHostClientTelemetryContext = {
-			clientType: AgentHostClientType.EditorWindow,
-			connectionKind: AgentHostClientConnectionKind.Local,
-			transportKind: AgentHostTransportKind.MessagePort,
-			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
-		};
-		const dispatch = (clientSeq: number, context: IAgentHostClientTelemetryContext, plugins: unknown) => service.dispatchAction(ROOT_STATE_URI, {
-			type: ActionType.RootConfigChanged,
-			config: { [AgentHostConfigKey.AutomationClientPlugins]: plugins },
-		}, 'test-client', clientSeq, context);
-
-		dispatch(1, { ...localEditorContext, transportKind: AgentHostTransportKind.WebSocket }, [plugin]);
-		dispatch(2, { ...localEditorContext, clientType: AgentHostClientType.AgentsWindow }, [plugin]);
-		dispatch(3, localEditorContext, [{ ...plugin, uri: 'https://example.com/plugin' }]);
-		dispatch(4, localEditorContext, [plugin]);
-
-		assert.deepStrictEqual({
-			rejections: envelopes.filter(envelope => envelope.rejectionReason).map(envelope => ({
-				clientSeq: envelope.origin?.clientSeq,
-				reason: envelope.rejectionReason,
-			})),
-			plugins: stateManager.rootState.config?.values[AgentHostConfigKey.AutomationClientPlugins],
-		}, {
-			rejections: [
-				{ clientSeq: 1, reason: 'Automation client plugins require a local Editor Window client.' },
-				{ clientSeq: 2, reason: 'Automation client plugins require a local Editor Window client.' },
-				{ clientSeq: 3, reason: 'Invalid Automation client plugin payload.' },
-			],
-			plugins: [plugin],
-		});
-	});
-
-	test('elects one Automation plugin publisher and fails over deterministically', () => {
-		const stateManager = getTestAgentStateManager(service);
-		const envelopes: ActionEnvelope[] = [];
-		disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
-		const localEditorContext: IAgentHostClientTelemetryContext = {
-			clientType: AgentHostClientType.EditorWindow,
-			connectionKind: AgentHostClientConnectionKind.Local,
-			transportKind: AgentHostTransportKind.MessagePort,
-			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
-		};
-		const plugin = (name: string) => [{
-			uri: `file:///plugins/${name}`,
-			displayName: name,
-			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
-		}];
-		const dispatch = (clientId: string, clientSeq: number, plugins: ReturnType<typeof plugin>) => service.dispatchAction(ROOT_STATE_URI, {
-			type: ActionType.RootConfigChanged,
-			config: { [AgentHostConfigKey.AutomationClientPlugins]: plugins },
-		}, clientId, clientSeq, localEditorContext);
-		const root = URI.parse(ROOT_STATE_URI);
-		service.addSubscriber(root, 'z-client');
-		service.addSubscriber(root, 'a-client');
-
-		dispatch('z-client', 1, plugin('z-first'));
-		dispatch('a-client', 2, plugin('a'));
-		dispatch('z-client', 3, plugin('z-latest'));
-		service.unsubscribe(root, 'a-client');
-
-		assert.deepStrictEqual({
-			rejections: envelopes.filter(envelope => envelope.rejectionReason).map(envelope => ({
-				clientId: envelope.origin?.clientId,
-				clientSeq: envelope.origin?.clientSeq,
-				reason: envelope.rejectionReason,
-			})),
-			plugins: stateManager.rootState.config?.values[AgentHostConfigKey.AutomationClientPlugins],
-		}, {
-			rejections: [{
-				clientId: 'z-client',
-				clientSeq: 3,
-				reason: 'Another local Editor Window is the Automation client plugin publisher.',
-			}],
-			plugins: plugin('z-latest'),
-		});
 	});
 
 	// ---- Provider registration ------------------------------------------
@@ -2436,7 +2269,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('applies and persists Automation client plugins from a local Editor Window', async () => {
+		test('applies and persists root config changes from clients', async () => {
 			const tempDir = URI.file(mkdtempSync(`${tmpdir()}/agent-host-config-`));
 			// Use a local DisposableStore so that svc can be explicitly disposed
 			// before cleaning up the temp directory. On Windows, rmSync fails with
@@ -2450,28 +2283,19 @@ suite('AgentService (node dispatcher)', () => {
 				localDisposables.add(toDisposable(() => agent.dispose()));
 				registerTestAgentProvider(svc, agent);
 
-				const plugins = [{
-					uri: 'file:///plugin-a',
-					displayName: 'Plugin A',
-					enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
-				}];
+				const customization = { uri: 'file:///plugin-a', displayName: 'Plugin A' };
 				svc.dispatchAction(ROOT_STATE_URI, {
 					type: ActionType.RootConfigChanged,
-					config: { [AgentHostConfigKey.AutomationClientPlugins]: plugins },
-				}, 'test-client', 1, {
-					clientType: AgentHostClientType.EditorWindow,
-					connectionKind: AgentHostClientConnectionKind.Local,
-					transportKind: AgentHostTransportKind.MessagePort,
-					hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
-				});
+					config: { customizations: [customization] },
+				}, 'test-client', 1);
 
 				let persisted = false;
 				for (let attempt = 0; attempt < 20; attempt++) {
 					try {
 						const parsed = JSON.parse(readFileSync(rootConfigResource.fsPath, 'utf8'));
 						assert.deepStrictEqual(
-							parsed[AgentHostConfigKey.AutomationClientPlugins],
-							plugins,
+							parsed.customizations,
+							[customization],
 						);
 						persisted = true;
 						break;

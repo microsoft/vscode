@@ -24,7 +24,10 @@ import { IAgentHostStateManager, type AgentHostStateManager } from './agentHostS
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { nextAutomationCronOccurrence, validateAutomationCron } from './automationCron.js';
 import { AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY, AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY } from '../common/automationMigration.js';
+import { IAgentPluginManager } from '../common/agentPluginManager.js';
+import { readAutomationActiveClient } from '../common/meta/automationActiveClientMeta.js';
 import { isAgentHostLegacyAutomationImportPending } from '../common/meta/automationMeta.js';
+import type { SessionActiveClient } from '../common/state/protocol/channels-session/state.js';
 
 const STORAGE_KEY = 'automations';
 const SCHEDULE_CURSORS_META_KEY = 'vscode.scheduleCursors';
@@ -56,7 +59,7 @@ interface IStoredAutomations {
 
 export interface IAgentHostAutomationExecution {
 	isSessionTemplateAvailable(template: AutomationSessionTemplate): boolean;
-	createSession(template: AutomationSessionTemplate, run: AutomationRunState): Promise<URI>;
+	createSession(template: AutomationSessionTemplate, run: AutomationRunState, activeClient: SessionActiveClient | undefined): Promise<URI>;
 	startSession(session: URI, message: Message): Promise<void>;
 	cancelSession(session: URI): Promise<boolean>;
 }
@@ -67,8 +70,8 @@ export interface IAgentHostAutomationService {
 	readonly _serviceBrand: undefined;
 	readonly capabilities: AutomationCapabilities | undefined;
 	readonly isAvailable: boolean;
-	handleCreate(action: AutomationCreateRequestedAction): Promise<void>;
-	handleUpdate(action: AutomationUpdateRequestedAction): Promise<void>;
+	handleCreate(action: AutomationCreateRequestedAction, clientId?: string): Promise<void>;
+	handleUpdate(action: AutomationUpdateRequestedAction, clientId?: string): Promise<void>;
 	handleRemove(action: AutomationRemovedAction): Promise<void>;
 	handleCancel(resource: string, action: AutomationRunCancelRequestedAction): Promise<void>;
 	listTriggerDefinitions(params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult>;
@@ -101,6 +104,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostStorageService private readonly _storageService: IAgentHostStorageService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentPluginManager private readonly _pluginManager: IAgentPluginManager,
 	) {
 		super();
 		const stored = this._load();
@@ -118,6 +122,9 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._manualRunRequests = new Map(stored?.manualRunRequests?.map(request => [request.requestId, request]));
 		if (this._catalog) {
 			this._stateManager.setAutomationCatalogState(this._catalog);
+			for (const automation of this._catalog.entries) {
+				this._retainDefinitionCustomizations(automation.resource, automation.definition);
+			}
 		}
 		for (const run of this._runs.values()) {
 			this._stateManager.setAutomationRunState(run);
@@ -245,23 +252,23 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._scheduleNext();
 	}
 
-	async handleCreate(action: AutomationCreateRequestedAction): Promise<void> {
-		return this._enqueueMutation(() => this._handleCreate(action));
+	async handleCreate(action: AutomationCreateRequestedAction, clientId?: string): Promise<void> {
+		return this._enqueueMutation(() => this._handleCreate(action, clientId));
 	}
 
-	private async _handleCreate(action: AutomationCreateRequestedAction): Promise<void> {
+	private async _handleCreate(action: AutomationCreateRequestedAction, clientId: string | undefined): Promise<void> {
 		const catalog = this._requireCatalog();
 		this._validateAutomationResource(action.resource);
-		const definition = action.definition;
-		this._validateDefinition(definition);
 		const existing = catalog.entries.find(automation => automation.resource === action.resource);
-		if (existing && equals(existing.definition, definition)) {
+		if (existing && equals(existing.definition, action.definition)) {
 			this._stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, { type: ActionType.AutomationSet, automation: existing });
 			return;
 		}
 		if (existing) {
 			throw new Error(`Automation already exists: ${action.resource}`);
 		}
+		const definition = await this._prepareDefinitionCustomizations(action.definition, clientId);
+		this._validateDefinition(definition);
 
 		const timestamp = new Date().toISOString();
 		const pending = isAgentHostLegacyAutomationImportPending(definition);
@@ -280,15 +287,16 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		const next = automationReducer(catalog, { type: ActionType.AutomationSet, automation }, this._log);
 		await this._persist(next, this._runs, this._manualRunRequests);
 		this._catalog = next;
+		this._retainDefinitionCustomizations(automation.resource, automation.definition);
 		this._stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, { type: ActionType.AutomationSet, automation });
 		this._scheduleNext();
 	}
 
-	async handleUpdate(action: AutomationUpdateRequestedAction): Promise<void> {
-		return this._enqueueMutation(() => this._handleUpdate(action));
+	async handleUpdate(action: AutomationUpdateRequestedAction, clientId?: string): Promise<void> {
+		return this._enqueueMutation(() => this._handleUpdate(action, clientId));
 	}
 
-	private async _handleUpdate(action: AutomationUpdateRequestedAction): Promise<void> {
+	private async _handleUpdate(action: AutomationUpdateRequestedAction, clientId: string | undefined): Promise<void> {
 		const catalog = this._requireCatalog();
 		const existing = catalog.entries.find(automation => automation.resource === action.resource);
 		if (!existing) {
@@ -303,6 +311,10 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				...action.changes,
 			},
 			modifiedAt: new Date().toISOString(),
+		};
+		automation = {
+			...automation,
+			definition: await this._prepareDefinitionCustomizations(automation.definition, clientId, existing.definition),
 		};
 		this._validateDefinition(automation.definition);
 		if (action.changes.triggers !== undefined || action.changes.enabled !== undefined) {
@@ -329,6 +341,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		const next = automationReducer(catalog, { type: ActionType.AutomationSet, automation }, this._log);
 		await this._persist(next, this._runs, this._manualRunRequests);
 		this._catalog = next;
+		this._retainDefinitionCustomizations(automation.resource, automation.definition);
 		this._stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, { type: ActionType.AutomationSet, automation });
 		this._scheduleNext();
 	}
@@ -350,6 +363,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		const next = automationReducer(catalog, action, this._log);
 		await this._persist(next, this._runs, this._manualRunRequests);
 		this._catalog = next;
+		this._pluginManager.retainCustomizations(existing.resource, []);
 		this._stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, action);
 		this._scheduleNext();
 	}
@@ -695,7 +709,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				return;
 			}
 			this._armRunTimeout(running.resource);
-			const session = await this._execution.createSession(definition.session, running);
+			const session = await this._execution.createSession(definition.session, running, readAutomationActiveClient(definition._meta));
 			const shouldStart = await this._enqueueMutation(() => this._linkRunSession(running.resource, session.toString()));
 			if (!shouldStart) {
 				await this._execution.cancelSession(session);
@@ -912,6 +926,23 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		if (!automation.operations.includes(operation)) {
 			throw new Error(`Automation operation '${operation}' is not available: ${automation.resource}`);
 		}
+	}
+
+	private async _prepareDefinitionCustomizations(definition: AutomationDefinition, clientId: string | undefined, previous?: AutomationDefinition): Promise<AutomationDefinition> {
+		const activeClient = readAutomationActiveClient(definition._meta);
+		if (!activeClient || equals(activeClient, readAutomationActiveClient(previous?._meta))) {
+			return definition;
+		}
+		if (!clientId || activeClient.clientId !== clientId) {
+			throw new Error('Automation customizations must be published by their active client.');
+		}
+		await this._pluginManager.syncCustomizations(clientId, activeClient.customizations ?? []);
+		return definition;
+	}
+
+	private _retainDefinitionCustomizations(resource: string, definition: AutomationDefinition): void {
+		const activeClient = readAutomationActiveClient(definition._meta);
+		this._pluginManager.retainCustomizations(resource, activeClient?.customizations ?? []);
 	}
 
 	private _activeRunFor(automation: string): AutomationRunState | undefined {

@@ -6,6 +6,7 @@
 import { disposableTimeout, timeout } from '../../../../../base/common/async.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable, type IReference } from '../../../../../base/common/lifecycle.js';
+import { equals } from '../../../../../base/common/objects.js';
 import { autorun, derived, type IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -13,11 +14,12 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY } from '../../../../../platform/agentHost/common/automationMigration.js';
+import { withAutomationActiveClient } from '../../../../../platform/agentHost/common/meta/automationActiveClientMeta.js';
 import { isAgentHostAutomationCatalogMigrated, isAgentHostLegacyAutomationImport, isAgentHostLegacyAutomationImportPending } from '../../../../../platform/agentHost/common/meta/automationMeta.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { type IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationDefinition, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationDefinition, type AutomationEntry, type AutomationRunSummary, type AutomationState, type SessionActiveClient } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, isAhpAutomationCatalogChannel, ROOT_STATE_URI, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
@@ -34,7 +36,8 @@ const LEGACY_RUN_ARCHIVE_VERSION = 1;
 const LEGACY_RUN_ARCHIVE_WRITE_ATTEMPTS = 10;
 
 export type IAgentHostAutomationConnection = Pick<IAgentConnection,
-	'dispatch'
+	'clientId'
+	| 'dispatch'
 	| 'initializeResult'
 	| 'listAutomationTriggerDefinitions'
 	| 'onDidAction'
@@ -67,6 +70,7 @@ export interface IAgentHostAutomationBoundaryMapper {
 	resourceSchemeForProvider(provider: string): string;
 	providerForSessionScheme?(scheme: string): string;
 	providerForResourceScheme?(scheme: string): string | undefined;
+	resolveActiveClient?(sessionType: string, roots: readonly URI[], clientId: string): Promise<SessionActiveClient>;
 }
 
 export class AgentHostAutomationStore extends Disposable implements ISessionsProviderAutomations {
@@ -84,6 +88,9 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	private readonly _archivedRuns;
 	private _migrationPromise: Promise<void> | undefined;
 	private _lastPreflightDeferralKey: string | undefined;
+	private _didRefreshCustomizations = false;
+	private _customizationRefreshPromise: Promise<void> | undefined;
+	private readonly _locallyResolvedCustomizationResources = new Set<string>();
 
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
@@ -130,6 +137,15 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				&& !this._ready.read(reader)) {
 				this._ready.set(true, undefined);
 			}
+		}));
+		this._register(autorun(reader => {
+			if (!this._ready.read(reader) || this._didRefreshCustomizations || !this._boundaryMapper?.resolveActiveClient) {
+				return;
+			}
+			this._didRefreshCustomizations = true;
+			this._customizationRefreshPromise = this._refreshStoredCustomizations().catch(error => {
+				this._logService.error('[AgentHostAutomationStore] Failed to refresh Automation customizations.', error);
+			});
 		}));
 		this.automations = derived(this, reader => {
 			this._catalogChanged.read(reader);
@@ -332,6 +348,10 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			throw new Error('Scheduled Automation execution is owned by the Agent Host.');
 		}
 		this._requireOperation(automationId, AutomationOperation.Run);
+		const automation = this._findAutomationEntry(automationId);
+		if (automation) {
+			await this._refreshDefinitionCustomizations(automation);
+		}
 		const activeRun = this.getActiveRunFor(automationId);
 		if (activeRun) {
 			return { claimed: false, run: activeRun };
@@ -542,6 +562,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		if (migration) {
 			await migration;
 		}
+		await this._customizationRefreshPromise;
 	}
 
 	private _requireLegacySourceDrained(): void {
@@ -771,7 +792,8 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 
 	private async _createDescriptor(descriptor: IAutomationDescriptor, imported = false, importPending?: boolean): Promise<AutomationEntry> {
 		const resource = automationResource(descriptor.id);
-		const definition = this._definitionFromDescriptor(descriptor, undefined, imported, importPending);
+		const definition = await this._resolveDefinitionFromDescriptor(descriptor, undefined, imported, importPending);
+		this._locallyResolvedCustomizationResources.add(resource);
 		const state = await this._dispatchAndWait(
 			{ type: ActionType.AutomationCreateRequested, resource, definition },
 			catalog => catalog.entries.some(automation => automation.resource === resource),
@@ -788,7 +810,8 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		if (!current) {
 			throw new Error(`Automation does not exist: ${descriptor.id}`);
 		}
-		const definition = this._definitionFromDescriptor(descriptor, current.definition, imported, importPending);
+		const definition = await this._resolveDefinitionFromDescriptor(descriptor, current.definition, imported, importPending);
+		this._locallyResolvedCustomizationResources.add(resource);
 		const expected = this._requireProjectedAutomation({ ...current, definition });
 		const state = await this._dispatchAndWait(
 			{
@@ -841,6 +864,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			setOptional(config, SessionConfigKey.Isolation, undefined);
 			setOptional(config, SessionConfigKey.Branch, undefined);
 		}
+
 		const meta: Record<string, unknown> = {
 			...existing?._meta,
 			...((imported || isAgentHostLegacyAutomationImport(existing)) ? { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY]: true } : {}),
@@ -865,6 +889,61 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			triggers: scheduleTrigger(descriptor.schedule),
 			_meta: Object.keys(meta).length > 0 ? meta : undefined,
 		};
+	}
+
+	private async _resolveDefinitionFromDescriptor(descriptor: IAutomationDescriptor, existing?: AutomationDefinition, imported = false, importPending?: boolean): Promise<AutomationDefinition> {
+		const definition = this._definitionFromDescriptor(descriptor, existing, imported, importPending);
+		const mapper = this._boundaryMapper;
+		const resolveActiveClient = mapper?.resolveActiveClient;
+		if (!resolveActiveClient || !definition.session.provider) {
+			return definition;
+		}
+		const roots = descriptor.target.kind === 'workspace' ? [descriptor.target.folderUri] : [];
+		const sessionType = mapper.resourceSchemeForProvider(definition.session.provider);
+		const activeClient = await resolveActiveClient(sessionType, roots, this._connection.clientId);
+		return {
+			...definition,
+			_meta: withAutomationActiveClient(definition._meta, {
+				...activeClient,
+				tools: [],
+			}),
+		};
+	}
+
+	private async _refreshStoredCustomizations(): Promise<void> {
+		const catalog = this._catalog.value;
+		if (!catalog || catalog instanceof Error) {
+			return;
+		}
+		for (const automation of catalog.entries) {
+			if (this._locallyResolvedCustomizationResources.has(automation.resource)) {
+				continue;
+			}
+			try {
+				await this._refreshDefinitionCustomizations(automation);
+			} catch (error) {
+				if (isCancellationError(error)) {
+					throw error;
+				}
+				this._logService.error(`[AgentHostAutomationStore] Failed to refresh customizations for ${automation.resource}.`, error);
+			}
+		}
+	}
+
+	private async _refreshDefinitionCustomizations(automation: AutomationEntry): Promise<void> {
+		const descriptor = this._projectAutomation(automation);
+		if (!descriptor) {
+			return;
+		}
+		const definition = await this._resolveDefinitionFromDescriptor(descriptor, automation.definition);
+		if (equalsProtocolMetadata(definition._meta, automation.definition._meta)) {
+			return;
+		}
+		await this._dispatchAndWait({
+			type: ActionType.AutomationUpdateRequested,
+			resource: automation.resource,
+			changes: { _meta: definition._meta },
+		}, catalog => equalsProtocolMetadata(catalog.entries.find(entry => entry.resource === automation.resource)?.definition._meta, definition._meta));
 	}
 
 	private _toHostModelId(modelId: string, provider: string | undefined): string {
@@ -1231,6 +1310,26 @@ function setOptional(target: Record<string, unknown>, key: string, value: unknow
 	} else {
 		target[key] = value;
 	}
+}
+
+function equalsProtocolMetadata(first: Record<string, unknown> | undefined, second: Record<string, unknown> | undefined): boolean {
+	return equals(toProtocolValue(first), toProtocolValue(second));
+}
+
+function toProtocolValue(value: unknown): unknown {
+	if (Array.isArray(value)) {
+		return value.map(item => item === undefined ? null : toProtocolValue(item));
+	}
+	if (typeof value !== 'object' || value === null) {
+		return value;
+	}
+	const result: Record<string, unknown> = {};
+	for (const [key, child] of Object.entries(value)) {
+		if (child !== undefined) {
+			result[key] = toProtocolValue(child);
+		}
+	}
+	return result;
 }
 
 function distinctById<T extends { readonly id: string }>(items: readonly T[]): T[] {

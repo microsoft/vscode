@@ -6,7 +6,6 @@
 import { open, unlink, type FileHandle } from 'fs/promises';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Barrier, DeferredPromise, disposableTimeout, Limiter, ResourceQueue } from '../../../base/common/async.js';
-import { structuralEquals } from '../../../base/common/equals.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -26,7 +25,6 @@ import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sess
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
-import { AgentHostConfigKey, agentHostCustomizationConfigSchema, AUTOMATION_ACTIVE_CLIENT_ID, toAutomationClientPluginCustomization, type IAutomationClientPluginConfigEntry } from '../common/agentHostCustomizationConfig.js';
 import { buildAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
 import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, isAgentHostAutomationMigrationCompletion } from '../common/automationMigration.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
@@ -39,7 +37,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TextRange } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
-import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, getErrorResponsePart, isAhpChatChannel, isAhpRootChannel, isChatReadOnly, isDefaultChatUri, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withMessageHiddenFromTranscript, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, readSessionEhcliAdoptable, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, getErrorResponsePart, isAhpChatChannel, isChatReadOnly, isDefaultChatUri, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withMessageHiddenFromTranscript, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, readSessionEhcliAdoptable, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../common/meta/agentSnapshotAttachmentMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
@@ -83,7 +81,7 @@ import { INetworkDiagnosticsService } from './networkDiagnosticsService.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { resolveLastNonLocalTurnId } from '../common/agentHostConversationContext.js';
-import { AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { AgentMergeController, type IAgentMergeControllerOptions } from './agentMergeController.js';
 import { AgentMergeConfigKey, agentMergeRootConfigSchema, getNonMergeSessionConfigValues, readAgentMergeSessionState } from '../common/agentMerge.js';
@@ -513,8 +511,6 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _debugLogsCollector: AgentHostDebugLogsCollector | undefined;
 	private readonly _configurationService: AgentConfigurationService;
 	private readonly _automationService: IAgentHostAutomationService;
-	/** Live local-editor snapshots; the lexically first client is the deterministic publisher. */
-	private readonly _automationClientPluginsByPublisher = new Map<string, readonly IAutomationClientPluginConfigEntry[]>();
 	/** Captures baseline / per-turn git checkpoints backing the changeset pipeline. */
 	private readonly _checkpointService: IAgentHostCheckpointService;
 	/** Single source of truth for GitHub (Enterprise) endpoints and protected resources. */
@@ -648,26 +644,18 @@ export class AgentService extends Disposable implements IAgentService {
 		core.callbackBinder.bind({
 			automationExecution: {
 				isSessionTemplateAvailable: template => this._providerService.resolveProvider(template.provider) !== undefined,
-				createSession: (template, run) => {
-					const automationPlugins = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AutomationClientPlugins) ?? [];
-					return this.createSession({
-						provider: template.provider,
-						model: template.model,
-						agent: template.agent,
-						workingDirectories: template.workingDirectories?.map(resource => URI.parse(resource)),
-						config: template.config,
-						activeClient: automationPlugins.length ? {
-							clientId: AUTOMATION_ACTIVE_CLIENT_ID,
-							displayName: localize('agentHost.automations.activeClient', "VS Code Automations"),
-							tools: [],
-							customizations: automationPlugins.map(toAutomationClientPluginCustomization),
-						} : undefined,
-						_meta: {
-							automation: run.automation,
-							automationRun: run.resource,
-						},
-					});
-				},
+				createSession: (template, run, activeClient) => this.createSession({
+					provider: template.provider,
+					model: template.model,
+					agent: template.agent,
+					workingDirectories: template.workingDirectories?.map(resource => URI.parse(resource)),
+					config: template.config,
+					activeClient,
+					_meta: {
+						automation: run.automation,
+						automationRun: run.resource,
+					},
+				}),
 				startSession: (session, message) => this._startAutomationMessage(session, message),
 				cancelSession: session => this._cancelAutomationSession(session),
 			},
@@ -4123,9 +4111,6 @@ export class AgentService extends Disposable implements IAgentService {
 		if (this._store.isDisposed) {
 			return;
 		}
-		if (isAhpRootChannel(resource.toString()) && this._automationClientPluginsByPublisher.delete(clientId)) {
-			this._reconcileAutomationClientPluginPublisher();
-		}
 		if (!this._subscriptions.removeSubscriber(resource, clientId)) {
 			return;
 		}
@@ -4369,58 +4354,11 @@ export class AgentService extends Disposable implements IAgentService {
 		return action.type === ActionType.AutomationRunCancelRequested;
 	}
 
-	private _getAutomationClientPluginPublisher(): string | undefined {
-		let publisher: string | undefined;
-		for (const clientId of this._automationClientPluginsByPublisher.keys()) {
-			if (publisher === undefined || clientId < publisher) {
-				publisher = clientId;
-			}
-		}
-		return publisher;
-	}
-
-	private _reconcileAutomationClientPluginPublisher(): void {
-		const publisher = this._getAutomationClientPluginPublisher();
-		if (!publisher) {
-			// Keep the last snapshot for scheduled runs while no editor is connected.
-			return;
-		}
-		const plugins = this._automationClientPluginsByPublisher.get(publisher);
-		if (!plugins || structuralEquals(this._stateManager.rootState.config?.values[AgentHostConfigKey.AutomationClientPlugins], plugins)) {
-			return;
-		}
-		this._configurationService.updateRootConfig({ [AgentHostConfigKey.AutomationClientPlugins]: plugins });
-	}
-
 	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction, clientId: string, clientSeq: number, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown): void {
 		const clientContext = typeof clientContextOrType === 'string'
 			? createUnknownAgentHostClientTelemetryContext(clientContextOrType)
 			: clientContextOrType;
 		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
-		if (action.type === ActionType.RootConfigChanged && Object.hasOwn(action.config, AgentHostConfigKey.AutomationClientPlugins)) {
-			const origin = { clientId, clientSeq };
-			const plugins = action.config[AgentHostConfigKey.AutomationClientPlugins];
-			if (clientContext.clientType !== AgentHostClientType.EditorWindow
-				|| clientContext.transportKind !== AgentHostTransportKind.MessagePort
-				|| clientContext.hostLaunchKind !== AgentHostLaunchKind.VSCodeMainProcess) {
-				this._stateManager.rejectClientAction(channel, action, origin, 'Automation client plugins require a local Editor Window client.');
-				return;
-			}
-			if (Object.keys(action.config).length !== 1 || action.replace) {
-				this._stateManager.rejectClientAction(channel, action, origin, 'Automation client plugins must be dispatched as an isolated root-config patch.');
-				return;
-			}
-			if (!agentHostCustomizationConfigSchema.validate(AgentHostConfigKey.AutomationClientPlugins, plugins)
-				|| plugins.some(plugin => URI.parse(plugin.uri).scheme !== Schemas.file)) {
-				this._stateManager.rejectClientAction(channel, action, origin, 'Invalid Automation client plugin payload.');
-				return;
-			}
-			this._automationClientPluginsByPublisher.set(clientId, plugins);
-			if (this._getAutomationClientPluginPublisher() !== clientId) {
-				this._stateManager.rejectClientAction(channel, action, origin, 'Another local Editor Window is the Automation client plugin publisher.');
-				return;
-			}
-		}
 		if (action.type === ActionType.RootConfigChanged && Object.hasOwn(action.config, AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY)) {
 			const migration = action.config[AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY];
 			const origin = { clientId, clientSeq };
@@ -4428,7 +4366,6 @@ export class AgentService extends Disposable implements IAgentService {
 				this._stateManager.rejectClientAction(channel, action, origin, 'Invalid automation migration completion payload.');
 				return;
 			}
-
 			if (Object.keys(action.config).length !== 1 || action.replace) {
 				this._stateManager.rejectClientAction(channel, action, origin, 'Automation migration completion must be dispatched as an isolated root-config patch.');
 				return;
@@ -4443,7 +4380,7 @@ export class AgentService extends Disposable implements IAgentService {
 				return;
 			}
 
-			void this._dispatchAutomationAction(action).catch(error => {
+			void this._dispatchAutomationAction(action, clientId).catch(error => {
 				const message = toErrorMessage(error);
 				this._logService.error(`[AgentService] automation action failed: ${message}`);
 				this._stateManager.rejectClientAction(channel, action, origin, message);
@@ -4561,12 +4498,12 @@ export class AgentService extends Disposable implements IAgentService {
 		this._clientDispatchQueues.set(clientId, next);
 	}
 
-	private async _dispatchAutomationAction(action: ClientAutomationAction): Promise<void> {
+	private async _dispatchAutomationAction(action: ClientAutomationAction, clientId: string): Promise<void> {
 		switch (action.type) {
 			case ActionType.AutomationCreateRequested:
-				return this._automationService.handleCreate(action);
+				return this._automationService.handleCreate(action, clientId);
 			case ActionType.AutomationUpdateRequested:
-				return this._automationService.handleUpdate(action);
+				return this._automationService.handleUpdate(action, clientId);
 			case ActionType.AutomationRemoved:
 				return this._automationService.handleRemove(action);
 		}

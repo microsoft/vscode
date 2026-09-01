@@ -13,7 +13,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, clientOwnedApprovalRootConfigKeys, createSchema, platformRootSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { AGENT_CUSTOMIZATION_SETTINGS_META_KEY, getAgentCustomizationSettingsEntries } from '../../common/agentCustomizationSettings.js';
-import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigState } from '../../common/state/protocol/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -263,28 +262,6 @@ suite('AgentConfigurationService', () => {
 		const persisted = JSON.parse(fs.readFileSync(resource.fsPath, 'utf8')) as Record<string, unknown>;
 		assert.strictEqual(persisted['test.account'], undefined);
 		assert.deepStrictEqual(localManager.rootState.config?.values['test.account'], { status: 'signedIn' });
-		fs.rmSync(directory, { recursive: true, force: true });
-	});
-
-	test('migrates persisted Automation client plugin enablement', () => {
-		const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-config-'));
-		const resource = URI.file(join(directory, 'agent-host-config.json'));
-		fs.writeFileSync(resource.fsPath, JSON.stringify({
-			[AgentHostConfigKey.AutomationClientPlugins]: [{
-				uri: 'file:///plugins/local-plugin',
-				displayName: 'Local Plugin',
-				enabled: false,
-			}],
-		}));
-		const localManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-		disposables.add(new AgentConfigurationService(localManager, new NullLogService(), resource));
-
-		assert.deepStrictEqual(localManager.rootState.config?.values[AgentHostConfigKey.AutomationClientPlugins], [{
-			uri: 'file:///plugins/local-plugin',
-			displayName: 'Local Plugin',
-			enabled: false,
-			enablement: [{ kind: 'global', enabled: false }],
-		}]);
 		fs.rmSync(directory, { recursive: true, force: true });
 	});
 

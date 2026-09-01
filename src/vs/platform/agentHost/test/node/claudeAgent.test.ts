@@ -311,6 +311,8 @@ class FakeAgentPluginManager implements IAgentPluginManager {
 	syncResult: readonly ISyncedCustomization[] | undefined;
 	syncCalls: { clientId: string; customizations: readonly ClientPluginCustomization[] }[] = [];
 
+	retainCustomizations(): void { }
+
 	async syncCustomizations(
 		clientId: string,
 		customizations: ClientPluginCustomization[],

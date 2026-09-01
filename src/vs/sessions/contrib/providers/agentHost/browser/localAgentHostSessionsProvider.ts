@@ -186,6 +186,15 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 			fromHost: resource => resource,
 			resourceSchemeForProvider: provider => this.resourceSchemeForProvider(provider),
 			providerForResourceScheme: scheme => scheme.startsWith(LOCAL_RESOURCE_SCHEME_PREFIX) ? scheme.slice(LOCAL_RESOURCE_SCHEME_PREFIX.length) : undefined,
+			resolveActiveClient: async (sessionType, roots, clientId) => {
+				const scope = activeClientService.acquireScope(sessionType, roots);
+				try {
+					await scope.whenResolved();
+					return scope.activeClient(clientId).get();
+				} finally {
+					scope.dispose();
+				}
+			},
 		}));
 		this.automations = automations;
 
