@@ -630,8 +630,11 @@ export class CodeActionParticipantUtils {
 
 	// @Yoyokrazy this could likely be modified to leverage the extensionID, therefore not getting actions from providers unnecessarily -- future work
 	static getActionsToRun(model: ITextModel, codeActionKind: HierarchicalKind, excludes: readonly HierarchicalKind[], languageFeaturesService: ILanguageFeaturesService, progress: IProgress<CodeActionProvider>, token: CancellationToken) {
+		// Use Invoke trigger type for notebook-specific code actions (which need cross-cell edits),
+		// but Auto trigger type for regular LSP code actions (which many LSP servers filter by trigger type)
+		const triggerType = codeActionKind.value.startsWith('notebook.') ? CodeActionTriggerType.Invoke : CodeActionTriggerType.Auto;
 		return getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), {
-			type: CodeActionTriggerType.Invoke,
+			type: triggerType,
 			triggerAction: CodeActionTriggerSource.OnSave,
 			filter: { include: codeActionKind, excludes: excludes, includeSourceActions: true },
 		}, progress, token);
