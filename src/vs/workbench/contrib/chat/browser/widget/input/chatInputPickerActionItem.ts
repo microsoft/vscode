@@ -27,13 +27,15 @@ export interface IChatInputPickerOptions {
 
 	readonly compact: IObservable<boolean>;
 
+	readonly minimal?: IObservable<boolean>;
+
 	readonly listOptions?: IActionListOptions;
 }
 
 export function withChatInputPickerMotion(listOptions: IActionListOptions | undefined): IActionListOptions {
 	return {
-		anchorPosition: AnchorPosition.ABOVE,
 		...withActionWidgetDropdownMotion(listOptions),
+		anchorPosition: AnchorPosition.ABOVE,
 	};
 }
 
@@ -42,6 +44,7 @@ export function withChatInputPickerMotion(listOptions: IActionListOptions | unde
  * Provides common anchor resolution logic for dropdown positioning.
  */
 export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdownActionViewItem {
+	private _externalAnchor: HTMLElement | undefined;
 
 	constructor(
 		action: IAction,
@@ -52,11 +55,16 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		// Inject the anchor getter into the options
+		const listOptionsProvider = actionWidgetOptions.listOptions === undefined ? actionWidgetOptions.listOptionsProvider : undefined;
 		const optionsWithAnchor: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
 			...actionWidgetOptions,
 			getAnchor: () => this.getAnchorElement(),
-			listOptions: withChatInputPickerMotion(actionWidgetOptions.listOptions),
+			listOptions: listOptionsProvider
+				? undefined
+				: withChatInputPickerMotion(actionWidgetOptions.listOptions),
+			listOptionsProvider: listOptionsProvider
+				? { getListOptions: () => withChatInputPickerMotion(listOptionsProvider.getListOptions()) }
+				: undefined,
 		};
 
 		super(action, optionsWithAnchor, actionWidgetService, keybindingService, contextKeyService, telemetryService);
@@ -75,10 +83,18 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 	 * Falls back to the overflow anchor if this element is not in the DOM.
 	 */
 	protected getAnchorElement(): HTMLElement {
+		if (this._externalAnchor?.isConnected) {
+			return this._externalAnchor;
+		}
 		if (this.element && getActiveWindow().document.contains(this.element)) {
 			return this.element;
 		}
 		return this.pickerOptions.getOverflowAnchor?.() ?? this.element!;
+	}
+
+	override show(anchor?: HTMLElement): void {
+		this._externalAnchor = anchor;
+		super.show();
 	}
 
 	override render(container: HTMLElement): void {

@@ -17,11 +17,11 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentSignal } from '../../common/agentService.js';
+import { AgentSignal } from '../../common/agent.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { IAgentEditAttribution, IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
-import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, resolveChatUri } from '../../common/state/sessionState.js';
 import { ClaudeSdkMessageRouter } from '../../node/claude/claudeSdkMessageRouter.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { IEditArcReporterService, NullEditArcReporterService } from '../../node/shared/editArcReporter.js';
@@ -80,8 +80,8 @@ function createRouter(
 	const subagents = disposables.add(new SubagentRegistry());
 	const router = disposables.add(inst.createInstance(
 		ClaudeSdkMessageRouter,
-		URI.parse('claude:/sess-1'),
 		chatChannelUri,
+		resolveChatUri(URI.parse('claude:/sess-1'), chatChannelUri),
 		dbRef,
 		subagents,
 		undefined,

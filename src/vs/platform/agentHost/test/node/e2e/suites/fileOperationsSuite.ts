@@ -15,7 +15,7 @@ import type { StringOrMarkdown } from '../../../../common/state/protocol/state.j
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
 import type { ResourceReadResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
-import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveTurnToCompletion, initTestGitRepo } from '../harness/agentHostE2ETestHarness.js';
+import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
@@ -58,8 +58,6 @@ function fileOperationTest(context: IAgentHostE2ETestContext, title: string, run
 export function defineFileOperationsTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs, portableShellToolReplayEnabled, isWindows } = context;
 	const shellOutputOracleAvailable = !(isWindows && config.provider === 'copilotcli');
-	// Codex intermittently reports successful structured reads with empty result text: https://github.com/microsoft/vscode/issues/329512
-	const structuredReadResultTextAvailable = config.provider !== 'codex';
 	const BEHAVIOR_SNAPSHOT = {
 		profile: 'behavior',
 		// Codex occasionally omits command completion; direct filesystem and response assertions are the success oracle.
@@ -67,9 +65,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 	} as const;
 
 	if (config.streamingFileCreateToolName && config.provider !== 'codex') {
-		const fileToolDenialEnabled = config.provider !== 'copilotcli'
-			&& !(context.isLinux && config.fileToolDenialReplayUnstableOnLinux);
-		(fileToolDenialEnabled ? test : test.skip)('declining a file creation tool prevents the mutation and completes the turn', async function () {
+		test('declining a file creation tool prevents the mutation and completes the turn', async function () {
 			this.timeout(180_000);
 			const workspace = mkdtempSync(join(tmpdir(), 'ahp-decline-create-'));
 			tempDirs.push(workspace);
@@ -80,7 +76,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 				context.client,
 				sessionUri,
 				turnId,
-				'Create denied.txt containing exactly DENIED_CONTENT using your file creation tool. If permission is denied, reply exactly "denied".',
+				'Create denied.lock containing exactly DENIED_CONTENT using your file creation tool. If permission is denied, reply exactly "denied".',
 				1,
 			);
 			const started = await context.client.waitForNotification(n =>
@@ -99,6 +95,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 				90_000,
 			);
 			const ready = getActionEnvelope(readyNotification).action as ChatToolCallReadyAction;
+			const fileCreatedBeforeDenial = existsSync(join(workspace, 'denied.lock'));
 			context.client.dispatch({
 				channel: chatUri,
 				clientSeq: 2,
@@ -143,7 +140,23 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 					},
 				});
 			}
-			assert.strictEqual(existsSync(join(workspace, 'denied.txt')), false);
+			const malformedPermissionErrors = context.client.receivedNotifications(n =>
+				isActionNotification(n, 'chat/toolCallComplete')
+				&& getActionEnvelope(n).channel === chatUri
+				&& (getActionEnvelope(n).action as ChatToolCallCompleteAction).toolCallId === toolCallId
+			).map(n => (getActionEnvelope(n).action as ChatToolCallCompleteAction).result.error?.message)
+				.filter((message): message is string => typeof message === 'string' && message.includes('permission host returned malformed payload'));
+			assert.deepStrictEqual({
+				fileCreatedBeforeDenial,
+				fileCreated: existsSync(join(workspace, 'denied.lock')),
+				responseEndsWithDenied: getMarkdownResponseText(context.client).trim().endsWith('denied'),
+				malformedPermissionErrors,
+			}, {
+				fileCreatedBeforeDenial: false,
+				fileCreated: false,
+				responseEndsWithDenied: true,
+				malformedPermissionErrors: [],
+			});
 		});
 
 		(config.supportsPausedTurnCancellationE2E ? test : test.skip)('cancelling a turn paused for file-tool approval allows a replacement turn', async function () {
@@ -296,7 +309,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	}, structuredReadResultTextAvailable);
+	});
 
 	(portableShellToolReplayEnabled && shellOutputOracleAvailable ? test : test.skip)('lists workspace entries', async function () {
 		this.timeout(180_000);
@@ -399,7 +412,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	}, structuredReadResultTextAvailable);
+	});
 
 	fileOperationTest(context, 'counts lines in a file', async function () {
 		this.timeout(180_000);
@@ -430,7 +443,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	}, structuredReadResultTextAvailable);
+	});
 
 	fileOperationTest(context, 'handles a missing file without a session error', async function () {
 		this.timeout(180_000);
@@ -488,7 +501,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		context.client.beginAhpSnapshotRound();
 		const prompt = fileOperationPrompt(
 			context,
-			`Replace the complete contents of edit.txt with AFTER_VALUE.${PREFER_FILE_TOOLS}`,
+			`Replace the complete contents of edit.txt with exactly AFTER_VALUE and no trailing newline.${PREFER_FILE_TOOLS}`,
 			`node -e "require('fs').writeFileSync('edit.txt','AFTER_VALUE')"`,
 			'Then reply exactly "done".',
 			// Copilot searches with a POSIX-only shell command despite the file-tool instruction.
@@ -577,7 +590,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		// (`mv`, and once `xxd`/`rm`). `node` is guaranteed present since the
 		// suite runs under it, and this quoting works in both cmd and POSIX shells.
 		const renameCommand = `node -e "require('fs').renameSync('before.txt','after.txt')"`;
-		await driveTurnToCompletion(context.client, sessionUri, 'turn-rename', `Run exactly this shell command, with no modifications: \`${renameCommand}\`. Then reply with exactly "renamed".`, 1);
+		await driveTurnToCompletion(context.client, sessionUri, 'turn-rename', `Run exactly this shell command, with no modifications: \`${renameCommand}\`. Do not run any other command or tool. Then reply with exactly "renamed".`, 1);
 		assert.strictEqual(existsSync(join(workspace, 'before.txt')), false);
 		assert.strictEqual(readFileSync(join(workspace, 'after.txt'), 'utf8'), 'RENAME_VALUE');
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
@@ -594,7 +607,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		// Pinned rather than steered: there is no file tool for a delete, so the
 		// provider reaches for `rm`, which cmd does not have.
 		const deleteCommand = `node -e "require('fs').unlinkSync('delete-me.txt')"`;
-		await driveTurnToCompletion(context.client, sessionUri, 'turn-delete', `Run exactly this shell command, with no modifications: \`${deleteCommand}\`. Then reply with exactly "deleted".`, 1);
+		await driveTurnToCompletion(context.client, sessionUri, 'turn-delete', `Run exactly this shell command, with no modifications: \`${deleteCommand}\`. Do not run any other command or tool. Then reply with exactly "deleted".`, 1);
 		assert.strictEqual(existsSync(join(workspace, 'delete-me.txt')), false);
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});

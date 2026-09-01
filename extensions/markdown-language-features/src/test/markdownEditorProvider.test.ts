@@ -33,6 +33,8 @@ suite('Markdown editor initial state', () => {
 			content: '</meta><script>globalThis.modified = true</script><!--\n# Heading "quoted"',
 			documentVersion: 17,
 			readonly: true,
+			richLinksEnabled: true,
+			linkPresentationRules: [],
 		};
 		const encoded = encodeWebviewInitialState(state);
 

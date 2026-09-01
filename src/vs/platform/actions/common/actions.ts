@@ -316,6 +316,7 @@ export class MenuId {
 	static readonly BrowserChatActionsMenu = new MenuId('BrowserChatActionsMenu');
 	static readonly BrowserEmulationToolbar = new MenuId('BrowserEmulationToolbar');
 	static readonly AgentSessionsViewerFilterSubMenu = new MenuId('AgentSessionsViewerFilterSubMenu');
+	static readonly AgentSessionsExternalFilterSubMenu = new MenuId('AgentSessionsExternalFilterSubMenu');
 	static readonly AgentSessionsContext = new MenuId('AgentSessionsContext');
 	static readonly AgentSessionSectionContext = new MenuId('AgentSessionSectionContext');
 	static readonly AgentSessionsCreateSubMenu = new MenuId('AgentSessionsCreateSubMenu');

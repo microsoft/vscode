@@ -18,17 +18,17 @@
 	box-shadow: var(--vscode-shadow-lg);
 }
 
-.style-override.monaco-enable-motion .action-widget.action-widget-dropdown {
+.modern-ui.monaco-enable-motion .action-widget.action-widget-dropdown {
 	animation: action-widget-dropdown-open 250ms cubic-bezier(0.22, 1, 0.36, 1) both;
 	transform-origin: bottom left;
 	will-change: transform, opacity;
 }
 
-.style-override.monaco-enable-motion .context-view.bottom .action-widget.action-widget-dropdown {
+.modern-ui.monaco-enable-motion .context-view.bottom .action-widget.action-widget-dropdown {
 	transform-origin: top left;
 }
 
-.style-override.monaco-enable-motion .action-widget.action-widget-dropdown.action-widget-dropdown-closing {
+.modern-ui.monaco-enable-motion .action-widget.action-widget-dropdown.action-widget-dropdown-closing {
 	animation: action-widget-dropdown-close 150ms cubic-bezier(0.22, 1, 0.36, 1) both;
 	pointer-events: none;
 }
@@ -110,7 +110,7 @@
 
 .action-widget .monaco-list-row.group-header {
 	color: var(--vscode-descriptionForeground) !important;
-	font-weight: 500;
+	font-weight: var(--vscode-fontWeight-semiBold);
 	font-size: 11px;
 }
 
@@ -224,6 +224,11 @@
 	white-space: nowrap;
 }
 
+.action-widget .monaco-list .monaco-list-row.action.focused:not(.option-disabled) .detail {
+	color: inherit;
+	opacity: 1;
+}
+
 .action-widget .monaco-list-row.action .action-item-badge {
 	padding: 0px 6px;
 	border-radius: 10px;
@@ -310,15 +315,13 @@
 }
 
 /* Items with detail — show detail as subtext below the title */
-.action-widget .monaco-list .monaco-list-row.action {
-	&:has(.detail:not([style*="display: none"])) {
-		flex-wrap: wrap;
-		align-content: center;
-		padding-right: 6px;
+.action-widget .monaco-list .monaco-list-row.action.has-detail {
+	flex-wrap: wrap;
+	align-content: center;
+	padding-right: 6px;
 
-		.title {
-			line-height: 14px;
-		}
+	.title {
+		line-height: 14px;
 	}
 }
 
@@ -331,6 +334,19 @@
 	.title {
 		line-height: 14px;
 	}
+}
+
+/* Standalone toggles are peer settings, so the label and switch share one row. */
+.action-widget .monaco-list-row.action.has-standalone-toggle .title {
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.action-widget .monaco-list-row.action.has-standalone-toggle .action-list-item-inline-toggle {
+	order: 100;
+	width: auto;
+	margin-left: auto;
+	padding: var(--vscode-spacing-sizeNone);
 }
 
 .action-widget .monaco-list-row.action .action-list-item-inline-toggle {
@@ -449,9 +465,16 @@
 	display: none;
 }
 
+.action-widget .monaco-list-row.action.has-detail.has-toolbar .action-list-item-toolbar {
+	display: flex;
+	visibility: hidden;
+	margin-right: 10px;
+}
+
 .action-widget .monaco-list-row.focused.action.has-toolbar .action-list-item-toolbar,
 .action-widget .monaco-list-row:hover.action.has-toolbar .action-list-item-toolbar {
 	display: flex;
+	visibility: visible;
 }
 
 .action-widget .monaco-list-row .action-list-item-toolbar .monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover {

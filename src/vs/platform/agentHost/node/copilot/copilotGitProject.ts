@@ -6,7 +6,7 @@
 import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
-import type { IAgentSessionProjectInfo } from '../../common/agentService.js';
+import type { IAgentSessionProjectInfo } from '../../common/agent.js';
 import { tryResolvePrimaryWorktreeRoot, type IAgentHostGitService } from '../../common/agentHostGitService.js';
 
 export interface ICopilotSessionContext {

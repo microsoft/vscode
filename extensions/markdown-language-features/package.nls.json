@@ -3,6 +3,7 @@
 	"description": "Provides rich language support for Markdown.",
 	"configuration.preview": "Preview",
 	"configuration.editor": "Language Features",
+	"configuration.markdown.experimental.richLinks.enabled": "Controls whether supported links in the Markdown editor are rendered as rich links with live metadata. Enabling this may make authenticated requests to services such as GitHub.",
 	"configuration.validation": "Validation",
 	"configuration.advanced": "Advanced",
 	"markdown.copyImage.title": "Copy Image",

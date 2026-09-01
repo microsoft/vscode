@@ -11,16 +11,16 @@ import { getGitHubRepositoryFromRemoteUrl, IGitHubRemoteInfo } from '../../../..
 
 const MAX_PARENT_LOOKUPS = 50;
 
-export async function resolveGitHubRepositoryFromGitConfig(fileService: IFileService, workspaceUri: URI): Promise<IGitHubRemoteInfo | undefined> {
+export async function resolveGitHubRepositoryFromGitConfig(fileService: IFileService, workspaceUri: URI, supportedHosts?: readonly string[]): Promise<IGitHubRemoteInfo | undefined> {
 	const configUri = await findGitConfig(fileService, workspaceUri);
 	if (!configUri) {
 		return undefined;
 	}
 	const content = await readFileIfExists(fileService, configUri);
-	return content ? parseGitHubRepositoryFromGitConfig(content) : undefined;
+	return content ? parseGitHubRepositoryFromGitConfig(content, supportedHosts) : undefined;
 }
 
-export function parseGitHubRepositoryFromGitConfig(content: string): IGitHubRemoteInfo | undefined {
+export function parseGitHubRepositoryFromGitConfig(content: string, supportedHosts?: readonly string[]): IGitHubRemoteInfo | undefined {
 	const remotes: { readonly name: string; readonly url: string }[] = [];
 	let remoteName: string | undefined;
 	for (const line of content.split(/\r?\n/)) {
@@ -41,7 +41,7 @@ export function parseGitHubRepositoryFromGitConfig(content: string): IGitHubRemo
 
 	remotes.sort((a, b) => Number(b.name === 'origin') - Number(a.name === 'origin'));
 	for (const remote of remotes) {
-		const repository = getGitHubRepositoryFromRemoteUrl(remote.url);
+		const repository = getGitHubRepositoryFromRemoteUrl(remote.url, supportedHosts);
 		if (repository) {
 			return repository;
 		}

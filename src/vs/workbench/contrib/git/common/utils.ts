@@ -12,6 +12,8 @@ export interface IGitHubRemoteInfo {
 	readonly repo: string;
 }
 
+const DEFAULT_GITHUB_HOSTS = ['github.com', 'www.github.com'];
+
 export function hasGitHubRemotes(repositoryState: GitRepositoryState): boolean {
 	const hosts = ['github.com', 'ghe.com'];
 	const remotes = getOrderedRemotes(repositoryState!)
@@ -34,10 +36,10 @@ export function hasGitHubRemotes(repositoryState: GitRepositoryState): boolean {
 	return false;
 }
 
-export function getGitHubRemoteInfo(repositoryState: GitRepositoryState): IGitHubRemoteInfo | undefined {
+export function getGitHubRemoteInfo(repositoryState: GitRepositoryState, supportedHosts: readonly string[] = DEFAULT_GITHUB_HOSTS): IGitHubRemoteInfo | undefined {
 	for (const remote of getOrderedRemotes(repositoryState)) {
 		if (remote.fetchUrl) {
-			const repository = getGitHubRepositoryFromRemoteUrl(remote.fetchUrl);
+			const repository = getGitHubRepositoryFromRemoteUrl(remote.fetchUrl, supportedHosts);
 			if (repository) {
 				return repository;
 			}
@@ -47,19 +49,23 @@ export function getGitHubRemoteInfo(repositoryState: GitRepositoryState): IGitHu
 	return undefined;
 }
 
-export function getGitHubRepositoryFromRemoteUrl(remoteUrl: string): IGitHubRemoteInfo | undefined {
+export function getGitHubRepositoryFromRemoteUrl(remoteUrl: string, supportedHosts: readonly string[] = DEFAULT_GITHUB_HOSTS): IGitHubRemoteInfo | undefined {
 	const remote = parseRemoteUrl(remoteUrl);
 	if (!remote) {
 		return undefined;
 	}
 	const host = equalsIgnoreCase(remote.scheme, 'ssh') ? remote.host : remote.rawHost;
-	if (!equalsIgnoreCase(host, 'github.com') && !equalsIgnoreCase(host, 'www.github.com')) {
+	if (!supportedHosts.map(normalizeHost).some(supportedHost => equalsIgnoreCase(host, supportedHost))) {
 		return undefined;
 	}
 	const segments = remote.path.replace(/^\/+/, '').replace(/\/+$/, '').replace(/\.git$/i, '').split('/');
 	return segments.length === 2 && segments[0] && segments[1]
 		? { owner: segments[0], repo: segments[1] }
 		: undefined;
+}
+
+function normalizeHost(host: string): string {
+	return host.trim().replace(/:\d+$/, '');
 }
 
 function getOrderedRemotes(repositoryState: GitRepositoryState): readonly GitRemote[] {

@@ -259,28 +259,40 @@ suite('SSH Config Parsing', () => {
 				['/home/my user/.ssh/known_hosts', '/home/u/other']);
 		});
 
-		test('parses recognized StrictHostKeyChecking values and ignores others', () => {
+		test('normalizes effective StrictHostKeyChecking values and ignores others', () => {
 			const parse = (value: string) => parseSSHGOutput(`stricthostkeychecking ${value}`).strictHostKeyChecking;
 			assert.deepStrictEqual(
 				{
-					ask: parse('ask'),
-					acceptNew: parse('accept-new'),
-					yes: parse('yes'),
-					no: parse('no'),
-					off: parse('off'),
-					uppercase: parse('ASK'),
+					effective: {
+						ask: parse('ask'),
+						acceptNew: parse('accept-new'),
+						yes: parse('true'),
+						noOrOff: parse('false'),
+					},
+					acceptedAliases: {
+						yes: parse('yes'),
+						no: parse('no'),
+						off: parse('off'),
+						uppercase: parse('TRUE'),
+					},
 					// An unrecognized value must not be passed through as if it
 					// were a policy we understand.
 					bogus: parse('maybe'),
 					absent: parseSSHGOutput('').strictHostKeyChecking,
 				},
 				{
-					ask: 'ask',
-					acceptNew: 'accept-new',
-					yes: 'yes',
-					no: 'no',
-					off: 'off',
-					uppercase: 'ask',
+					effective: {
+						ask: 'ask',
+						acceptNew: 'accept-new',
+						yes: 'yes',
+						noOrOff: 'no',
+					},
+					acceptedAliases: {
+						yes: 'yes',
+						no: 'no',
+						off: 'off',
+						uppercase: 'yes',
+					},
 					bogus: undefined,
 					absent: undefined,
 				});

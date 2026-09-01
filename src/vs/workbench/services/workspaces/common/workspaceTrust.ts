@@ -625,7 +625,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	async setUrisTrust(uris: URI[], trusted: boolean): Promise<void> {
-		this.doSetUrisTrust(await Promise.all(uris.map(uri => this.getCanonicalUri(uri))), trusted);
+		await this.doSetUrisTrust(await Promise.all(uris.map(uri => this.getCanonicalUri(uri))), trusted);
 	}
 
 	getTrustedUris(): URI[] {

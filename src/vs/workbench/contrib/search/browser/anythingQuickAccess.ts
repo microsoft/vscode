@@ -59,7 +59,9 @@ import { IChatWidgetService, IQuickChatService } from '../../chat/browser/chat.j
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICustomEditorLabelService } from '../../../services/editor/common/customEditorLabelService.js';
 
-interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource { }
+export interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource {
+	readonly editor?: EditorInput | IResourceEditorInput;
+}
 
 interface IEditorSymbolAnythingQuickPickItem extends IAnythingQuickPickItem {
 	resource: URI;
@@ -1060,6 +1062,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		return {
 			resource,
+			editor: !URI.isUri(resourceOrEditor) ? resourceOrEditor : undefined,
 			label,
 			ariaLabel: isDirty ? localize('filePickAriaLabelDirty', "{0} unsaved changes", labelAndDescription) : labelAndDescription,
 			description,

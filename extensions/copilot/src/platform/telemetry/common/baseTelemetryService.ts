@@ -176,6 +176,14 @@ export class BaseTelemetryService implements ITelemetryService {
 				"ErrorType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth"}
 			}
 		*/
+		/* __GDPR__
+			"tas-call" : {
+				"callType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"outcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"extensionName": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"assignmentContext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		if (name === 'abexp.assignmentcontext') {
 			this._setOriginalExpAssignments(value);
 			return;

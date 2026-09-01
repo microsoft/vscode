@@ -5,6 +5,7 @@
 
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatSystemNotificationPart } from '../../../common/chatService/chatService.js';
@@ -23,10 +24,12 @@ export class ChatSystemNotificationContentPart extends Disposable implements ICh
 		super();
 
 		const rendered = this._register(renderer.render(notification.content));
-		this.domNode = this._register(instantiationService.createInstance(ChatProgressSubPart, rendered.element, Codicon.check, undefined)).domNode;
+		this.domNode = this._register(instantiationService.createInstance(ChatProgressSubPart, rendered.element, notification.icon ?? Codicon.check, undefined)).domNode;
 	}
 
 	hasSameContent(other: IChatRendererContent): boolean {
-		return other.kind === 'systemNotification' && other.content.value === this.notification.content.value;
+		return other.kind === 'systemNotification'
+			&& other.content.value === this.notification.content.value
+			&& ThemeIcon.isEqual(other.icon ?? Codicon.check, this.notification.icon ?? Codicon.check);
 	}
 }

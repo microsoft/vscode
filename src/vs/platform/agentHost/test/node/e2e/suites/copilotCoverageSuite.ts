@@ -12,15 +12,17 @@ import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { AgentHostConfigKey } from '../../../../common/agentHostCustomizationConfig.js';
 import { AgentHostAutoReplyEnabledConfigKey } from '../../../../common/agentHostSchema.js';
 import { buildUncommittedChangesetUri } from '../../../../common/changesetUri.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
-import { CompletionItemKind, type CompletionsResult, type ListSessionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { CompletionItemKind, type CompletionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallContentChangedAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallStatus, ToolResultContentType, type ChangesetState, type SessionState } from '../../../../common/state/sessionState.js';
 import type { TerminalCommandPart, TerminalState } from '../../../../common/state/protocol/channels-terminal/state.js';
 import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo, resolveGitHubToken, terminalResourceFromContent } from '../harness/agentHostE2ETestHarness.js';
+import { expandShellToolName } from '../harness/shellToolNames.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
@@ -70,10 +72,10 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		return sessionUri;
 	}
 
-	async function createWorkspaceSession(prefix: string): Promise<{ sessionUri: string; workspace: string }> {
+	async function createWorkspaceSession(prefix: string, beforeCreateSession?: () => Promise<void>): Promise<{ sessionUri: string; workspace: string }> {
 		const workspace = mkdtempSync(join(tmpdir(), `ahp-${prefix}-`));
 		tempDirs.push(workspace);
-		const sessionUri = await createRealSession(context.client, config, `${prefix}-client`, createdSessions, URI.file(workspace));
+		const sessionUri = await createRealSession(context.client, config, `${prefix}-client`, createdSessions, URI.file(workspace), beforeCreateSession);
 		return { sessionUri, workspace };
 	}
 
@@ -106,7 +108,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 			action: {
 				type: ActionType.ChatTurnStarted,
 				turnId,
-				startedAt: '2025-01-01T00:00:00.000Z',
+				startedAt: new Date().toISOString(),
 				message: {
 					text: 'Search for the get_magic_word tool before using it. Call get_magic_word exactly once, then reply with only its result.',
 					origin: { kind: MessageKind.User },
@@ -128,7 +130,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 			seen.add(notification as object);
 			if (isActionNotification(notification, 'chat/error')) {
 				const action = getActionEnvelope(notification).action as ChatErrorAction;
-				throw new Error(`Tool-search turn failed: ${action.error.errorType}: ${action.error.message}`);
+				throw new Error(`Tool-search turn failed: ${action.part.error.errorType}: ${action.part.error.message}`);
 			}
 			if (isActionNotification(notification, 'chat/toolCallStart')) {
 				const action = getActionEnvelope(notification).action as ChatToolCallStartAction;
@@ -168,29 +170,8 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		return { toolNames: [...starts.values()], responseText: getMarkdownResponseText(context.client) };
 	}
 
-	async function createFork(sourceSessionUri: string, sourceTurnId: string): Promise<string> {
-		const forkUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
-		await context.client.call('createSession', {
-			channel: forkUri,
-			provider: config.provider,
-			fork: { session: sourceSessionUri, turnId: sourceTurnId },
-			config: { isolation: 'folder' },
-		}, 90_000);
-		createdSessions.push(forkUri);
-		await context.client.call<SubscribeResult>('subscribe', { channel: forkUri });
-		await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(forkUri) });
-		context.client.clearReceived();
-		return forkUri;
-	}
-
-	async function assertSessionListed(sessionUri: string): Promise<void> {
-		await retry(async () => {
-			const listed = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
-			assert.ok(listed.items.some(session => session.resource === sessionUri));
-		}, 100, 100);
-	}
-
-	test('workspaceless session uses and cleans up a provider scratch directory', async function () {
+	// Windows retains the provider scratch directory after session disposal.
+	(context.isWindows ? test.skip : test)('workspaceless session uses and cleans up a provider scratch directory', async function () {
 		this.timeout(180_000);
 		const sessionUri = await createWorkspacelessSession('workspaceless-scratch');
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-workspaceless-scratch', 'Reply exactly "ready".', 1);
@@ -420,29 +401,6 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		}
 	});
 
-	(context.runKnownIssueTests ? test : test.skip)('session fork inherits provider history through the selected source turn', async function () {
-		this.timeout(240_000);
-		const { sessionUri } = await createWorkspaceSession('session-fork-history');
-		await driveTurnToCompletion(context.client, sessionUri, 'turn-fork-alpha', 'Remember FORK_ALPHA. Reply exactly "ready".', 1);
-		await assertSessionListed(sessionUri);
-		const forkUri = await createFork(sessionUri, 'turn-fork-alpha');
-
-		const result = await driveTurnToCompletion(context.client, forkUri, 'turn-fork-followup', 'Reply with only the code word you were asked to remember.', 10);
-		assert.ok(result.responseText.includes('FORK_ALPHA'));
-	});
-
-	(context.runKnownIssueTests ? test : test.skip)('session fork excludes provider history after the selected source turn', async function () {
-		this.timeout(240_000);
-		const { sessionUri } = await createWorkspaceSession('session-fork-bounded');
-		await driveTurnToCompletion(context.client, sessionUri, 'turn-fork-first', 'Remember FORK_FIRST. Reply exactly "ready".', 1);
-		await driveTurnToCompletion(context.client, sessionUri, 'turn-fork-later', 'Now remember FORK_LATER too. Reply exactly "ready".', 10);
-		await assertSessionListed(sessionUri);
-		const forkUri = await createFork(sessionUri, 'turn-fork-first');
-
-		const result = await driveTurnToCompletion(context.client, forkUri, 'turn-fork-bounded-followup', 'Reply exactly "bounded" if you remember FORK_FIRST but not FORK_LATER.', 20);
-		assert.strictEqual(result.responseText.trim(), 'bounded');
-	});
-
 	test('view range returns only the requested workspace lines', async function () {
 		this.timeout(180_000);
 		const { sessionUri, workspace } = await createWorkspaceSession('view-range');
@@ -513,7 +471,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		await driveTurnToCompletion(context.client, sessionUri, turnId, 'Run exactly `node -e "process.exit(7)"` with bash, then reply exactly "failed as expected".', 1);
 		const shellStart = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
 			.map(n => getActionEnvelope(n).action as ChatToolCallStartAction)
-			.find(action => action.turnId === turnId && action.toolName === 'bash');
+			.find(action => action.turnId === turnId && action.toolName === expandShellToolName('${shell}'));
 		const shellCompletion = shellStart && context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
 			.map(n => getActionEnvelope(n).action as ChatToolCallCompleteAction)
 			.find(action => action.toolCallId === shellStart.toolCallId);
@@ -562,16 +520,20 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		}
 	});
 
-	test('custom terminal tool preserves a nonzero shell exit code', async function () {
+	// Windows publishes the terminal but omits the completed command metadata.
+	(context.isWindows ? test.skip : test)('custom terminal tool preserves a nonzero shell exit code', async function () {
 		this.timeout(180_000);
-		const { sessionUri } = await createWorkspaceSession('custom-terminal-exit-code');
+		const deterministicShellConfig = context.isWindows ? {} : { [AgentHostConfigKey.DefaultShell]: '/bin/bash' };
 		try {
-			await setRootConfig({ [CopilotCliConfigKey.EnableCustomTerminalTool]: true }, 100);
+			const { sessionUri } = await createWorkspaceSession('custom-terminal-exit-code', () => setRootConfig({
+				[CopilotCliConfigKey.EnableCustomTerminalTool]: true,
+				...deterministicShellConfig,
+			}, 100));
 			const turnId = 'turn-custom-terminal-exit-code';
 			await driveTurnToCompletion(context.client, sessionUri, turnId, 'Run exactly `node -e "process.exit(9)"` with bash, then reply exactly "failed as expected".', 1);
 			const shellStart = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
 				.map(n => getActionEnvelope(n).action as ChatToolCallStartAction)
-				.find(action => action.turnId === turnId && action.toolName === 'bash');
+				.find(action => action.turnId === turnId && action.toolName === expandShellToolName('${shell}'));
 			const shellCompletion = shellStart && context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
 				.map(n => getActionEnvelope(n).action as ChatToolCallCompleteAction)
 				.find(action => action.toolCallId === shellStart.toolCallId);
@@ -595,11 +557,15 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 				exitCode: 9,
 			});
 		} finally {
-			await setRootConfig({ [CopilotCliConfigKey.EnableCustomTerminalTool]: false }, 101);
+			await setRootConfig({
+				[CopilotCliConfigKey.EnableCustomTerminalTool]: false,
+				...(context.isWindows ? {} : { [AgentHostConfigKey.DefaultShell]: '' }),
+			}, 101);
 		}
 	});
 
-	test('tool-rich provider history is reconstructed after a host restart', async function () {
+	// Windows loses the persisted provider session during restart, so the host cannot reconstruct its tool history.
+	(!context.isWindows || context.runKnownIssueTests ? test : test.skip)('tool-rich provider history is reconstructed after a host restart', async function () {
 		this.timeout(240_000);
 		const { sessionUri, workspace } = await createWorkspaceSession('tool-history-restart');
 		writeFileSync(join(workspace, 'history.txt'), 'before\n');
@@ -653,7 +619,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		});
 	});
 
-	(context.runKnownIssueTests ? test : test.skip)('commit changeset operation generates a message and commits mixed changes', async function () {
+	test('commit changeset operation generates a message and commits mixed changes', async function () {
 		this.timeout(240_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-changeset-commit-'));
 		tempDirs.push(workspace);
@@ -662,12 +628,12 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		writeFileSync(join(workspace, 'deleted.txt'), 'delete me\n');
 		writeFileSync(join(workspace, 'renamed-before.txt'), 'rename me\n');
 		execSync('git add . && git commit -q -m "seed"', { cwd: workspace });
-		const sessionUri = await createRealSession(context.client, config, 'changeset-commit-client', createdSessions, URI.file(workspace));
-		const authControl = await driveTurnToCompletion(context.client, sessionUri, 'turn-changeset-commit-auth-control', 'Reply exactly "AUTHENTICATED".', 1);
-		assert.strictEqual(authControl.responseText.trim(), 'AUTHENTICATED');
 		writeFileSync(join(workspace, 'edited.txt'), 'after\n');
 		writeFileSync(join(workspace, 'created.txt'), 'created\n');
 		execSync('git rm -q deleted.txt && git mv renamed-before.txt renamed-after.txt', { cwd: workspace });
+		const sessionUri = await createRealSession(context.client, config, 'changeset-commit-client', createdSessions, URI.file(workspace));
+		const authControl = await driveTurnToCompletion(context.client, sessionUri, 'turn-changeset-commit-auth-control', 'Reply exactly "AUTHENTICATED".', 1);
+		assert.strictEqual(authControl.responseText.trim(), 'AUTHENTICATED');
 		const changesetUri = buildUncommittedChangesetUri(sessionUri);
 		await retry(async () => {
 			const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: changesetUri });

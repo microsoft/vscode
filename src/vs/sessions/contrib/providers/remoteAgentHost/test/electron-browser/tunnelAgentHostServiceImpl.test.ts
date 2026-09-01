@@ -4,18 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IDialogService, IPrompt } from '../../../../../../platform/dialogs/common/dialogs.js';
-import { IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreference } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { ITunnelGatewayInventory } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import {
-	resolveGatewaySelection,
 	selectDedicatedGatewayFallback,
 	selectEditorGatewayEndpoint,
 	selectGatewayFallbackAfterRejection,
 	shouldNotifyTunnelFailover,
-	shouldTrackTunnelConnection,
 	TunnelFailoverTracker,
 } from '../../electron-browser/tunnelAgentHostServiceImpl.js';
 
@@ -27,45 +22,6 @@ const editorEndpoint = { type: 'editor', pid: 111, instanceId: 'editor-1', quali
 const secondEditorEndpoint = { type: 'editor', pid: 112, instanceId: 'editor-0', endpointKind: 'socket', endpointLabel: '/tmp/editor-0.sock' } as const;
 const standaloneEndpoint = { type: 'standalone', pid: 222, instanceId: 'standalone-2', tunnelName: 'my-tunnel', endpointKind: 'tcp', endpointLabel: '127.0.0.1:9001' } as const;
 const secondStandaloneEndpoint = { type: 'standalone', pid: 333, instanceId: 'standalone-1', endpointKind: 'tcp', endpointLabel: '127.0.0.1:9002' } as const;
-
-interface IPreferenceServiceFixture {
-	readonly service: IRemoteAgentHostLocationPreferenceService;
-	readonly setCalls: { hostKey: string; preference: RemoteAgentHostLocationPreference }[];
-}
-
-function stubLocationPreferenceService(initial?: RemoteAgentHostLocationPreference): IPreferenceServiceFixture {
-	const store = new Map<string, RemoteAgentHostLocationPreference>();
-	if (initial) {
-		store.set('tunnel:abc', initial);
-	}
-	const setCalls: { hostKey: string; preference: RemoteAgentHostLocationPreference }[] = [];
-	const service: IRemoteAgentHostLocationPreferenceService = {
-		_serviceBrand: undefined,
-		onDidChangePreference: Event.None,
-		getPreference: hostKey => store.get(hostKey),
-		setPreference: (hostKey, preference) => {
-			store.set(hostKey, preference);
-			setCalls.push({ hostKey, preference });
-		},
-	};
-	return { service, setCalls };
-}
-
-interface IDialogServiceFixture {
-	readonly dialogService: IDialogService;
-	readonly promptCalls: IPrompt<RemoteAgentHostLocationPreference>[];
-}
-
-function stubDialogService(result: RemoteAgentHostLocationPreference | undefined): IDialogServiceFixture {
-	const promptCalls: IPrompt<RemoteAgentHostLocationPreference>[] = [];
-	const dialogService = {
-		prompt: async (options: IPrompt<RemoteAgentHostLocationPreference>) => {
-			promptCalls.push(options);
-			return { result };
-		},
-	} as unknown as IDialogService;
-	return { dialogService, promptCalls };
-}
 
 suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -95,6 +51,13 @@ suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 	});
 
 	suite('selectGatewayFallbackAfterRejection', () => {
+		test('retries the delegated instance instead of selecting or spawning a dedicated host', () => {
+			assert.deepStrictEqual(
+				selectGatewayFallbackAfterRejection({ instanceId: 'editor-1' }, { userDataPath: '/data', delegatedInstanceId: 'editor-1', endpoints: [] }),
+				{ instanceId: 'editor-1' },
+			);
+		});
+
 		test('a rejected editor endpoint falls back to the deterministic live standalone', () => {
 			assert.deepStrictEqual(
 				selectGatewayFallbackAfterRejection({ instanceId: 'editor-1' }, inventory([editorEndpoint, standaloneEndpoint, secondStandaloneEndpoint])),
@@ -121,125 +84,6 @@ suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 				selectGatewayFallbackAfterRejection({ newDedicated: true }, inventory([standaloneEndpoint])),
 				undefined,
 			);
-		});
-	});
-
-	suite('resolveGatewaySelection', () => {
-		test('saved "editor" preference + a live editor selects that editor without prompting or re-persisting', async () => {
-			const { service, setCalls } = stubLocationPreferenceService('editor');
-			const { dialogService, promptCalls } = stubDialogService(undefined);
-
-			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([editorEndpoint, standaloneEndpoint]), userInitiated: true,
-			});
-
-			assert.deepStrictEqual(selection, { instanceId: 'editor-1' });
-			assert.strictEqual(promptCalls.length, 0);
-			assert.strictEqual(setCalls.length, 0);
-		});
-
-		test('saved "editor" preference + a background (non-user-initiated) reconnect still selects the live editor (explicit consent)', async () => {
-			const { service, setCalls } = stubLocationPreferenceService('editor');
-			const { dialogService, promptCalls } = stubDialogService(undefined);
-
-			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([editorEndpoint]), userInitiated: false,
-			});
-
-			assert.deepStrictEqual(selection, { instanceId: 'editor-1' });
-			assert.strictEqual(promptCalls.length, 0);
-			assert.strictEqual(setCalls.length, 0);
-		});
-
-		test('saved "editor" preference + no live editor falls back to dedicated without changing the preference', async () => {
-			const { service, setCalls } = stubLocationPreferenceService('editor');
-			const { dialogService, promptCalls } = stubDialogService(undefined);
-
-			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([standaloneEndpoint]), userInitiated: true,
-			});
-
-			assert.deepStrictEqual(selection, { instanceId: 'standalone-2' });
-			assert.strictEqual(promptCalls.length, 0);
-			assert.strictEqual(setCalls.length, 0, 'an unavailable editor preference must not be overwritten');
-		});
-
-		test('saved "dedicated" preference never prompts, even when a live editor exists', async () => {
-			const { service, setCalls } = stubLocationPreferenceService('dedicated');
-			const { dialogService, promptCalls } = stubDialogService(undefined);
-
-			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([editorEndpoint, standaloneEndpoint]), userInitiated: true,
-			});
-
-			assert.deepStrictEqual(selection, { instanceId: 'standalone-2' });
-			assert.strictEqual(promptCalls.length, 0);
-			assert.strictEqual(setCalls.length, 0);
-		});
-
-		test('no saved preference + no live editor falls back to dedicated with no prompt and no persistence', async () => {
-			const { service, setCalls } = stubLocationPreferenceService();
-			const { dialogService, promptCalls } = stubDialogService(undefined);
-
-			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([standaloneEndpoint]), userInitiated: true,
-			});
-
-			assert.deepStrictEqual(selection, { instanceId: 'standalone-2' });
-			assert.strictEqual(promptCalls.length, 0);
-			assert.strictEqual(setCalls.length, 0);
-		});
-
-		test('no saved preference + a live editor + a background connection falls back to dedicated silently, never prompting', async () => {
-			const { service, setCalls } = stubLocationPreferenceService();
-			const { dialogService, promptCalls } = stubDialogService(undefined);
-
-			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([editorEndpoint, standaloneEndpoint]), userInitiated: false,
-			});
-
-			assert.deepStrictEqual(selection, { instanceId: 'standalone-2' });
-			assert.strictEqual(promptCalls.length, 0);
-			assert.strictEqual(setCalls.length, 0);
-		});
-
-		test('no saved preference + a live editor + a user-initiated connection prompts the shared modal with the tunnel name and persists an "editor" choice', async () => {
-			const { service, setCalls } = stubLocationPreferenceService();
-			const { dialogService, promptCalls } = stubDialogService('editor');
-
-			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([editorEndpoint, standaloneEndpoint]), userInitiated: true,
-			});
-
-			assert.deepStrictEqual(selection, { instanceId: 'editor-1' });
-			assert.strictEqual(promptCalls.length, 1);
-			assert.match(promptCalls[0].message, /My Tunnel/);
-			assert.deepStrictEqual((promptCalls[0] as unknown as { custom: { buttonDetails: string[] } }).custom.buttonDetails[1], 'Agents are available only while the remote Test Product window is open.');
-			assert.deepStrictEqual(setCalls, [{ hostKey: 'tunnel:abc', preference: 'editor' }]);
-		});
-
-		test('no saved preference + a live editor + a user-initiated connection persists a "dedicated" choice and translates it to a concrete selection', async () => {
-			const { service, setCalls } = stubLocationPreferenceService();
-			const { dialogService } = stubDialogService('dedicated');
-
-			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([editorEndpoint, standaloneEndpoint]), userInitiated: true,
-			});
-
-			assert.deepStrictEqual(selection, { instanceId: 'standalone-2' });
-			assert.deepStrictEqual(setCalls, [{ hostKey: 'tunnel:abc', preference: 'dedicated' }]);
-		});
-
-		test('cancelling the modal returns undefined and persists nothing', async () => {
-			const { service, setCalls } = stubLocationPreferenceService();
-			const { dialogService } = stubDialogService(undefined);
-
-			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([editorEndpoint, standaloneEndpoint]), userInitiated: true,
-			});
-
-			assert.strictEqual(selection, undefined);
-			assert.strictEqual(setCalls.length, 0);
 		});
 	});
 
@@ -349,38 +193,4 @@ suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 		});
 	});
 
-	suite('shouldTrackTunnelConnection', () => {
-		test('tracks (and may notify) when the connect attempt has no error', () => {
-			assert.strictEqual(shouldTrackTunnelConnection(undefined), true);
-		});
-
-		test('does not track when the attempt ended in a connectError (e.g. incompatible handshake)', () => {
-			assert.strictEqual(shouldTrackTunnelConnection(new Error('Unsupported protocol version')), false);
-		});
-	});
-
-	suite('ordering: connectError must gate the tracker/notification step', () => {
-		test('an editor -> standalone automatic reconnect that ends in connectError must not update the tracker or notify', () => {
-			// Models `connect()`'s post-addManagedConnection guard exactly:
-			// `shouldTrackTunnelConnection(connectError)` must be checked (and
-			// found false) BEFORE `TunnelFailoverTracker.recordAndShouldNotify`
-			// is ever called, even though addManagedConnection already
-			// succeeded and registered the endpoint for a possible upgrade.
-			const tracker = new TunnelFailoverTracker();
-			tracker.recordAndShouldNotify('tunnel:abc', 'editor', true); // initial user-initiated connect
-
-			const connectError: unknown = new Error('Unsupported protocol version');
-			let notified: boolean | undefined;
-			if (shouldTrackTunnelConnection(connectError)) {
-				notified = tracker.recordAndShouldNotify('tunnel:abc', 'standalone', false);
-			}
-			assert.strictEqual(notified, undefined, 'the tracker must never be invoked for a failed (incompatible) reconnect');
-
-			// A later, fully successful editor -> standalone reconnect must
-			// still notify: the failed attempt above must not have poisoned
-			// (or prematurely advanced) the retained state.
-			assert.strictEqual(shouldTrackTunnelConnection(undefined), true);
-			assert.strictEqual(tracker.recordAndShouldNotify('tunnel:abc', 'standalone', false), true, 'the retained state must still be "editor" since the failed attempt was never tracked');
-		});
-	});
 });

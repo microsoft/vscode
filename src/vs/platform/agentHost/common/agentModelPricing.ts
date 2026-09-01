@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SessionModelInfo } from './state/protocol/state.js';
-import type { IAgentModelInfo } from './agentService.js';
+import type { IAgentModelInfo } from './agent.js';
 
 /**
  * Well-known model picker metadata carried under a model's open `_meta` bag (see {@link IAgentModelInfo._meta} /
@@ -46,6 +46,7 @@ export interface IAgentModelPricingMeta {
 		/** ISO 8601 end date; absent for open-ended promotions. */
 		readonly endsAt?: string;
 		readonly message: string;
+		readonly showBanner?: boolean;
 	};
 }
 
@@ -94,6 +95,7 @@ export function readAgentModelPricingMeta(model: IAgentModelInfo | SessionModelI
 				discountPercent: p.discountPercent,
 				message: p.message,
 				...(typeof p.endsAt === 'string' ? { endsAt: p.endsAt } : {}),
+				...(typeof p.showBanner === 'boolean' ? { showBanner: p.showBanner } : {}),
 			};
 		}
 	}
@@ -181,8 +183,11 @@ function normalizePromo(billing: Record<string, unknown>): ICAPIModelBilling['pr
 		: typeof raw.ends_at === 'string' ? raw.ends_at
 			: undefined;
 	const message = typeof raw.message === 'string' ? raw.message : undefined;
+	const showBanner = typeof raw.showBanner === 'boolean' ? raw.showBanner
+		: typeof raw.show_banner === 'boolean' ? raw.show_banner
+			: undefined;
 	if (id && typeof discountPercent === 'number' && message) {
-		return { id, discountPercent, message, ...(endsAt ? { endsAt } : {}) };
+		return { id, discountPercent, message, ...(endsAt ? { endsAt } : {}), ...(showBanner !== undefined ? { showBanner } : {}) };
 	}
 	return undefined;
 }
@@ -204,6 +209,8 @@ export interface ICAPIModelBilling {
 		/** ISO 8601 end date; absent for open-ended promotions. */
 		readonly endsAt?: string;
 		readonly message: string;
+		/** Whether the promo may be surfaced as a chat input banner. Absent means eligible; only `false` suppresses it. */
+		readonly showBanner?: boolean;
 	};
 	readonly tokenPrices?: {
 		readonly contextMax?: number;
@@ -266,8 +273,7 @@ export function createPricingMetaFromBilling(billing: ICAPIModelBilling | undefi
 
 /**
  * Whether the model's long-context tier has any cost that differs from its default tier.
- * Used to decide whether to show a context-size picker (surcharge → user opts in) or to
- * silently use the full context window for free.
+ * Drives the context-size picker default: smaller tier when surcharged, full window when free.
  */
 export function hasLongContextSurcharge(billing: ICAPIModelBilling | undefined): boolean {
 	const tokenPrices = billing?.tokenPrices;

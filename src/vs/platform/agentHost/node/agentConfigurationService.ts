@@ -14,20 +14,47 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, defaultAgentHostCustomizationConfigValues } from '../common/agentHostCustomizationConfig.js';
 import { getAgentCustomizationSettingsEntries, getProviderBackedRootConfigKeys, withAgentCustomizationSettings, type IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
+import { agentMergeRootConfigSchema } from '../common/agentMerge.js';
 import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
-import type { ISchema, SchemaDefinition, SchemaValue } from '../common/agentHostSchema.js';
+import { agentHostProxyConfigSchema, clientOwnedApprovalRootConfigKeys, platformRootSchema, type ISchema, type SchemaDefinition, type SchemaValue } from '../common/agentHostSchema.js';
 import { ProtocolError } from '../common/state/sessionProtocol.js';
-import { ActionType } from '../common/state/sessionActions.js';
-import { parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
-import { AgentSession } from '../common/agentService.js';
+import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js';
+import { isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import type { WorktreeIsolation } from './shared/worktreeIsolation.js';
 
 export const IAgentConfigurationService = createDecorator<IAgentConfigurationService>('agentConfigurationService');
+
+/**
+ * @deprecated Use {@link getEffectiveWorkingDirectories} instead, which preserves every root instead of collapsing to the primary.
+ */
+export function getEffectiveWorkingDirectory(stateManager: AgentHostStateManager, session: ProtocolURI): string | undefined {
+	const own = stateManager.getSessionState(session)?.workingDirectories?.[0];
+	if (own !== undefined) {
+		return own;
+	}
+	const parentInfo = parseSubagentSessionUri(session);
+	if (parentInfo) {
+		return stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectories?.[0];
+	}
+	return undefined;
+}
+
+export function getEffectiveWorkingDirectories(stateManager: AgentHostStateManager, session: ProtocolURI): string[] | undefined {
+	const own = stateManager.getSessionState(session)?.workingDirectories;
+	if (own !== undefined) {
+		return own;
+	}
+	const parentInfo = parseSubagentSessionUri(session);
+	if (parentInfo) {
+		return stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectories;
+	}
+	return undefined;
+}
 
 export interface IAgentSessionConfigurationChangeEvent {
 	readonly session: ProtocolURI;
 	readonly config: Record<string, unknown>;
+	readonly origin: ActionOrigin | undefined;
 }
 
 /**
@@ -71,34 +98,8 @@ export interface IAgentConfigurationService {
 		key: K,
 	): SchemaValue<D[K]> | undefined;
 
-	/**
-	 * Returns the effective working directory for a session, falling back
-	 * to the parent (subagent) session's working directory when the
-	 * session itself does not have one set. The host layer does not carry
-	 * a working directory.
-	 * @deprecated Use {@link getEffectiveWorkingDirectories} instead, which preserves every root instead of collapsing to the primary.
-	 */
-	getEffectiveWorkingDirectory(session: ProtocolURI): string | undefined;
-
-	/**
-	 * Returns the full ordered set of effective working directories for a
-	 * session (index 0 = primary), falling back to the parent (subagent)
-	 * session's set when the session itself does not have one set. Mirrors
-	 * {@link getEffectiveWorkingDirectory} but preserves every root instead
-	 * of collapsing to the primary. The host layer does not carry a working
-	 * directory.
-	 */
-	getEffectiveWorkingDirectories(session: ProtocolURI): string[] | undefined;
-
-	/**
-	 * Whether a fresh worktree-isolation session's worktree has not yet been
-	 * created. Agents consult this to defer prewarming (and any other eager
-	 * materialization) until the host resolves the worktree on the first send.
-	 */
-	isWorkingDirectoryPending(session: ProtocolURI): boolean;
-
-	/** Resolves a persisted working directory, repairing a removed worktree when possible. */
-	resolveWorkingDirectoryForResume(session: ProtocolURI, workingDirectory: URI): Promise<URI>;
+	/** Returns all effective session roots, including inherited parent-session roots. */
+	getEffectiveWorkingDirectories(session: ProtocolURI): readonly string[] | undefined;
 
 	/**
 	 * Merges a partial config patch into a session's values via a
@@ -160,19 +161,6 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	private readonly _onDidSessionConfigChange = this._register(new Emitter<IAgentSessionConfigurationChangeEvent>());
 	readonly onDidSessionConfigChange: Event<IAgentSessionConfigurationChangeEvent> = this._onDidSessionConfigChange.event;
 
-	/**
-	 * Host-owned worktree isolation controller. Injected after construction (via
-	 * {@link setWorktreeIsolation}) because it only becomes available once the
-	 * branch-name generator has been wired, which happens after this service is
-	 * built. Consulted by {@link isWorkingDirectoryPending}, which degrades to
-	 * folder behavior while it is unset (tests, early startup).
-	 */
-	private _worktree: WorktreeIsolation | undefined;
-
-	setWorktreeIsolation(worktree: WorktreeIsolation): void {
-		this._worktree = worktree;
-	}
-
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
 		@ILogService private readonly _logService: ILogService,
@@ -187,10 +175,11 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		const ownSchema = agentHostCustomizationConfigSchema.toProtocol();
 		const sandboxSchema = sandboxConfigSchema.toProtocol();
 		const copilotCliSchema = copilotCliConfigSchema.toProtocol();
+		const agentMergeSchema = agentMergeRootConfigSchema.toProtocol();
 		this._stateManager.rootState.config = {
 			schema: {
 				type: 'object',
-				properties: { ...existing?.schema.properties, ...ownSchema.properties, ...sandboxSchema.properties, ...copilotCliSchema.properties },
+				properties: { ...existing?.schema.properties, ...ownSchema.properties, ...sandboxSchema.properties, ...copilotCliSchema.properties, ...agentMergeSchema.properties },
 			},
 			values: { ...existing?.values, ...this._loadPersistedRootConfig() },
 		};
@@ -205,6 +194,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 				this._onDidSessionConfigChange.fire({
 					session: envelope.channel,
 					config: envelope.action.config,
+					origin: envelope.origin,
 				});
 			}
 		}));
@@ -231,36 +221,8 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		return undefined;
 	}
 
-	getEffectiveWorkingDirectory(session: ProtocolURI): string | undefined {
-		const own = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
-		if (own !== undefined) {
-			return own;
-		}
-		const parentInfo = parseSubagentSessionUri(session);
-		if (parentInfo) {
-			return this._stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectories?.[0];
-		}
-		return undefined;
-	}
-
-	getEffectiveWorkingDirectories(session: ProtocolURI): string[] | undefined {
-		const own = this._stateManager.getSessionState(session)?.workingDirectories;
-		if (own !== undefined) {
-			return own;
-		}
-		const parentInfo = parseSubagentSessionUri(session);
-		if (parentInfo) {
-			return this._stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectories;
-		}
-		return undefined;
-	}
-
-	isWorkingDirectoryPending(session: ProtocolURI): boolean {
-		return this._worktree?.isWorkingDirectoryPending(AgentSession.id(session)) ?? false;
-	}
-
-	async resolveWorkingDirectoryForResume(session: ProtocolURI, workingDirectory: URI): Promise<URI> {
-		return this._worktree?.resolveWorkingDirectoryForResume(URI.parse(session), AgentSession.id(session), workingDirectory) ?? workingDirectory;
+	getEffectiveWorkingDirectories(session: ProtocolURI): readonly string[] | undefined {
+		return getEffectiveWorkingDirectories(this._stateManager, session);
 	}
 
 	updateSessionConfig(session: ProtocolURI, patch: Record<string, unknown>): void {
@@ -271,6 +233,9 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	}
 
 	getSessionConfigValues(session: ProtocolURI): Record<string, unknown> | undefined {
+		if (isAhpChatChannel(session)) {
+			throw new Error(`Expected a session URI, received chat channel ${session}`);
+		}
 		return this._stateManager.getSessionState(session)?.config?.values;
 	}
 
@@ -402,9 +367,12 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			const raw = fs.readFileSync(this._rootConfigResource.fsPath, 'utf8');
 			const parsed = JSON.parse(raw) as Record<string, unknown>;
 			return {
+				...this._loadPersistedPlatformRootConfig(parsed),
 				...agentHostCustomizationConfigSchema.validateOrDefault(parsed, defaults),
 				...sandboxConfigSchema.validateOrDefault(parsed, {}),
 				...copilotCliConfigSchema.validateOrDefault(parsed, {}),
+				...agentMergeRootConfigSchema.validateOrDefault(parsed, {}),
+				...agentHostProxyConfigSchema.validateOrDefault(parsed, {}),
 			};
 		} catch (err) {
 			const code = err && typeof err === 'object' && hasKey(err, { code: true }) ? String(err.code) : undefined;
@@ -413,5 +381,22 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			}
 			return { ...defaults };
 		}
+	}
+
+	/**
+	 * Restores the platform-owned half of the persisted bag. The host reads
+	 * some of these before any client connects (`showExternalSessions`, the
+	 * migrate-legacy gate, provider enablement), so without this a restart
+	 * runs its first pass against the schema default.
+	 */
+	private _loadPersistedPlatformRootConfig(parsed: Record<string, unknown>): Record<string, unknown> {
+		const values: Record<string, unknown> = { ...platformRootSchema.validateOrDefault(parsed, {}) };
+		// Approval and policy values are a snapshot of one client's settings and
+		// are re-pushed on every connect, so restoring them could re-grant an
+		// approval that was tightened while the host was stopped.
+		for (const key of clientOwnedApprovalRootConfigKeys) {
+			delete values[key];
+		}
+		return values;
 	}
 }

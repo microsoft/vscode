@@ -33,7 +33,7 @@ import { PluginFormat } from '../../../../../../platform/agentPlugins/common/plu
  */
 class TestPluginDiscovery extends AbstractAgentPluginDiscovery {
 	private _sources: URI[] = [];
-	private _remove: (() => void) | undefined = () => { };
+	private _remove: (() => Promise<boolean>) | undefined = async () => true;
 	private _nextDiscoveryBarrier: Promise<void> | undefined;
 
 	constructor(
@@ -55,13 +55,13 @@ class TestPluginDiscovery extends AbstractAgentPluginDiscovery {
 		await this._refreshPlugins();
 	}
 
-	async setRemoveAndRefresh(uri: URI, remove: (() => void) | undefined): Promise<void> {
+	async setRemoveAndRefresh(uri: URI, remove: (() => Promise<boolean>) | undefined): Promise<void> {
 		this._sources = [uri];
 		this._remove = remove;
 		await this._refreshPlugins();
 	}
 
-	async setRemoveAndRefreshAfter(uri: URI, remove: (() => void) | undefined, barrier: Promise<void>): Promise<void> {
+	async setRemoveAndRefreshAfter(uri: URI, remove: (() => Promise<boolean>) | undefined, barrier: Promise<void>): Promise<void> {
 		this._sources = [uri];
 		this._remove = remove;
 		this._nextDiscoveryBarrier = barrier;
@@ -107,6 +107,7 @@ suite('AgentPlugin format detection', () => {
 
 	const mockEnablementModel: IEnablementModel = {
 		readEnabled: () => ContributionEnablementState.EnabledProfile,
+		readProfileEnabled: () => true,
 		setEnabled: () => { },
 		remove: () => { },
 	};
@@ -149,17 +150,23 @@ suite('AgentPlugin format detection', () => {
 		const removeCounts = [0, 0];
 		const discovery = createDiscovery();
 		discovery.start(mockEnablementModel);
-		await discovery.setRemoveAndRefresh(uri, () => removeCounts[0]++);
+		await discovery.setRemoveAndRefresh(uri, async () => {
+			removeCounts[0]++;
+			return true;
+		});
 		const initialPlugin = getDiscoveredPlugins(discovery)[0];
-		initialPlugin.remove?.();
+		await initialPlugin.remove?.();
 
 		await discovery.setRemoveAndRefresh(uri, undefined);
 		const managedPlugin = getDiscoveredPlugins(discovery)[0];
 		const managedRemove = managedPlugin.remove;
 
-		await discovery.setRemoveAndRefresh(uri, () => removeCounts[1]++);
+		await discovery.setRemoveAndRefresh(uri, async () => {
+			removeCounts[1]++;
+			return true;
+		});
 		const removablePlugin = getDiscoveredPlugins(discovery)[0];
-		removablePlugin.remove?.();
+		await removablePlugin.remove?.();
 
 		assert.deepStrictEqual({
 			reusedManagedPlugin: managedPlugin === initialPlugin,
@@ -181,16 +188,19 @@ suite('AgentPlugin format detection', () => {
 		let removeCount = 0;
 		const discovery = createDiscovery();
 		discovery.start(mockEnablementModel);
-		await discovery.setRemoveAndRefresh(uri, () => { });
+		await discovery.setRemoveAndRefresh(uri, async () => true);
 
 		const staleDiscoveryBarrier = new DeferredPromise<void>();
 		const staleRefresh = discovery.setRemoveAndRefreshAfter(uri, undefined, staleDiscoveryBarrier.p);
-		await discovery.setRemoveAndRefresh(uri, () => removeCount++);
+		await discovery.setRemoveAndRefresh(uri, async () => {
+			removeCount++;
+			return true;
+		});
 		staleDiscoveryBarrier.complete();
 		await staleRefresh;
 
 		const plugin = getDiscoveredPlugins(discovery)[0];
-		plugin.remove?.();
+		await plugin.remove?.();
 
 		assert.deepStrictEqual({
 			hasRemove: plugin.remove !== undefined,
@@ -441,6 +451,7 @@ suite('AgentPlugin format detection', () => {
 		await waitForState(plugins[0].mcpServerDefinitions, defs => defs.length > 0);
 		const mcpDefs = plugins[0].mcpServerDefinitions.get();
 		assert.deepStrictEqual(mcpDefs.map(d => d.name), ['my-server']);
+		assert.strictEqual(mcpDefs[0].defaultCwd?.toString(), uri.toString());
 	}));
 
 	test('Open Plugin reads MCP definitions from standalone .mcp.json', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -1196,13 +1207,15 @@ suite('AgentPlugin format detection', () => {
 		assert.strictEqual(plugins.length, 1);
 
 		await waitForState(plugins[0].mcpServerDefinitions, d => d.length === 2);
-		const servers = new Map(plugins[0].mcpServerDefinitions.get().map(server => [server.name, server.configuration]));
-		const defaultCwdConfig = servers.get('copilot-server');
+		const servers = new Map(plugins[0].mcpServerDefinitions.get().map(server => [server.name, server]));
+		const defaultCwdDefinition = servers.get('copilot-server');
+		assert.ok(defaultCwdDefinition);
+		const defaultCwdConfig = defaultCwdDefinition?.configuration;
 		assert.strictEqual(defaultCwdConfig?.type, McpServerType.LOCAL);
 		if (defaultCwdConfig?.type !== McpServerType.LOCAL) {
 			assert.fail('Expected a local MCP server configuration');
 		}
-		const explicitCwdConfig = servers.get('explicit-cwd-server');
+		const explicitCwdConfig = servers.get('explicit-cwd-server')?.configuration;
 		assert.strictEqual(explicitCwdConfig?.type, McpServerType.LOCAL);
 		if (explicitCwdConfig?.type !== McpServerType.LOCAL) {
 			assert.fail('Expected a local MCP server configuration');
@@ -1212,6 +1225,7 @@ suite('AgentPlugin format detection', () => {
 				command: defaultCwdConfig.command,
 				args: defaultCwdConfig.args,
 				cwd: defaultCwdConfig.cwd,
+				defaultCwd: defaultCwdDefinition.defaultCwd?.toString(),
 				env: defaultCwdConfig.env,
 			},
 			explicitCwd: {
@@ -1222,7 +1236,8 @@ suite('AgentPlugin format detection', () => {
 			defaultCwd: {
 				command: `${uri.fsPath}/bin/server`,
 				args: ['--data', `${uri.fsPath}/data`],
-				cwd: uri.fsPath,
+				cwd: undefined,
+				defaultCwd: uri.toString(),
 				env: {
 					CONFIG_DIR: `${uri.fsPath}/etc`,
 					PLUGIN_ROOT: uri.fsPath,

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -19,13 +20,18 @@ import { IActionListDelegate, IActionListItem, IActionListOptions } from '../../
 import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { createWorkbenchDialogOptions } from '../../../../../workbench/browser/parts/dialogs/dialog.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { GitRefType, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
+import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, resolveAutomationModelIdentifier, updateSaveButtonState } from '../../browser/automationDialog.js';
+import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, IFormState, IValidationState, isAutomationDialogEditCommand, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, resolveAutomationModelIdentifier, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
 
 const FOLDER = URI.file('/workspace');
@@ -34,6 +40,21 @@ function dispatchKey(target: HTMLElement, type: 'keydown' | 'keyup', key: string
 	const event = new KeyboardEvent(type, { key, bubbles: true, cancelable: true, shiftKey });
 	target.dispatchEvent(event);
 	return event;
+}
+
+function dispatchAutomationDialogCommand(target: HTMLElement, commandId: string): KeyboardEvent {
+	const options = createWorkbenchDialogOptions(
+		{},
+		upcastPartial<IKeybindingService>({
+			softDispatch: () => ({ kind: ResultKind.KbFound, commandId, commandArgs: undefined, isBubble: false }),
+		}),
+		upcastPartial<ILayoutService>({ activeContainer: document.body }),
+		upcastPartial<IHostService>({}),
+		new Set(),
+		(id, event) => isAutomationDialogEditCommand(id, event.target),
+	);
+	target.addEventListener('keydown', event => options.keyEventProcessor?.(new StandardKeyboardEvent(event)), { once: true });
+	return dispatchKey(target, 'keydown', 'z');
 }
 
 class RecordingActionWidgetService extends mock<IActionWidgetService>() {
@@ -864,12 +885,21 @@ suite('Automation branch picker', () => {
 		});
 	});
 
-	test('allows focus in mobile picker sheets', () => {
+	test('allows focus in popups rendered outside the dialog', () => {
 		const sheet = document.createElement('div');
 		sheet.classList.add('mobile-picker-sheet');
-		const item = sheet.appendChild(document.createElement('button'));
+		const sheetItem = sheet.appendChild(document.createElement('button'));
+		const suggestWidget = document.createElement('div');
+		suggestWidget.classList.add('suggest-widget');
+		const suggestion = suggestWidget.appendChild(document.createElement('div'));
 
-		assert.strictEqual(isAutomationDialogPopupTarget(item), true);
+		assert.deepStrictEqual({
+			sheet: isAutomationDialogPopupTarget(sheetItem),
+			suggestion: isAutomationDialogPopupTarget(suggestion),
+		}, {
+			sheet: true,
+			suggestion: true,
+		});
 	});
 
 	test('resolves a legacy model identifier to the selected concrete target', () => {
@@ -906,6 +936,23 @@ suite('Automation branch picker', () => {
 
 suite('Automation dialog keyboard navigation', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('allows undo and redo only for editable controls', () => {
+		const prompt = document.createElement('textarea');
+		const button = document.createElement('button');
+
+		assert.deepStrictEqual({
+			undoPromptPrevented: dispatchAutomationDialogCommand(prompt, 'undo').defaultPrevented,
+			redoPromptPrevented: dispatchAutomationDialogCommand(prompt, 'redo').defaultPrevented,
+			undoButtonPrevented: dispatchAutomationDialogCommand(button, 'undo').defaultPrevented,
+			unrelatedPromptPrevented: dispatchAutomationDialogCommand(prompt, 'workbench.action.files.save').defaultPrevented,
+		}, {
+			undoPromptPrevented: false,
+			redoPromptPrevented: false,
+			undoButtonPrevented: true,
+			unrelatedPromptPrevented: true,
+		});
+	});
 
 	test('cycles through visible dialog controls', () => {
 		const container = document.createElement('div');

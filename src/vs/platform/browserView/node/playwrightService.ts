@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
-import { DeferredPromise, disposableTimeout, raceTimeout } from '../../../base/common/async.js';
-import { Emitter, Event } from '../../../base/common/event.js';
+import { DeferredPromise, disposableTimeout, raceTimeout, timeout } from '../../../base/common/async.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
 import { IInvokeFunctionResult, IPlaywrightService } from '../common/playwrightService.js';
 import { IBrowserViewGroupRemoteService } from '../node/browserViewGroupRemoteService.js';
 import { IBrowserViewGroup } from '../common/browserViewGroup.js';
+import { getAgentBrowserViewCreationDefaults } from '../common/browserView.js';
 import { PlaywrightTab, DialogInterruptedError } from './playwrightTab.js';
-import { CDPRequest, CDPResponse } from '../common/cdp/types.js';
+import { CDPRequest, CDPResponse, CDPTargetInfo } from '../common/cdp/types.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 
 // eslint-disable-next-line local/code-import-patterns
@@ -55,8 +55,8 @@ function isCDPRequest(message: object): message is CDPRequest {
  * Each session has its own Playwright browser connection and browser view
  * group, created eagerly by the service when the session is first requested.
  *
- * Page tracking is currently global: tracked pages are shared across all
- * sessions so every session can interact with every tracked page.
+ * Each session receives an independent CDP group whose membership is driven by
+ * the main-process browser-view audience state.
  */
 export class PlaywrightService extends Disposable implements IPlaywrightService {
 	declare readonly _serviceBrand: undefined;
@@ -68,12 +68,6 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 
 	/** Inactivity timers keyed by session ID. */
 	private readonly _inactivityTimers = this._register(new DisposableMap<string, IDisposable>());
-
-	/** Global set of tracked page IDs (shared across all sessions). */
-	private readonly _trackedPages = new Set<string>();
-
-	private readonly _onDidChangeTrackedPages = this._register(new Emitter<readonly string[]>());
-	readonly onDidChangeTrackedPages: Event<readonly string[]> = this._onDidChangeTrackedPages.event;
 
 	constructor(
 		private readonly windowId: number,
@@ -119,7 +113,13 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 	private async _initSession(sessionId: string): Promise<PlaywrightSession> {
 		this.logService.debug(`[PlaywrightService] Initializing session ${sessionId}`);
 
-		const group = await this.browserViewGroupRemoteService.createGroup({ mainWindowId: this.windowId, sessionId });
+		const group = await this.browserViewGroupRemoteService.createGroup(
+			{ audience: { type: 'agent', sessionId } },
+			{
+				hostWindowId: this.windowId,
+				...getAgentBrowserViewCreationDefaults(sessionId)
+			}
+		);
 
 		const actionScope: IPlaywrightActionScope = { activeCalls: 0 };
 
@@ -178,31 +178,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 			this.logService,
 			this.agentNetworkFilterService,
 			this.telemetryService,
-			viewId => this.startTrackingPage(viewId),
 		);
-
-		// Keep the global tracked set in sync with group events. When a
-		// view is added via external means (e.g. CDP createTarget), the
-		// group fires onDidAddView — update _trackedPages accordingly.
-		// The Set makes double-adds (from startTrackingPage) harmless.
-		// Also replicate the view into other sessions so that CDP-created
-		// targets become accessible everywhere, not just the originating session.
-		session.registerDisposable(group.onDidAddView(e => {
-			if (!this._trackedPages.has(e.viewId)) {
-				this._trackedPages.add(e.viewId);
-				this._fireTrackedPages();
-			}
-			for (const [id, other] of this._sessions) {
-				if (id !== sessionId) {
-					void other.group.addView(e.viewId).catch(() => { });
-				}
-			}
-		}));
-		session.registerDisposable(group.onDidRemoveView(e => {
-			if (this._trackedPages.delete(e.viewId)) {
-				this._fireTrackedPages();
-			}
-		}));
 
 		// On browser disconnect, dispose the session so it will be
 		// recreated fresh on the next tool call.
@@ -214,60 +190,15 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 
 		this._sessions.set(sessionId, session);
 
-		// Replay globally tracked pages into the new session's group.
-		// Pages may have been removed since they were tracked — catch and
-		// evict stale entries so they don't accumulate.
-		for (const viewId of [...this._trackedPages]) {
-			try {
-				await session.group.addView(viewId);
-			} catch {
-				this.logService.debug(`[PlaywrightService] Stale tracked page ${viewId} removed during replay`);
-				this._trackedPages.delete(viewId);
-				this._fireTrackedPages();
-			}
-		}
-
 		this._touchSession(sessionId);
 		return session;
 	}
 
-	// --- Page tracking (global) ---
-
-	async startTrackingPage(viewId: string): Promise<void> {
-		// Update the canonical set directly so tracking works even when
-		// no sessions exist yet. The Set makes the double-add from
-		// the group's onDidAddView listener harmless.
-		if (!this._trackedPages.has(viewId)) {
-			this._trackedPages.add(viewId);
-			this._fireTrackedPages();
-		}
-		for (const session of this._sessions.values()) {
-			session.group.addView(viewId);
-		}
-	}
-
-	async stopTrackingPage(viewId: string): Promise<void> {
-		if (this._trackedPages.delete(viewId)) {
-			this._fireTrackedPages();
-		}
-		for (const session of this._sessions.values()) {
-			session.group.removeView(viewId);
-		}
-	}
-
-	async isPageTracked(viewId: string): Promise<boolean> {
-		return this._trackedPages.has(viewId);
-	}
-
-	async getTrackedPages(): Promise<readonly string[]> {
-		return [...this._trackedPages];
-	}
-
 	// --- Playwright operations (delegated to per-session instances) ---
 
-	async openPage(sessionId: string, url: string): Promise<{ pageId: string; summary: string }> {
+	async waitForPageAndGetSummary(sessionId: string, pageId: string, expectedUrl: string, discoveryTimeoutMs: number): Promise<string> {
 		const session = await this._getOrCreateSession(sessionId);
-		return session.openPage(url);
+		return session.waitForPageAndGetSummary(pageId, expectedUrl, discoveryTimeoutMs);
 	}
 
 	async getSummary(sessionId: string, pageId: string): Promise<string> {
@@ -312,10 +243,6 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 
 	// --- Private helpers ---
 
-	private _fireTrackedPages(): void {
-		this._onDidChangeTrackedPages.fire([...this._trackedPages]);
-	}
-
 	/**
 	 * Reset the inactivity timer for a session. After
 	 * {@link SESSION_INACTIVITY_MS} of no activity the session is
@@ -341,8 +268,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
  *
  * Receives an already-connected {@link Browser} and {@link IBrowserViewGroup}
  * from the parent {@link PlaywrightService}. Correlates browser view IDs with
- * Playwright {@link Page} instances via FIFO matching of group IPC events and
- * Playwright CDP events.
+ * Playwright {@link Page} instances by their Chromium target IDs.
  */
 class PlaywrightSession extends Disposable {
 
@@ -351,16 +277,9 @@ class PlaywrightSession extends Disposable {
 	private readonly _viewIdToPage = new Map<string, Page>();
 	private readonly _pageToViewId = new WeakMap<Page, string>();
 	private readonly _tabs = new WeakMap<Page, PlaywrightTab>();
-
-	/** View IDs received from the group but not yet matched with a page. */
-	private _viewIdQueue: Array<{ viewId: string; page: DeferredPromise<Page> }> = [];
-
-	/** Pages received from Playwright but not yet matched with a view ID. */
-	private _pageQueue: Array<{ page: Page; viewId: DeferredPromise<string> }> = [];
+	private readonly _pageDiscoveryPromises = new Map<Page, Promise<string>>();
 
 	private readonly _watchedContexts = new WeakSet<BrowserContext>();
-	private _scanTimer: ReturnType<typeof setInterval> | undefined;
-	private _openContext: BrowserContext | undefined = undefined;
 
 	/** In-flight deferred results keyed by their generated ID. */
 	private readonly _deferredResults = this._register(new DisposableMap<string, {
@@ -377,13 +296,10 @@ class PlaywrightSession extends Disposable {
 		private readonly logService: ILogService,
 		private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 		private readonly telemetryService: ITelemetryService,
-		private readonly onDidCreatePage: (viewId: string) => Promise<void>,
 	) {
 		super();
 
 		this._register(this.group);
-		this._register(this.group.onDidAddView(e => this._onViewAdded(e.viewId)));
-		this._register(this.group.onDidRemoveView(e => this._onViewRemoved(e.viewId)));
 
 		this._scanForNewContexts();
 	}
@@ -395,30 +311,23 @@ class PlaywrightSession extends Disposable {
 
 	// --- Page operations ---
 
-	async openPage(url: string): Promise<{ pageId: string; summary: string }> {
-		if (!this._openContext) {
-			this._openContext = await this._browser.newContext();
-			this._onContextAdded(this._openContext);
-		}
+	async waitForPageAndGetSummary(pageId: string, expectedUrl: string, discoveryTimeoutMs: number): Promise<string> {
+		const page = await this._waitForPage(pageId, Date.now() + discoveryTimeoutMs);
 
-		const page = await this._openContext.newPage();
-		const viewId = await this._onPageAdded(page);
-		await this.onDidCreatePage(viewId);
-
-		if (url && url !== 'about:blank' && page.url() !== url) {
-			try {
-				await page.goto(url, { waitUntil: 'domcontentloaded', timeout: OPEN_PAGE_NAVIGATION_TIMEOUT_MS });
-			} catch (error) {
-				if (!isNavigationTimeoutError(error)) {
-					throw error;
-				}
-
-				throw new Error(`Navigation to ${url} timed out after ${OPEN_PAGE_NAVIGATION_TIMEOUT_MS} ms. The page (ID: ${viewId}) is open and can be reused.`);
+		try {
+			if (expectedUrl !== 'about:blank' && page.url() === 'about:blank') {
+				await page.waitForURL(url => url.toString() !== 'about:blank', { waitUntil: 'domcontentloaded', timeout: OPEN_PAGE_NAVIGATION_TIMEOUT_MS });
+			} else {
+				await page.waitForLoadState('domcontentloaded', { timeout: OPEN_PAGE_NAVIGATION_TIMEOUT_MS });
 			}
+		} catch (error) {
+			if (!isNavigationTimeoutError(error)) {
+				throw error;
+			}
+			throw new Error(`Timed out waiting for browser page "${pageId}" to navigate to "${expectedUrl}". The page is open and can be reused.`, { cause: error });
 		}
 
-		const summary = await this._getSummary(viewId);
-		return { pageId: viewId, summary };
+		return this._getSummary(pageId);
 	}
 
 	async getSummary(pageId: string): Promise<string> {
@@ -528,6 +437,7 @@ class PlaywrightSession extends Disposable {
 
 	private async _runWithDeferral(pageId: string, callback: (page: Page) => Promise<unknown>, timeoutMs: number, existingDeferredId?: string, logCtx?: IExecutionLogContext): Promise<IInvokeFunctionResult> {
 		const deferred = new DeferredPromise();
+		deferred.p.catch(() => { /* waitForDeferredResult observes the rejection when resumed */ });
 
 		// Attach settlement logging once, on the initiating call: `deferred.p` settles
 		// when the page work finishes no matter how many times the result is deferred,
@@ -613,84 +523,83 @@ class PlaywrightSession extends Disposable {
 	// --- Private: page matching (view ↔ page pairing) ---
 
 	private async _getPage(viewId: string): Promise<Page> {
-		const resolved = this._viewIdToPage.get(viewId);
-		if (resolved) {
-			return resolved;
-		}
-		const queued = this._viewIdQueue.find(item => item.viewId === viewId);
-		if (queued) {
-			return queued.page.p;
+		const page = await this._tryGetPage(viewId);
+		if (page) {
+			return page;
 		}
 		throw new Error(`Page "${viewId}" not found`);
 	}
 
-	private _onViewAdded(viewId: string, timeoutMs = 10000): Promise<Page> {
+	private async _waitForPage(viewId: string, deadline: number): Promise<Page> {
+		while (true) {
+			const remaining = deadline - Date.now();
+			if (remaining <= 0) {
+				throw new Error(`Timed out waiting for browser page "${viewId}" to become available. The page is open and can be reused.`);
+			}
+
+			const page = await raceTimeout(this._tryGetPage(viewId), remaining);
+			if (page) {
+				return page;
+			}
+
+			const delay = Math.min(50, deadline - Date.now());
+			if (delay > 0) {
+				await timeout(delay);
+			}
+		}
+	}
+
+	private async _tryGetPage(viewId: string): Promise<Page | undefined> {
 		const resolved = this._viewIdToPage.get(viewId);
 		if (resolved) {
-			return Promise.resolve(resolved);
-		}
-		const queued = this._viewIdQueue.find(item => item.viewId === viewId);
-		if (queued) {
-			return queued.page.p;
+			return resolved;
 		}
 
-		const deferred = new DeferredPromise<Page>();
-		const timeout = setTimeout(() => deferred.error(new Error(`Timed out waiting for page`)), timeoutMs);
+		this._scanForNewContexts();
+		await Promise.allSettled([...this._pageDiscoveryPromises.values()]);
 
-		deferred.p.finally(() => {
-			clearTimeout(timeout);
-			this._viewIdQueue = this._viewIdQueue.filter(item => item.viewId !== viewId);
-			if (this._viewIdQueue.length === 0) {
-				this._stopScanning();
-			}
-		});
-
-		this._viewIdQueue.push({ viewId, page: deferred });
-		this._tryMatch();
-		this._ensureScanning();
-
-		return deferred.p;
+		const discovered = this._viewIdToPage.get(viewId);
+		if (discovered) {
+			return discovered;
+		}
+		return undefined;
 	}
 
-	private _onViewRemoved(viewId: string): void {
-		this._viewIdQueue = this._viewIdQueue.filter(item => item.viewId !== viewId);
-		const page = this._viewIdToPage.get(viewId);
-		if (page) {
-			this._pageToViewId.delete(page);
-		}
-		this._viewIdToPage.delete(viewId);
-	}
-
-	private _onPageAdded(page: Page, timeoutMs = 10000): Promise<string> {
+	private _onPageAdded(page: Page): Promise<string> {
 		const resolved = this._pageToViewId.get(page);
 		if (resolved) {
 			return Promise.resolve(resolved);
 		}
-		const queued = this._pageQueue.find(item => item.page === page);
-		if (queued) {
-			return queued.viewId.p;
+
+		const existing = this._pageDiscoveryPromises.get(page);
+		if (existing) {
+			return existing;
 		}
 
-		this._onContextAdded(page.context());
+		const promise = this._resolvePage(page).finally(() => {
+			if (this._pageDiscoveryPromises.get(page) === promise) {
+				this._pageDiscoveryPromises.delete(page);
+			}
+		});
+		this._pageDiscoveryPromises.set(page, promise);
+		return promise;
+	}
+
+	private async _resolvePage(page: Page): Promise<string> {
 		page.once('close', () => this._onPageRemoved(page));
 		page.setDefaultTimeout(10000);
 		this._tabs.set(page, new PlaywrightTab(page, this.actionScope, this.agentNetworkFilterService));
 
-		const deferred = new DeferredPromise<string>();
-		const timeout = setTimeout(() => deferred.error(new Error(`Timed out waiting for browser view`)), timeoutMs);
-		deferred.p.finally(() => {
-			clearTimeout(timeout);
-			this._pageQueue = this._pageQueue.filter(item => item.page !== page);
-		});
-
-		this._pageQueue.push({ page, viewId: deferred });
-		this._tryMatch();
-
-		return deferred.p;
+		const viewId = await this._getPageViewId(page);
+		if (page.isClosed()) {
+			throw new Error(`Page "${viewId}" closed before it could be resolved`);
+		}
+		this._bindPage(viewId, page);
+		return viewId;
 	}
 
 	private _onPageRemoved(page: Page): void {
-		this._pageQueue = this._pageQueue.filter(item => item.page !== page);
+		this._pageDiscoveryPromises.delete(page);
 		const viewId = this._pageToViewId.get(page);
 		if (viewId) {
 			this._viewIdToPage.delete(viewId);
@@ -698,36 +607,45 @@ class PlaywrightSession extends Disposable {
 		this._pageToViewId.delete(page);
 	}
 
-	private _onContextAdded(context: BrowserContext): void {
-		if (this._watchedContexts.has(context)) {
-			return;
-		}
-		this._watchedContexts.add(context);
-		context.on('page', (page: Page) => this._onPageAdded(page));
-		context.on('close', () => this._watchedContexts.delete(context));
-		for (const page of context.pages()) {
-			this._onPageAdded(page);
+	private async _getPageViewId(page: Page): Promise<string> {
+		const session = await page.context().newCDPSession(page);
+		try {
+			const response = await session.send('Target.getTargetInfo');
+			const targetInfo: CDPTargetInfo = response.targetInfo;
+			const viewId = targetInfo.vscodeBrowserViewId ?? '';
+			if (!viewId) {
+				throw new Error(`CDP target ${targetInfo.targetId} is not an integrated browser view`);
+			}
+			return viewId;
+		} finally {
+			try {
+				await session.detach();
+			} catch (error) {
+				this.logService.warn('[PlaywrightSession] Failed to detach page identity CDP session', error);
+			}
 		}
 	}
 
-	// --- Private: matching ---
+	private _bindPage(viewId: string, page: Page): void {
+		this._viewIdToPage.set(viewId, page);
+		this._pageToViewId.set(page, viewId);
+		this.logService.debug(`[PlaywrightSession] Resolved Playwright page to view ${viewId}`);
+	}
 
-	private _tryMatch(): void {
-		while (this._viewIdQueue.length > 0 && this._pageQueue.length > 0) {
-			const viewIdItem = this._viewIdQueue.shift()!;
-			const pageItem = this._pageQueue.shift()!;
-
-			this._viewIdToPage.set(viewIdItem.viewId, pageItem.page);
-			this._pageToViewId.set(pageItem.page, viewIdItem.viewId);
-
-			viewIdItem.page.complete(pageItem.page);
-			pageItem.viewId.complete(viewIdItem.viewId);
-
-			this.logService.debug(`[PlaywrightSession] Matched view ${viewIdItem.viewId} → page`);
+	private _onContextAdded(context: BrowserContext): void {
+		if (!this._watchedContexts.has(context)) {
+			this._watchedContexts.add(context);
+			context.on('page', page => {
+				void this._onPageAdded(page).catch(error => {
+					this.logService.error('[PlaywrightSession] Failed to resolve page', error);
+				});
+			});
+			context.on('close', () => this._watchedContexts.delete(context));
 		}
-
-		if (this._viewIdQueue.length === 0) {
-			this._stopScanning();
+		for (const page of context.pages()) {
+			void this._onPageAdded(page).catch(error => {
+				this.logService.error('[PlaywrightSession] Failed to resolve page', error);
+			});
 		}
 	}
 
@@ -739,30 +657,8 @@ class PlaywrightSession extends Disposable {
 		}
 	}
 
-	private _ensureScanning(): void {
-		if (this._scanTimer === undefined) {
-			this._scanTimer = setInterval(() => this._scanForNewContexts(), 100);
-		}
-	}
-
-	private _stopScanning(): void {
-		if (this._scanTimer !== undefined) {
-			clearInterval(this._scanTimer);
-			this._scanTimer = undefined;
-		}
-	}
-
 	override dispose(): void {
-		this._stopScanning();
 		this._browser?.close().catch(() => { /* ignore */ });
-		for (const { page } of this._viewIdQueue) {
-			page.error(new Error('PlaywrightSession disposed'));
-		}
-		for (const { viewId } of this._pageQueue) {
-			viewId.error(new Error('PlaywrightSession disposed'));
-		}
-		this._viewIdQueue = [];
-		this._pageQueue = [];
 		super.dispose();
 	}
 }

@@ -29,18 +29,25 @@ import { mkdtemp, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, getInlineToolInput, type MessageAttachment } from '../../../../common/state/sessionState.js';
-import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
+import { CollectAgentHostDebugLogsExtensionMethod, type IAgentHostExtensionCommandMap } from '../../../../common/agentHostExtensionProtocol.js';
+import { readToolCallMeta } from '../../../../common/meta/agentToolCallMeta.js';
+import { MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildDefaultChatUri, getErrorResponsePart, getInlineToolInput, type MessageAttachment } from '../../../../common/state/sessionState.js';
+import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
+import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import {
 	AgentHostE2EServerLease, assertToolCallCompleteText, createRealSession, dispatchTurn,
-	driveTurnWithAttachmentsToCompletion, removeTempDirs, runAhpSnapshotTest,
+	driveTurnToCompletion, driveTurnWithAttachmentsToCompletion, removeTempDirs, resolveGitHubToken, runAhpSnapshotTest,
 } from '../harness/agentHostE2ETestHarness.js';
+import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
+import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
 import { defineAgentHostE2ETests } from '../suites/agentHostE2ESuites.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 
 const RECORD_ONLY = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
+const RECORD = RECORD_ONLY || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 const isWindows = process.platform === 'win32';
+type DebugLogsArtifactResult = IAgentHostExtensionCommandMap[typeof CollectAgentHostDebugLogsExtensionMethod]['result'];
 
 defineAgentHostE2ETests(COPILOT_CONFIG);
 
@@ -93,6 +100,27 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		}
 	});
 
+	test('materialized Copilot debug collection includes provider log entries', async function () {
+		this.timeout(180_000);
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'ahp-copilot-debug-logs-'));
+		tempDirs.push(workingDirectory);
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'copilot-debug-logs', createdSessions, URI.file(workingDirectory));
+		await driveTurnToCompletion(client, sessionUri, 'turn-copilot-debug-logs', 'Reply exactly "ready".', 1);
+
+		const debugLogs = await client.call<DebugLogsArtifactResult>(CollectAgentHostDebugLogsExtensionMethod, {
+			kind: 'archive',
+			session: sessionUri,
+		});
+
+		assert.deepStrictEqual({
+			providerLogsIncluded: debugLogs.providerLogsIncluded,
+			hasProviderLogEntries: debugLogs.entries.some(entry => !/^agenthost(?:-server)?(?:\.\d+)?\.log$/.test(entry.path)),
+		}, {
+			providerLogsIncluded: true,
+			hasProviderLogEntries: true,
+		});
+	});
+
 	test('client tool reaches ready after start and completes', async function () {
 		this.timeout(180_000);
 		await runAhpSnapshotTest(client, COPILOT_CONFIG, this.test!, createdSessions, tempDirs, {
@@ -118,6 +146,376 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			startContributor: { kind: ToolCallContributorKind.Client, clientId: 'copilot-client-tool' },
 			readyContributor: { kind: ToolCallContributorKind.Client, clientId: 'copilot-client-tool' },
 			deltaCount: 0,
+		});
+	});
+
+	// Windows restores the failed turn as cancelled and drops its persisted request error.
+	(isWindows ? test.skip : test)('request error survives a host restart', async function () {
+		this.timeout(180_000);
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-error-restart-'));
+		tempDirs.push(workingDirectory);
+		const clientId = 'copilot-error-restart';
+		const prompt = 'Reply exactly "unreachable".';
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workingDirectory));
+		const chatUri = buildDefaultChatUri(sessionUri);
+
+		await driveTurnToCompletion(client, sessionUri, 'turn-error-seed', 'Reply exactly "READY".', 1);
+		if (!lease) {
+			throw new Error('Agent Host E2E server lease was not initialized.');
+		}
+		if (RECORD) {
+			lease.setRecordingModelResponse({
+				status: 500,
+				headers: {
+					'content-type': 'application/json',
+					'x-request-id': 'agent-host-e2e-error',
+				},
+				body: '{"type":"error","error":{"type":"api_error","message":"deterministic Agent Host E2E failure"}}',
+			});
+		}
+
+		dispatchTurn(client, sessionUri, 'turn-error-restart', prompt, 2);
+		const liveNotification = await client.waitForNotification(notification =>
+			isActionNotification(notification, 'chat/error')
+			&& getActionEnvelope(notification).channel === chatUri,
+			90_000,
+		);
+		const liveErrorPart = (getActionEnvelope(liveNotification).action as ChatErrorAction).part;
+		assert.strictEqual(liveErrorPart.resumable, undefined);
+
+		client = await lease.restart();
+		client.setWorkingDirectory(workingDirectory);
+		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: `${clientId}-reopened` }, 30_000);
+		await client.call('authenticate', {
+			channel: ROOT_STATE_URI,
+			resource: 'https://api.github.com',
+			token: COPILOT_CONFIG.githubToken ?? resolveGitHubToken(),
+		}, 30_000);
+
+		const reopened = await fetchSessionWithChat(client, sessionUri);
+		const restoredTurn = reopened.turns.find(turn => turn.message.text === prompt);
+		assert.deepStrictEqual({
+			state: restoredTurn?.state,
+			error: getErrorResponsePart(restoredTurn)?.error,
+			resumable: getErrorResponsePart(restoredTurn)?.resumable,
+		}, {
+			state: TurnState.Error,
+			error: liveErrorPart.error,
+			resumable: undefined,
+		});
+	});
+
+	// Retryable errors are temporarily disabled.
+	test.skip('resumes a failed turn in place', async function () {
+		this.timeout(180_000);
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-failed-turn-resume-'));
+		tempDirs.push(workingDirectory);
+		const prompt = '$error';
+		if (!lease) {
+			throw new Error('Agent Host E2E server lease was not initialized.');
+		}
+		await lease.release([], true);
+		await lease.dispose();
+		lease = new AgentHostE2EServerLease(COPILOT_CONFIG);
+		({ client } = await lease.acquire(this.test!.title));
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'copilot-failed-turn-resume', createdSessions, URI.file(workingDirectory));
+		const chatUri = buildDefaultChatUri(sessionUri);
+		const turnId = 'turn-failed-resume';
+		client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: { type: ActionType.SessionTitleChanged, title: 'Recovery test' },
+		});
+		await client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.SessionTitleChanged)
+			&& getActionEnvelope(notification).channel === sessionUri,
+			30_000,
+		);
+
+		client.beginAhpSnapshotRound();
+		dispatchTurn(client, sessionUri, turnId, prompt, 2);
+		const errorNotification = await client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.ChatError)
+			&& getActionEnvelope(notification).channel === chatUri,
+			90_000,
+		);
+		const errorAction = getActionEnvelope(errorNotification).action as ChatErrorAction;
+		assert.strictEqual(errorAction.part.resumable, true);
+
+		const peerClientId = 'copilot-failed-turn-resume-peer';
+		const peer = await lease.connectClient();
+		await peer.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: peerClientId }, 30_000);
+		await peer.call('subscribe', { channel: chatUri }, 30_000);
+		const modelRequestCountBeforeResume = lease.observedModelRequestBodies.length;
+
+		try {
+			client.beginAhpSnapshotRound();
+			const primaryResumeObserved = client.waitForNotification(notification =>
+				isActionNotification(notification, ActionType.ChatTurnResume)
+				&& getActionEnvelope(notification).channel === chatUri
+				&& getActionEnvelope(notification).origin?.clientId === 'copilot-failed-turn-resume'
+				&& getActionEnvelope(notification).origin?.clientSeq === 3,
+				30_000,
+			);
+			const peerResumeObserved = client.waitForNotification(notification =>
+				isActionNotification(notification, ActionType.ChatTurnResume)
+				&& getActionEnvelope(notification).channel === chatUri
+				&& getActionEnvelope(notification).origin?.clientId === peerClientId
+				&& getActionEnvelope(notification).origin?.clientSeq === 1,
+				30_000,
+			);
+			client.dispatch({
+				channel: chatUri,
+				clientSeq: 3,
+				action: { type: ActionType.ChatTurnResume, turnId },
+			});
+			peer.dispatch({
+				channel: chatUri,
+				clientSeq: 1,
+				action: { type: ActionType.ChatTurnResume, turnId },
+			});
+			await Promise.all([
+				primaryResumeObserved,
+				peerResumeObserved,
+				...[client, peer].map(resumeClient => resumeClient.waitForNotification(notification =>
+					isActionNotification(notification, ActionType.ChatTurnComplete)
+					&& getActionEnvelope(notification).channel === chatUri
+					&& (getActionEnvelope(notification).action as ChatTurnCompleteAction).turnId === turnId,
+					90_000,
+				)),
+			]);
+			await assertRecordedAhpSnapshot(this.test!, client, { profile: 'behavior' });
+
+			const [finalState, peerFinalState] = await Promise.all([
+				fetchSessionWithChat(client, sessionUri),
+				fetchSessionWithChat(peer, sessionUri),
+			]);
+			const resumeEnvelopes = client.receivedNotifications(notification =>
+				isActionNotification(notification, ActionType.ChatTurnResume)
+				&& getActionEnvelope(notification).channel === chatUri
+				&& (getActionEnvelope(notification).action as { readonly turnId: string }).turnId === turnId,
+			).map(getActionEnvelope);
+			const acceptedResumes = resumeEnvelopes.filter(envelope => envelope.rejectionReason === undefined);
+			const rejectedResumes = resumeEnvelopes.filter(envelope => envelope.rejectionReason !== undefined);
+			const resumedRequest = lease.observedModelRequestBodies.at(-1);
+			assert.ok(resumedRequest);
+			const summarizedRequest = summarizeAnthropicRequest(resumedRequest) ?? summarizeResponsesRequest(resumedRequest);
+			assert.ok(summarizedRequest);
+			const promptOccurrences = summarizedRequest.messages
+				.filter(message => message.role === 'user')
+				.reduce((count, message) => count + (JSON.stringify(message.content).split(prompt).length - 1), 0);
+			const summarizeTurns = (turns: typeof finalState.turns) => turns.map(turn => ({
+				id: turn.id,
+				message: turn.message.text,
+				state: turn.state,
+				errorCount: turn.responseParts.filter(part => part.kind === ResponsePartKind.Error).length,
+			}));
+
+			assert.deepStrictEqual({
+				acceptedResumeCount: acceptedResumes.length,
+				rejectedResumeCount: rejectedResumes.length,
+				resumeOriginClientIds: resumeEnvelopes.map(envelope => envelope.origin?.clientId).sort(),
+				continuationModelRequestCount: lease.observedModelRequestBodies.length - modelRequestCountBeforeResume,
+				promptOccurrences,
+				activeTurns: [finalState.activeTurn, peerFinalState.activeTurn],
+				clientTurns: summarizeTurns(finalState.turns),
+				peerTurns: summarizeTurns(peerFinalState.turns),
+			}, {
+				acceptedResumeCount: 1,
+				rejectedResumeCount: 1,
+				resumeOriginClientIds: ['copilot-failed-turn-resume', peerClientId],
+				continuationModelRequestCount: 1,
+				promptOccurrences: 1,
+				activeTurns: [undefined, undefined],
+				clientTurns: [{
+					id: turnId,
+					message: prompt,
+					state: TurnState.Complete,
+					errorCount: 1,
+				}],
+				peerTurns: [{
+					id: turnId,
+					message: prompt,
+					state: TurnState.Complete,
+					errorCount: 1,
+				}],
+			});
+		} finally {
+			peer.close();
+		}
+	});
+
+	test.skip('resumes the same turn after repeated failures', async function () {
+		this.timeout(180_000);
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-repeated-failed-turn-resume-'));
+		tempDirs.push(workingDirectory);
+		const prompt = '$error';
+		if (!lease) {
+			throw new Error('Agent Host E2E server lease was not initialized.');
+		}
+		await lease.release([], true);
+		await lease.dispose();
+		lease = new AgentHostE2EServerLease(COPILOT_CONFIG);
+		({ client } = await lease.acquire(this.test!.title));
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'copilot-repeated-failed-turn-resume', createdSessions, URI.file(workingDirectory));
+		const chatUri = buildDefaultChatUri(sessionUri);
+		const turnId = 'turn-repeated-failed-resume';
+
+		dispatchTurn(client, sessionUri, turnId, prompt, 1);
+		const firstErrorNotification = await client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.ChatError)
+			&& getActionEnvelope(notification).channel === chatUri,
+			90_000,
+		);
+		const firstErrorEnvelope = getActionEnvelope(firstErrorNotification);
+		assert.strictEqual((firstErrorEnvelope.action as ChatErrorAction).part.resumable, true);
+
+		if (RECORD) {
+			lease.setRecordingModelResponse({
+				status: 400,
+				headers: {
+					'content-type': 'application/json',
+				},
+				body: '{"error":{"message":"Injected second recoverable E2E failure.","type":"invalid_request_error","code":"invalid_request_error"}}',
+			});
+		}
+		client.dispatch({
+			channel: chatUri,
+			clientSeq: 2,
+			action: { type: ActionType.ChatTurnResume, turnId },
+		});
+		const secondErrorNotification = await client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.ChatError)
+			&& getActionEnvelope(notification).channel === chatUri
+			&& getActionEnvelope(notification).serverSeq > firstErrorEnvelope.serverSeq,
+			90_000,
+		);
+		assert.strictEqual((getActionEnvelope(secondErrorNotification).action as ChatErrorAction).part.resumable, true);
+
+		client.dispatch({
+			channel: chatUri,
+			clientSeq: 3,
+			action: { type: ActionType.ChatTurnResume, turnId },
+		});
+		await client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.ChatTurnComplete)
+			&& getActionEnvelope(notification).channel === chatUri
+			&& (getActionEnvelope(notification).action as ChatTurnCompleteAction).turnId === turnId,
+			90_000,
+		);
+
+		const finalState = await fetchSessionWithChat(client, sessionUri);
+		assert.deepStrictEqual({
+			modelRequestCount: lease.observedModelRequestBodies.length,
+			activeTurn: finalState.activeTurn,
+			turns: finalState.turns.map(turn => ({
+				id: turn.id,
+				message: turn.message.text,
+				state: turn.state,
+				errorCount: turn.responseParts.filter(part => part.kind === ResponsePartKind.Error).length,
+			})),
+		}, {
+			modelRequestCount: 3,
+			activeTurn: undefined,
+			turns: [{
+				id: turnId,
+				message: prompt,
+				state: TurnState.Complete,
+				errorCount: 2,
+			}],
+		});
+	});
+
+	// Retryable errors are temporarily disabled.
+	test.skip('restores and resumes a turn interrupted by host shutdown', async function () {
+		this.timeout(240_000);
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-host-shutdown-resume-'));
+		tempDirs.push(workingDirectory);
+		const clientId = 'copilot-host-shutdown-resume';
+		const prompt = 'Reply with exactly the numbers 1 through 40, separated by spaces.';
+		if (!lease) {
+			throw new Error('Agent Host E2E server lease was not initialized.');
+		}
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workingDirectory));
+		const chatUri = buildDefaultChatUri(sessionUri);
+		const turnId = 'turn-host-shutdown-resume';
+
+		dispatchTurn(client, sessionUri, turnId, prompt, 1);
+		await client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.ChatResponsePart)
+			&& getActionEnvelope(notification).channel === chatUri
+			&& (getActionEnvelope(notification).action as { readonly turnId: string }).turnId === turnId,
+			90_000,
+		);
+		const interruptedClient = client;
+		client = await lease.crashAndRestart();
+		const terminalActionsBeforeHostDeath = interruptedClient.receivedNotifications(notification =>
+			(isActionNotification(notification, ActionType.ChatError)
+				|| isActionNotification(notification, ActionType.ChatTurnComplete)
+				|| isActionNotification(notification, ActionType.ChatTurnCancelled))
+			&& getActionEnvelope(notification).channel === chatUri
+			&& (getActionEnvelope(notification).action as { readonly turnId: string }).turnId === turnId,
+		);
+		assert.deepStrictEqual(terminalActionsBeforeHostDeath, []);
+
+		client.setWorkingDirectory(workingDirectory);
+		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: `${clientId}-reopened` }, 30_000);
+		await client.call('authenticate', {
+			channel: ROOT_STATE_URI,
+			resource: 'https://api.github.com',
+			token: COPILOT_CONFIG.githubToken ?? resolveGitHubToken(),
+		}, 30_000);
+
+		const restoredState = await fetchSessionWithChat(client, sessionUri);
+		const restoredTurn = restoredState.turns.find(turn => turn.message.text === prompt);
+		assert.ok(restoredTurn);
+		const restoredError = getErrorResponsePart(restoredTurn);
+		assert.deepStrictEqual({
+			activeTurn: restoredState.activeTurn,
+			turnCount: restoredState.turns.length,
+			turnState: restoredTurn.state,
+			errorType: restoredError?.error.errorType,
+			resumable: restoredError?.resumable,
+		}, {
+			activeTurn: undefined,
+			turnCount: 1,
+			turnState: TurnState.Error,
+			errorType: 'executionInterrupted',
+			resumable: true,
+		});
+
+		const modelRequestCountBeforeResume = lease.observedModelRequestBodies.length;
+		client.dispatch({
+			channel: chatUri,
+			clientSeq: 2,
+			action: { type: ActionType.ChatTurnResume, turnId: restoredTurn.id },
+		});
+		await client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.ChatTurnComplete)
+			&& getActionEnvelope(notification).channel === chatUri
+			&& (getActionEnvelope(notification).action as ChatTurnCompleteAction).turnId === restoredTurn.id,
+			90_000,
+		);
+		const finalState = await fetchSessionWithChat(client, sessionUri);
+
+		assert.deepStrictEqual({
+			continuationModelRequestCount: lease.observedModelRequestBodies.length - modelRequestCountBeforeResume,
+			activeTurn: finalState.activeTurn,
+			turns: finalState.turns.map(turn => ({
+				id: turn.id,
+				message: turn.message.text,
+				state: turn.state,
+				errorCount: turn.responseParts.filter(part => part.kind === ResponsePartKind.Error).length,
+			})),
+		}, {
+			continuationModelRequestCount: 1,
+			activeTurn: undefined,
+			turns: [{
+				id: restoredTurn.id,
+				message: prompt,
+				state: TurnState.Complete,
+				errorCount: 1,
+			}],
 		});
 	});
 
@@ -483,6 +881,77 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		assert.match(result.responseText, /\bsubtract\b/i, `expected the model to identify the attached blob function; got: ${JSON.stringify(result.responseText)}`);
 	});
 
+	(isWindows ? test.skip : test)('shell read helper remains a non-terminal tool', async function () {
+		this.timeout(180_000);
+
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-read-shell-'));
+		tempDirs.push(workingDirectory);
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-read-shell', createdSessions, URI.file(workingDirectory));
+		const chatUri = buildDefaultChatUri(sessionUri);
+		const turnId = 'turn-read-shell';
+		const command = `node -e "setTimeout(() => console.log('READ_SHELL_E2E_VALUE'), 3000)"`;
+		const prompt = [
+			`First use the shell tool exactly once to run \`${command}\` in async mode with shellId "read-shell-e2e" and initial_wait 1.`,
+			'After that tool returns, use its matching read tool exactly once with shellId "read-shell-e2e" and delay 5 so the command finishes before the read returns.',
+			'Then reply with exactly "READ_SHELL_E2E_DONE".',
+		].join(' ');
+
+		const result = await driveTurnToCompletion(client, sessionUri, turnId, prompt, 1);
+		assert.match(result.responseText, /READ_SHELL_E2E_DONE/);
+
+		const start = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
+			.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallStartAction }))
+			.find(({ envelope, action }) => envelope.channel === chatUri && action.turnId === turnId && /^read_(?:bash|powershell)$/.test(action.toolName));
+		assert.ok(start, 'expected a shell read helper tool call');
+
+		const ready = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallReady'))
+			.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallReadyAction }))
+			.find(({ envelope, action }) => envelope.channel === chatUri && action.turnId === turnId && action.toolCallId === start.action.toolCallId);
+		const complete = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
+			.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallCompleteAction }))
+			.find(({ envelope, action }) => envelope.channel === chatUri && action.turnId === turnId && action.toolCallId === start.action.toolCallId);
+		assert.ok(ready, 'expected the shell read helper to become ready');
+		assert.ok(complete, 'expected the shell read helper to complete');
+
+		const toolInput = getInlineToolInput(ready.action.toolInput);
+		assert.deepStrictEqual({
+			displayName: start.action.displayName,
+			toolKinds: [
+				readToolCallMeta(start.action).toolKind,
+				readToolCallMeta(ready.action).toolKind,
+				readToolCallMeta(complete.action).toolKind,
+			],
+			invocationMessage: ready.action.invocationMessage,
+			toolInput: toolInput ? JSON.parse(toolInput) : undefined,
+			success: complete.action.result.success,
+			pastTenseMessage: complete.action.result.pastTenseMessage,
+			contentTypes: complete.action.result.content?.map(content => content.type),
+		}, {
+			displayName: 'Read Terminal',
+			toolKinds: [undefined, undefined, undefined],
+			invocationMessage: 'Reading Terminal',
+			toolInput: { shellId: 'read-shell-e2e', delay: 5 },
+			success: true,
+			pastTenseMessage: 'Read Terminal',
+			contentTypes: [ToolResultContentType.Text],
+		});
+		await assertRecordedAhpSnapshot(this.test!, client, {
+			profile: 'protocol',
+			ignoredActionTypes: [
+				ActionType.ChatUsage,
+				ActionType.ChatToolCallDelta,
+				ActionType.SessionChatUpdated,
+				ActionType.SessionTitleChanged,
+				ActionType.SessionServerToolsChanged,
+				ActionType.SessionReady,
+				ActionType.SessionInputNeededSet,
+				ActionType.SessionInputNeededRemoved,
+				ActionType.SessionChangesetsChanged,
+				ActionType.SessionMetaChanged,
+			],
+		});
+	});
+
 	(isWindows ? test.skip : test)('strips redundant `cd <workingDirectory> &&` prefix from shell tool calls', async function () {
 		this.timeout(180_000);
 
@@ -571,7 +1040,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			);
 			if (isActionNotification(next, 'chat/error')) {
 				const action = getActionEnvelope(next).action as ChatErrorAction;
-				throw new Error(`cd-strip turn failed: ${JSON.stringify(action.error)}`);
+				throw new Error(`cd-strip turn failed: ${JSON.stringify(action.part.error)}`);
 			}
 			if (isActionNotification(next, 'chat/turnComplete')) {
 				break;
