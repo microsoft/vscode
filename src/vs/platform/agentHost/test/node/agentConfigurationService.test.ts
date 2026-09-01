@@ -17,7 +17,7 @@ import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigState } from '../../common/state/protocol/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildSubagentSessionUri, ROOT_STATE_URI, SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
+import { buildChatUri, buildSubagentSessionUri, SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories, getEffectiveWorkingDirectory } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
@@ -263,28 +263,6 @@ suite('AgentConfigurationService', () => {
 		const persisted = JSON.parse(fs.readFileSync(resource.fsPath, 'utf8')) as Record<string, unknown>;
 		assert.strictEqual(persisted['test.account'], undefined);
 		assert.deepStrictEqual(localManager.rootState.config?.values['test.account'], { status: 'signedIn' });
-		fs.rmSync(directory, { recursive: true, force: true });
-	});
-
-	test('persists Automation client plugins published by a connected client', async () => {
-		const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-config-'));
-		const resource = URI.file(join(directory, 'agent-host-config.json'));
-		const localManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-		const localService = disposables.add(new AgentConfigurationService(localManager, new NullLogService(), resource));
-		const plugins = [{
-			uri: 'file:///plugins/local-plugin',
-			displayName: 'Local Plugin',
-			enablement: [{ kind: 'global', enabled: true }],
-		}];
-
-		localManager.dispatchClientAction(ROOT_STATE_URI, {
-			type: ActionType.RootConfigChanged,
-			config: { [AgentHostConfigKey.AutomationClientPlugins]: plugins },
-		}, { clientId: 'test-client', clientSeq: 1 });
-		await localService.whenIdle();
-
-		const persisted = JSON.parse(fs.readFileSync(resource.fsPath, 'utf8')) as Record<string, unknown>;
-		assert.deepStrictEqual(persisted[AgentHostConfigKey.AutomationClientPlugins], plugins);
 		fs.rmSync(directory, { recursive: true, force: true });
 	});
 

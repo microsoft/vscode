@@ -2436,7 +2436,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('applies and persists root config changes from clients', async () => {
+		test('applies and persists Automation client plugins from a local Editor Window', async () => {
 			const tempDir = URI.file(mkdtempSync(`${tmpdir()}/agent-host-config-`));
 			// Use a local DisposableStore so that svc can be explicitly disposed
 			// before cleaning up the temp directory. On Windows, rmSync fails with
@@ -2450,19 +2450,28 @@ suite('AgentService (node dispatcher)', () => {
 				localDisposables.add(toDisposable(() => agent.dispose()));
 				registerTestAgentProvider(svc, agent);
 
-				const customization = { uri: 'file:///plugin-a', displayName: 'Plugin A' };
+				const plugins = [{
+					uri: 'file:///plugin-a',
+					displayName: 'Plugin A',
+					enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+				}];
 				svc.dispatchAction(ROOT_STATE_URI, {
 					type: ActionType.RootConfigChanged,
-					config: { customizations: [customization] },
-				}, 'test-client', 1);
+					config: { [AgentHostConfigKey.AutomationClientPlugins]: plugins },
+				}, 'test-client', 1, {
+					clientType: AgentHostClientType.EditorWindow,
+					connectionKind: AgentHostClientConnectionKind.Local,
+					transportKind: AgentHostTransportKind.MessagePort,
+					hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				});
 
 				let persisted = false;
 				for (let attempt = 0; attempt < 20; attempt++) {
 					try {
 						const parsed = JSON.parse(readFileSync(rootConfigResource.fsPath, 'utf8'));
 						assert.deepStrictEqual(
-							parsed.customizations,
-							[customization],
+							parsed[AgentHostConfigKey.AutomationClientPlugins],
+							plugins,
 						);
 						persisted = true;
 						break;

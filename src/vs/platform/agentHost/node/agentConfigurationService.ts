@@ -190,9 +190,6 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			if (envelope.action.type === ActionType.RootConfigChanged) {
 				this._onDidRootConfigChange.fire();
-				if (envelope.origin && Object.hasOwn(envelope.action.config, AgentHostConfigKey.AutomationClientPlugins)) {
-					this.persistRootConfig();
-				}
 			} else if (envelope.action.type === ActionType.SessionConfigChanged) {
 				this._onDidSessionConfigChange.fire({
 					session: envelope.channel,

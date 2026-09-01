@@ -38,13 +38,6 @@ export class AgentHostAutomationPluginsContribution extends Disposable implement
 					for (const plugin of this._agentPluginService.plugins.read(reader)) {
 						this._agentPluginService.enablementModel.readProfileEnabled(plugin.uri.toString(), reader);
 						plugin.policyBlocked?.read(reader);
-						plugin.version?.read(reader);
-						plugin.hooks.read(reader);
-						plugin.commands.read(reader);
-						plugin.skills.read(reader);
-						plugin.agents.read(reader);
-						plugin.instructions.read(reader);
-						plugin.mcpServerDefinitions.read(reader);
 					}
 					push();
 				}));
