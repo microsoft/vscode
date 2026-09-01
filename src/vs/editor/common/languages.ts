@@ -2419,7 +2419,9 @@ export function isExecutableCodeLensCommand(command: CodeLens['command']): comma
 export interface CodeLens {
 	range: IRange;
 	id?: string;
-	/** A command without an id is rendered as non-clickable text. */
+	/**
+	 * A command without an id is rendered as non-clickable text.
+	 */
 	command?: Pick<Command, 'title' | 'tooltip' | 'arguments'> & Partial<Pick<Command, 'id'>>;
 }
 
