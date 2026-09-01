@@ -109,7 +109,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			id,
 			selector,
 			this.environmentMainService.workspaceStorageHome,
-			hostWindow.openedWorkspace?.id
+			hostWindow.openedWorkspace?.id,
+			hostWindowId
 		);
 	}
 

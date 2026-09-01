@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as http from 'http';
 import * as path from 'path';
 import 'mocha';
 import * as vscode from 'vscode';
@@ -88,6 +89,80 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		const output = await invokeTool('open_browser_page', { url: 'about:blank' });
 
 		assert.match(output, /Page ID:/, `Expected output to contain "Page ID:", got: ${output}`);
+	});
+
+	(vscode.env.remoteName ? test.skip : test)('Agent storage is shared between API and tool pages and isolated from Ephemeral storage', async function () {
+		this.timeout(60_000);
+
+		const token = `${Date.now()}-${Math.random()}`;
+		let agentReceivedCookie: string | undefined;
+		let ephemeralReceivedCookie: string | undefined;
+		const server = http.createServer((request, response) => {
+			if (request.url === '/set') {
+				response.setHeader('Set-Cookie', `vscode-browser-agent-smoke=${token}; Path=/; SameSite=Lax`);
+				response.end('<title>cookie-set</title>');
+				return;
+			}
+
+			if (request.url === '/check-agent') {
+				agentReceivedCookie = request.headers.cookie;
+				response.end('<title>agent-cookie-checked</title>');
+				return;
+			}
+
+			if (request.url === '/check-ephemeral') {
+				ephemeralReceivedCookie = request.headers.cookie;
+				response.end('<title>ephemeral-cookie-checked</title>');
+				return;
+			}
+
+			response.end('<title>unexpected-request</title>');
+		});
+
+		await new Promise<void>((resolve, reject) => {
+			server.once('error', reject);
+			server.listen(0, '127.0.0.1', resolve);
+		});
+
+		const address = server.address();
+		assert.ok(address && typeof address !== 'string');
+		const browserConfig = vscode.workspace.getConfiguration('workbench.browser');
+
+		try {
+			await browserConfig.update('dataStorage', 'agent', vscode.ConfigurationTarget.Global);
+			const apiTab = await vscode.window.openBrowserTab(`http://127.0.0.1:${address.port}/set`);
+
+			for (let i = 0; i < 100 && !apiTab.title.startsWith('cookie-set'); i++) {
+				await new Promise(resolve => setTimeout(resolve, 50));
+			}
+			assert.ok(apiTab.title.startsWith('cookie-set'), `Expected API page to load, got title "${apiTab.title}"`);
+
+			const output = await invokeTool('open_browser_page', {
+				url: `http://127.0.0.1:${address.port}/check-agent`,
+				forceNew: true,
+			});
+
+			await browserConfig.update('dataStorage', 'ephemeral', vscode.ConfigurationTarget.Global);
+			const ephemeralTab = await vscode.window.openBrowserTab(`http://127.0.0.1:${address.port}/check-ephemeral`);
+			for (let i = 0; i < 100 && !ephemeralTab.title.startsWith('ephemeral-cookie-checked'); i++) {
+				await new Promise(resolve => setTimeout(resolve, 50));
+			}
+
+			assert.deepStrictEqual({
+				opened: /Page ID:/.test(output),
+				agentSharedCookie: agentReceivedCookie?.includes(`vscode-browser-agent-smoke=${token}`) === true,
+				ephemeralLoaded: ephemeralTab.title.startsWith('ephemeral-cookie-checked'),
+				ephemeralSharedCookie: ephemeralReceivedCookie?.includes(`vscode-browser-agent-smoke=${token}`) === true,
+			}, {
+				opened: true,
+				agentSharedCookie: true,
+				ephemeralLoaded: true,
+				ephemeralSharedCookie: false,
+			});
+		} finally {
+			await browserConfig.update('dataStorage', undefined, vscode.ConfigurationTarget.Global);
+			await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+		}
 	});
 
 	test('list_browser_pages returns pages opened through the browser tools', async function () {

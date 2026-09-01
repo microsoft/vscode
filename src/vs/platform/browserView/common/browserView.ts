@@ -58,6 +58,7 @@ export enum BrowserViewCommandId {
 	ClearGlobalStorage = `${commandPrefix}.clearGlobalStorage`,
 	ClearWorkspaceStorage = `${commandPrefix}.clearWorkspaceStorage`,
 	ClearEphemeralStorage = `${commandPrefix}.clearEphemeralStorage`,
+	ClearAgentStorage = `${commandPrefix}.clearAgentStorage`,
 
 	// Find in page
 	ShowFind = `${commandPrefix}.showFind`,
@@ -431,29 +432,34 @@ export interface IBrowserViewFindInPageResult {
 export enum BrowserViewStorageScope {
 	Global = 'global',
 	Workspace = 'workspace',
-	Ephemeral = 'ephemeral'
+	Ephemeral = 'ephemeral',
+	Agent = 'agent'
 }
 
 export type IBrowserViewSessionOptions =
 	| { readonly scope: BrowserViewStorageScope.Global }
 	| { readonly scope: BrowserViewStorageScope.Workspace }
+	| { readonly scope: BrowserViewStorageScope.Ephemeral }
 	| {
-		readonly scope: BrowserViewStorageScope.Ephemeral;
+		readonly scope: BrowserViewStorageScope.Agent;
 		/** Views with the same affinity share one in-memory browser session. */
 		readonly affinity?: string;
 	};
 
+export function isInMemoryStorageScope(scope: BrowserViewStorageScope): boolean {
+	return scope === BrowserViewStorageScope.Ephemeral || scope === BrowserViewStorageScope.Agent;
+}
+
 /** Selects an existing browser context by ID or resolves one from storage options. */
 export type BrowserViewSessionSelector = string | IBrowserViewSessionOptions;
 
-export function getAgentBrowserViewCreationDefaults(sessionId: string) {
+export function getAgentBrowserViewCreationDefaults(sessionId: string, storageAffinity?: string) {
 	return {
 		owner: { type: 'agent', sessionId } as const,
 		initialAudiences: [{ type: 'agent' }] as const,
-		session: {
-			scope: BrowserViewStorageScope.Ephemeral,
-			affinity: sessionId
-		} as const
+		session: storageAffinity === undefined
+			? { scope: BrowserViewStorageScope.Agent } as const
+			: { scope: BrowserViewStorageScope.Agent, affinity: storageAffinity } as const
 	};
 }
 
