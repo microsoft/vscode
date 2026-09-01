@@ -141,6 +141,16 @@ suite('shellInitScript', () => {
 	});
 
 	(process.platform === 'win32' ? suite : suite.skip)('PowerShell behavior', () => {
+		let profileDirectory: string;
+
+		setup(async () => {
+			profileDirectory = await mkdtemp(join(tmpdir(), 'vscode-shell-init-powershell-'));
+		});
+
+		teardown(async () => {
+			await rm(profileDirectory, { recursive: true, force: true });
+		});
+
 		test('decodes and executes the activation payload', async () => {
 			const { script } = createShellInitScript('powershell', `$env:VSCODE_TEST_ACTIVATION = 'loaded'`);
 			const command = [
@@ -150,6 +160,27 @@ suite('shellInitScript', () => {
 			].join('\n');
 			const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command]);
 			assert.strictEqual(stdout.trim(), 'activation=loaded');
+		});
+
+		test('loads each profile independently before activation', async () => {
+			const allHostsProfile = join(profileDirectory, 'all-hosts.ps1');
+			const currentHostProfile = join(profileDirectory, 'current-host.ps1');
+			await writeFile(allHostsProfile, `$env:VSCODE_TEST_ALL_HOSTS = 'loaded'\nthrow 'expected profile failure'\n`, 'utf8');
+			await writeFile(currentHostProfile, `$env:VSCODE_TEST_CURRENT_HOST = 'loaded'\n`, 'utf8');
+			const powerShellLiteral = (value: string) => `'${value.replaceAll(`'`, `''`)}'`;
+			const { script } = createShellInitScript('powershell', `$env:VSCODE_TEST_ACTIVATION = 'loaded'`);
+			const command = [
+				`$PROFILE = [pscustomobject]@{ CurrentUserAllHosts = ${powerShellLiteral(allHostsProfile)}; CurrentUserCurrentHost = ${powerShellLiteral(currentHostProfile)} }`,
+				script,
+				`Write-Output "profiles=$env:VSCODE_TEST_ALL_HOSTS,$env:VSCODE_TEST_CURRENT_HOST activation=$env:VSCODE_TEST_ACTIVATION preference=$ErrorActionPreference exit=$global:LASTEXITCODE"`,
+			].join('\n');
+
+			const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command]);
+
+			assert.deepStrictEqual(stdout.trim().split(/\r?\n/), [
+				'copilot shell init: loading the PowerShell profile failed; continuing.',
+				'profiles=loaded,loaded activation=loaded preference=Continue exit=0',
+			]);
 		});
 	});
 });

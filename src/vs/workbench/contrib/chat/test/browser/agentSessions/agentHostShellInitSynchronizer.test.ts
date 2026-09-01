@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -224,6 +225,25 @@ suite('AgentHostShellInitSynchronizer', () => {
 		subscription.applyConfig(dispatched[0], 'not authorized');
 
 		await assert.rejects(reconcile, /not authorized/);
+	});
+
+	test('reconcile times out when the host does not acknowledge the config action', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const { synchronizer } = create({ enabled: true });
+			const subscription = disposables.add(new TestSubscription(state()));
+			disposables.add(synchronizer.register(session, subscription));
+
+			const reconcile = assert.rejects(
+				synchronizer.reconcile(session, CancellationToken.None),
+				/Timed out waiting for Agent Host to apply shell init config/,
+			);
+			await clock.tickAsync(10_000);
+
+			await reconcile;
+		} finally {
+			clock.restore();
+		}
 	});
 
 	test('reconcile waits when the desired value is only optimistic', async () => {
