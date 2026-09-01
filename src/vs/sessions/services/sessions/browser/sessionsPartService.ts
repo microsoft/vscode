@@ -32,6 +32,11 @@ export interface ISessionsPartService {
 	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined): void;
 
 	/**
+	 * Controls whether mounted session views may render independently of the part's grid visibility.
+	 */
+	setContentVisible(visible: boolean): void;
+
+	/**
 	 * Fires with the session id of a grid slot that received keyboard focus. The
 	 * view service listens to promote that session to the active session. Only
 	 * fires for non-placeholder slots.

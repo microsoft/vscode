@@ -1530,7 +1530,6 @@ export class ChatService extends Disposable implements IChatService {
 			let detectedCommand: IChatAgentCommand | undefined;
 
 			// Gate /troubleshoot and the troubleshoot skill behind the file logging flag.
-			// agentDebugLog.enabled is deprecated; only fileLogging.enabled is authoritative.
 			{
 				const fileLoggingEnabled = this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING);
 				if (!fileLoggingEnabled) {

@@ -1437,22 +1437,22 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			modifiedTime: Date.parse(s.modifiedAt),
 			...(s.project ? {
 				project: {
-					uri: this._toLocalProjectUri(URI.parse(s.project.uri)),
+					uri: this._toClientUri(URI.parse(s.project.uri)),
 					displayName: s.project.displayName,
 				}
 			} : {}),
 			summary: s.title,
 			status: s.status,
 			activity: s.activity,
-			workingDirectory: typeof s.workingDirectories?.[0] === 'string' ? toAgentHostUri(URI.parse(s.workingDirectories?.[0]), this._connectionAuthority) : undefined,
-			workingDirectories: s.workingDirectories?.map(d => toAgentHostUri(URI.parse(d), this._connectionAuthority)),
+			workingDirectory: typeof s.workingDirectories?.[0] === 'string' ? this._toClientUri(URI.parse(s.workingDirectories[0])) : undefined,
+			workingDirectories: s.workingDirectories?.map(d => this._toClientUri(URI.parse(d))),
 			changes: s.changes,
 			// Carry durable host provenance for sessions first materialized from a listing.
 			...(s._meta !== undefined ? { _meta: s._meta } : {}),
 		}));
 	}
 
-	private _toLocalProjectUri(uri: URI): URI {
+	private _toClientUri(uri: URI): URI {
 		return uri.scheme === Schemas.file ? toAgentHostUri(uri, this._connectionAuthority) : uri;
 	}
 
