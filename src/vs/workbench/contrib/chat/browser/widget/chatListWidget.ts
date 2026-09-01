@@ -511,7 +511,7 @@ export class ChatListWidget extends Disposable {
 		this._renderer = this._register(scopedInstantiationService.createInstance(
 			ChatListItemRenderer,
 			editorOptions,
-			options.rendererOptions ?? {},
+			{ ...options.rendererOptions, location: this._location },
 			rendererDelegate,
 			overflowWidgetsContainer,
 			this._viewModel,

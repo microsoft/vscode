@@ -2248,6 +2248,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		content.forEach((data, contentIndex) => {
 			const context: IChatContentPartRenderContext = {
 				element,
+				location: this.rendererOptions.location,
 				elementIndex: index,
 				contentIndex: contentIndex,
 				content: content,
@@ -2761,6 +2762,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			const context: IChatContentPartRenderContext = {
 				element,
+				location: this.rendererOptions.location,
 				elementIndex: elementIndex,
 				content: contentForThisTurn,
 				contentIndex: contentIndex,

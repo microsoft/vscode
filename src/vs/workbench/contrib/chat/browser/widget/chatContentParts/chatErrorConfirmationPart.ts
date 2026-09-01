@@ -67,7 +67,7 @@ export class ChatErrorConfirmationContentPart extends Disposable implements ICha
 					if (!buttonData.resend) {
 						options.confirmation = buttonData.label;
 					}
-					const widget = chatWidgetService.getWidgetBySessionResource(element.sessionResource);
+					const widget = chatWidgetService.getWidgetBySessionResource(element.sessionResource, context.location);
 					Object.assign(options, widget?.getSelectedModelRequestOptions());
 					Object.assign(options, widget?.getModeRequestOptions());
 					this.chatAccessibilityService.acceptRequest(element.sessionResource);

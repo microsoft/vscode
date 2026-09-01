@@ -14,6 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatAccessibilityService, IChatWidgetService } from '../../../../browser/chat.js';
+import { ChatAgentLocation } from '../../../../common/constants.js';
 import { ChatErrorConfirmationContentPart } from '../../../../browser/widget/chatContentParts/chatErrorConfirmationPart.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatErrorLevel, IChatSendRequestOptions, IChatService } from '../../../../common/chatService/chatService.js';
@@ -44,8 +45,10 @@ suite('ChatErrorConfirmationContentPart', () => {
 		};
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IChatService, chatService);
+		let requestedLocation: ChatAgentLocation | undefined;
 		instantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() {
-			override getWidgetBySessionResource() {
+			override getWidgetBySessionResource(_sessionResource: URI, location?: ChatAgentLocation) {
+				requestedLocation = location;
 				return undefined;
 			}
 		});
@@ -89,7 +92,7 @@ suite('ChatErrorConfirmationContentPart', () => {
 				preserveRequestId: true,
 			}],
 			renderer,
-			upcastPartial<IChatContentPartRenderContext>({ element }),
+			upcastPartial<IChatContentPartRenderContext>({ element, location: ChatAgentLocation.Chat }),
 		));
 		mainWindow.document.body.appendChild(part.domNode);
 		store.add(toDisposable(() => part.domNode.remove()));
@@ -105,12 +108,14 @@ suite('ChatErrorConfirmationContentPart', () => {
 			labels: buttons.map(button => button.textContent),
 			roles: buttons.map(button => button.getAttribute('role')),
 			acceptedSession: acceptedSession?.toString(),
+			requestedLocation,
 			resendCallCount,
 			resendCall,
 		}, {
 			labels: ['Try Again', 'Try Another Way'],
 			roles: ['button', 'button'],
 			acceptedSession: sessionResource.toString(),
+			requestedLocation: ChatAgentLocation.Chat,
 			resendCallCount: 1,
 			resendCall: {
 				requestId: request.id,

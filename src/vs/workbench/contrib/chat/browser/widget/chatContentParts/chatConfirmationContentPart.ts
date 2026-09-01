@@ -48,7 +48,7 @@ export class ChatConfirmationContentPart extends Disposable implements IChatCont
 				options.agentId = element.agent?.id;
 				options.slashCommand = element.slashCommand?.name;
 				options.confirmation = e.label;
-				const widget = chatWidgetService.getWidgetBySessionResource(element.sessionResource);
+				const widget = chatWidgetService.getWidgetBySessionResource(element.sessionResource, context.location);
 				Object.assign(options, widget?.getSelectedModelRequestOptions());
 				options.modeInfo = widget?.input.currentModeInfo;
 				options.location = widget?.location;

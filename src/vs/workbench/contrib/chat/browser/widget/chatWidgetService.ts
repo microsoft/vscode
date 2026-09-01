@@ -74,8 +74,8 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		return this._widgets.find(w => isEqual(w.input.inputUri, uri));
 	}
 
-	getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined {
-		return this._widgets.find(w => isEqual(w.viewModel?.sessionResource, sessionResource));
+	getWidgetBySessionResource(sessionResource: URI, location?: ChatAgentLocation): IChatWidget | undefined {
+		return this._widgets.find(w => isEqual(w.viewModel?.sessionResource, sessionResource) && (location === undefined || w.location === location));
 	}
 
 	async revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined> {
