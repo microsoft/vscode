@@ -192,6 +192,7 @@
 	height: 100%;
 	box-sizing: border-box;
 	position: relative;
+	overflow: visible;
 	padding: 8px 6px 8px 12px;
 
 	&.archived {
@@ -486,7 +487,7 @@
 	content: '';
 	position: absolute;
 	top: var(--vscode-spacing-size280);
-	bottom: 0;
+	bottom: calc(-1 * var(--vscode-spacing-size20));
 	left: var(--vscode-spacing-size200);
 	border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
 	opacity: 0;
@@ -505,6 +506,7 @@
 	flex-direction: column;
 	box-sizing: border-box;
 	position: relative;
+	overflow: visible;
 	padding: 0 var(--vscode-spacing-size120) 0 var(--vscode-spacing-size360);
 	color: var(--vscode-foreground);
 	font-size: var(--vscode-fontSize-body1);
@@ -514,7 +516,7 @@
 		content: '';
 		position: absolute;
 		top: 0;
-		bottom: 0;
+		bottom: calc(-1 * var(--vscode-spacing-size20));
 		left: var(--vscode-spacing-size200);
 		border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
 		opacity: 0;
