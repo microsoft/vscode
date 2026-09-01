@@ -26,6 +26,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { IPreferencesService, IOpenSettingsOptions } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
@@ -47,6 +48,7 @@ function createSession(id: string, opts: {
 	isArchived?: boolean;
 	isRead?: boolean;
 	isAutomation?: boolean;
+	isExternal?: boolean;
 	resource?: URI;
 }): ISession {
 	const createdAt = opts.createdAt ?? new Date();
@@ -68,6 +70,7 @@ function createSession(id: string, opts: {
 		} : undefined),
 		isQuickChat: observableValue(`isQuickChat-${id}`, opts.workspaceLabel === undefined),
 		isAutomation: observableValue(`isAutomation-${id}`, opts.isAutomation === true),
+		isExternal: observableValue(`isExternal-${id}`, opts.isExternal === true),
 		title: observableValue(`title-${id}`, id),
 		updatedAt: observableValue(`updatedAt-${id}`, updatedAt),
 		status: observableValue(`status-${id}`, SessionStatus.Completed),
@@ -421,15 +424,61 @@ suite('Sessions - SessionsList', () => {
 			]);
 		});
 
-		test('"Recent" is capped at 10 sessions; the overflow within 7 days falls into "Older"', () => {
-			const sessions = Array.from({ length: 13 }, (_, i) =>
-				createSession(`s${i}`, { createdAt: minutesAgo(i + 1) }));
+		test('sessions updated within the last 24 hours stay in "Recent" when sorting by creation time', () => {
+			const sessions = [
+				createSession('recently-created', { createdAt: daysAgo(3) }),
+				createSession('recently-updated', { createdAt: daysAgo(10), updatedAt: minutesAgo(30) }),
+				createSession('old', { createdAt: daysAgo(11), updatedAt: daysAgo(2) }),
+			];
+
+			const sections = groupByDate(sessions, SessionsSorting.Created);
+
+			assert.deepStrictEqual(sections.map(s => ({ id: s.id, sessions: s.sessions.map(session => session.sessionId) })), [
+				{ id: 'recent', sessions: ['recently-created', 'recently-updated'] },
+				{ id: 'older', sessions: ['old'] },
+			]);
+		});
+
+		test('"Recent" is capped at 10 sessions that were not updated within the last 24 hours', () => {
+			const twoDaysAgo = daysAgo(2).getTime();
+			const sessions = Array.from({ length: 13 }, (_, i) => {
+				const createdAt = new Date(twoDaysAgo - i * 60_000);
+				return createSession(`s${i}`, { createdAt });
+			});
 
 			const sections = groupByDate(sessions, SessionsSorting.Created);
 
 			assert.deepStrictEqual(sections.map(s => ({ id: s.id, sessions: s.sessions.map(session => session.sessionId) })), [
 				{ id: 'recent', sessions: ['s0', 's1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9'] },
 				{ id: 'older', sessions: ['s10', 's11', 's12'] },
+			]);
+		});
+
+		test('"Recent" expands from 10 to 15 only for additional recently updated sessions', () => {
+			const twoDaysAgo = daysAgo(2).getTime();
+			const recentlyCreated = Array.from({ length: 10 }, (_, i) => {
+				const createdAt = new Date(twoDaysAgo - i * 60_000);
+				return createSession(`created-${i}`, { createdAt });
+			});
+			const sessions = [
+				...recentlyCreated,
+				createSession('not-recently-updated', { createdAt: daysAgo(10), updatedAt: daysAgo(2) }),
+				...Array.from({ length: 6 }, (_, i) =>
+					createSession(`updated-${i}`, { createdAt: daysAgo(11 + i), updatedAt: minutesAgo(i + 1) })),
+			];
+
+			const sections = groupByDate(sessions, SessionsSorting.Created);
+
+			assert.deepStrictEqual(sections.map(s => ({ id: s.id, sessions: s.sessions.map(session => session.sessionId) })), [
+				{
+					id: 'recent',
+					sessions: [
+						'created-0', 'created-1', 'created-2', 'created-3', 'created-4',
+						'created-5', 'created-6', 'created-7', 'created-8', 'created-9',
+						'updated-0', 'updated-1', 'updated-2', 'updated-3', 'updated-4',
+					],
+				},
+				{ id: 'older', sessions: ['not-recently-updated', 'updated-5'] },
 			]);
 		});
 
@@ -552,6 +601,7 @@ suite('Sessions - SessionsList', () => {
 			},
 			new class extends mock<IOpenerService>() { },
 			new class extends mock<ILabelService>() { },
+			new class extends mock<IPreferencesService>() { },
 			{
 				title: 'Creator session',
 				onOpen,
@@ -561,6 +611,36 @@ suite('Sessions - SessionsList', () => {
 		assert.deepStrictEqual(hover.createdBy, {
 			title: 'Creator session',
 			onOpen,
+		});
+	});
+
+	test('external session hover leads to the setting that governs external sessions', () => {
+		const queries: (string | undefined)[] = [];
+		const hoverFor = (isExternal: boolean) => getSessionSummaryHoverData(
+			createSession(isExternal ? 'External' : 'Local', { workspaceLabel: 'Workspace', isExternal }),
+			new class extends mock<ISessionsProvidersService>() {
+				override getProvider() { return undefined; }
+			},
+			new class extends mock<IOpenerService>() { },
+			new class extends mock<ILabelService>() { },
+			new class extends mock<IPreferencesService>() {
+				override async openSettings(options?: IOpenSettingsOptions): Promise<undefined> {
+					queries.push(options?.query);
+					return undefined;
+				}
+			},
+		);
+		const externalHover = hoverFor(true);
+		externalHover.externalSession?.onOpen();
+
+		assert.deepStrictEqual({
+			external: !!externalHover.externalSession,
+			local: !!hoverFor(false).externalSession,
+			queries,
+		}, {
+			external: true,
+			local: false,
+			queries: ['@id:chat.agentSessions.showExternal'],
 		});
 	});
 
@@ -617,6 +697,7 @@ suite('Sessions - SessionsList', () => {
 			new class extends mock<ILabelService>() {
 				override getUriLabel(resource: URI): string { return resource.path; }
 			},
+			new class extends mock<IPreferencesService>() { },
 		);
 		hover.pullRequests?.forEach(pullRequest => pullRequest.onOpen?.());
 
@@ -875,12 +956,59 @@ suite('Sessions - SessionsList', () => {
 				date: rowSnapshot(dateRows).map(row => ({ title: row.title, badge: row.badge, ariaLabel: row.ariaLabel })),
 			}, {
 				workspace: [
-					{ title: 'Grouped', badge: 'vscode', ariaLabel: 'Grouped, updated now, in vscode' },
-					{ title: 'Ordinary', badge: undefined, ariaLabel: 'Ordinary, updated now' },
+					{ title: 'Grouped', badge: 'vscode', ariaLabel: 'Grouped, updated now, State: Completed, in vscode' },
+					{ title: 'Ordinary', badge: undefined, ariaLabel: 'Ordinary, updated now, State: Completed' },
 				],
 				date: [
-					{ title: 'Ordinary', badge: 'monaco', ariaLabel: 'Ordinary, updated now, in monaco' },
+					{ title: 'Ordinary', badge: 'monaco', ariaLabel: 'Ordinary, updated now, State: Completed, in monaco' },
 				],
+			});
+		});
+	});
+
+	suite('session row spacing', () => {
+		test('reserves spacing only in the main sessions list', () => {
+			const sessions = [
+				createTestSession('First').session,
+				createTestSession('Second').session,
+			];
+
+			const mainHarness = createListHarness(disposables, sessions);
+			const mainContainer = mainHarness.createContainer();
+			const mainList = mainHarness.store.add(mainHarness.instantiationService.createInstance(SessionsList, mainContainer, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			mainList.layout(300, 400);
+
+			const flatHarness = createListHarness(disposables, sessions);
+			const flatContainer = flatHarness.createContainer();
+			const flatList = flatHarness.store.add(flatHarness.instantiationService.createInstance(SessionsFlatList, flatContainer, {
+				showSessionHover: false,
+				onSessionOpen: () => { },
+			}));
+			flatList.setSessions(sessions);
+			flatList.layout(300, 400);
+
+			const mainRows = [...mainContainer.querySelectorAll<HTMLElement>('.session-item')]
+				.map(item => item.closest<HTMLElement>('.monaco-list-row')!);
+			const flatRows = [...flatContainer.querySelectorAll<HTMLElement>('.session-item')]
+				.map(item => item.closest<HTMLElement>('.monaco-list-row')!);
+			assert.deepStrictEqual({
+				mainHasSpacingClass: mainContainer.querySelector('.sessions-list-control')?.classList.contains('session-list-row-spacing'),
+				mainRowHeight: mainRows[0].style.height,
+				mainRowOffset: parseInt(mainRows[1].style.top) - parseInt(mainRows[0].style.top),
+				flatHasSpacingClass: flatContainer.querySelector('.sessions-list-control')?.classList.contains('session-list-row-spacing'),
+				flatRowHeight: flatRows[0].style.height,
+				flatRowOffset: parseInt(flatRows[1].style.top) - parseInt(flatRows[0].style.top),
+			}, {
+				mainHasSpacingClass: true,
+				mainRowHeight: '56px',
+				mainRowOffset: 56,
+				flatHasSpacingClass: false,
+				flatRowHeight: '54px',
+				flatRowOffset: 54,
 			});
 		});
 	});
@@ -1022,6 +1150,142 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('needs-input chat row gets the same accent-pulse feedback class as a needs-input session row', () => {
+			const main = createChat('Main chat');
+			const waiting = createChat('Waiting chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, waiting]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+
+			const container = renderSessionChats(session);
+
+			const waitingRow = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.find(element => element.textContent?.includes('Waiting chat'));
+			assert.ok(waitingRow);
+
+			assert.strictEqual(waitingRow.classList.contains('needs-input'), true);
+		});
+
+		function sessionRowSnapshot(container: HTMLElement) {
+			const row = container.querySelector<HTMLElement>('.session-item');
+			assert.ok(row);
+			return {
+				inProgress: row.classList.contains('in-progress'),
+				needsInput: row.classList.contains('needs-input'),
+				ariaLabel: row.closest('.monaco-list-row')?.getAttribute('aria-label') ?? null,
+			};
+		}
+
+		test('parent session row reflects the main chat status, not a non-main chat NeedsInput that drives the aggregate session status', () => {
+			const main = createChat('Main chat', undefined, ChatInteractivity.Full, SessionStatus.Completed);
+			const peer = createChat('Peer chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				status: constObservable(SessionStatus.NeedsInput),
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+
+			const container = renderSessionChats(session);
+
+			const peerRow = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.find(element => element.textContent?.includes('Peer chat'));
+			assert.ok(peerRow);
+
+			assert.deepStrictEqual({
+				session: sessionRowSnapshot(container),
+				peerChatNeedsInput: peerRow.closest('.monaco-list-row')?.getAttribute('aria-label'),
+				aggregateStatus: session.status.get(),
+			}, {
+				session: { inProgress: false, needsInput: false, ariaLabel: 'Session, updated now, State: Completed, in Workspace' },
+				peerChatNeedsInput: 'Peer chat, chat, updated now, State: Input Needed',
+				aggregateStatus: SessionStatus.NeedsInput,
+			});
+		});
+
+		test('parent session row still shows NeedsInput when the main chat itself needs input', () => {
+			const main = createChat('Main chat', undefined, ChatInteractivity.Full, SessionStatus.NeedsInput);
+			const peer = createChat('Peer chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.Completed);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				status: constObservable(SessionStatus.NeedsInput),
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+
+			const container = renderSessionChats(session);
+
+			assert.deepStrictEqual(sessionRowSnapshot(container), {
+				inProgress: false,
+				needsInput: true,
+				ariaLabel: 'Session, updated now, State: Input Needed',
+			});
+		});
+
+		test('parent session row updates reactively when the main chat status changes independently of a non-main chat', () => {
+			const mainStatus = observableValue('main-status', SessionStatus.Completed);
+			const main = upcastPartial<IChat>({
+				resource: URI.parse('test-chat://Main-chat'),
+				title: constObservable('Main chat'),
+				updatedAt: constObservable(new Date()),
+				status: mainStatus,
+				interactivity: constObservable(ChatInteractivity.Full),
+			});
+			const peer = createChat('Peer chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
+			const aggregateStatus = observableValue('aggregate-status', SessionStatus.NeedsInput);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				status: aggregateStatus,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+
+			const container = renderSessionChats(session);
+			const before = sessionRowSnapshot(container);
+
+			mainStatus.set(SessionStatus.NeedsInput, undefined);
+
+			assert.deepStrictEqual({ before, after: sessionRowSnapshot(container) }, {
+				before: { inProgress: false, needsInput: false, ariaLabel: 'Session, updated now, State: Completed, in Workspace' },
+				after: { inProgress: false, needsInput: true, ariaLabel: 'Session, updated now, State: Input Needed' },
+			});
+		});
+
+		test('failed non-main chat shows an error icon on its own row', () => {
+			const main = createChat('Main chat', undefined, ChatInteractivity.Full, SessionStatus.Completed);
+			const peer = createChat('Failed chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.Error);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+
+			const container = renderSessionChats(session);
+			const peerRow = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.find(element => element.textContent?.includes('Failed chat'));
+			assert.ok(peerRow);
+
+			assert.deepStrictEqual({
+				errorIcon: !!peerRow.querySelector('.codicon-error'),
+				ariaLabel: peerRow.closest('.monaco-list-row')?.getAttribute('aria-label'),
+			}, {
+				errorIcon: true,
+				ariaLabel: 'Failed chat, chat, updated now, State: Failed',
+			});
+		});
+
 		test('updates rendered chat row heights across phone layout changes', () => {
 			const main = createChat('Main chat');
 			const peer = createChat('Peer chat', ChatOriginKind.User);
@@ -1047,8 +1311,8 @@ suite('Sessions - SessionsList', () => {
 			assert.ok(phoneChatRow);
 
 			assert.deepStrictEqual({ desktopHeight, phoneHeight: phoneChatRow.style.height }, {
-				desktopHeight: '28px',
-				phoneHeight: '44px',
+				desktopHeight: '30px',
+				phoneHeight: '46px',
 			});
 		});
 
@@ -1296,7 +1560,7 @@ suite('Sessions - SessionsList', () => {
 			const rows = Object.fromEntries([...container.querySelectorAll<HTMLElement>('.session-item')].map(item => {
 				const row = item.closest<HTMLElement>('.monaco-list-row');
 				const twistie = row?.querySelector<HTMLElement>('.monaco-tl-twistie');
-				row?.classList.add('focused');
+				const icon = item.querySelector<HTMLElement>('.session-icon');
 				const twistieStyle = twistie?.classList.contains('session-chat-twistie')
 					? mainWindow.getComputedStyle(twistie)
 					: undefined;
@@ -1311,6 +1575,7 @@ suite('Sessions - SessionsList', () => {
 					opacity: twistieStyle?.opacity,
 					paddingLeft: twistie?.style.paddingLeft,
 					pointerEvents: twistieStyle?.pointerEvents,
+					iconVisibility: icon ? mainWindow.getComputedStyle(icon).visibility : undefined,
 				}];
 			}));
 
@@ -1323,9 +1588,10 @@ suite('Sessions - SessionsList', () => {
 					isCollapsible: true,
 					isCollapsed: false,
 					fontSize: '16px',
-					opacity: '1',
+					opacity: '0',
 					paddingLeft: '0px',
-					pointerEvents: 'auto',
+					pointerEvents: 'none',
+					iconVisibility: 'visible',
 				},
 				'Single-chat session': {
 					expanded: null,
@@ -1338,6 +1604,7 @@ suite('Sessions - SessionsList', () => {
 					opacity: undefined,
 					paddingLeft: '0px',
 					pointerEvents: undefined,
+					iconVisibility: 'visible',
 				},
 			});
 
@@ -1361,6 +1628,52 @@ suite('Sessions - SessionsList', () => {
 				isCollapsed: true,
 				visibleChats: [],
 			});
+		});
+
+		test('reveals the twistie only on real pointer hover, never on keyboard focus or selection alone', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const base = createTestSession('Multi-chat session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+
+			const item = container.querySelector<HTMLElement>('.session-item');
+			assert.ok(item);
+			const row = item.closest<HTMLElement>('.monaco-list-row');
+			assert.ok(row);
+			const twistie = row.querySelector<HTMLElement>('.monaco-tl-twistie');
+			assert.ok(twistie);
+			const icon = item.querySelector<HTMLElement>('.session-icon');
+			assert.ok(icon);
+
+			const snapshot = () => ({
+				opacity: mainWindow.getComputedStyle(twistie).opacity,
+				pointerEvents: mainWindow.getComputedStyle(twistie).pointerEvents,
+				iconVisibility: mainWindow.getComputedStyle(icon).visibility,
+			});
+
+			row.classList.add('focused');
+			assert.deepStrictEqual(snapshot(), { opacity: '0', pointerEvents: 'none', iconVisibility: 'visible' });
+			row.classList.remove('focused');
+
+			row.classList.add('selected');
+			assert.deepStrictEqual(snapshot(), { opacity: '0', pointerEvents: 'none', iconVisibility: 'visible' });
+
+			row.classList.add('focused');
+			assert.deepStrictEqual(snapshot(), { opacity: '0', pointerEvents: 'none', iconVisibility: 'visible' });
+			row.classList.remove('focused', 'selected');
 		});
 
 		suite('hierarchy indent/connector guides', () => {
@@ -1771,8 +2084,8 @@ suite('Sessions - SessionsList', () => {
 
 			const row = targetRow();
 			assert.ok(row, 'target row should render after growing the viewport');
-			// Base chat rows are 28px; a reconciled approval must reserve more.
-			assert.ok(parseInt(row.style.height) > 28, `expected reconciled height to reserve the approval row, got ${row.style.height}`);
+			// Base chat rows reserve 30px including spacing; an approval must reserve more.
+			assert.ok(parseInt(row.style.height) > 30, `expected reconciled height to reserve the approval row, got ${row.style.height}`);
 			assert.ok(row.querySelector('.session-approval-row.visible'), 'approval row should be visible on the re-rendered target');
 		});
 	});

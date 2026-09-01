@@ -562,6 +562,7 @@ export interface IChatInputCompletionResourceAttachment {
 export interface IChatInputCompletionCommandAttachment {
 	readonly kind: 'command';
 	readonly command: string;
+	readonly isSkill?: true;
 	readonly description: string;
 	/**
 	 * Implementation-defined metadata that MUST be preserved by the
@@ -654,6 +655,7 @@ export interface IChatNewSessionRequest {
 
 export interface IChatSessionItemsDelta {
 	readonly addedOrUpdated?: readonly IChatSessionItem[];
+	/** Sessions no longer provided by the controller. Retained content is disposed and pending resolutions are cancelled. */
 	readonly removed?: readonly URI[];
 }
 

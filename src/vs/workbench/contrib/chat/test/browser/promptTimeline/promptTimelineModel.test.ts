@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { buildAgentMergePrompt } from '../../../../../../platform/agentHost/common/agentMergePrompt.js';
 import { ChatTreeItem } from '../../../browser/chat.js';
 import { PromptTimelineModel } from '../../../browser/promptTimeline/promptTimelineModel.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
@@ -121,6 +122,32 @@ suite('PromptTimelineModel', () => {
 		assert.deepStrictEqual(states, [
 			{ active: { text: 'First prompt', index: 1, total: 2 }, pinned: true },
 			{ active: { text: 'Second prompt', index: 2, total: 2 }, pinned: true },
+		]);
+	});
+
+	test('previews an Agent Merge turn with its summary, not the state block', () => {
+		const agentMergePrompt = buildAgentMergePrompt(['addressReviews', 'fixCI'], {
+			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1',
+			title: 'chat: keep the timeline readable',
+			headRef: 'user/branch',
+			headSha: '1dd23747a306c10416d6f8a4a6ef032d541b310e',
+			baseRef: 'main',
+			reviewThreads: [{ id: 'thread-1', path: 'src/file.ts', line: 12, comments: [{ author: 'octocat', body: 'Please fix this.' }] }],
+			reviewSummaries: [],
+			newComments: [],
+			failedChecks: ['Compile (ubuntu-latest)'],
+			behind: false,
+			conflicting: false,
+			commentWatermark: '2026-08-24T10:00:00.000Z',
+		});
+		const { model } = createModel([
+			{ item: request('request-1', 'First prompt', 1), top: 0 },
+			{ item: request('request-2', agentMergePrompt, 2), top: 400 },
+		]);
+
+		assert.deepStrictEqual(model.promptTicks.get().map(tick => tick.text), [
+			'First prompt',
+			'Agent Merge, 1 comment, 1 check failing',
 		]);
 	});
 });

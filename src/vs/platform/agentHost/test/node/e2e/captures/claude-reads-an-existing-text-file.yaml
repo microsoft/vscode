@@ -2,15 +2,13 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
           content: Read note.txt and reply with its exact contents only.
     response:
       content:
-        - type: text
-          text: I'll read the file.
         - type: tool_use
           id: toolcall_0
           name: Read
@@ -18,15 +16,13 @@ exchanges:
             file_path: ${workdir}/note.txt
       stopReason: tool_use
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
           content: Read note.txt and reply with its exact contents only.
         - role: assistant
           content:
-            - type: text
-              text: I'll read the file.
             - type: tool_use
               name: Read
               input:

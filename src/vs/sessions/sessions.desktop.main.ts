@@ -234,6 +234,8 @@ import './contrib/providers/remoteAgentHost/browser/remoteAgentHost.contribution
 import './contrib/providers/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/wslAgentHost.contribution.js';
+import './contrib/providers/remoteAgentHost/browser/sshAgentHost.contribution.js';
+import './contrib/providers/remoteAgentHost/browser/webSocketAgentHost.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/devContainerAgentHostService.js';
 import './contrib/providers/remoteAgentHost/electron-browser/devContainerAgentHostConnector.contribution.js';
 // Change Preferred Remote Agent Location (Chat: ... command)
@@ -258,6 +260,9 @@ import './contrib/providers/agentHost/electron-browser/agentHost.contribution.js
 
 // Tunnel Host (allow remote connections to local agent host)
 import './contrib/tunnelHost/electron-browser/tunnelHost.contribution.js';
+
+// Sessions (desktop only)
+import './contrib/sessions/electron-browser/sessions.contribution.js';
 
 //#endregion
 

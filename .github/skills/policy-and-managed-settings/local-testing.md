@@ -28,6 +28,11 @@ Choose the client setup in the GUI:
   proxy mapping and enable Proxyman's platform proxy toggle (**Tools > macOS
   Proxy** or **Tools > Override Windows Proxy**). VS Code clients must also add
   the displayed `http.proxy` property to `settings.json`.
+- **File-based settings (no proxy):** expand **Deploy as a file** under the
+  Managed Settings response body and run the copied per-platform command to write
+  the current body to `managed-settings.json` on the device. Restart the client to
+  load it. Use it to skip proxying or to test precedence against a server-managed
+  response. See [Deploying file-based settings](https://docs.github.com/en/copilot/how-tos/administer-copilot/manage-for-enterprise/manage-agents/configure-enterprise-managed-settings#deploying-file-based-settings).
 
 Use **Clear SDK Policy Cache**, expand the macOS or Windows section, and run the
 copied command when the runtime's fresh managed-settings cache prevents a network

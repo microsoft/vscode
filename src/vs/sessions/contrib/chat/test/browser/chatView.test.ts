@@ -14,8 +14,8 @@ import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workb
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
-import { SessionsChatBackgroundRenderer } from '../../browser/chatBackgroundRenderer.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
@@ -52,6 +52,30 @@ suite('Sessions - Chat View', () => {
 		const label = dom.append(item, dom.$('.chat-input-picker-label'));
 
 		assert.strictEqual(dom.getWindow(label).getComputedStyle(label).display, 'none');
+	});
+
+	test('keeps the model configuration label beside the compact model icon', () => {
+		const toolbar = dom.append(document.body, dom.$('.sessions-chat-config-toolbar'));
+		disposables.add(toDisposable(() => toolbar.remove()));
+		const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
+		const item = dom.append(actionBar, dom.$('.action-item.chat-input-picker-item.compact-picker.model-picker-item'));
+		const picker = dom.append(item, dom.$('.action-label.model-picker-split.compact'));
+		const name = dom.append(picker, dom.$('.model-picker-section.model-picker-name'));
+		name.style.minWidth = '22px';
+		dom.append(name, dom.$('span.codicon'));
+		const config = dom.append(picker, dom.$('.model-picker-section.model-picker-config'));
+		const configLabel = dom.append(config, dom.$('span.chat-input-picker-label'));
+		configLabel.textContent = 'High';
+
+		assert.deepStrictEqual({
+			configVisible: dom.getWindow(configLabel).getComputedStyle(configLabel).display !== 'none',
+			configWidth: config.getBoundingClientRect().width > 0,
+			nameWidth: name.getBoundingClientRect().width,
+		}, {
+			configVisible: true,
+			configWidth: true,
+			nameWidth: 22,
+		});
 	});
 
 	test('keeps compact empty-state picker icons inside their action item', () => {
@@ -111,6 +135,49 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('keeps the voice toolbar visible when picker actions run out of space', () => {
+		const session = dom.append(document.body, dom.$('.interactive-session'));
+		disposables.add(toDisposable(() => session.remove()));
+		const toolbars = dom.append(session, dom.$('.chat-input-toolbars'));
+		toolbars.style.width = '180px';
+		const inputToolbar = dom.append(toolbars, dom.$('.monaco-toolbar.responsive.chat-input-toolbar'));
+		inputToolbar.style.width = '240px';
+		const executeToolbar = dom.append(toolbars, dom.$('.chat-execute-toolbar'));
+		executeToolbar.style.width = '70px';
+
+		assert.deepStrictEqual({
+			inputWidth: inputToolbar.getBoundingClientRect().width,
+			executeWidth: executeToolbar.getBoundingClientRect().width,
+			executeEscapes: executeToolbar.getBoundingClientRect().right > toolbars.getBoundingClientRect().right,
+		}, {
+			inputWidth: 108,
+			executeWidth: 70,
+			executeEscapes: false,
+		});
+	});
+
+	test('focuses the embedded composer frame only for editor focus', () => {
+		const workbench = dom.append(document.body, dom.$('.monaco-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		workbench.style.setProperty('--vscode-agentsChatInput-border', 'rgb(255, 0, 0)');
+		workbench.style.setProperty('--vscode-agentsChatInput-focusBorder', 'rgb(0, 255, 0)');
+		const widget = dom.append(workbench, dom.$('.new-chat-in-session'));
+		const inputArea = dom.append(widget, dom.$('.new-chat-input-area'));
+		const picker = dom.append(inputArea, dom.$<HTMLButtonElement>('button'));
+
+		picker.focus();
+		const pickerFocusedBorder = dom.getWindow(inputArea).getComputedStyle(inputArea).borderColor;
+		inputArea.classList.add('focused');
+
+		assert.deepStrictEqual({
+			pickerFocusedBorder,
+			editorFocusedBorder: dom.getWindow(inputArea).getComputedStyle(inputArea).borderColor,
+		}, {
+			pickerFocusedBorder: 'rgb(255, 0, 0)',
+			editorFocusedBorder: 'rgb(0, 255, 0)',
+		});
+	});
+
 	test('does not forward aquarium visibility to the peer chat composer', () => {
 		const isVisible = observableValue(disposables, true);
 		const view: NewChatView = Object.assign(Object.create(NewChatView.prototype), {
@@ -122,13 +189,12 @@ suite('Sessions - Chat View', () => {
 		assert.strictEqual(isVisible.get(), false);
 	});
 
-	test('applies and clears background CSS on the chat view', () => {
+	test('applies and clears background CSS on the sessions part', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		const part = dom.append(workbench, dom.$('.part.sessionspart'));
-		const chatView = dom.append(part, dom.$('.chat-view'));
 		dom.getWindow(workbench).document.body.appendChild(workbench);
 		disposables.add(toDisposable(() => workbench.remove()));
-		const renderer = disposables.add(new SessionsChatBackgroundRenderer(chatView));
+		const renderer = disposables.add(new SessionsChatBackgroundRenderer(part));
 		renderer.setBackground({
 			kind: 'image',
 			backgroundImage: 'url("file:///textures/kirby.png")',
@@ -136,36 +202,42 @@ suite('Sessions - Chat View', () => {
 			backgroundSize: 'auto',
 			backgroundPosition: 'right bottom',
 		});
+		const backgroundLayer = part.querySelector<HTMLElement>(':scope > .sessions-chat-background');
 		const applied = {
-			enabled: chatView.classList.contains('has-chat-background'),
-			imageEnabled: chatView.classList.contains('has-chat-background-image'),
-			image: chatView.style.backgroundImage,
-			repeat: chatView.style.backgroundRepeat,
-			size: chatView.style.backgroundSize,
-			position: chatView.style.backgroundPosition,
+			enabled: part.classList.contains('has-chat-background'),
+			imageEnabled: part.classList.contains('has-chat-background-image'),
+			hidden: backgroundLayer?.hidden,
+			image: backgroundLayer?.style.backgroundImage,
+			repeat: backgroundLayer?.style.backgroundRepeat,
+			size: backgroundLayer?.style.backgroundSize,
+			position: backgroundLayer?.style.backgroundPosition,
+			zIndex: backgroundLayer ? dom.getWindow(backgroundLayer).getComputedStyle(backgroundLayer).zIndex : undefined,
 		};
 		renderer.setBackground(undefined);
 
 		assert.deepStrictEqual({
 			applied,
 			cleared: {
-				enabled: chatView.classList.contains('has-chat-background'),
-				imageEnabled: chatView.classList.contains('has-chat-background-image'),
-				image: chatView.style.backgroundImage,
-				repeat: chatView.style.backgroundRepeat,
-				size: chatView.style.backgroundSize,
-				position: chatView.style.backgroundPosition,
+				enabled: part.classList.contains('has-chat-background'),
+				imageEnabled: part.classList.contains('has-chat-background-image'),
+				hidden: backgroundLayer?.hidden,
+				image: backgroundLayer?.style.backgroundImage,
+				repeat: backgroundLayer?.style.backgroundRepeat,
+				size: backgroundLayer?.style.backgroundSize,
+				position: backgroundLayer?.style.backgroundPosition,
 			},
 		}, {
 			applied: {
 				enabled: true,
 				imageEnabled: true,
+				hidden: false,
 				image: 'url("file:///textures/kirby.png")',
 				repeat: 'no-repeat',
 				size: 'auto',
 				position: 'right bottom',
+				zIndex: '0',
 			},
-			cleared: { enabled: false, imageEnabled: false, image: '', repeat: '', size: '', position: '' },
+			cleared: { enabled: false, imageEnabled: false, hidden: true, image: '', repeat: '', size: '', position: '' },
 		});
 	});
 
@@ -173,18 +245,19 @@ suite('Sessions - Chat View', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--vscode-foreground', '#202020');
 		const part = dom.append(workbench, dom.$('.part.sessionspart'));
-		const chatView = dom.append(part, dom.$('.chat-view'));
 		dom.getWindow(workbench).document.body.appendChild(workbench);
 		disposables.add(toDisposable(() => workbench.remove()));
-		const renderer = disposables.add(new SessionsChatBackgroundRenderer(chatView));
+		const renderer = disposables.add(new SessionsChatBackgroundRenderer(part));
 		renderer.setBackground({ kind: 'codicons' });
-		const layer = chatView.querySelector<HTMLElement>(':scope > .sessions-chat-codicon-background');
+		const backgroundLayer = part.querySelector<HTMLElement>(':scope > .sessions-chat-background');
+		const layer = backgroundLayer?.querySelector<HTMLElement>(':scope > .sessions-chat-codicon-background');
 		const firstIcon = layer?.querySelector<HTMLElement>('.codicon');
 
 		assert.deepStrictEqual({
-			enabled: chatView.classList.contains('has-chat-background'),
-			imageEnabled: chatView.classList.contains('has-chat-background-image'),
-			backgroundImage: chatView.style.backgroundImage,
+			enabled: part.classList.contains('has-chat-background'),
+			imageEnabled: part.classList.contains('has-chat-background-image'),
+			backgroundImage: backgroundLayer?.style.backgroundImage,
+			backgroundLayerHidden: backgroundLayer?.hidden,
 			layerHidden: layer?.hidden,
 			layerAriaHidden: layer?.ariaHidden,
 			layerColor: layer ? dom.getWindow(layer).getComputedStyle(layer).color : undefined,
@@ -195,6 +268,7 @@ suite('Sessions - Chat View', () => {
 			enabled: true,
 			imageEnabled: false,
 			backgroundImage: '',
+			backgroundLayerHidden: false,
 			layerHidden: false,
 			layerAriaHidden: 'true',
 			layerColor: 'color(srgb 0.12549 0.12549 0.12549 / 0.1)',
@@ -208,13 +282,14 @@ suite('Sessions - Chat View', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#202020');
 		workbench.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgba(255, 255, 255, 0.3)');
-		const part = dom.append(workbench, dom.$('.part.sessionspart'));
-		const chatView = dom.append(part, dom.$('.chat-view.has-chat-background'));
+		const part = dom.append(workbench, dom.$('.part.sessionspart.has-chat-background'));
+		const chatView = dom.append(part, dom.$('.chat-view'));
 		const session = dom.append(chatView, dom.$('.interactive-session'));
 		const request = dom.append(session, dom.$('.interactive-item-container.interactive-request'));
 		const value = dom.append(request, dom.$('.value'));
 		const bubble = dom.append(value, dom.$('.rendered-markdown'));
-		const plainChatView = dom.append(part, dom.$('.chat-view'));
+		const plainPart = dom.append(workbench, dom.$('.part.sessionspart'));
+		const plainChatView = dom.append(plainPart, dom.$('.chat-view'));
 		const plainSession = dom.append(plainChatView, dom.$('.interactive-session'));
 		const plainRequest = dom.append(plainSession, dom.$('.interactive-item-container.interactive-request'));
 		const plainValue = dom.append(plainRequest, dom.$('.value'));
@@ -243,13 +318,14 @@ suite('Sessions - Chat View', () => {
 		workbench.style.setProperty('--vscode-cornerRadius-medium', '6px');
 		workbench.style.setProperty('--vscode-spacing-size160', '16px');
 		workbench.style.setProperty('--vscode-spacing-size320', '32px');
-		const part = dom.append(workbench, dom.$('.part.sessionspart'));
-		const chatView = dom.append(part, dom.$('.chat-view.has-chat-background'));
+		const part = dom.append(workbench, dom.$('.part.sessionspart.has-chat-background'));
+		const chatView = dom.append(part, dom.$('.chat-view'));
 		const session = dom.append(chatView, dom.$('.interactive-session'));
 		const response = dom.append(session, dom.$('.interactive-item-container.interactive-response'));
 		const value = dom.append(response, dom.$('.value'));
 		const footer = dom.append(response, dom.$('.chat-footer-toolbar'));
-		const plainChatView = dom.append(part, dom.$('.chat-view'));
+		const plainPart = dom.append(workbench, dom.$('.part.sessionspart'));
+		const plainChatView = dom.append(plainPart, dom.$('.chat-view'));
 		const plainSession = dom.append(plainChatView, dom.$('.interactive-session'));
 		const plainResponse = dom.append(plainSession, dom.$('.interactive-item-container.interactive-response'));
 		dom.getWindow(workbench).document.body.appendChild(workbench);
@@ -300,8 +376,8 @@ suite('Sessions - Chat View', () => {
 		workbench.style.setProperty('--vscode-cornerRadius-small', '4px');
 		workbench.style.setProperty('--vscode-spacing-size120', '12px');
 		workbench.style.setProperty('--vscode-strokeThickness', '1px');
-		const part = dom.append(workbench, dom.$('.part.sessionspart'));
-		const chatView = dom.append(part, dom.$('.chat-view.has-chat-background'));
+		const part = dom.append(workbench, dom.$('.part.sessionspart.has-chat-background'));
+		const chatView = dom.append(part, dom.$('.chat-view'));
 		const newChatWidget = dom.append(chatView, dom.$('.sessions-chat-widget'));
 		const newChatContent = dom.append(newChatWidget, dom.$('.new-chat-widget-content'));
 		const inSessionWidget = dom.append(chatView, dom.$('.sessions-chat-widget.new-chat-in-session'));
@@ -310,7 +386,8 @@ suite('Sessions - Chat View', () => {
 		const secondaryToolbar = dom.append(session, dom.$('.chat-secondary-toolbar'));
 		const secondaryAction = dom.append(secondaryToolbar, dom.$('.action-label'));
 		const contextUsage = dom.append(secondaryToolbar, dom.$('.chat-context-usage-widget'));
-		const plainChatView = dom.append(part, dom.$('.chat-view'));
+		const plainPart = dom.append(workbench, dom.$('.part.sessionspart'));
+		const plainChatView = dom.append(plainPart, dom.$('.chat-view'));
 		const plainNewChatWidget = dom.append(plainChatView, dom.$('.sessions-chat-widget'));
 		const plainNewChatContent = dom.append(plainNewChatWidget, dom.$('.new-chat-widget-content'));
 		const plainSession = dom.append(plainChatView, dom.$('.interactive-session'));
@@ -410,9 +487,10 @@ suite('Sessions - Chat View', () => {
 		workbench.style.setProperty('--vscode-chat-list-background', '#ff0000');
 		workbench.style.setProperty('--session-view-background', '#202020');
 		workbench.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgba(255, 255, 255, 0.3)');
-		const part = dom.append(workbench, dom.$('.part.sessionspart'));
-		const createStickyRequest = (chatViewClassName: string) => {
-			const chatView = dom.append(part, dom.$(chatViewClassName));
+		const part = dom.append(workbench, dom.$('.part.sessionspart.has-chat-background'));
+		const plainPart = dom.append(workbench, dom.$('.part.sessionspart'));
+		const createStickyRequest = (parent: HTMLElement) => {
+			const chatView = dom.append(parent, dom.$('.chat-view'));
 			const session = dom.append(chatView, dom.$('.interactive-session'));
 			const interactiveList = dom.append(session, dom.$('.interactive-list'));
 			const list = dom.append(interactiveList, dom.$('.monaco-list'));
@@ -426,8 +504,8 @@ suite('Sessions - Chat View', () => {
 			const bubble = dom.append(value, dom.$('.rendered-markdown'));
 			return { stickyContainer, stickyRow, treeContents, request, bubble };
 		};
-		const background = createStickyRequest('.chat-view.has-chat-background');
-		const plain = createStickyRequest('.chat-view');
+		const background = createStickyRequest(part);
+		const plain = createStickyRequest(plainPart);
 		dom.getWindow(workbench).document.body.appendChild(workbench);
 		disposables.add(toDisposable(() => workbench.remove()));
 

@@ -194,11 +194,79 @@ suite('CodexAgent model refresh', () => {
 			connectionRequested: true,
 			enumerations: 1,
 			models: [{
-				provider: 'chatgpt',
+				provider: 'codex',
 				id: toCodexModelSelectionId('openai', 'gpt-5.6-sol'),
 				name: 'GPT-5.6-Sol',
-				meta: { modelSourceId: 'chatgptSubscription' },
+				meta: { modelSourceId: 'chatgptSubscription', modelGroupId: 'chatgpt' },
 			}],
+		});
+	});
+
+	test('restored model waits for an authentication refresh queued behind activation', async () => {
+		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', supported_endpoints: ['/responses'] }] as CCAModel[];
+		const firstRefreshStarted = new DeferredPromise<void>();
+		const releaseFirstRefresh = new DeferredPromise<void>();
+		const authenticatedRefreshStarted = new DeferredPromise<void>();
+		const releaseAuthenticatedRefresh = new DeferredPromise<void>();
+		let copilotRefreshes = 0;
+		const agent = createAgent(disposables, async () => {
+			copilotRefreshes++;
+			await authenticatedRefreshStarted.complete();
+			await releaseAuthenticatedRefresh.p;
+			return copilotModels;
+		});
+		agent['_refreshProviderConfiguration'] = async () => { };
+		agent['_resolveGitHubMcpServerConfiguration'] = async () => undefined;
+		let codexRefreshes = 0;
+		agent['_refreshCodexModels'] = async () => {
+			codexRefreshes++;
+			if (codexRefreshes === 1) {
+				await firstRefreshStarted.complete();
+				await releaseFirstRefresh.p;
+			}
+			return false;
+		};
+
+		agent['_activate']();
+		await firstRefreshStarted.p;
+		const selectedModel = { id: toCodexModelSelectionId('vscode-proxy', 'copilot-model') };
+		const session = { model: selectedModel };
+		const resolution = agent['_resolveModel'](session as never).then(
+			model => ({ model, error: undefined }),
+			error => ({ model: undefined, error: error instanceof Error ? error.message : String(error) }),
+		);
+
+		await agent.authenticate(agent.getProtectedResources()[0].resource, 'token');
+		await releaseFirstRefresh.complete();
+		await authenticatedRefreshStarted.p;
+		await releaseAuthenticatedRefresh.complete();
+
+		assert.deepStrictEqual({
+			resolution: await resolution,
+			sessionModel: session.model,
+			copilotRefreshes,
+			codexRefreshes,
+		}, {
+			resolution: { model: selectedModel, error: undefined },
+			sessionModel: selectedModel,
+			copilotRefreshes: 1,
+			codexRefreshes: 2,
+		});
+	});
+
+	test('model resolution starts discovery when the catalog is empty', async () => {
+		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', supported_endpoints: ['/responses'] }] as CCAModel[];
+		const agent = createAgent(disposables, async () => copilotModels);
+		agent['_githubToken'] = 'token';
+		agent['_isSdkResolvableWithoutDownload'] = async () => false;
+		const selectedModel = { id: toCodexModelSelectionId('vscode-proxy', 'copilot-model') };
+		const session = { model: selectedModel };
+
+		const resolved = await agent['_resolveModel'](session as never);
+
+		assert.deepStrictEqual({ resolved, sessionModel: session.model }, {
+			resolved: selectedModel,
+			sessionModel: selectedModel,
 		});
 	});
 
@@ -251,7 +319,7 @@ suite('CodexAgent model refresh', () => {
 			copilotRefreshes: 2,
 			codexRefreshes: 2,
 			enumerations: 1,
-			providers: ['copilot', 'chatgpt'],
+			providers: ['codex', 'codex'],
 		});
 	});
 
@@ -772,7 +840,7 @@ suite('CodexAgent model refresh', () => {
 			providers: agent.models.get().map(model => model.provider),
 			copilotRequired: agent.getProtectedResources()[0].required,
 		}, {
-			providers: ['copilot'],
+			providers: ['codex'],
 			copilotRequired: false,
 		});
 	});
@@ -1241,7 +1309,7 @@ suite('CodexAgent model refresh', () => {
 		assert.deepStrictEqual(agent['_openAIAccountRateLimit'], { usedPercent: 20, windowDurationMins: 300, resetsAt: 200 });
 	});
 
-	test('surfaces current ChatGPT subscription models under the ChatGPT provider', async () => {
+	test('surfaces current ChatGPT subscription models in the ChatGPT group', async () => {
 		const agent = createAgent(disposables, async () => []);
 		agent['_connection'] = {
 			kind: 'ready',
@@ -1275,14 +1343,14 @@ suite('CodexAgent model refresh', () => {
 			},
 			meta: model._meta,
 		})), [{
-			provider: 'chatgpt',
+			provider: 'codex',
 			id: toCodexModelSelectionId('openai', 'gpt-5.6-sol'),
 			name: 'GPT-5.6-Sol',
 			thinkingLevel: {
 				enum: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
 				default: 'low',
 			},
-			meta: { modelSourceId: 'chatgptSubscription' },
+			meta: { modelSourceId: 'chatgptSubscription', modelGroupId: 'chatgpt' },
 		}]);
 	});
 
@@ -1361,9 +1429,9 @@ suite('CodexAgent model refresh', () => {
 		await agent['_refreshCodexModels']();
 
 		assert.deepStrictEqual(agent['_codexModels'].map(model => ({ provider: model.provider, id: model.id, meta: model._meta })), [{
-			provider: 'custom-provider',
+			provider: 'codex',
 			id: toCodexModelSelectionId('custom-provider', 'gpt-5.6-sol'),
-			meta: undefined,
+			meta: { modelGroupId: 'custom-provider' },
 		}]);
 	});
 
@@ -1392,8 +1460,8 @@ suite('CodexAgent model refresh', () => {
 		await agent['_refreshCodexModels']();
 
 		assert.deepStrictEqual(agent['_codexModels'].map(model => ({ provider: model.provider, meta: model._meta })), [{
-			provider: 'chatgpt',
-			meta: undefined,
+			provider: 'codex',
+			meta: { modelGroupId: 'chatgpt' },
 		}]);
 	});
 
@@ -1422,8 +1490,8 @@ suite('CodexAgent model refresh', () => {
 		await agent['_refreshCodexModels']();
 
 		assert.deepStrictEqual(agent['_codexModels'].map(model => ({ provider: model.provider, meta: model._meta })), [{
-			provider: 'custom-provider',
-			meta: undefined,
+			provider: 'codex',
+			meta: { modelGroupId: 'custom-provider' },
 		}]);
 	});
 

@@ -6,12 +6,13 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
-import { IActionListDelegate } from '../../../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { SessionConfigKey } from '../../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -23,9 +24,13 @@ import { TestInstantiationService } from '../../../../../../../platform/instanti
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IWorkbenchLayoutService } from '../../../../../../../workbench/services/layout/browser/layoutService.js';
+import { IView } from '../../../../../../../workbench/common/views.js';
+import { IViewsService } from '../../../../../../../workbench/services/views/common/viewsService.js';
+import { IAgentWorkbenchLayoutService } from '../../../../../../browser/workbench.js';
 import { Menus } from '../../../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../common/agentHostSessionsProvider.js';
+import { ISessionChangesService } from '../../../../../../contrib/changes/browser/sessionChangesService.js';
+import { CHANGES_VIEW_ID } from '../../../../../../contrib/changes/common/changes.js';
 import { ISessionsProvidersService } from '../../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionWorkspace } from '../../../../../../services/sessions/common/session.js';
@@ -33,8 +38,9 @@ import { ISessionsProvider } from '../../../../../../services/sessions/common/se
 import { AgentHostSessionConfigPicker, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
 
 const SESSION_ID = 'local-agent-host:s1';
+const SESSION_RESOURCE = URI.parse('agent-session:/s1');
 
-function makeWorkspace(uncommittedChanges: number | undefined): ISessionWorkspace {
+function makeWorkspace(uncommittedChanges: number | undefined, branchName = 'main'): ISessionWorkspace {
 	const root = URI.file('/repo');
 	return {
 		uri: root,
@@ -48,6 +54,7 @@ function makeWorkspace(uncommittedChanges: number | undefined): ISessionWorkspac
 			gitRepository: {
 				uri: root,
 				workTreeUri: undefined,
+				branchName,
 				baseBranchName: undefined,
 				uncommittedChanges,
 				gitHubInfo: constObservable(undefined),
@@ -193,6 +200,8 @@ function branchState(container: HTMLElement): { icon: string | undefined; ariaLa
 /** Captures the delegate passed to the last `IActionWidgetService.show` call, so tests can drive a selection. */
 class CapturingActionWidgetHolder {
 	delegate: IActionListDelegate<IConfigPickerItem> | undefined;
+	items: readonly IActionListItem<IConfigPickerItem>[] = [];
+	readonly events: string[] = [];
 }
 
 function setupServices(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, 'add'>) {
@@ -203,8 +212,11 @@ function setupServices(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeake
 	const instantiationService = store.add(new TestInstantiationService());
 	instantiationService.stub(IActionWidgetService, {
 		isVisible: false,
-		hide: () => { },
-		show: (_user, _supportsPreview, _items, delegate: IActionListDelegate<IConfigPickerItem>) => { actionWidget.delegate = delegate; },
+		hide: () => actionWidget.events.push('hide'),
+		show: (_user, _supportsPreview, items: readonly IActionListItem<IConfigPickerItem>[], delegate: IActionListDelegate<IConfigPickerItem>) => {
+			actionWidget.items = items;
+			actionWidget.delegate = delegate;
+		},
 	} as Partial<IActionWidgetService> as IActionWidgetService);
 	instantiationService.stub(IHoverService, { setupDelayedHover: () => ({ dispose: () => { } }) } as Partial<IHoverService> as IHoverService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -214,9 +226,26 @@ function setupServices(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeake
 	instantiationService.stub(IContextKeyService, new (class extends mock<IContextKeyService>() {
 		override readonly onDidChangeContext = Event.None;
 	})());
-	instantiationService.stub(IWorkbenchLayoutService, new (class extends mock<IWorkbenchLayoutService>() {
+	instantiationService.stub(IAgentWorkbenchLayoutService, new (class extends mock<IAgentWorkbenchLayoutService>() {
 		// No `phone-layout` class → `isPhoneLayout` is false → isolation renders as a checkbox.
 		override readonly mainContainer = document.createElement('div');
+		override readonly isSinglePaneLayoutEnabled = true;
+		override suppressEditorPartAutoVisibility() {
+			actionWidget.events.push('suppressEditorPartAutoVisibility');
+			return { dispose: () => actionWidget.events.push('releaseEditorPartAutoVisibility') };
+		}
+	})());
+	instantiationService.stub(ISessionChangesService, new (class extends mock<ISessionChangesService>() {
+		override async openChangesEditor(sessionResource: URI): Promise<undefined> {
+			actionWidget.events.push(`openChangesEditor:${sessionResource.toString()}`);
+			return undefined;
+		}
+	})());
+	instantiationService.stub(IViewsService, new (class extends mock<IViewsService>() {
+		override async openView<T extends IView>(id: string, focus?: boolean): Promise<T | null> {
+			actionWidget.events.push(`openView:${id}:${focus}`);
+			return null;
+		}
 	})());
 	instantiationService.set(ISessionsProvidersService, new (class extends mock<ISessionsProvidersService>() {
 		override readonly onDidChangeProviders = Event.None;
@@ -231,6 +260,7 @@ function setupServices(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeake
 	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', {
 		providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 		sessionId: SESSION_ID,
+		resource: SESSION_RESOURCE,
 		workspace,
 	} as IActiveSession);
 	return { instantiationService, provider, sessionObs, workspaceObs, actionWidget };
@@ -247,6 +277,33 @@ function renderPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeaked
 suite('Agent Host Session Config Picker', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('restores pointer and keyboard focus without leaving pointer focus visible', async () => {
+		const services = setupServices(store);
+		const { container } = renderPicker(store, services);
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		const trigger = branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!;
+		let focusCalls = 0;
+		trigger.focus = () => focusCalls++;
+
+		trigger.click();
+		await new Promise(resolve => setTimeout(resolve));
+		services.actionWidget.delegate!.onHide();
+		const pointerFocusCalls = focusCalls;
+
+		trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		await new Promise(resolve => setTimeout(resolve));
+		services.actionWidget.delegate!.onHide();
+
+		assert.deepStrictEqual({
+			pointerFocusCalls,
+			keyboardFocusCalls: focusCalls,
+		}, {
+			pointerFocusCalls: 1,
+			keyboardFocusCalls: 2,
+		});
+	});
 
 	test('places mode immediately before approvals in secondary toolbars', () => {
 		const summarize = (menu: MenuId, ids: readonly string[]) => MenuRegistry.getMenuItems(menu)
@@ -351,11 +408,13 @@ suite('Agent Host Session Config Picker', () => {
 		const clean = branchState(container);
 		services.workspaceObs.set(makeWorkspace(2), undefined);
 		const dirtyAfterUpdate = branchState(container);
+		services.workspaceObs.set(makeWorkspace(2, 'dev'), undefined);
+		const differentBranch = branchState(container);
 
-		assert.deepStrictEqual({ initiallyDirty, clean, dirtyAfterUpdate }, {
+		assert.deepStrictEqual({ initiallyDirty, clean, dirtyAfterUpdate, differentBranch }, {
 			initiallyDirty: {
 				icon: 'codicon-git-branch-changes',
-				ariaLabel: 'Base Branch: main, Uncommitted Changes',
+				ariaLabel: 'Base Branch: main, Uncommitted Files',
 			},
 			clean: {
 				icon: 'codicon-git-branch',
@@ -363,9 +422,125 @@ suite('Agent Host Session Config Picker', () => {
 			},
 			dirtyAfterUpdate: {
 				icon: 'codicon-git-branch-changes',
-				ariaLabel: 'Base Branch: main, Uncommitted Changes',
+				ariaLabel: 'Base Branch: main, Uncommitted Files',
+			},
+			differentBranch: {
+				icon: 'codicon-git-branch',
+				ariaLabel: 'Base Branch: main',
 			},
 		});
+	});
+
+	test('expanded branch picker marks only the checked-out branch as having uncommitted files', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('main');
+		services.provider.completions = [
+			{ value: 'dev', label: 'dev' },
+			{ value: 'main', label: 'main' },
+		];
+		services.workspaceObs.set(makeWorkspace(2, 'dev'), undefined);
+		const { container } = renderPicker(store, services);
+
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!
+			.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await new Promise(resolve => setTimeout(resolve));
+
+		const plural = services.actionWidget.items.map(item => ({
+			kind: item.kind,
+			label: item.label,
+			icon: item.group?.icon?.id,
+			checked: item.item?.checked,
+			detail: item.detail,
+			ariaDescription: item.ariaDescription,
+			toolbarActions: item.toolbarActions?.map(action => ({ id: action.id, label: action.label })),
+		}));
+
+		services.workspaceObs.set(makeWorkspace(1, 'dev'), undefined);
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!
+			.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await new Promise(resolve => setTimeout(resolve));
+		const singularItem = services.actionWidget.items.find(item => item.label === 'dev');
+		const singular = {
+			detail: singularItem?.detail,
+			ariaDescription: singularItem?.ariaDescription,
+		};
+
+		services.workspaceObs.set(makeWorkspace(0, 'dev'), undefined);
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!
+			.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await new Promise(resolve => setTimeout(resolve));
+		const cleanToolbarActions = services.actionWidget.items.find(item => item.label === 'dev')?.toolbarActions;
+
+		services.provider.completions = [{ value: 'main', label: 'main' }];
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!
+			.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await new Promise(resolve => setTimeout(resolve));
+		const singleResultKinds = services.actionWidget.items.map(item => item.kind);
+
+		assert.deepStrictEqual({ plural, singular, cleanToolbarActions, singleResultKinds }, {
+			plural: [
+				{
+					kind: ActionListItemKind.Action,
+					label: 'main',
+					icon: Codicon.gitBranch.id,
+					checked: true,
+					detail: undefined,
+					ariaDescription: undefined,
+					toolbarActions: undefined,
+				},
+				{
+					kind: ActionListItemKind.Separator,
+					label: '',
+					icon: undefined,
+					checked: undefined,
+					detail: undefined,
+					ariaDescription: undefined,
+					toolbarActions: undefined,
+				},
+				{
+					kind: ActionListItemKind.Action,
+					label: 'dev',
+					icon: Codicon.gitBranchChanges.id,
+					checked: false,
+					detail: '2 uncommitted files',
+					ariaDescription: '2 uncommitted files',
+					toolbarActions: [{
+						id: 'sessions.agentHost.showBranchChanges',
+						label: 'Show Changes',
+					}],
+				},
+			],
+			singular: {
+				detail: '1 uncommitted file',
+				ariaDescription: '1 uncommitted file',
+			},
+			cleanToolbarActions: undefined,
+			singleResultKinds: [ActionListItemKind.Action],
+		});
+	});
+
+	test('dirty branch action selects the Changes tab before focusing the Changes view', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('main');
+		services.provider.completions = [
+			{ value: 'main', label: 'main' },
+			{ value: 'dev', label: 'dev' },
+		];
+		services.workspaceObs.set(makeWorkspace(1, 'dev'), undefined);
+		const { container } = renderPicker(store, services);
+
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+		const action = services.actionWidget.items.find(item => item.label === 'dev')?.toolbarActions?.[0];
+		await action?.run();
+
+		assert.deepStrictEqual(services.actionWidget.events, [
+			'hide',
+			'suppressEditorPartAutoVisibility',
+			`openChangesEditor:${SESSION_RESOURCE.toString()}`,
+			'releaseEditorPartAutoVisibility',
+			`openView:${CHANGES_VIEW_ID}:true`,
+		]);
 	});
 
 	test('a picker recreated on a session switch still renders the provider-seeded chips (disabled) while resolving', () => {

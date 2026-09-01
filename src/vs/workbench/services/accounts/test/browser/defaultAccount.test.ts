@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { IRequestContext, IRequestOptions } from '../../../../../base/parts/request/common/request.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -16,21 +17,21 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, IFileManagedSettingsService, INativeManagedSettingsService, ManagedSettingsData } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, IFileManagedSettingsService, INativeManagedSettingsService, ManagedSettingsData, NullFileManagedSettingsService, NullNativeManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IManagedSettingsFreshness, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../../platform/policy/common/managedSettingsFreshness.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { AuthenticationSession, IAuthenticationExtensionsService, IAuthenticationService } from '../../../authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationExtensionsService, IAuthenticationService } from '../../../authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { IExtensionService } from '../../../extensions/common/extensions.js';
 import { IHostService } from '../../../host/browser/host.js';
 import { DefaultAccountProvider } from '../../browser/defaultAccount.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
 
-suite('DefaultAccountProvider managed settings', () => {
+suite('DefaultAccountProvider', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const accountId = 'account';
@@ -67,7 +68,7 @@ suite('DefaultAccountProvider managed settings', () => {
 		});
 	});
 
-	test('settings without a refresh requirement use the cache after one process fetch', async () => {
+	test('settings without a refresh requirement use the cache without fetching', async () => {
 		const requestService = new TestRequestService(async () => jsonResponse({
 			permissions: { disableBypassPermissionsMode: 'disable' },
 		}));
@@ -82,9 +83,32 @@ suite('DefaultAccountProvider managed settings', () => {
 			first: first.data,
 			second: second.data,
 		}, {
-			requestCount: 1,
-			first: { managedSettings: { 'permissions.disableBypassPermissionsMode': 'disable' } },
+			requestCount: 0,
+			first: cachedPolicy.policyData,
 			second: cachedPolicy.policyData,
+		});
+	});
+
+	test('forceRefresh fetches fresh even when the cache is fresh, without it the cache is honored', async () => {
+		const requestService = new TestRequestService(async () => jsonResponse({
+			permissions: { disableBypassPermissionsMode: 'disable' },
+		}));
+		const provider = await createProvider(requestService);
+		const cachedPolicy = createCachedPolicy(false);
+
+		// Without forceRefresh the fresh cache is served with no network round-trip.
+		const cached = await provider['getManagedSettings'](sessions, cachedPolicy);
+		// The forceRefresh command bypasses the fresh cache and fetches.
+		const forced = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true, retryManagedSettings: true });
+
+		assert.deepStrictEqual({
+			requestCount: requestService.requestCount,
+			cached: cached.data,
+			forced: forced.data,
+		}, {
+			requestCount: 1,
+			cached: cachedPolicy.policyData,
+			forced: { managedSettings: { 'permissions.disableBypassPermissionsMode': 'disable' } },
 		});
 	});
 
@@ -100,7 +124,136 @@ suite('DefaultAccountProvider managed settings', () => {
 			managedSettingsFetchedAt: Date.now() - 60 * 60 * 1000,
 		});
 
-		assert.strictEqual(requestService.requestCount, 2);
+		assert.strictEqual(requestService.requestCount, 1);
+	});
+
+	test('outstanding compatibility error revalidates instead of serving a fresh cache', async () => {
+		const requestService = new TestRequestService(async () => jsonResponse({}));
+		const provider = await createProvider(requestService);
+		provider['setManagedSettingsCompatibilityError']({ errorCode: 'client_update_required' });
+		const cachedPolicy = createCachedPolicy(false);
+
+		const result = await provider['getManagedSettings'](sessions, cachedPolicy);
+
+		assert.deepStrictEqual({
+			requestCount: requestService.requestCount,
+			compatibilityError: result.compatibilityError,
+		}, {
+			requestCount: 1,
+			compatibilityError: null,
+		});
+	});
+
+	test('a fresh cache from a different scope is not reused', async () => {
+		const requestService = new TestRequestService(async () => jsonResponse({
+			permissions: { disableBypassPermissionsMode: 'disable' },
+		}));
+		const provider = await createProvider(requestService);
+		const cachedPolicy = {
+			...createCachedPolicy(false),
+			managedSettingsScope: {
+				accountId,
+				authenticationProviderId: 'github-enterprise',
+				endpointOrigin: 'https://api.ghe.example.com',
+			},
+		};
+
+		// The cache was captured for a different provider/endpoint than the current github/api.github.com
+		// scope, so it must be revalidated rather than served for the rest of the cache lifetime.
+		const result = await provider['getManagedSettings'](sessions, cachedPolicy);
+
+		assert.deepStrictEqual({
+			requestCount: requestService.requestCount,
+			data: result.data,
+		}, {
+			requestCount: 1,
+			data: { managedSettings: { 'permissions.disableBypassPermissionsMode': 'disable' } },
+		});
+	});
+
+	test('a fresh cache from a different scope is not retained when refetch fails', async () => {
+		const requestService = new TestRequestService(async () => {
+			throw new Error('managed settings unavailable');
+		});
+		const provider = await createProvider(requestService);
+		const cachedPolicy = {
+			...createCachedPolicy(false),
+			managedSettingsScope: {
+				accountId,
+				authenticationProviderId: 'github-enterprise',
+				endpointOrigin: 'https://api.ghe.example.com',
+			},
+		};
+
+		const result = await provider['getManagedSettings'](sessions, cachedPolicy);
+
+		assert.deepStrictEqual({
+			requestCount: requestService.requestCount,
+			data: result.data,
+			fetchedAt: result.fetchedAt,
+			scope: result.scope,
+		}, {
+			requestCount: 1,
+			data: { managedSettings: undefined },
+			fetchedAt: undefined,
+			scope: {
+				accountId,
+				authenticationProviderId: 'github',
+				endpointOrigin: 'https://api.github.com',
+			},
+		});
+	});
+
+	test('a cache from a different scope is not retained by forced refresh failure or retry blocking', async () => {
+		const requestService = new TestRequestService(async () => {
+			throw new Error('managed settings unavailable');
+		});
+		const provider = await createProvider(requestService, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true });
+		const cachedPolicy = {
+			...createCachedPolicy(false),
+			managedSettingsScope: {
+				accountId,
+				authenticationProviderId: 'github-enterprise',
+				endpointOrigin: 'https://api.ghe.example.com',
+			},
+		};
+
+		const failed = await provider['getManagedSettings'](sessions, cachedPolicy);
+		const blocked = await provider['getManagedSettings'](sessions, cachedPolicy);
+
+		assert.deepStrictEqual({
+			requestCount: requestService.requestCount,
+			failed: {
+				data: failed.data,
+				fetchedAt: failed.fetchedAt,
+				scope: failed.scope,
+			},
+			blocked: {
+				data: blocked.data,
+				fetchedAt: blocked.fetchedAt,
+				scope: blocked.scope,
+			},
+		}, {
+			requestCount: 1,
+			failed: {
+				data: { managedSettings: undefined },
+				fetchedAt: undefined,
+				scope: {
+					accountId,
+					authenticationProviderId: 'github',
+					endpointOrigin: 'https://api.github.com',
+				},
+			},
+			blocked: {
+				data: { managedSettings: undefined },
+				fetchedAt: undefined,
+				scope: {
+					accountId,
+					authenticationProviderId: 'github',
+					endpointOrigin: 'https://api.github.com',
+				},
+			},
+		});
 	});
 
 	test('fresh 404 clears a cached server requirement', async () => {
@@ -154,7 +307,7 @@ suite('DefaultAccountProvider managed settings', () => {
 		const provider = await createProvider(requestService);
 		const cachedPolicy = createCachedPolicy(false);
 
-		const result = await provider['getManagedSettings'](sessions, cachedPolicy);
+		const result = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
 
 		assert.deepStrictEqual({
 			status: provider.managedSettingsFetchStatus,
@@ -175,7 +328,7 @@ suite('DefaultAccountProvider managed settings', () => {
 		const requestService = new TestRequestService(async () => jsonResponse({ error_code: 'unexpected' }, 466));
 		const provider = await createProvider(requestService);
 
-		const result = await provider['getManagedSettings'](sessions, createCachedPolicy(false));
+		const result = await provider['getManagedSettings'](sessions, createCachedPolicy(false), { forceRefresh: true });
 
 		assert.deepStrictEqual({
 			data: result.data,
@@ -211,14 +364,14 @@ suite('DefaultAccountProvider managed settings', () => {
 		});
 	});
 
-	test('failed startup fetch retains cached managed settings when no rejection is known', async () => {
+	test('failed forced refresh retains cached managed settings when no rejection is known', async () => {
 		const requestService = new TestRequestService(async () => {
 			throw new Error('managed settings unavailable');
 		});
 		const provider = await createProvider(requestService);
 		const cachedPolicy = createCachedPolicy(false);
 
-		const result = await provider['getManagedSettings'](sessions, cachedPolicy);
+		const result = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
 
 		assert.deepStrictEqual({
 			requestCount: requestService.requestCount,
@@ -324,7 +477,7 @@ suite('DefaultAccountProvider managed settings', () => {
 		const provider = await createProvider(requestService);
 		const cachedPolicy = createCachedPolicy(false);
 
-		await provider['getManagedSettings'](sessions, cachedPolicy);
+		await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
 		await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
 
 		assert.strictEqual(requestService.requestCount, 2);
@@ -731,7 +884,7 @@ suite('DefaultAccountProvider managed settings', () => {
 		const provider = await createProvider(requestService);
 		const cachedPolicy = createCachedPolicy(false);
 
-		await provider['getManagedSettings'](sessions, cachedPolicy);
+		await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
 		const result = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
 
 		assert.deepStrictEqual({
@@ -775,11 +928,122 @@ suite('DefaultAccountProvider managed settings', () => {
 		});
 	});
 
+	test('reconciles a replacement without a signed-out gap and preserves removal-only behavior', async () => {
+		const sessionChanges = disposables.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
+		let authenticationSessions = sessions;
+		const provider = await createProvider(
+			new TestRequestService(async () => jsonResponse({ chat_enabled: true })),
+			{},
+			{},
+			'',
+			{
+				getSessions: async () => authenticationSessions,
+				onDidChangeSessions: sessionChanges.event,
+			}
+		);
+		const observedSessionIds: Array<string | null> = [];
+		disposables.add(provider.onDidChangeDefaultAccount(account => observedSessionIds.push(account?.sessionId ?? null)));
+		const replacementSession = { ...sessions[0], id: 'replacement-session', accessToken: 'replacement-token' };
+		authenticationSessions = [replacementSession];
+		const beforeReplacement = provider.defaultAccount?.sessionId;
+		const replacement = Event.toPromise(Event.filter(
+			provider.onDidChangeDefaultAccount,
+			account => account?.sessionId === replacementSession.id
+		));
+
+		sessionChanges.fire({
+			providerId: 'github',
+			label: 'GitHub',
+			event: { added: [replacementSession], removed: sessions, changed: [] },
+		});
+		const afterReplacementEvent = provider.defaultAccount?.sessionId;
+		const afterReplacement = (await replacement)?.sessionId;
+
+		authenticationSessions = [];
+		sessionChanges.fire({
+			providerId: 'github',
+			label: 'GitHub',
+			event: { added: [], removed: [replacementSession], changed: [] },
+		});
+
+		assert.deepStrictEqual({
+			beforeReplacement,
+			afterReplacementEvent,
+			afterReplacement,
+			afterRemovalOnlyEvent: provider.defaultAccount?.sessionId,
+			observedSessionIds,
+		}, {
+			beforeReplacement: 'session',
+			afterReplacementEvent: 'session',
+			afterReplacement: 'replacement-session',
+			afterRemovalOnlyEvent: undefined,
+			observedSessionIds: ['replacement-session', null],
+		});
+	});
+
+	test('does not restore a removed session from an in-flight replacement refresh', async () => {
+		const sessionChanges = disposables.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
+		const refreshStarted = new DeferredPromise<void>();
+		const releaseRefresh = new DeferredPromise<IRequestContext>();
+		let authenticationSessions = sessions;
+		let blockRefresh = false;
+		const provider = await createProvider(
+			new TestRequestService(async options => {
+				if (blockRefresh && options.callSite === 'defaultAccount.entitlements') {
+					refreshStarted.complete();
+					return releaseRefresh.p;
+				}
+				return jsonResponse({ chat_enabled: true });
+			}),
+			{},
+			{},
+			'',
+			{
+				getSessions: async () => authenticationSessions,
+				onDidChangeSessions: sessionChanges.event,
+			}
+		);
+		const observedSessionIds: Array<string | null> = [];
+		disposables.add(provider.onDidChangeDefaultAccount(account => observedSessionIds.push(account?.sessionId ?? null)));
+		const replacementSession = { ...sessions[0], accessToken: 'replacement-token' };
+		authenticationSessions = [replacementSession];
+		blockRefresh = true;
+
+		sessionChanges.fire({
+			providerId: 'github',
+			label: 'GitHub',
+			event: { added: [replacementSession], removed: sessions, changed: [] },
+		});
+		const replacementRefresh = provider.refresh({ forceRefresh: true });
+		await refreshStarted.p;
+
+		authenticationSessions = [];
+		sessionChanges.fire({
+			providerId: 'github',
+			label: 'GitHub',
+			event: { added: [], removed: [replacementSession], changed: [] },
+		});
+		const afterRemoval = provider.defaultAccount?.sessionId;
+		releaseRefresh.complete(jsonResponse({ chat_enabled: false }));
+		await replacementRefresh;
+
+		assert.deepStrictEqual({
+			afterRemoval,
+			afterBlockedRefresh: provider.defaultAccount?.sessionId,
+			observedSessionIds,
+		}, {
+			afterRemoval: undefined,
+			afterBlockedRefresh: undefined,
+			observedSessionIds: [null],
+		});
+	});
+
 	async function createProvider(
 		requestService: TestRequestService,
 		nativeManagedSettings: ManagedSettingsData = {},
 		fileManagedSettings: ManagedSettingsData = {},
-		managedSettingsUrl = 'https://api.github.com/copilot_internal/managed_settings'
+		managedSettingsUrl = 'https://api.github.com/copilot_internal/managed_settings',
+		authenticationServiceOverrides: Partial<IAuthenticationService> = {},
 	): Promise<DefaultAccountProvider> {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
@@ -792,6 +1056,7 @@ suite('DefaultAccountProvider managed settings', () => {
 			onDidChangeSessions: Event.None,
 			onDidRegisterAuthenticationProvider: Event.None,
 			onDidUnregisterAuthenticationProvider: Event.None,
+			...authenticationServiceOverrides,
 		});
 		instantiationService.stub(IAuthenticationExtensionsService, {
 			getAccountPreference: () => undefined,
@@ -802,7 +1067,7 @@ suite('DefaultAccountProvider managed settings', () => {
 		instantiationService.stub(IRequestService, requestService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IWorkbenchEnvironmentService, {
-			remoteAuthority: undefined,
+			remoteAuthority: isWeb ? 'test-remote' : undefined,
 			isSessionsWindow: false,
 		});
 		instantiationService.stub(IProductService, {
@@ -879,6 +1144,81 @@ suite('DefaultAccountProvider managed settings', () => {
 		}
 		return freshness;
 	}
+});
+
+suite('DefaultAccountProvider sign in scopes', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	interface ICreateSessionCall {
+		readonly scopes: readonly string[];
+		readonly options: Record<string, unknown>;
+	}
+
+	async function signIn(options?: Parameters<DefaultAccountProvider['signIn']>[0]): Promise<ICreateSessionCall[]> {
+		const calls: ICreateSessionCall[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IAuthenticationService, {
+			declaredProviders: [],
+			isAuthenticationProviderRegistered: () => true,
+			getAccounts: async () => [],
+			getSessions: async () => [],
+			createSession: async (_providerId: string, scopes: readonly string[], sessionOptions: Record<string, unknown>) => {
+				calls.push({ scopes: [...scopes], options: sessionOptions });
+				return { id: 'session', accessToken: 'token', account: { id: 'account', label: 'octocat' }, scopes: [...scopes] };
+			},
+			onDidChangeDeclaredProviders: Event.None,
+			onDidChangeSessions: Event.None,
+			onDidRegisterAuthenticationProvider: Event.None,
+			onDidUnregisterAuthenticationProvider: Event.None,
+		});
+		instantiationService.stub(IAuthenticationExtensionsService, {
+			getAccountPreference: () => undefined,
+			updateAccountPreference: () => { },
+			onDidChangeAccountPreference: Event.None,
+		});
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IExtensionService, {});
+		instantiationService.stub(IRequestService, new TestRequestService(async () => jsonResponse({})));
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority: undefined, isSessionsWindow: false });
+		instantiationService.stub(IProductService, TestProductService);
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+		instantiationService.stub(IHostService, { hasFocus: true, onDidChangeFocus: Event.None });
+		instantiationService.stub(ICommandService, {});
+		instantiationService.stub(INativeManagedSettingsService, new NullNativeManagedSettingsService());
+		instantiationService.stub(IFileManagedSettingsService, new NullFileManagedSettingsService());
+
+		const provider = disposables.add(instantiationService.createInstance(DefaultAccountProvider, {
+			preferredExtensions: [],
+			authenticationProvider: {
+				default: { id: 'github', name: 'GitHub' },
+				enterprise: { id: 'github-enterprise', name: 'GitHub Enterprise' },
+				enterpriseProviderConfig: 'github.copilot.advanced.authProvider',
+				enterpriseProviderUriSetting: 'github-enterprise.uri',
+				scopes: [['read:user', 'user:email', 'repo']],
+			},
+			tokenEntitlementUrl: '',
+			entitlementUrl: 'https://api.github.com/copilot_internal/user',
+			mcpRegistryDataUrl: '',
+			managedSettingsUrl: '',
+		}));
+		await provider.signIn(options);
+		return calls;
+	}
+
+	test('widens the default scopes and never forwards the scope option to the session', async () => {
+		assert.deepStrictEqual({
+			none: await signIn(),
+			additive: await signIn({ additionalScopes: ['workflow', 'repo'], provider: 'google' }),
+		}, {
+			none: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
+			// The broad defaults plus the extra scopes, deduplicated.
+			additive: [{ scopes: ['read:user', 'user:email', 'repo', 'workflow'], options: { provider: 'google' } }],
+		});
+	});
 });
 
 class TestRequestService implements IRequestService {

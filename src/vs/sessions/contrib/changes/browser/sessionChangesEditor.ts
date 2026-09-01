@@ -31,7 +31,7 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/servic
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
-import { IMultiDiffEditorOptions, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorOptions, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { MultiDiffEditorLogger } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorLogging.js';
 import { IDiffEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
@@ -275,6 +275,10 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		return this.widget?.tryGetCodeEditor(resource);
 	}
 
+	getLayoutDebugState(): IObservable<IMultiDiffEditorLayoutDebugState> {
+		return this.widget!.getLayoutDebugState();
+	}
+
 	/** Creates the classic (non-single-pane) internal header toolbars. */
 	private _buildHeaderToolbars(left: HTMLElement, right: HTMLElement, instantiationService: IInstantiationService): IDisposable {
 		const store = new DisposableStore();
@@ -297,6 +301,9 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 	override async setInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
+		if (token.isCancellationRequested) {
+			return;
+		}
 		const sessionResource = this.sessionChangesService.getSessionResource(input.multiDiffSource);
 		this._inputSessionResource.set(sessionResource, undefined);
 		const viewModel = await input.getViewModel();

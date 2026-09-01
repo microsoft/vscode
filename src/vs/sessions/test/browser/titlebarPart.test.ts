@@ -14,18 +14,19 @@ suite('Sessions - Titlebar Part', () => {
 	const updateTitleBarToolBarOverflow = Reflect.get(TitlebarPart.prototype, 'updateTitleBarToolBarOverflow') as (this: TitlebarPart) => void;
 
 	test('hides optional toolbar groups when a titlebar section overflows', () => {
-		let centerClientWidth = 60;
-		let rightClientWidth = 60;
+		let centerClientWidth = 100;
+		let rightClientWidth = 100;
 		const root = createMeasuredElement(() => 100, () => 100);
 		const left = createMeasuredElement(() => 20, () => 20);
-		const toolBars = [20, 20, 20, 20, 20].map(() => mainWindow.document.createElement('div'));
+		const toolBars = [20, 20, 20, 20, 20, 20].map(() => mainWindow.document.createElement('div'));
+		toolBars[0].classList.add('titlebar-screen-reader-container');
 		const center = createMeasuredElement(
 			() => centerClientWidth,
-			() => 40 + visibleWidth(toolBars[0], 20) + visibleWidth(toolBars[1], 20)
+			() => 40 + visibleWidth(toolBars[1], 20) + visibleWidth(toolBars[2], 20)
 		);
 		const right = createMeasuredElement(
 			() => rightClientWidth,
-			() => 40 + visibleWidth(toolBars[2], 20) + visibleWidth(toolBars[3], 20) + visibleWidth(toolBars[4], 20)
+			() => 40 + visibleWidth(toolBars[0], 20) + visibleWidth(toolBars[3], 20) + visibleWidth(toolBars[4], 20) + visibleWidth(toolBars[5], 20)
 		);
 		const titlebarPart = Object.create(TitlebarPart.prototype) as TitlebarPart;
 		Reflect.set(titlebarPart, 'rootContainer', root);
@@ -35,16 +36,16 @@ suite('Sessions - Titlebar Part', () => {
 		Reflect.set(titlebarPart, 'overflowManagedToolBarElements', toolBars);
 
 		updateTitleBarToolBarOverflow.call(titlebarPart);
-		const constrained = toolBars.map(element => element.classList.contains('overflowing'));
+		const prioritized = toolBars.map(element => element.classList.contains('overflowing'));
 
-		centerClientWidth = 100;
-		rightClientWidth = 100;
+		centerClientWidth = 200;
+		rightClientWidth = 200;
 		updateTitleBarToolBarOverflow.call(titlebarPart);
 		const expanded = toolBars.map(element => element.classList.contains('overflowing'));
 
-		assert.deepStrictEqual({ constrained, expanded }, {
-			constrained: [true, true, true, true, false],
-			expanded: [false, false, false, false, false],
+		assert.deepStrictEqual({ prioritized, expanded }, {
+			prioritized: [true, false, false, false, false, false],
+			expanded: [false, false, false, false, false, false],
 		});
 	});
 });

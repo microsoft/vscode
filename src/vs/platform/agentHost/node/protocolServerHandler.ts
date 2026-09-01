@@ -24,7 +24,7 @@ import { collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExte
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
-import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction, type ChatAction, type ClientAnnotationsAction, type ClientChangesetAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { negotiateProtocolVersion } from '../common/state/protocol/version/negotiation.js';
 import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } from '../common/state/protocolUpgrade.js';
@@ -49,7 +49,7 @@ import {
 	type SubscribeResult,
 	type ListSessionsResult,
 } from '../common/state/sessionProtocol.js';
-import { isAhpResourceWatchChannel, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat, type SessionState } from '../common/state/sessionState.js';
+import { isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat, type SessionState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -501,7 +501,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					case 'dispatchAction':
 						if (client) {
 							this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(msg.params.action.type)}`);
-							const action = msg.params.action as SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction;
+							const action = msg.params.action as SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction;
 							const channel = msg.params.channel;
 							// Unsupported actions are echoed as rejections so optimistic clients roll back.
 							if (UNSUPPORTED_CLIENT_ACTION_TYPES.has(action.type)) {
@@ -512,7 +512,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 									{ clientId: client.clientId, clientSeq: msg.params.clientSeq },
 									`Unsupported action: ${action.type}`,
 								);
-							} else if (isSessionAction(action) || isChatAction(action) || isTerminalAction(action) || isChangesetAction(action) || isAnnotationsAction(action) || action.type === ActionType.RootConfigChanged) {
+							} else if (isSessionAction(action) || isChatAction(action) || isTerminalAction(action) || isChangesetAction(action) || isAnnotationsAction(action) || isAutomationAction(action) || isAutomationRunAction(action) || action.type === ActionType.RootConfigChanged) {
 								this._agentService.dispatchAction(channel, action, client.clientId, msg.params.clientSeq, client.telemetryContext);
 							}
 						}
@@ -656,6 +656,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					completionTriggerCharacters: this._config.completionTriggerCharacters ? [...this._config.completionTriggerCharacters] : undefined,
 					terminalCommandPrefix: this._config.terminalCommandPrefix,
 					telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
+					automations: this._agentService.automationCapabilities,
 				},
 			};
 		} catch (error) {
@@ -697,6 +698,21 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		client.subscriptions.set(sub.uri, sub);
 		this._agentService.addSubscriber(URI.parse(sub.uri), client.clientId);
 		this._clearClientToolCallDisconnectTimeout(client.clientId, sub.uri);
+		return snapshot;
+	}
+
+	private async _subscribeStateChannel(channel: string, clientId: string, isActive?: () => boolean): Promise<IStateSnapshot> {
+		if (!isAhpAutomationCatalogChannel(channel)) {
+			return this._agentService.subscribe(URI.parse(channel), clientId, isActive);
+		}
+		if (isActive && !isActive()) {
+			throw new Error(`Subscription cancelled: ${channel}`);
+		}
+		const snapshot = this._stateManager.getSnapshot(channel);
+		if (!snapshot) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Automation catalogue is unavailable: ${channel}`);
+		}
+		this._agentService.addSubscriber(URI.parse(channel), clientId);
 		return snapshot;
 	}
 
@@ -883,8 +899,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			pendingSubscriptions.push({ pending: pendingSubscription, active: classified });
 			client.subscriptions.set(classified.uri, pendingSubscription);
 			try {
-				const snapshot = await this._agentService.subscribe(
-					URI.parse(key),
+				const snapshot = await this._subscribeStateChannel(
+					key,
 					client.clientId,
 					() => client.subscriptions.get(classified.uri) === pendingSubscription,
 				);
@@ -1400,8 +1416,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				: { ...classified, active: false };
 			client.subscriptions.set(classified.uri, pendingSubscription);
 			try {
-				const snapshot = await this._agentService.subscribe(
-					URI.parse(params.channel),
+				const snapshot = await this._subscribeStateChannel(
+					params.channel,
 					client.clientId,
 					() => client.subscriptions.get(classified.uri) === pendingSubscription,
 				);
@@ -1532,6 +1548,15 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			});
 			return { items: this._stateManager.prepareSessionSummariesForListing(items) };
 		},
+		listAutomationTriggerDefinitions: async (_client, params) => {
+			return this._agentService.listAutomationTriggerDefinitions(params);
+		},
+		runAutomation: async (_client, params) => {
+			return this._agentService.runAutomation(params);
+		},
+		fetchAutomationRuns: async (_client, params) => {
+			return this._agentService.fetchAutomationRuns(params);
+		},
 		resolveSessionConfig: async (_client, params) => {
 			return this._agentService.resolveSessionConfig({
 				provider: params.provider,
@@ -1612,18 +1637,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		},
 		invokeChangesetOperation: async (_client, params) => {
 			return this._agentService.invokeChangesetOperation(params);
-		},
-		// Automations are declared by the protocol but not implemented by this
-		// host: `initialize` never advertises the `automations` capability, so
-		// a conforming client does not reach these methods.
-		listAutomationTriggerDefinitions: async () => {
-			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Automations are not supported by this agent host');
-		},
-		runAutomation: async () => {
-			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Automations are not supported by this agent host');
-		},
-		fetchAutomationRuns: async () => {
-			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Automations are not supported by this agent host');
 		},
 	};
 
@@ -1979,9 +1992,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const sub = client.subscriptions.get(envelope.channel);
 		if ((sub?.kind === ChannelKind.State || sub?.kind === ChannelKind.ResourceWatch) && sub.active) {
 			return true;
-		}
-		if (!isAhpRootChannel(envelope.channel)) {
-			return false;
 		}
 		return isActionEnvelopeRelevantToSubscriptionUris(envelope, this._stateAndResourceWatchUris(client));
 	}

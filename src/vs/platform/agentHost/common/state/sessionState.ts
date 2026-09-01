@@ -37,6 +37,8 @@ import {
 	type PendingMessage,
 	type Turn,
 	type AnnotationsState,
+	type AutomationState,
+	type AutomationRunState,
 	type URI as ProtocolURI,
 	type RootState,
 	type SessionState,
@@ -74,7 +76,9 @@ export {
 	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
 	type ErrorResponsePart, type ResponsePart,
 	type RootState, type RuleCustomization, type SessionActiveClient,
-	type SessionConfigState, type SessionModelInfo,
+	type AutomationState, type AutomationRunState,
+	type SessionConfigState,
+	type SessionModelInfo,
 	type SessionState,
 	type SessionSummary, type SkillCustomization, type Snapshot, type StringOrMarkdown, type TerminalState, type TextRange,
 	type ToolAnnotations,
@@ -241,6 +245,36 @@ export interface UsageInfoMeta {
 		readonly totalNanoAiu?: number;
 	};
 	[key: string]: unknown;
+}
+
+/**
+ * Singleton channel containing the host-owned automation catalogue.
+ */
+export const AHP_AUTOMATIONS_SCHEME = 'ahp-automations';
+export const AUTOMATION_CATALOG_URI = `${AHP_AUTOMATIONS_SCHEME}://`;
+
+/**
+ * Returns whether `uri` identifies the singleton automation catalogue channel,
+ * including forms normalized by the workbench {@link ResourceURI} class.
+ */
+export function isAhpAutomationCatalogChannel(uri: string): boolean {
+	if (uri === AUTOMATION_CATALOG_URI) {
+		return true;
+	}
+	try {
+		return ResourceURI.parse(uri).scheme === AHP_AUTOMATIONS_SCHEME;
+	} catch {
+		return false;
+	}
+}
+
+/** Returns whether `uri` identifies one automation-run channel. */
+export function isAhpAutomationRunChannel(uri: string): boolean {
+	try {
+		return ResourceURI.parse(uri).scheme === 'ahp-automation-run';
+	} catch {
+		return false;
+	}
 }
 
 const MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY = 'vscode.chat.hiddenFromTranscript';
@@ -1028,6 +1062,8 @@ export const enum StateComponents {
 	Terminal,
 	Changeset,
 	Annotations,
+	AutomationCatalog,
+	AutomationRun,
 }
 
 export type ComponentToState = {
@@ -1037,6 +1073,8 @@ export type ComponentToState = {
 	[StateComponents.Terminal]: TerminalState;
 	[StateComponents.Changeset]: ChangesetState;
 	[StateComponents.Annotations]: AnnotationsState;
+	[StateComponents.AutomationCatalog]: AutomationState;
+	[StateComponents.AutomationRun]: AutomationRunState;
 };
 
 // ---- Default chat URI helpers ----------------------------------------------
@@ -2007,6 +2045,33 @@ export function withSessionEhcliAdopted(meta: SessionSummaryMeta | undefined, ad
 		delete next[SESSION_META_EHCLI_ADOPTED_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Session-DB key recording the id of the final turn that existed when a legacy
+ * Copilot CLI session was adopted. It marks the boundary between the migrated
+ * (checkpoint-less) history and any turns added after adoption, so a consumer
+ * that substitutes the session-wide changeset for a migrated turn's absent
+ * per-turn changeset (see the chat editor fallback) can target exactly that
+ * turn and never a post-adoption one.
+ */
+export const AH_META_EHCLI_LAST_TURN_DB_KEY = 'agentHost.ehcliLastMigratedTurn';
+
+/** `_meta` key mirroring {@link AH_META_EHCLI_LAST_TURN_DB_KEY} on a summary. */
+export const SESSION_META_EHCLI_LAST_TURN_KEY = 'ehcliLastMigratedTurn';
+
+/** The id of the last turn migrated when the legacy Copilot CLI session was adopted, if recorded. */
+export function readSessionEhcliLastMigratedTurn(meta: SessionSummaryMeta | undefined): string | undefined {
+	const value = meta?.[SESSION_META_EHCLI_LAST_TURN_KEY];
+	return typeof value === 'string' && value ? value : undefined;
+}
+
+/** Returns a copy of `meta` with the last-migrated-turn marker set, or unchanged when `turnId` is empty. */
+export function withSessionEhcliLastMigratedTurn(meta: SessionSummaryMeta | undefined, turnId: string | undefined): SessionSummaryMeta | undefined {
+	if (!turnId) {
+		return meta;
+	}
+	return { ...meta, [SESSION_META_EHCLI_LAST_TURN_KEY]: turnId };
 }
 
 /**

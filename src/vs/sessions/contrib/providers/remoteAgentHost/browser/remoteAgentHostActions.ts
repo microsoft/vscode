@@ -25,7 +25,8 @@ import { ITunnelHostService } from '../../../../../workbench/contrib/chat/common
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { addWebSocketRemoteAgentHostEntry, IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ISSHRemoteAgentHostService, isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHAgentHostConnection, type ISSHResolvedConfig } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { isTunnelHosted, ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLRemoteAgentHostService, WSL_INSTALL_DOCS_URL, type IWSLDistro } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
@@ -74,6 +75,7 @@ registerAction2(class extends Action2 {
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const notificationService = accessor.get(INotificationService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		// Prompt for address
 		const address = await quickInputService.input({
@@ -117,7 +119,7 @@ registerAction2(class extends Action2 {
 
 		// Connect
 		try {
-			await remoteAgentHostService.addRemoteAgentHost({
+			await addWebSocketRemoteAgentHostEntry(configurationService, {
 				name: name.trim(),
 				connectionToken: parsed.parsed.connectionToken,
 				connection: {
@@ -125,6 +127,7 @@ registerAction2(class extends Action2 {
 					address: parsed.parsed.address,
 				},
 			});
+			await remoteAgentHostService.waitForConnection(parsed.parsed.address);
 		} catch {
 			notificationService.error(localize('addRemoteFailed', "Failed to connect to remote agent host {0}.", parsed.parsed.address));
 		}
@@ -610,8 +613,7 @@ async function promptForRemoteFolder(
 	const sessionsService = accessor.get(ISessionsService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 
-	// The provider is created synchronously during addManagedConnection's
-	// onDidChangeConnections event, so it should exist by now.
+	// The factory-backed entry fires onDidChangeConnections before its handshake completes, so the provider should exist by now.
 	const provider = sessionsProvidersService.getProviders().find((p): p is IAgentHostSessionsProvider => isAgentHostProvider(p) && p.remoteAddress === connection.localAddress);
 	if (!provider) {
 		return;
@@ -838,6 +840,10 @@ interface ITunnelPickItem extends IQuickPickItem {
 	readonly tunnel: ITunnelInfo;
 }
 
+function sortTunnelsByName(tunnels: readonly ITunnelInfo[]): ITunnelInfo[] {
+	return [...tunnels].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 async function promptToConnectViaTunnel(
 	accessor: ServicesAccessor,
 	options: { showBackButton?: boolean } = {},
@@ -898,7 +904,7 @@ async function promptToConnectViaTunnel(
 		tooltip: localize('tunnelDeleteTooltip', "Delete Dev Tunnel"),
 	};
 	const isHostedTunnel = (tunnel: ITunnelInfo): boolean => isTunnelHosted(tunnelHostService.sharingInfo, tunnel);
-	const toTunnelPickItems = (tunnelInfos: readonly ITunnelInfo[]): ITunnelPickItem[] => tunnelInfos
+	const toTunnelPickItems = (tunnelInfos: readonly ITunnelInfo[]): ITunnelPickItem[] => sortTunnelsByName(tunnelInfos)
 		.filter(tunnel => !isHostedTunnel(tunnel))
 		.map(tunnel => ({
 			label: tunnel.name,
@@ -1021,7 +1027,8 @@ async function promptToConnectViaTunnel(
 	try {
 		// `connect` caches the tunnel internally before wiring the live
 		// connection — no separate `cacheTunnel` call needed here.
-		await tunnelService.connect(picked.tunnel, authProvider);
+		tunnelService.clearTunnelDismissal(picked.tunnel.tunnelId);
+		await tunnelService.connect(picked.tunnel, authProvider, { userInitiated: true });
 		handle.close();
 	} catch (err) {
 		handle.close();
