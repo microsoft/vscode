@@ -11940,6 +11940,82 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('persists the last migrated turn id from the request sidecar on adoption', async () => {
+			// The chat editor uses this migration boundary to attribute the session's
+			// committed changes to the final migrated turn and no post-adoption turn.
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-lastturn-`);
+			const sessionId = 'legacy-lastturn';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId);
+				await writeExtensionHostRequestDetails(userHome, sessionId, [
+					{ copilotRequestId: 'turn-1', creditsUsed: 1 },
+					{ copilotRequestId: 'turn-2', creditsUsed: 2 },
+				]);
+
+				await ensureDefaultChatAdopted(agent, session);
+
+				const db = await sessionDataService.tryOpenDatabase(session);
+				const lastTurn = await db?.object.getMetadata('agentHost.ehcliLastMigratedTurn');
+				db?.dispose();
+
+				assert.strictEqual(lastTurn, 'turn-2');
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('backfills the base branch and last migrated turn for a session migrated by an older build', async () => {
+			// A no-remote worktree session migrated by the previous code kept a working
+			// directory (so adoption short-circuits as `alreadyNative`) but no base
+			// branch, leaving its diff anchored to HEAD. Repair it in place (#333642).
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const repositoryRoot = await fs.mkdtemp(`${os.tmpdir()}/adopt-old-repo-`);
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-old-wt-`);
+			const sessionId = 'legacy-old-no-base';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId, {
+					origin: 'vscode',
+					worktreeProperties: { worktreePath: workingDirectory, repositoryPath: repositoryRoot, branchName: 'feature/x', baseBranchName: 'main' },
+				});
+				await writeExtensionHostRequestDetails(userHome, sessionId, [{ copilotRequestId: 'turn-9', creditsUsed: 1 }]);
+				// Metadata the older build wrote: adopted with a working directory, but no base branch or boundary.
+				const seed = sessionDataService.openDatabase(session);
+				await seed.object.setMetadata('copilot.workingDirectory', URI.file(workingDirectory).toString());
+				await seed.object.setMetadata('agentHost.ehcliAdopted', 'true');
+				seed.dispose();
+
+				const adopted = await ensureDefaultChatAdopted(agent, session);
+
+				const db = await sessionDataService.tryOpenDatabase(session);
+				const baseBranch = await db?.object.getMetadata('agentHost.diffBaseBranch');
+				const lastTurn = await db?.object.getMetadata('agentHost.ehcliLastMigratedTurn');
+				db?.dispose();
+
+				assert.deepStrictEqual(
+					{ reason: adopted.reason, baseBranch, lastTurn },
+					{ reason: 'alreadyNative', baseBranch: 'main', lastTurn: 'turn-9' },
+				);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(repositoryRoot, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
 		test('does not backfill the adopted-legacy marker onto a native session', async () => {
 			// No extension-host marker means the session was never a legacy chat.
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));

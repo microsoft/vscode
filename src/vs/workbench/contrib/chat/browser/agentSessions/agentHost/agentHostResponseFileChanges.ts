@@ -17,7 +17,7 @@ import {
 	buildDefaultChatUri,
 	ChangesetStatus,
 	FileEditKind,
-	readSessionEhcliAdopted,
+	readSessionEhcliLastMigratedTurn,
 	ResponsePartKind,
 	StateComponents,
 	ToolCallStatus,
@@ -155,7 +155,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		// (the same source the Agents window shows) so those changes surface in
 		// the chat editor too. Strictly scoped to adopted sessions' latest turn,
 		// so native sessions and earlier turns are completely unaffected (#333642).
-		const branchFallbackObs = this._createBranchFallbackDiffsObservable(backendSession, backendChat, requestId);
+		const branchFallbackObs = this._createBranchFallbackDiffsObservable(backendSession, requestId);
 
 		let lastSource: TurnDiffSource | undefined;
 		const select = (source: TurnDiffSource, diffs: readonly IEditSessionEntryDiff[], status?: ChangesetStatus): readonly IEditSessionEntryDiff[] => {
@@ -211,28 +211,25 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 
 	/**
 	 * The session-wide branch changeset, exposed as a per-turn fallback but only
-	 * for an adopted legacy Copilot CLI session's latest turn. Every other case —
-	 * native sessions, earlier turns, or a session that was never migrated —
-	 * yields an empty list, so this never alters the changes shown for a normal
-	 * session. Migrated sessions have no per-turn checkpoints, so without this
-	 * their committed-on-branch work never appears in the chat editor (#333642).
+	 * for the specific turn recorded as an adopted legacy Copilot CLI session's
+	 * final migrated turn. That turn has no per-turn checkpoint, so without this
+	 * its committed-on-branch work never appears in the chat editor (#333642).
+	 * Every other case — native sessions, earlier turns, and any turn added after
+	 * adoption (which has its own real per-turn changeset) — yields an empty list,
+	 * so this never alters the changes shown for those turns.
 	 */
-	private _createBranchFallbackDiffsObservable(backendSession: URI, backendChat: URI | undefined, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> {
+	private _createBranchFallbackDiffsObservable(backendSession: URI, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> {
 		const sessionStateObs = this._subscribe<SessionState>(StateComponents.Session, constObservable(backendSession));
-		const chatUri = backendChat ?? URI.parse(buildDefaultChatUri(backendSession.toString()));
-		const chatStateObs = this._subscribe<ChatState>(StateComponents.Chat, constObservable(chatUri));
 
 		const branchChangesetUriObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
 			const sessionState = sessionStateObs.read(reader).read(reader);
-			if (!sessionState || sessionState instanceof Error || !readSessionEhcliAdopted(sessionState._meta)) {
+			if (!sessionState || sessionState instanceof Error) {
 				return undefined;
 			}
-			const chatState = chatStateObs.read(reader).read(reader);
-			if (!chatState || chatState instanceof Error) {
-				return undefined;
-			}
-			const latestTurnId = chatState.activeTurn?.id ?? chatState.turns.at(-1)?.id;
-			if (latestTurnId !== requestId) {
+			// Gate on the durable migration boundary rather than "latest turn": a
+			// post-adoption no-op turn is also an authoritatively-empty latest turn,
+			// and must show its own (empty) changes, not the historical aggregate.
+			if (readSessionEhcliLastMigratedTurn(sessionState._meta) !== requestId) {
 				return undefined;
 			}
 			return URI.parse(buildBranchChangesetUri(backendSession.toString()));
