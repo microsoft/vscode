@@ -54,6 +54,7 @@ async function runEditorEvaluationSession(path: string, accessor: ServicesAccess
 		};
 		const sessionResource = getResourceForNewChatSession(openOptions);
 		await instantiationService.invokeFunction(openAccessor => openChatSession(openAccessor, openOptions));
+		await writeEvaluationSessionIdentity(path, fileService, request, sessionResource);
 
 		const result = await chatService.sendRequest(sessionResource, request.prompt, {
 			agentIdSilent: type,
