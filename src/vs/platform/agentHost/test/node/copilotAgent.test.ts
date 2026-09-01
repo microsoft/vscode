@@ -1890,6 +1890,8 @@ suite('CopilotAgent', () => {
 			},
 		};
 		const signal = new AbortController().signal;
+		const proxy = 'http://proxy.example.com:8080';
+		const noProxy = '127.0.0.1,localhost';
 		const before = {
 			HTTP_PROXY: process.env['HTTP_PROXY'],
 			HTTPS_PROXY: process.env['HTTPS_PROXY'],
@@ -1901,7 +1903,7 @@ suite('CopilotAgent', () => {
 			no_proxy: process.env['no_proxy'],
 		};
 
-		await getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.example.com', signal, 3500, 'http://proxy.example.com:8080', '127.0.0.1,localhost');
+		await getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.example.com', signal, 3500, proxy, noProxy);
 
 		assert.deepStrictEqual({
 			authInfo: receivedInput?.authInfo,
@@ -1923,14 +1925,14 @@ suite('CopilotAgent', () => {
 			token: 'token',
 			signalForwarded: true,
 			proxyEnvironment: {
-				HTTP_PROXY: 'http://proxy.example.com:8080',
-				HTTPS_PROXY: 'http://proxy.example.com:8080',
-				http_proxy: undefined,
-				https_proxy: undefined,
+				HTTP_PROXY: proxy,
+				HTTPS_PROXY: proxy,
+				http_proxy: process.platform === 'win32' ? proxy : undefined,
+				https_proxy: process.platform === 'win32' ? proxy : undefined,
 				ALL_PROXY: undefined,
 				all_proxy: undefined,
-				NO_PROXY: '127.0.0.1,localhost',
-				no_proxy: undefined,
+				NO_PROXY: noProxy,
+				no_proxy: process.platform === 'win32' ? noProxy : undefined,
 			},
 			environmentRestored: before,
 		});
