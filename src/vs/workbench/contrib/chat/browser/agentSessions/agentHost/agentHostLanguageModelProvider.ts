@@ -70,7 +70,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				const multiplierNumeric = pricing.multiplierNumeric;
 				// "Auto" advertises the auto-mode discount (detail) + description (tooltip). microsoft/vscode#321778, #321659.
 				const isAuto = m.id === AUTO_RAW_MODEL_ID;
-				const notices = isAuto ? {} : readAgentModelNoticesMeta(m);
+				const notices = isAuto ? undefined : readAgentModelNoticesMeta(m);
 				const discountPercent = pricing.discountPercent;
 				// Guard against a non-finite or out-of-range value from the open `_meta` bag so we never render
 				// nonsense like "Infinity% discount"; the documented range is a whole number in (0, 100].
@@ -78,7 +78,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				const detail = isAuto && hasDiscount
 					? localize('agentHost.auto.discount', "{0}% discount", discountPercent)
 					: undefined;
-				const tooltip = notices.rowWarning ?? (isAuto
+				const tooltip = notices?.rowWarning ?? (isAuto
 					? ILanguageModelChatMetadata.getAutoModelDescription(hasDiscount ? discountPercent : undefined)
 					: undefined);
 				const modelGroup = this._modelGroupFor(m);
@@ -98,9 +98,9 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						maxOutputTokens: m.maxOutputTokens ?? 0,
 						isDefaultForLocation: {},
 						isUserSelectable: true,
-						statusIcon: notices.rowWarning ? Codicon.warning : undefined,
-						warningText: notices.warningText,
-						infoText: notices.infoText,
+						statusIcon: notices?.rowWarning ? Codicon.warning : undefined,
+						warningText: notices?.warningText,
+						infoText: notices?.infoText,
 						pricing: multiplierNumeric !== undefined ? `${multiplierNumeric}x` : undefined,
 						multiplierNumeric,
 						inputCost: pricing.inputCost,
