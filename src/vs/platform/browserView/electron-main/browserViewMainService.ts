@@ -124,6 +124,26 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return view;
 	}
 
+	/**
+	 * Resolve a dynamic event for a browser view, returning {@link Event.None}
+	 * when the view no longer exists.
+	 *
+	 * Event subscriptions are established asynchronously over IPC: a renderer
+	 * issues a `listen` request and the main process resolves the event getter
+	 * when the message arrives. The view can be destroyed in the window between
+	 * the renderer subscribing and the request being handled, so a missing view
+	 * here is an expected race rather than a bug. In that case there are no
+	 * further events to deliver, so an empty event is the correct result — the
+	 * getter must not throw across the process boundary.
+	 */
+	private _getBrowserViewEvent<T>(id: string, getEvent: (view: BrowserView) => Event<T>): Event<T> {
+		const view = this.browserViews.get(id);
+		if (!view) {
+			return Event.None;
+		}
+		return getEvent(view);
+	}
+
 	private _getViewInfo(view: BrowserView): IBrowserViewInfo {
 		return {
 			id: view.id,
@@ -146,83 +166,83 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	}
 
 	onDynamicDidNavigate(id: string) {
-		return this._getBrowserView(id).onDidNavigate;
+		return this._getBrowserViewEvent(id, view => view.onDidNavigate);
 	}
 
 	onDynamicDidChangeLoadingState(id: string) {
-		return this._getBrowserView(id).onDidChangeLoadingState;
+		return this._getBrowserViewEvent(id, view => view.onDidChangeLoadingState);
 	}
 
 	onDynamicDidChangeFocus(id: string) {
-		return this._getBrowserView(id).onDidChangeFocus;
+		return this._getBrowserViewEvent(id, view => view.onDidChangeFocus);
 	}
 
 	onDynamicDidChangeVisibility(id: string) {
-		return this._getBrowserView(id).onDidChangeVisibility;
+		return this._getBrowserViewEvent(id, view => view.onDidChangeVisibility);
 	}
 
 	onDynamicDidChangeDevToolsState(id: string) {
-		return this._getBrowserView(id).onDidChangeDevToolsState;
+		return this._getBrowserViewEvent(id, view => view.onDidChangeDevToolsState);
 	}
 
 	onDynamicDidKeyCommand(id: string) {
-		return this._getBrowserView(id).onDidKeyCommand;
+		return this._getBrowserViewEvent(id, view => view.onDidKeyCommand);
 	}
 
 	onDynamicDidChangeTitle(id: string) {
-		return this._getBrowserView(id).onDidChangeTitle;
+		return this._getBrowserViewEvent(id, view => view.onDidChangeTitle);
 	}
 
 	onDynamicDidChangeFavicon(id: string) {
-		return this._getBrowserView(id).onDidChangeFavicon;
+		return this._getBrowserViewEvent(id, view => view.onDidChangeFavicon);
 	}
 
 	onDynamicDidFindInPage(id: string) {
-		return this._getBrowserView(id).onDidFindInPage;
+		return this._getBrowserViewEvent(id, view => view.onDidFindInPage);
 	}
 
 	onDynamicDidClose(id: string) {
-		return this._getBrowserView(id).onDidClose;
+		return this._getBrowserViewEvent(id, view => view.onDidClose);
 	}
 
 	onDynamicDidSelectElement(id: string) {
-		return this._getBrowserView(id).inspector.onDidSelectElement;
+		return this._getBrowserViewEvent(id, view => view.inspector.onDidSelectElement);
 	}
 
 	onDynamicDidRemoveElementComment(id: string) {
-		return this._getBrowserView(id).inspector.onDidRemoveElementComment;
+		return this._getBrowserViewEvent(id, view => view.inspector.onDidRemoveElementComment);
 	}
 
 	onDynamicDidChangeElementSelectionState(id: string) {
-		return this._getBrowserView(id).inspector.onDidChangeElementSelectionState;
+		return this._getBrowserViewEvent(id, view => view.inspector.onDidChangeElementSelectionState);
 	}
 
 	onDynamicDidPickArea(id: string) {
-		return this._getBrowserView(id).inspector.onDidPickArea;
+		return this._getBrowserViewEvent(id, view => view.inspector.onDidPickArea);
 	}
 
 	onDynamicDidChangeAreaSelectionActive(id: string) {
-		return this._getBrowserView(id).inspector.onDidChangeAreaSelectionActive;
+		return this._getBrowserViewEvent(id, view => view.inspector.onDidChangeAreaSelectionActive);
 	}
 
 	onDynamicDidChangeDeviceEmulation(id: string) {
-		return this._getBrowserView(id).emulator.onDidChange;
+		return this._getBrowserViewEvent(id, view => view.emulator.onDidChange);
 	}
 
 	onDynamicDidChangeRemoteStatus(id: string) {
-		return this._getBrowserView(id).onDidChangeRemoteStatus;
+		return this._getBrowserViewEvent(id, view => view.onDidChangeRemoteStatus);
 	}
 
 	onDynamicDidChangeAudiences(id: string) {
-		return this._getBrowserView(id).onDidChangeAudiences;
+		return this._getBrowserViewEvent(id, view => view.onDidChangeAudiences);
 	}
 
 	onDynamicDidRequestPermission(id: string) {
-		return this._getBrowserView(id).onDidRequestPermission;
+		return this._getBrowserViewEvent(id, view => view.onDidRequestPermission);
 	}
 
 	onDynamicDidChangePermissions(id: string) {
-		return this._getBrowserView(id).onDidChangePermissions;
+		return this._getBrowserViewEvent(id, view => view.onDidChangePermissions);
 	}
 
 	async getState(id: string): Promise<IBrowserViewState> {
