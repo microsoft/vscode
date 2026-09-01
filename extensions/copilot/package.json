@@ -2710,7 +2710,7 @@
       {
         "command": "github.copilot.debug.logTypeScriptContainers",
         "title": "%github.copilot.command.logTypeScriptContainers%",
-        "enablement": "editorLangId == typescript || editorLangId == typescriptreact",
+        "enablement": "editorLangId == typescript || editorLangId == javascript",
         "category": "Developer"
       },
       {
