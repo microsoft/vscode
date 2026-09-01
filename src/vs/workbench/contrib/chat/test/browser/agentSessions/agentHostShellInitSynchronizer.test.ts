@@ -41,20 +41,23 @@ class TestSubscription extends Disposable implements IAgentSubscription<SessionS
 	get value(): SessionState { return this._state; }
 	get verifiedValue(): SessionState { return this._state; }
 	set(state: SessionState): void { this._state = state; this._onDidChange.fire(state); }
-	applyConfig(config: Record<string, unknown>): void {
-		this._state = {
-			...this._state,
-			config: {
-				...this._state.config!,
-				values: { ...this._state.config?.values, ...config },
-			},
-		};
-		this._onDidChange.fire(this._state);
+	applyConfig(config: Record<string, unknown>, rejectionReason?: string): void {
+		if (!rejectionReason) {
+			this._state = {
+				...this._state,
+				config: {
+					...this._state.config!,
+					values: { ...this._state.config?.values, ...config },
+				},
+			};
+			this._onDidChange.fire(this._state);
+		}
 		this._onDidApplyAction.fire({
 			channel: 'copilot:/session',
 			action: { type: ActionType.SessionConfigChanged, config },
 			serverSeq: 1,
 			origin: { clientId: 'test', clientSeq: 1 },
+			rejectionReason,
 		});
 	}
 }
@@ -183,6 +186,17 @@ suite('AgentHostShellInitSynchronizer', () => {
 		subscription.applyConfig(dispatched[0]);
 		await reconcile;
 		assert.strictEqual(resolved, true);
+	});
+
+	test('reconcile rejects when the host rejects the config action', async () => {
+		const { synchronizer, dispatched } = create({ enabled: true });
+		const subscription = disposables.add(new TestSubscription(state()));
+		disposables.add(synchronizer.register(session, subscription));
+		const reconcile = synchronizer.reconcile(session, CancellationToken.None);
+
+		subscription.applyConfig(dispatched[0], 'not authorized');
+
+		await assert.rejects(reconcile, /not authorized/);
 	});
 
 	test('uses the session folder in a multi-root workspace and project for worktrees', async () => {

@@ -157,7 +157,10 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 		)) : undefined;
 		this._agentHostService.dispatch(key, action);
 		if (applied && token) {
-			await raceCancellation(applied, token);
+			const envelope = await raceCancellation(applied, token);
+			if (envelope?.rejectionReason) {
+				throw new Error(`Agent Host rejected shell init config: ${envelope.rejectionReason}`);
+			}
 		}
 	}
 
