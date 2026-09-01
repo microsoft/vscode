@@ -16,7 +16,7 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { parsePartialToolInput } from '../../common/partialToolInput.js';
 import { StringOrMarkdown } from '../../common/state/protocol/state.js';
 import { basename, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
-import { getStreamingCreateMessage, getStreamingInsertMessage, getStreamingPatchMessage, getStreamingReplaceMessage, streamingToolTextLineCount, type ToolPathResolver } from '../../common/streamingToolCallDisplay.js';
+import { getStreamingCreateMessage, getStreamingInsertMessage, getStreamingPatchMessage, getStreamingReplaceMessage, getEditFileMessage, streamingToolTextLineCount, type ToolPathResolver } from '../../common/streamingToolCallDisplay.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 
 // =============================================================================
@@ -690,10 +690,7 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 		case CopilotToolName.Edit:
 		case CopilotToolName.StrReplace: {
 			const args = parameters as ICopilotFileToolArgs | undefined;
-			if (typeof args?.path === 'string' && args.path) {
-				return md(localize('toolInvoke.editFile', "Edit {0}", formatPathAsMarkdownLink(resolvePath(args.path))));
-			}
-			return localize('toolInvoke.edit', "Edit file");
+			return getEditFileMessage(args?.path, resolvePath);
 		}
 		case CopilotToolName.Insert: {
 			const args = parameters as ICopilotFileToolArgs | undefined;

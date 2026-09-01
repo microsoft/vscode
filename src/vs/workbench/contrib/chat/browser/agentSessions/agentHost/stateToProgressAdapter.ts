@@ -17,6 +17,8 @@ import { buildSubagentChatUri, getTurnError, isMessageHiddenFromTranscript, Mess
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
+import { AgentPermissionRequestKind, readAgentPermissionRequestMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionRequestMeta.js';
+import { getEditFileMessage } from '../../../../../../platform/agentHost/common/streamingToolCallDisplay.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationId } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
@@ -1494,14 +1496,15 @@ function getTerminalLanguage(tc: ToolCallState) {
  *
  * 1. `existingKind === 'terminal'` — preserve the prior render decision so a
  *    tool already set up as terminal stays terminal across snapshots.
- * 2. `getToolKind(tc) === 'terminal'` with a command available — the
- *    always-available `_meta.toolKind` flag set by the event mapper for
- *    built-in `bash`/`powershell` SDK tools that never emit a
- *    {@link ToolResultContentType.Terminal} content block. We only render the
- *    terminal pill once we actually have the command (`getTerminalInput`):
- *    rendering a terminal pill with an empty command line looks broken, so
- *    until the command arrives we fall back to the generic tool widget
- *    (the `invocationMessage`).
+ * 2. `getToolKind(tc) === 'terminal'` with a command available — either the
+ *    `_meta.toolKind` flag set by the event mapper for built-in
+ *    `bash`/`powershell` SDK tools that never emit a
+ *    {@link ToolResultContentType.Terminal} content block, or a command
+ *    permission request from a remote host that does not set that flag. We
+ *    only render the terminal pill once we actually have the command
+ *    (`getTerminalInput`): rendering a terminal pill with an empty command
+ *    line looks broken, so until the command arrives we fall back to the
+ *    generic tool widget (the `invocationMessage`).
  * 3. A `Terminal` content block in `tc.content` (Running/Completed only) —
  *    the AHP-side signal for the custom terminal tool (`agenthost-terminal:`
  *    URIs).
@@ -2332,8 +2335,11 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		} else if (getToolKind(tc) === 'terminal' && getInlineToolInput(tc.toolInput)) {
 			toolSpecificData = buildTerminalToolSpecificData(tc, sessionResource);
 		} else {
+			const writePermission = remoteWritePermission(tc);
 			const toolInput = getInlineToolInput(tc.toolInput);
-			if (toolInput) {
+			if (writePermission) {
+				toolSpecificData = { kind: 'input', rawInput: writePermission.rawInput };
+			} else if (toolInput) {
 				let rawInput: unknown;
 				try { rawInput = JSON.parse(toolInput); } catch { rawInput = { input: toolInput }; }
 				toolSpecificData = { kind: 'input', rawInput };
@@ -2408,6 +2414,22 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 	return invocation;
 }
 
+/**
+ * A remote host names a write's target file in `_meta` and sends a plain-text
+ * message, where a local host sends the file link and a `{ path }` input.
+ * Restates the remote request in that same shape so both render identically.
+ *
+ * The link is left as a plain `file:` URI, exactly as a local host emits it;
+ * {@link stringOrMarkdownToString} rewrites it to address the remote host.
+ */
+function remoteWritePermission(tc: ToolCallPendingConfirmationState): { readonly message: StringOrMarkdown; readonly rawInput: { readonly path: string } } | undefined {
+	const { kind, fileName } = readAgentPermissionRequestMeta(tc);
+	if (kind !== AgentPermissionRequestKind.Write || !fileName) {
+		return undefined;
+	}
+	return { message: getEditFileMessage(fileName), rawInput: { path: fileName } };
+}
+
 export function toolCallConfirmationMessages(tc: ToolCallPendingConfirmationState, connectionAuthority: string): IToolConfirmationMessages {
 	const riskAssessment = tc.riskAssessment;
 	let approvalReason: IToolConfirmationMessages['approvalReason'];
@@ -2426,7 +2448,7 @@ export function toolCallConfirmationMessages(tc: ToolCallPendingConfirmationStat
 			: stringOrMarkdownToString(tc.confirmationTitle, connectionAuthority) ?? tc.displayName,
 		message: isViewUnreviewedCommentsTool(tc.toolName)
 			? localize('agentFeedback.reviewMessage', "Choose which comments to reveal to the agent. Unchecked comments stay hidden.")
-			: stringOrMarkdownToString(tc.invocationMessage, connectionAuthority),
+			: stringOrMarkdownToString(remoteWritePermission(tc)?.message ?? tc.invocationMessage, connectionAuthority),
 		approvalReason,
 		...(tc.options ? { customOptions: tc.options } : {}),
 	};
