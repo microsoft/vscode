@@ -1218,18 +1218,22 @@ export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 		// we have one large string with all keys that have changed. we pad (marker) the section
 		// and check that either find it padded or before a segment character
 		const needle = this._marker + section;
-		const idx = this._affectsConfigStr.indexOf(needle);
+		let idx = this._affectsConfigStr.indexOf(needle);
+		while (idx >= 0) {
+			const pos = idx + needle.length;
+			if (pos >= this._affectsConfigStr.length) {
+				return false;
+			}
+			const code = this._affectsConfigStr.charCodeAt(pos);
+			if (code !== this._markerCode1 && code !== this._markerCode2) {
+				// NOT: section + (marker | segment), try the next occurrence
+				idx = this._affectsConfigStr.indexOf(needle, idx + 1);
+				continue;
+			}
+			break;
+		}
 		if (idx < 0) {
 			// NOT: (marker + section)
-			return false;
-		}
-		const pos = idx + needle.length;
-		if (pos >= this._affectsConfigStr.length) {
-			return false;
-		}
-		const code = this._affectsConfigStr.charCodeAt(pos);
-		if (code !== this._markerCode1 && code !== this._markerCode2) {
-			// NOT: section + (marker | segment)
 			return false;
 		}
 		if (overrides) {
