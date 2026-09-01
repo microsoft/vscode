@@ -4,9 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.js';
+import { isWindows } from '../../../../base/common/platform.js';
 
-export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = process.env): Record<string, string | undefined> {
-	const env: Record<string, string | undefined> = Object.assign({}, environment, { ELECTRON_RUN_AS_NODE: '1' });
+export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = process.env, omittedKeys: readonly string[] = []): Record<string, string | undefined> {
+	const normalizedOmittedKeys = new Set(omittedKeys.map(key => isWindows ? key.toLowerCase() : key));
+	const env: Record<string, string | undefined> = {};
+	for (const [key, value] of Object.entries(environment)) {
+		if (!normalizedOmittedKeys.has(isWindows ? key.toLowerCase() : key)) {
+			env[key] = value;
+		}
+	}
+	env['ELECTRON_RUN_AS_NODE'] = '1';
 	delete env['NODE_OPTIONS'];
 	delete env['VSCODE_INSPECTOR_OPTIONS'];
 	delete env['VSCODE_ESM_ENTRYPOINT'];

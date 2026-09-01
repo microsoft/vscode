@@ -72,6 +72,7 @@ import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpo
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createNoopCustomizationEnablementService } from './testCustomizationEnablementService.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
+import { createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
 import { AgentBranchNameGenerator, getAgentBranchNameHintFromMessage, normalizeAgentBranchName } from '../../node/shared/agentBranchNameGenerator.js';
 import type { CopilotSessionLaunchPlan, IActiveClientSnapshot } from '../../node/copilot/copilotSessionLauncher.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
@@ -3566,7 +3567,6 @@ suite('CopilotAgent', () => {
 			const proxyState = agent as unknown as {
 				_resolvedProxy: string | undefined;
 				_resolveProxyForSdk(env: Record<string, string | undefined>): Promise<string | undefined>;
-				_applyProxyEnv(env: Record<string, string | undefined>): void;
 			};
 			const env = {
 				HTTP_PROXY: 'http://uppercase-http.example:8080',
@@ -3579,7 +3579,6 @@ suite('CopilotAgent', () => {
 			const expectedEnv = { ...env };
 			try {
 				proxyState._resolvedProxy = await proxyState._resolveProxyForSdk(env);
-				proxyState._applyProxyEnv(env);
 
 				assert.deepStrictEqual({
 					env,
@@ -3596,9 +3595,11 @@ suite('CopilotAgent', () => {
 		});
 
 		test('prefers the configured proxy over proxy environment variables', async () => {
+			const client = new TestCopilotClient([]);
 			const configuredProxy = 'http://configured-proxy.example:8080';
 			const proxyResolver = new TestProxyResolver();
 			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: client,
 				proxyResolver,
 				rootConfig: {
 					[AgentHostProxyConfigKey.Proxy]: ` ${configuredProxy} `,
@@ -3606,9 +3607,7 @@ suite('CopilotAgent', () => {
 				},
 			});
 			const proxyState = agent as unknown as {
-				_resolvedProxy: string | undefined;
 				_resolveProxyForSdk(env: Record<string, string | undefined>): Promise<string | undefined>;
-				_applyProxyEnv(env: Record<string, string | undefined>): void;
 			};
 			const env = {
 				HTTP_PROXY: 'http://uppercase-http.example:8080',
@@ -3618,23 +3617,62 @@ suite('CopilotAgent', () => {
 				ALL_PROXY: 'http://uppercase-all.example:8080',
 				all_proxy: 'http://lowercase-all.example:8080',
 			};
+			const expectedEnv = { ...env };
 			try {
-				proxyState._resolvedProxy = await proxyState._resolveProxyForSdk(env);
-				proxyState._applyProxyEnv(env);
+				const resolvedProxy = await proxyState._resolveProxyForSdk(env);
+				await agent.listChatsToMigrate();
+				const createdEnv = getCreatedClientOptions(agent).at(-1)?.env;
 
 				assert.deepStrictEqual({
+					resolvedProxy,
 					env,
+					createdProxyEnv: {
+						HTTP_PROXY: createdEnv?.['HTTP_PROXY'],
+						HTTPS_PROXY: createdEnv?.['HTTPS_PROXY'],
+						http_proxy: createdEnv?.['http_proxy'],
+						https_proxy: createdEnv?.['https_proxy'],
+						ALL_PROXY: createdEnv?.['ALL_PROXY'],
+						all_proxy: createdEnv?.['all_proxy'],
+					},
 					resolveProxyCalls: proxyResolver.resolveProxyCalls,
 				}, {
-					env: {
+					resolvedProxy: configuredProxy,
+					env: expectedEnv,
+					createdProxyEnv: {
 						HTTP_PROXY: configuredProxy,
 						HTTPS_PROXY: configuredProxy,
+						http_proxy: undefined,
+						https_proxy: undefined,
+						ALL_PROXY: undefined,
+						all_proxy: undefined,
 					},
 					resolveProxyCalls: 0,
 				});
 			} finally {
 				await disposeAgent(agent);
 			}
+		});
+
+		(process.platform === 'win32' ? test : test.skip)('omits environment keys case-insensitively on Windows', () => {
+			const env = createCopilotCliEnvironment({
+				Http_Proxy: 'http://proxy.example:8080',
+				No_Proxy: 'localhost',
+				Mixed_Case: 'preserved',
+			}, ['HTTP_PROXY', 'NO_PROXY']);
+
+			assert.deepStrictEqual({
+				HTTP_PROXY: env['HTTP_PROXY'],
+				NO_PROXY: env['NO_PROXY'],
+				Http_Proxy: env['Http_Proxy'],
+				No_Proxy: env['No_Proxy'],
+				Mixed_Case: env['Mixed_Case'],
+			}, {
+				HTTP_PROXY: undefined,
+				NO_PROXY: undefined,
+				Http_Proxy: undefined,
+				No_Proxy: undefined,
+				Mixed_Case: 'preserved',
+			});
 		});
 
 		test('does not block client startup on system proxy resolution', async () => {
@@ -7135,8 +7173,7 @@ suite('CopilotAgent', () => {
 				await new Promise(r => setTimeout(r, 50));
 
 				const updatesWithChildren = actions
-					.filter(a => a.type === ActionType.SessionCustomizationUpdated)
-					.filter((a): a is Extract<SessionAction, { type: ActionType.SessionCustomizationUpdated }> => true)
+					.filter((a): a is Extract<SessionAction, { type: ActionType.SessionCustomizationUpdated }> => a.type === ActionType.SessionCustomizationUpdated)
 					.filter(a => (a.customization as PluginCustomization).children !== undefined);
 
 				assert.strictEqual(updatesWithChildren.length > 0, true, 'expected SessionCustomizationUpdated to carry parsed children');
@@ -8785,7 +8822,7 @@ suite('CopilotAgent', () => {
 					}
 					return false;
 				},
-				respondToUserInputRequest(requestId: string, response: unknown): boolean {
+				respondToUserInputRequest(requestId: string, _response: unknown): boolean {
 					if (options?.inputOwner === requestId) {
 						events.push(`input:${requestId}`);
 						return true;
