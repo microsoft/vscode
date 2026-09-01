@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { McpServerConfig, OnElicitation, Options, PermissionMode, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { McpServerConfig, OnElicitation, Options, PermissionMode, SDKUserMessage, SyncHookJSONOutput, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { Sequencer } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
@@ -61,6 +61,7 @@ import { GITHUB_MCP_SERVER_NAME, resolveGitHubMcpServerConfiguration } from '../
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { IAgentHostAuthenticationService } from '../agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
+import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction } from '../shared/agentMergeToolRestrictions.js';
 
 // Re-export for callers that import IRematerializer from the session.
 export type { IRematerializer } from './claudeSdkPipeline.js';
@@ -278,6 +279,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * {@link Options.canUseTool}. Keyed by SDK `tool_use_id`.
 	 */
 	private readonly _pendingPermissions = new PendingRequestRegistry<boolean>();
+	private _agentMergeTurn = false;
 
 	/**
 	 * Phase 7 / S3.2. User-input deferreds parked for interactive tools
@@ -646,6 +648,7 @@ export class ClaudeAgentSession extends Disposable {
 				telemetry,
 				traceContext,
 				getUserPromptAdditionalContext: () => this._hostInstructions?.join('\n\n'),
+				onPreToolUse: (toolName, input) => this._restrictAgentMergeGitHubTool(toolName, input),
 			},
 			ctx.transport,
 			data => this._logService.error(`[Claude SDK stderr] ${data}`),
@@ -760,6 +763,7 @@ export class ClaudeAgentSession extends Disposable {
 						telemetry,
 						traceContext,
 						getUserPromptAdditionalContext: () => this._hostInstructions?.join('\n\n'),
+						onPreToolUse: (toolName, input) => this._restrictAgentMergeGitHubTool(toolName, input),
 					},
 					rebuildTransport,
 					data => this._logService.error(`[Claude SDK stderr] ${data}`),
@@ -1040,7 +1044,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * model / effort (set eagerly via {@link setModel}) is whatever
 	 * the SDK has been told.
 	 */
-	async send(prompt: SDKUserMessage, turnId: string, resource: URI, workingDirectories?: readonly URI[], switchTransport?: ClaudeTransport, hostInstructions?: readonly string[], clientContext?: IAgentHostClientTelemetryContext): Promise<void> {
+	async send(prompt: SDKUserMessage, turnId: string, resource: URI, workingDirectories?: readonly URI[], switchTransport?: ClaudeTransport, hostInstructions?: readonly string[], clientContext?: IAgentHostClientTelemetryContext, agentMergeTurn = false): Promise<void> {
 		const pipeline = this._requirePipeline();
 		if (workingDirectories) {
 			this._replaceDesiredWorkingDirectories(workingDirectories);
@@ -1065,11 +1069,34 @@ export class ClaudeAgentSession extends Disposable {
 		}
 		await this._reconcileMcpServerEnablement();
 		this._hostInstructions = hostInstructions;
+		this._agentMergeTurn = agentMergeTurn;
 		try {
 			await pipeline.send(prompt, turnId, clientContext);
 		} finally {
 			this._hostInstructions = undefined;
+			this._agentMergeTurn = false;
 		}
+	}
+
+	private _restrictAgentMergeGitHubTool(toolName: string, input: unknown): SyncHookJSONOutput | undefined {
+		const externalMcpTool = toolName.startsWith('mcp__') && !toolName.startsWith(`mcp__${CLAUDE_SERVER_TOOL_MCP_SERVER_NAME}__`);
+		const restriction = this._agentMergeTurn
+			? getAgentMergeGitHubToolRestriction(toolName, input)
+				?? (externalMcpTool ? AGENT_MERGE_GITHUB_TOOL_RESTRICTION : undefined)
+			: undefined;
+		if (!restriction) {
+			return undefined;
+		}
+		this._logService.warn(`[Claude:${this.sessionId}] Denying restricted Agent Merge tool: ${toolName}`);
+		return {
+			continue: false,
+			stopReason: restriction,
+			hookSpecificOutput: {
+				hookEventName: 'PreToolUse',
+				permissionDecision: 'deny',
+				permissionDecisionReason: restriction,
+			},
+		};
 	}
 
 	private _replaceDesiredWorkingDirectories(workingDirectories: readonly URI[]): void {

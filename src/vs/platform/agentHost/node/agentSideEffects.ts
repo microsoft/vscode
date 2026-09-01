@@ -22,6 +22,7 @@ import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type IAgentModelCallCompletedSignal } from '../common/agent.js';
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
+import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
 
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
@@ -1393,7 +1394,11 @@ export class AgentSideEffects extends Disposable {
 				void agent.chats.resumeTurn(
 					URI.parse(channel),
 					action.turnId,
-					{ ...this._chatContext(sessionChannel, channel), clientTelemetryContext: clientContext },
+					{
+						...this._chatContext(sessionChannel, channel),
+						clientTelemetryContext: clientContext,
+						agentMergeTurn: resumedTurn.message.origin.kind === MessageKind.SystemNotification && isAgentMergeMessage(resumedTurn.message),
+					},
 					clientId,
 					clientContext.clientType,
 				).catch(error => {
@@ -1714,7 +1719,11 @@ export class AgentSideEffects extends Disposable {
 			// folder for folder sessions; undefined for workspace-less sessions.
 			const resolvedWorkingDirectories = await this._options.resolveWorkingDirectoryBeforeSend?.({ session: options.sessionChannel, chat, turnId, prompt: message.text });
 			const chatContext = this._chatContext(options.sessionChannel, chat);
-			const clientOperationContext = { ...chatContext, clientTelemetryContext: clientContext };
+			const clientOperationContext = {
+				...chatContext,
+				clientTelemetryContext: clientContext,
+				agentMergeTurn: message.origin.kind === MessageKind.SystemNotification && isAgentMergeMessage(message),
+			};
 
 			const selectionUpdates: Promise<void>[] = [];
 			this._turnTracker.setCurrentStage(turnChannel, turnId, 'modelSelection');
