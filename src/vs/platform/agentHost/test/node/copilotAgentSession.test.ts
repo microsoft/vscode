@@ -716,6 +716,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	fileAtomicWrite?: boolean;
 	shellInitWriteGate?: Promise<void>;
 	onShellInitWrite?: () => void;
+	shellInitWriteFailureLeavesArtifact?: boolean;
 	sessionDatabase?: ISessionDatabase;
 	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
 	configureMockSession?: (session: MockCopilotSession) => void;
@@ -876,6 +877,9 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 				await options?.shellInitWriteGate;
 				if (shellInitWriteFailures > 0) {
 					shellInitWriteFailures--;
+					if (options?.shellInitWriteFailureLeavesArtifact) {
+						storedFileContents.set(`${resource.fsPath}.vsctmp`, 'partial');
+					}
 					throw new Error('write failed');
 				}
 			}
@@ -12360,7 +12364,10 @@ Use the attached image as context.
 		});
 
 		test('removes the sandbox grant when a failed write is followed by a clear', async () => {
-			const { session, mockSession, setConfigValue, setRootValue } = await createAgentSession(disposables, { shellInitWriteFailures: 1 });
+			const { session, mockSession, storedFileContents, setConfigValue, setRootValue } = await createAgentSession(disposables, {
+				shellInitWriteFailures: 1,
+				shellInitWriteFailureLeavesArtifact: true,
+			});
 			setRootValue(AgentHostSandboxConfigKey.Sandbox, { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On });
 			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
 			await session.send('go', undefined, 'turn-1', 'interactive');
@@ -12369,7 +12376,13 @@ Use the attached image as context.
 			await session.send('go', undefined, 'turn-2', 'interactive');
 
 			const sandboxConfig = mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined;
-			assert.ok(!sandboxConfig?.userPolicy?.filesystem?.readonlyPaths?.includes(TEST_SHELL_INIT_DIR));
+			assert.deepStrictEqual({
+				hasGrant: sandboxConfig?.userPolicy?.filesystem?.readonlyPaths?.includes(TEST_SHELL_INIT_DIR) ?? false,
+				hasArtifact: [...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')),
+			}, {
+				hasGrant: false,
+				hasArtifact: false,
+			});
 		});
 
 		test('uses atomic writes when the file provider supports them', async () => {

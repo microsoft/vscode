@@ -997,7 +997,7 @@ export class CopilotAgentSession extends Disposable {
 	/** Last config materialized and pushed, so unchanged turns do no file I/O or RPC. */
 	private _lastAppliedShellInitScripts: string | undefined;
 	private _shellInitScriptRegistered = false;
-	private _shellInitScriptMaterialized = false;
+	private _shellInitScriptMaterializationAttempted = false;
 	private _shellInitSandboxGrantApplied = false;
 	private readonly _shellInitScriptSequencer = new Sequencer();
 	private _shellInitScriptDisposing = false;
@@ -3781,7 +3781,7 @@ export class CopilotAgentSession extends Disposable {
 
 	private _disposeShellInitScript(): Promise<void> {
 		this._shellInitScriptDisposing = true;
-		return this._shellInitScriptSequencer.queue(() => this._shellInitScriptMaterialized ? this._clearShellInitScript() : Promise.resolve());
+		return this._shellInitScriptSequencer.queue(() => this._shellInitScriptMaterializationAttempted ? this._clearShellInitScript() : Promise.resolve());
 	}
 
 	private async _syncPermissionModeAfterConfigChange(): Promise<void> {
@@ -3891,11 +3891,11 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const snippets = configured ?? [];
 			const serialized = JSON.stringify(snippets);
-			if (this._lastAppliedShellInitScripts === serialized && !(snippets.length === 0 && (this._shellInitScriptMaterialized || this._shellInitSandboxGrantApplied))) {
+			if (this._lastAppliedShellInitScripts === serialized && !(snippets.length === 0 && (this._shellInitScriptMaterializationAttempted || this._shellInitSandboxGrantApplied))) {
 				return;
 			}
 			if (snippets.length === 0) {
-				if (!this._shellInitScriptRegistered && !this._shellInitScriptMaterialized && !this._shellInitSandboxGrantApplied) {
+				if (!this._shellInitScriptRegistered && !this._shellInitScriptMaterializationAttempted && !this._shellInitSandboxGrantApplied) {
 					this._lastAppliedShellInitScripts = serialized;
 					return;
 				}
@@ -3939,9 +3939,9 @@ export class CopilotAgentSession extends Disposable {
 		const atomic = this._fileService.hasCapability(resource, FileSystemProviderCapabilities.FileAtomicWrite)
 			? { postfix: '.vsctmp' }
 			: false;
+		this._shellInitScriptMaterializationAttempted = true;
 		try {
 			await this._fileService.writeFile(resource, VSBuffer.fromString(script.script), { atomic });
-			this._shellInitScriptMaterialized = true;
 			return { shell: script.shell, path: resource.fsPath };
 		} catch (error) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to write shell init script: ${getErrorMessage(error)}`);
@@ -3950,12 +3950,12 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _clearShellInitScript(): Promise<void> {
-		if (!this._shellInitScriptMaterialized) {
+		if (!this._shellInitScriptMaterializationAttempted) {
 			return;
 		}
 		try {
 			await this._fileService.del(this._shellInitScriptInstanceDirectory(), { recursive: true });
-			this._shellInitScriptMaterialized = false;
+			this._shellInitScriptMaterializationAttempted = false;
 		} catch (error) {
 			if (!(error instanceof Error) || toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
 				this._logService.warn(`[Copilot:${this.sessionId}] Failed to remove shell init script: ${getErrorMessage(error)}`);
