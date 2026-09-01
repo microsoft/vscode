@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../../base/common/objects.js';
-import { ResourceMap } from '../../../../../../base/common/map.js';
-import { basename, dirname } from '../../../../../../base/common/resources.js';
+import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
+import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { hash } from '../../../../../../base/common/hash.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import * as marked from '../../../../../../base/common/marked/marked.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../../platform/files/common/files.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { AICustomizationSource } from '../../../common/aiCustomizationWorkspaceService.js';
 import { toClientPluginMcpDefaultCwdsMeta, type ClientPluginMcpDefaultCwds } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
@@ -46,6 +49,30 @@ function pluginDirForType(type: PromptsType): string | undefined {
 		case PromptsType.skill: return 'skills';
 		case PromptsType.hook: return undefined; // TODO: hooks require JSON merging
 	}
+}
+
+function getRelativeSkillFileReferences(skillUri: URI, content: string): readonly URI[] {
+	const skillRoot = dirname(skillUri);
+	const references = new ResourceSet();
+	marked.walkTokens(marked.lexer(content), token => {
+		if (token.type !== 'link') {
+			return;
+		}
+
+		if (/^[a-z][a-z\d+.-]*:/i.test(token.href)) {
+			return;
+		}
+		const target = URI.parse(`skill-reference:${token.href}`, true);
+		if (target.authority || !target.path || target.path.startsWith('/')) {
+			return;
+		}
+
+		const reference = extUri.resolvePath(skillRoot, target.path);
+		if (!extUri.isEqual(reference, skillUri) && extUri.isEqualOrParent(reference, skillRoot)) {
+			references.add(reference);
+		}
+	});
+	return [...references];
 }
 
 export interface ISyncableFile {
@@ -131,6 +158,7 @@ export class SyncedCustomizationBundler extends Disposable {
 		authority: string,
 		@IFileService private readonly _fileService: IFileService,
 		@IAgentHostFileSystemService agentHostFileSystemService: IAgentHostFileSystemService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._authority = authority;
@@ -168,6 +196,19 @@ export class SyncedCustomizationBundler extends Disposable {
 		// identical).
 		const entries: { destUri: URI; content: VSBuffer; hashPart: string }[] = [];
 		const originByDest = new ResourceMap<ISyncedCustomizationOrigin>();
+		const addEntry = async (file: ISyncableFile, sourceUri: URI, destUri: URI, hashKey: string): Promise<VSBuffer> => {
+			const content = (await this._fileService.readFile(sourceUri)).value;
+			entries.push({ destUri, content, hashPart: `${hashKey}:${content.toString()}` });
+			if (file.source !== undefined) {
+				originByDest.set(destUri, {
+					uri: sourceUri,
+					source: file.source,
+					extensionId: file.extensionId,
+					pluginUri: file.pluginUri,
+				});
+			}
+			return content;
+		};
 		await Promise.all(syncable.map(async file => {
 			const dir = pluginDirForType(file.type)!;
 			const fileName = basename(file.uri);
@@ -182,25 +223,39 @@ export class SyncedCustomizationBundler extends Disposable {
 				const skillDirName = basename(dirname(file.uri));
 				destUri = URI.joinPath(this._rootUri, dir, skillDirName, fileName);
 				hashKey = `${dir}/${skillDirName}/${fileName}`;
+				const content = await addEntry(file, file.uri, destUri, hashKey);
+				const skillRoot = dirname(file.uri);
+				await Promise.all(getRelativeSkillFileReferences(file.uri, content.toString()).map(async reference => {
+					const relativePath = extUri.relativePath(skillRoot, reference);
+					if (relativePath) {
+						try {
+							await addEntry(
+								file,
+								reference,
+								URI.joinPath(this._rootUri, dir, skillDirName, relativePath),
+								`${dir}/${skillDirName}/${relativePath}`,
+							);
+						} catch (error) {
+							switch (toFileOperationResult(error)) {
+								case FileOperationResult.FILE_IS_DIRECTORY:
+								case FileOperationResult.FILE_NOT_FOUND:
+								case FileOperationResult.FILE_PERMISSION_DENIED:
+								case FileOperationResult.FILE_TOO_LARGE:
+								case FileOperationResult.FILE_INVALID_PATH:
+								case FileOperationResult.FILE_NOT_DIRECTORY:
+									this._logService.warn(`[SyncedCustomizationBundler] Skipping unreadable skill reference ${reference.toString()}: ${toErrorMessage(error)}`);
+									return;
+								default:
+									throw error;
+							}
+						}
+					}
+				}));
 			} else {
 				destUri = URI.joinPath(this._rootUri, dir, fileName);
 				hashKey = `${dir}/${fileName}`;
+				await addEntry(file, file.uri, destUri, hashKey);
 			}
-
-			// Record the reverse mapping so the flattened file's original
-			// provenance (extension/plugin/built-in) can be recovered later.
-			// Only files that carry a source have recoverable provenance.
-			if (file.source !== undefined) {
-				originByDest.set(destUri, {
-					uri: file.uri,
-					source: file.source,
-					extensionId: file.extensionId,
-					pluginUri: file.pluginUri,
-				});
-			}
-
-			const content = await this._fileService.readFile(file.uri);
-			entries.push({ destUri, content: content.value, hashPart: `${hashKey}:${content.value.toString()}` });
 		}));
 
 		// Publish the freshly computed provenance map. This is done before the

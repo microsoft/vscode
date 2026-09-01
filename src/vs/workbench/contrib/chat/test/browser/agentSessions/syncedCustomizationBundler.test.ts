@@ -146,6 +146,45 @@ suite('SyncedCustomizationBundler', () => {
 		assert.strictEqual(contentC.value.toString(), 'skill C content');
 	});
 
+	test('bundles files referenced by relative Markdown links from SKILL.md', async () => {
+		const bundler = createBundler();
+		const skill = await seedFile('/skills/my-skill/SKILL.md', [
+			'See [the reference](references/notes.md#details).',
+			'Run [the script][script].',
+			'',
+			'[script]: ./scripts/run.sh?mode=test',
+			'',
+			'Ignore [external](https://example.com/reference.md), [outside](../outside.md), [directory](references/), and [missing](missing.md).',
+		].join('\n'));
+		await seedFile('/skills/my-skill/references/notes.md', 'reference content');
+		await seedFile('/skills/my-skill/scripts/run.sh', 'script content');
+		await seedFile('/skills/my-skill/unreferenced.md', 'unreferenced content');
+		await seedFile('/skills/outside.md', 'outside content');
+
+		const result = await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+		assert.ok(result);
+
+		const referenceUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill/references/notes.md' });
+		const reference = await fileService.readFile(referenceUri);
+		const script = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill/scripts/run.sh' }));
+		assert.deepStrictEqual({
+			reference: reference.value.toString(),
+			script: script.value.toString(),
+			unreferencedExists: await fileService.exists(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill/unreferenced.md' })),
+			outsideExists: await fileService.exists(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/outside.md' })),
+		}, {
+			reference: 'reference content',
+			script: 'script content',
+			unreferencedExists: false,
+			outsideExists: false,
+		});
+
+		await fileService.writeFile(URI.from({ scheme: Schemas.inMemory, path: '/skills/my-skill/references/notes.md' }), VSBuffer.fromString('updated reference'));
+		const updatedResult = await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+		assert.notStrictEqual(updatedResult!.ref.nonce, result.ref.nonce);
+		assert.strictEqual((await fileService.readFile(referenceUri)).value.toString(), 'updated reference');
+	});
+
 	test('writes plugin manifest', async () => {
 		const bundler = createBundler();
 		const uri = await seedFile('/test/file.md', 'content');
