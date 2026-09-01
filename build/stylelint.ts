@@ -33,6 +33,7 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 	const restrictedPathPattern = /^src[\/\\]vs[\/\\](base|platform|editor)[\/\\]/;
 	const productionCssPattern = /^(?:src[\/\\]vs|extensions)[\/\\]/;
 	const extensionCssPattern = /^extensions[\/\\]/;
+	const testCssPattern = /[\/\\](?:test|test-data|testData)[\/\\]/;
 	const designSystemPattern = /^src[\/\\]vs[\/\\]sessions[\/\\]/;
 	const layerCheckerDisablePattern = /\/\*\s*stylelint-disable\s+layer-checker\s*\*\//;
 	const hasAnchorCheckerDisablePattern = /^\s*\/\*\s*stylelint-disable\s+has-anchor-checker\s*\*\/\s*$/;
@@ -77,7 +78,7 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 
 		}
 
-		if (productionCssPattern.test(file.relative)) {
+		if (productionCssPattern.test(file.relative) && !testCssPattern.test(file.relative)) {
 			const classAttributeSubstringOffset = findClassAttributeSubstringSelector(contents);
 			if (classAttributeSubstringOffset !== undefined) {
 				reporter(file.relative + '(' + lineNumberAtOffset(contents, classAttributeSubstringOffset) + ',1): Class attribute substring selectors make unrelated class mutations trigger style recalculation. Use a stable marker class instead', true);
@@ -156,7 +157,7 @@ function stylelint(sources: string[] = Array.from(stylelintFilter), explicit = f
 	let fileCount = 0;
 	console.info(explicit
 		? `Stylelint: checking ${resolvedSources.length} CSS file${resolvedSources.length === 1 ? '' : 's'} matched by ${sources.length} requested path${sources.length === 1 ? '' : 's'}.`
-		: 'Stylelint: checking all production CSS files under src and extensions.');
+		: 'Stylelint: checking CSS files in the default src and extensions scope.');
 	return vfs
 		.src(resolvedSources, { base: '.', follow: true, allowEmpty: !explicit })
 		.pipe(gulpstylelint((message, isError) => {

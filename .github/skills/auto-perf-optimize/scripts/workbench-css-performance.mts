@@ -105,27 +105,6 @@ async function main(): Promise<void> {
 	const workspace = path.resolve(options.workspace);
 	const userDataDir = path.join(os.tmpdir(), `vscode-css-perf-${process.pid}`);
 	const extensionsDir = path.join(os.tmpdir(), `vscode-css-perf-ext-${process.pid}`);
-	await transpileClient();
-	if (!options.skipPrelaunch) {
-		await prepareCode();
-	}
-	await rm(userDataDir, { recursive: true, force: true, maxRetries: 3 });
-	await rm(extensionsDir, { recursive: true, force: true, maxRetries: 3 });
-	await mkdir(workspace, { recursive: true });
-	await mkdir(path.join(userDataDir, 'User'), { recursive: true });
-	await mkdir(extensionsDir, { recursive: true });
-	await writeFile(path.join(userDataDir, 'User', 'settings.json'), JSON.stringify({
-		'workbench.experimental.modernUI': true,
-		'window.density.layout': 'default',
-		'workbench.startupEditor': 'none',
-		'workbench.editor.enablePreview': false,
-		'workbench.editor.showTabs': 'multiple',
-		'workbench.editor.wrapTabs': false,
-		'workbench.editor.pinnedTabSizing': 'normal',
-		'workbench.editor.tabActionLocation': 'right',
-		'window.commandCenter': true,
-	}, undefined, '\t'));
-
 	const summary: Summary = {
 		createdAt: new Date().toISOString(),
 		options: {
@@ -148,7 +127,7 @@ async function main(): Promise<void> {
 			nodeCount: 0,
 			initialTabCount: 0,
 			classMutationTargetCount: 0,
-			sourceRevision: getSourceRevision(),
+			sourceRevision: 'unavailable',
 		},
 		results: [],
 	};
@@ -158,6 +137,28 @@ async function main(): Promise<void> {
 	let session: CDPSession | undefined;
 	let processExitError: Error | undefined;
 	try {
+		summary.state.sourceRevision = getSourceRevision();
+		await transpileClient();
+		if (!options.skipPrelaunch) {
+			await prepareCode();
+		}
+		await rm(userDataDir, { recursive: true, force: true, maxRetries: 3 });
+		await rm(extensionsDir, { recursive: true, force: true, maxRetries: 3 });
+		await mkdir(workspace, { recursive: true });
+		await mkdir(path.join(userDataDir, 'User'), { recursive: true });
+		await mkdir(extensionsDir, { recursive: true });
+		await writeFile(path.join(userDataDir, 'User', 'settings.json'), JSON.stringify({
+			'workbench.experimental.modernUI': true,
+			'window.density.layout': 'default',
+			'workbench.startupEditor': 'none',
+			'workbench.editor.enablePreview': false,
+			'workbench.editor.showTabs': 'multiple',
+			'workbench.editor.wrapTabs': false,
+			'workbench.editor.pinnedTabSizing': 'normal',
+			'workbench.editor.tabActionLocation': 'right',
+			'window.commandCenter': true,
+		}, undefined, '\t'));
+
 		if (await isCDPAvailable(options.port)) {
 			throw new Error(`Port ${options.port} already exposes CDP.`);
 		}
@@ -229,6 +230,8 @@ async function main(): Promise<void> {
 		}
 	}
 	if (processExitError) {
+		summary.error = processExitError.stack ?? processExitError.message;
+		await writeSummary(outputDir, summary);
 		throw processExitError;
 	}
 }
