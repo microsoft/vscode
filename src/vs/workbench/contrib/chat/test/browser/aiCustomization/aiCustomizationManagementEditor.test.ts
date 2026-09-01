@@ -57,6 +57,7 @@ suite('aiCustomizationManagementEditor', () => {
 		currentEditingReadOnly: boolean;
 		customizationsByMigrationCategory: Map<CustomizationMigrationCategoryId, readonly MigratableConfiguration[]>;
 		customizationMigrationTargetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>;
+		customizationMigrationInProgress: boolean;
 		activeMigrationCategoryId: CustomizationMigrationCategoryId | undefined;
 		editorDisplayMode: 'preview' | 'raw';
 		editorPreviewFrontMatterContainer: HTMLElement | undefined;
@@ -91,6 +92,7 @@ suite('aiCustomizationManagementEditor', () => {
 		renderPreviewAttribute(attribute: IHeaderAttribute, promptType: PromptsType, target: Target): void;
 		onStructuredPreviewSettingChanged(): void;
 		refreshCustomizationMigrationUi(): void;
+		refreshCustomizationMigrationInfoFromPromptChange(): void;
 		refreshCustomizationMigrationInfo(): Promise<void>;
 		registerCustomizationMigrationSessionRefresh(): void;
 		renderCustomizationMigrationPage(): void;
@@ -125,6 +127,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.currentEditingReadOnly = false;
 		editor.customizationsByMigrationCategory = new Map();
 		editor.customizationMigrationTargetFoldersByType = new Map();
+		editor.customizationMigrationInProgress = false;
 		editor.activeMigrationCategoryId = undefined;
 		editor.editorDisplayMode = 'preview';
 		editor.editorPreviewFrontMatterContainer = document.createElement('div');
@@ -395,6 +398,22 @@ suite('aiCustomizationManagementEditor', () => {
 			candidatePaths: ['/user-data/session-b.instructions.md'],
 			destinationPaths: ['/home/test/.test-harness/session-b/instructions'],
 		});
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('does not refresh migration state for prompt changes while migration is in progress', () => {
+		const editor = createTestEditor();
+		let refreshCount = 0;
+		editor.refreshCustomizationMigrationInfo = async () => {
+			refreshCount++;
+		};
+
+		editor.customizationMigrationInProgress = true;
+		editor.refreshCustomizationMigrationInfoFromPromptChange();
+		editor.customizationMigrationInProgress = false;
+		editor.refreshCustomizationMigrationInfoFromPromptChange();
+
+		assert.strictEqual(refreshCount, 1);
 		editor.editorPreviewDisposables.dispose();
 	});
 

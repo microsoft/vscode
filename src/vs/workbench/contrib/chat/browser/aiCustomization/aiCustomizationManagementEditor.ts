@@ -102,7 +102,7 @@ import { EmbeddedExtensionToolsDetail } from './embeddedExtensionToolsDetail.js'
 import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage, type ICustomizationMigrationCategorySummary } from './aiCustomizationWelcomePage.js';
-import { type CustomizationMigrationTargetFolders, migrateCustomizations } from './customizationMigration.js';
+import { type CustomizationMigrationTargetFolders, type IMigratedCustomizationsResult, migrateCustomizations } from './customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, type ICustomizationMigrationBanner, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -386,6 +386,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private customizationMigrationRefreshSequence = 0;
 	private customizationMigrationLoading = false;
 	private customizationMigrationLoadError: string | undefined;
+	private customizationMigrationInProgress = false;
 
 	private readonly editorDisposables = this._register(new DisposableStore());
 	private _editorContentChanged = false;
@@ -934,9 +935,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.promptsService.onDidChangeCustomAgents,
 			this.promptsService.onDidChangeInstructions,
 			this.promptsService.onDidChangeAgentInstructions,
-		)(() => {
-			void this.refreshCustomizationMigrationInfo();
-		}));
+		)(() => this.refreshCustomizationMigrationInfoFromPromptChange()));
 		this.registerCustomizationMigrationSessionRefresh();
 
 		// Container for prompts-based content (Agents, Skills, Instructions, Prompts)
@@ -1109,6 +1108,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.harnessService.activeSessionResource.read(reader);
 			void this.refreshCustomizationMigrationInfo();
 		}));
+	}
+
+	private refreshCustomizationMigrationInfoFromPromptChange(): void {
+		if (!this.customizationMigrationInProgress) {
+			void this.refreshCustomizationMigrationInfo();
+		}
 	}
 
 	private async refreshCustomizationMigrationInfo(): Promise<void> {
@@ -1322,13 +1327,20 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		const migrationResult = await migrateCustomizations(
-			customizations,
-			targetFolders,
-			this.fileService,
-			onUnexpectedError,
-			{ deleteOriginalFiles: confirmResult.checkboxChecked !== false },
-		);
+		const deleteOriginalFiles = confirmResult.checkboxChecked !== false;
+		this.customizationMigrationInProgress = true;
+		let migrationResult: IMigratedCustomizationsResult;
+		try {
+			migrationResult = await migrateCustomizations(
+				customizations,
+				targetFolders,
+				this.fileService,
+				onUnexpectedError,
+				{ deleteOriginalFiles },
+			);
+		} finally {
+			this.customizationMigrationInProgress = false;
+		}
 		const { migratedCount, failedCustomizationFileNames, unsupportedHeaderKeys, migratedCustomizations } = migrationResult;
 
 		if (failedCustomizationFileNames.length > 0) {
@@ -1344,14 +1356,18 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		await this.refreshCustomizationMigrationInfo();
+		if (deleteOriginalFiles) {
+			await this.refreshCustomizationMigrationInfo();
+		}
 
 		const unsupportedKeysLabel = unsupportedHeaderKeys.join(', ');
 		this.notificationService.info(unsupportedKeysLabel.length > 0 && category.getMigratedWithReviewMessage
 			? category.getMigratedWithReviewMessage(migratedCount, unsupportedKeysLabel)
 			: category.getMigratedMessage(migratedCount));
 
-		void this.revealMigratedCustomizations(migratedCustomizations);
+		if (deleteOriginalFiles) {
+			void this.revealMigratedCustomizations(migratedCustomizations);
+		}
 	}
 
 	private renderCustomizationMigrationPage(): void {
