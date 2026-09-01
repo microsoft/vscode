@@ -4763,11 +4763,26 @@ export class AgentService extends Disposable implements IAgentService {
 		// watermark, attempt budgets), so a client must never be able to write it, and
 		// a wholesale replacement must not drop it either.
 		if (action.type === ActionType.SessionConfigChanged) {
-			const configAction = action as SessionConfigChangedAction;
+			let configAction = action as SessionConfigChangedAction;
 			const forbidden = HOST_WRITTEN_SESSION_CONFIG_KEYS.filter(key => Object.hasOwn(configAction.config, key));
 			if (forbidden.length > 0) {
 				this._stateManager.rejectClientAction(channel, action, origin, `Session config keys are host-owned and cannot be set by a client: ${forbidden.join(', ')}.`);
 				return;
+			}
+			const editorClient = clientContext.clientType === AgentHostClientType.EditorWindow;
+			if (!editorClient && Object.hasOwn(configAction.config, SessionConfigKey.ShellInitSnippets)) {
+				this._stateManager.rejectClientAction(channel, action, origin, 'Shell init script config can only be set by an Editor Window client.');
+				return;
+			}
+			if (!editorClient && configAction.replace) {
+				const existingShellInit = this._stateManager.getSessionState(sessionChannel)?.config?.values[SessionConfigKey.ShellInitSnippets];
+				if (existingShellInit !== undefined) {
+					configAction = {
+						...configAction,
+						config: { ...configAction.config, [SessionConfigKey.ShellInitSnippets]: existingShellInit },
+					};
+					action = configAction;
+				}
 			}
 			if (configAction.replace) {
 				action = this._withPreservedHostWrittenSessionConfig(sessionChannel, configAction);
