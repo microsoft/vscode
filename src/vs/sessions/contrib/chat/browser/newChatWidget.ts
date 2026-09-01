@@ -469,6 +469,10 @@ export class NewChatWidget extends Disposable {
 				this._newChatInput.sessionTypePicker.render(target, {
 					className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
 				});
+				const sessionTypePicker = target.lastElementChild;
+				if (!isQuickChat && sessionTypePicker?.previousElementSibling) {
+					target.insertBefore(sessionTypePicker, sessionTypePicker.previousElementSibling);
+				}
 			}));
 		}
 
@@ -715,6 +719,10 @@ export class NewChatWidget extends Disposable {
 		this._newChatInput.sessionTypePicker.render(row, {
 			className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
 		});
+		const sessionTypePicker = row.lastElementChild;
+		if (sessionTypePicker?.previousElementSibling) {
+			row.insertBefore(sessionTypePicker, sessionTypePicker.previousElementSibling);
+		}
 		this._workspacePickerRow = row;
 		return toDisposable(() => {
 			if (this._workspacePickerRow === row) {

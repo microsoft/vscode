@@ -158,7 +158,7 @@ function createHarness(
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('workspace row hosts the workspace picker before the multiple-harness picker', () => {
+	test('workspace row hosts the workspace picker before the multiple-harness and context pickers', () => {
 		const container = document.createElement('div');
 		const harnessLabels = ['Copilot', 'Claude'];
 		const workspaceTriggers: { readonly tooltip: string | undefined; readonly icon: string | undefined; readonly attachesContext: boolean | undefined }[] = [];
@@ -202,8 +202,8 @@ suite('NewChatWidget', () => {
 			})),
 			[
 				{ label: 'Workspace', className: '' },
-				{ label: 'Issue/PR', className: '' },
 				{ label: 'Copilot', className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' },
+				{ label: 'Issue/PR', className: '' },
 			],
 		);
 		assert.deepStrictEqual(workspaceTriggers, [
