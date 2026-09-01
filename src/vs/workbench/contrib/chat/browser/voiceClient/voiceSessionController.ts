@@ -66,7 +66,9 @@ export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking' | 'err
 
 export function isVoiceEntitled(chatEntitlementService: IChatEntitlementService): boolean {
 	return isProUser(chatEntitlementService.entitlement)
-		&& (chatEntitlementService.entitlement !== ChatEntitlement.Enterprise || chatEntitlementService.isInternal);
+		&& (chatEntitlementService.isInternal
+			|| (chatEntitlementService.entitlement !== ChatEntitlement.Business
+				&& chatEntitlementService.entitlement !== ChatEntitlement.Enterprise));
 }
 
 /** One buffered audio chunk of a deferred response. */
@@ -1051,8 +1053,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	async connect(window: Window & typeof globalThis): Promise<void> {
 		if (this._isConnecting.get() || this._isConnected.get()) { return; }
 		if (!isVoiceEntitled(this.chatEntitlementService)) {
-			this.notificationService.warn(this.chatEntitlementService.entitlement === ChatEntitlement.Enterprise
-				? localize('voiceMode.enterpriseUnavailable', "Voice Mode is not available for GitHub Copilot Enterprise accounts.")
+			this.notificationService.warn(this.chatEntitlementService.entitlement === ChatEntitlement.Business || this.chatEntitlementService.entitlement === ChatEntitlement.Enterprise
+				? localize('voiceMode.organizationUnavailable', "Voice Mode is not available for GitHub Copilot Business or Enterprise accounts.")
 				: localize('voiceMode.requiresPaidPlan', "Voice Mode requires a paid GitHub Copilot plan."));
 			return;
 		}

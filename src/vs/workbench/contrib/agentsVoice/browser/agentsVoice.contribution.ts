@@ -21,6 +21,7 @@ import './transcriptsView/voiceTranscripts.contribution.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { PolicyCategory } from '../../../../base/common/policy.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -597,6 +598,18 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			scope: ConfigurationScope.APPLICATION,
 			restricted: true,
+			policy: {
+				name: 'AgentsVoice',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.137',
+				value: policyData => policyData.chat_preview_features_enabled === false ? false : undefined,
+				localization: {
+					description: {
+						key: 'agents.voice.enabled',
+						value: nls.localize('agents.voice.enabled', "Enable the Voice Mode panel in the chat view for voice-driven coding conversations."),
+					},
+				},
+			},
 		},
 		[AgentsVoiceSettingId.ShowButton]: {
 			type: 'boolean',
