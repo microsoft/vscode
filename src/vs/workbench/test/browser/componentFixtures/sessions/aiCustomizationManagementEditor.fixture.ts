@@ -178,7 +178,9 @@ function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[], remo
 				name: file.name ?? '',
 				description: file.description,
 				source: file.storage as AICustomizationSource,
-				groupKey: file.type === PromptsType.skill && file.name === remoteClientSkillName ? 'remote-client' : 'remote-host',
+				groupKey: file.storage === PromptsStorage.builtIn
+					? undefined
+					: file.type === PromptsType.skill && file.name === remoteClientSkillName ? 'remote-client' : 'remote-host',
 				extensionId: file.extensionId,
 				pluginUri: undefined,
 			}));
@@ -1888,7 +1890,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.Skills,
-			agentHostFiles: allFiles.filter(file => file.type !== PromptsType.skill || file.name === 'Accessibility' || file.name === 'Code Review'),
+			agentHostFiles: allFiles.filter(file => file.type !== PromptsType.skill || file.name === 'Accessibility' || file.name === 'Code Review' || file.storage === PromptsStorage.builtIn),
 			remoteClientSkillName: 'Code Review',
 			height: 800,
 		}),
