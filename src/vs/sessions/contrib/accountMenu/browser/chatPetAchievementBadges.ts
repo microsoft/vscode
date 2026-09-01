@@ -70,6 +70,7 @@ export class SessionsChatPetAchievementBadges extends Disposable {
 		const focusedAccessoryId = DOM.isHTMLElement(activeElement)
 			? activeElement.closest<HTMLElement>('.sessions-chat-pet-achievement-badge')?.dataset.accessoryId
 			: undefined;
+		const restoreViewAchievementsFocus = DOM.isHTMLElement(activeElement) && activeElement.closest('.sessions-chat-pet-achievement-badges-actions') !== null;
 		let focusTarget: HTMLElement | undefined;
 		this.renderDisposables.clear();
 		DOM.clearNode(this.element);
@@ -114,6 +115,9 @@ export class SessionsChatPetAchievementBadges extends Disposable {
 		}));
 		viewAchievements.label = localize('sessionsChatPetViewAchievements', "View Achievements");
 		this.renderDisposables.add(viewAchievements.onDidClick(() => this.onOpenAchievements()));
+		if (restoreViewAchievementsFocus) {
+			focusTarget = viewAchievements.element;
+		}
 
 		if (focusTarget) {
 			DOM.getWindow(focusTarget).queueMicrotask(() => {

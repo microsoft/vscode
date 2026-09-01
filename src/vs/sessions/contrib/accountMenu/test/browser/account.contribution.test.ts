@@ -108,17 +108,18 @@ suite('Sessions - Account Menu', () => {
 		});
 	});
 
-	test('selects an unlocked pet hat from its profile badge', () => {
+	test('selects an unlocked pet hat from its profile badge', async () => {
 		const parent = mainWindow.document.createElement('div');
 		mainWindow.document.body.appendChild(parent);
 		store.add(toDisposable(() => parent.remove()));
 		const selectedAccessory = observableValue<ChatPetAccessoryId | undefined>(store, undefined);
+		const variant = observableValue<ChatPetVariant>(store, 'stable');
 		let selected: ChatPetAccessoryId | undefined;
 		const chatPetService = new class extends mock<IChatPetService>() {
 			override readonly enabled = constObservable(true);
 			override readonly unlockedAchievements = constObservable<readonly ChatPetAchievementId[]>([ChatPetAchievementIds.FirstChatMessage]);
 			override readonly selectedAccessory = selectedAccessory;
-			override readonly variant = constObservable<ChatPetVariant>('stable');
+			override readonly variant = variant;
 
 			override setAccessory(accessory: ChatPetAccessoryId | undefined): void {
 				selected = accessory;
@@ -149,16 +150,23 @@ suite('Sessions - Account Menu', () => {
 		cowboyHatBadge.click();
 
 		const selectedBadge = parent.querySelector<HTMLElement>(`[data-accessory-id="${ChatPetAccessoryIds.CowboyHat}"]`);
+		const viewAchievements = parent.querySelector<HTMLElement>('.sessions-chat-pet-achievement-badges-actions .monaco-button');
+		assert.ok(viewAchievements);
+		viewAchievements.focus();
+		variant.set('insiders', undefined);
+		await Promise.resolve();
 		assert.deepStrictEqual({
 			selected,
 			unlockedButtonCount: parent.querySelectorAll('.sessions-chat-pet-achievement-badge.monaco-button').length,
 			pressed: selectedBadge?.getAttribute('aria-pressed'),
 			label: selectedBadge?.getAttribute('aria-label'),
+			focusedAction: mainWindow.document.activeElement?.getAttribute('aria-label'),
 		}, {
 			selected: ChatPetAccessoryIds.CowboyHat,
 			unlockedButtonCount: 1,
 			pressed: 'true',
 			label: 'Welcome to the Wild West achievement badge: Cowboy Hat, wearing',
+			focusedAction: 'View Pet Achievements',
 		});
 	});
 });
