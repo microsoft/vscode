@@ -25,6 +25,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat, ISession, ISessionCapabilities, ISessionChangesSummary, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IDeleteChatOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
 
@@ -45,6 +46,7 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 	readonly archived: ISession[] = [];
 	readonly renamedChats: { readonly session: ISession; readonly chatResource: URI; readonly title: string }[] = [];
 	readonly deletedChats: { readonly session: ISession; readonly chatResource: URI }[] = [];
+	readonly deleteChatOptions: (IDeleteChatOptions | undefined)[] = [];
 	renameError: Error | undefined;
 
 	constructor(sessions: ISession[]) {
@@ -71,8 +73,9 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 		this.archived.push(session);
 	}
 
-	override async deleteChat(session: ISession, chatResource: URI): Promise<void> {
+	override async deleteChat(session: ISession, chatResource: URI, options?: IDeleteChatOptions): Promise<void> {
 		this.deletedChats.push({ session, chatResource });
+		this.deleteChatOptions.push(options);
 	}
 
 	override async renameChat(session: ISession, chatResource: URI, title: string): Promise<void> {

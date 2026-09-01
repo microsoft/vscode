@@ -115,6 +115,78 @@ suite('MultiDiffEditorWidget', () => {
 		}
 	});
 
+	test('uses the taller side while binding a deleted file', async () => {
+		const services = new ServiceCollection();
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IActionViewItemService, new NullActionViewItemService());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() { }());
+		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		services.set(IStorageService, disposables.add(new InMemoryStorageService()));
+		services.set(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(): IMenu {
+				return new class extends mock<IMenu>() {
+					override readonly onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose(): void { }
+				}();
+			}
+		}());
+		const instantiationService = createCodeEditorServices(disposables, services);
+
+		const originalUri = URI.parse('inmemory://original/deleted.js');
+		const originalContent = Array.from({ length: 64 }, (_, index) => `line ${index}`).join('\n');
+		const original = disposables.add(instantiateTextModel(instantiationService, originalContent, undefined, undefined, originalUri));
+		const documentItem = RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+			original,
+			modified: undefined,
+			options: { accessibilitySupport: 'off' },
+		}, { dispose() { } });
+		const model: IMultiDiffEditorModel = {
+			documents: ValueWithChangeEvent.const([documentItem]),
+		};
+
+		const container = document.createElement('div');
+		const widget = instantiationService.createInstance(
+			MultiDiffEditorWidget,
+			container,
+			{} satisfies IWorkbenchUIElementFactory,
+			undefined,
+		);
+		widget.layout(new Dimension(800, 600));
+		const viewModel = widget.createViewModel(model);
+		await waitForState(viewModel.items, items => items.length === 1);
+		await waitForState(viewModel.items.get()[0].diffEditorViewModel.isDiffUpToDate, value => value);
+
+		const observedHeights: number[] = [];
+		const observer = autorun(reader => {
+			const item = widget.getLayoutDebugState().read(reader).items[0];
+			if (item?.hasTemplate) {
+				observedHeights.push(item.verticalState.contentHeight);
+			}
+		});
+		try {
+			widget.setViewModel(viewModel);
+			widget.reveal({ original: originalUri, modified: undefined }, { highlight: false });
+			await waitForState(widget.getLayoutDebugState(), state => state.items[0]?.hasTemplate);
+			const item = widget.getLayoutDebugState().get().items[0];
+			const expectedHeight = widget.getActiveControl()!.getOriginalEditor().getContentHeight() + 40;
+
+			assert.deepStrictEqual({
+				minimumObservedHeight: Math.min(...observedHeights),
+				finalHeight: item.verticalState.contentHeight,
+			}, {
+				minimumObservedHeight: expectedHeight,
+				finalHeight: expectedHeight,
+			});
+		} finally {
+			observer.dispose();
+			widget.setViewModel(undefined);
+			viewModel.dispose();
+			widget.dispose();
+			documentItem.dispose();
+		}
+	});
+
 	test('preserves expanded height when a collapsed template is recycled', async () => {
 		const services = new ServiceCollection();
 		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
