@@ -222,12 +222,48 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		onDidChangeDefaultAccount.fire(null);
 		await new Promise(resolve => setTimeout(resolve, 0));
 
-		// The stale fetch must be discarded rather than restore an Available marketplace.
+		// The stale fetch must be discarded rather than restore an Available marketplace. Cancellation
+		// resolves the startup promise cleanly, so await it directly to also catch an unexpected reject.
 		releaseIndex(mockResponse(200, createGalleryManifest()));
-		const manifest = await inflight.catch(() => null);
+		const manifest = await inflight;
 		await new Promise(resolve => setTimeout(resolve, 0));
 
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
 		assert.strictEqual(manifest, null);
+	});
+
+	test('account change to another authorized account mid-startup fetch resolves to the new manifest', async () => {
+		defaultAccount = createDefaultAccount({ enterprise: true });
+
+		// Park each fetch on its own gate so the first (startup) fetch can settle while the second is
+		// still pending — the window in which a superseded startup could publish a stale null.
+		let releaseFirst!: (v: IRequestContext) => void;
+		let releaseSecond!: (v: IRequestContext) => void;
+		const firstGate = new Promise<IRequestContext>(resolve => { releaseFirst = resolve; });
+		const secondGate = new Promise<IRequestContext>(resolve => { releaseSecond = resolve; });
+		let fetchCount = 0;
+		requestHandler = () => (++fetchCount === 1 ? firstGate : secondGate);
+
+		const service = createService();
+		const inflight = service.getExtensionGalleryManifest();
+
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		// Switch to another authorized account; its fetch parks on the second gate.
+		defaultAccount = createDefaultAccount({ enterprise: true, sessionId: 'session-2' });
+		onDidChangeDefaultAccount.fire(defaultAccount);
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		// The stale first fetch settles while the winning fetch is still pending. The startup promise
+		// (which the constructor publishes to the shared/remote channels) must stay pending for the
+		// winner rather than resolving early with the superseded null.
+		releaseFirst(mockResponse(200, createGalleryManifest()));
+		await new Promise(resolve => setTimeout(resolve, 0));
+		releaseSecond(mockResponse(200, createGalleryManifest()));
+
+		const manifest = await inflight;
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		assert.notStrictEqual(manifest, null);
 	});
 });

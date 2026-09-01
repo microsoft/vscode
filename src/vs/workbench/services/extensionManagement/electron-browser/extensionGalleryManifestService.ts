@@ -107,11 +107,19 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		}));
 	}
 
-	private async handleDefaultAccountAccess(configuredServiceUrl: string): Promise<void> {
+	private resolutionPromise: Promise<void> = Promise.resolve();
+	private handleDefaultAccountAccess(configuredServiceUrl: string): Promise<void> {
 		const token = this.beginResolution();
+		return this.resolutionPromise = this.doHandleDefaultAccountAccess(configuredServiceUrl, token);
+	}
+
+	private async doHandleDefaultAccountAccess(configuredServiceUrl: string, token: CancellationToken): Promise<void> {
 		const account = await this.defaultAccountService.getDefaultAccount();
+		// A newer account change has superseded this run: settle on the newest resolution instead of
+		// returning early, so a superseded startup keeps the shared/remote channel publish pending
+		// until the winning manifest is known rather than publishing a stale value.
 		if (token.isCancellationRequested) {
-			return;
+			return this.resolutionPromise;
 		}
 
 		if (!account) {
@@ -124,7 +132,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			try {
 				const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl, token);
 				if (token.isCancellationRequested) {
-					return;
+					return this.resolutionPromise;
 				}
 				this.update(manifest);
 				this.telemetryService.publicLog2<
@@ -135,7 +143,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 					}>('galleryservice:custom:marketplace');
 			} catch (error) {
 				if (token.isCancellationRequested) {
-					return;
+					return this.resolutionPromise;
 				}
 				this.logService.error('[Marketplace] Error retrieving enterprise gallery manifest', error);
 				this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
