@@ -771,6 +771,8 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		deltaLanguageModelChatProviderDescriptors: () => { },
 		registerLanguageModelProvider: () => toDisposable(() => { }),
 		lookupLanguageModel: (modelId: string) => languageModels?.get(modelId),
+		getLanguageModelIds: () => [...(languageModels?.keys() ?? [])],
+		onDidChangeLanguageModels: Event.None,
 		getVendors: () => [],
 		getLanguageModelGroups: () => [],
 		...languageModelsServiceOverride,
@@ -8899,7 +8901,6 @@ suite('AgentHostChatContribution', () => {
 				enum: ['low', 'medium', 'high'],
 				enumItemLabels: ['Low', 'Medium', 'High'],
 				enumDescriptions: undefined,
-				readOnly: undefined,
 				group: 'navigation',
 			});
 		});

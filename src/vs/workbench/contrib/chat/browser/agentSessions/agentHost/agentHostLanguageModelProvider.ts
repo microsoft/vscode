@@ -6,13 +6,29 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { formatTokenCount } from '../../../../../../base/common/numbers.js';
 import { localize } from '../../../../../../nls.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/agentModelPricing.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
+import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
-import { AUTO_RAW_MODEL_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema } from '../../../common/languageModels.js';
+import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
+
+/**
+ * Config key naming the context-window tier a host accepts on a model selection. Its values are
+ * tier names (`default` / `long_context`), because a host driving the Copilot SDK has no per-model
+ * token counts to offer.
+ */
+const CONTEXT_TIER_CONFIG_KEY = 'contextTier';
+
+/**
+ * Config key naming the numeric context-window picker the workbench's own Copilot catalogue
+ * synthesizes from CAPI billing. Read here only as the source of the token counts used to label
+ * {@link CONTEXT_TIER_CONFIG_KEY}; it is never surfaced to a host, which would not understand it.
+ */
+const CONTEXT_SIZE_CONFIG_KEY = 'contextSize';
 
 /**
  * Returns whether an agent host provider exposes a synthetic "Auto" model to
@@ -35,6 +51,15 @@ export function agentHostProviderSupportsAutoModel(provider: string): boolean {
 }
 
 /**
+ * Read-only view of the workbench model catalogue an agent host's models are enriched from.
+ *
+ * Narrowed to the reads {@link AgentHostLanguageModelProvider} performs (all plain lookups into
+ * already-registered models, so none of them re-enter a provider) plus the change signal, both so
+ * the dependency stays obviously side-effect free and so tests can supply a small fake.
+ */
+export type IAgentHostModelCatalogue = Pick<ILanguageModelsService, 'getLanguageModelIds' | 'lookupLanguageModel' | 'onDidChangeLanguageModels'>;
+
+/**
  * Exposes models available from the agent host process as selectable
  * language models in the chat model picker. Models are provided from
  * root state (via {@link AgentInfo.models}) rather than via RPC.
@@ -44,12 +69,28 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	readonly onDidChange = this._onDidChange.event;
 
 	private _models: readonly SessionModelInfo[] = [];
+	private _lastCatalogueSignature: string | undefined;
 
 	constructor(
 		private readonly _sessionType: string,
 		private readonly _vendor: string,
+		private readonly _catalogue?: IAgentHostModelCatalogue,
 	) {
 		super();
+
+		// The catalogue is populated independently of the host — a sandbox can advertise its models
+		// before the Copilot vendor has resolved — so re-publish when it arrives to pick up the
+		// enrichment. Gated on the catalogue actually changing: this provider's own republish makes
+		// the service fire this event again, which would otherwise loop.
+		if (this._catalogue) {
+			this._register(this._catalogue.onDidChangeLanguageModels(() => {
+				const signature = this._catalogueSignature();
+				if (signature !== this._lastCatalogueSignature) {
+					this._lastCatalogueSignature = signature;
+					this._onDidChange.fire();
+				}
+			}));
+		}
 	}
 
 	/**
@@ -80,6 +121,10 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 					: undefined;
 				const modelGroup = this._modelGroupFor(m);
 				const byokModelIdentifier = readAgentModelByokIdentifier(m);
+				// A host that derives its list from the Copilot SDK advertises no billing and no
+				// token counts, so fall back to the workbench's own catalogue entry for the same
+				// model. See `_catalogueEntryFor`.
+				const known = this._catalogueEntryFor(m, modelGroup);
 				return {
 					identifier: `${this._vendor}:${m.id}`,
 					metadata: {
@@ -91,23 +136,23 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						family: m.id,
 						...(tooltip !== undefined && { tooltip }),
 						...(detail !== undefined && { detail }),
-						maxInputTokens: m.maxPromptTokens ?? 0,
-						maxOutputTokens: m.maxOutputTokens ?? 0,
+						maxInputTokens: m.maxPromptTokens ?? known?.maxInputTokens ?? 0,
+						maxOutputTokens: m.maxOutputTokens ?? known?.maxOutputTokens ?? 0,
 						isDefaultForLocation: {},
 						isUserSelectable: true,
-						pricing: multiplierNumeric !== undefined ? `${multiplierNumeric}x` : undefined,
-						multiplierNumeric,
-						inputCost: pricing.inputCost,
-						cacheCost: pricing.cacheCost,
-						cacheWriteCost: pricing.cacheWriteCost,
-						outputCost: pricing.outputCost,
-						longContextInputCost: pricing.longContextInputCost,
-						longContextCacheCost: pricing.longContextCacheCost,
-						longContextCacheWriteCost: pricing.longContextCacheWriteCost,
-						longContextOutputCost: pricing.longContextOutputCost,
-						priceCategory: pricing.priceCategory,
-						category: pricing.category,
-						promo: pricing.promo,
+						pricing: multiplierNumeric !== undefined ? `${multiplierNumeric}x` : known?.pricing,
+						multiplierNumeric: multiplierNumeric ?? known?.multiplierNumeric,
+						inputCost: pricing.inputCost ?? known?.inputCost,
+						cacheCost: pricing.cacheCost ?? known?.cacheCost,
+						cacheWriteCost: pricing.cacheWriteCost ?? known?.cacheWriteCost,
+						outputCost: pricing.outputCost ?? known?.outputCost,
+						longContextInputCost: pricing.longContextInputCost ?? known?.longContextInputCost,
+						longContextCacheCost: pricing.longContextCacheCost ?? known?.longContextCacheCost,
+						longContextCacheWriteCost: pricing.longContextCacheWriteCost ?? known?.longContextCacheWriteCost,
+						longContextOutputCost: pricing.longContextOutputCost ?? known?.longContextOutputCost,
+						priceCategory: pricing.priceCategory ?? known?.priceCategory,
+						category: pricing.category ?? known?.category,
+						promo: pricing.promo ?? known?.promo,
 						targetChatSessionType: this._sessionType,
 						// Group agent-host models in the picker by their upstream provider
 						// (Copilot CLI, OpenAI, a 3p BYOK provider, …). All of a host's
@@ -116,35 +161,174 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						...(modelGroup ? { modelGroup } : {}),
 						...(byokModelIdentifier !== undefined && { byokModelIdentifier }),
 						capabilities: {
-							vision: m.supportsVision ?? false,
+							vision: m.supportsVision ?? known?.capabilities?.vision ?? false,
 							toolCalling: true,
 							agentMode: true,
 						},
-						configurationSchema: this._toLanguageModelConfigurationSchema(m.configSchema),
+						configurationSchema: this._toLanguageModelConfigurationSchema(m.configSchema, known),
 					},
 				};
 			});
 	}
 
-	private _toLanguageModelConfigurationSchema(schema: ConfigSchema | undefined): ILanguageModelConfigurationSchema | undefined {
+	/**
+	 * The workbench catalogue entry describing the same model, when one is known.
+	 *
+	 * A host that derives its model list from the Copilot SDK advertises only what the SDK gave it:
+	 * no billing, and no per-tier context windows. The workbench already holds that detail for the
+	 * same models — the Copilot vendor's catalogue is CAPI-backed — so the two are matched by model
+	 * id and the host's list is enriched from it, which is how the GitHub desktop app renders real
+	 * token counts for a sandbox session.
+	 *
+	 * Restricted to models billed through Copilot (a `copilot` picker group), so a model reached
+	 * over a direct third-party transport is never labelled with Copilot's prices.
+	 */
+	private _catalogueEntryFor(model: SessionModelInfo, group: ILanguageModelChatMetadata['modelGroup']): ILanguageModelChatMetadata | undefined {
+		if (!this._catalogue || group?.id !== COPILOT_VENDOR_ID) {
+			return undefined;
+		}
+		for (const identifier of this._catalogue.getLanguageModelIds()) {
+			const metadata = this._catalogue.lookupLanguageModel(identifier);
+			if (metadata?.vendor === COPILOT_VENDOR_ID && metadata.id === model.id) {
+				return metadata;
+			}
+		}
+		return undefined;
+	}
+
+	/**
+	 * Cheap fingerprint of the catalogue's contribution to what this provider publishes, used to
+	 * suppress a re-publish that would otherwise bounce between this provider and the service.
+	 */
+	private _catalogueSignature(): string {
+		if (!this._catalogue) {
+			return '';
+		}
+		const parts: string[] = [];
+		for (const identifier of this._catalogue.getLanguageModelIds()) {
+			const metadata = this._catalogue.lookupLanguageModel(identifier);
+			if (metadata?.vendor !== COPILOT_VENDOR_ID) {
+				continue;
+			}
+			parts.push(`${metadata.id}:${metadata.maxInputTokens}:${metadata.maxOutputTokens}:${metadata.multiplierNumeric ?? ''}:${AgentHostLanguageModelProvider._contextWindowTiers(metadata)?.join('/') ?? ''}`);
+		}
+		return parts.sort().join(',');
+	}
+
+	/**
+	 * The distinct context-window sizes a catalogue entry offers, ascending, or `undefined` when it
+	 * offers no real choice. Sourced from the numeric `contextSize` picker the Copilot catalogue
+	 * synthesizes from CAPI billing, which is the only place these token counts exist.
+	 */
+	private static _contextWindowTiers(metadata: ILanguageModelChatMetadata | undefined): number[] | undefined {
+		const values = metadata?.configurationSchema?.properties?.[CONTEXT_SIZE_CONFIG_KEY]?.enum;
+		if (!values?.length) {
+			return undefined;
+		}
+		const sizes = [...new Set(values.filter((value): value is number => typeof value === 'number'))].sort((a, b) => a - b);
+		return sizes.length > 1 ? sizes : undefined;
+	}
+
+	/**
+	 * Labels for a host's `contextTier` enum, as token counts rather than tier names.
+	 *
+	 * The host names the tiers (`default` / `long_context`) because the SDK exposes no per-model
+	 * windows, but the picker is far more useful showing "264K" / "1M" — what the GitHub desktop
+	 * app displays for the same session. The wire value stays the tier name the host accepts; only
+	 * the label changes.
+	 *
+	 * Returns `undefined` when the catalogue offers no distinct long-context tier (or does not know
+	 * the model), which drops the property and hides the picker rather than offering a choice that
+	 * has no effect — matching how the desktop app suppresses it.
+	 */
+	private static _contextTierLabels(values: readonly unknown[] | undefined, known: ILanguageModelChatMetadata | undefined): string[] | undefined {
+		const tiers = AgentHostLanguageModelProvider._contextWindowTiers(known);
+		if (!tiers || !values?.length) {
+			return undefined;
+		}
+		// The host orders its tiers from smallest window to largest, so they align with the sorted
+		// sizes by position. A tier list of a different length is not one this mapping understands.
+		if (values.length !== tiers.length || !values.every(value => typeof value === 'string')) {
+			return undefined;
+		}
+		return tiers.map(formatTokenCount);
+	}
+
+	private _toLanguageModelConfigurationSchema(schema: ConfigSchema | undefined, known?: ILanguageModelChatMetadata): ILanguageModelConfigurationSchema | undefined {
 		if (!schema) {
 			return undefined;
 		}
 
-		return {
-			type: schema.type,
-			required: schema.required,
-			properties: Object.fromEntries(Object.entries(schema.properties).map(([key, property]) => [key, {
+		const properties: ILanguageModelConfigurationSchema['properties'] = {};
+		for (const [key, property] of Object.entries(schema.properties)) {
+			// Only when the producer supplied no display text at all. Filling in half of it
+			// would mix sources and override a producer that deliberately labels its values
+			// without describing them.
+			const effortDisplay = property.enumLabels === undefined && property.enumDescriptions === undefined
+				? AgentHostLanguageModelProvider._reasoningEffortDisplay(key, property.enum)
+				: undefined;
+
+			let enumItemLabels = property.enumLabels ?? effortDisplay?.labels;
+			if (key === CONTEXT_TIER_CONFIG_KEY) {
+				const tierLabels = AgentHostLanguageModelProvider._contextTierLabels(property.enum, known);
+				if (!tierLabels) {
+					// No real choice to offer (or no catalogue entry to size it with): drop the
+					// property so the picker hides rather than showing tier names that read as a
+					// setting the user cannot evaluate.
+					continue;
+				}
+				enumItemLabels = tierLabels;
+			}
+
+			properties[key] = {
 				type: property.type,
 				title: property.title,
 				description: property.description,
 				default: property.default,
 				enum: property.enum,
-				enumItemLabels: property.enumLabels,
-				enumDescriptions: property.enumDescriptions,
-				readOnly: property.readOnly,
+				enumItemLabels,
+				enumDescriptions: property.enumDescriptions ?? effortDisplay?.descriptions,
 				group: AgentHostLanguageModelProvider._groupForConfigKey(key),
-			}])),
+			};
+		}
+
+		return {
+			type: schema.type,
+			required: schema.required,
+			properties,
+		};
+	}
+
+	/** Config keys whose enum values are reasoning-effort levels, whatever the producer named them. */
+	private static readonly _reasoningEffortKeys: ReadonlySet<string> = new Set(['reasoningEffort', 'thinkingLevel']);
+
+	/**
+	 * Localized labels and descriptions for a reasoning-effort enum whose producer supplied none.
+	 *
+	 * A host that derives its schema from an upstream SDK advertises the accepted effort values
+	 * without display text, because it has none the SDK did not give it — the Copilot agent host
+	 * inside a cloud sandbox does exactly that. Deriving the text here keeps the picker from
+	 * rendering raw values like `xhigh`, and matches what the agents that build their schema
+	 * locally already emit.
+	 *
+	 * Only synthesized when every enum value is a string, since labels align with `enum` by index
+	 * and a partial list would mislabel the rest.
+	 *
+	 * No `default` is synthesized: schema defaults are merged into the configuration that is sent
+	 * (see `resolveModelConfiguration`), so inventing one would send an explicit effort where the
+	 * host expects the value omitted and the backend to choose.
+	 */
+	private static _reasoningEffortDisplay(key: string, values: readonly unknown[] | undefined): { readonly labels: string[]; readonly descriptions: string[] } | undefined {
+		if (!AgentHostLanguageModelProvider._reasoningEffortKeys.has(key) || !values?.length) {
+			return undefined;
+		}
+		const levels = values.filter((value): value is string => typeof value === 'string');
+		if (levels.length !== values.length) {
+			return undefined;
+		}
+		return {
+			labels: levels.map(getReasoningEffortLabel),
+			descriptions: levels.map(level => getReasoningEffortDescription(level) ?? ''),
 		};
 	}
 
@@ -153,8 +337,14 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 			// The Auto model has no thinking level, so its routing-profile picker takes that slot,
 			// matching how the Copilot Chat extension groups it.
 			case 'tier':
-			case 'thinkingLevel': return 'navigation';
-			case 'contextSize': return 'tokens';
+			case 'thinkingLevel':
+			// `reasoningEffort` / `contextTier` are what the Copilot agent host inside a cloud
+			// sandbox names the same two knobs. Without them the picker finds no property in
+			// either group and hides itself entirely, so a sandbox session offers no way to
+			// choose a thinking level or a context window.
+			case 'reasoningEffort': return 'navigation';
+			case 'contextSize':
+			case CONTEXT_TIER_CONFIG_KEY: return 'tokens';
 			default: return undefined;
 		}
 	}

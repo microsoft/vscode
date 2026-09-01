@@ -2150,6 +2150,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._onDidChangeSessions.fire({ added: [placeholder], removed: [], changed: [] });
 
 		let provisioned: ICloudSandboxProvisionedSession | undefined;
+		// Read before provisioning: the composer session is retired below, and its selection is the
+		// only record of what the user picked for this turn.
+		const selectedRawModelId = this._rawCloudModelId(session);
 		try {
 			provisioned = await this._getCloudSandboxContribution().provisionSession({
 				repoNwo,
@@ -2160,6 +2163,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			// Send into the session's main chat rather than `createNewChat`, which would mint an
 			// *additional* peer chat inside a session that already has one.
 			const chat = provisioned.session.mainChat.get();
+			this._carryModelToSandbox(provisioned, chat.resource, selectedRawModelId);
 			const committed = await provisioned.provider.sendRequest(provisioned.session.sessionId, chat.resource, options);
 
 			// Retire only once the turn is dispatched; swapping earlier bounces the view home.
@@ -2185,6 +2189,47 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	/** Reveal the sandbox session that {@link CloudSandboxAgentHostContribution.provisionSession} withheld from listings. */
 	private _publishSandboxSession(provisioned: ICloudSandboxProvisionedSession, options?: { announce?: boolean }): void {
 		provisioned.provider.publishWithheldSession(AgentSession.id(provisioned.session.resource), options);
+	}
+
+	/**
+	 * The backend model id behind this composer's selection, as the sandbox knows it.
+	 *
+	 * Cloud sessions pick from the extension host's `models` option group, whose ids are the
+	 * group's own item ids, while a sandbox registers its models from what the agent host
+	 * advertises. The two are different id spaces, so only the underlying model id crosses over.
+	 */
+	private _rawCloudModelId(session: RemoteNewSession): string | undefined {
+		const selectedModelId = session.selectedModelId;
+		if (!selectedModelId) {
+			return undefined;
+		}
+		const { modelOption } = session.getModelOptionsSnapshot();
+		const item = modelOption?.group.items.find(i => i.id === selectedModelId);
+		return item?.modelMetadata?.id ?? item?.id ?? selectedModelId;
+	}
+
+	/**
+	 * Apply the model the user picked in the composer to the sandbox session before its first turn.
+	 *
+	 * Mission Control starts no run, so this client sends that turn — and a session that has never
+	 * run has no model of its own to restore. Without this the turn carries no model at all and
+	 * silently runs on whatever the agent host defaults to, discarding the user's pick along with
+	 * the thinking level and context tier configured against it.
+	 *
+	 * Best-effort: a model the sandbox does not advertise (or a model list that has not arrived) is
+	 * left alone rather than sent as an unroutable id, which keeps the previous behavior.
+	 */
+	private _carryModelToSandbox(provisioned: ICloudSandboxProvisionedSession, chatResource: URI, rawModelId: string | undefined): void {
+		if (!rawModelId) {
+			return;
+		}
+		const sessionId = provisioned.session.sessionId;
+		const match = provisioned.provider.getModelsSnapshot(sessionId).models.find(model => model.metadata.id === rawModelId);
+		if (!match) {
+			this.logService.info(`[CopilotChatSessionsProvider] Sandbox session ${sessionId} does not advertise model '${rawModelId}'; letting the agent host choose.`);
+			return;
+		}
+		provisioned.provider.setModel(sessionId, chatResource, match.identifier, ChatModelSource.CarriedOver);
 	}
 
 	/** Retire the optimistic placeholder in favour of the session that now exists. */
