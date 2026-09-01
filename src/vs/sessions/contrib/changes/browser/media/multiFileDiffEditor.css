@@ -7,37 +7,66 @@
  * used by the Changes view / editor). Kept out of the shared workbench style so
  * these overrides live next to the Changes contribution that owns them. */
 
-/* The per-file diff rows intentionally render flush with the panel (the old
- * `padding: 0 8px` inset was removed as part of the spacing rework); only
- * `box-sizing` is kept here. */
-.agent-sessions-workbench .part.editor .multiDiffEntry {
-	box-sizing: border-box;
+.agent-sessions-workbench .part.editor .multiDiffEntry::after {
+	content: '';
+	position: absolute;
+	right: var(--vscode-spacing-size100);
+	bottom: 0;
+	left: var(--vscode-spacing-size100);
+	height: var(--vscode-strokeThickness);
+	background: var(--vscode-panel-border);
+	z-index: 1001;
+	pointer-events: none;
 }
 
 .agent-sessions-workbench .part.editor .multiDiffEntry .header {
 	cursor: pointer;
-	background: transparent;
+	background: var(--vscode-multiDiffEditor-background);
 	position: relative;
 }
 
-.agent-sessions-workbench .part.editor .multiDiffEntry .header::before {
+.agent-sessions-workbench .part.editor .multiDiffEntry.header-hovered,
+.agent-sessions-workbench .part.editor .multiDiffEntry.header-focused,
+.agent-sessions-workbench .part.editor .multiDiffEditor:focus-within .multiDiffEntry.active {
+	overflow: visible;
+	z-index: 1002;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry.header-hovered::after,
+.agent-sessions-workbench .part.editor .multiDiffEntry.header-focused::after,
+.agent-sessions-workbench .part.editor .multiDiffEditor:focus-within .multiDiffEntry.active::after {
+	right: 0;
+	left: 0;
+	z-index: 1004;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry.header-hovered::before,
+.agent-sessions-workbench .part.editor .multiDiffEntry.header-focused::before,
+.agent-sessions-workbench .part.editor .multiDiffEditor:focus-within .multiDiffEntry.active::before {
 	content: '';
 	position: absolute;
-	inset: 0;
-	background: var(--vscode-agentsPanel-background);
-	z-index: -1;
+	top: calc(-1 * var(--vscode-strokeThickness));
+	right: 0;
+	left: 0;
+	height: var(--vscode-strokeThickness);
+	background: var(--vscode-panel-border);
+	z-index: 1004;
 	pointer-events: none;
 }
 
-/* Include the multi-diff owner to outrank the equally specific core
- * `.monaco-component.multiDiffEditor .multiDiffEntry .header .header-content`
- * rule for the Agents header margin, padding, border, and background. */
-.agent-sessions-workbench .part.editor .multiDiffEditor .multiDiffEntry .header-content {
-	border-radius: var(--vscode-cornerRadius-medium);
+.agent-sessions-workbench .part.editor .multiDiffEntry.first-diff-entry.header-hovered::before,
+.agent-sessions-workbench .part.editor .multiDiffEntry.first-diff-entry.header-focused::before,
+.agent-sessions-workbench .part.editor .multiDiffEditor:focus-within .multiDiffEntry.first-diff-entry.active::before {
+	top: 0;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header .header-content {
+	height: var(--vscode-spacing-size320);
+	box-sizing: border-box;
 	border: none;
-	background: var(--vscode-sideBarSectionHeader-background);
+	background: transparent;
 	margin: 0;
-	padding-left: var(--vscode-spacing-sizeNone);
+	padding: var(--vscode-spacing-sizeNone);
 	align-items: center;
 }
 
@@ -45,10 +74,29 @@
 	border-bottom: none;
 }
 
-/* The same owner keeps the Agents body font size from tying the core
- * `.header-content .file-path .title` 14px rule. */
-.agent-sessions-workbench .part.editor .multiDiffEditor .multiDiffEntry .header-content .file-path .title {
-	font-size: var(--vscode-agents-fontSize-body1);
+.agent-sessions-workbench .part.editor .multiDiffEditor:focus-within .multiDiffEntry.active .header .header-content {
+	background: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header:hover .header-content {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header:active .header-content {
+	background: var(--vscode-toolbar-activeBackground);
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEditor:focus-within .multiDiffEntry.active .header:hover .header-content,
+.agent-sessions-workbench .part.editor .multiDiffEditor:focus-within .multiDiffEntry.active .header:active .header-content {
+	background: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header[aria-expanded="false"] + .editorParent {
+	border: none;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .file-path .title {
+	font-size: var(--vscode-fontSize-body1);
 	line-height: 22px;
 }
 
@@ -70,7 +118,7 @@
 	flex: 0 0 auto;
 	gap: var(--vscode-spacing-size40);
 	margin-left: var(--vscode-spacing-size60);
-	font-size: var(--vscode-agents-fontSize-body2);
+	font-size: var(--vscode-fontSize-body2);
 }
 
 .agent-sessions-workbench .part.editor .multiDiffEntry .header-content .session-changes-file-stats .working-set-lines-added {
@@ -85,22 +133,56 @@
 	gap: 4px;
 }
 
-.agent-sessions-workbench .part.editor .multiDiffEntry .header:focus,
-.agent-sessions-workbench .part.editor .multiDiffEntry .header:focus-visible {
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .actions-container .action-item:not(.changeset-review-action) {
+	visibility: hidden;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry:hover .header-content .actions-container .action-item:not(.changeset-review-action),
+.agent-sessions-workbench .part.editor .multiDiffEntry:focus-within .header-content .actions-container .action-item:not(.changeset-review-action) {
+	visibility: visible;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header:focus {
 	outline: none;
 }
 
-.agent-sessions-workbench .part.editor .multiDiffEntry .header:focus .header-content,
 .agent-sessions-workbench .part.editor .multiDiffEntry .header:focus-visible .header-content {
-	box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .agent-sessions-workbench .part.editor .multiDiffEntry .collapse-button a {
-	border-radius: var(--vscode-cornerRadius-small);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .actions-container .action-item:not(.changeset-review-action) .action-label {
+	padding: var(--vscode-spacing-size40);
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .collapse-button a:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .collapse-button a:active {
+	background: var(--vscode-toolbar-activeBackground);
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .collapse-button a:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .collapse-button a:focus:not(:focus-visible) {
+	outline: none;
 }
 
 .agent-sessions-workbench .part.editor .multiDiffEntry .editorParent {
-	border-bottom: none;
+	border: none;
+	overflow: hidden;
 }
 
 .agent-sessions-workbench .part.editor .diff-hidden-lines .center {
@@ -113,7 +195,7 @@
  * line-number gutter width (which pushes it to the right). */
 .agent-sessions-workbench .part.editor .diff-hidden-lines .center > div:first-child {
 	justify-content: flex-start !important;
-	padding-left: 5px;
+	padding-left: var(--vscode-spacing-size60);
 	box-sizing: border-box;
 }
 
@@ -142,8 +224,8 @@
 	justify-content: center;
 	width: 16px;
 	min-width: 16px;
-	font-size: var(--vscode-agents-fontSize-body2);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-body2);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	opacity: 0.9;
 }
 
@@ -175,7 +257,7 @@
 }
 
 .agent-sessions-workbench .part.editor .multiDiffEntry .header-content .changeset-review-action .checkbox-label {
-	font-size: var(--vscode-agents-fontSize-body2);
+	font-size: var(--vscode-fontSize-body2);
 	line-height: 20px;
 	white-space: nowrap;
 	cursor: pointer;

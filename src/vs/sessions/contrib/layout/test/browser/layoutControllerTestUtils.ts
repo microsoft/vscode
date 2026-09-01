@@ -20,7 +20,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewContainerModel, IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { ICloseEditorOptions, IEditorGroup, IEditorGroupsService, IEditorReplacement, IEditorWorkingSet } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
-import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { IEditorsChangeEvent, IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IPaneComposite } from '../../../../../workbench/common/panecomposite.js';
@@ -43,6 +43,13 @@ type SidePaneComposition = { readonly editor: boolean; readonly auxiliaryBar: bo
 
 export function makeChange(filePath: string): ISessionFileChange {
 	return { uri: URI.file(filePath), insertions: 1, deletions: 0 };
+}
+
+/** A minimal pane composite identified only by its id, for the panel-view capture. */
+export function makePaneComposite(id: string): IPaneComposite {
+	return new class extends mock<IPaneComposite>() {
+		override getId() { return id; }
+	};
 }
 
 /** A minimal editor input for tests, identified only by its resource. */
@@ -71,6 +78,7 @@ export function makeSession(resource: URI, opts?: {
 		checkpoints: observableValue('checkpoints', undefined),
 		changes: observableValue('changes', opts?.changes ?? []),
 		modelId: observableValue('modelId', undefined),
+		modelSource: observableValue('modelSource', undefined),
 		mode: observableValue('mode', undefined),
 		isArchived: observableValue('isArchived', false),
 		isRead: observableValue('isRead', true),
@@ -180,10 +188,14 @@ export interface ITestLayoutHarness {
 	onWillOpenEditor: Emitter<IEditorWillOpenEvent>;
 	onWillCloseEditor: Emitter<{ editor: EditorInput }>;
 	onDidCloseEditor: Emitter<{ editor: EditorInput; groupId?: number }>;
-	onDidEditorsChange: Emitter<void>;
+	onDidEditorsChange: Emitter<IEditorsChangeEvent | void>;
 	onDidLayoutMainContainer: Emitter<IDimension>;
 	onDidChangeViewContainerVisibility: Emitter<{ id: string; visible: boolean; location: ViewContainerLocation }>;
 	onDidChangeActiveViewDescriptors: Emitter<void>;
+	/** Fires a pane composite (view) opening in a part, driving the per-session panel-view capture. */
+	onDidPaneCompositeOpen: Emitter<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation }>;
+	/** Records every `openPaneComposite` call the controller makes to restore a session's panel view. */
+	openPaneCompositeCalls: { id: string | undefined; location: ViewContainerLocation }[];
 	/** IDs of aux-bar view containers that are currently active (shown as a tab). */
 	activeAuxViewContainerIds: string[];
 	mainContainerWidth: number;
@@ -203,6 +215,8 @@ export interface ITestLayoutHarness {
 	activateAux: boolean;
 	/** Editors in the main part's active group (drives the single-pane managed-tab logic). */
 	activeGroupEditors: EditorInput[];
+	/** Fires when the active editor group begins disposal. */
+	onWillDisposeActiveGroup: Emitter<void>;
 	/** Records editors closed via `IEditorService.closeEditors`. */
 	closedEditors: EditorInput[];
 	/** Records untyped editors reopened via `IEditorService.openEditors`. */
@@ -236,7 +250,7 @@ export interface ITestLayoutHarness {
 	/** Optional async hook awaited before `closeEditors` mutates the group. */
 	onCloseEditors?: () => Promise<void> | void;
 	/** Optional async hook awaited before `replaceEditors` mutates the group. */
-	onReplaceEditors?: () => Promise<void> | void;
+	onReplaceEditors?: (replacements: IEditorReplacement[]) => Promise<void> | void;
 	/** Records every `openChangesEditor` call for assertions (session + whether active). */
 	openChangesEditorCalls: { sessionResource: URI; active: boolean }[];
 	readonly sessionChangesService: ISessionChangesService;
@@ -296,10 +310,12 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		onWillOpenEditor: store.add(new Emitter<IEditorWillOpenEvent>()),
 		onWillCloseEditor: store.add(new Emitter<{ editor: EditorInput }>()),
 		onDidCloseEditor: store.add(new Emitter<{ editor: EditorInput; groupId?: number }>()),
-		onDidEditorsChange: store.add(new Emitter<void>()),
+		onDidEditorsChange: store.add(new Emitter<IEditorsChangeEvent | void>()),
 		onDidLayoutMainContainer: store.add(new Emitter<IDimension>()),
 		onDidChangeViewContainerVisibility: store.add(new Emitter<{ id: string; visible: boolean; location: ViewContainerLocation }>()),
 		onDidChangeActiveViewDescriptors: store.add(new Emitter<void>()),
+		onDidPaneCompositeOpen: store.add(new Emitter<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation }>()),
+		openPaneCompositeCalls: [],
 		activeAuxViewContainerIds: options.activeAuxViewContainerIds ? [...options.activeAuxViewContainerIds] : [CHANGES_VIEW_CONTAINER_ID, SESSIONS_FILES_CONTAINER_ID],
 		mainContainerWidth: options.mainContainerWidth ?? 2000,
 		editorMaximized: false,
@@ -320,6 +336,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		editorPartAutoVisibilitySuppressionDepth: 0,
 		activateAux: options.activateAux ?? false,
 		activeGroupEditors: [],
+		onWillDisposeActiveGroup: store.add(new Emitter<void>()),
 		closedEditors: [],
 		openedEditors: [],
 		closeSuppressionFlags: [],
@@ -342,6 +359,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	const testActiveGroup: IEditorGroup = new class extends mock<IEditorGroup>() {
 		override readonly id = 1;
 		override get editors() { return harness.activeGroupEditors as IEditorGroup['editors']; }
+		override readonly onWillDispose = harness.onWillDisposeActiveGroup.event;
 		override readonly onWillCloseEditor = harness.onWillCloseEditor.event as IEditorGroup['onWillCloseEditor'];
 		override get count() { return harness.activeGroupEditors.length; }
 		override get isEmpty() { return harness.activeGroupEditors.length === 0; }
@@ -351,7 +369,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override pinEditor() { }
 		override getIndexOfEditor(editor: EditorInput) { return harness.activeGroupEditors.indexOf(editor); }
 		override async replaceEditors(replacements: IEditorReplacement[]) {
-			await harness.onReplaceEditors?.();
+			await harness.onReplaceEditors?.(replacements);
 			for (const replacement of replacements) {
 				const index = harness.activeGroupEditors.indexOf(replacement.editor);
 				if (index === -1) {
@@ -574,12 +592,18 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	}
 
 	instaService.stub(IPaneCompositePartService, new class extends mock<IPaneCompositePartService>() {
+		override readonly onDidPaneCompositeOpen = harness.onDidPaneCompositeOpen.event;
 		override getActivePaneComposite(_location: ViewContainerLocation): IPaneComposite | undefined {
 			if (harness.activePaneCompositeId) {
 				return new class extends mock<IPaneComposite>() {
 					override getId() { return harness.activePaneCompositeId!; }
 				};
 			}
+			return undefined;
+		}
+		override async openPaneComposite(id: string | undefined, location: ViewContainerLocation): Promise<IPaneComposite | undefined> {
+			harness.openPaneCompositeCalls.push({ id, location });
+			harness.activePaneCompositeId = id;
 			return undefined;
 		}
 		override getPinnedPaneCompositeIds(_location: ViewContainerLocation): string[] {

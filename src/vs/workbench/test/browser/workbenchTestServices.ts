@@ -659,6 +659,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	whenRestored: Promise<void> = Promise.resolve(undefined);
 	hasFocus(_part: Parts): boolean { return false; }
 	isFloatingPanelsEnabled(): boolean { return false; }
+	isModernUICompact(): boolean { return false; }
 	focusPart(_part: Parts): void { }
 	hasMainWindowBorder(): boolean { return false; }
 	getMainWindowBorderRadius(): string | undefined { return undefined; }
@@ -1371,7 +1372,6 @@ export class TestHostService implements IHostService {
 	async focus(): Promise<void> { }
 	async moveTop(): Promise<void> { }
 	async getCursorScreenPoint(): Promise<undefined> { return undefined; }
-	async getWindowPosition(): Promise<undefined> { return undefined; }
 
 	async getWindows(options: unknown) { return []; }
 

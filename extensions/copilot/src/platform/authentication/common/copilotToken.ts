@@ -633,6 +633,8 @@ export type SuccessNotificationId =
 
 export type TokenError = {
 	reason: TokenErrorReason;
+	/** Milliseconds the caller should wait before retrying a rate-limited request. */
+	retryAfterMs?: number;
 	notification_id?: TokenErrorNotificationId | string;
 	message?: string;
 	/** URL for action button to help user resolve the error. */

@@ -8,14 +8,22 @@ import * as DOM from '../../../../../../base/browser/dom.js';
 import { Button, unthemedButtonStyles } from '../../../../../../base/browser/ui/button/button.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
-import { DisposableStore, isDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { Disposable, DisposableStore, isDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationEnablementKind, McpServerStatus, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
+import { IOutputService } from '../../../../../services/output/common/output.js';
+import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
+import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
+import { IMcpService, McpConnectionState } from '../../../../mcp/common/mcpTypes.js';
 import { DisableMcpServerForWorkspaceAction, DisableMcpServerGloballyAction, EnableMcpServerForWorkspaceAction, EnableMcpServerGloballyAction } from '../../../../mcp/browser/mcpServerActions.js';
 import {
 	AgentHostMcpServer,
@@ -29,8 +37,19 @@ import {
 	getLocalMcpServerEnablementActions,
 	getMcpServerOutputHandler,
 	getMcpStatusPresentation,
+	isMcpServerCollectionVisible,
+	isPrimaryMcpServerEnabled,
+	getMcpStatusRenderSignature,
 	getServerItemContextMenuActions,
+	getToggledMcpEnablementState,
+	McpListWidget,
+	McpServerItemRenderer,
 	registerMcpInlineButtonAction,
+	type IMcpStatusRenderInput,
+	updateMcpCardRuntimePresentation,
+	hasSameMcpMembership,
+	setPrimaryMcpServerEnablement,
+	shouldLoadMcpGallerySnapshot,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
 
 function createAgentHostServer(overrides: Partial<AgentHostMcpServer> = {}): AgentHostMcpServer {
@@ -91,6 +110,65 @@ function trackActions(store: Pick<DisposableStore, 'add'>, actions: readonly IAc
 	return [...actions];
 }
 
+type McpAccessTestWidget = {
+	element: HTMLElement;
+	mcpAccessEnabled: boolean;
+	visible: boolean;
+	searchQuery: string;
+	access: McpAccessValue;
+	policyAccess: McpAccessValue | undefined;
+	configurationService: IConfigurationService;
+	delayedGallerySearch: { cancel(): void };
+	delayedCancelCount: number;
+	galleryCts: { dispose(cancel?: boolean): void } | undefined;
+	requestCancelCount: number;
+	gallerySnapshotLoading: boolean;
+	gallerySearchLoading: boolean;
+	searchInput: { hideMessage(): void };
+	disabledIcon: HTMLElement;
+	disabledMessage: HTMLElement;
+	disabledLinkListener: MutableDisposable<{ dispose(): void }>;
+	commandService: ICommandService;
+	queryCount: number;
+	refreshCount: number;
+	queryMcpSearch(): Promise<void>;
+	refresh(): Promise<void>;
+	updateAccessState(): void;
+};
+
+function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAccessValue | undefined, store: Pick<DisposableStore, 'add'>): McpAccessTestWidget {
+	const widget = Object.create(McpListWidget.prototype) as McpAccessTestWidget;
+	widget.element = document.createElement('div');
+	widget.mcpAccessEnabled = false;
+	widget.visible = false;
+	widget.searchQuery = '';
+	widget.access = access;
+	widget.policyAccess = policyAccess;
+	widget.configurationService = {
+		inspect: (key: string) => key === mcpAccessConfig ? {
+			value: widget.access,
+			defaultValue: McpAccessValue.All,
+			policyValue: widget.policyAccess,
+		} : undefined,
+	} as unknown as IConfigurationService;
+	widget.delayedCancelCount = 0;
+	widget.delayedGallerySearch = { cancel: () => widget.delayedCancelCount++ };
+	widget.galleryCts = undefined;
+	widget.requestCancelCount = 0;
+	widget.gallerySnapshotLoading = false;
+	widget.gallerySearchLoading = false;
+	widget.searchInput = { hideMessage() { } };
+	widget.disabledIcon = document.createElement('div');
+	widget.disabledMessage = document.createElement('div');
+	widget.disabledLinkListener = store.add(new MutableDisposable());
+	widget.commandService = { executeCommand: async () => undefined } as unknown as ICommandService;
+	widget.queryCount = 0;
+	widget.refreshCount = 0;
+	widget.queryMcpSearch = async () => { widget.queryCount++; };
+	widget.refresh = async () => { widget.refreshCount++; };
+	return widget;
+}
+
 suite('mcpListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -101,6 +179,185 @@ suite('mcpListWidget', () => {
 			type: 'session-server-item',
 			server,
 		}]);
+	});
+
+	test('filters local MCP collections hidden by the active harness', () => {
+		assert.deepStrictEqual({
+			defaultVisible: isMcpServerCollectionVisible('extension/github', undefined),
+			visible: isMcpServerCollectionVisible('extension/context7', ['extension/github']),
+			hidden: isMcpServerCollectionVisible('extension/github', ['extension/github']),
+		}, {
+			defaultVisible: true,
+			visible: true,
+			hidden: false,
+		});
+	});
+
+	test('toggles MCP enablement without changing its scope', () => {
+		assert.deepStrictEqual([
+			getToggledMcpEnablementState(ContributionEnablementState.EnabledProfile),
+			getToggledMcpEnablementState(ContributionEnablementState.DisabledProfile),
+			getToggledMcpEnablementState(ContributionEnablementState.EnabledWorkspace),
+			getToggledMcpEnablementState(ContributionEnablementState.DisabledWorkspace),
+		], [
+			ContributionEnablementState.DisabledProfile,
+			ContributionEnablementState.EnabledProfile,
+			ContributionEnablementState.DisabledWorkspace,
+			ContributionEnablementState.EnabledWorkspace,
+		]);
+	});
+
+	test('updates card runtime status without replacing live nodes', () => {
+		const row = document.createElement('div');
+		const primaryAction = document.createElement('button');
+		const statusBadge = document.createElement('span');
+		const description = document.createElement('span');
+		row.append(primaryAction, statusBadge, description);
+
+		updateMcpCardRuntimePresentation(statusBadge, primaryAction, description, McpConnectionState.Kind.Starting, undefined, 'Server, Starting', 'First description');
+		const initialNodes = [...row.childNodes];
+		updateMcpCardRuntimePresentation(statusBadge, primaryAction, description, McpConnectionState.Kind.Error, undefined, 'Server, Error', 'Updated description');
+
+		assert.deepStrictEqual({
+			nodesPreserved: initialNodes.every((node, index) => row.childNodes[index] === node),
+			statusClass: statusBadge.className,
+			statusText: statusBadge.textContent,
+			ariaLabel: primaryAction.getAttribute('aria-label'),
+			description: description.textContent,
+		}, {
+			nodesPreserved: true,
+			statusClass: 'plugin-list-item-status mcp-runtime-status-badge error',
+			statusText: 'Error',
+			ariaLabel: 'Server, Error',
+			description: 'Updated description',
+		});
+	});
+
+	test('loads gallery snapshots only for visible MCP sections', () => {
+		assert.deepStrictEqual([
+			shouldLoadMcpGallerySnapshot(false, '', 0, false, false, true),
+			shouldLoadMcpGallerySnapshot(true, '', 0, false, false, true),
+			shouldLoadMcpGallerySnapshot(true, 'search', 0, false, false, true),
+			shouldLoadMcpGallerySnapshot(true, '', 1, false, false, true),
+			shouldLoadMcpGallerySnapshot(true, '', 0, false, false, false),
+		], [false, true, false, false, false]);
+	});
+
+	test('shows access-disabled UI before gallery work starts', () => {
+		const widget = createMcpAccessTestWidget(McpAccessValue.None, McpAccessValue.None, disposables);
+
+		widget.updateAccessState();
+
+		assert.deepStrictEqual({
+			accessEnabled: widget.mcpAccessEnabled,
+			disabledClass: widget.element.classList.contains('access-disabled'),
+			message: widget.disabledMessage.textContent,
+		}, {
+			accessEnabled: false,
+			disabledClass: true,
+			message: 'Access to MCP servers is disabled by your organization. Contact your organization administrator for more information.',
+		});
+	});
+
+	test('cancels delayed and in-flight gallery work when access is revoked', () => {
+		const widget = createMcpAccessTestWidget(McpAccessValue.All, undefined, disposables);
+		widget.updateAccessState();
+		widget.galleryCts = { dispose: cancel => widget.requestCancelCount += cancel ? 1 : 0 };
+		widget.gallerySnapshotLoading = true;
+		widget.gallerySearchLoading = true;
+
+		widget.access = McpAccessValue.None;
+		widget.updateAccessState();
+
+		assert.deepStrictEqual({
+			accessEnabled: widget.mcpAccessEnabled,
+			delayedCancelCount: widget.delayedCancelCount,
+			requestCancelCount: widget.requestCancelCount,
+			gallerySnapshotLoading: widget.gallerySnapshotLoading,
+			gallerySearchLoading: widget.gallerySearchLoading,
+		}, {
+			accessEnabled: false,
+			delayedCancelCount: 1,
+			requestCancelCount: 1,
+			gallerySnapshotLoading: false,
+			gallerySearchLoading: false,
+		});
+	});
+
+	test('restarts a retained marketplace search when access is restored', () => {
+		const widget = createMcpAccessTestWidget(McpAccessValue.None, undefined, disposables);
+		widget.searchQuery = 'github';
+		widget.visible = true;
+		widget.updateAccessState();
+
+		widget.access = McpAccessValue.All;
+		widget.updateAccessState();
+
+		assert.deepStrictEqual({
+			queryCount: widget.queryCount,
+			refreshCount: widget.refreshCount,
+		}, {
+			queryCount: 1,
+			refreshCount: 0,
+		});
+	});
+
+	test('uses durable enablement for the primary MCP switch', () => {
+		const sessionResource = URI.parse('vscode-agent-session:///session-1');
+		const activeSessionServer = createAgentHostServer({
+			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+		});
+		const { service: mcpService, calls: localCalls } = createMcpService(ContributionEnablementState.DisabledProfile);
+		const { service: agentHostService, calls: agentHostCalls } = createAgentHostCustomizations();
+
+		const localEnabled = isPrimaryMcpServerEnabled(mcpService, 'server-1', activeSessionServer);
+		const hostEnabled = isPrimaryMcpServerEnabled(mcpService, undefined, activeSessionServer);
+		setPrimaryMcpServerEnablement(mcpService, agentHostService, sessionResource, 'server-1', activeSessionServer, true);
+		setPrimaryMcpServerEnablement(mcpService, agentHostService, sessionResource, undefined, activeSessionServer, false);
+
+		assert.deepStrictEqual({
+			localEnabled,
+			hostEnabled,
+			localCalls,
+			agentHostCalls,
+		}, {
+			localEnabled: false,
+			hostEnabled: true,
+			localCalls: [['server-1', ContributionEnablementState.EnabledProfile]],
+			agentHostCalls: [[sessionResource, activeSessionServer.id, activeSessionServer.enablement, CustomizationEnablementKind.Global, false]],
+		});
+	});
+
+	test('uses host enablement for host-owned plugin MCP rows with local counterparts', () => {
+		const sessionResource = URI.parse('vscode-agent-session:///session-1');
+		const activeSessionServer = createAgentHostServer({
+			isPluginProvided: true,
+			isClientBundled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+		});
+		const { service: mcpService, calls: localCalls } = createMcpService(ContributionEnablementState.EnabledProfile);
+		const { service: agentHostService, calls: agentHostCalls } = createAgentHostCustomizations();
+
+		const enabled = isPrimaryMcpServerEnabled(mcpService, 'server-1', activeSessionServer);
+		setPrimaryMcpServerEnablement(mcpService, agentHostService, sessionResource, 'server-1', activeSessionServer, true);
+
+		assert.deepStrictEqual({
+			enabled,
+			localCalls,
+			agentHostCalls,
+		}, {
+			enabled: false,
+			localCalls: [],
+			agentHostCalls: [[sessionResource, activeSessionServer.id, activeSessionServer.enablement, CustomizationEnablementKind.Global, true]],
+		});
+	});
+
+	test('distinguishes membership changes from state-only changes', () => {
+		assert.deepStrictEqual([
+			hasSameMcpMembership('server:one:session', 'server:one:session'),
+			hasSameMcpMembership('server:one:session', 'server:one:session|server:two:session'),
+		], [true, false]);
 	});
 
 	test('renders host-published disabled reasons without changing legacy rows', () => {
@@ -505,6 +762,156 @@ suite('mcpListWidget', () => {
 				'(separator)',
 				'Server Options',
 			]);
+		});
+	});
+
+	suite('getMcpStatusRenderSignature', () => {
+		const base: IMcpStatusRenderInput = {
+			rowKey: 'server:mcp.config.workspace/notion:0',
+			label: 'notion',
+			state: McpServerStatus.Error,
+			statusLabel: 'Error',
+			statusClassName: 'error',
+			statusIconId: 'error',
+			activeSessionServerId: 'session-1/notion',
+			logOutputChannelId: 'mcp.session-1.notion',
+			localServerId: 'mcp.config.workspace/notion',
+			activeSessionResource: 'vscode-agent-session:///session-1',
+		};
+
+		// A different, and differently-typed-where-possible, value for every field. The mapped type
+		// is what makes this a barrier: a field added to the input fails to compile until it is
+		// given a value here, and the test below then proves the signature actually covers it.
+		const changed: { [K in keyof IMcpStatusRenderInput]-?: IMcpStatusRenderInput[K] } = {
+			rowKey: 'server:mcp.config.user/notion:0',
+			label: 'Notion',
+			state: McpServerStatus.Ready,
+			statusLabel: 'Running',
+			statusClassName: 'running',
+			statusIconId: 'check',
+			activeSessionServerId: 'session-1/other',
+			logOutputChannelId: 'mcp.session-1.other',
+			localServerId: 'mcp.config.user/notion',
+			activeSessionResource: 'vscode-agent-session:///session-2',
+		};
+
+		const fields = Object.keys(base) as (keyof IMcpStatusRenderInput)[];
+
+		test('the same row state produces the same signature', () => {
+			assert.strictEqual(getMcpStatusRenderSignature({ ...base }), getMcpStatusRenderSignature({ ...base }));
+		});
+
+		test('changing any covered value changes the signature', () => {
+			const baseline = getMcpStatusRenderSignature(base);
+			const missed = fields.filter(field => getMcpStatusRenderSignature({ ...base, [field]: changed[field] }) === baseline);
+
+			assert.deepStrictEqual(missed, []);
+		});
+
+		test('clearing any optional value changes the signature', () => {
+			const baseline = getMcpStatusRenderSignature(base);
+			// `rowKey` and `label` are always present; everything else can legitimately go away,
+			// e.g. when a server loses its active-session twin.
+			const clearable = fields.filter(field => field !== 'rowKey' && field !== 'label');
+			const missed = clearable.filter(field => getMcpStatusRenderSignature({ ...base, [field]: undefined }) === baseline);
+
+			assert.deepStrictEqual(missed, []);
+		});
+	});
+
+	suite('row actions survive no-op updates', () => {
+		// The signature tests above only cover the pure helper, so they would still pass if the
+		// early return in `updateStatus` or the row guard in `renderElement` were removed. These
+		// drive the renderer itself, which is the only place the reported failure is observable:
+		// an erroring server re-runs the status update about twice a second, and a button node
+		// replaced between mousedown and mouseup never receives the click.
+		function createRenderer(server: AgentHostMcpServer) {
+			const store = new DisposableStore();
+			const onDidChangeCustomizations = store.add(new Emitter<void>());
+			const sessionResource = URI.parse('vscode-agent-session:///session-1');
+			let servers: AgentHostMcpServer[] = [server];
+			const shownLogs: string[] = [];
+
+			const agentHostCustomizationService = {
+				getMcpServers: () => servers,
+				onDidChangeCustomizations: onDidChangeCustomizations.event,
+				showMcpServerLog: async (_resource: URI, serverId: string) => { shownLogs.push(serverId); },
+			} as unknown as IAgentHostCustomizationService;
+			const customizationHarnessService = {
+				activeSessionResource: observableValue<URI>('activeSessionResource', sessionResource),
+			} as unknown as ICustomizationHarnessService;
+			const renderer = new McpServerItemRenderer(
+				async () => { },
+				{ isSessionsWindow: true } as IAICustomizationWorkspaceService,
+				{ plugins: observableValue<readonly never[]>('plugins', []) } as unknown as IAgentPluginService,
+				{ setupManagedHover: () => Disposable.None } as unknown as IHoverService,
+				agentHostCustomizationService,
+				customizationHarnessService,
+				{ showChannel: async () => { } } as unknown as IOutputService,
+			);
+
+			const container = document.createElement('div');
+			const templateData = renderer.renderTemplate(container);
+			store.add({ dispose: () => renderer.disposeTemplate(templateData) });
+
+			return {
+				store,
+				templateData,
+				shownLogs,
+				render: () => renderer.renderElement(createBuiltinActiveSessionMcpEntries([server])[0], 0, templateData),
+				notifyUnchanged: () => onDidChangeCustomizations.fire(),
+				setServers: (next: AgentHostMcpServer[]) => { servers = next; },
+				actionNode: () => templateData.actions.firstElementChild,
+			};
+		}
+
+		const erroring = () => createAgentHostServer({ id: 'server-1', status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'spawn', message: 'failed to start' } } });
+
+		test('the Show Output button stays the same clickable node across repeated identical updates', () => {
+			const ctx = createRenderer(erroring());
+			disposables.add(ctx.store);
+			ctx.render();
+
+			const button = ctx.actionNode();
+			assert.ok(button, 'expected an action for an erroring server');
+
+			// What the autorun does in production while a server sits in error.
+			for (let i = 0; i < 10; i++) {
+				ctx.notifyUnchanged();
+			}
+
+			assert.strictEqual(ctx.actionNode(), button, 'the button was replaced by an update that changed nothing');
+			assert.strictEqual(button.parentElement, ctx.templateData.actions, 'the button was detached from the row');
+
+			(button as HTMLElement).click();
+
+			assert.deepStrictEqual(ctx.shownLogs, ['server-1']);
+		});
+
+		test('re-rendering the same row keeps its actions, so a list refresh cannot swallow a click', () => {
+			// Entries are recreated on every refresh, and the list re-splices every visible row on
+			// any customizations change, so the guard has to key on content rather than identity.
+			const ctx = createRenderer(erroring());
+			disposables.add(ctx.store);
+			ctx.render();
+			const button = ctx.actionNode();
+
+			ctx.render();
+
+			assert.strictEqual(ctx.actionNode(), button, 'a re-render of the same row rebuilt its actions');
+		});
+
+		test('a real status change still rebuilds the actions', () => {
+			const ctx = createRenderer(erroring());
+			disposables.add(ctx.store);
+			ctx.render();
+			const button = ctx.actionNode();
+
+			// Recovering from error drops the Show Output action entirely.
+			ctx.setServers([createAgentHostServer({ id: 'server-1', status: McpServerStatus.Ready, state: { kind: McpServerStatus.Ready } })]);
+			ctx.notifyUnchanged();
+
+			assert.notStrictEqual(ctx.actionNode(), button, 'the actions were not rebuilt for a changed status');
 		});
 	});
 

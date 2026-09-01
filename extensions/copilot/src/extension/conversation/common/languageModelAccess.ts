@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { IChatEndpoint, IChatEndpointTokenPricing } from '../../../platform/networking/common/networking';
+import { IChatEndpoint, IChatEndpointTokenPricing, PENDING_DEPRECATION_CODE } from '../../../platform/networking/common/networking';
 import * as l10n from '@vscode/l10n';
 import type { LanguageModelChatInformation, LanguageModelConfigurationSchema } from 'vscode';
 
@@ -90,9 +90,9 @@ export function buildReasoningEffortSchemaProperty(effortLevels: readonly string
  */
 export function getAutoModeTierLabel(tier: string): string {
 	switch (tier) {
-		case 'eco': return l10n.t('Eco');
-		case 'balanced': return l10n.t('Balanced');
-		case 'max': return l10n.t('Max');
+		case 'efficiency': return l10n.t('Efficiency');
+		case 'balance': return l10n.t('Balance');
+		case 'intelligence': return l10n.t('Intelligence');
 		case 'fast': return l10n.t('Fast');
 		default: return tier.charAt(0).toUpperCase() + tier.slice(1);
 	}
@@ -104,9 +104,9 @@ export function getAutoModeTierLabel(tier: string): string {
  */
 export function getAutoModeTierDescription(tier: string): string {
 	switch (tier) {
-		case 'eco': return l10n.t('Cheaper models for everyday tasks');
-		case 'balanced': return l10n.t('Balances capability and cost');
-		case 'max': return l10n.t('Most capable models, higher cost');
+		case 'efficiency': return l10n.t('Cheaper models for everyday tasks');
+		case 'balance': return l10n.t('Balances capability and cost');
+		case 'intelligence': return l10n.t('Most capable models, higher cost');
 		case 'fast': return l10n.t('Lowest latency models');
 		default: return tier;
 	}
@@ -115,18 +115,35 @@ export function getAutoModeTierDescription(tier: string): string {
 /**
  * Builds the `tier` property descriptor for the Auto model's
  * {@link LanguageModelConfigurationSchema}. Rendered by the model picker the
- * same way thinking effort is, but labelled "Tier".
+ * same way thinking effort is, but labelled "Optimize for".
  */
 export function buildAutoModeTierSchemaProperty(tiers: readonly string[], defaultTier: string): NonNullable<LanguageModelConfigurationSchema['properties']>[string] {
 	return {
 		type: 'string',
-		title: l10n.t('Tier'),
+		title: l10n.t('Optimize for'),
 		enum: [...tiers],
 		enumItemLabels: tiers.map(getAutoModeTierLabel),
 		enumDescriptions: tiers.map(getAutoModeTierDescription),
 		default: defaultTier,
 		group: 'navigation',
 	};
+}
+
+/**
+ * Resolves the model picker's warning presentation. All warnings show as hover banners,
+ * but only a degradation or a pending deprecation flags the row, and `rowWarning` is the
+ * message explaining it. Callers must skip the synthetic Auto model, which wraps another
+ * endpoint and must not inherit its warnings.
+ */
+export function resolveModelWarnings(endpoint: Pick<IChatEndpoint, 'warningText' | 'degradationReason'>): { texts: Record<string, string>; rowWarning: string | undefined } | undefined {
+	const texts: Record<string, string> = { ...endpoint.warningText };
+	if (endpoint.degradationReason) {
+		texts['degradation'] = endpoint.degradationReason;
+	}
+	if (Object.keys(texts).length === 0) {
+		return undefined;
+	}
+	return { texts, rowWarning: endpoint.degradationReason ?? texts[PENDING_DEPRECATION_CODE] };
 }
 
 /**

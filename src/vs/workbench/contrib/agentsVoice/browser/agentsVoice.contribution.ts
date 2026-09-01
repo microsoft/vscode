@@ -21,6 +21,7 @@ import './transcriptsView/voiceTranscripts.contribution.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { PolicyCategory } from '../../../../base/common/policy.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -35,7 +36,7 @@ import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchConfigurationExtensions } from '../../../common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
-import { AgentsVoiceSettingId, AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_ENABLED, AGENTS_VOICE_ENTITLED, AGENTS_VOICE_LISTENING, AGENTS_VOICE_RECONNECTING } from '../common/agentsVoice.js';
+import { AgentsVoiceSettingId, AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_ENABLED, AGENTS_VOICE_ENTITLED, AGENTS_VOICE_LISTENING, AGENTS_VOICE_RECONNECTING, getAgentsVoicePolicyValue } from '../common/agentsVoice.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -257,7 +258,6 @@ registerAction2(class extends Action2 {
 		const voiceController = accessor.get(IVoiceSessionController);
 		const keybindingService = accessor.get(IKeybindingService);
 		const handsFree = accessor.get(IConfigurationService).getValue<boolean>('agents.voice.handsFree') === true;
-		const omniHasFocus = accessor.get(IContextKeyService).getContextKeyValue<boolean>(ChatContextKeys.inChatInputWindow.key) === true;
 		const activeWindow = getActiveWindow();
 		voiceController.setActiveWindow(activeWindow);
 
@@ -273,13 +273,8 @@ registerAction2(class extends Action2 {
 
 		// An explicit press in another composer transfers Voice Mode ownership to
 		// that composer. The draft sentinel deliberately clears the concrete target.
-		const currentSession = omniHasFocus
-			? undefined
-			: await accessor.get(ICommandService).executeCommand<string | undefined>('_chat.voice.getCurrentSession');
-		voiceController.setOmniInputActive(omniHasFocus);
-		if (omniHasFocus) {
-			voiceController.setDraftTarget();
-		} else if (currentSession) {
+		const currentSession = await accessor.get(ICommandService).executeCommand<string | undefined>('_chat.voice.getCurrentSession');
+		if (currentSession) {
 			try {
 				const resource = URI.parse(currentSession);
 				if (resource.scheme === 'sessions-voice') {
@@ -603,6 +598,18 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			scope: ConfigurationScope.APPLICATION,
 			restricted: true,
+			policy: {
+				name: 'AgentsVoice',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.137',
+				value: getAgentsVoicePolicyValue,
+				localization: {
+					description: {
+						key: 'agents.voice.enabled',
+						value: nls.localize('agents.voice.enabled', "Enable the Voice Mode panel in the chat view for voice-driven coding conversations."),
+					},
+				},
+			},
 		},
 		[AgentsVoiceSettingId.ShowButton]: {
 			type: 'boolean',

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/dictationSession.css';
+import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
@@ -294,6 +295,16 @@ interface IActiveDictation {
  * (toggle action, hold-to-talk, and the sessions composer button).
  */
 let _active: IActiveDictation | undefined;
+const _onDidChangeDictationEditor = new Emitter<void>();
+/** Fires when the active or finalizing dictation editor changes. */
+export const onDidChangeDictationEditor = _onDidChangeDictationEditor.event;
+
+function setActiveDictation(active: IActiveDictation | undefined): void {
+	if (_active !== active) {
+		_active = active;
+		_onDidChangeDictationEditor.fire();
+	}
+}
 
 /**
  * The in-flight {@link stopDictation} finalization, if any. `stopDictation`
@@ -303,6 +314,13 @@ let _active: IActiveDictation | undefined;
  */
 let _finalizing: { readonly editor: ICodeEditor; readonly promise: Promise<void> } | undefined;
 
+function setFinalizingDictation(finalizing: typeof _finalizing): void {
+	if (_finalizing !== finalizing) {
+		_finalizing = finalizing;
+		_onDidChangeDictationEditor.fire();
+	}
+}
+
 /** True while a dictation is in progress. */
 export function isDictating(): boolean {
 	return !!_active;
@@ -311,6 +329,11 @@ export function isDictating(): boolean {
 /** The editor currently being dictated into, if any (used to scope the glow). */
 export function activeDictationEditor(): ICodeEditor | undefined {
 	return _active?.editor;
+}
+
+/** Whether `editor` owns the active or finalizing dictation session. */
+export function isDictationActiveForEditor(editor: ICodeEditor): boolean {
+	return _active?.editor === editor || _finalizing?.editor === editor;
 }
 
 /** Start dictating into `editor`, rendering the transcript live. */
@@ -406,7 +429,7 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 			// If the service ends the session on its own (e.g. the model failed
 			// to load and it surfaced an error), drop the stale active reference
 			// so the toolbar and glow reflect that dictation is no longer running.
-			_active = undefined;
+			setActiveDictation(undefined);
 			disposables.dispose();
 			return;
 		}
@@ -416,13 +439,13 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 	// composer is closed); cancel dictation instead of leaving the microphone
 	// and local transcription running against a dead editor.
 	disposables.add(editor.onDidDispose(() => cancelDictation()));
-	_active = { service, editor, inserter, disposables, logService, surface };
+	setActiveDictation({ service, editor, inserter, disposables, logService, surface });
 	try {
 		await service.start(window, surface);
 	} catch {
 		// Acquisition/connection failure is surfaced by the service.
 		if (_active?.service === service) {
-			_active = undefined;
+			setActiveDictation(undefined);
 		}
 		disposables.dispose();
 	}
@@ -438,14 +461,14 @@ export async function stopDictation(): Promise<void> {
 		await _finalizing?.promise;
 		return;
 	}
-	_active = undefined;
+	setActiveDictation(undefined);
 	const promise = finalizeDictation(active);
-	_finalizing = { editor: active.editor, promise };
+	setFinalizingDictation({ editor: active.editor, promise });
 	try {
 		await promise;
 	} finally {
 		if (_finalizing?.promise === promise) {
-			_finalizing = undefined;
+			setFinalizingDictation(undefined);
 		}
 	}
 }
@@ -457,7 +480,7 @@ async function finalizeDictation(active: IActiveDictation): Promise<void> {
 	// re-apply the styling or overwrite the final text.
 	active.inserter.beginFinalize();
 	try {
-		const text = await active.service.stopAndTranscribe();
+		const text = await active.service.stopAndTranscribe({ preserveLiveTranscript: active.service.showTranscriptWhileDictating });
 		active.logService.trace(`${LOG_PREFIX} stopAndTranscribe resolved text=${text === undefined ? 'undefined' : `len=${text.length}`}`);
 		if (text !== undefined) {
 			// Final transcript: render it solid (no interim styling).
@@ -498,7 +521,7 @@ export function cancelDictation(): void {
 	if (!active) {
 		return;
 	}
-	_active = undefined;
+	setActiveDictation(undefined);
 	// Remove any live transcript already written to the editor so Escape leaves
 	// the input exactly as it was before dictation started.
 	active.inserter.revert();

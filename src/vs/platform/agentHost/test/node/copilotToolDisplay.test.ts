@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { JsonValue, PermissionRequest } from '@github/copilot-sdk';
+import type { PermissionRequest } from '@github/copilot-sdk';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
+import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
 
 type CopilotShellPermissionRequest = Extract<PermissionRequest, { kind: 'shell' }>;
 type CopilotCustomToolPermissionRequest = Extract<PermissionRequest, { kind: 'custom-tool' }>;
@@ -26,7 +26,7 @@ function shellPermissionRequest(fullCommandText: string, requestSandboxBypass?: 
 	};
 }
 
-function customToolPermissionRequest(toolName: string, args: JsonValue): CopilotCustomToolPermissionRequest {
+function customToolPermissionRequest(toolName: string, args: CopilotCustomToolPermissionRequest['args']): CopilotCustomToolPermissionRequest {
 	return {
 		kind: 'custom-tool',
 		toolName,
@@ -95,6 +95,7 @@ suite('copilotToolDisplay — friendly tool names', () => {
 			['codeql_checker', 'CodeQL Security Scan'],
 			['addComment', 'Add Comment'],
 			['listComments', 'List Comments'],
+			['replyToComment', 'Reply to Comment'],
 			['deleteComments', 'Delete Comments'],
 			['resolveComments', 'Resolve Comments'],
 			['viewUnreviewedComments', 'View Comments'],
@@ -144,6 +145,17 @@ suite('copilotToolDisplay — markdown-rendered tools', () => {
 		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: 'All tests pass.' }), '\n\n**Task completed:** All tests pass.');
 	});
 
+	test('getTaskCompleteMarkdown prefers the input summary over truncated tool output', () => {
+		const truncatedOutput = 'Output too large to read at once (11.3 KB). Saved to: /tmp/task-complete.txt';
+		assert.deepStrictEqual({
+			withSummary: getTaskCompleteMarkdown({ summary: 'Completed the requested work.' }, truncatedOutput),
+			withoutSummary: getTaskCompleteMarkdown({}, 'Fallback summary.'),
+		}, {
+			withSummary: '\n\n**Task completed:** Completed the requested work.',
+			withoutSummary: '\n\n**Task completed:** Fallback summary.',
+		});
+	});
+
 	test('getToolMarkdownContent returns undefined for empty, missing, or non-string summaries', () => {
 		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: '' }), undefined);
 		assert.strictEqual(getToolMarkdownContent('task_complete', {}), undefined);
@@ -153,6 +165,49 @@ suite('copilotToolDisplay — markdown-rendered tools', () => {
 
 	test('getToolMarkdownContent returns undefined for non-markdown tools', () => {
 		assert.strictEqual(getToolMarkdownContent('bash', { summary: 'ignored' }), undefined);
+	});
+});
+
+suite('getPermissionDisplay — read confirmation title', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const wd = URI.file('/repo/project');
+
+	function readRequest(path: string, requestSandboxBypass?: boolean): PermissionRequest {
+		return { kind: 'read', intention: `Read file: ${path}`, path, ...(requestSandboxBypass ? { requestSandboxBypass } : {}) } as PermissionRequest;
+	}
+
+	/**
+	 * The runtime's unauthorized-path gate reuses the access kind and carries
+	 * `paths` rather than the per-kind `path`.
+	 */
+	function unauthorizedPathGateRequest(...paths: string[]): PermissionRequest {
+		return { kind: 'read', intention: 'Read files', paths } as unknown as PermissionRequest;
+	}
+
+	test('claims "outside of workspace" only when the path really is outside', () => {
+		assert.deepStrictEqual({
+			inside: getPermissionDisplay(readRequest('/repo/project/src/app.ts'), wd).confirmationTitle,
+			insideDirectory: getPermissionDisplay(readRequest('/repo/project/src'), wd).confirmationTitle,
+			outside: getPermissionDisplay(readRequest('/etc/hosts'), wd).confirmationTitle,
+			secondRoot: getPermissionDisplay(readRequest('/repo/other/lib.ts'), wd, undefined, [URI.file('/repo/other')]).confirmationTitle,
+			outsideEveryRoot: getPermissionDisplay(readRequest('/etc/hosts'), wd, undefined, [URI.file('/repo/other')]).confirmationTitle,
+			pathGate: getPermissionDisplay(unauthorizedPathGateRequest('/etc/hosts'), wd).confirmationTitle,
+			relative: getPermissionDisplay(readRequest('README.md'), wd).confirmationTitle,
+			unknownWorkspace: getPermissionDisplay(readRequest('/repo/project/src/app.ts'), undefined).confirmationTitle,
+			sandboxBypass: getPermissionDisplay(readRequest('/repo/project/src/app.ts', true), wd).confirmationTitle,
+		}, {
+			inside: 'Allow reading file?',
+			insideDirectory: 'Allow reading file?',
+			outside: 'Allow reading file outside of workspace?',
+			secondRoot: 'Allow reading file?',
+			outsideEveryRoot: 'Allow reading file outside of workspace?',
+			pathGate: 'Allow reading file outside of workspace?',
+			relative: 'Allow reading file?',
+			unknownWorkspace: 'Allow reading file?',
+			sandboxBypass: 'Read file outside the sandbox?',
+		});
 	});
 });
 

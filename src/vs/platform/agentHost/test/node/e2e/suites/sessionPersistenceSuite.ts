@@ -6,7 +6,7 @@
 import assert from 'assert';
 import * as fs from 'fs';
 import { tmpdir } from 'os';
-import { retry } from '../../../../../../base/common/async.js';
+import { retry, timeout } from '../../../../../../base/common/async.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
@@ -16,6 +16,7 @@ import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/regi
 import { createRealSession, driveTurnToCompletion, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../common/agent.js';
 
 const RECORDING = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 
@@ -31,7 +32,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		await context.client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId }, 30_000);
 		await context.client.call('authenticate', {
 			channel: ROOT_STATE_URI,
-			resource: 'https://api.github.com',
+			resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
 			token: config.githubToken ?? resolveGitHubToken(),
 		}, 30_000);
 	}
@@ -65,14 +66,18 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		}));
 	}
 
-	async function releaseAndRestoreSession(sessionUri: string): Promise<void> {
+	async function releaseAndRestoreSession(sessionUri: string, additionalChats: readonly string[] = []): Promise<void> {
 		const before = await fetchSessionWithChat(context.client, sessionUri);
 		const beforeResponsePartIds = responsePartIds(before.turns);
 		const beforeTurns = durableTurnContent(before.turns);
 		assert.ok(beforeResponsePartIds.length > 0);
 		const chatUri = buildDefaultChatUri(sessionUri);
+		for (const chat of additionalChats) {
+			context.client.notify('unsubscribe', { channel: chat });
+		}
 		context.client.notify('unsubscribe', { channel: chatUri });
 		context.client.notify('unsubscribe', { channel: sessionUri });
+		await timeout(50);
 
 		await retry(async () => {
 			const restored = await fetchSessionWithChat(context.client, sessionUri);
@@ -145,7 +150,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 			action: {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-peer-local',
-				startedAt: '2025-01-01T00:00:00.000Z',
+				startedAt: new Date().toISOString(),
 				message: { text: '/rename Rehydrated Peer', origin: { kind: MessageKind.User } },
 			},
 		});
@@ -156,7 +161,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 			60_000,
 		);
 
-		await releaseAndRestoreSession(sessionUri);
+		await releaseAndRestoreSession(sessionUri, [peerUri]);
 		await restartAndInitialize(`peer-persistence-reconnect-${config.provider}`, workspace);
 
 		const reopenedSession = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
