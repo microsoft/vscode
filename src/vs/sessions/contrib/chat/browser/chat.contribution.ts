@@ -48,7 +48,7 @@ import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorAreaFocusContext, IsSessionsWindowContext, SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { NEW_SESSION_ACTION_ID } from '../common/constants.js';
-import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundConfiguredContext, SessionsChatBackgroundImageConfiguredContext, SessionsTitleBarNewSessionEnabledContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext, SessionsTitleBarNewSessionEnabledContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionsChatViewStateService, SessionsChatViewStateService } from './chatViewStateService.js';
 import { SessionsChatResponseFileChangesService } from './sessionTurnChanges.js';
@@ -57,10 +57,8 @@ import { SessionsChatPetAchievementContribution } from './chatPetAchievements.js
 import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, chatBackgroundImageLayoutValues, ChatBackgroundImageLayout, ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
 
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_COMMAND_ID = 'workbench.action.chat.changeAgentSessionsBackground';
-const CLEAR_AGENT_SESSIONS_CHAT_BACKGROUND_COMMAND_ID = 'workbench.action.chat.clearAgentSessionsBackground';
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_LAYOUT_COMMAND_ID = 'workbench.action.chat.changeAgentSessionsBackgroundLayout';
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN = ContextKeyExpr.and(IsSessionsWindowContext, SessionsChatBackgroundAvailableContext);
-const CLEAR_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN = ContextKeyExpr.and(CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN, SessionsChatBackgroundConfiguredContext);
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_LAYOUT_WHEN = ContextKeyExpr.and(CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN, SessionsChatBackgroundImageConfiguredContext);
 
 type RecentChatBackgroundTypeItem = IQuickPickItem & {
@@ -69,10 +67,14 @@ type RecentChatBackgroundTypeItem = IQuickPickItem & {
 };
 
 type ChatBackgroundTypeItem = IQuickPickItem & ({
-	readonly kind: 'codicons' | 'image';
+	readonly kind: 'none' | 'codicons' | 'image';
 }) | RecentChatBackgroundTypeItem;
 
 const chatBackgroundTypeItems: ChatBackgroundTypeItem[] = [{
+	kind: 'none',
+	label: localize('chat.agentSessions.backgroundType.none.label', "No Background"),
+	detail: localize('chat.agentSessions.backgroundType.none.detail', "Remove the current chat background."),
+}, {
 	kind: 'codicons',
 	label: localize('chat.agentSessions.backgroundType.codicons.label', "Codicons"),
 	detail: localize('chat.agentSessions.backgroundType.codicons.detail', "Use a theme-aware pattern of built-in VS Code icons."),
@@ -223,7 +225,7 @@ class SetChatBackgroundAction extends Action2 {
 		const backgroundService = accessor.get(ISessionsChatBackgroundService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const fileDialogService = accessor.get(IFileDialogService);
-		const backgroundKind = backgroundService.getBackground()?.kind;
+		const backgroundKind = backgroundService.getBackground()?.kind ?? 'none';
 		const recentImages = backgroundService.getRecentBackgroundImages();
 		const recentItems: RecentChatBackgroundTypeItem[] = recentImages.map(image => ({
 			kind: 'recentImage',
@@ -247,6 +249,11 @@ class SetChatBackgroundAction extends Action2 {
 				: chatBackgroundTypeItems.find(item => item.kind === backgroundKind),
 		});
 		if (!backgroundType) {
+			return;
+		}
+		if (backgroundType.kind === 'none') {
+			await backgroundService.clearBackground();
+			status(localize('chat.agentSessions.clearBackground.cleared', "Chat background cleared."));
 			return;
 		}
 		if (backgroundType.kind === 'codicons') {
@@ -326,35 +333,6 @@ class ChangeChatBackgroundLayoutAction extends Action2 {
 }
 
 registerAction2(ChangeChatBackgroundLayoutAction);
-
-class ClearChatBackgroundAction extends Action2 {
-
-	constructor() {
-		super({
-			id: CLEAR_AGENT_SESSIONS_CHAT_BACKGROUND_COMMAND_ID,
-			title: localize2('chat.agentSessions.clearBackground', "Clear Background"),
-			category: CHAT_CATEGORY,
-			precondition: CLEAR_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN,
-			menu: [{
-				id: MenuId.CommandPalette,
-				when: CLEAR_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN,
-			}, {
-				id: Menus.SessionChatBackgroundContext,
-				group: 'navigation',
-				order: 3,
-				when: ContextKeyExpr.and(SessionsChatBackgroundAvailableContext, SessionsChatBackgroundConfiguredContext),
-			}],
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		await accessor.get(ISessionsChatBackgroundService).clearBackground();
-		status(localize('chat.agentSessions.clearBackground.cleared', "Chat background cleared."));
-	}
-}
-
-registerAction2(ClearChatBackgroundAction);
-
 
 // register actions
 registerAction2(BranchChatSessionAction);
