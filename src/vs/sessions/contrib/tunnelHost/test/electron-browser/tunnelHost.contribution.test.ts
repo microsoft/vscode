@@ -6,26 +6,50 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import type { ContextKeyExpression, ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, type TunnelMode, type TunnelStatus } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext, RemoteNameContext } from '../../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
+import { RemoteTunnelCommandIds } from '../../../../../workbench/contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.js';
+import { TOGGLE_SHARING_ID } from '../../../../../workbench/contrib/chat/electron-browser/tunnelHost.contribution.js';
+import { TOGGLE_SHARING_FROM_AGENTS_ID } from '../../electron-browser/tunnelHost.contribution.js';
 
-import '../../electron-browser/tunnelHost.contribution.js';
+class TestRemoteTunnelService extends mock<IRemoteTunnelService>() {
+	override getMode(): Promise<TunnelMode> {
+		return Promise.resolve(INACTIVE_TUNNEL_MODE);
+	}
+
+	override getTunnelStatus(): Promise<TunnelStatus> {
+		return Promise.resolve({ type: 'disconnected' });
+	}
+}
+
+class TestCommandService extends mock<ICommandService>() {
+	readonly calls: Array<{ id: string; args: unknown[] }> = [];
+
+	override executeCommand<R = unknown>(id: string, ...args: unknown[]): Promise<R | undefined> {
+		this.calls.push({ id, args });
+		return Promise.resolve(undefined);
+	}
+}
 
 suite('Sessions - Tunnel Host Contribution', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('remote connections toggle is in Agents titlebar and non-Agents chat input', () => {
-		const findToggle = (menu: MenuId) => MenuRegistry.getMenuItems(menu)
+		const findToggle = (menu: MenuId, id: string) => MenuRegistry.getMenuItems(menu)
 			.filter(isIMenuItem)
-			.find(item => item.command.id === 'sessions.tunnelHost.toggleSharing');
+			.find(item => item.command.id === id);
 
-		const summarize = (menu: MenuId) => {
-			const item = findToggle(menu);
+		const summarize = (menu: MenuId, id: string) => {
+			const item = findToggle(menu, id);
 			return item && {
 				group: item.group,
 				order: item.order,
@@ -34,15 +58,15 @@ suite('Sessions - Tunnel Host Contribution', () => {
 		};
 
 		assert.deepStrictEqual({
-			titlebar: summarize(Menus.TitleBarRightLayout),
-			chatInput: summarize(MenuId.ChatInputSecondary),
+			titlebar: summarize(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID),
+			chatInput: summarize(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID),
 		}, {
 			titlebar: { group: 'navigation', order: 90, icon: Codicon.radioTower.id },
 			chatInput: { group: 'navigation', order: 10, icon: Codicon.radioTower.id },
 		});
 
-		const titlebarToggle = findToggle(Menus.TitleBarRightLayout);
-		const chatInputToggle = findToggle(MenuId.ChatInputSecondary);
+		const titlebarToggle = findToggle(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID);
+		const chatInputToggle = findToggle(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID);
 		if (!titlebarToggle?.when || !chatInputToggle?.when) {
 			assert.fail('remote connections menu items should have when clauses');
 		}
@@ -70,5 +94,21 @@ suite('Sessions - Tunnel Host Contribution', () => {
 			editorChatInput: true,
 			remoteEditorChatInput: false,
 		});
+	});
+
+	test('Agents turn-on forces GitHub without offering service installation', async () => {
+		const instantiationService = new TestInstantiationService();
+		const commandService = new TestCommandService();
+		instantiationService.stub(IRemoteTunnelService, new TestRemoteTunnelService());
+		instantiationService.stub(ICommandService, commandService);
+		const command = CommandsRegistry.getCommand(TOGGLE_SHARING_FROM_AGENTS_ID);
+		assert.ok(command);
+
+		await instantiationService.invokeFunction(command.handler);
+
+		assert.deepStrictEqual(commandService.calls, [{
+			id: RemoteTunnelCommandIds.turnOn,
+			args: [{ authenticationProviderId: 'github', showServiceOption: false, showSuccessNotification: false }],
+		}]);
 	});
 });
