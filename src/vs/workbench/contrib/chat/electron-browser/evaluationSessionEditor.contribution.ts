@@ -12,7 +12,7 @@ import { INativeWorkbenchEnvironmentService } from '../../../services/environmen
 import { IChatService } from '../common/chatService/chatService.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSessionPosition, getResourceForNewChatSession, openChatSession } from '../browser/chatSessions/chatSessions.contribution.js';
-import { EVALUATION_SESSION_REQUEST_ARG, getEvaluationSessionConfig, readEvaluationSessionRequest, waitForEvaluationTarget, writeEvaluationSessionError, writeEvaluationSessionIdentity } from '../browser/agentSessions/evaluation/evaluationSessionRequest.js';
+import { EVALUATION_SESSION_REQUEST_ARG, getEvaluationSessionConfig, markEvaluationSessionRequestActive, readEvaluationSessionRequest, waitForEvaluationTarget, writeEvaluationSessionError, writeEvaluationSessionIdentity } from '../browser/agentSessions/evaluation/evaluationSessionRequest.js';
 
 class EvaluationSessionEditorContribution implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.evaluationSessionEditor';
@@ -25,6 +25,7 @@ class EvaluationSessionEditorContribution implements IWorkbenchContribution {
 		if (!path) {
 			return;
 		}
+		markEvaluationSessionRequestActive();
 		void instantiationService.invokeFunction(accessor => runEditorEvaluationSession(path, accessor));
 	}
 }

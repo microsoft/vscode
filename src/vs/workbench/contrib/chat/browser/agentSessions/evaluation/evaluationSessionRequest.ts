@@ -44,6 +44,15 @@ export interface IEvaluationSessionIdentity {
 }
 
 const evaluationRemoteHostsWithExternalAuthentication = new Set<string>();
+let evaluationSessionRequestActive = false;
+
+export function markEvaluationSessionRequestActive(): void {
+	evaluationSessionRequestActive = true;
+}
+
+export function isEvaluationSessionRequestActive(): boolean {
+	return evaluationSessionRequestActive;
+}
 
 export function preserveEvaluationRemoteHostAuthentication(address: string): void {
 	evaluationRemoteHostsWithExternalAuthentication.add(normalizeRemoteAgentHostAddress(address));
