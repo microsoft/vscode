@@ -83,8 +83,8 @@ export function getAgentMergeAwarePullRequestIcon(icon: ThemeIcon, agentMerge: I
 		}
 		const handlesBlockers = blockers
 			? (!blockers.hasFailingChecks || agentMerge.actions.fixCI)
-				&& (!blockers.hasMergeConflicts || agentMerge.actions.resolveConflicts)
-				&& (!blockers.hasUnresolvedComments || agentMerge.actions.addressReviews)
+			&& (!blockers.hasMergeConflicts || agentMerge.actions.resolveConflicts)
+			&& (!blockers.hasUnresolvedComments || agentMerge.actions.addressReviews)
 			: agentMerge.actions.fixCI && agentMerge.actions.resolveConflicts && agentMerge.actions.addressReviews;
 		return handlesBlockers ? openPullRequestIcon : icon;
 	}
