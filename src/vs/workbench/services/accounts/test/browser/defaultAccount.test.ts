@@ -111,7 +111,7 @@ suite('DefaultAccountProvider', () => {
 		});
 	});
 
-	test('normal refresh uses all fresh caches and forceRefresh bypasses all of them', async () => {
+	test('entitlement refresh preserves satisfied governed caches and forceRefresh bypasses all of them', async () => {
 		const requestService = new TestRequestService(async options => {
 			switch (options.callSite) {
 				case 'defaultAccount.entitlements':
@@ -131,7 +131,15 @@ suite('DefaultAccountProvider', () => {
 			mcpRegistryDataUrl: 'https://api.github.com/copilot/mcp_registry',
 		});
 		const fetchedAt = Date.now() - 1000;
-		const cachedPolicy = createCachedPolicy(false);
+		const managedSettingsScope = {
+			accountId,
+			authenticationProviderId: 'github',
+			endpointOrigin: 'https://api.github.com',
+		};
+		const cachedPolicy = {
+			...createCachedPolicy(true),
+			managedSettingsScope,
+		};
 		const policyData = {
 			...cachedPolicy,
 			policyData: {
@@ -158,6 +166,13 @@ suite('DefaultAccountProvider', () => {
 			policyData,
 			copilotTokenInfo: { sn: 'cached-token' },
 		});
+		provider['setManagedSettingsFreshness']({
+			state: ManagedSettingsFreshnessState.Satisfied,
+			source: 'server',
+			scope: managedSettingsScope,
+			lastAttemptAt: fetchedAt,
+			satisfiedAt: fetchedAt,
+		});
 
 		const normal = await provider['getDefaultAccountFromAuthenticatedSessions'](
 			{ id: 'github', name: 'GitHub', enterprise: false },
@@ -170,6 +185,7 @@ suite('DefaultAccountProvider', () => {
 			{ refreshEntitlements: true }
 		);
 		const entitlementRefreshCallSites = requestService.requests.map(request => request.callSite);
+		const freshnessAfterEntitlementRefresh = describeFreshness(provider.managedSettingsFreshness);
 		requestService.requestCount = 0;
 		requestService.requests.length = 0;
 		const forced = await provider['getDefaultAccountFromAuthenticatedSessions'](
@@ -183,6 +199,7 @@ suite('DefaultAccountProvider', () => {
 			normalCopilotPlan: normal?.defaultAccount.entitlementsData?.copilot_plan,
 			entitlementRefreshCallSites,
 			refreshedCopilotPlan: refreshedEntitlements?.defaultAccount.entitlementsData?.copilot_plan,
+			freshnessAfterEntitlementRefresh,
 			callSites: requestService.requests.map(request => request.callSite),
 			forcedCopilotPlan: forced?.defaultAccount.entitlementsData?.copilot_plan,
 		}, {
@@ -190,6 +207,13 @@ suite('DefaultAccountProvider', () => {
 			normalCopilotPlan: 'individual',
 			entitlementRefreshCallSites: ['defaultAccount.entitlements'],
 			refreshedCopilotPlan: 'business',
+			freshnessAfterEntitlementRefresh: {
+				state: ManagedSettingsFreshnessState.Satisfied,
+				source: 'server',
+				scope: managedSettingsScope,
+				hasLastAttempt: true,
+				hasSatisfiedAt: true,
+			},
 			callSites: [
 				'defaultAccount.entitlements',
 				'defaultAccount.tokenEntitlements',
