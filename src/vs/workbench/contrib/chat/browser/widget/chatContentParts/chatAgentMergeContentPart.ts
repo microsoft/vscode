@@ -6,6 +6,7 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { Button, IButtonStyles } from '../../../../../../base/browser/ui/button/button.js';
+import { Action } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
@@ -20,6 +21,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../../platform/co
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { ChatPillActionViewItem } from '../../../../../browser/chatPills.js';
 import { AgentFeedbackReviewCommandId, IChatAgentFeedbackPullRequestThreadLink } from '../../../common/chatService/chatService.js';
 import { IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
 import './media/chatAgentMergeContent.css';
@@ -62,38 +64,57 @@ interface IAgentMergeCommentItem extends IAgentMergeFileLocation {
 	readonly threadId?: string;
 }
 
-const agentMergeTitle = localize('chat.agentMerge.title', "Agent Merge");
+const agentMergeSource = localize('chat.agentMerge.source', "Agent Merge");
 
-/** The counts shown next to the title, describing why the turn was started. */
-function describeBadges(summary: IAgentMergePromptSummary, commentCount: number): { readonly icon: ThemeIcon; readonly label: string }[] {
-	const badges: { icon: ThemeIcon; label: string }[] = [];
+/** The status shown in the header, describing why the turn was started. */
+function describeAgentMergeStatus(summary: IAgentMergePromptSummary, commentCount: number): { readonly icon: ThemeIcon; readonly title: string } {
+	const events: string[] = [];
 	if (commentCount > 0) {
-		badges.push({
-			icon: Codicon.commentCompact,
-			label: commentCount === 1
-				? localize('chat.agentMerge.oneComment', "1 comment")
-				: localize('chat.agentMerge.comments', "{0} comments", commentCount),
-		});
+		events.push(commentCount === 1
+			? localize('chat.agentMerge.oneReviewComment', "1 Review Comment")
+			: localize('chat.agentMerge.reviewComments', "{0} Review Comments", commentCount));
 	}
 	if (summary.failedChecks.length > 0) {
-		badges.push({
-			icon: Codicon.errorCompact,
-			label: summary.failedChecks.length === 1
-				? localize('chat.agentMerge.oneCheck', "1 check failing")
-				: localize('chat.agentMerge.checks', "{0} checks failing", summary.failedChecks.length),
-		});
+		events.push(summary.failedChecks.length === 1
+			? localize('chat.agentMerge.oneFailingCheck', "1 Failing Check")
+			: localize('chat.agentMerge.failingChecks', "{0} Failing Checks", summary.failedChecks.length));
 	}
-	if (badges.length === 0) {
-		badges.push({
-			icon: summary.conflicting ? Codicon.warningCompact : Codicon.arrowDown,
-			label: summary.conflicting
-				? localize('chat.agentMerge.conflicting', "Merge conflicts")
+	if (summary.conflicting) {
+		events.push(localize('chat.agentMerge.mergeConflicts', "Merge Conflicts"));
+	}
+	if (summary.behind) {
+		events.push(localize('chat.agentMerge.behindBaseBranch', "Behind Base Branch"));
+	}
+	if (events.length === 0) {
+		events.push(localize('chat.agentMerge.noPendingFeedback', "No Pending Feedback"));
+	}
+
+	const icon = summary.failedChecks.length > 0
+		? Codicon.errorCompact
+		: summary.conflicting
+			? Codicon.warningCompact
+			: commentCount > 0
+				? Codicon.commentCompact
 				: summary.behind
-					? localize('chat.agentMerge.behind', "Behind base branch")
-					: localize('chat.agentMerge.upToDate', "No pending feedback"),
-		});
+					? Codicon.arrowDown
+					: Codicon.checkCompact;
+	return {
+		icon,
+		title: formatAgentMergeEvents(events),
+	};
+}
+
+function formatAgentMergeEvents(events: readonly string[]): string {
+	switch (events.length) {
+		case 1:
+			return events[0];
+		case 2:
+			return localize('chat.agentMerge.twoEvents', "{0} and {1}", events[0], events[1]);
+		case 3:
+			return localize('chat.agentMerge.threeEvents', "{0}, {1}, and {2}", events[0], events[1], events[2]);
+		default:
+			return localize('chat.agentMerge.fourEvents', "{0}, {1}, {2}, and {3}", events[0], events[1], events[2], events[3]);
 	}
-	return badges;
 }
 
 /**
@@ -102,8 +123,8 @@ function describeBadges(summary: IAgentMergePromptSummary, commentCount: number)
  * transcript find use this in its place.
  */
 export function getAgentMergeSummaryLabel(summary: IAgentMergePromptSummary): string {
-	const badges = describeBadges(summary, collectComments(summary).length);
-	return [agentMergeTitle, ...badges.map(badge => badge.label)].join(', ');
+	const status = describeAgentMergeStatus(summary, collectComments(summary).length);
+	return localize('chat.agentMerge.summaryLabel', "{0}, {1}", status.title, agentMergeSource);
 }
 
 /**
@@ -163,19 +184,14 @@ export class ChatAgentMergeContentPart extends Disposable {
 		const button = this._register(new Button(parent, { ...transparentButtonStyles, title: false }));
 		button.element.classList.add('chat-agent-merge-header');
 
+		const status = describeAgentMergeStatus(this._summary, this._comments.length);
+		const icon = dom.append(button.element, dom.$('span.chat-agent-merge-status-icon'));
+		icon.classList.add(...ThemeIcon.asClassNameArray(status.icon));
+		const title = dom.append(button.element, dom.$('span.chat-agent-merge-title', undefined, status.title));
+		this._register(this._hoverService.setupDelayedHover(title, { content: status.title }));
+		dom.append(button.element, dom.$('span.chat-agent-merge-source', undefined, localize('chat.agentMerge.visualSource', "• {0}", agentMergeSource)));
 		const twistie = dom.append(button.element, dom.$('span.chat-agent-merge-twistie'));
 		twistie.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRightCompact));
-		const icon = dom.append(button.element, dom.$('span.chat-agent-merge-icon'));
-		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.gitMerge));
-		dom.append(button.element, dom.$('span.chat-agent-merge-title', undefined, agentMergeTitle));
-
-		const badges = dom.append(button.element, dom.$('span.chat-agent-merge-badges'));
-		for (const badge of describeBadges(this._summary, this._comments.length)) {
-			const badgeElement = dom.append(badges, dom.$('span.chat-agent-merge-badge'));
-			const badgeIcon = dom.append(badgeElement, dom.$('span'));
-			badgeIcon.classList.add(...ThemeIcon.asClassNameArray(badge.icon));
-			dom.append(badgeElement, dom.$('span', undefined, badge.label));
-		}
 
 		this._register(toggleDisclosure(button, this.domNode, getAgentMergeSummaryLabel(this._summary)));
 	}
@@ -186,12 +202,24 @@ export class ChatAgentMergeContentPart extends Disposable {
 		}
 
 		const row = dom.append(body, dom.$('.chat-agent-merge-pr'));
-		const icon = dom.append(row, dom.$('span.chat-agent-merge-row-icon'));
-		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.gitPullRequest));
-
-		const link: HTMLAnchorElement = dom.append(row, dom.$('a.chat-agent-merge-link.chat-agent-merge-pr-title', undefined, this._summary.title || this._summary.pullRequestUrl));
-		link.href = this._summary.pullRequestUrl;
-		this._registerLink(link, this._summary.pullRequestUrl, () => this._openerService.open(URI.parse(this._summary.pullRequestUrl)));
+		const title = this._summary.title || this._summary.pullRequestUrl;
+		const pullRequestNumber = /\/pull\/(?<number>\d+)\/?$/.exec(URI.parse(this._summary.pullRequestUrl).path)?.groups?.number;
+		const label = pullRequestNumber
+			? localize('chat.agentMerge.pullRequestPillLabel', "#{0} {1}", pullRequestNumber, title)
+			: title;
+		const tooltip = pullRequestNumber
+			? localize('chat.agentMerge.openPullRequestWithTitle', "Open Pull Request #{0}: {1}", pullRequestNumber, title)
+			: localize('chat.agentMerge.openPullRequestWithTitleFallback', "Open Pull Request: {0}", title);
+		const action = this._register(new Action(
+			'chat.agentMerge.openPullRequest',
+			label,
+			ThemeIcon.asClassName(Codicon.gitPullRequest),
+			true,
+			() => this._openerService.open(URI.parse(this._summary.pullRequestUrl)),
+		));
+		action.tooltip = tooltip;
+		const viewItem = this._register(new ChatPillActionViewItem(undefined, action, {}));
+		viewItem.render(row);
 	}
 
 	private _createCommentsSection(body: HTMLElement): void {
@@ -200,7 +228,7 @@ export class ChatAgentMergeContentPart extends Disposable {
 		}
 
 		const section = dom.append(body, dom.$('.chat-agent-merge-section'));
-		dom.append(section, dom.$('.chat-agent-merge-section-title', undefined, localize('chat.agentMerge.commentsTitle', "Review Feedback")));
+		dom.append(section, dom.$('.chat-agent-merge-section-title', undefined, localize('chat.agentMerge.commentsTitle', "Feedback")));
 
 		const fileElements = new Map<string, HTMLElement>();
 		this._comments.forEach((comment, index) => {
@@ -269,7 +297,7 @@ export class ChatAgentMergeContentPart extends Disposable {
 		}
 
 		const section = dom.append(body, dom.$('.chat-agent-merge-section'));
-		dom.append(section, dom.$('.chat-agent-merge-section-title', undefined, localize('chat.agentMerge.checksTitle', "Failing Checks")));
+		dom.append(section, dom.$('.chat-agent-merge-section-title', undefined, localize('chat.agentMerge.checksTitle', "Checks")));
 		// A check's own run URL is not part of the prompt, so the pull request's
 		// checks tab is the closest target that always resolves.
 		const checksUrl = this._summary.pullRequestUrl ? `${this._summary.pullRequestUrl}/checks` : undefined;

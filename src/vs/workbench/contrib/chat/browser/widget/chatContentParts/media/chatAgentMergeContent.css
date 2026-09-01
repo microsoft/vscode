@@ -6,6 +6,7 @@
 .chat-agent-merge {
 	display: flex;
 	flex-direction: column;
+	align-self: flex-start;
 	margin: var(--vscode-spacing-size40) 0;
 	border: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
 	border-radius: var(--vscode-cornerRadius-medium);
@@ -14,6 +15,15 @@
 	/* Collapsed, the card hugs its header; expanded, the body grows it to the transcript width. */
 	width: fit-content;
 	max-width: 100%;
+}
+
+.chat-agent-merge.collapsed {
+	border-color: transparent;
+}
+
+.chat-agent-merge.collapsed:hover,
+.chat-agent-merge.collapsed:focus-within {
+	border-color: var(--vscode-chat-requestBorder);
 }
 
 .chat-agent-merge > .chat-agent-merge-header,
@@ -29,6 +39,11 @@
 
 .chat-agent-merge > .chat-agent-merge-header {
 	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	border-radius: calc(var(--vscode-cornerRadius-medium) - var(--vscode-strokeThickness)) calc(var(--vscode-cornerRadius-medium) - var(--vscode-strokeThickness)) 0 0;
+}
+
+.chat-agent-merge.collapsed > .chat-agent-merge-header {
+	border-radius: calc(var(--vscode-cornerRadius-medium) - var(--vscode-strokeThickness));
 }
 
 .chat-agent-merge > .chat-agent-merge-header:hover,
@@ -42,7 +57,17 @@ the codicon base rule, which would otherwise force every glyph to 16px. */
 	flex: 0 0 auto;
 	font-size: var(--vscode-codiconFontSize-compact);
 	color: var(--vscode-descriptionForeground);
-	transition: transform 100ms ease-out;
+	transition: opacity 100ms ease-out, transform 100ms ease-out;
+}
+
+.chat-agent-merge > .chat-agent-merge-header > .chat-agent-merge-twistie {
+	margin-inline-start: auto;
+	opacity: 0;
+}
+
+.chat-agent-merge > .chat-agent-merge-header:hover > .chat-agent-merge-twistie,
+.chat-agent-merge > .chat-agent-merge-header:focus-visible > .chat-agent-merge-twistie {
+	opacity: 1;
 }
 
 /* Reduced motion follows the workbench-managed `.monaco-reduce-motion` class,
@@ -57,53 +82,31 @@ which sits either on an ancestor or on the workbench element itself. */
 	transform: rotate(90deg);
 }
 
-.chat-agent-merge .chat-agent-merge-icon.codicon {
+.chat-agent-merge .chat-agent-merge-status-icon.codicon {
 	flex: 0 0 auto;
 	font-size: var(--vscode-codiconFontSize-compact);
 	color: var(--vscode-descriptionForeground);
 }
 
 .chat-agent-merge .chat-agent-merge-title {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
 	font-weight: var(--vscode-fontWeight-semiBold);
 	white-space: nowrap;
 }
 
-.chat-agent-merge .chat-agent-merge-badges {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size80);
-	min-width: 0;
-	overflow: hidden;
-	color: var(--vscode-descriptionForeground);
-}
-
-.chat-agent-merge .chat-agent-merge-badge {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size40);
-	white-space: nowrap;
-}
-
-.chat-agent-merge .chat-agent-merge-badge::before {
-	content: '';
+.chat-agent-merge .chat-agent-merge-source {
 	flex: 0 0 auto;
-	width: 2px;
-	height: 2px;
-	border-radius: var(--vscode-cornerRadius-circle);
-	background-color: currentColor;
-	opacity: 0.6;
-	margin-right: var(--vscode-spacing-size40);
-}
-
-.chat-agent-merge .chat-agent-merge-badge .codicon {
-	font-size: var(--vscode-codiconFontSize-compact);
-	color: inherit;
+	color: var(--vscode-descriptionForeground);
+	font-weight: var(--vscode-fontWeight-regular);
+	white-space: nowrap;
 }
 
 .chat-agent-merge > .chat-agent-merge-body {
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size120);
+	gap: var(--vscode-spacing-size80);
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size120) var(--vscode-spacing-size120);
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
 }
@@ -124,8 +127,7 @@ which sits either on an ancestor or on the workbench element itself. */
 	color: var(--vscode-errorForeground);
 }
 
-/* Clickable text stays in its surrounding color and announces itself on hover,
-matching the pull request content part's link treatment. */
+/* Clickable text stays in its surrounding color and announces itself on hover. */
 .chat-agent-merge .chat-agent-merge-link {
 	cursor: pointer;
 	color: inherit;
@@ -139,15 +141,21 @@ matching the pull request content part's link treatment. */
 .chat-agent-merge .chat-agent-merge-pr {
 	display: flex;
 	align-items: center;
-	gap: var(--vscode-spacing-size60);
-	padding-top: var(--vscode-spacing-size80);
+	padding-top: var(--vscode-spacing-size40);
+	margin-inline: calc(var(--vscode-spacing-size80) - var(--vscode-spacing-size120));
 	min-width: 0;
 }
 
-.chat-agent-merge .chat-agent-merge-pr-title {
+.chat-agent-merge .chat-agent-merge-pr .chat-pill-button,
+.chat-agent-merge .chat-agent-merge-pr .chat-pill-label {
+	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.chat-agent-merge .chat-agent-merge-pr .chat-pill-button {
+	max-width: 100%;
 }
 
 .chat-agent-merge .chat-agent-merge-section {
@@ -157,8 +165,12 @@ matching the pull request content part's link treatment. */
 	min-width: 0;
 }
 
+.chat-agent-merge .chat-agent-merge-section + .chat-agent-merge-section {
+	padding-top: var(--vscode-spacing-size80);
+}
+
 .chat-agent-merge .chat-agent-merge-section-title {
-	font-size: var(--vscode-fontSize-label2);
+	font-size: var(--vscode-fontSize-label1);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-descriptionForeground);
 }

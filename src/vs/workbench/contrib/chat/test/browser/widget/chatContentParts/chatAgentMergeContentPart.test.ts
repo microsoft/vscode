@@ -5,7 +5,27 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { describeAgentMergeFileLabels } from '../../../../browser/widget/chatContentParts/chatAgentMergeContentPart.js';
+import { IAgentMergePromptSummary } from '../../../../../../../platform/agentHost/common/agentMergePrompt.js';
+import { describeAgentMergeFileLabels, getAgentMergeSummaryLabel } from '../../../../browser/widget/chatContentParts/chatAgentMergeContentPart.js';
+
+function summary(overrides: Partial<IAgentMergePromptSummary> = {}): IAgentMergePromptSummary {
+	return {
+		actions: [],
+		pullRequestUrl: '',
+		title: '',
+		headRef: '',
+		headSha: '',
+		baseRef: 'main',
+		reviewThreads: [],
+		reviewSummaries: [],
+		newComments: [],
+		failedChecks: [],
+		behind: false,
+		conflicting: false,
+		agentMessage: '',
+		...overrides,
+	};
+}
 
 suite('ChatAgentMergeContentPart file labels', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -47,6 +67,28 @@ suite('ChatAgentMergeContentPart file labels', () => {
 		assert.deepStrictEqual(labels, [
 			{ name: 'index.ts:1', title: 'src/a/index.ts' },
 			{ name: 'index.ts:9', title: 'src/a/index.ts' },
+		]);
+	});
+
+	test('summarizes encountered events in one status sentence', () => {
+		assert.deepStrictEqual([
+			getAgentMergeSummaryLabel(summary()),
+			getAgentMergeSummaryLabel(summary({ behind: true })),
+			getAgentMergeSummaryLabel(summary({ conflicting: true })),
+			getAgentMergeSummaryLabel(summary({
+				reviewSummaries: [
+					{ author: 'octocat', body: 'Please fix this.' },
+					{ author: 'hubot', body: 'Please add a test.' },
+				],
+				failedChecks: ['Compile', 'Unit Tests'],
+				behind: true,
+				conflicting: true,
+			})),
+		], [
+			'No Pending Feedback, Agent Merge',
+			'Behind Base Branch, Agent Merge',
+			'Merge Conflicts, Agent Merge',
+			'2 Review Comments, 2 Failing Checks, Merge Conflicts, and Behind Base Branch, Agent Merge',
 		]);
 	});
 });
