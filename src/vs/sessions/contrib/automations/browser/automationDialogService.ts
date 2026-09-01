@@ -183,6 +183,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 							...(cancelButton ? [cancelButton.element] : []),
 						],
 						isAutomationDialogPopupTarget,
+						handle.isPromptSuggestionActive,
 					));
 					focusFirst = keyboardNavigation.focusFirst;
 					revalidate = () => updateSaveButtonState(saveButton, state, validation, form, getPrompt, getBranch);

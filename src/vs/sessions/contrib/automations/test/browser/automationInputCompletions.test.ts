@@ -6,15 +6,20 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { Position } from '../../../../../editor/common/core/position.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 import { CompletionItemKind, CompletionTriggerKind } from '../../../../../editor/common/languages.js';
 import { LanguageFeaturesService } from '../../../../../editor/common/services/languageFeaturesService.js';
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatInputCompletionsParams, IChatInputCompletionsResult, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -53,7 +58,18 @@ suite('AutomationInputCompletions', () => {
 	test('shows agent host skills for the automation draft session', async () => {
 		const languageFeaturesService = new LanguageFeaturesService();
 		const model = store.add(createTextModel('/', null, undefined, URI.parse('vscode-chat-input:automation')));
-		const editor = upcastPartial<ICodeEditor>({ getModel: () => model });
+		let decorations: readonly Range[] = [];
+		const editor = upcastPartial<ICodeEditor>({
+			getModel: () => model,
+			onDidChangeModelContent: Event.None,
+			setDecorationsByType: (_description, _key, options) => {
+				decorations = options.map(option => Range.lift(option.range));
+				return options.map((_, index) => `decoration-${index}`);
+			},
+		});
+		const codeEditorService = upcastPartial<ICodeEditorService>({
+			registerDecorationType: () => ({ dispose() { } }),
+		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'automation',
 			resource: URI.parse('agent-host-copilot:automation'),
@@ -61,7 +77,7 @@ suite('AutomationInputCompletions', () => {
 		const sessionsManagementService = upcastPartial<ISessionsManagementService>({
 			automationSession: constObservable(session),
 		});
-		store.add(new AutomationInputCompletions(editor, languageFeaturesService, new TestChatSessionsService(), sessionsManagementService));
+		store.add(new AutomationInputCompletions(editor, languageFeaturesService, new TestChatSessionsService(), sessionsManagementService, codeEditorService));
 		await timeout(0);
 
 		const provider = languageFeaturesService.completionProvider.ordered(model)[0];
@@ -72,27 +88,35 @@ suite('AutomationInputCompletions', () => {
 			CancellationToken.None,
 		);
 
-		assert.deepStrictEqual(result?.suggestions.map(item => ({
+		const suggestions = result?.suggestions.map(item => ({
 			label: item.label,
 			insertText: item.insertText,
 			filterText: item.filterText,
 			documentation: item.documentation,
 			kind: item.kind,
-		})), [
-			{
-				label: { label: '/review ', description: 'Review the workspace' },
-				insertText: '/review ',
-				filterText: '/review ',
-				documentation: 'Review the workspace',
-				kind: CompletionItemKind.Text,
-			},
-			{
-				label: { label: '/runtime-skill ', description: 'Run a runtime skill' },
-				insertText: '/runtime-skill ',
-				filterText: '/runtime-skill ',
-				documentation: 'Run a runtime skill',
-				kind: CompletionItemKind.Text,
-			},
-		]);
+		}));
+		model.setValue('/review ');
+		const command = result?.suggestions[0].command;
+		CommandsRegistry.getCommand(command!.id)!.handler(upcastPartial<ServicesAccessor>({}), ...command!.arguments!);
+
+		assert.deepStrictEqual({ suggestions, decorations }, {
+			suggestions: [
+				{
+					label: { label: '/review ', description: 'Review the workspace' },
+					insertText: '/review ',
+					filterText: '/review ',
+					documentation: 'Review the workspace',
+					kind: CompletionItemKind.Text,
+				},
+				{
+					label: { label: '/runtime-skill ', description: 'Run a runtime skill' },
+					insertText: '/runtime-skill ',
+					filterText: '/runtime-skill ',
+					documentation: 'Run a runtime skill',
+					kind: CompletionItemKind.Text,
+				},
+			],
+			decorations: [new Range(1, 1, 1, 8)],
+		});
 	});
 });

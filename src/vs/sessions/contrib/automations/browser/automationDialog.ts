@@ -21,6 +21,8 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
+import { State as SuggestState } from '../../../../editor/contrib/suggest/browser/suggestModel.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
@@ -104,6 +106,7 @@ export function registerAutomationDialogKeyboardNavigation(
 	targetWindow: Window & typeof globalThis,
 	getFocusableElements: () => readonly HTMLElement[],
 	isPopupTarget: (target: HTMLElement) => boolean,
+	isPromptSuggestionActive: () => boolean = () => false,
 ): IAutomationDialogKeyboardNavigation {
 	const store = new DisposableStore();
 	let suppressPopupEscapeKeyUp = false;
@@ -132,6 +135,9 @@ export function registerAutomationDialogKeyboardNavigation(
 		}
 		suppressPopupEscapeKeyUp = false;
 		if (event.key !== 'Tab') {
+			return;
+		}
+		if (!event.shiftKey && isPromptSuggestionActive()) {
 			return;
 		}
 
@@ -201,6 +207,7 @@ interface IRenderFormHandle {
 	readonly getBranch: () => string | undefined;
 	readonly waitForAutomationSessionSync: () => Promise<void>;
 	readonly getFocusableElements: () => readonly HTMLElement[];
+	readonly isPromptSuggestionActive: () => boolean;
 }
 
 export type AutomationSessionDraftTarget =
@@ -1248,6 +1255,12 @@ export function renderForm(
 		getFocusableElements: () => {
 			// eslint-disable-next-line no-restricted-syntax -- the dialog owns this form subtree and supplies its dynamic focus order.
 			return Array.from(form.querySelectorAll<HTMLElement>('input, select, textarea, button, a[href], [tabindex]'));
+		},
+		isPromptSuggestionActive: () => {
+			const suggestController = SuggestController.get(chatInput.inputEditor);
+			return !!suggestController
+				&& suggestController.model.state !== SuggestState.Idle
+				&& !!suggestController.widget.value.getFocusedItem();
 		},
 	};
 }

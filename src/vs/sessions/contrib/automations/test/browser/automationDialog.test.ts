@@ -989,6 +989,36 @@ suite('Automation dialog keyboard navigation', () => {
 		});
 	});
 
+	test('leaves Tab handling active while prompt suggestions are visible', () => {
+		const container = document.createElement('div');
+		document.body.append(container);
+		disposables.add({ dispose: () => container.remove() });
+		const targetWindow = DOM.getWindow(container);
+		const prompt = container.appendChild(document.createElement('textarea'));
+		const next = container.appendChild(document.createElement('button'));
+		disposables.add(registerAutomationDialogKeyboardNavigation(
+			targetWindow,
+			() => [prompt, next],
+			() => false,
+			() => true,
+		));
+		let downstreamKeyDowns = 0;
+		disposables.add(DOM.addDisposableListener(targetWindow, DOM.EventType.KEY_DOWN, () => downstreamKeyDowns++, true));
+
+		prompt.focus();
+		const event = dispatchKey(prompt, 'keydown', 'Tab');
+
+		assert.deepStrictEqual({
+			activeElement: document.activeElement,
+			defaultPrevented: event.defaultPrevented,
+			downstreamKeyDowns,
+		}, {
+			activeElement: prompt,
+			defaultPrevented: false,
+			downstreamKeyDowns: 1,
+		});
+	});
+
 	test('leaves popup keydown handling active and suppresses its Escape keyup', () => {
 		const container = document.createElement('div');
 		document.body.append(container);
