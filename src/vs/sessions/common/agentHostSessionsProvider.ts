@@ -186,6 +186,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	isSessionConfigResolving(sessionId: string): IObservable<boolean>;
 	/** Sets one dynamic configuration property and re-resolves the schema. */
 	setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void>;
+	/** Tracks a draft configuration side effect that must finish before the first request. */
+	trackSessionConfigOperation(sessionId: string, operation: Promise<void>): void;
 	/**
 	 * Replaces the full set of running-session config values atomically.
 	 *

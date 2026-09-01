@@ -363,15 +363,15 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		return changes;
 	}
 
-	async invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget): Promise<void> {
+	async invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget, _meta?: Record<string, unknown>): Promise<void> {
 		const connection = this._options.getConnection();
 		if (!connection) {
-			return;
+			throw new Error(`Cannot invoke changeset operation '${operationId}' because the agent host connection is unavailable.`);
 		}
 
 		const channel = this.channelUriObs.get();
 		if (!channel) {
-			return;
+			throw new Error(`Cannot invoke changeset operation '${operationId}' because the changeset channel is unavailable.`);
 		}
 
 		const operation = this.operations.get().find(o => o.id === operationId);
@@ -402,6 +402,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 						resource: target.resource.toString()
 					}
 					: undefined,
+				_meta
 			});
 		} finally {
 			this._setOperationLocallyRunning(operationId, false);

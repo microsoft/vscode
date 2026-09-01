@@ -1168,7 +1168,7 @@ suite('AgentService (node dispatcher)', () => {
 				providerSetting: 'initial',
 			},
 			selected: { isolation: 'worktree', branch: 'feature/config', branchPrefix: 'users/test/', includeFiles: ['.env'], branchTrack: false, createNewBranch: false, providerSetting: 'selected' },
-			folder: { isolation: 'folder', branch: 'feature', providerSetting: 'folder' },
+			folder: { isolation: 'folder', branch: 'feature/config', providerSetting: 'folder' },
 		});
 	});
 
@@ -6652,6 +6652,7 @@ suite('AgentService (node dispatcher)', () => {
 				removeWorktree: async () => { },
 				branchExists: async () => false,
 				createBranch: async () => { },
+				checkout: async () => { },
 				hasUncommittedChanges: async () => false,
 				commitAll: async () => { },
 				mergeBranch: async () => '',
@@ -6760,6 +6761,7 @@ suite('AgentService (node dispatcher)', () => {
 				removeWorktree: async () => { },
 				branchExists: async () => false,
 				createBranch: async () => { },
+				checkout: async () => { },
 				hasUncommittedChanges: async () => false,
 				commitAll: async () => { },
 				mergeBranch: async () => '',
@@ -14602,7 +14604,7 @@ suite('AgentService (node dispatcher)', () => {
 					gitStateCalls: [{ resource: sourceDir.toString(), baseBranch: undefined }],
 					diffCalls: [sourceDir.toString()],
 					uncommittedFiles: [sourceFile],
-					uncommittedOperations: ['commit', 'discard-changes'],
+					uncommittedOperations: ['checkout', 'commit', 'discard-changes'],
 				},
 				afterMaterialization: {
 					workingDirectory: worktreeDir.toString(),

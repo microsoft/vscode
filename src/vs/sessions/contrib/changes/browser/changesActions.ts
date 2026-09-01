@@ -29,7 +29,7 @@ import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/d
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
 import { ChatPillActionViewItem } from '../../../../workbench/browser/chatPills.js';
-import { AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasOpenPullRequestContext, SessionHasWorkspaceContext, SessionPrimaryPullRequestOperationContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -547,6 +547,7 @@ export class NewSessionUncommittedChangesetOperationsActionContribution extends 
 				?.find(candidate => candidate.id === UNCOMMITTED_CHANGES_CHANGESET_ID && candidate.isEnabled.read(reader));
 			const operations = changeset?.operations.read(reader)
 				.filter(operation => operation.id !== AGENT_HOST_SYNC_CHANGESET_OPERATION_ID)
+				.filter(operation => operation.id !== AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID)
 				.filter(operation => operation.scopes.includes(SessionChangesetOperationScope.Changeset)) ?? [];
 			const hasUncommittedChanges = (activeSession.workspace.read(reader)?.folders[0]?.gitRepository?.uncommittedChanges ?? 0) > 0;
 
