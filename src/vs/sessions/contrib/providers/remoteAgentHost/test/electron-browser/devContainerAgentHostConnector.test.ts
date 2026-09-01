@@ -13,7 +13,7 @@ import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurati
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
-import { DevContainerAgentHostEnabledSettingId } from '../../../../../common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerWorktreeEnabledSettingId } from '../../../../../common/devContainerAgentHostService.js';
 import { ensureDevContainerAgentHostsEnabled, isDevContainerWorkspaceAvailable } from '../../electron-browser/devContainerAgentHostConnector.contribution.js';
 
 suite('Dev Container Agent Host Connector', () => {
@@ -58,16 +58,37 @@ suite('Dev Container Agent Host Connector', () => {
 		});
 	});
 
-	test('registers a hidden, disabled-by-default user setting', () => {
+	test('registers an experimental, disabled-by-default user setting', () => {
 		const property = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-			.getExcludedConfigurationProperties()[DevContainerAgentHostEnabledSettingId];
+			.getConfigurationProperties()[DevContainerAgentHostEnabledSettingId];
 
 		assert.deepStrictEqual({
 			default: property.default,
 			scope: property.scope,
+			tags: property.tags,
+			experiment: property.experiment,
 		}, {
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'onExP'],
+			experiment: { mode: 'auto' },
+		});
+	});
+
+	test('registers a hidden experimental setting for combining Dev Containers and worktrees', () => {
+		const property = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+			.getExcludedConfigurationProperties()[DevContainerWorktreeEnabledSettingId];
+
+		assert.deepStrictEqual({
+			default: property.default,
+			scope: property.scope,
+			tags: property.tags,
+			experiment: property.experiment,
+		}, {
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'onExP'],
+			experiment: { mode: 'auto' },
 		});
 	});
 
