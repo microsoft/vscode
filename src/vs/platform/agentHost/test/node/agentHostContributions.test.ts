@@ -54,6 +54,7 @@ const nullPullRequestStatusService: IAgentHostPullRequestStatusService = {
 	_serviceBrand: undefined,
 	onDidChangePullRequestStatus: Event.None,
 	getPullRequestStatus() { return undefined; },
+	markPullRequestMerged() { },
 	async refresh() { },
 	dispose() { },
 };

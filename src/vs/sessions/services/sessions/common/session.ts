@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { arrayEquals } from '../../../../base/common/equals.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
@@ -303,8 +304,14 @@ export interface IGitHubInfo {
 		readonly number: number;
 		/** URI of the pull request. */
 		readonly uri: URI;
+		/** Last host-observed pull request state. */
+		readonly state?: 'open' | 'closed' | 'merged';
+		/** State from the live workbench pull request model, when resolved. */
+		readonly liveState?: 'open' | 'closed' | 'merged';
 		/** Icon reflecting the PR state. */
 		readonly icon?: ThemeIcon;
+		/** Pull request title, when known. */
+		readonly title?: string;
 		/** Object ID of the base ref (merge target) commit. */
 		readonly baseRefOid?: string;
 		/** Object ID of the head ref (PR branch) commit. */
@@ -329,6 +336,10 @@ export interface IGitHubPullRequestRef {
 	readonly uri: URI;
 	/** Icon reflecting the last known PR state. */
 	readonly icon?: ThemeIcon;
+	/** Last host-observed pull request state. */
+	readonly state?: 'open' | 'closed' | 'merged';
+	/** State from the live workbench pull request model, when resolved. */
+	readonly liveState?: 'open' | 'closed' | 'merged';
 	/**
 	 * Pull request title, when the session recorded one. Absent for pull requests
 	 * discovered from git state, which carry no title until they are fetched live.
@@ -339,6 +350,52 @@ export interface IGitHubPullRequestRef {
 	 * inherited from the checkout it started from or merely referenced by the agent.
 	 */
 	readonly createdByThisSession?: boolean;
+}
+
+/** Returns all pull requests associated with GitHub info, including its legacy single-PR shape. */
+export function getGitHubPullRequestRefs(gitHubInfo: IGitHubInfo | undefined): readonly IGitHubPullRequestRef[] {
+	if (gitHubInfo?.pullRequests?.length) {
+		return gitHubInfo.pullRequests;
+	}
+	if (!gitHubInfo?.pullRequest) {
+		return [];
+	}
+	return [{
+		owner: gitHubInfo.owner,
+		repo: gitHubInfo.repo,
+		number: gitHubInfo.pullRequest.number,
+		uri: gitHubInfo.pullRequest.uri,
+		icon: gitHubInfo.pullRequest.icon,
+		state: gitHubInfo.pullRequest.state,
+		liveState: gitHubInfo.pullRequest.liveState,
+		title: gitHubInfo.pullRequest.title,
+	}];
+}
+
+const pullRequestIconPriority = new Map<string, number>([
+	[Codicon.gitPullRequestError.id, 6],
+	[Codicon.gitPullRequestComment.id, 5],
+	[Codicon.gitPullRequest.id, 4],
+	[Codicon.gitPullRequestDraft.id, 3],
+	[Codicon.gitPullRequestDone.id, 2],
+	[Codicon.gitPullRequestClosed.id, 1],
+]);
+
+/** Returns the most important status icon across a session's pull requests. */
+export function getHighestPriorityPullRequestIcon(icons: readonly (ThemeIcon | undefined)[]): ThemeIcon | undefined {
+	let result: ThemeIcon | undefined;
+	let resultPriority = -1;
+	for (const icon of icons) {
+		if (!icon) {
+			continue;
+		}
+		const priority = pullRequestIconPriority.get(icon.id) ?? 0;
+		if (priority > resultPriority) {
+			result = icon;
+			resultPriority = priority;
+		}
+	}
+	return result;
 }
 
 /** A GitHub issue referenced by a session. */
@@ -373,6 +430,13 @@ export type ISessionTurnFileChange = ISessionFileChange & {
  * Changes view — can locate it in {@link ISession.changesets} by id.
  */
 export const BRANCH_CHANGES_CHANGESET_ID = 'branchChanges';
+
+/**
+ * Well-known id of the changeset that holds uncommitted working-tree changes.
+ *
+ * Must match the agent host provider's `ChangesetKind.Uncommitted` value.
+ */
+export const UNCOMMITTED_CHANGES_CHANGESET_ID = 'uncommitted';
 
 /**
  * Well-known id of the changeset that holds the diff made during the session's
@@ -971,12 +1035,17 @@ export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | und
 			x.repo === y.repo &&
 			x.number === y.number &&
 			isEqual(x.uri, y.uri) &&
+			x.state === y.state &&
+			x.liveState === y.liveState &&
 			x.title === y.title &&
 			x.createdByThisSession === y.createdByThisSession &&
 			(x.icon === y.icon || (!!x.icon && !!y.icon && ThemeIcon.isEqual(x.icon, y.icon)))) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
 		isEqual(a.pullRequest?.uri, b.pullRequest?.uri) &&
+		a.pullRequest?.state === b.pullRequest?.state &&
+		a.pullRequest?.liveState === b.pullRequest?.liveState &&
 		(aIcon === bIcon || (!!aIcon && !!bIcon && ThemeIcon.isEqual(aIcon, bIcon))) &&
+		a.pullRequest?.title === b.pullRequest?.title &&
 		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
 		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid;
 }

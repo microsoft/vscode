@@ -39,6 +39,21 @@
     ],
     "policies": [
         {
+            "key": "agents.voice.enabled",
+            "name": "AgentsVoice",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.137",
+            "localization": {
+                "description": {
+                    "key": "agents.voice.enabled",
+                    "value": "Enable the Voice Mode panel in the chat view for voice-driven coding conversations."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true
+        },
+        {
             "key": "chat.agent.allowedNetworkDomains",
             "name": "ChatAgentAllowedNetworkDomains",
             "category": "InteractiveSession",

@@ -78,6 +78,7 @@ suite('SessionDataService', () => {
 		await fileService.createFolder(URI.joinPath(baseDir, 'keep-2'));
 		await fileService.createFolder(URI.joinPath(baseDir, 'orphan-1'));
 		await fileService.createFolder(URI.joinPath(baseDir, 'orphan-2'));
+		await fileService.createFolder(URI.joinPath(baseDir, 'devcontainer-worktree-detached'));
 
 		await service.cleanupOrphanedData(new Set(['keep-1', 'keep-2']));
 
@@ -85,6 +86,8 @@ suite('SessionDataService', () => {
 		assert.ok(await fileService.exists(URI.joinPath(baseDir, 'keep-2')));
 		assert.ok(!(await fileService.exists(URI.joinPath(baseDir, 'orphan-1'))));
 		assert.ok(!(await fileService.exists(URI.joinPath(baseDir, 'orphan-2'))));
+		assert.ok(await fileService.exists(URI.joinPath(baseDir, 'devcontainer-worktree-detached')));
+		assert.deepStrictEqual(await service.listSessionDataIds('devcontainer-worktree-'), ['devcontainer-worktree-detached']);
 	});
 
 	test('cleanupOrphanedData is a no-op when base directory does not exist', async () => {

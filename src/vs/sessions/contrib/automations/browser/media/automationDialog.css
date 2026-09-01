@@ -216,6 +216,10 @@
 	z-index: 2600 !important;
 }
 
+.automation-dialog-open .automation-dialog-editor-overflow {
+	z-index: 2600;
+}
+
 .automation-form {
 	display: flex;
 	flex-direction: column;

@@ -13,7 +13,6 @@ import { IAgentConnection } from '../../../../../../platform/agentHost/common/ag
 import {
 	IRemoteAgentHostConnectionInfo,
 	IRemoteAgentHostService,
-	RemoteAgentHostAutoConnectSettingId,
 	RemoteAgentHostConnectionStatus,
 	RemoteAgentHostsEnabledSettingId,
 } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -23,6 +22,7 @@ import {
 	TUNNEL_ADDRESS_PREFIX,
 	type ITunnelHostInfo,
 	type ITunnelInfo,
+	type TunnelAutoConnectMode,
 } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -33,7 +33,6 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
 import { IHostService } from '../../../../../../workbench/services/host/browser/host.js';
 import { ITunnelHostService } from '../../../../../../workbench/contrib/chat/common/tunnelHost.js';
-import type { TunnelConnectFailureReason } from '../../../../../common/sessionsTelemetry.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
@@ -80,11 +79,13 @@ class StubTunnelService extends Disposable implements ITunnelAgentHostService {
 
 	private _cached: ICachedTunnel[] = [];
 	private _listed: ITunnelInfo[] | undefined;
+	private readonly _dismissed = new Set<string>();
 	private readonly _suppressed = new Set<string>();
-	autoConnectMode: 'background' | 'prompt' = 'background';
+	autoConnectMode: TunnelAutoConnectMode = 'background';
 
 	/** Records every `connect()` call for assertions on the `userInitiated` threading. */
 	readonly connectCalls: Array<{ tunnel: ITunnelInfo; authProvider: string | undefined; options: { readonly userInitiated?: boolean } | undefined }> = [];
+	readonly disconnectCalls: string[] = [];
 
 	setCached(tunnels: ICachedTunnel[]): void {
 		this._cached = tunnels;
@@ -93,8 +94,8 @@ class StubTunnelService extends Disposable implements ITunnelAgentHostService {
 
 	getCachedTunnels(): ICachedTunnel[] { return this._cached; }
 	setListed(tunnels: ITunnelInfo[] | undefined): void { this._listed = tunnels; }
-	async listTunnels(): Promise<ITunnelInfo[]> { return this._listed ?? []; }
-	getAutoConnectMode(): 'background' | 'prompt' { return this.autoConnectMode; }
+	async listTunnels(_options?: { silent?: boolean }): Promise<ITunnelInfo[]> { return this._listed ?? []; }
+	getAutoConnectMode(_tunnel: ITunnelInfo): TunnelAutoConnectMode { return this.autoConnectMode; }
 	readonly canDeleteTunnels = true;
 	async deleteTunnel(tunnel: ITunnelInfo): Promise<void> { this.removeCachedTunnel(tunnel.tunnelId); }
 	cacheTunnel(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft'): void {
@@ -105,16 +106,26 @@ class StubTunnelService extends Disposable implements ITunnelAgentHostService {
 		this._cached = this._cached.filter(tunnel => tunnel.tunnelId !== tunnelId);
 		this._onDidChangeTunnels.fire();
 	}
+	isTunnelDismissed(id: string): boolean { return this._dismissed.has(id); }
+	dismissTunnel(id: string): void {
+		this._dismissed.add(id);
+		this._onDidChangeTunnels.fire();
+	}
+	clearTunnelDismissal(id: string): void {
+		if (this._dismissed.delete(id)) {
+			this._onDidChangeTunnels.fire();
+		}
+	}
 	isAutoConnectSuppressed(id: string): boolean { return this._suppressed.has(id); }
 	suppressAutoConnect(id: string): void { this._suppressed.add(id); }
 	clearAutoConnectSuppression(id: string): void { this._suppressed.delete(id); }
-	async getAuthProvider(): Promise<'github' | 'microsoft' | undefined> { return undefined; }
+	async getAuthProvider(_options?: { silent?: boolean }): Promise<'github' | 'microsoft' | undefined> { return undefined; }
 
 	async connect(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft', options?: { readonly userInitiated?: boolean }): Promise<void> {
 		this.connectCalls.push({ tunnel, authProvider, options });
 	}
 
-	async disconnect(_address: string): Promise<void> { /* noop */ }
+	async disconnect(address: string): Promise<void> { this.disconnectCalls.push(address); }
 }
 
 class StubRemoteAgentHostService extends Disposable {
@@ -187,6 +198,7 @@ class StubTunnelHostService extends Disposable implements ITunnelHostService {
 
 	async startSharing(): Promise<void> { throw new Error('Not implemented'); }
 	async stopSharing(): Promise<void> { this.setSharingInfo(undefined); }
+	async restartSharing(): Promise<void> { throw new Error('Not implemented'); }
 }
 
 class StubSessionsProvidersService extends Disposable {
@@ -233,12 +245,10 @@ suite('TunnelAgentHostContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('newly-cached tunnel binds to subsequent live connection', async () => {
-		// Regression guard for the picker flow: `tunnelService.connect()` is
-		// contractually obligated to cache the tunnel BEFORE announcing the
-		// live connection via `addManagedConnection`. That ordering lets the
-		// `onDidChangeTunnels` handler create the provider first, so the
-		// `onDidChangeConnections` handler can wire it. Both halves are
-		// exercised here.
+		// Tunnel connection staging caches the tunnel before the remote service
+		// announces its live connection. That ordering lets the cache-change
+		// handler create the provider first, so the connection-change handler
+		// can wire it.
 		const tunnelService = store.add(new StubTunnelService());
 		const remoteService = store.add(new StubRemoteAgentHostService());
 		const providersService = store.add(new StubSessionsProvidersService());
@@ -291,11 +301,7 @@ suite('TunnelAgentHostContribution', () => {
 		assert.deepStrictEqual(providersService.getProviders(), []);
 	});
 
-	test('background auto-connect threads userInitiated: false through to tunnelService.connect, while explicit connects thread userInitiated: true', async () => {
-		// Focused regression test for the userInitiated/silent policy:
-		// background/auto-connect must never be treated as user-initiated
-		// (so it can reuse, but never prompt for, a saved location), while an
-		// explicit connect must retain userInitiated: true.
+	test('on-demand connect threads userInitiated to tunnelService.connect', async () => {
 		const tunnelService = store.add(new StubTunnelService());
 		const remoteService = store.add(new StubRemoteAgentHostService());
 		const providersService = store.add(new StubSessionsProvidersService());
@@ -321,32 +327,68 @@ suite('TunnelAgentHostContribution', () => {
 		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`;
 		tunnelService.setCached([{ tunnelId, clusterId: 'use', name: 'Background Tunnel' }]);
 
-		// Access the private connect-orchestration method via a typed seam —
-		// it's the only place `tunnelService.connect()` is invoked, so this
-		// exercises the exact threading the fix introduces without needing
-		// to drive the full `connectOnDemand`/reconnect-timer machinery.
+		// Access the private on-demand orchestration method via a typed seam.
 		const testable = contribution as unknown as {
 			_connectTunnel(address: string, options: { readonly userInitiated: boolean }): Promise<void>;
 		};
 
-		await testable._connectTunnel(address, { userInitiated: false });
-		assert.strictEqual(tunnelService.connectCalls.length, 1);
-		assert.strictEqual(tunnelService.connectCalls[0].options?.userInitiated, false, 'background connect must pass userInitiated: false');
-
+		tunnelService.dismissTunnel(tunnelId);
 		await testable._connectTunnel(address, { userInitiated: true });
-		assert.strictEqual(tunnelService.connectCalls.length, 2);
-		assert.strictEqual(tunnelService.connectCalls[1].options?.userInitiated, true, 'explicit/user-initiated connect must pass userInitiated: true');
+		assert.deepStrictEqual({
+			dismissed: tunnelService.isTunnelDismissed(tunnelId),
+			connectCalls: tunnelService.connectCalls.map(call => call.options?.userInitiated),
+			providers: providersService.getProviders().map(provider => provider.id),
+		}, {
+			dismissed: false,
+			connectCalls: [true],
+			providers: [`agenthost-${address}`],
+		});
 	});
 
-	test('auto-connect prompts once for an initial location, then reconnects silently', async () => {
+	test('suppresses a locally hosted tunnel without removing its provider', () => {
 		const tunnelService = store.add(new StubTunnelService());
-		tunnelService.autoConnectMode = 'prompt';
 		const remoteService = store.add(new StubRemoteAgentHostService());
 		const providersService = store.add(new StubSessionsProvidersService());
-		const configurationService = new TestConfigurationService({
-			[RemoteAgentHostsEnabledSettingId]: true,
-			[RemoteAgentHostAutoConnectSettingId]: true,
+		const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
+		const tunnelHostService = store.add(new StubTunnelHostService());
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ITunnelAgentHostService, tunnelService);
+		instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
+		instantiationService.stub(ISessionsProvidersService, providersService as unknown as ISessionsProvidersService);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(INotificationService, { notify: () => ({ close() { } }) } as unknown as INotificationService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None } as unknown as IAuthenticationService);
+		instantiationService.stub(ITelemetryService, { publicLog2: () => { } } as unknown as ITelemetryService);
+		instantiationService.stub(IHostService, new StubHostService());
+		instantiationService.stub(ITunnelHostService, tunnelHostService);
+		instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
+		const contribution = store.add(instantiationService.createInstance(TestTunnelContribution));
+		const tunnelId = 'tunnel-hosted';
+		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`;
+
+		tunnelHostService.setSharingInfo('Hosted Tunnel');
+		tunnelService.setCached([{ tunnelId, clusterId: 'use', name: 'Hosted Tunnel' }]);
+
+		assert.deepStrictEqual({
+			isSuppressed: tunnelService.isAutoConnectSuppressed(tunnelId),
+			isDismissed: tunnelService.isTunnelDismissed(tunnelId),
+			hasProvider: contribution.stubProviders.has(address),
+		}, {
+			isSuppressed: true,
+			isDismissed: false,
+			hasProvider: true,
 		});
+
+		tunnelHostService.setSharingInfo(undefined);
+		assert.strictEqual(tunnelService.isAutoConnectSuppressed(tunnelId), false);
+	});
+
+	test('dismissed tunnel stays removed through discovery until explicitly restored', async () => {
+		const tunnelService = store.add(new StubTunnelService());
+		const remoteService = store.add(new StubRemoteAgentHostService());
+		const providersService = store.add(new StubSessionsProvidersService());
+		const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ITunnelAgentHostService, tunnelService);
 		instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
@@ -359,204 +401,65 @@ suite('TunnelAgentHostContribution', () => {
 		instantiationService.stub(IHostService, new StubHostService());
 		instantiationService.stub(ITunnelHostService, store.add(new StubTunnelHostService()));
 		instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
-
 		const contribution = store.add(instantiationService.createInstance(TestTunnelContribution));
-		const tunnel: ITunnelInfo = { tunnelId: 'tunnel-needs-choice', clusterId: 'use', name: 'Needs Choice', tags: ['protocolv6'], protocolVersion: 6, hostConnectionCount: 1 };
+		const tunnel: ITunnelInfo = {
+			tunnelId: 'tunnel-dismissed',
+			clusterId: 'use',
+			name: 'Dismissed Tunnel',
+			tags: [],
+			protocolVersion: 5,
+			hostConnectionCount: 1,
+		};
+		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
+		tunnelService.setCached([{ tunnelId: tunnel.tunnelId, clusterId: tunnel.clusterId, name: tunnel.name }]);
 		tunnelService.setListed([tunnel]);
-		const testable = contribution as unknown as { _silentStatusCheck(): Promise<void> };
-
-		await testable._silentStatusCheck();
-		assert.deepStrictEqual(tunnelService.connectCalls.map(call => call.options?.userInitiated), [true]);
-
-		tunnelService.autoConnectMode = 'background';
-		await testable._silentStatusCheck();
-		assert.deepStrictEqual(tunnelService.connectCalls.map(call => call.options?.userInitiated), [true, false]);
-	});
-
-	test('does not auto-connect the locally hosted tunnel and reconnects it after sharing stops', async () => {
-		const tunnelService = store.add(new StubTunnelService());
-		const remoteService = store.add(new StubRemoteAgentHostService());
-		const providersService = store.add(new StubSessionsProvidersService());
-		const configurationService = new TestConfigurationService({
-			[RemoteAgentHostsEnabledSettingId]: true,
-			[RemoteAgentHostAutoConnectSettingId]: true,
-		});
-		const hostService = new StubHostService();
-		const tunnelHostService = store.add(new StubTunnelHostService());
-		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ITunnelAgentHostService, tunnelService);
-		instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
-		instantiationService.stub(ISessionsProvidersService, providersService as unknown as ISessionsProvidersService);
-		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(INotificationService, { notify: () => ({ close() { } }) } as unknown as INotificationService);
-		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None } as unknown as IAuthenticationService);
-		instantiationService.stub(ITelemetryService, { publicLog2: () => { } } as unknown as ITelemetryService);
-		instantiationService.stub(IHostService, hostService);
-		instantiationService.stub(ITunnelHostService, tunnelHostService);
-		instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
-
-		const locallyHostedTunnel: ITunnelInfo = { tunnelId: 'tunnel-local', clusterId: 'use', name: 'This Machine', tags: [], protocolVersion: 6, hostConnectionCount: 1 };
-		const remoteTunnel: ITunnelInfo = { tunnelId: 'tunnel-remote', clusterId: 'use', name: 'Remote Machine', tags: [], protocolVersion: 6, hostConnectionCount: 1 };
-		tunnelHostService.setSharingInfo(locallyHostedTunnel.name);
-
-		const contribution = store.add(instantiationService.createInstance(TestTunnelContribution));
-		tunnelService.setCached([
-			{ tunnelId: locallyHostedTunnel.tunnelId, clusterId: locallyHostedTunnel.clusterId, name: locallyHostedTunnel.name },
-			{ tunnelId: remoteTunnel.tunnelId, clusterId: remoteTunnel.clusterId, name: remoteTunnel.name },
-		]);
-		tunnelService.setListed([locallyHostedTunnel, remoteTunnel]);
-		const testable = contribution as unknown as { _silentStatusCheck(): Promise<void> };
-		await testable._silentStatusCheck();
-		const initialConnects = tunnelService.connectCalls.map(call => call.tunnel.tunnelId);
-
-		tunnelHostService.setSharingInfo(undefined);
-		await Promise.resolve();
-		const connectsAfterSharingStopped = tunnelService.connectCalls.map(call => call.tunnel.tunnelId);
-
-		assert.deepStrictEqual(
-			{ initialConnects, connectsAfterSharingStopped },
-			{
-				initialConnects: [remoteTunnel.tunnelId],
-				connectsAfterSharingStopped: [remoteTunnel.tunnelId, locallyHostedTunnel.tunnelId, remoteTunnel.tunnelId],
-			},
-		);
-	});
-
-	test('recovery signals resume only compatible pause reasons', () => {
-		const tunnelService = store.add(new StubTunnelService());
-		const remoteService = store.add(new StubRemoteAgentHostService());
-		const providersService = store.add(new StubSessionsProvidersService());
-		const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
-		const hostService = new StubHostService();
-		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ITunnelAgentHostService, tunnelService as unknown as ITunnelAgentHostService);
-		instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
-		instantiationService.stub(ISessionsProvidersService, providersService as unknown as ISessionsProvidersService);
-		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(INotificationService, { notify: () => ({ close() { } }) } as unknown as INotificationService);
-		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None } as unknown as IAuthenticationService);
-		instantiationService.stub(ITelemetryService, { publicLog2: () => { } } as unknown as ITelemetryService);
-		instantiationService.stub(IHostService, hostService);
-		instantiationService.stub(ITunnelHostService, store.add(new StubTunnelHostService()));
-		instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
-		const contribution = store.add(instantiationService.createInstance(TestTunnelContribution));
-		const maxAttemptsAddress = `${TUNNEL_ADDRESS_PREFIX}tunnel-max-attempts`;
-		const offlineAddress = `${TUNNEL_ADDRESS_PREFIX}tunnel-offline`;
-		const authAddress = `${TUNNEL_ADDRESS_PREFIX}tunnel-auth`;
-		tunnelService.setCached([
-			{ tunnelId: 'tunnel-max-attempts', clusterId: 'use', name: 'Max Attempts Tunnel' },
-			{ tunnelId: 'tunnel-offline', clusterId: 'use', name: 'Offline Tunnel' },
-			{ tunnelId: 'tunnel-auth', clusterId: 'use', name: 'Auth Tunnel' },
-			{ tunnelId: 'tunnel-idle', clusterId: 'use', name: 'Idle Tunnel' },
-		]);
 		const testable = contribution as unknown as {
-			_reconnectPauseReasons: Map<string, TunnelConnectFailureReason>;
-			_reconnectTimeouts: Map<string, ReturnType<typeof setTimeout>>;
-			_resumeReconnects(trigger: 'sessionAdded'): void;
-		};
-
-		testable._reconnectPauseReasons.set(maxAttemptsAddress, 'maxAttemptsReached');
-		testable._reconnectPauseReasons.set(offlineAddress, 'hostOffline');
-		testable._reconnectPauseReasons.set(authAddress, 'authExpired');
-		hostService.fireFocus(true);
-		const firstResume = {
-			paused: [...testable._reconnectPauseReasons],
-			timers: [...testable._reconnectTimeouts.keys()],
-		};
-
-		testable._reconnectPauseReasons.set(maxAttemptsAddress, 'maxAttemptsReached');
-		hostService.fireFocus(true);
-		const rateLimitedResume = {
-			paused: [...testable._reconnectPauseReasons],
-			timers: [...testable._reconnectTimeouts.keys()],
-		};
-
-		testable._resumeReconnects('sessionAdded');
-		const sessionResume = {
-			paused: [...testable._reconnectPauseReasons],
-			timers: [...testable._reconnectTimeouts.keys()],
-		};
-
-		assert.deepStrictEqual(
-			{ firstResume, rateLimitedResume, sessionResume },
-			{
-				firstResume: {
-					paused: [[offlineAddress, 'hostOffline'], [authAddress, 'authExpired']],
-					timers: [maxAttemptsAddress],
-				},
-				rateLimitedResume: {
-					paused: [[offlineAddress, 'hostOffline'], [authAddress, 'authExpired'], [maxAttemptsAddress, 'maxAttemptsReached']],
-					timers: [maxAttemptsAddress],
-				},
-				sessionResume: {
-					paused: [[offlineAddress, 'hostOffline'], [maxAttemptsAddress, 'maxAttemptsReached']],
-					timers: [maxAttemptsAddress, authAddress],
-				},
-			},
-		);
-	});
-
-	test('status checks resume only host-offline pauses and auto-connect preserves other pauses', async () => {
-		const tunnelService = store.add(new StubTunnelService());
-		const remoteService = store.add(new StubRemoteAgentHostService());
-		const providersService = store.add(new StubSessionsProvidersService());
-		const configurationService = new TestConfigurationService({
-			[RemoteAgentHostsEnabledSettingId]: true,
-			[RemoteAgentHostAutoConnectSettingId]: true,
-		});
-		const hostService = new StubHostService();
-		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ITunnelAgentHostService, tunnelService as unknown as ITunnelAgentHostService);
-		instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
-		instantiationService.stub(ISessionsProvidersService, providersService as unknown as ISessionsProvidersService);
-		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(INotificationService, { notify: () => ({ close() { } }) } as unknown as INotificationService);
-		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None } as unknown as IAuthenticationService);
-		instantiationService.stub(ITelemetryService, { publicLog2: () => { } } as unknown as ITelemetryService);
-		instantiationService.stub(IHostService, hostService);
-		instantiationService.stub(ITunnelHostService, store.add(new StubTunnelHostService()));
-		instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
-		const contribution = store.add(instantiationService.createInstance(TestTunnelContribution));
-		const offlineAddress = `${TUNNEL_ADDRESS_PREFIX}tunnel-offline`;
-		const authAddress = `${TUNNEL_ADDRESS_PREFIX}tunnel-auth`;
-		const maxAttemptsAddress = `${TUNNEL_ADDRESS_PREFIX}tunnel-max-attempts`;
-		tunnelService.setCached([
-			{ tunnelId: 'tunnel-offline', clusterId: 'use', name: 'Offline Tunnel' },
-			{ tunnelId: 'tunnel-auth', clusterId: 'use', name: 'Auth Tunnel' },
-			{ tunnelId: 'tunnel-max-attempts', clusterId: 'use', name: 'Max Attempts Tunnel' },
-		]);
-		tunnelService.setListed([
-			{ tunnelId: 'tunnel-offline', clusterId: 'use', name: 'Offline Tunnel', tags: [], protocolVersion: 5, hostConnectionCount: 1 },
-			{ tunnelId: 'tunnel-auth', clusterId: 'use', name: 'Auth Tunnel', tags: [], protocolVersion: 5, hostConnectionCount: 1 },
-			{ tunnelId: 'tunnel-max-attempts', clusterId: 'use', name: 'Max Attempts Tunnel', tags: [], protocolVersion: 5, hostConnectionCount: 1 },
-		]);
-		const testable = contribution as unknown as {
-			_reconnectPauseReasons: Map<string, TunnelConnectFailureReason>;
-			_reconnectTimeouts: Map<string, ReturnType<typeof setTimeout>>;
+			_disconnectTunnel(address: string): Promise<void>;
 			_silentStatusCheck(): Promise<void>;
 		};
 
-		testable._reconnectPauseReasons.set(offlineAddress, 'hostOffline');
-		testable._reconnectPauseReasons.set(authAddress, 'authExpired');
-		testable._reconnectPauseReasons.set(maxAttemptsAddress, 'maxAttemptsReached');
+		await testable._disconnectTunnel(address);
+		const afterRemove = {
+			cached: tunnelService.getCachedTunnels().map(cached => cached.tunnelId),
+			dismissed: tunnelService.isTunnelDismissed(tunnel.tunnelId),
+			disconnectCalls: tunnelService.disconnectCalls,
+			providers: providersService.getProviders().map(provider => provider.id),
+		};
 		await testable._silentStatusCheck();
-		await Promise.resolve();
+		const afterDiscovery = {
+			cached: tunnelService.getCachedTunnels().map(cached => cached.tunnelId),
+			dismissed: tunnelService.isTunnelDismissed(tunnel.tunnelId),
+			providers: providersService.getProviders().map(provider => provider.id),
+		};
 
-		assert.deepStrictEqual(
-			{
-				paused: [...testable._reconnectPauseReasons],
-				connects: tunnelService.connectCalls.map(call => call.tunnel.tunnelId),
-				timers: [...testable._reconnectTimeouts.keys()],
+		tunnelService.clearTunnelDismissal(tunnel.tunnelId);
+		tunnelService.cacheTunnel(tunnel, 'github');
+		assert.deepStrictEqual({
+			afterRemove,
+			afterDiscovery,
+			afterExplicitRestore: {
+				cached: tunnelService.getCachedTunnels().map(cached => cached.tunnelId),
+				dismissed: tunnelService.isTunnelDismissed(tunnel.tunnelId),
+				providers: providersService.getProviders().map(provider => provider.id),
 			},
-			{
-				paused: [[authAddress, 'authExpired'], [maxAttemptsAddress, 'maxAttemptsReached']],
-				connects: ['tunnel-offline'],
-				timers: [],
+		}, {
+			afterRemove: {
+				cached: [],
+				dismissed: true,
+				disconnectCalls: [address],
+				providers: [],
 			},
-		);
+			afterDiscovery: {
+				cached: [],
+				dismissed: true,
+				providers: [],
+			},
+			afterExplicitRestore: {
+				cached: [tunnel.tunnelId],
+				dismissed: false,
+				providers: [`agenthost-${address}`],
+			},
+		});
 	});
 
 	test('clears the provider connection only after a connected transport disconnects', () => {

@@ -225,6 +225,7 @@ export class CopilotGitHubTelemetryForwarder {
 			kind: event.kind,
 			restricted: notification.restricted,
 		};
+		delete data.secondary_assignment_context;
 		if (event.kind === 'response.success' || event.kind === 'response.error') {
 			if (agentHostTurnId) {
 				data.turnId = agentHostTurnId;

@@ -52,10 +52,12 @@ import {
 	AI_CUSTOMIZATION_ITEM_URI_KEY,
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID,
+	AICustomizationManagementOpenEditorTarget,
 	AICustomizationManagementCommands,
 	AICustomizationManagementItemMenuId,
 	AICustomizationManagementSection,
 	AICustomizationSource,
+	resolveAICustomizationManagementOpenEditorTarget,
 } from './aiCustomizationManagement.js';
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
@@ -784,23 +786,17 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				});
 			}
 
-			async run(accessor: ServicesAccessor, target?: AICustomizationManagementSection | { readonly section?: AICustomizationManagementSection; readonly sessionType?: string; readonly revealUri?: URI }): Promise<void> {
+			async run(accessor: ServicesAccessor, target?: AICustomizationManagementOpenEditorTarget): Promise<void> {
 				const editorService = accessor.get(IEditorService);
 				const chatWidgetService = accessor.get(IChatWidgetService);
 				const harnessService = accessor.get(ICustomizationHarnessService);
-				const section = typeof target === 'string' ? target : target?.section;
-				const revealUri = typeof target === 'string' ? undefined : target?.revealUri;
-
-				// Detect the active chat session type and switch the harness
-				// so the customization editor opens in the matching context.
-				const explicitSessionType = typeof target === 'string' ? undefined : target?.sessionType;
-				const widget = explicitSessionType ? undefined : chatWidgetService.lastFocusedWidget;
-				const pendingSessionType = widget?.input.pendingDelegationTarget;
-				const sessionResource = explicitSessionType
-					? harnessService.getSessionResourceForHarness(explicitSessionType)
-					: pendingSessionType
-						? harnessService.getSessionResourceForHarness(pendingSessionType)
-						: widget?.viewModel?.sessionResource;
+				const widget = chatWidgetService.lastFocusedWidget;
+				const { section, revealUri, sessionResource } = resolveAICustomizationManagementOpenEditorTarget(
+					target,
+					widget?.input.pendingDelegationTarget,
+					widget?.viewModel?.sessionResource,
+					sessionType => harnessService.getSessionResourceForHarness(sessionType),
+				);
 				if (sessionResource) {
 					harnessService.setActiveSession(sessionResource);
 				}

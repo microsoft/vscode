@@ -240,6 +240,7 @@ export interface ISessionCreationDefaults {
 	readonly model?: ModelSelection;
 	readonly config?: Record<string, unknown>;
 	readonly isolation?: 'folder' | 'worktree';
+	readonly project?: URI;
 }
 
 /** Point-in-time snapshot of a chat's conversation, read from the host state. */
@@ -747,11 +748,14 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	const provider = args.model?.provider ?? defaults?.provider;
 	const inheritsSourceProvider = provider !== undefined && provider === defaults?.provider;
 	const inheritedProviderConfig = inheritsSourceProvider ? defaults?.config : undefined;
-	const configValues = inheritedProviderConfig === undefined && defaults?.isolation === undefined
+	const isolation = defaults?.project !== undefined && isEqual(defaults.project, args.workspace)
+		? defaults.isolation
+		: 'worktree';
+	const configValues = inheritedProviderConfig === undefined && isolation === undefined
 		? undefined
 		: {
 			...inheritedProviderConfig,
-			...(defaults?.isolation !== undefined ? { [SessionConfigKey.Isolation]: defaults.isolation } : {}),
+			...(isolation !== undefined ? { [SessionConfigKey.Isolation]: isolation } : {}),
 		};
 	const config: IAgentCreateSessionConfig = {
 		workingDirectories: args.workspace ? [args.workspace] : undefined,

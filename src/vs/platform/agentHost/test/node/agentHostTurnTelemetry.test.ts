@@ -36,6 +36,7 @@ import { createTestAgentHostProviderService } from './testAgentHostProviderServi
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
+import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -243,6 +244,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		services.set(IAgentHostTelemetryReporter, telemetryReporter);
 		const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
 		services.set(IAgentHostTurnTracker, turnTracker);
+		services.set(IAgentHostToolCallTracker, disposables.add(instantiationService.createInstance(AgentHostToolCallTracker)));
 		const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
 		services.set(IAgentHostLocalTurns, localTurns);
 		const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
@@ -385,6 +387,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 	test('attributes subagent model responses only to the subagent turn', () => {
 		setupSession();
+		setSessionConfig({ mode: 'plan' });
 		startTurn('turn-parent');
 		const subagentChatUri = buildSubagentChatUri(sessionUri, 'call-subagent');
 		stateManager.addChat(sessionKey, subagentChatUri);
@@ -415,13 +418,23 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		fire({ type: ActionType.ChatTurnComplete, turnId: subagentTurnId, duration: 1000 }, subagentChatUri);
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-parent', duration: 1000 });
 
-		assert.deepStrictEqual(completedEvents().map(event => {
-			const data = event.data as Record<string, unknown>;
-			return { isSubagentSession: data.isSubagentSession, modelCallCount: data.modelCallCount };
-		}), [
-			{ isSubagentSession: true, modelCallCount: 1 },
-			{ isSubagentSession: false, modelCallCount: 0 },
-		]);
+		assert.deepStrictEqual({
+			completed: completedEvents().map(event => {
+				const data = event.data as Record<string, unknown>;
+				return { isSubagentSession: data.isSubagentSession, interactionMode: data.interactionMode, modelCallCount: data.modelCallCount };
+			}),
+			correlations: agent.modelCallTurnCorrelationCalls.map(({ chat, ...correlation }) => ({ chat: chat.toString(), ...correlation })),
+		}, {
+			completed: [
+				{ isSubagentSession: true, interactionMode: 'plan', modelCallCount: 1 },
+				{ isSubagentSession: false, interactionMode: 'plan', modelCallCount: 0 },
+			],
+			correlations: [{
+				chat: defaultChatUri,
+				modelCallId: 'subagent-model-call',
+				turnId: subagentTurnId,
+			}],
+		});
 	});
 
 	test('correlates first-level and nested subagent turns with their immediate parent', () => {

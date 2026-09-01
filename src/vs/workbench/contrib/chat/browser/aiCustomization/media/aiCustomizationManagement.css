@@ -253,8 +253,16 @@
 .plugin-list-widget > .section-title-header,
 .plugin-list-widget > .plugin-marketplace-back-container,
 .plugin-list-widget > .list-search-and-button-container,
-.plugin-list-widget > .mcp-list-container {
+.plugin-list-widget > .mcp-list-container,
+.tools-list-widget > .section-title-header,
+.tools-list-widget > .tools-list-search-and-button-container {
 	width: min(100%, 840px);
+	margin-inline: auto;
+	box-sizing: border-box;
+}
+
+.tools-list-widget > .tools-gallery-container {
+	width: min(calc(100% - var(--vscode-spacing-size40)), 840px);
 	margin-inline: auto;
 	box-sizing: border-box;
 }
@@ -797,6 +805,7 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-list-widget .section-title-header .section-title-link,
 .ai-customization-management-editor .prompt-migration-content-container > .section-title-link,
+.ai-customization-management-editor .customization-migration-banner .section-title-link,
 .mcp-list-widget .section-title-header .section-title-link,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link {
 	font-size: var(--vscode-fontSize-body1);
@@ -813,6 +822,7 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-list-widget .section-title-header .section-title-link:hover,
 .ai-customization-management-editor .prompt-migration-content-container > .section-title-link:hover,
+.ai-customization-management-editor .customization-migration-banner .section-title-link:hover,
 .mcp-list-widget .section-title-header .section-title-link:hover,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link:hover {
 	text-decoration: underline;
@@ -821,6 +831,7 @@ per-word capitalization does not survive translation. */
 /* Inset the focus ring so it isn't clipped by the widget's overflow:hidden at the header's edge. */
 .ai-customization-list-widget .section-title-header .section-title-link:focus-visible,
 .ai-customization-management-editor .prompt-migration-content-container > .section-title-link:focus-visible,
+.ai-customization-management-editor .customization-migration-banner .section-title-link:focus-visible,
 .mcp-list-widget .section-title-header .section-title-link:focus-visible,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link:focus-visible {
 	outline-offset: -1px;
@@ -1057,7 +1068,7 @@ per-word capitalization does not survive translation. */
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
-	padding-bottom: 6px;
+	padding-bottom: var(--vscode-spacing-size60);
 }
 
 .ai-customization-management-editor .prompt-migration-group {
@@ -1112,6 +1123,7 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .prompt-migration-select-all-label {
+	padding-inline-end: var(--vscode-spacing-size20);
 	font-size: var(--vscode-agents-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
 	cursor: pointer;
@@ -1334,7 +1346,7 @@ per-word capitalization does not survive translation. */
 	display: flex;
 	flex-direction: column;
 	gap: var(--vscode-spacing-size240);
-	padding-bottom: var(--vscode-spacing-size200);
+	padding: 0 max(var(--vscode-spacing-size20), calc((100% - 840px) / 2)) var(--vscode-spacing-size200);
 	box-sizing: border-box;
 }
 
@@ -1682,10 +1694,27 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .embedded-mcp-detail .mcp-detail-definition-empty {
-	margin: var(--vscode-spacing-size80) var(--vscode-spacing-size160) var(--vscode-spacing-size160);
-	padding: var(--vscode-spacing-size160);
-	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
-	border-radius: var(--vscode-cornerRadius-medium);
+	margin: var(--vscode-spacing-size80) calc(var(--vscode-spacing-size160) - var(--vscode-spacing-size40)) var(--vscode-spacing-size160);
+	padding-inline: var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .embedded-detail-leading-slot:empty {
+	display: none;
+}
+
+.ai-customization-management-editor .mcp-detail-container .mcp-detail-header {
+	gap: var(--vscode-spacing-size80);
+	padding-inline: var(--vscode-spacing-size160);
+}
+
+.ai-customization-management-editor .mcp-detail-container .editor-back-button {
+	width: var(--vscode-spacing-size280);
+	height: var(--vscode-spacing-size280);
+}
+
+.ai-customization-management-editor .mcp-detail-container .mcp-detail-definition-empty {
+	margin-inline-start: calc(var(--vscode-spacing-size160) + var(--vscode-spacing-size280) + var(--vscode-spacing-size80) - var(--vscode-spacing-size40));
 }
 
 /* The tools detail lists many short tool descriptions, so let it use the full editor width. */
@@ -2098,7 +2127,7 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-empty {
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body1);
-	padding: 8px 0;
+	padding-block: var(--vscode-spacing-size80);
 }
 
 /* Included tools list (tool extension detail) */
@@ -2479,8 +2508,9 @@ per-word capitalization does not survive translation. */
 	display: flex;
 	flex-direction: column;
 	gap: 0;
-	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	border-radius: var(--vscode-cornerRadius-medium);
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-agentsPanel-background));
 	overflow: hidden;
 }
 
@@ -2532,7 +2562,7 @@ per-word capitalization does not survive translation. */
 }
 
 .plugin-list-widget .plugin-home-row:not(:last-child) {
-	box-shadow: inset 0 calc(-1 * var(--vscode-strokeThickness)) var(--vscode-widget-border);
+	box-shadow: inset 0 calc(-1 * var(--vscode-strokeThickness)) var(--vscode-widget-border, var(--vscode-agentsPanel-border));
 }
 
 .plugin-list-widget .plugin-home-row:hover {
@@ -2632,6 +2662,7 @@ per-word capitalization does not survive translation. */
 }
 
 .plugin-list-widget .mcp-runtime-status-badge.running {
+	color: var(--vscode-foreground);
 	background-color: color-mix(in srgb, var(--vscode-charts-green) 18%, transparent);
 }
 
@@ -2879,7 +2910,7 @@ per-word capitalization does not survive translation. */
 	padding: var(--vscode-spacing-size120);
 	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	border-radius: var(--vscode-cornerRadius-large);
-	background: var(--vscode-editorWidget-background);
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-agentsPanel-background));
 	color: var(--vscode-foreground);
 	box-sizing: border-box;
 	cursor: pointer;

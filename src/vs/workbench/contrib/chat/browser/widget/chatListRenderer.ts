@@ -25,6 +25,7 @@ import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
+import { rewriteMarkdownLinks } from '../../../../../base/common/markdownLinks.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { FileAccess, Schemas } from '../../../../../base/common/network.js';
 import { clamp, formatTokenCount } from '../../../../../base/common/numbers.js';
@@ -280,6 +281,36 @@ function isResponseOutcomeTool(part: IChatRendererContent): boolean {
 		&& (part.toolSpecificData?.kind === 'sessionCreated' || part.toolSpecificData?.kind === 'generatedImage');
 }
 
+function getSessionCreatedOutcomeLink(part: IChatRendererContent): string | undefined {
+	return (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'sessionCreated'
+		? part.toolSpecificData.openLink
+		: undefined;
+}
+
+function getFinalResponseLinkTargets(content: ReadonlyArray<IChatRendererContent>): ReadonlySet<string> {
+	const targets = new Set<string>();
+	const finalResponseStartIndex = getFinalResponseStartIndex(content);
+	if (finalResponseStartIndex === undefined) {
+		return targets;
+	}
+
+	for (let index = finalResponseStartIndex; index < content.length; index++) {
+		const part = content[index];
+		if (part.kind !== 'markdownContent') {
+			break;
+		}
+		rewriteMarkdownLinks(part.content.value, {
+			rewriteLink: token => {
+				if (token.type === 'link') {
+					targets.add(token.href);
+				}
+				return undefined;
+			}
+		});
+	}
+	return targets;
+}
+
 export function getFinalResponseStartIndexAfterMovingResponseOutcomeTools(content: ReadonlyArray<IChatRendererContent>): number | undefined {
 	const finalResponseStartIndex = getFinalResponseStartIndex(content);
 	if (finalResponseStartIndex === undefined) {
@@ -304,6 +335,15 @@ export function moveResponseOutcomeToolsAfterFinalResponse(content: ReadonlyArra
 	if (outcomeTools.length === 0) {
 		return [...content];
 	}
+	const responseLinkTargets = outcomeTools.some(part => getSessionCreatedOutcomeLink(part) !== undefined)
+		? getFinalResponseLinkTargets(content)
+		: undefined;
+	const uniqueOutcomeTools = responseLinkTargets
+		? outcomeTools.filter(part => {
+			const openLink = getSessionCreatedOutcomeLink(part);
+			return openLink === undefined || !responseLinkTargets.has(openLink);
+		})
+		: outcomeTools;
 
 	const finalResponseStartIndex = getFinalResponseStartIndexAfterMovingResponseOutcomeTools(content);
 	if (finalResponseStartIndex === undefined) {
@@ -315,7 +355,7 @@ export function moveResponseOutcomeToolsAfterFinalResponse(content: ReadonlyArra
 	while (reordered[insertionIndex]?.kind === 'markdownContent') {
 		insertionIndex++;
 	}
-	reordered.splice(insertionIndex, 0, ...outcomeTools);
+	reordered.splice(insertionIndex, 0, ...uniqueOutcomeTools);
 	return reordered;
 }
 

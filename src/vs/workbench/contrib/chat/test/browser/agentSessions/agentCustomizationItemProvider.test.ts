@@ -6,6 +6,8 @@
 import assert from 'assert';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -20,7 +22,16 @@ import { AgentCustomizationItemProvider } from '../../../browser/agentSessions/a
 import { NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
+
+function makePromptsService(): IPromptsService {
+	return upcastPartial<IPromptsService>({
+		onDidChangeSkills: Event.None,
+		getDisabledPromptFiles: () => new ResourceSet(),
+		listPromptFilesForStorage: async () => [],
+	});
+}
 
 suite('AgentCustomizationItemProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -60,6 +71,7 @@ suite('AgentCustomizationItemProvider', () => {
 			fileService,
 			new NullLogService(),
 			new TestCustomizationService(),
+			makePromptsService(),
 		));
 		provider.setDraftCustomizations(observableValue<readonly ClientPluginCustomization[]>('draftCustomizations', [{
 			type: CustomizationType.Plugin,
@@ -113,6 +125,7 @@ suite('AgentCustomizationItemProvider', () => {
 			upcastPartial<IFileService>({}),
 			new NullLogService(),
 			new TestCustomizationService(),
+			makePromptsService(),
 		));
 
 		const items = await provider.provideChatSessionCustomizations(URI.parse('agent-host-codex:///session'), CancellationToken.None);
@@ -129,6 +142,58 @@ suite('AgentCustomizationItemProvider', () => {
 			uri: agentUri,
 			source: AICustomizationSources.local,
 			enabled: true,
+		}]);
+	});
+
+	test('overrides a stale enabled provider row when its built-in skill is user-disabled', async () => {
+		const bundleUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/bundle' });
+		const bundledSkillUri = URI.joinPath(bundleUri, 'skills', 'create-pr', 'SKILL.md');
+		const builtinSkillUri = URI.file('/builtin/create-pr/SKILL.md');
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(SYNCED_CUSTOMIZATION_SCHEME, disposables.add(new InMemoryFileSystemProvider())));
+		await fileService.writeFile(bundledSkillUri, VSBuffer.fromString('---\nname: create-pr\ndescription: Create a pull request.\n---\nCreate it.'));
+		const promptsService = upcastPartial<IPromptsService>({
+			onDidChangeSkills: Event.None,
+			getDisabledPromptFiles: () => new ResourceSet([builtinSkillUri]),
+			listPromptFilesForStorage: async () => [{
+				uri: builtinSkillUri,
+				type: PromptsType.skill,
+				storage: PromptsStorage.builtIn,
+				name: 'create-pr',
+				description: 'Create a pull request.',
+			} as IPromptPath],
+		});
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'local',
+			undefined,
+			syncedUri => syncedUri.toString() === bundledSkillUri.toString()
+				? { uri: builtinSkillUri, source: AICustomizationSources.builtin }
+				: undefined,
+			fileService,
+			new NullLogService(),
+			new NullAgentHostCustomizationService(),
+			promptsService,
+		));
+		provider.setDraftCustomizations(observableValue<readonly ClientPluginCustomization[]>('draftCustomizations', [{
+			type: CustomizationType.Plugin,
+			id: bundleUri.toString(),
+			uri: bundleUri.toString(),
+			name: 'VS Code Synced Data',
+			nonce: '1',
+		}]));
+
+		const items = await provider.provideChatSessionCustomizations(URI.parse('agent-host-codex:///draft'), CancellationToken.None);
+
+		assert.deepStrictEqual(items.map(item => ({
+			uri: item.uri.toString(),
+			type: item.type,
+			source: item.source,
+			enabled: item.enabled,
+		})), [{
+			uri: builtinSkillUri.toString(),
+			type: PromptsType.skill,
+			source: AICustomizationSources.builtin,
+			enabled: false,
 		}]);
 	});
 
@@ -164,6 +229,7 @@ suite('AgentCustomizationItemProvider', () => {
 			upcastPartial<IFileService>({}),
 			new NullLogService(),
 			new TestCustomizationService(),
+			makePromptsService(),
 		));
 		const items = await provider.provideChatSessionCustomizations(URI.parse('agent-host-codex:///session'), CancellationToken.None);
 
@@ -183,5 +249,56 @@ suite('AgentCustomizationItemProvider', () => {
 				disabledReason: undefined,
 			},
 		]);
+	});
+
+	test('supplements provider output with user-disabled built-in skills', async () => {
+		const disabledSkill = URI.file('/builtin/create-pr/SKILL.md');
+		let disabledPromptFiles = new ResourceSet([disabledSkill]);
+		const onDidChangeSkills = disposables.add(new Emitter<void>());
+		const promptsService = upcastPartial<IPromptsService>({
+			onDidChangeSkills: onDidChangeSkills.event,
+			getDisabledPromptFiles: () => disabledPromptFiles,
+			listPromptFilesForStorage: async (type: PromptsType, storage: PromptsStorage) => type === PromptsType.skill && storage === PromptsStorage.builtIn
+				? [{ uri: disabledSkill, type, storage, name: 'create-pr', description: 'Create a pull request.' } satisfies IPromptPath]
+				: [],
+		});
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'local',
+			undefined,
+			undefined,
+			upcastPartial<IFileService>({}),
+			new NullLogService(),
+			new NullAgentHostCustomizationService(),
+			promptsService,
+		));
+		let changeCount = 0;
+		disposables.add(provider.onDidChange(() => changeCount++));
+
+		const disabledItems = await provider.provideChatSessionCustomizations(URI.parse('agent-host-codex:///session'), CancellationToken.None);
+		disabledPromptFiles = new ResourceSet();
+		onDidChangeSkills.fire();
+		const enabledItems = await provider.provideChatSessionCustomizations(URI.parse('agent-host-codex:///session'), CancellationToken.None);
+
+		assert.deepStrictEqual({
+			disabledItems: disabledItems.map(item => ({
+				uri: item.uri.toString(),
+				type: item.type,
+				name: item.name,
+				source: item.source,
+				enabled: item.enabled,
+			})),
+			changeCount,
+			enabledItems,
+		}, {
+			disabledItems: [{
+				uri: disabledSkill.toString(),
+				type: PromptsType.skill,
+				name: 'create-pr',
+				source: AICustomizationSources.builtin,
+				enabled: false,
+			}],
+			changeCount: 1,
+			enabledItems: [],
+		});
 	});
 });

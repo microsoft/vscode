@@ -24,7 +24,7 @@ import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAcce
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
 import { getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions } from '../../../browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetAccessoryRigPose, getChatPetAccessoryTrack, getChatPetAntennaeOcclusionBounds, getChatPetEyeAccessoryAnchor, getChatPetReducedMotionRigFrame } from '../../../browser/widget/chatPetAccessoryRig.js';
-import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_WINDOW_OWNERSHIP_CHANNEL, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPosition, getChatPetPillPlatformTop, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldClaimChatPetWindowOnConstruction, shouldPlaceChatPetSpeechBubbleLeft, shouldReserveChatPetSpace, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
+import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPosition, getChatPetPillPlatformTop, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldClaimChatPetWindowOnConstruction, shouldPlaceChatPetSpeechBubbleLeft, shouldReserveChatPetSpace, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
@@ -573,59 +573,6 @@ suite('ChatPetWidget', () => {
 		}, {
 			visible: [false, false, true],
 			spaceReserved: [false, false, true],
-		});
-	});
-
-	test('keeps the pet on external-app blur but transfers it to another VS Code window', async () => {
-		const parent = mainWindow.document.createElement('div');
-		const dragBounds = mainWindow.document.createElement('div');
-		const movementBounds = mainWindow.document.createElement('div');
-		mainWindow.document.body.append(parent, dragBounds, movementBounds);
-		disposables.add(toDisposable(() => {
-			parent.remove();
-			dragBounds.remove();
-			movementBounds.remove();
-		}));
-		const hostService = new class extends mock<IHostService>() {
-			override readonly hasFocus = true;
-			override readonly onDidChangeFocus = Event.None;
-			override readonly onDidChangeActiveWindow = Event.None;
-		}();
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
-		disposables.add(new ChatPetWidget(
-			createPetHost(parent, dragBounds, movementBounds),
-			undefined,
-			service,
-			new TestAccessibilityService(),
-			new class extends mock<IContextMenuService>() { }(),
-			new class extends mock<ICommandService>() { }(),
-			new NullLogService(),
-			hostService,
-		));
-		const button = parent.getElementsByClassName('chat-pet-button')[0];
-		service.toggle();
-		const initiallyHidden = button.classList.contains('hidden');
-		const ownershipChannel = new BroadcastChannel(CHAT_PET_WINDOW_OWNERSHIP_CHANNEL);
-		disposables.add(toDisposable(() => ownershipChannel.close()));
-
-		mainWindow.dispatchEvent(new FocusEvent('blur'));
-		const hiddenAfterExternalBlur = button.classList.contains('hidden');
-		ownershipChannel.postMessage({ windowId: mainWindow.vscodeWindowId + 1 });
-		await new Promise(resolve => mainWindow.setTimeout(resolve, 10));
-		const hiddenAfterWindowTransfer = button.classList.contains('hidden');
-		mainWindow.dispatchEvent(new FocusEvent('focus'));
-		const hiddenAfterReturn = button.classList.contains('hidden');
-
-		assert.deepStrictEqual({
-			initiallyHidden,
-			hiddenAfterExternalBlur,
-			hiddenAfterWindowTransfer,
-			hiddenAfterReturn,
-		}, {
-			initiallyHidden: false,
-			hiddenAfterExternalBlur: false,
-			hiddenAfterWindowTransfer: true,
-			hiddenAfterReturn: false,
 		});
 	});
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IObservable, constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
@@ -142,12 +143,19 @@ suite('CodeReviewService', () => {
 
 	class MockReviewThreadsFetcher {
 		nextThreads: IGitHubPullRequestReviewThread[] = [];
+		nextError: Error | undefined;
+		getReviewThreadsGate: DeferredPromise<void> | undefined;
 		getReviewThreadsCalls = 0;
 		resolveThreadCalls: { threadId: string }[] = [];
 
 		async getReviewThreads(_owner: string, _repo: string, _prNumber: number): Promise<IGitHubPullRequestReviewThread[]> {
 			this.getReviewThreadsCalls++;
-			return this.nextThreads;
+			const result = this.nextThreads;
+			await this.getReviewThreadsGate?.p;
+			if (this.nextError) {
+				throw this.nextError;
+			}
+			return result;
 		}
 
 		async postReviewComment(_owner: string, _repo: string, _prNumber: number, body: string, inReplyTo: number): Promise<IGitHubPRComment> {
@@ -246,28 +254,122 @@ suite('CodeReviewService', () => {
 		sessionsManagement.setActiveSession(sessionsManagement.getSession(session));
 		await tick();
 
-		// Polling is owned by GitHubPullRequestPollingContribution; refresh
-		// manually here to seed the review threads model with data.
-		await gitHubService.getReviewThreadsModel('owner', 'repo', 1).refresh();
-		await tick();
-
 		const state = service.getPRReviewState(session).get();
 		assert.strictEqual(state.kind, PRReviewStateKind.Loaded);
 		if (state.kind === PRReviewStateKind.Loaded) {
 			assert.deepStrictEqual({
-				comments: state.comments.map(comment => ({ id: comment.id, uri: comment.uri.toString(), body: comment.body, author: comment.author })),
+				comments: state.comments.map(comment => ({ id: comment.id, prNumber: comment.pullRequest.number, uri: comment.uri.toString(), body: comment.body, author: comment.author })),
 				getPullRequestCalls: gitHubService.getPullRequestCalls,
-				getPullRequestReviewThreadsCalls: gitHubService.getPullRequestReviewThreadsCalls,
 				legacyThreadRefreshes: gitHubService.legacyFetcher.getReviewThreadsCalls,
 				reviewThreadRefreshes: gitHubService.reviewThreadsFetcher.getReviewThreadsCalls,
 			}, {
-				comments: [{ id: 'thread-100', uri: 'file:///workspace/src/a.ts', body: 'Comment on src/a.ts', author: 'reviewer' }],
+				comments: [{ id: 'thread-100', prNumber: 1, uri: 'file:///workspace/src/a.ts', body: 'Comment on src/a.ts', author: 'reviewer' }],
 				getPullRequestCalls: 0,
-				getPullRequestReviewThreadsCalls: 0,
 				legacyThreadRefreshes: 0,
 				reviewThreadRefreshes: 1,
 			});
 		}
+	});
+
+	test('PR review state combines comments from every associated pull request', async () => {
+		sessionsManagement.addSession(session);
+		sessionsManagement.setGitHubInfo(session, {
+			...makeGitHubInfo(),
+			pullRequests: [1, 2].map(number => ({
+				owner: 'owner',
+				repo: 'repo',
+				number,
+				uri: URI.parse(`https://github.com/owner/repo/pull/${number}`),
+			})),
+		});
+		gitHubService.getReviewThreadsFetcher('owner', 'repo', 1).nextThreads = [makePRThread('thread-100', 'src/a.ts')];
+		gitHubService.getReviewThreadsFetcher('owner', 'repo', 2).nextThreads = [makePRThread('thread-200', 'src/b.ts')];
+
+		sessionsManagement.setActiveSession(sessionsManagement.getSession(session));
+		await tick();
+
+		const state = service.getPRReviewState(session).get();
+		assert.deepStrictEqual(state.kind === PRReviewStateKind.Loaded
+			? state.comments.map(comment => ({ id: comment.id, prNumber: comment.pullRequest.number }))
+			: state.kind, [
+			{ id: 'thread-100', prNumber: 1 },
+			{ id: 'thread-200', prNumber: 2 },
+		]);
+	});
+
+	test('PR review state stays loading until every pull request completes its initial refresh', async () => {
+		sessionsManagement.addSession(session);
+		sessionsManagement.setGitHubInfo(session, {
+			...makeGitHubInfo(),
+			pullRequests: [1, 2].map(number => ({
+				owner: 'owner',
+				repo: 'repo',
+				number,
+				uri: URI.parse(`https://github.com/owner/repo/pull/${number}`),
+			})),
+		});
+		const firstFetcher = gitHubService.getReviewThreadsFetcher('owner', 'repo', 1);
+		const secondFetcher = gitHubService.getReviewThreadsFetcher('owner', 'repo', 2);
+		firstFetcher.nextThreads = [makePRThread('thread-100', 'src/a.ts')];
+		secondFetcher.nextThreads = [makePRThread('thread-200', 'src/b.ts')];
+		firstFetcher.getReviewThreadsGate = new DeferredPromise<void>();
+		secondFetcher.getReviewThreadsGate = new DeferredPromise<void>();
+
+		sessionsManagement.setActiveSession(sessionsManagement.getSession(session));
+		await tick();
+		const beforeRefresh = service.getPRReviewState(session).get().kind;
+
+		firstFetcher.getReviewThreadsGate.complete();
+		await tick();
+		const afterFirstRefresh = service.getPRReviewState(session).get().kind;
+
+		secondFetcher.getReviewThreadsGate.complete();
+		await tick();
+		const afterAllRefreshes = service.getPRReviewState(session).get();
+
+		assert.deepStrictEqual({
+			beforeRefresh,
+			afterFirstRefresh,
+			afterAllRefreshes: afterAllRefreshes.kind === PRReviewStateKind.Loaded
+				? afterAllRefreshes.comments.map(comment => ({ id: comment.id, prNumber: comment.pullRequest.number }))
+				: afterAllRefreshes.kind,
+		}, {
+			beforeRefresh: PRReviewStateKind.Loading,
+			afterFirstRefresh: PRReviewStateKind.Loading,
+			afterAllRefreshes: [
+				{ id: 'thread-100', prNumber: 1 },
+				{ id: 'thread-200', prNumber: 2 },
+			],
+		});
+	});
+
+	test('PR review state exposes healthy comments when another pull request fails to load', async () => {
+		sessionsManagement.addSession(session);
+		sessionsManagement.setGitHubInfo(session, {
+			...makeGitHubInfo(),
+			pullRequests: [1, 2].map(number => ({
+				owner: 'owner',
+				repo: 'repo',
+				number,
+				uri: URI.parse(`https://github.com/owner/repo/pull/${number}`),
+			})),
+		});
+		gitHubService.getReviewThreadsFetcher('owner', 'repo', 1).nextThreads = [makePRThread('thread-100', 'src/a.ts')];
+		gitHubService.getReviewThreadsFetcher('owner', 'repo', 2).nextError = new Error('not found');
+
+		sessionsManagement.setActiveSession(sessionsManagement.getSession(session));
+		await tick();
+
+		const state = service.getPRReviewState(session).get();
+		assert.deepStrictEqual(state.kind === PRReviewStateKind.Loaded
+			? {
+				comments: state.comments.map(comment => ({ id: comment.id, prNumber: comment.pullRequest.number })),
+				incompletePullRequests: state.incompletePullRequests.map(pullRequest => pullRequest.number),
+			}
+			: state.kind, {
+			comments: [{ id: 'thread-100', prNumber: 1 }],
+			incompletePullRequests: [2],
+		});
 	});
 
 	test('resolvePRReviewThread uses dedicated review threads model', async () => {

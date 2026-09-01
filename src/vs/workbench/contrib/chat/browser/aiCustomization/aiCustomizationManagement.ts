@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IChatViewTitleActionContext, isChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { localize } from '../../../../../nls.js';
@@ -13,6 +15,34 @@ import { MenuId } from '../../../../../platform/actions/common/actions.js';
 export { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 export type { AICustomizationSource } from '../../common/aiCustomizationWorkspaceService.js';
 export { BUILTIN_STORAGE } from '../../common/aiCustomizationWorkspaceService.js';
+
+export type AICustomizationManagementOpenEditorTarget =
+	| AICustomizationManagementSection
+	| {
+		readonly section?: AICustomizationManagementSection;
+		readonly sessionType?: string;
+		readonly revealUri?: URI;
+	}
+	| IChatViewTitleActionContext;
+
+export function resolveAICustomizationManagementOpenEditorTarget(
+	target: AICustomizationManagementOpenEditorTarget | undefined,
+	pendingSessionType: string | undefined,
+	chatSessionResource: URI | undefined,
+	getSessionResourceForHarness: (sessionType: string) => URI,
+): { readonly section?: AICustomizationManagementSection; readonly revealUri?: URI; readonly sessionResource?: URI } {
+	if (isChatViewTitleActionContext(target)) {
+		return { sessionResource: target.sessionResource };
+	}
+
+	const options = typeof target === 'string' ? { section: target } : target;
+	const sessionType = options?.sessionType ?? pendingSessionType;
+	return {
+		section: options?.section,
+		revealUri: options?.revealUri,
+		sessionResource: sessionType ? getSessionResourceForHarness(sessionType) : chatSessionResource,
+	};
+}
 
 export function sectionToPromptType(section: AICustomizationManagementSection): PromptsType {
 	switch (section) {
