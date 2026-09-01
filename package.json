@@ -101,7 +101,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@devcontainers/cli": "0.88.0",
-    "@github/copilot": "1.0.83-0",
+    "@github/copilot": "1.0.83-1",
     "@github/copilot-sdk": "1.0.13-preview.4",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
