@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
+import { errorHandler } from '../../../../../base/common/errors.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ISettableObservable, transaction } from '../../../../../base/common/observable.js';
@@ -2978,6 +2979,126 @@ suite('LayoutController (desktop)', () => {
 		await settle();
 
 		assert.deepStrictEqual(publishedWorkspaces, ['c']);
+	});
+
+	test('[managed tabs / dispose] a reconcile stalled mid-open opens no further editors once the controller is disposed', async () => {
+		const controller = createSinglePaneController({ activateAux: true });
+		await settle();
+
+		// Pause the reconcile at the first Changes open so it stalls before the Files tab opens.
+		let releaseChangesOpen!: () => void;
+		const changesOpenGate = new Promise<void>(resolve => { releaseChangesOpen = resolve; });
+		let gateArmed = true;
+		harness.onOpenChangesEditor = () => {
+			if (gateArmed) {
+				gateArmed = false;
+				return changesOpenGate;
+			}
+			return undefined;
+		};
+
+		// The created session's reconcile stalls awaiting the gated Changes open before the Files tab.
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1'), { isCreated: true, changes: [makeChange('/file.ts')] }), undefined);
+		await settle();
+		assert.strictEqual(hasFilesTab(), false, 'reconcile should be stalled before opening the Files tab');
+
+		// Dispose while stalled: the generation bump on dispose must make the resumed reconcile bail before any later editor open.
+		controller.dispose();
+		releaseChangesOpen();
+		await settle();
+
+		assert.strictEqual(hasFilesTab(), false, 'a reconcile resumed after dispose must not open further editors');
+	});
+
+	test('[managed tabs / dispose] ignores an in-flight editor replacement failure after the controller is disposed', async () => {
+		const originalUnexpectedErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		const unexpectedErrors: Error[] = [];
+		errorHandler.setUnexpectedErrorHandler(error => unexpectedErrors.push(error));
+		try {
+			const controller = createSinglePaneController({ activateAux: true });
+			await settle();
+			harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
+			await settle();
+
+			let replaceStarted = false;
+			let rejectReplace!: (error: Error) => void;
+			const replaceGate = new Promise<void>((_, reject) => { rejectReplace = reject; });
+			harness.onReplaceEditors = replacements => {
+				replaceStarted = true;
+				store.add(replacements[0].replacement);
+				return replaceGate;
+			};
+
+			harness.activeSessionObs.set(makeSession(URI.parse('session:b')), undefined);
+			await settle();
+			assert.strictEqual(replaceStarted, true, 'the reconcile should be stalled replacing the outgoing Changes editor');
+
+			controller.dispose();
+			rejectReplace(new Error('InstantiationService has been disposed'));
+			await settle();
+
+			assert.deepStrictEqual(unexpectedErrors, []);
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(originalUnexpectedErrorHandler);
+		}
+	});
+
+	test('[managed tabs / dispose] ignores an in-flight editor replacement failure after the target group is disposed', async () => {
+		const originalUnexpectedErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		const unexpectedErrors: Error[] = [];
+		errorHandler.setUnexpectedErrorHandler(error => unexpectedErrors.push(error));
+		try {
+			createSinglePaneController({ activateAux: true });
+			await settle();
+			harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
+			await settle();
+
+			let replaceStarted = false;
+			let rejectReplace!: (error: Error) => void;
+			const replaceGate = new Promise<void>((_, reject) => { rejectReplace = reject; });
+			harness.onReplaceEditors = replacements => {
+				replaceStarted = true;
+				store.add(replacements[0].replacement);
+				return replaceGate;
+			};
+
+			harness.activeSessionObs.set(makeSession(URI.parse('session:b')), undefined);
+			await settle();
+			assert.strictEqual(replaceStarted, true, 'the reconcile should be stalled replacing the outgoing Changes editor');
+
+			harness.onWillDisposeActiveGroup.fire();
+			rejectReplace(new Error('InstantiationService has been disposed'));
+			await settle();
+
+			assert.deepStrictEqual(unexpectedErrors, []);
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(originalUnexpectedErrorHandler);
+		}
+	});
+
+	test('[managed tabs / errors] reports an editor replacement failure while the reconcile is active', async () => {
+		const originalUnexpectedErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		const unexpectedErrors: Error[] = [];
+		errorHandler.setUnexpectedErrorHandler(error => unexpectedErrors.push(error));
+		try {
+			createSinglePaneController({ activateAux: true });
+			await settle();
+			harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
+			await settle();
+
+			const failure = new Error('replace failed');
+			harness.onReplaceEditors = replacements => {
+				store.add(replacements[0].replacement);
+				throw failure;
+			};
+
+			harness.activeSessionObs.set(makeSession(URI.parse('session:b')), undefined);
+			await settle();
+
+			assert.deepStrictEqual(unexpectedErrors, [failure]);
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(originalUnexpectedErrorHandler);
+		}
 	});
 
 	test('[managed tabs / details-only] always restores both docked inputs while only details are visible', async () => {
