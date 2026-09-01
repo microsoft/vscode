@@ -72,6 +72,7 @@ import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpo
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createNoopCustomizationEnablementService } from './testCustomizationEnablementService.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
+import { createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
 import { AgentBranchNameGenerator, getAgentBranchNameHintFromMessage, normalizeAgentBranchName } from '../../node/shared/agentBranchNameGenerator.js';
 import type { CopilotSessionLaunchPlan, IActiveClientSnapshot } from '../../node/copilot/copilotSessionLauncher.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
@@ -1878,17 +1879,31 @@ suite('CopilotAgent', () => {
 				proxyEnvironment = {
 					HTTP_PROXY: process.env['HTTP_PROXY'],
 					HTTPS_PROXY: process.env['HTTPS_PROXY'],
+					http_proxy: process.env['http_proxy'],
+					https_proxy: process.env['https_proxy'],
+					ALL_PROXY: process.env['ALL_PROXY'],
+					all_proxy: process.env['all_proxy'],
+					NO_PROXY: process.env['NO_PROXY'],
+					no_proxy: process.env['no_proxy'],
 				};
 				return { resolved: { source: 'none' as const, serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] } };
 			},
 		};
 		const signal = new AbortController().signal;
+		const proxy = 'http://proxy.example.com:8080';
+		const noProxy = '127.0.0.1,localhost';
 		const before = {
 			HTTP_PROXY: process.env['HTTP_PROXY'],
 			HTTPS_PROXY: process.env['HTTPS_PROXY'],
+			http_proxy: process.env['http_proxy'],
+			https_proxy: process.env['https_proxy'],
+			ALL_PROXY: process.env['ALL_PROXY'],
+			all_proxy: process.env['all_proxy'],
+			NO_PROXY: process.env['NO_PROXY'],
+			no_proxy: process.env['no_proxy'],
 		};
 
-		await getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.example.com', signal, 3500, 'http://proxy.example.com:8080');
+		await getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.example.com', signal, 3500, proxy, noProxy);
 
 		assert.deepStrictEqual({
 			authInfo: receivedInput?.authInfo,
@@ -1898,14 +1913,26 @@ suite('CopilotAgent', () => {
 			environmentRestored: {
 				HTTP_PROXY: process.env['HTTP_PROXY'],
 				HTTPS_PROXY: process.env['HTTPS_PROXY'],
+				http_proxy: process.env['http_proxy'],
+				https_proxy: process.env['https_proxy'],
+				ALL_PROXY: process.env['ALL_PROXY'],
+				all_proxy: process.env['all_proxy'],
+				NO_PROXY: process.env['NO_PROXY'],
+				no_proxy: process.env['no_proxy'],
 			},
 		}, {
 			authInfo: { type: 'token', host: 'https://github.example.com', token: 'token' },
 			token: 'token',
 			signalForwarded: true,
 			proxyEnvironment: {
-				HTTP_PROXY: 'http://proxy.example.com:8080',
-				HTTPS_PROXY: 'http://proxy.example.com:8080',
+				HTTP_PROXY: proxy,
+				HTTPS_PROXY: proxy,
+				http_proxy: process.platform === 'win32' ? proxy : undefined,
+				https_proxy: process.platform === 'win32' ? proxy : undefined,
+				ALL_PROXY: undefined,
+				all_proxy: undefined,
+				NO_PROXY: noProxy,
+				no_proxy: process.platform === 'win32' ? noProxy : undefined,
 			},
 			environmentRestored: before,
 		});
@@ -3536,6 +3563,120 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('preserves proxy environment variables without a configured proxy', async () => {
+			const proxyResolver = new TestProxyResolver();
+			const { agent } = createTestAgentContext(disposables, { proxyResolver });
+			const proxyState = agent as unknown as {
+				_resolvedProxy: string | undefined;
+				_resolveProxyForSdk(env: Record<string, string | undefined>): Promise<string | undefined>;
+			};
+			const env = {
+				HTTP_PROXY: 'http://uppercase-http.example:8080',
+				HTTPS_PROXY: 'http://uppercase-https.example:8080',
+				http_proxy: 'http://lowercase-http.example:8080',
+				https_proxy: 'http://lowercase-https.example:8080',
+				ALL_PROXY: 'http://uppercase-all.example:8080',
+				all_proxy: 'http://lowercase-all.example:8080',
+			};
+			const expectedEnv = { ...env };
+			try {
+				proxyState._resolvedProxy = await proxyState._resolveProxyForSdk(env);
+
+				assert.deepStrictEqual({
+					env,
+					resolvedProxy: proxyState._resolvedProxy,
+					resolveProxyCalls: proxyResolver.resolveProxyCalls,
+				}, {
+					env: expectedEnv,
+					resolvedProxy: undefined,
+					resolveProxyCalls: 0,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('prefers the configured proxy over proxy environment variables', async () => {
+			const client = new TestCopilotClient([]);
+			const configuredProxy = 'http://configured-proxy.example:8080';
+			const proxyResolver = new TestProxyResolver();
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				proxyResolver,
+				rootConfig: {
+					[AgentHostProxyConfigKey.Proxy]: ` ${configuredProxy} `,
+					[AgentHostSystemProxyEnabledConfigKey]: false,
+				},
+			});
+			const proxyState = agent as unknown as {
+				_resolveProxyForSdk(env: Record<string, string | undefined>): Promise<string | undefined>;
+			};
+			const env = {
+				HTTP_PROXY: 'http://uppercase-http.example:8080',
+				HTTPS_PROXY: 'http://uppercase-https.example:8080',
+				http_proxy: 'http://lowercase-http.example:8080',
+				https_proxy: 'http://lowercase-https.example:8080',
+				ALL_PROXY: 'http://uppercase-all.example:8080',
+				all_proxy: 'http://lowercase-all.example:8080',
+			};
+			const expectedEnv = { ...env };
+			try {
+				const resolvedProxy = await proxyState._resolveProxyForSdk(env);
+				await agent.listChatsToMigrate();
+				const createdEnv = getCreatedClientOptions(agent).at(-1)?.env;
+
+				assert.deepStrictEqual({
+					resolvedProxy,
+					env,
+					createdProxyEnv: {
+						HTTP_PROXY: createdEnv?.['HTTP_PROXY'],
+						HTTPS_PROXY: createdEnv?.['HTTPS_PROXY'],
+						http_proxy: createdEnv?.['http_proxy'],
+						https_proxy: createdEnv?.['https_proxy'],
+						ALL_PROXY: createdEnv?.['ALL_PROXY'],
+						all_proxy: createdEnv?.['all_proxy'],
+					},
+					resolveProxyCalls: proxyResolver.resolveProxyCalls,
+				}, {
+					resolvedProxy: configuredProxy,
+					env: expectedEnv,
+					createdProxyEnv: {
+						HTTP_PROXY: configuredProxy,
+						HTTPS_PROXY: configuredProxy,
+						http_proxy: undefined,
+						https_proxy: undefined,
+						ALL_PROXY: undefined,
+						all_proxy: undefined,
+					},
+					resolveProxyCalls: 0,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		(process.platform === 'win32' ? test : test.skip)('omits environment keys case-insensitively on Windows', () => {
+			const env = createCopilotCliEnvironment({
+				Http_Proxy: 'http://proxy.example:8080',
+				No_Proxy: 'localhost',
+				Mixed_Case: 'preserved',
+			}, ['HTTP_PROXY', 'NO_PROXY']);
+
+			assert.deepStrictEqual({
+				HTTP_PROXY: env['HTTP_PROXY'],
+				NO_PROXY: env['NO_PROXY'],
+				Http_Proxy: env['Http_Proxy'],
+				No_Proxy: env['No_Proxy'],
+				Mixed_Case: env['Mixed_Case'],
+			}, {
+				HTTP_PROXY: undefined,
+				NO_PROXY: undefined,
+				Http_Proxy: undefined,
+				No_Proxy: undefined,
+				Mixed_Case: 'preserved',
+			});
+		});
+
 		test('does not block client startup on system proxy resolution', async () => {
 			const client = new TestCopilotClient([]);
 			const proxyResolver = new TestProxyResolver();
@@ -3653,7 +3794,11 @@ suite('CopilotAgent', () => {
 			const client = new TestCopilotClient([]);
 			const proxyResolver = new TestProxyResolver();
 			proxyResolver.resolvedProxy = 'http://system-proxy.example:8080';
-			const { agent } = createTestAgentContext(disposables, { copilotClient: client, proxyResolver });
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				proxyResolver,
+				rootConfig: { [AgentHostProxyConfigKey.NoProxy]: [' 127.0.0.1 ', '', 'localhost'] },
+			});
 			try {
 				disposables.add(proxyResolver.register('test', {
 					resolveProxy: async () => undefined,
@@ -3668,11 +3813,15 @@ suite('CopilotAgent', () => {
 					resolveProxyCalls: proxyResolver.resolveProxyCalls,
 					httpProxy: getCreatedClientOptions(agent).at(-1)?.env?.['HTTP_PROXY'],
 					httpsProxy: getCreatedClientOptions(agent).at(-1)?.env?.['HTTPS_PROXY'],
+					noProxy: getCreatedClientOptions(agent).at(-1)?.env?.['NO_PROXY'],
+					lowercaseNoProxy: getCreatedClientOptions(agent).at(-1)?.env?.['no_proxy'],
 				}, {
 					startCallCount: 1,
 					resolveProxyCalls: 2,
 					httpProxy: proxyResolver.resolvedProxy,
 					httpsProxy: proxyResolver.resolvedProxy,
+					noProxy: '127.0.0.1,localhost',
+					lowercaseNoProxy: undefined,
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -3795,6 +3944,39 @@ suite('CopilotAgent', () => {
 					resolveProxyCalls: 3,
 					httpProxy: proxy,
 					httpsProxy: proxy,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('restarts the Copilot runtime when the no-proxy configuration changes', async () => {
+			const client = new TestCopilotClient([]);
+			const proxyResolver = new TestProxyResolver();
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				proxyResolver,
+				rootConfig: { [AgentHostProxyConfigKey.NoProxy]: ['localhost'] },
+			});
+			try {
+				await agent.listChatsToMigrate();
+				configurationService.updateRootConfig({ [AgentHostProxyConfigKey.NoProxy]: ['127.0.0.1', 'localhost'] });
+				proxyResolver.fireConfigurationChange();
+				for (let i = 0; i < 20 && client.stopCallCount < 1; i++) {
+					await timeout(0);
+				}
+				await agent.listChatsToMigrate();
+
+				assert.deepStrictEqual({
+					startCallCount: client.startCallCount,
+					stopCallCount: client.stopCallCount,
+					noProxy: getCreatedClientOptions(agent).at(-1)?.env?.['NO_PROXY'],
+					lowercaseNoProxy: getCreatedClientOptions(agent).at(-1)?.env?.['no_proxy'],
+				}, {
+					startCallCount: 2,
+					stopCallCount: 1,
+					noProxy: '127.0.0.1,localhost',
+					lowercaseNoProxy: undefined,
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -6993,8 +7175,7 @@ suite('CopilotAgent', () => {
 				await new Promise(r => setTimeout(r, 50));
 
 				const updatesWithChildren = actions
-					.filter(a => a.type === ActionType.SessionCustomizationUpdated)
-					.filter((a): a is Extract<SessionAction, { type: ActionType.SessionCustomizationUpdated }> => true)
+					.filter((a): a is Extract<SessionAction, { type: ActionType.SessionCustomizationUpdated }> => a.type === ActionType.SessionCustomizationUpdated)
 					.filter(a => (a.customization as PluginCustomization).children !== undefined);
 
 				assert.strictEqual(updatesWithChildren.length > 0, true, 'expected SessionCustomizationUpdated to carry parsed children');
@@ -8643,7 +8824,7 @@ suite('CopilotAgent', () => {
 					}
 					return false;
 				},
-				respondToUserInputRequest(requestId: string, response: unknown): boolean {
+				respondToUserInputRequest(requestId: string, _response: unknown): boolean {
 					if (options?.inputOwner === requestId) {
 						events.push(`input:${requestId}`);
 						return true;
@@ -9867,6 +10048,38 @@ suite('CopilotAgent', () => {
 
 				const stored = await sessionDataService.openDatabase(session).object.getMetadata('copilot.model');
 				assert.deepStrictEqual(JSON.parse(stored ?? 'null'), { id: 'auto', config: { tier: 'intelligence' } });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('drops a provisional Auto routing profile when the gate turns off before the first send', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+			client.createSession = async () => new MockCopilotSession() as unknown as CopilotSession;
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				sessionDataService,
+				copilotClient: client,
+				rootConfig: { [CopilotCliConfigKey.AutoModeTiers]: true },
+			});
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await waitForState(agent.models, m => m.length > 0);
+				const session = AgentSession.uri('copilotcli', 'auto-tier-provisional');
+				const chat = defaultChatUri(session);
+				const result = await provisionSession(agent, {
+					session,
+					workingDirectories: [URI.file('/workspace')],
+					model: { id: 'auto', config: { tier: 'intelligence' } },
+				});
+
+				// Still provisional, so the launcher has not run. With the gate off it omits
+				// `capi.autoTier`, so persisting the selection would claim a profile never sent.
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: false });
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, chat, result.session));
+
+				const stored = await sessionDataService.openDatabase(session).object.getMetadata('copilot.model');
+				assert.deepStrictEqual(JSON.parse(stored ?? 'null'), { id: 'auto' });
 			} finally {
 				await disposeAgent(agent);
 			}

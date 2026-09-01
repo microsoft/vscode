@@ -318,9 +318,13 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 			x.number === y.number &&
 			isEqual(x.uri, y.uri) &&
 			x.icon?.id === y.icon?.id &&
+			x.state === y.state &&
+			x.liveState === y.liveState &&
 			x.title === y.title) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
 		a.pullRequest?.icon?.id === b.pullRequest?.icon?.id &&
+		a.pullRequest?.state === b.pullRequest?.state &&
+		a.pullRequest?.liveState === b.pullRequest?.liveState &&
 		a.pullRequest?.title === b.pullRequest?.title &&
 		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
 		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid &&
@@ -354,7 +358,7 @@ function toGitHubIssueRefs(issueUrls: readonly string[] | undefined): readonly I
  * title. Every pull request published here belongs to the session — it either
  * produced it or its branch relates to it — so all are marked as such.
  */
-function toGitHubPullRequestRefs(pullRequestUrls: readonly string[] | undefined, titles: ReadonlyMap<string, string>): readonly IGitHubPullRequestRef[] | undefined {
+function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullRequestUrls: readonly string[] | undefined, titles: ReadonlyMap<string, string>): readonly IGitHubPullRequestRef[] | undefined {
 	const refs: IGitHubPullRequestRef[] = [];
 	for (const url of pullRequestUrls ?? []) {
 		const reference = parseGitHubPullRequestUrl(url);
@@ -363,6 +367,7 @@ function toGitHubPullRequestRefs(pullRequestUrls: readonly string[] | undefined,
 			refs.push({
 				...reference,
 				uri: URI.parse(url),
+				state: state?.pullRequestStateUrl && linkKey(state.pullRequestStateUrl) === linkKey(url) ? state.pullRequestState : undefined,
 				...(title ? { title } : {}),
 				createdByThisSession: true,
 			});
@@ -387,7 +392,7 @@ function toGitHubPromotion(meta: SessionMeta | undefined): IGitHubPromotion {
 
 	// Only pull requests the session produced are promoted, so the ones it
 	// recorded lead the discovered ones and the first is the main pull request.
-	const allPullRequests = toGitHubPullRequestRefs(dedupeLinks(pullRequestUrls, getSessionRelatedPullRequestUrls(state)), pullRequestTitles);
+	const allPullRequests = toGitHubPullRequestRefs(state, dedupeLinks(pullRequestUrls, getSessionRelatedPullRequestUrls(state)), pullRequestTitles);
 	const repository = state?.owner && state.repo
 		? { owner: state.owner, repo: state.repo }
 		: gitState?.githubOwner && gitState.githubRepo
@@ -423,6 +428,7 @@ function toGitHubPromotion(meta: SessionMeta | undefined): IGitHubPromotion {
 			pullRequest: pullRequest ? {
 				number: pullRequest.number,
 				uri: pullRequest.uri,
+				state: pullRequest.state,
 			} : undefined,
 			issues: issues?.length ? issues : undefined,
 		},
@@ -996,6 +1002,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				)
 			}));
 			const icon = pullRequests[0].icon;
+			const liveState = pullRequests[0].liveState;
 			const title = pullRequests[0].title;
 			return {
 				...baseGitHubInfo,
@@ -1003,6 +1010,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				pullRequest: {
 					...baseGitHubInfo.pullRequest,
 					icon,
+					liveState,
 					title,
 				}
 			};
@@ -4967,6 +4975,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		);
 	}
 
+	private _keepChatSessionStateAlive(chatChannel: string): void {
+		const parsedChat = parseChatUri(chatChannel);
+		if (!parsedChat) {
+			return;
+		}
+		const cached = this._sessionCache.get(AgentSession.id(parsedChat.session));
+		if (cached) {
+			this._keepSessionStateAlive(cached.sessionId);
+		}
+	}
+
 	/**
 	 * Lazily acquire a session-state subscription for `sessionId` so that
 	 * `_runningSessionConfigs` is seeded from the AHP `SessionState.config`
@@ -5662,6 +5681,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				return;
 			}
 			if (e.action.type === ActionType.ChatTurnComplete && isChatAction(e.action)) {
+				this._keepChatSessionStateAlive(e.channel);
 				this._refreshSessions();
 			} else if (e.action.type === ActionType.SessionTitleChanged && isSessionAction(e.action)) {
 				this._handleTitleChanged(e.channel, e.action.title);

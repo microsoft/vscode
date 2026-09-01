@@ -44,7 +44,7 @@ import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPlu
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
-import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel } from '../../common/autoModeTiers.js';
+import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel, type AutoModeTier } from '../../common/autoModeTiers.js';
 import { isAutoModel } from './modelIdentifiers.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -82,7 +82,7 @@ import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitP
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
 import { CopilotGitHubTelemetryForwarder } from './copilotGitHubTelemetryForwarder.js';
 import { CopilotSecondaryAssignmentContext } from './copilotSecondaryAssignmentContext.js';
-import { CopilotSessionLauncher, AutoTierConfigKey, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, isCopilotReasoningEffort, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
+import { CopilotSessionLauncher, AutoTierConfigKey, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, isCopilotReasoningEffort, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { CopilotAgentStartupConfig } from './copilotAgentStartupConfig.js';
 import { ShellManager } from './copilotShellTools.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
@@ -137,8 +137,9 @@ export async function getCopilotManagedSettingsDiagnostics(
 	signal: AbortSignal,
 	timeoutMs = COPILOT_MANAGED_SETTINGS_QUERY_TIMEOUT_MS,
 	proxy: string | undefined = undefined,
+	noProxy: string | undefined = undefined,
 ): Promise<{ account?: string; resolved: ManagedSettingsResolvedData }> {
-	const request = invokeWithProxyEnvironment(proxy, () => runtimeSdk.getManagedSettings({
+	const request = invokeWithTemporaryProxyEnvironment(proxy, noProxy, () => runtimeSdk.getManagedSettings({
 		...(token ? { authInfo: { type: 'token', host, token } as const, token } : {}),
 		signal,
 	}));
@@ -149,20 +150,32 @@ export async function getCopilotManagedSettingsDiagnostics(
 	return result;
 }
 
-function invokeWithProxyEnvironment<T>(proxy: string | undefined, invoke: () => Promise<T>): Promise<T> {
-	if (!proxy) {
+function invokeWithTemporaryProxyEnvironment<T>(proxy: string | undefined, noProxy: string | undefined, invoke: () => T): T {
+	if (!proxy && !noProxy) {
 		return invoke();
 	}
-	const previousValues = COPILOT_PROXY_SET_ENV_KEYS.map(key => process.env[key]);
-	for (const key of COPILOT_PROXY_SET_ENV_KEYS) {
-		process.env[key] = proxy;
+	const keys = [
+		...(proxy ? COPILOT_PROXY_ENV_KEYS : []),
+		...(noProxy ? COPILOT_NO_PROXY_ENV_KEYS : []),
+	];
+	const previousValues = keys.map(key => process.env[key]);
+	for (const key of keys) {
+		delete process.env[key];
+	}
+	if (proxy) {
+		for (const key of COPILOT_PROXY_SET_ENV_KEYS) {
+			process.env[key] = proxy;
+		}
+	}
+	if (noProxy) {
+		process.env['NO_PROXY'] = noProxy;
 	}
 	try {
 		// The SDK snapshots process.env while constructing the native request.
 		return invoke();
 	} finally {
-		for (let index = 0; index < COPILOT_PROXY_SET_ENV_KEYS.length; index++) {
-			const key = COPILOT_PROXY_SET_ENV_KEYS[index];
+		for (let index = 0; index < keys.length; index++) {
+			const key = keys[index];
 			const value = previousValues[index];
 			if (value === undefined) {
 				delete process.env[key];
@@ -186,9 +199,10 @@ function isCopilotConnectionClosedError(error: unknown): boolean {
 }
 
 /**
- * Proxy env vars that indicate the environment already configures a proxy.
+ * Proxy env vars recognized by the Copilot runtime.
  */
 const COPILOT_PROXY_ENV_KEYS = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy'] as const;
+const COPILOT_NO_PROXY_ENV_KEYS = ['no_proxy', 'NO_PROXY'] as const;
 /**
  * Proxy env vars we set when injecting the resolved CAPI proxy.
  */
@@ -798,6 +812,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _proxyRefresh: Promise<void> | undefined;
 	private _proxyResolutionGeneration = 0;
 	private _appliedProxy: string | undefined;
+	private _appliedNoProxy: string | undefined;
 	private _appliedProxyKerberosSpn: string | undefined;
 	/**
 	 * Reasons for a client restart that is parked until every chat is idle. See
@@ -1355,6 +1370,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				AbortSignal.timeout(COPILOT_MANAGED_SETTINGS_DIAGNOSTICS_TIMEOUT_MS),
 				COPILOT_MANAGED_SETTINGS_QUERY_TIMEOUT_MS,
 				proxy,
+				this._readNoProxy(process.env),
 			);
 		})();
 		const result = await raceTimeout(diagnostics, COPILOT_MANAGED_SETTINGS_DIAGNOSTICS_TIMEOUT_MS);
@@ -2030,12 +2046,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
 			// that can interfere with the Node.js process the SDK spawns.
-			const env = createCopilotCliEnvironment();
+			const env = this._createCopilotCliEnvironment();
 			// Family aliases are host-side (prompt and tool-profile routing) and
 			// deliberately never reach the runtime; an ambient value here would
 			// re-introduce a process-wide alias for every session behind its back.
 			delete env['COPILOT_MODEL_FAMILY'];
-			this._applyProxyEnv(env);
 			setCopilotBuiltinGitHubMcpEnvironment(env, startupConfig.githubMcpServer);
 
 			// On Linux the MXC bubblewrap sandbox backend does not forward a PTY into
@@ -3678,6 +3693,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			const resolvedAgent = provisional.isEphemeral ? undefined : await this._resolveAgentWhenMaterializing(provisional, snapshot, workingDirectory);
 			agent = resolvedAgent?.agent;
+			// Resolve the profile once and freeze it on the plan. The gate can flip while the session
+			// is provisional, or during the async launch below.
+			const autoTier = resolveCopilotAutoTier(provisional.model, this._configurationService, this._logService, sdkSessionId);
+			const model = provisional.model
+				? this._withEffectiveAutoTier(provisional.model, autoTier, sdkSessionId, 'Auto routing profiles are unavailable')
+				: undefined;
+			provisional.model = model;
 			const launchPlan: CopilotSessionLaunchPlan = {
 				kind: 'create',
 				client,
@@ -3695,6 +3717,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				model: provisional.model,
 				longContextWindow: this._longContextWindowFor(provisional.model?.id),
 				freeLongContext: this._isFreeLongContext(provisional.model?.id),
+				autoTier,
 				workspaceless: provisional.workspaceless,
 			};
 			const chatChannelUri = this._findBoundSessionChatUri(sdkSessionId) ?? URI.parse(buildDefaultChatUri(sessionUri));
@@ -4174,6 +4197,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			let launchPlan: CopilotSessionLaunchPlan;
 			let sdkSessionId: string;
 			let inheritedTurnId: string | undefined;
+			// Frozen before the async launch so the profile sent matches the one persisted below.
+			const forkAutoTier = resolveCopilotAutoTier(model, this._configurationService, this._logService, chatSdkId);
 			let sourceEntry: CopilotAgentSession | undefined;
 			if (fork) {
 				sourceEntry = await this._ensureResolvedChatSession(this._resolveChatContext(fork.source, { configurationResource: forkSourceScope!, resource: this._resolveChatStorageScope(fork.source) }));
@@ -4194,7 +4219,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
-					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id), freeLongContext: this._isFreeLongContext(model?.id) },
+					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id), freeLongContext: this._isFreeLongContext(model?.id), autoTier: forkAutoTier },
 				};
 			} else {
 				sdkSessionId = chatSdkId;
@@ -4212,6 +4237,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					model,
 					longContextWindow: this._longContextWindowFor(model?.id),
 					freeLongContext: this._isFreeLongContext(model?.id),
+					autoTier: forkAutoTier,
 				};
 			}
 
@@ -4619,7 +4645,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
-					fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id), freeLongContext: this._isFreeLongContext(info.model?.id) },
+					fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id), freeLongContext: this._isFreeLongContext(info.model?.id), autoTier: resolveCopilotAutoTier(info.model, this._configurationService, this._logService, context.sdkSessionId ?? context.configurationId) },
 				};
 				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { sessionUri: configurationResource, chatChannelUri: chat, resource: context.resource });
 				await agentSession.initializeSession();
@@ -4725,27 +4751,31 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Rewrites a model selection so its Auto routing profile is the one `session` launched with.
-	 * The runtime fixes the profile for a session's lifetime, so a requested change cannot be recorded.
+	 * Rewrites a model selection so its Auto routing profile matches the one the runtime is actually
+	 * using. Recording anything else would leave the picker and resume metadata out of step.
 	 */
-	private _pinLaunchAutoTier(model: ModelSelection, session: CopilotAgentSession, sessionId: string): ModelSelection {
+	private _withEffectiveAutoTier(model: ModelSelection, effective: AutoModeTier | undefined, sessionId: string, reason: string): ModelSelection {
 		// Only the Auto model routes per turn, so any other selection carries no profile to correct.
 		if (!isAutoModel(model.id)) {
 			return model;
 		}
 		const requested = model.config?.[AutoTierConfigKey];
-		const launched = session.launchAutoTier;
-		if (requested === launched) {
+		if (requested === effective) {
 			return model;
 		}
-		this._logService.info(`[Copilot:${sessionId}] Auto routing profile is fixed for this session; keeping '${launched ?? 'the service default'}' instead of '${requested}'`);
+		this._logService.info(`[Copilot:${sessionId}] ${reason}; recording '${effective ?? 'the service default'}' instead of '${requested}'`);
 		const config = { ...model.config };
-		if (launched === undefined) {
+		if (effective === undefined) {
 			delete config[AutoTierConfigKey];
 		} else {
-			config[AutoTierConfigKey] = launched;
+			config[AutoTierConfigKey] = effective;
 		}
 		return Object.keys(config).length > 0 ? { ...model, config } : { id: model.id };
+	}
+
+	/** The selection to record for a session that launched with `session`'s fixed routing profile. */
+	private _pinLaunchAutoTier(model: ModelSelection, session: CopilotAgentSession, sessionId: string): ModelSelection {
+		return this._withEffectiveAutoTier(model, session.launchAutoTier, sessionId, 'Auto routing profile is fixed for this session');
 	}
 
 	private async _changeAgent(chat: URI, agent: AgentSelection | undefined, operationContext: URI | IAgentChatContext): Promise<void> {
@@ -4846,23 +4876,50 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return spn || undefined;
 	}
 
-	private _applyProxyEnv(env: Record<string, string | undefined>): void {
-		const proxy = this._isSystemProxyEnabled() ? this._resolvedProxy : undefined;
+	private _readNoProxy(env: Record<string, string | undefined>): string | undefined {
+		const configuredNoProxy = (this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.NoProxy) ?? [])
+			.map(value => value.trim())
+			.filter(Boolean)
+			.join(',');
+		return configuredNoProxy || (env['no_proxy'] || env['NO_PROXY'] || '').trim() || undefined;
+	}
+
+	private _readConfiguredProxy(): string | undefined {
+		return this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.Proxy)?.trim() || undefined;
+	}
+
+	private _createCopilotCliEnvironment(): Record<string, string | undefined> {
+		const proxy = this._readConfiguredProxy() ?? (this._isSystemProxyEnabled() ? this._resolvedProxy : undefined);
 		this._appliedProxy = proxy;
+		const noProxy = this._readNoProxy(process.env);
+		this._appliedNoProxy = noProxy;
+		const omittedKeys = [
+			...(proxy ? COPILOT_PROXY_ENV_KEYS : []),
+			...(noProxy ? COPILOT_NO_PROXY_ENV_KEYS : []),
+		];
+		const env = createCopilotCliEnvironment(process.env, omittedKeys);
 		if (proxy) {
 			for (const key of COPILOT_PROXY_SET_ENV_KEYS) {
 				env[key] = proxy;
 			}
 			this._logService.info('[Copilot] Resolved CAPI proxy and forwarded HTTP_PROXY/HTTPS_PROXY to Copilot SDK');
 		}
-		const kerberosSpn = this._readKerberosSpn(env);
+		if (noProxy) {
+			env['NO_PROXY'] = noProxy;
+		}
+		const kerberosSpn = this._readKerberosSpn(process.env);
 		this._appliedProxyKerberosSpn = kerberosSpn;
 		if (kerberosSpn && !env['COPILOT_PROXY_KERBEROS_SPN']) {
 			env['COPILOT_PROXY_KERBEROS_SPN'] = kerberosSpn;
 		}
+		return env;
 	}
 
 	private async _resolveProxyForSdk(env: Record<string, string | undefined> = process.env): Promise<string | undefined> {
+		const configuredProxy = this._readConfiguredProxy();
+		if (configuredProxy) {
+			return configuredProxy;
+		}
 		if (!this._isSystemProxyEnabled()) {
 			return undefined;
 		}
@@ -4898,9 +4955,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return;
 			}
 			this._resolvedProxy = proxy;
-			const effectiveProxy = this._isSystemProxyEnabled() ? proxy : undefined;
+			const effectiveProxy = this._readConfiguredProxy() ?? (this._isSystemProxyEnabled() ? proxy : undefined);
+			const effectiveNoProxy = this._readNoProxy(process.env);
 			const effectiveKerberosSpn = this._readKerberosSpn(process.env);
-			if (effectiveProxy === this._appliedProxy && effectiveKerberosSpn === this._appliedProxyKerberosSpn) {
+			if (effectiveProxy === this._appliedProxy && effectiveNoProxy === this._appliedNoProxy && effectiveKerberosSpn === this._appliedProxyKerberosSpn) {
 				return;
 			}
 			if (this._clientStarting) {
@@ -4912,13 +4970,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 				// A newer proxy resolution (or the client start we just awaited)
 				// may have already superseded this one; re-check both so we don't
 				// restart based on a stale comparison.
-				if (generation !== this._proxyResolutionGeneration || (effectiveProxy === this._appliedProxy && effectiveKerberosSpn === this._appliedProxyKerberosSpn)) {
+				if (generation !== this._proxyResolutionGeneration || (effectiveProxy === this._appliedProxy && effectiveNoProxy === this._appliedNoProxy && effectiveKerberosSpn === this._appliedProxyKerberosSpn)) {
 					return;
 				}
 			}
 			const changes: string[] = [];
 			if (effectiveProxy !== this._appliedProxy) {
 				changes.push(`proxy ${this._appliedProxy ?? '(none)'} -> ${effectiveProxy ?? '(none)'}`);
+			}
+			if (effectiveNoProxy !== this._appliedNoProxy) {
+				changes.push('NO_PROXY changed');
 			}
 			if (effectiveKerberosSpn !== this._appliedProxyKerberosSpn) {
 				changes.push('Kerberos SPN changed');
@@ -5138,6 +5199,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				model: storedMetadata.model,
 				longContextWindow: this._longContextWindowFor(storedMetadata.model?.id),
 				freeLongContext: this._isFreeLongContext(storedMetadata.model?.id),
+				autoTier: resolveCopilotAutoTier(storedMetadata.model, this._configurationService, this._logService, sessionId),
 			},
 		};
 

@@ -121,9 +121,38 @@ class ClearEphemeralBrowserStorageAction extends Action2 {
 	}
 }
 
+class ClearAgentBrowserStorageAction extends Action2 {
+	static readonly ID = BrowserViewCommandId.ClearAgentStorage;
+
+	constructor() {
+		super({
+			id: ClearAgentBrowserStorageAction.ID,
+			title: localize2('browser.clearAgentStorageAction', 'Clear Storage (Agent)'),
+			category: BrowserActionCategory,
+			icon: Codicon.clearAll,
+			f1: true,
+			precondition: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Agent),
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: BrowserActionGroup.Data,
+				order: 20,
+				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Agent),
+				isHiddenByDefault: true,
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.model?.clearStorage();
+		}
+	}
+}
+
 registerAction2(ClearGlobalBrowserStorageAction);
 registerAction2(ClearWorkspaceBrowserStorageAction);
 registerAction2(ClearEphemeralBrowserStorageAction);
+registerAction2(ClearAgentBrowserStorageAction);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,
@@ -134,13 +163,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				'default',
 				BrowserViewStorageScope.Global,
 				BrowserViewStorageScope.Workspace,
-				BrowserViewStorageScope.Ephemeral
+				BrowserViewStorageScope.Ephemeral,
+				BrowserViewStorageScope.Agent
 			],
 			markdownEnumDescriptions: [
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'browser.dataStorage.default' }, '`global` for local workspaces, `workspace` for remote workspaces.'),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'browser.dataStorage.global' }, 'All browser views share a single persistent session across all workspaces. Incompatible with remote sessions.'),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'browser.dataStorage.workspace' }, 'Browser views within the same workspace share a persistent session. If no workspace is opened, `ephemeral` storage is used.'),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'browser.dataStorage.ephemeral' }, 'Each browser view has its own session that is cleaned up when closed.')
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'browser.dataStorage.ephemeral' }, 'Each browser view has its own session that is cleaned up when closed.'),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'browser.dataStorage.agent' }, 'Browser views share one in-memory session that is cleaned up when the application is closed. This session is shared with agent-opened browser pages, so **all data including local storage and cookies will be accessible by agents.**')
 			],
 			restricted: true,
 			default: 'default',

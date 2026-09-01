@@ -74,6 +74,9 @@ export interface IAgentHostPullRequestStatusService extends IDisposable {
 	 */
 	getPullRequestStatus(sessionKey: string): IAgentHostPullRequestStatus | undefined;
 
+	/** Records a successful direct merge before the next GitHub refresh completes. */
+	markPullRequestMerged(sessionKey: string, pullRequestUrl: string): void;
+
 	/**
 	 * Re-reads the pull request from GitHub, bypassing cached fragments. Used
 	 * after a mutation so the advertised operations reflect the new state
@@ -85,6 +88,7 @@ export interface IAgentHostPullRequestStatusService extends IDisposable {
 interface IWatch extends IDisposable {
 	readonly ref: PullRequestRef;
 	readonly subscription: PullRequestSubscription;
+	awaitingAuthoritativeRefresh: boolean;
 	status?: IAgentHostPullRequestStatus;
 }
 
@@ -152,6 +156,32 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 
 	getPullRequestStatus(sessionKey: string): IAgentHostPullRequestStatus | undefined {
 		return this._watches.get(sessionKey)?.status;
+	}
+
+	markPullRequestMerged(sessionKey: string, pullRequestUrl: string): void {
+		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
+		const currentPullRequestUrl = getSessionRelatedPullRequestUrls(gitHubState)[0] ?? gitHubState?.pullRequestUrls?.[0];
+		const mergedPullRequest = parsePullRequestUrl(pullRequestUrl);
+		const currentPullRequest = currentPullRequestUrl ? parsePullRequestUrl(currentPullRequestUrl) : undefined;
+		if (!mergedPullRequest || !currentPullRequest || !sameParsedRef(mergedPullRequest, currentPullRequest)) {
+			return;
+		}
+
+		const watch = this._watches.get(sessionKey);
+		const status = watch?.status;
+		if (!watch || !status || !sameRefAndHost(watch.ref, mergedPullRequest)) {
+			this._publishPullRequestState(sessionKey, pullRequestUrl, 'merged');
+			this._onDidChangePullRequestStatus.fire(sessionKey);
+			return;
+		}
+		this._setStatus(sessionKey, watch, {
+			...status,
+			state: 'merged',
+			draft: false,
+			mergeReady: false,
+			viewerCanEnableAutoMerge: false,
+			autoMergeEnabled: false,
+		});
 	}
 
 	async refresh(sessionKey: string): Promise<void> {
@@ -228,7 +258,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		}
 
 		const existing = this._watches.get(sessionKey);
-		if (existing && sameRef(existing.ref, parsed)) {
+		if (existing && sameRefAndHost(existing.ref, parsed)) {
 			return;
 		}
 
@@ -266,14 +296,43 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		const watch: IWatch = {
 			ref,
 			subscription,
+			awaitingAuthoritativeRefresh: this._hasPersistedMergedState(sessionKey, ref),
 			dispose: () => store.dispose(),
 		};
 		this._watches.set(sessionKey, watch);
 		store.add(autorun(reader => {
 			const snapshot = subscription.resource.snapshot.read(reader);
+			if (watch.awaitingAuthoritativeRefresh) {
+				return;
+			}
 			this._updateStatus(sessionKey, watch, snapshot);
 		}));
+		if (watch.awaitingAuthoritativeRefresh) {
+			void this._refreshRecreatedMergedWatch(sessionKey, watch);
+		}
 		this._logService.debug(`[AgentHostPullRequestStatusService] Watching pull request: session=${sessionKey}, pr=${describeRef(ref)}`);
+	}
+
+	private _hasPersistedMergedState(sessionKey: string, ref: PullRequestRef): boolean {
+		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
+		const persistedPullRequest = gitHubState?.pullRequestStateUrl ? parsePullRequestUrl(gitHubState.pullRequestStateUrl) : undefined;
+		return gitHubState?.pullRequestState === 'merged'
+			&& persistedPullRequest !== undefined
+			&& sameRefAndHost(ref, persistedPullRequest);
+	}
+
+	private async _refreshRecreatedMergedWatch(sessionKey: string, watch: IWatch): Promise<void> {
+		try {
+			await watch.subscription.refresh(undefined, undefined, { authoritative: true });
+		} catch (error) {
+			this._logService.warn(`[AgentHostPullRequestStatusService] Failed to refresh recreated merged pull request watch: session=${sessionKey}, pr=${describeRef(watch.ref)}, error=${error}`);
+			return;
+		}
+		if (this._watches.get(sessionKey) !== watch) {
+			return;
+		}
+		watch.awaitingAuthoritativeRefresh = false;
+		this._updateStatus(sessionKey, watch, watch.subscription.resource.snapshot.get());
 	}
 
 	/**
@@ -304,7 +363,18 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 	}
 
 	private _updateStatus(sessionKey: string, watch: IWatch, snapshot: PullRequestSnapshot): void {
-		const status = toPullRequestStatus(snapshot);
+		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
+		const persistedPullRequest = gitHubState?.pullRequestStateUrl ? parsePullRequestUrl(gitHubState.pullRequestStateUrl) : undefined;
+		const persistedMergedStateApplies = gitHubState?.pullRequestState === 'merged'
+			&& persistedPullRequest !== undefined
+			&& sameRefAndHost(watch.ref, persistedPullRequest);
+		if (snapshot.core.status !== 'ready' && (watch.status?.state === 'merged' || persistedMergedStateApplies)) {
+			return;
+		}
+		this._setStatus(sessionKey, watch, toPullRequestStatus(snapshot));
+	}
+
+	private _setStatus(sessionKey: string, watch: IWatch, status: IAgentHostPullRequestStatus | undefined): void {
 		if (structuralEquals(watch.status, status)) {
 			return;
 		}
@@ -316,7 +386,21 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		// The single most useful line when a button bar shows the "wrong"
 		// action: it names every flag the operation provider branches on.
 		this._logService.debug(`[AgentHostPullRequestStatusService] Status changed: session=${sessionKey}, pr=${describeRef(watch.ref)}, from=[${describeStatus(previous)}], to=[${describeStatus(status)}]`);
+		if (status) {
+			this._publishPullRequestState(sessionKey, status.url, status.state);
+		}
 		this._onDidChangePullRequestStatus.fire(sessionKey);
+	}
+
+	private _publishPullRequestState(sessionKey: string, pullRequestUrl: string, state: IAgentHostPullRequestStatus['state']): void {
+		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
+		if (gitHubState?.pullRequestState === state && gitHubState.pullRequestStateUrl === pullRequestUrl) {
+			return;
+		}
+		void this._gitStateService.setSessionGitHubState(sessionKey, {
+			pullRequestState: state,
+			pullRequestStateUrl: pullRequestUrl,
+		}).catch(error => this._logService.warn(`[AgentHostPullRequestStatusService] Failed to publish pull request state: session=${sessionKey}, pr=${pullRequestUrl}, state=${state}, error=${error}`));
 	}
 
 	private _stopWatch(sessionKey: string, reason?: string): void {
@@ -401,10 +485,20 @@ function toPullRequestStatus(snapshot: PullRequestSnapshot): IAgentHostPullReque
 	};
 }
 
-function sameRef(left: PullRequestRef, right: { readonly owner: string; readonly repo: string; readonly number: number }): boolean {
+function sameRef(left: { readonly owner: string; readonly repo: string; readonly number: number }, right: { readonly owner: string; readonly repo: string; readonly number: number }): boolean {
 	return left.owner.toLowerCase() === right.owner.toLowerCase()
 		&& left.repo.toLowerCase() === right.repo.toLowerCase()
 		&& left.number === right.number;
+}
+
+type ParsedPullRequestUrl = NonNullable<ReturnType<typeof parsePullRequestUrl>>;
+
+function sameParsedRef(left: ParsedPullRequestUrl, right: ParsedPullRequestUrl): boolean {
+	return left.apiHost.toLowerCase() === right.apiHost.toLowerCase() && sameRef(left, right);
+}
+
+function sameRefAndHost(left: PullRequestRef, right: ParsedPullRequestUrl): boolean {
+	return left.host.toLowerCase() === right.apiHost.toLowerCase() && sameRef(left, right);
 }
 
 function sameAccount(left: GitHubAccountHandle, right: GitHubAccountHandle): boolean {

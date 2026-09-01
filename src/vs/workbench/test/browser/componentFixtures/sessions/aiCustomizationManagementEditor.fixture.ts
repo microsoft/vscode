@@ -73,6 +73,7 @@ import { AICustomizationManagementEditorInput } from '../../../../contrib/chat/b
 import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
 import { IAutomationDialogService } from '../../../../contrib/chat/common/automations/automationDialogService.js';
@@ -107,6 +108,15 @@ import '../../../../contrib/chat/browser/aiCustomization/media/aiCustomizationMa
 
 const userHome = URI.file('/home/dev');
 const BUILTIN_STORAGE = 'builtin';
+
+function createMockMcpGalleryManifestService(): IMcpGalleryManifestService {
+	return new class extends mock<IMcpGalleryManifestService>() {
+		override readonly mcpGalleryManifestStatus = McpGalleryManifestStatus.Unavailable;
+		override readonly onDidChangeMcpGalleryManifestStatus = Event.None;
+		override readonly onDidChangeMcpGalleryManifest = Event.None;
+		override async getMcpGalleryManifest() { return null; }
+	}();
+}
 
 interface IFixtureFile {
 	readonly uri: URI;
@@ -178,7 +188,9 @@ function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[], remo
 				name: file.name ?? '',
 				description: file.description,
 				source: file.storage as AICustomizationSource,
-				groupKey: file.type === PromptsType.skill && file.name === remoteClientSkillName ? 'remote-client' : 'remote-host',
+				groupKey: file.storage === PromptsStorage.builtIn
+					? undefined
+					: file.type === PromptsType.skill && file.name === remoteClientSkillName ? 'remote-client' : 'remote-host',
 				extensionId: file.extensionId,
 				pluginUri: undefined,
 			}));
@@ -816,6 +828,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
 			}));
 			reg.define(IListService, ListService);
+			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
 			reg.defineInstance(ITextModelService, new class extends mock<ITextModelService>() {
 				declare readonly _serviceBrand: undefined;
 				override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
@@ -1230,6 +1243,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 		additionalServices: (reg) => {
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
+			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
 				override readonly onChange = Event.None;
 				override readonly onReset = Event.None;
@@ -1503,6 +1517,7 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 		additionalServices: (reg) => {
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
+			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
 			reg.defineInstance(IConfigurationService, createDisabledConfigService(mcpAccessConfig, McpAccessValue.None, byPolicy));
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
 				override readonly onChange = Event.None;
@@ -1890,7 +1905,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.Skills,
-			agentHostFiles: allFiles.filter(file => file.type !== PromptsType.skill || file.name === 'Accessibility' || file.name === 'Code Review'),
+			agentHostFiles: allFiles.filter(file => file.type !== PromptsType.skill || file.name === 'Accessibility' || file.name === 'Code Review' || file.storage === PromptsStorage.builtIn),
 			remoteClientSkillName: 'Code Review',
 			height: 800,
 		}),
@@ -2288,6 +2303,12 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			type: McpServerType.REMOTE,
 			url: 'https://mcp.example.com/search',
 		})),
+	}),
+
+	// Standalone embedded MCP detail widget before marketplace installation.
+	EmbeddedMcpDetailUninstalled: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: ctx => renderEmbeddedMcpDetail(ctx, galleryServers[0]),
 	}),
 
 	// Standalone embedded MCP detail widget — empty / no input state.

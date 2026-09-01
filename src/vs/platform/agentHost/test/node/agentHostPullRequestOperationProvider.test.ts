@@ -28,11 +28,12 @@ const nullGitStateService = new class implements IAgentHostGitStateService {
 	async attachSessionGitHubPullRequest(): Promise<void> { }
 };
 
-function createStatusService(status?: IAgentHostPullRequestStatus): IAgentHostPullRequestStatusService {
+function createStatusService(status?: IAgentHostPullRequestStatus, onDidChangePullRequestStatus = Event.None): IAgentHostPullRequestStatusService {
 	return {
 		_serviceBrand: undefined,
-		onDidChangePullRequestStatus: Event.None,
+		onDidChangePullRequestStatus,
 		getPullRequestStatus: () => status,
+		markPullRequestMerged: () => { },
 		refresh: async () => { },
 		dispose: () => { },
 	};
@@ -69,7 +70,7 @@ const pullRequestForBranch: ISessionGitHubState = {
 suite('AgentHostPullRequestOperationContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createContribution(status?: IAgentHostPullRequestStatus, isolation?: 'folder' | 'worktree'): AgentHostPullRequestOperationContribution {
+	function createContribution(status?: IAgentHostPullRequestStatus, isolation?: 'folder' | 'worktree', onDidChangePullRequestStatus = Event.None): AgentHostPullRequestOperationContribution {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		if (isolation) {
 			stateManager.createSession({
@@ -90,7 +91,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			stateManager,
 			disposables.add(new InstantiationService()),
 			nullGitStateService,
-			createStatusService(status),
+			createStatusService(status, onDidChangePullRequestStatus),
 			new NullLogService(),
 		));
 	}
@@ -162,4 +163,5 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			noAutoMerge: undefined,
 		});
 	});
+
 });
