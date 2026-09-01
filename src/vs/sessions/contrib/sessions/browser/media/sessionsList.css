@@ -691,7 +691,7 @@
 .session-section {
 	display: flex;
 	align-items: center;
-	font-size: var(--vscode-fontSize-label2, 11px);
+	font-size: var(--vscode-fontSize-label1, 12px);
 	font-weight: var(--vscode-fontWeight-semiBold, 600);
 	color: var(--vscode-descriptionForeground);
 	padding: 0 10px;
