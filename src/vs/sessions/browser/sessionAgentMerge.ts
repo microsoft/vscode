@@ -69,7 +69,7 @@ export function getSessionAgentMergeConfigurationObservable(session: ISession, s
 }
 
 /** Hides pull-request blockers that an enabled Agent Merge session owns. */
-export function getAgentMergeAwarePullRequestIcon(icon: ThemeIcon, agentMerge: ISessionAgentMergeConfiguration | undefined, blockers?: { readonly hasFailingChecks?: boolean; readonly hasMergeConflicts?: boolean }): ThemeIcon {
+export function getAgentMergeAwarePullRequestIcon(icon: ThemeIcon, agentMerge: ISessionAgentMergeConfiguration | undefined, blockers?: { readonly hasFailingChecks?: boolean; readonly hasMergeConflicts?: boolean; readonly hasUnresolvedComments?: boolean }): ThemeIcon {
 	if (!agentMerge?.enabled) {
 		return icon;
 	}
@@ -77,9 +77,15 @@ export function getAgentMergeAwarePullRequestIcon(icon: ThemeIcon, agentMerge: I
 		return agentMerge.actions.addressReviews ? openPullRequestIcon : icon;
 	}
 	if (icon.id === Codicon.gitPullRequestError.id) {
+		const hasKnownBlocker = blockers?.hasFailingChecks === true || blockers?.hasMergeConflicts === true || blockers?.hasUnresolvedComments === true;
+		if (blockers && !hasKnownBlocker) {
+			return icon;
+		}
 		const handlesBlockers = blockers
-			? (!blockers.hasFailingChecks || agentMerge.actions.fixCI) && (!blockers.hasMergeConflicts || agentMerge.actions.resolveConflicts)
-			: agentMerge.actions.fixCI && agentMerge.actions.resolveConflicts;
+			? (!blockers.hasFailingChecks || agentMerge.actions.fixCI)
+				&& (!blockers.hasMergeConflicts || agentMerge.actions.resolveConflicts)
+				&& (!blockers.hasUnresolvedComments || agentMerge.actions.addressReviews)
+			: agentMerge.actions.fixCI && agentMerge.actions.resolveConflicts && agentMerge.actions.addressReviews;
 		return handlesBlockers ? openPullRequestIcon : icon;
 	}
 	return icon;

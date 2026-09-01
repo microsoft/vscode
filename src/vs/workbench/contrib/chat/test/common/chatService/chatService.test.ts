@@ -57,7 +57,7 @@ import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IMod
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
-import { ChatViewModel, isPendingDividerVM } from '../../../common/model/chatViewModel.js';
+import { ChatViewModel, isPendingDividerVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
@@ -2944,7 +2944,7 @@ suite('ChatService', () => {
 				requestHidden: request.isRequestHiddenFromTranscript,
 				turnHidden: request.isHiddenFromTranscript,
 				responseHidden: request.response?.isHiddenFromTranscript,
-				visibleItems: viewModel.getItems().map(item => 'requestId' in item ? 'response' : 'request'),
+				visibleItems: viewModel.getItems().map(item => isResponseVM(item) ? 'response' : 'request'),
 			};
 
 			const restoredService = createChatService();
@@ -2958,7 +2958,7 @@ suite('ChatService', () => {
 					requestHidden: restoredRequest.isRequestHiddenFromTranscript,
 					turnHidden: restoredRequest.isHiddenFromTranscript,
 					responseHidden: restoredRequest.response?.isHiddenFromTranscript,
-					visibleItems: restoredViewModel.getItems().map(item => 'requestId' in item ? 'response' : 'request'),
+					visibleItems: restoredViewModel.getItems().map(item => isResponseVM(item) ? 'response' : 'request'),
 				},
 			}, {
 				before: {

@@ -176,6 +176,10 @@ suite('GitHub Reference Action View Items', () => {
 			.find(className => className.startsWith('codicon-git-pull-request'));
 
 		const failingCI = iconId();
+		icon = getAgentMergeAwarePullRequestIcon(Codicon.gitPullRequestError, agentMerge({ addressReviews: false }), { hasFailingChecks: true, hasUnresolvedComments: true });
+		const unhandledReviewAlongsideCI = iconId();
+		icon = getAgentMergeAwarePullRequestIcon(Codicon.gitPullRequestError, agentMerge(), {});
+		const unknownBlocker = iconId();
 		icon = getAgentMergeAwarePullRequestIcon(Codicon.gitPullRequestError, agentMerge({ fixCI: false }), { hasFailingChecks: true });
 		const failingCIDisabled = iconId();
 		icon = getAgentMergeAwarePullRequestIcon(Codicon.gitPullRequestComment, agentMerge());
@@ -184,11 +188,15 @@ suite('GitHub Reference Action View Items', () => {
 
 		assert.deepStrictEqual({
 			failingCI,
+			unhandledReviewAlongsideCI,
+			unknownBlocker,
 			failingCIDisabled,
 			reviewComments,
 			reviewsDisabled: iconId(),
 		}, {
 			failingCI: 'codicon-git-pull-request',
+			unhandledReviewAlongsideCI: 'codicon-git-pull-request-error',
+			unknownBlocker: 'codicon-git-pull-request-error',
 			failingCIDisabled: 'codicon-git-pull-request-error',
 			reviewComments: 'codicon-git-pull-request',
 			reviewsDisabled: 'codicon-git-pull-request-comment',
