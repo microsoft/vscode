@@ -466,13 +466,7 @@ export class NewChatWidget extends Disposable {
 				if (!target) {
 					return;
 				}
-				this._newChatInput.sessionTypePicker.render(target, {
-					className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
-				});
-				const sessionTypePicker = target.lastElementChild;
-				if (!isQuickChat && sessionTypePicker?.previousElementSibling) {
-					target.insertBefore(sessionTypePicker, sessionTypePicker.previousElementSibling);
-				}
+				this._renderSessionTypePicker(target, isQuickChat);
 			}));
 		}
 
@@ -716,19 +710,23 @@ export class NewChatWidget extends Disposable {
 			workspaceTrigger,
 			gitHubContextTrigger,
 		]);
-		this._newChatInput.sessionTypePicker.render(row, {
-			className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
-		});
-		const sessionTypePicker = row.lastElementChild;
-		if (sessionTypePicker?.previousElementSibling) {
-			row.insertBefore(sessionTypePicker, sessionTypePicker.previousElementSibling);
-		}
+		this._renderSessionTypePicker(row, false);
 		this._workspacePickerRow = row;
 		return toDisposable(() => {
 			if (this._workspacePickerRow === row) {
 				this._workspacePickerRow = undefined;
 			}
 		});
+	}
+
+	private _renderSessionTypePicker(container: HTMLElement, isQuickChat: boolean): void {
+		this._newChatInput.sessionTypePicker.render(container, {
+			className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
+		});
+		const sessionTypePicker = container.lastElementChild;
+		if (!isQuickChat && sessionTypePicker?.previousElementSibling) {
+			container.insertBefore(sessionTypePicker, sessionTypePicker.previousElementSibling);
+		}
 	}
 
 	private _renderEmptyState(container: HTMLElement): IDisposable {

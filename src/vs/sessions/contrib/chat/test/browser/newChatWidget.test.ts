@@ -8,7 +8,7 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -114,20 +114,25 @@ interface ISendHarness {
 	readonly logService: { error(message: string, ...args: unknown[]): void };
 }
 
-interface IRenderWorkspacePickerHarness {
-	readonly _workspacePickerVisibleKey: { set(value: boolean): void };
-	readonly _workspacePicker: {
-		renderCategoryTriggers(container: HTMLElement, triggers: readonly { readonly label?: string; readonly tooltip?: string; readonly icon?: { readonly id: string }; readonly attachesContext?: boolean }[]): HTMLElement;
-	};
+interface IRenderSessionTypePickerHarness {
 	readonly _newChatInput: {
 		readonly sessionTypePicker: {
 			render(container: HTMLElement, options?: { className?: string }): void;
 		};
 	};
+}
+
+interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness {
+	readonly _workspacePickerVisibleKey: { set(value: boolean): void };
+	readonly _workspacePicker: {
+		renderCategoryTriggers(container: HTMLElement, triggers: readonly { readonly label?: string; readonly tooltip?: string; readonly icon?: { readonly id: string }; readonly attachesContext?: boolean }[]): HTMLElement;
+	};
+	_renderSessionTypePicker(container: HTMLElement, isQuickChat: boolean): void;
 	_workspacePickerRow: HTMLElement | undefined;
 }
 
 const renderWorkspacePicker = Reflect.get(NewChatWidget.prototype, '_renderWorkspacePicker') as (this: IRenderWorkspacePickerHarness, container: HTMLElement) => IDisposable;
+const renderSessionTypePicker = Reflect.get(NewChatWidget.prototype, '_renderSessionTypePicker') as (this: IRenderSessionTypePickerHarness, container: HTMLElement, isQuickChat: boolean) => void;
 
 function createHarness(
 	pendingPreferredUpgrade: MutableDisposable<IDisposable>,
@@ -190,6 +195,7 @@ suite('NewChatWidget', () => {
 					},
 				},
 			},
+			_renderSessionTypePicker: (target, isQuickChat) => renderSessionTypePicker.call(harness, target, isQuickChat),
 			_workspacePickerRow: undefined,
 		};
 
@@ -210,6 +216,51 @@ suite('NewChatWidget', () => {
 			{ tooltip: 'Choose where the new session runs', icon: 'project', attachesContext: false },
 			{ tooltip: 'Attach an issue or pull request as context', icon: undefined, attachesContext: true },
 		]);
+	});
+
+	test('restores workspace, harness, context DOM and tab order after quick chat', () => {
+		const workspaceRow = document.createElement('div');
+		const quickChatHeader = document.createElement('div');
+		for (const label of ['Workspace', 'Issue/PR']) {
+			const item = document.createElement('a');
+			item.tabIndex = 0;
+			item.textContent = label;
+			workspaceRow.appendChild(item);
+		}
+		let renderedPicker: HTMLElement | undefined;
+		const harness: IRenderSessionTypePickerHarness = {
+			_newChatInput: {
+				sessionTypePicker: {
+					render: (target, options) => {
+						renderedPicker?.remove();
+						const item = document.createElement('a');
+						item.tabIndex = 0;
+						item.className = options?.className ?? '';
+						item.textContent = 'Copilot';
+						target.appendChild(item);
+						renderedPicker = item;
+					},
+				},
+			},
+		};
+
+		const isQuickChat = observableValue('isQuickChat', false);
+		disposables.add(autorun(reader => {
+			const value = isQuickChat.read(reader);
+			renderSessionTypePicker.call(harness, value ? quickChatHeader : workspaceRow, value);
+		}));
+		isQuickChat.set(true, undefined);
+		isQuickChat.set(false, undefined);
+
+		assert.deepStrictEqual({
+			domOrder: Array.from(workspaceRow.children, element => element.textContent),
+			tabOrder: Array.from(workspaceRow.querySelectorAll<HTMLElement>('[tabindex="0"]'), element => element.textContent),
+			quickChatHeader: Array.from(quickChatHeader.children, element => element.textContent),
+		}, {
+			domOrder: ['Workspace', 'Copilot', 'Issue/PR'],
+			tabOrder: ['Workspace', 'Copilot', 'Issue/PR'],
+			quickChatHeader: [],
+		});
 	});
 
 	test('replays a provider change that arrives while creating the draft', async () => {
