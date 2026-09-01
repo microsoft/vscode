@@ -36,7 +36,7 @@ import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from './agentCustomizationItemProvider.js';
 import { agentHostProviderHasBuiltInGitHubMcpServer, COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID } from './agentHostMcpServerSupport.js';
 import { AgentHostDownloadProgress } from './agentHostDownloadProgress.js';
-import { authenticateProtectedResources, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from './agentHostAuth.js';
+import { authenticateProtectedResources, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessions } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
@@ -211,6 +211,15 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			}
 			this._authenticateNotificationResource(notification.resource);
 		}));
+		store.add(this._defaultAccountService.onDidChangeDefaultAccount(() => {
+			this._authenticateWithServer(this._getRootAgents()).catch(() => { /* best-effort */ });
+		}));
+		store.add(this._authenticationService.onDidRegisterAuthenticationProvider(() => {
+			this._authenticateWithServer(this._getRootAgents()).catch(() => { /* best-effort */ });
+		}));
+		store.add(this._authenticationService.onDidChangeSessions(event => {
+			void this._handleAuthenticationSessionsChanged(event.providerId, event.event.removed?.length ?? 0);
+		}));
 
 		// Surface the agent host's lazy, first-use SDK download as a progress
 		// notification. The Agents window renders this via its own sessions
@@ -363,15 +372,26 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		store.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));
 		modelProvider.updateModels(agent.models);
 
-		// Re-authenticate when credentials change
-		store.add(this._defaultAccountService.onDidChangeDefaultAccount(() => {
-			const agents = this._getRootAgents();
-			this._authenticateWithServer(agents).catch(() => { /* best-effort */ });
-		}));
-		store.add(this._authenticationService.onDidChangeSessions(() => {
-			const agents = this._getRootAgents();
-			this._authenticateWithServer(agents).catch(() => { /* best-effort */ });
-		}));
+	}
+
+	private async _handleAuthenticationSessionsChanged(providerId: string, removedSessionCount: number): Promise<void> {
+		const agents = this._getRootAgents();
+		if (removedSessionCount > 0) {
+			const generation = this._authenticationGeneration;
+			try {
+				await this._instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, agents, providerId, {
+					authTokenCache: this._authTokenCache,
+					logPrefix: '[AgentHost]',
+					isCurrent: () => this._isAuthenticationCurrent(generation),
+					authenticate: request => this._authenticateIfCurrent(request, generation),
+				});
+			} catch (error) {
+				if (!isCancellationError(error)) {
+					this._logService.error('[AgentHost] Failed to revoke removed authentication session', error);
+				}
+			}
+		}
+		await this._authenticateWithServer(agents);
 	}
 
 	private _getRootAgents(): readonly AgentInfo[] {

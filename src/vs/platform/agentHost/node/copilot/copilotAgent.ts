@@ -1553,6 +1553,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._updateRestrictedTelemetry(token);
 		this._refreshProxy();
 		if (!token) {
+			// Losing the credential is the only moment this agent knows for certain
+			// that it is unauthenticated. Advertise it so clients can re-supply a
+			// token they still hold; another window may have revoked this one while
+			// its own authentication provider was still loading. Without this the
+			// host stays silently unauthenticated -- publishing an empty model list
+			// -- until a window reloads, because the resulting SDK failure is a
+			// local `InvalidArg` rather than a 401 and never reaches
+			// `_handleCopilotSessionAuthRequired`.
+			this._authenticationRequired.set({
+				resource: this._gitHubEndpointService.getCopilotResource(),
+				reason: AuthRequiredReason.Required,
+			}, undefined);
 			await this._requestClientRestart('GitHub authentication cleared');
 			void this._scheduleModelRefresh();
 			return;

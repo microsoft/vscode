@@ -2359,6 +2359,37 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('requests reauthentication when the credential is cleared', async () => {
+		const client = new TestCopilotClient([], [{
+			id: 'gpt-4o',
+			name: 'GPT-4o',
+		}]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const authRequests: Array<{ readonly resource: ProtectedResourceMetadata; readonly reason?: string }> = [];
+		disposables.add(autorun(reader => {
+			const requirement = agent.authenticationRequired.read(reader);
+			if (requirement) {
+				authRequests.push(requirement);
+			}
+		}));
+		try {
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+			await waitForState(agent.models, models => models.length > 0);
+			// Another client revoked the shared credential; the resulting SDK failure
+			// is a local InvalidArg rather than a 401, so the cleared token itself has
+			// to advertise the requirement or no client is ever asked to re-supply one.
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, '');
+			await waitForState(agent.models, models => models.length === 0);
+
+			assert.deepStrictEqual(authRequests, [{
+				resource: GITHUB_COPILOT_PROTECTED_RESOURCE,
+				reason: 'required',
+			}]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('retries refreshing models after a transient failure', async () => {
 		const client = new TestCopilotClient([], [{
 			id: 'gpt-4o',

@@ -26,7 +26,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { OpenAgentHostStateFileAction } from '../../agentHost/browser/openAgentHostStateFileAction.js';
-import { authenticateProtectedResources, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
+import { authenticateProtectedResources, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessions } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
@@ -160,7 +160,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 		this._register(this._remoteAgentHostService.onDidChangeConnections(() => this._reconcile()));
 		this._register(this._defaultAccountService.onDidChangeDefaultAccount(() => this._authenticateAllConnections()));
-		this._register(this._authenticationService.onDidChangeSessions(() => this._authenticateAllConnections()));
+		this._register(this._authenticationService.onDidRegisterAuthenticationProvider(() => this._authenticateAllConnections()));
+		this._register(this._authenticationService.onDidChangeSessions(event => {
+			void this._handleAuthenticationSessionsChanged(event.providerId, event.event.removed?.length ?? 0);
+		}));
 
 		this._reconcile();
 	}
@@ -450,6 +453,27 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				this._authenticateWithConnection(address, connState.connection, rootState.agents).catch(() => { /* best-effort */ });
 			}
 		}
+	}
+
+	private async _handleAuthenticationSessionsChanged(providerId: string, removedSessionCount: number): Promise<void> {
+		if (removedSessionCount > 0) {
+			for (const [address, connState] of this._connections) {
+				const rootState = connState.connection.rootState.value;
+				if (!rootState || rootState instanceof Error) {
+					continue;
+				}
+				try {
+					await this._instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, rootState.agents, providerId, {
+						authTokenCache: connState.authTokenCache,
+						logPrefix: '[RemoteAgentHost]',
+						authenticate: this._authenticateCallback(address, connState.connection),
+					});
+				} catch (error) {
+					this._logService.error(`[RemoteAgentHost] Failed to revoke removed authentication session for ${address}`, error);
+				}
+			}
+		}
+		this._authenticateAllConnections();
 	}
 
 	/**
