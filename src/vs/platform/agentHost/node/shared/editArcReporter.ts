@@ -23,7 +23,7 @@ import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostTelemetryService, isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
-import { toInitiatorTelemetry, type IAgentHostInitiatorClassification, type IAgentHostInitiatorTelemetry } from '../agentHostTelemetryReporter.js';
+import { toInitiatorTelemetry, type IAgentHostCopilotSkuClassification, type IAgentHostCopilotSkuTelemetry, type IAgentHostInitiatorClassification, type IAgentHostInitiatorTelemetry } from '../agentHostTelemetryReporter.js';
 
 export interface IEditArcReporterLaunchParams {
 	readonly clientContext?: IAgentHostClientTelemetryContext;
@@ -316,7 +316,7 @@ class EditArcReporter extends Disposable {
 		const provider = AgentSession.provider(sessionUri) ?? 'unknown';
 		const originalLineCounts = new EditArcTracker(this._params.beforeText, this._params.initialEdit).getLineCountInfo();
 		const currentLineCounts = this._tracker.getLineCountInfo();
-		const event: IEditArcTelemetryEvent & IAgentHostInitiatorTelemetry = {
+		const event: IEditArcTelemetryEvent & IAgentHostInitiatorTelemetry & IAgentHostCopilotSkuTelemetry = {
 			...toInitiatorTelemetry(this._params.clientContext),
 			sourceKeyCleaned: 'source:Chat.applyEdits',
 			extensionId: undefined,
@@ -340,7 +340,7 @@ class EditArcReporter extends Disposable {
 			currentLineCount: currentLineCounts.insertedLineCounts,
 			currentDeletedLineCount: currentLineCounts.deletedLineCounts,
 		};
-		this._telemetryService.publicLog2<IEditArcTelemetryEvent & IAgentHostInitiatorTelemetry, IEditArcTelemetryClassification & IAgentHostInitiatorClassification>('editTelemetry.reportEditArc', event);
+		this._telemetryService.publicLog2<IEditArcTelemetryEvent & IAgentHostInitiatorTelemetry & IAgentHostCopilotSkuTelemetry, IEditArcTelemetryClassification & IAgentHostInitiatorClassification & IAgentHostCopilotSkuClassification>('editTelemetry.reportEditArc', event);
 		if (provider === 'copilotcli' && isAgentHostTelemetryService(this._telemetryService)) {
 			const {
 				didBranchChange,

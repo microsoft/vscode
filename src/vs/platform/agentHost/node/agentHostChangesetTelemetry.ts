@@ -7,7 +7,7 @@ import { URI } from '../../../base/common/uri.js';
 import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentSession } from '../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import { toInitiatorTelemetry, type IAgentHostInitiatorClassification, type IAgentHostInitiatorTelemetry } from './agentHostTelemetryReporter.js';
+import { toInitiatorTelemetry, type IAgentHostCopilotSkuClassification, type IAgentHostCopilotSkuTelemetry, type IAgentHostInitiatorClassification, type IAgentHostInitiatorTelemetry } from './agentHostTelemetryReporter.js';
 
 /** The static changeset slot a compute was for. */
 export type StaticChangesetTelemetryKind = 'branch' | 'session' | 'uncommitted';
@@ -114,7 +114,7 @@ export type ChangesetComputedKind = StaticChangesetTelemetryKind | 'turn';
 /** The union of static and per-turn compute outcomes. */
 export type ChangesetComputedOutcome = StaticChangesetOutcome | TurnChangesetOutcome;
 
-type ChangesetComputedEvent = IAgentHostInitiatorTelemetry & {
+type ChangesetComputedEvent = IAgentHostInitiatorTelemetry & IAgentHostCopilotSkuTelemetry & {
 	provider: string;
 	agentSessionId: string;
 	turnId?: string;
@@ -131,7 +131,7 @@ type ChangesetComputedEvent = IAgentHostInitiatorTelemetry & {
 	trackedEditFallbackFolderCount?: number;
 };
 
-type ChangesetComputedClassification = IAgentHostInitiatorClassification & {
+type ChangesetComputedClassification = IAgentHostInitiatorClassification & IAgentHostCopilotSkuClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	turnId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For a turn changeset, the turn whose changeset was computed; for a static changeset, the turn that drove the recompute when one did (absent for truncation/refresh recomputes).' };

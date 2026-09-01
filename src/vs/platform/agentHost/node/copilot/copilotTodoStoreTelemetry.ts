@@ -8,12 +8,12 @@ import type { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { isSubagentSession } from '../../common/state/sessionState.js';
-import { toInitiatorTelemetry, type IAgentHostInitiatorClassification, type IAgentHostInitiatorTelemetry } from '../agentHostTelemetryReporter.js';
+import { toInitiatorTelemetry, type IAgentHostCopilotSkuClassification, type IAgentHostCopilotSkuTelemetry, type IAgentHostInitiatorClassification, type IAgentHostInitiatorTelemetry } from '../agentHostTelemetryReporter.js';
 
 type TodoStoreOperation = 'read' | 'write' | 'mixed';
 type TodoStoreTarget = 'todos' | 'todo_deps' | 'both';
 
-type TodoStoreOperationEvent = IAgentHostInitiatorTelemetry & {
+type TodoStoreOperationEvent = IAgentHostInitiatorTelemetry & IAgentHostCopilotSkuTelemetry & {
 	operation: TodoStoreOperation;
 	target: TodoStoreTarget;
 	toolCallId: string;
@@ -22,7 +22,7 @@ type TodoStoreOperationEvent = IAgentHostInitiatorTelemetry & {
 	isSubagentSession: boolean;
 };
 
-type TodoStoreOperationClassification = IAgentHostInitiatorClassification & {
+type TodoStoreOperationClassification = IAgentHostInitiatorClassification & IAgentHostCopilotSkuClassification & {
 	operation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the SQL operation read from, wrote to, or both read from and wrote to todo storage.' };
 	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the SQL operation referenced todo items, todo dependencies, or both.' };
 	toolCallId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the SQL tool call, used to correlate with generic tool telemetry.' };
