@@ -487,6 +487,8 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 		// default check would misdescribe both of these.
 		case AgentSystemNotificationKind.AgentMergeEnabled:
 			return { kind: 'systemNotification', content: markdown, icon: Codicon.gitMerge };
+		case AgentSystemNotificationKind.AgentMergeConfigurationChanged:
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.settingsGear };
 		case AgentSystemNotificationKind.AgentMergeDisabled:
 			return { kind: 'systemNotification', content: markdown, icon: Codicon.circleSlash };
 		default:

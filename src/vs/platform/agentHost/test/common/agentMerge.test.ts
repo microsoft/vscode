@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentMergeConfiguration, AGENT_MERGE_UNKNOWN_COMMIT, evaluateAgentMerge, getNonMergeSessionConfigValues, readAgentMergeSessionState, shouldStopMergingAfterAgentChanges } from '../../common/agentMerge.js';
+import { AgentMergeConfiguration, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeEnabledNotice, evaluateAgentMerge, getNonMergeSessionConfigValues, readAgentMergeSessionState, shouldStopMergingAfterAgentChanges } from '../../common/agentMerge.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
 
@@ -208,6 +208,84 @@ suite('Agent Merge gate', () => {
 			ifUnchanged: { mergePullRequest: 'ifUnchanged' },
 			unknown: undefined,
 		});
+	});
+
+	test('explains what Agent Merge does when it starts', () => {
+		assert.strictEqual(agentMergeEnabledNotice({ branchName: 'feature' }, {
+			...configuration,
+			mergePullRequest: 'never',
+		}), [
+			'Agent Merge is on for `feature`. It will wait for a pull request on this branch, then monitor it.',
+			'It will ask the agent to address new pull request review comments.',
+			'It will ask the agent to fix failing CI checks.',
+			'It will ask the agent to resolve merge conflicts and update the branch when it falls behind.',
+			'Replies it posts will identify Agent Merge as the source.',
+			'After each update, it will wait for new CI results and review comments.',
+			'It will not merge the pull request automatically and will keep monitoring it.',
+		].join(' '));
+	});
+
+	test('describes effective Agent Merge configuration changes', () => {
+		const previous: AgentMergeConfiguration = {
+			...configuration,
+			mergePullRequest: 'never',
+			mergeMethod: 'auto',
+			replyAttribution: true,
+		};
+		const current: AgentMergeConfiguration = {
+			...previous,
+			addressReviews: false,
+			fixCI: false,
+			resolveConflicts: false,
+			mergePullRequest: 'always',
+			mergeMethod: 'squash',
+			replyAttribution: false,
+		};
+
+		assert.strictEqual(agentMergeConfigurationChangedNotice(previous, current), [
+			'Agent Merge settings changed.',
+			'It will no longer address new pull request review comments or wait for them before merging.',
+			'It will no longer fix failing CI checks.',
+			'It will no longer resolve merge conflicts or update a behind branch.',
+			'It will now merge the pull request automatically when it is ready.',
+			'It will now squash-merge the pull request.',
+		].join(' '));
+	});
+
+	test('describes an already-bound pull request without claiming disabled review behavior', () => {
+		assert.strictEqual(agentMergeEnabledNotice({
+			branchName: 'feature',
+			pullRequestUrl: 'https://github.com/octo/repo/pull/1',
+		}, {
+			...configuration,
+			addressReviews: false,
+			mergePullRequest: 'always',
+			mergeMethod: 'squash',
+		}), [
+			'Agent Merge is on for `feature` and is monitoring its pull request.',
+			'It will ask the agent to fix failing CI checks.',
+			'It will ask the agent to resolve merge conflicts and update the branch when it falls behind.',
+			'After each update, it will wait for new CI results.',
+			'When the pull request is ready, Agent Merge will merge it automatically.',
+			'It will squash-merge the pull request.',
+		].join(' '));
+	});
+
+	test('announces reply-attribution changes only while review replies are enabled', () => {
+		assert.deepStrictEqual({
+			enabled: agentMergeConfigurationChangedNotice(configuration, { ...configuration, replyAttribution: false }),
+			reviewsDisabled: agentMergeConfigurationChangedNotice(
+				{ ...configuration, addressReviews: false },
+				{ ...configuration, addressReviews: false, replyAttribution: false },
+			),
+		}, {
+			enabled: 'Agent Merge settings changed. Replies it posts will no longer identify Agent Merge as the source.',
+			reviewsDisabled: undefined,
+		});
+	});
+
+	test('omits an Agent Merge configuration notice when effective behavior is unchanged', () => {
+		assert.strictEqual(agentMergeConfigurationChangedNotice(configuration, { ...configuration }), undefined);
 	});
 
 	test('only merges automatically when the merge choice is not "never"', () => {
