@@ -10,6 +10,7 @@ import { structuralEquals } from '../../../../base/common/equals.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derivedOpts, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -149,6 +150,20 @@ function getChangesDiffEditor(pane: IEditorPane | undefined, resource: URI): Dif
 	return codeEditor?.diffEditor instanceof DiffEditorWidget ? codeEditor.diffEditor : undefined;
 }
 
+function getExpandedChangesDiffEditor(pane: IEditorPane | undefined, resource: URI): DiffEditorWidget | undefined {
+	if (pane instanceof SessionChangesEditor) {
+		pane.expand(resource);
+	} else if (pane instanceof MultiDiffEditor) {
+		const viewModel = pane.viewModel;
+		const item = viewModel?.items.read(undefined)
+			.find(item => isEqual(item.modifiedUri, resource) || isEqual(item.originalUri, resource));
+		if (viewModel && item) {
+			viewModel.expand(item);
+		}
+	}
+	return getChangesDiffEditor(pane, resource);
+}
+
 /**
  * Reveals all hidden unchanged regions for the file shown in a diff row of the
  * Agents window's Changes editor, showing the whole file at once (a per-file
@@ -181,7 +196,7 @@ class ExpandFullFileAction extends Action2 {
 			return;
 		}
 
-		getChangesDiffEditor(accessor.get(IEditorService).activeEditorPane, resource)?.showAllUnchangedRegions();
+		getExpandedChangesDiffEditor(accessor.get(IEditorService).activeEditorPane, resource)?.showAllUnchangedRegions();
 	}
 }
 registerAction2(ExpandFullFileAction);
@@ -222,7 +237,7 @@ class CollapseUnchangedRegionsAction extends Action2 {
 			return;
 		}
 
-		getChangesDiffEditor(accessor.get(IEditorService).activeEditorPane, resource)?.collapseAllUnchangedRegions();
+		getExpandedChangesDiffEditor(accessor.get(IEditorService).activeEditorPane, resource)?.collapseAllUnchangedRegions();
 	}
 }
 registerAction2(CollapseUnchangedRegionsAction);

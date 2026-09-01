@@ -38,6 +38,49 @@ suite('MultiDiffEditorWidget', () => {
 		sinon.restore();
 	});
 
+	test('models bottom padding as trailing scroll content', async () => {
+		const services = new ServiceCollection();
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IActionViewItemService, new NullActionViewItemService());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() { }());
+		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		services.set(IStorageService, disposables.add(new InMemoryStorageService()));
+		services.set(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(): IMenu {
+				return new class extends mock<IMenu>() {
+					override readonly onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose(): void { }
+				}();
+			}
+		}());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const container = document.createElement('div');
+		const widget = instantiationService.createInstance(
+			MultiDiffEditorWidget,
+			container,
+			{} satisfies IWorkbenchUIElementFactory,
+			undefined,
+		);
+		widget.layout(new Dimension(800, 200));
+		widget.setPaddingBottom(24);
+
+		try {
+			const state = await waitForState(widget.getLayoutDebugState(), state => state.scrollDimensions.scrollHeight === 24);
+			assert.deepStrictEqual({
+				logicalScrollHeight: state.layout.logicalScrollHeight,
+				scrollHeight: state.scrollDimensions.scrollHeight,
+				diffItems: state.items.length,
+			}, {
+				logicalScrollHeight: 24,
+				scrollHeight: 24,
+				diffItems: 0,
+			});
+		} finally {
+			widget.dispose();
+		}
+	});
+
 	test('applies document and responsive layout options before attaching the diff model', async () => {
 		const services = new ServiceCollection();
 		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
