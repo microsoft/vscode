@@ -6,7 +6,7 @@ import { addDisposableListener, EventHelper, EventType, getWindow, h, scheduleAt
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
-import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, globalTransaction, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -106,8 +106,12 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 				h('div.editorContainer@editor'),
 			])
 		]) as Record<string, HTMLElement>;
+		// One node per item, so that focus inside an overflowing widget is attributed to this item's editors only.
+		const overflowWidgetsDomNode = h('div.overflowWidgets').root;
+		this._overflowWidgetsDomNode.appendChild(overflowWidgetsDomNode);
+		this._register(toDisposable(() => overflowWidgetsDomNode.remove()));
 		this.editor = this._register(this._instantiationService.createInstance(DiffEditorWidget, this._elements.editor, {
-			overflowWidgetsDomNode: this._overflowWidgetsDomNode,
+			overflowWidgetsDomNode,
 			fixedOverflowWidgets: true
 		}, {
 			runWithOriginalEditorScrollAnchor: (anchorLineNumber, update) => this._runWithEditorScrollAnchor(
@@ -119,6 +123,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 				update
 			),
 		}));
+		this._register(this.editor.getModifiedEditor().invokeWithinContext(accessor => accessor.get(IContextKeyService)).createScoped(overflowWidgetsDomNode));
 		this.isModifedFocused = observableCodeEditor(this.editor.getModifiedEditor()).isFocused;
 		this.isOriginalFocused = observableCodeEditor(this.editor.getOriginalEditor()).isFocused;
 		this.isFocused = derived(this, reader => this.isModifedFocused.read(reader) || this.isOriginalFocused.read(reader));

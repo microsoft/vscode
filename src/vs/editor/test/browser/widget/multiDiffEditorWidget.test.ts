@@ -15,12 +15,16 @@ import { AccessibilitySupport } from '../../../../platform/accessibility/common/
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IActionViewItemService, NullActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { IMenu, IMenuService } from '../../../../platform/actions/common/actions.js';
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { emptyProgressRunner, IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/diffProviderFactoryService.js';
 import { DiffEditorWidget } from '../../../browser/widget/diffEditor/diffEditorWidget.js';
 import { RefCounted } from '../../../browser/widget/diffEditor/utils.js';
+import { DiffEditorItemTemplate } from '../../../browser/widget/multiDiffEditor/diffEditorItemTemplate.js';
 import { IDocumentDiffItem, IMultiDiffEditorModel } from '../../../browser/widget/multiDiffEditor/model.js';
 import { MultiDiffEditorWidget } from '../../../browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { IWorkbenchUIElementFactory } from '../../../browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
@@ -38,8 +42,7 @@ suite('MultiDiffEditorWidget', () => {
 		sinon.restore();
 	});
 
-	test('applies document and responsive layout options before attaching the diff model', async () => {
-		const services = new ServiceCollection();
+	function createServices(services: ServiceCollection = new ServiceCollection()) {
 		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
 		services.set(IActionViewItemService, new NullActionViewItemService());
 		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() { }());
@@ -54,7 +57,11 @@ suite('MultiDiffEditorWidget', () => {
 				}();
 			}
 		}());
-		const instantiationService = createCodeEditorServices(disposables, services);
+		return createCodeEditorServices(disposables, services);
+	}
+
+	test('applies document and responsive layout options before attaching the diff model', async () => {
+		const instantiationService = createServices();
 
 		const originalUri = URI.parse('inmemory://original/test.js');
 		const modifiedUri = URI.parse('inmemory://modified/test.js');
@@ -204,6 +211,26 @@ suite('MultiDiffEditorWidget', () => {
 				documentItem.dispose();
 			}
 		}
+	});
+
+	test('issue #203786: Unable to rename a variable in multi diff editor', () => {
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const instantiationService = createServices(new ServiceCollection([IContextKeyService, contextKeyService]));
+		const overflowWidgetsDomNode = document.createElement('div');
+
+		const createTemplate = (name: string) => {
+			const template = disposables.add(instantiationService.createInstance(DiffEditorItemTemplate, document.createElement('div'), overflowWidgetsDomNode, {}, undefined));
+			const editor = template.editor.getModifiedEditor();
+			editor.invokeWithinContext(accessor => accessor.get(IContextKeyService)).createKey('overflowWidgetTestKey', name);
+			return () => contextKeyService.getContext(editor.getOverflowWidgetsDomNode() ?? null).getValue('overflowWidgetTestKey');
+		};
+		const readContextFromOverflowNodeOfA = createTemplate('a');
+		const readContextFromOverflowNodeOfB = createTemplate('b');
+
+		assert.deepStrictEqual(
+			{ a: readContextFromOverflowNodeOfA(), b: readContextFromOverflowNodeOfB() },
+			{ a: 'a', b: 'b' },
+		);
 	});
 });
 
