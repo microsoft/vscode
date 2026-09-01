@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { BrowserViewSessionSelector, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserViewAudience, IBrowserViewBounds, IBrowserViewState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewEditorOpenOptions, IBrowserViewCreateOptions, IBrowserViewCreationContext, IBrowserViewWindowConfiguration, IBrowserDeviceProfile } from '../common/browserView.js';
 import { clipboard, Menu, MenuItem } from 'electron';
@@ -138,6 +138,23 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return getEvent(view);
 	}
 
+	/**
+	 * An event that fires `void` once for every subscriber, on the next tick.
+	 * Used for the terminal `onDidClose` event when the view is already gone,
+	 * so a consumer that lost the IPC subscription race still receives a single
+	 * close notification and tears down its stale editor/model.
+	 */
+	private readonly _onceClosed: Event<void> = (listener, thisArgs?, disposables?) => {
+		const handle = setTimeout(() => listener.call(thisArgs));
+		const disposable = toDisposable(() => clearTimeout(handle));
+		if (Array.isArray(disposables)) {
+			disposables.push(disposable);
+		} else if (disposables) {
+			disposables.add(disposable);
+		}
+		return disposable;
+	};
+
 	private _getViewInfo(view: BrowserView): IBrowserViewInfo {
 		return {
 			id: view.id,
@@ -196,7 +213,15 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	}
 
 	onDynamicDidClose(id: string) {
-		return this._getBrowserViewEvent(id, view => view.onDidClose);
+		const view = this.browserViews.get(id);
+		if (!view) {
+			// `onDidClose` is terminal: the consumer (`BrowserEditorInput`) only
+			// auto-disposes from this event. If the view is already gone when the
+			// subscription loses the IPC race, emit a single close notification so
+			// the stale editor/model is torn down instead of leaking.
+			return this._onceClosed;
+		}
+		return view.onDidClose;
 	}
 
 	onDynamicDidSelectElement(id: string) {
