@@ -34,6 +34,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { isVirtualWorkspace } from '../../../../../platform/workspace/common/virtualWorkspace.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IPowerService } from '../../../../services/power/common/powerService.js';
 import { IChatDebugService } from '../chatDebugService.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { awaitStatsForSession } from '../chat.js';
@@ -277,6 +278,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
+		@IPowerService private readonly powerService: IPowerService,
 	) {
 		super();
 
@@ -1499,6 +1501,15 @@ export class ChatService extends Disposable implements IChatService {
 		const source = store.add(new CancellationTokenSource());
 		const token = source.token;
 		const sendRequestInternal = async () => {
+			let powerSaveBlockerId: number | undefined;
+			if (options?.modeInfo?.kind === ChatModeKind.Agent) {
+				try {
+					powerSaveBlockerId = await this.powerService.startPowerSaveBlocker('prevent-app-suspension');
+				} catch (error) {
+					this.logService.warn('[ChatService] Failed to start power save blocker:', error);
+				}
+			}
+
 			const progressCallback = (progress: IChatProgress[]) => {
 				if (token.isCancellationRequested) {
 					return;
@@ -1959,6 +1970,13 @@ export class ChatService extends Disposable implements IChatService {
 					request.response?.complete();
 				}
 			} finally {
+				if (powerSaveBlockerId !== undefined) {
+					try {
+						await this.powerService.stopPowerSaveBlocker(powerSaveBlockerId);
+					} catch (error) {
+						this.logService.warn('[ChatService] Failed to stop power save blocker:', error);
+					}
+				}
 				store.dispose();
 			}
 		};
