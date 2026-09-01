@@ -262,6 +262,21 @@ suite('Ternary Search Tree', () => {
 		assert.strictEqual(trie.get('foobar'), 3);
 	});
 
+	test('TernarySearchTree - has is not satisfied by prefixes', function () {
+
+		const trie = TernarySearchTree.forStrings<number>();
+		trie.set('foobar', 1);
+
+		assert.ok(trie.has('foobar'));
+		assert.strictEqual(trie.get('foo'), undefined);
+		assert.ok(!trie.has('foo'));
+		assert.ok(!trie.has('f'));
+		assert.ok(!trie.has('x'));
+
+		trie.set('bar', 0);
+		assert.ok(trie.has('bar'));
+	});
+
 	test('TernarySearchTree - findLongestMatch', function () {
 
 		const trie = TernarySearchTree.forStrings<number>();
