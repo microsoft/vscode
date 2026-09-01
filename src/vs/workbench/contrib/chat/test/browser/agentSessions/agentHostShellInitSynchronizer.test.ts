@@ -90,12 +90,14 @@ suite('AgentHostShellInitSynchronizer', () => {
 		sessionsWindow?: boolean;
 		remoteAuthority?: string;
 		onDidChangeCollections?: Event<MergedEnvironmentVariableCollection>;
+		onDispatch?: (config: Record<string, unknown>) => void;
 	}) {
 		const dispatched: Record<string, unknown>[] = [];
 		const agentHostService = new class extends mock<IAgentHostService>() {
 			override dispatch(_uri: string, action: Parameters<IAgentHostService['dispatch']>[1]): void {
 				if (action.type === ActionType.SessionConfigChanged) {
 					dispatched.push(action.config);
+					options?.onDispatch?.(action.config);
 				}
 			}
 		};
@@ -195,6 +197,34 @@ suite('AgentHostShellInitSynchronizer', () => {
 		subscription.set(state({ values: dispatched[0] }));
 		await timeout(0);
 		assert.strictEqual(dispatched.length, 1);
+	});
+
+	test('two same-folder windows with different activation do not ping-pong on echoes', async () => {
+		const subscriptionA = disposables.add(new TestSubscription(state()));
+		const subscriptionB = disposables.add(new TestSubscription(state()));
+		const echo = (config: Record<string, unknown>) => {
+			subscriptionA.set(state({ values: config }));
+			subscriptionB.set(state({ values: config }));
+		};
+		const windowA = create({
+			enabled: true,
+			collection: collection([{ variable: ACTIVATION_VARIABLE, value: 'activate-a', folder: folderA }]),
+			onDispatch: echo,
+		});
+		const windowB = create({
+			enabled: true,
+			collection: collection([{ variable: ACTIVATION_VARIABLE, value: 'activate-b', folder: folderA }]),
+			onDispatch: echo,
+		});
+		disposables.add(windowA.synchronizer.register(session, subscriptionA));
+		disposables.add(windowB.synchronizer.register(session, subscriptionB));
+
+		await timeout(0);
+		await timeout(0);
+
+		// Each initial local publish may win once. Echoes do not schedule a
+		// counter-publish, so the count remains bounded and converges.
+		assert.strictEqual(windowA.dispatched.length + windowB.dispatched.length, 2);
 	});
 
 	test('does not publish from a window that does not own the session folder', async () => {

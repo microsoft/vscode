@@ -42,6 +42,7 @@ interface IRegistration {
 	readonly subscription: IAgentSubscription<SessionState>;
 	readonly store: DisposableStore;
 	readonly scheduler: RunOnceScheduler;
+	schemaReady: boolean;
 }
 
 /**
@@ -81,9 +82,22 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 
 		const store = new DisposableStore();
 		const scheduler = store.add(new RunOnceScheduler(() => this._publish(key), 0));
-		const registration = { subscription, store, scheduler };
+		const registration: IRegistration = {
+			subscription,
+			store,
+			scheduler,
+			schemaReady: this._supportsShellInit(subscription.value),
+		};
 		this._registrations.set(key, registration);
-		store.add(subscription.onDidChange(() => scheduler.schedule()));
+		store.add(subscription.onDidChange(state => {
+			// Session config echoes are shared across windows. Once the schema is
+			// ready, local inputs and pre-turn reconcile own publication; reacting
+			// to every echo can make two qualifying windows alternate forever.
+			if (!registration.schemaReady && this._supportsShellInit(state)) {
+				registration.schemaReady = true;
+				scheduler.schedule();
+			}
+		}));
 		store.add(toDisposable(() => {
 			if (this._registrations.get(key) === registration) {
 				this._registrations.delete(key);
@@ -104,6 +118,10 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 		for (const registration of this._registrations.values()) {
 			registration.scheduler.schedule();
 		}
+	}
+
+	private _supportsShellInit(state: SessionState | Error | undefined): state is SessionState {
+		return !!state && !(state instanceof Error) && !!state.config?.schema.properties[SessionConfigKey.ShellInitSnippets];
 	}
 
 	private _publish(key: string): void {
