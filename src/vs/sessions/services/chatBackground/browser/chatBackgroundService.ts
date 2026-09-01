@@ -6,17 +6,24 @@
 import * as css from '../../../../base/browser/cssValue.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { getMediaMime } from '../../../../base/common/mime.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute } from '../../../../base/common/path.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { isEqual, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ColorScheme, isDark, isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundConfiguredContext, SessionsChatBackgroundImageConfiguredContext } from '../../../common/contextkeys.js';
+import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 
 export const AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING = 'chat.agentSessions.preferredDarkBackgroundImage';
 export const AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING = 'chat.agentSessions.preferredLightBackgroundImage';
@@ -79,12 +86,21 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 	private readonly _onDidChangeBackground = this._register(new Emitter<void>());
 	readonly onDidChangeBackground = this._onDidChangeBackground.event;
 	private backgroundImageLayout: ChatBackgroundImageLayout;
+	private loadedBackgroundImage: { readonly source: URI; readonly backgroundImage: string; readonly objectUrl: string } | undefined;
+	private loadingBackgroundImage: URI | undefined;
+	private failedBackgroundImage: URI | undefined;
+	private backgroundImageLoadVersion = 0;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IFileService private readonly fileService: IFileService,
+		@ILogService private readonly logService: ILogService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -105,6 +121,7 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 			const backgroundImageLayoutChanged = event.affectsConfiguration(AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING);
 			let backgroundChanged = backgroundImageChanged;
 			if (backgroundImageChanged) {
+				this.resetLoadedBackgroundImage();
 				updateContextKeys();
 			}
 			if (backgroundImageLayoutChanged) {
@@ -119,6 +136,19 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 			}
 		}));
 		this._register(this.themeService.onDidColorThemeChange(() => {
+			this.resetLoadedBackgroundImage();
+			updateContextKeys();
+			this._onDidChangeBackground.fire();
+		}));
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => {
+			this.resetLoadedBackgroundImage();
+			this.backgroundImageLayout = this.readConfiguredBackgroundImageLayout();
+			updateContextKeys();
+			this._onDidChangeBackground.fire();
+		}));
+		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => {
+			this.resetLoadedBackgroundImage();
+			this.backgroundImageLayout = this.readConfiguredBackgroundImageLayout();
 			updateContextKeys();
 			this._onDidChangeBackground.fire();
 		}));
@@ -132,11 +162,17 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 		if (configuredBackground?.kind === 'codicons') {
 			return configuredBackground;
 		}
+		const backgroundImage = configuredBackground ? this.getBackgroundImageCss(configuredBackground.image) : undefined;
 		return configuredBackground ? {
 			kind: 'image',
-			backgroundImage: css.asCSSUrl(configuredBackground.image),
+			backgroundImage: backgroundImage ?? css.asCSSUrl(undefined),
 			...backgroundImageStyles[this.getBackgroundImageLayout()],
 		} : undefined;
+	}
+
+	override dispose(): void {
+		this.resetLoadedBackgroundImage();
+		super.dispose();
 	}
 
 	getConfiguredBackgroundImage(): URI | undefined {
@@ -155,7 +191,10 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 
 	async setBackground(background: URI | SessionsChatBackgroundPreset): Promise<void> {
 		const setting = this.getBackgroundImageSetting(this.themeService.getColorTheme().type);
-		await this.configurationService.updateValue(setting, URI.isUri(background) ? background.fsPath : background, ConfigurationTarget.USER);
+		const resource = this.getWorkspaceResource();
+		const target = this.getConfigurationTarget(setting, resource);
+		const value = URI.isUri(background) ? this.toStoredBackgroundImage(background, target, resource) : background;
+		await this.updateConfigurationValue(setting, value, target, resource);
 		if (URI.isUri(background)) {
 			this.storeRecentBackgroundImage(background);
 		}
@@ -163,7 +202,8 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 
 	async clearBackground(): Promise<void> {
 		const setting = this.getBackgroundImageSetting(this.themeService.getColorTheme().type);
-		await this.configurationService.updateValue(setting, undefined, ConfigurationTarget.USER);
+		const resource = this.getWorkspaceResource();
+		await this.updateConfigurationValue(setting, undefined, this.getConfigurationTarget(setting, resource), resource);
 	}
 
 	getBackgroundImageLayout(): ChatBackgroundImageLayout {
@@ -176,8 +216,14 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 			this._onDidChangeBackground.fire();
 		}
 		if (persist) {
+			const resource = this.getWorkspaceResource();
 			try {
-				await this.configurationService.updateValue(AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, layout, ConfigurationTarget.APPLICATION);
+				await this.updateConfigurationValue(
+					AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING,
+					layout,
+					this.getConfigurationTarget(AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, resource),
+					resource
+				);
 			} catch (error) {
 				const configuredLayout = this.readConfiguredBackgroundImageLayout();
 				if (configuredLayout !== this.backgroundImageLayout) {
@@ -190,7 +236,7 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 	}
 
 	private readConfiguredBackgroundImageLayout(): ChatBackgroundImageLayout {
-		const value = this.configurationService.getValue<string>(AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING);
+		const value = this.getConfigurationValue(AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, this.getWorkspaceResource());
 		return chatBackgroundImageLayoutValues.includes(value as ChatBackgroundImageLayout)
 			? value as ChatBackgroundImageLayout
 			: 'repeat';
@@ -204,11 +250,12 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 
 	private getConfiguredBackground(): { readonly kind: 'codicons' } | { readonly kind: 'image'; readonly image: URI } | undefined {
 		const setting = this.getBackgroundImageSetting(this.themeService.getColorTheme().type);
-		const value = this.configurationService.getValue<string>(setting);
+		const resource = this.getWorkspaceResource();
+		const value = this.getConfigurationValue(setting, resource);
 		if (value?.trim() === AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET) {
 			return { kind: 'codicons' };
 		}
-		const image = this.resolveBackgroundImage(value);
+		const image = this.resolveBackgroundImage(value, resource);
 		return image ? { kind: 'image', image } : undefined;
 	}
 
@@ -243,7 +290,62 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 		);
 	}
 
-	private resolveBackgroundImage(value: string | undefined): URI | undefined {
+	private getWorkspaceResource(): URI | undefined {
+		return this.workspaceContextService.getWorkspace().folders[0]?.uri;
+	}
+
+	private getConfigurationValue(setting: string, resource: URI | undefined): string | undefined {
+		if (!this.workspaceTrustManagementService.isWorkspaceTrusted()) {
+			return this.getTrustedConfigurationValue(this.configurationService.inspect<string>(setting));
+		}
+		return resource
+			? this.configurationService.getValue<string>(setting, { resource })
+			: this.configurationService.getValue<string>(setting);
+	}
+
+	private getConfigurationTarget(setting: string, resource: URI | undefined): ConfigurationTarget {
+		if (!this.workspaceTrustManagementService.isWorkspaceTrusted()) {
+			return ConfigurationTarget.USER;
+		}
+		const inspected = this.configurationService.inspect<string>(setting, resource ? { resource } : undefined);
+		if (resource && inspected?.workspaceFolderValue !== undefined) {
+			return ConfigurationTarget.WORKSPACE_FOLDER;
+		}
+		if (inspected?.workspaceValue !== undefined) {
+			return ConfigurationTarget.WORKSPACE;
+		}
+		return ConfigurationTarget.USER;
+	}
+
+	private getTrustedConfigurationValue(inspected: IConfigurationValue<string> | undefined): string | undefined {
+		return inspected?.policyValue
+			?? inspected?.memoryValue
+			?? inspected?.userValue
+			?? inspected?.applicationValue
+			?? inspected?.defaultValue;
+	}
+
+	private updateConfigurationValue(setting: string, value: unknown, target: ConfigurationTarget, resource: URI | undefined): Promise<void> {
+		return resource
+			? this.configurationService.updateValue(setting, value, { resource }, target)
+			: this.configurationService.updateValue(setting, value, target);
+	}
+
+	private toStoredBackgroundImage(image: URI, target: ConfigurationTarget, resource: URI | undefined): string {
+		if (
+			resource
+			&& (target === ConfigurationTarget.WORKSPACE || target === ConfigurationTarget.WORKSPACE_FOLDER)
+			&& this.uriIdentityService.extUri.isEqualOrParent(image, resource)
+		) {
+			const relativePath = this.uriIdentityService.extUri.relativePath(resource, image);
+			if (relativePath) {
+				return relativePath;
+			}
+		}
+		return image.scheme === Schemas.file ? image.fsPath : image.toString();
+	}
+
+	private resolveBackgroundImage(value: string | undefined, resource?: URI): URI | undefined {
 		const candidate = value?.trim();
 		if (!candidate) {
 			return undefined;
@@ -253,7 +355,103 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 			return URI.file(candidate);
 		}
 
-		const uri = URI.parse(candidate);
-		return uri.scheme === Schemas.file ? uri : undefined;
+		if (/^[a-z][a-z\d+.-]*:/i.test(candidate)) {
+			const uri = URI.parse(candidate);
+			return this.isSupportedImageUri(uri) ? uri : undefined;
+		}
+		if (!resource || !this.isSupportedImageUri(resource)) {
+			return undefined;
+		}
+
+		let relativePath: string;
+		try {
+			relativePath = decodeURIComponent(candidate).replaceAll('\\', '/');
+		} catch {
+			return undefined;
+		}
+		if (relativePath.includes('\0') || isAbsolute(relativePath)) {
+			return undefined;
+		}
+
+		const resolved = joinPath(resource, relativePath);
+		return this.uriIdentityService.extUri.isEqualOrParent(resolved, resource) ? resolved : undefined;
+	}
+
+	private isSupportedImageUri(uri: URI): boolean {
+		return uri.scheme === Schemas.file || uri.scheme === Schemas.vscodeRemote || uri.scheme === AGENT_HOST_SCHEME;
+	}
+
+	private getBackgroundImageCss(image: URI): string | undefined {
+		if (image.scheme !== AGENT_HOST_SCHEME) {
+			if (this.loadedBackgroundImage || this.loadingBackgroundImage || this.failedBackgroundImage) {
+				this.resetLoadedBackgroundImage();
+			}
+			return css.asCSSUrl(image);
+		}
+		if (this.loadedBackgroundImage && this.uriIdentityService.extUri.isEqual(this.loadedBackgroundImage.source, image)) {
+			return this.loadedBackgroundImage.backgroundImage;
+		}
+		if (this.loadedBackgroundImage) {
+			this.disposeLoadedBackgroundImage();
+		}
+		if (
+			(!this.loadingBackgroundImage || !this.uriIdentityService.extUri.isEqual(this.loadingBackgroundImage, image))
+			&& (!this.failedBackgroundImage || !this.uriIdentityService.extUri.isEqual(this.failedBackgroundImage, image))
+		) {
+			void this.loadAgentHostBackgroundImage(image);
+		}
+		return undefined;
+	}
+
+	private async loadAgentHostBackgroundImage(image: URI): Promise<void> {
+		const loadVersion = ++this.backgroundImageLoadVersion;
+		this.loadingBackgroundImage = image;
+		this.failedBackgroundImage = undefined;
+		try {
+			const content = await this.fileService.readFile(image);
+			const mime = getMediaMime(image.path);
+			if (!mime?.startsWith('image/')) {
+				throw new Error(`Unsupported chat background image type: ${image.path}`);
+			}
+			const objectUrl = URL.createObjectURL(new Blob([Uint8Array.from(content.value.buffer)], { type: mime }));
+			if (
+				loadVersion !== this.backgroundImageLoadVersion
+				|| !this.uriIdentityService.extUri.isEqual(this.getConfiguredBackgroundImage(), image)
+			) {
+				if (loadVersion === this.backgroundImageLoadVersion) {
+					this.loadingBackgroundImage = undefined;
+				}
+				URL.revokeObjectURL(objectUrl);
+				return;
+			}
+			this.disposeLoadedBackgroundImage();
+			this.loadedBackgroundImage = {
+				source: image,
+				backgroundImage: css.asCSSUrl(URI.parse(objectUrl)),
+				objectUrl,
+			};
+			this.loadingBackgroundImage = undefined;
+			this._onDidChangeBackground.fire();
+		} catch (error) {
+			if (loadVersion === this.backgroundImageLoadVersion) {
+				this.loadingBackgroundImage = undefined;
+				this.failedBackgroundImage = image;
+				this.logService.error(`[SessionsChatBackgroundService] Failed to load background image ${image.toString()}`, error);
+			}
+		}
+	}
+
+	private disposeLoadedBackgroundImage(): void {
+		if (this.loadedBackgroundImage) {
+			URL.revokeObjectURL(this.loadedBackgroundImage.objectUrl);
+			this.loadedBackgroundImage = undefined;
+		}
+	}
+
+	private resetLoadedBackgroundImage(): void {
+		this.backgroundImageLoadVersion++;
+		this.loadingBackgroundImage = undefined;
+		this.failedBackgroundImage = undefined;
+		this.disposeLoadedBackgroundImage();
 	}
 }
