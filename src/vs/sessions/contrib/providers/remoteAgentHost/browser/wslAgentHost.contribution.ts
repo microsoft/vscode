@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IntervalTimer } from '../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
-import { type IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, getEntryTypeConfig } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { type IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, getEntryAddress, getEntryTypeConfig } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IWSLRemoteAgentHostService, WSL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -17,6 +18,16 @@ import { ManagedReconnectAgentHostContribution } from './managedReconnectAgentHo
 export function shouldPauseWSLReconnectAfterFailure(err: unknown): boolean {
 	return isCancellationError(err);
 }
+
+/**
+ * How often to look for cached distros that have started since the last check.
+ *
+ * A stopped distro fails to connect terminally, so no retry stays armed for it.
+ * WSL raises no event when a distro boots, and the user may well start one
+ * outside VS Code, so this poll is the only way a cached host recovers without
+ * a manual action or a reload.
+ */
+const WSL_RUNNING_POLL_MS = 5 * 60 * 1000;
 
 /**
  * Manages session providers for WSL-backed remote agent hosts. The remote
@@ -51,7 +62,36 @@ export class WSLAgentHostContribution extends ManagedReconnectAgentHostContribut
 			}
 		}));
 
+		this._register(new IntervalTimer()).cancelAndSet(() => this._reconnectNewlyRunningDistros(), WSL_RUNNING_POLL_MS);
+
 		this._reconcile();
+	}
+
+	/**
+	 * Ask the service to redial cached distros that are running but not
+	 * connected. Discovery is this contribution's job; the dial itself stays
+	 * with the service, which owns every connection's lifecycle.
+	 */
+	private async _reconnectNewlyRunningDistros(): Promise<void> {
+		if (!this._enabled) {
+			return;
+		}
+		const entries = this._getProviderEntries();
+		if (entries.length === 0) {
+			return;
+		}
+		const running = new Set(await this._wslService.listRunningDistros().catch(() => []));
+		for (const entry of entries) {
+			if (entry.connection.type !== RemoteAgentHostEntryType.WSL || !running.has(entry.connection.distro)) {
+				continue;
+			}
+			const address = getEntryAddress(entry);
+			if (this._remoteAgentHostService.connections.some(connection => connection.address === address)) {
+				continue;
+			}
+			this._logService.info(`[RemoteAgentHost] WSL distro '${entry.connection.distro}' is running again; reconnecting`);
+			this._remoteAgentHostService.reconnect(address, false);
+		}
 	}
 
 	protected override _getProviderEntries(): readonly IRemoteAgentHostEntry[] {

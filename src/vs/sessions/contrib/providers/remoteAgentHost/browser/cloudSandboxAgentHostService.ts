@@ -59,27 +59,22 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 	readonly entries: IObservable<readonly IRemoteAgentHostEntry[]>;
 
 	private readonly _stagedConnections = new Map<string, IStagedCloudSandboxConnection>();
-	private readonly _activeAddresses = new Set<string>();
 	private readonly _entries = observableValue<readonly IRemoteAgentHostEntry[]>(this, []);
 
 	constructor(
 		private readonly _instantiationService: IInstantiationService,
 		private readonly _configurationService: IConfigurationService,
 		private readonly _environmentService: IEnvironmentService,
-		private readonly _remoteAgentHostService: IRemoteAgentHostService,
 	) {
 		super();
 		this.entries = this._entries;
-		this._register(this._remoteAgentHostService.onDidChangeConnections(() => {
-			for (const address of [...this._stagedConnections.keys()]) {
-				if (this._remoteAgentHostService.connections.some(connection => connection.address === address)) {
-					this._activeAddresses.add(address);
-				} else if (this._activeAddresses.delete(address)) {
-					this._stagedConnections.delete(address);
-				}
-			}
-			this._updateEntries();
-		}));
+		// Staging is cleared only by an explicit `unstageConfiguration`, never by
+		// observing the connection disappear. The service withdraws an entry
+		// before arming a retry, so treating that as removal would delete the
+		// staged credentials the retry needs and leave `_scheduleReconnect` with
+		// nothing configured — silently turning every scheduled retry into one
+		// single attempt. `_establish` already unstages on the paths that really
+		// are terminal.
 	}
 
 	stageConfiguration(options: ICloudSandboxConnectOptions, clientToken: ICloudSandboxClientToken): IRemoteAgentHostEntry {
@@ -105,7 +100,6 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 
 	unstageConfiguration(address: string): void {
 		this._stagedConnections.delete(address);
-		this._activeAddresses.delete(address);
 		this._updateEntries();
 	}
 
@@ -205,7 +199,6 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 			this._instantiationService,
 			this._configurationService,
 			this._environmentService,
-			this._remoteAgentHostService,
 		));
 		this._register(this._remoteAgentHostService.registerConnectionFactory(this._connectionFactory));
 	}

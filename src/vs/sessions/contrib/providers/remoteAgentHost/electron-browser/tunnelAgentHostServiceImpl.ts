@@ -17,10 +17,9 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ISharedProcessService } from '../../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
-import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, getEntryAddress, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, getEntryAddress, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import {
 	isTunnelGatewaySelectionRejectedError,
@@ -88,21 +87,17 @@ class TunnelConnectionFactory extends Disposable implements IRemoteAgentHostConn
 	 */
 	private readonly _stagedUserInitiated = new Map<string, boolean>();
 	private readonly _onDidStageTunnelSignal = observableSignalFromEvent(this, this._onDidStageTunnel.event);
-	private readonly _autoConnectEnabled: IObservable<boolean>;
 
 	constructor(
 		private readonly _storage: TunnelAgentHostStorage,
-		private readonly _configurationService: IConfigurationService,
 		private readonly _createConnection: (entry: IRemoteAgentHostEntry, authProvider: 'github' | 'microsoft' | undefined, options: IRemoteAgentHostConnectOptions) => Promise<IRemoteAgentHostCreatedConnection>,
 	) {
 		super();
-		this._autoConnectEnabled = observableConfigValue<boolean>(RemoteAgentHostAutoConnectSettingId, true, this._configurationService);
 		this.entries = derived(this, reader => {
 			this._onDidStageTunnelSignal.read(reader);
-			const autoConnectEnabled = this._autoConnectEnabled.read(reader);
 			const autoConnectSuppressedTunnels = this._storage.autoConnectSuppressedTunnels.read(reader);
 			return this._storage.cachedTunnels.read(reader)
-				.filter(tunnel => (autoConnectEnabled || this._stagedAuthProviders.has(`${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`)) && !autoConnectSuppressedTunnels.includes(tunnel.tunnelId))
+				.filter(tunnel => !autoConnectSuppressedTunnels.includes(tunnel.tunnelId))
 				.map(tunnel => this._entryForTunnel(tunnel, tunnel.authProvider));
 		});
 	}
@@ -195,7 +190,6 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		this.onDidChangeTunnels = this._storage.onDidChangeTunnels;
 		this._connectionFactory = this._register(new TunnelConnectionFactory(
 			this._storage,
-			this._configurationService,
 			(entry, authProvider, options) => this._createConnection(entry, authProvider, options),
 		));
 		this._register(this._remoteAgentHostService.registerConnectionFactory(this._connectionFactory));
@@ -257,9 +251,12 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			protocolVersion: cachedTunnel?.protocolVersion ?? TUNNEL_MIN_PROTOCOL_VERSION,
 			hostConnectionCount: 0,
 		};
+		const connectOptions = this.getAutoConnectMode(tunnel) === 'prompt'
+			? { ...options, userInitiated: true }
+			: options;
 		const auth = authProvider
-			? await this._getTokenForProvider(authProvider, !options.userInitiated)
-			: await this._getToken(!options.userInitiated);
+			? await this._getTokenForProvider(authProvider, !connectOptions.userInitiated)
+			: await this._getToken(!connectOptions.userInitiated);
 		if (!auth) {
 			throw new NonReconnectableTransportError('No cached authentication available to connect the tunnel.');
 		}
@@ -274,7 +271,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 					hostLabel: tunnel.name,
 					productName: this._productService.nameShort,
 					inventory: session.inventory,
-					userInitiated: options.userInitiated,
+					userInitiated: connectOptions.userInitiated,
 				});
 				if (!selection) {
 					await this._mainService.cancelSelection(session.selectionId);
@@ -321,7 +318,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			);
 			return {
 				connection,
-				transportDisposable: this._createTransportDisposable(result, options.userInitiated, editorFallback),
+				transportDisposable: this._createTransportDisposable(result, connectOptions.userInitiated, editorFallback),
 			};
 		} catch (err) {
 			this._mainService.disconnect(result.connectionId).catch(() => { /* best effort */ });

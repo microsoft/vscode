@@ -11,7 +11,7 @@ import { agentsWindowAgentHostClientInfo } from '../../../../../platform/agentHo
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { ReconnectingTransport, type IEstablishedTransport } from '../../../../../platform/agentHost/common/reconnectingTransport.js';
 import { NonReconnectableTransportError, type IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
-import { RemoteAgentHostAutoConnectSettingId, RemoteAgentHostEntryType, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId, getEntryAddress, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { RemoteAgentHostEntryType, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId, getEntryAddress, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import type { ProtocolMessage, AhpServerNotification, JsonRpcResponse } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../../../../../platform/agentHost/common/transportConstants.js';
 import {
@@ -27,7 +27,6 @@ import {
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import type { IDiscoveredTunnel, ITunnelConnection, ITunnelDiscoveryProvider } from '../../../../../workbench/browser/web.api.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/browser/environmentService.js';
@@ -53,21 +52,17 @@ class WebTunnelConnectionFactory extends Disposable implements IRemoteAgentHostC
 	 */
 	private readonly _stagedUserInitiated = new Map<string, boolean>();
 	private readonly _onDidStageTunnelSignal = observableSignalFromEvent(this, this._onDidStageTunnel.event);
-	private readonly _autoConnectEnabled: IObservable<boolean>;
 
 	constructor(
 		private readonly _storage: TunnelAgentHostStorage,
-		private readonly _configurationService: IConfigurationService,
 		private readonly _createConnection: (entry: IRemoteAgentHostEntry, options: IRemoteAgentHostConnectOptions) => Promise<IRemoteAgentHostCreatedConnection>,
 	) {
 		super();
-		this._autoConnectEnabled = observableConfigValue<boolean>(RemoteAgentHostAutoConnectSettingId, true, this._configurationService);
 		this.entries = derived(this, reader => {
 			this._onDidStageTunnelSignal.read(reader);
-			const autoConnectEnabled = this._autoConnectEnabled.read(reader);
 			const autoConnectSuppressedTunnels = this._storage.autoConnectSuppressedTunnels.read(reader);
 			return this._storage.cachedTunnels.read(reader)
-				.filter(tunnel => (autoConnectEnabled || this._stagedAuthProviders.has(`${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`)) && !autoConnectSuppressedTunnels.includes(tunnel.tunnelId))
+				.filter(tunnel => !autoConnectSuppressedTunnels.includes(tunnel.tunnelId))
 				.map(tunnel => this._entryForTunnel(tunnel, tunnel.authProvider));
 		});
 	}
@@ -150,13 +145,12 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		super();
 		this._storage = this._register(new TunnelAgentHostStorage(this._storageService));
 		this.onDidChangeTunnels = this._storage.onDidChangeTunnels;
+		this._discoveryProvider = environmentService.options?.tunnelDiscoveryProvider;
 		this._connectionFactory = this._register(new WebTunnelConnectionFactory(
 			this._storage,
-			this._configurationService,
 			(entry, options) => this._createConnection(entry, options),
 		));
 		this._register(this._remoteAgentHostService.registerConnectionFactory(this._connectionFactory));
-		this._discoveryProvider = environmentService.options?.tunnelDiscoveryProvider;
 		if (!this._discoveryProvider) {
 			this._logService.debug(`${LOG_PREFIX} No tunnelDiscoveryProvider — tunnel discovery disabled`);
 		}

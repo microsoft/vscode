@@ -54,25 +54,19 @@ class DevContainerConnectionFactory extends Disposable implements IRemoteAgentHo
 	readonly entries: IObservable<readonly IRemoteAgentHostEntry[]>;
 
 	private readonly _stagedConnections = new Map<string, IStagedDevContainerConnection>();
-	private readonly _activeAddresses = new Set<string>();
 	private readonly _entries = observableValue<readonly IRemoteAgentHostEntry[]>(this, []);
 
 	constructor(
 		private readonly _instantiationService: IInstantiationService,
-		private readonly _remoteAgentHostService: IRemoteAgentHostService,
 	) {
 		super();
 		this.entries = this._entries;
-		this._register(this._remoteAgentHostService.onDidChangeConnections(() => {
-			for (const address of [...this._stagedConnections.keys()]) {
-				if (this._remoteAgentHostService.connections.some(connection => connection.address === address)) {
-					this._activeAddresses.add(address);
-				} else if (this._activeAddresses.delete(address)) {
-					this._stagedConnections.delete(address);
-				}
-			}
-			this._updateEntries();
-		}));
+		// Staging is cleared only by an explicit `unstageConnection`, never by
+		// observing the connection disappear. The service withdraws an entry
+		// before arming a retry, so treating that as removal would delete the
+		// staged connector the retry needs and leave `_scheduleReconnect` with
+		// nothing configured — silently turning every scheduled retry into one
+		// single attempt.
 	}
 
 	stageConnection(connector: IDevContainerAgentHostConnector, workspaceUri: URI, connection: IDevContainerAgentHostConnection): IRemoteAgentHostEntry {
@@ -92,7 +86,6 @@ class DevContainerConnectionFactory extends Disposable implements IRemoteAgentHo
 	unstageConnection(address: string): void {
 		const staged = this._stagedConnections.get(address);
 		this._stagedConnections.delete(address);
-		this._activeAddresses.delete(address);
 		staged?.initialConnection?.transportDisposable?.dispose();
 		this._updateEntries();
 	}
@@ -158,7 +151,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
-		this._connectionFactory = this._register(new DevContainerConnectionFactory(this._instantiationService, this._remoteAgentHostService));
+		this._connectionFactory = this._register(new DevContainerConnectionFactory(this._instantiationService));
 		this._register(this._remoteAgentHostService.registerConnectionFactory(this._connectionFactory));
 		this._register(this._remoteAgentHostService.onDidChangeConnections(() => this._reconcileConnections()));
 	}

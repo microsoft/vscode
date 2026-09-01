@@ -358,6 +358,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			if (!entry.reconnectTransfersTransportOwnership) {
 				entry.transportDisposable?.dispose();
 			}
+			this._onDidChangeConnections.fire();
 		}
 
 		// Start fresh connection attempt
@@ -590,6 +591,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		) {
 			createdConnection.connection.dispose();
 			createdConnection.transportDisposable?.dispose();
+			this._rejectPendingConnectionWait(address, new Error(`Connection attempt for ${address} was discarded because it is no longer active.`));
 			return;
 		}
 
