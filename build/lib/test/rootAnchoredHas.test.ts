@@ -72,7 +72,7 @@ suite('stylelint class attribute substring check', () => {
 
 	test('flags every class substring operator', () => {
 		assert.ok(findClassAttributeSubstringSelector('.a[class*="icon"] {}') !== undefined);
-		assert.ok(findClassAttributeSubstringSelector(".a[ class ^= 'icon' i] {}") !== undefined);
+		assert.ok(findClassAttributeSubstringSelector('.a[ class ^= \'icon\' i] {}') !== undefined);
 		assert.ok(findClassAttributeSubstringSelector('.a[CLASS$="icon"] {}') !== undefined);
 		assert.ok(findClassAttributeSubstringSelector('.a[\\63 lass*="icon"] {}') !== undefined);
 		assert.ok(findClassAttributeSubstringSelector('.a[|class*="icon"] {}') !== undefined);

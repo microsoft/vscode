@@ -156,6 +156,7 @@ async function main(): Promise<void> {
 	let launchedCode: LaunchedCode | undefined;
 	let browser: Browser | undefined;
 	let session: CDPSession | undefined;
+	let processExitError: Error | undefined;
 	try {
 		if (await isCDPAvailable(options.port)) {
 			throw new Error(`Port ${options.port} already exposes CDP.`);
@@ -214,7 +215,6 @@ async function main(): Promise<void> {
 		}
 		await session?.detach().catch(() => undefined);
 		await settleWithin(browser?.close() ?? Promise.resolve(), 2000);
-		let processExitError: Error | undefined;
 		if (launchedCode && !options.keepOpen) {
 			if (!await waitForChildExit(launchedCode.child, 10000)) {
 				await launchedCode.terminate();
@@ -227,9 +227,9 @@ async function main(): Promise<void> {
 			await rm(userDataDir, { recursive: true, force: true, maxRetries: 3 }).catch(() => undefined);
 			await rm(extensionsDir, { recursive: true, force: true, maxRetries: 3 }).catch(() => undefined);
 		}
-		if (processExitError) {
-			throw processExitError;
-		}
+	}
+	if (processExitError) {
+		throw processExitError;
 	}
 }
 
