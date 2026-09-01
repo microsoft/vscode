@@ -133,6 +133,11 @@
 	background-color: var(--vscode-list-hoverBackground);
 }
 
+.ai-customization-management-editor .sidebar-migration-shortcut > button.sidebar-migration-button.selected {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
 .ai-customization-management-editor .sidebar-migration-shortcut > button.sidebar-migration-button:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
@@ -1020,7 +1025,7 @@ per-word capitalization does not survive translation. */
 /* Migration banner — an Inner-tier callout for customizations needing attention. */
 .ai-customization-management-editor .customization-migration-banner {
 	flex-shrink: 0;
-	margin: var(--vscode-spacing-size120) 0;
+	margin: var(--vscode-spacing-size200) 0 var(--vscode-spacing-size120);
 	padding: var(--vscode-spacing-size120);
 	background: color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 35%, var(--vscode-agentsPanel-background));
 	border: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-inputValidation-warningBorder) 70%, var(--vscode-widget-border));
@@ -1073,6 +1078,225 @@ per-word capitalization does not survive translation. */
 	overflow: hidden;
 	padding: 0 var(--vscode-spacing-size160) var(--vscode-spacing-size60) 0;
 	box-sizing: border-box;
+}
+
+.ai-customization-management-editor .customization-migration-dashboard {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size200);
+	padding-bottom: var(--vscode-spacing-size120);
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-summary {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size60);
+	margin-top: var(--vscode-spacing-size200);
+	padding: var(--vscode-spacing-size160);
+	border: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-inputValidation-warningBorder) 70%, var(--vscode-widget-border));
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 24%, transparent);
+}
+
+.vscode-high-contrast .ai-customization-management-editor .customization-migration-dashboard-summary {
+	border-color: var(--vscode-contrastBorder);
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-summary-description {
+	margin: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 1.45;
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-summary-link {
+	white-space: nowrap;
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-cards {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--vscode-spacing-size120);
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-card {
+	display: grid;
+	grid-row: span 4;
+	grid-template-rows: subgrid;
+	gap: var(--vscode-spacing-size120);
+	min-width: 0;
+	padding: var(--vscode-spacing-size160);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-editorWidget-background);
+}
+
+.vscode-high-contrast .ai-customization-management-editor .customization-migration-dashboard-card {
+	border-color: var(--vscode-contrastBorder);
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-card-header,
+.ai-customization-management-editor .customization-migration-dashboard-card-identity,
+.ai-customization-management-editor .customization-migration-dashboard-card-footer {
+	display: flex;
+	align-items: center;
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-card-header {
+	align-items: flex-start;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-card-identity {
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+	width: 100%;
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-card-title {
+	margin: 0;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	overflow-wrap: anywhere;
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-card-count {
+	flex-shrink: 0;
+	border-radius: var(--vscode-cornerRadius-circle);
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 18px;
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-card-count {
+	min-width: var(--vscode-spacing-size160);
+	padding: 0 var(--vscode-spacing-size40);
+	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label3);
+	line-height: 16px;
+	text-align: center;
+	box-sizing: border-box;
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-card-description {
+	margin: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	line-height: 1.45;
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-route {
+	display: grid;
+	grid-template-columns: minmax(0, max-content) minmax(var(--vscode-spacing-size240), 1fr) minmax(0, max-content);
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size100);
+	border-radius: var(--vscode-cornerRadius-small);
+	background: var(--vscode-textCodeBlock-background);
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-route-endpoint {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size20);
+	min-width: 0;
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-route-eyebrow {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label3);
+	text-transform: uppercase;
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-route-label {
+	color: var(--vscode-foreground);
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-body2);
+	overflow-wrap: anywhere;
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-route-operation {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--vscode-spacing-size20);
+	color: var(--vscode-descriptionForeground);
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-route-arrow {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-card-footer {
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size120);
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-item-summary {
+	min-width: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	overflow-wrap: anywhere;
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-card-footer .monaco-button {
+	flex-shrink: 0;
+	width: auto;
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-empty {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size320) var(--vscode-spacing-size160);
+	text-align: center;
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-empty-icon {
+	color: var(--vscode-testing-iconPassed);
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-empty-title,
+.ai-customization-management-editor .customization-migration-dashboard-empty-description {
+	margin: 0;
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-empty-title {
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-empty-description {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-migration-dashboard-cards {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-migration-dashboard-card-header,
+.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-migration-dashboard-card-footer {
+	align-items: flex-start;
+	flex-direction: column;
+}
+
+.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-migration-dashboard-route {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-migration-dashboard-route-operation {
+	flex-direction: row;
+	justify-content: center;
+}
+
+.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-migration-dashboard-route-arrow {
+	transform: rotate(90deg);
 }
 
 .ai-customization-management-editor .prompt-migration-group {

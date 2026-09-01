@@ -702,6 +702,7 @@ interface IRenderEditorOptions {
 	readonly openItemLabel?: string;
 	readonly editorDisplayMode?: 'preview' | 'raw';
 	readonly migrationCategory?: CustomizationMigrationCategoryId;
+	readonly migrationDashboard?: boolean;
 }
 
 function renderFixtureMarkdown(markdown: string): HTMLElement {
@@ -1179,6 +1180,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	if (options.migrationCategory) {
 		editor.showCustomizationMigrationPage(options.migrationCategory);
+	} else if (options.migrationDashboard) {
+		editor.showCustomizationMigrationDashboard();
 	}
 
 	if (options.openFirstItem) {
@@ -1970,6 +1973,24 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
+		}),
+	}),
+
+	MigrationDashboard: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+		}),
+	}),
+
+	MigrationDashboardNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			width: 550,
+			height: 500,
 		}),
 	}),
 

@@ -84,7 +84,6 @@ suite('customizationMigration', () => {
 		});
 	});
 
-
 	test('uses singular copy for one User Data customization', () => {
 		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.UserData);
 		const harnessLabel = 'Copilot';
@@ -102,7 +101,6 @@ suite('customizationMigration', () => {
 		};
 
 		assert.deepStrictEqual({
-			shortcut: category.getShortcutAriaLabel(1),
 			agent: {
 				card: category.getCardDescription([agent], harnessLabel),
 				page: category.getPageDescription([agent], harnessLabel),
@@ -120,28 +118,27 @@ suite('customizationMigration', () => {
 			migrated: category.getMigratedMessage(1),
 			failed: category.getFailedMessage(['reviewer.agent.md'], 0),
 		}, {
-			shortcut: 'User data, 1 customization needs migration',
 			agent: {
-				card: 'User data customizations are only used by VS Code. Found 1 agent that Copilot ignores. Move it to keep it available.',
-				page: 'Found 1 agent in user data that local VS Code can still use, but Copilot ignores. Move it to the harness agents folder to keep it available.',
+				card: 'Agent Host harnesses do not discover customizations stored in your VS Code profile. Found 1 agent that Copilot will ignore. Move it to a portable Copilot folder to keep it available.',
+				page: 'Found 1 agent in your active VS Code profile that local VS Code can still use, but Copilot does not discover. Move it to the harness agents folder to keep it available.',
 				confirmation: {
-					message: 'Migrate user data customizations to \'~/.copilot/agents\'?',
-					detail: 'This moves 1 agent out of user data.',
+					message: 'Migrate VS Code profile customizations to \'~/.copilot/agents\'?',
+					detail: 'This moves 1 agent out of your active VS Code profile.',
 					primaryButton: 'Migrate',
-					deleteOriginalsLabel: 'Delete the original files from user data after migration',
+					deleteOriginalsLabel: 'Delete the original files from the VS Code profile after migration',
 				},
 			},
 			instruction: {
-				card: 'User data customizations are only used by VS Code. Found 1 instruction file that Copilot ignores. Move it to keep it available.',
-				page: 'Found 1 instruction file in user data that local VS Code can still use, but Copilot ignores. Move it to the harness instructions folder to keep it available.',
-				confirmation: 'This moves 1 instruction file out of user data.',
+				card: 'Agent Host harnesses do not discover customizations stored in your VS Code profile. Found 1 instruction file that Copilot will ignore. Move it to a portable Copilot folder to keep it available.',
+				page: 'Found 1 instruction file in your active VS Code profile that local VS Code can still use, but Copilot does not discover. Move it to the harness instructions folder to keep it available.',
+				confirmation: 'This moves 1 instruction file out of your active VS Code profile.',
 			},
 			mixed: {
-				card: 'User data customizations are only used by VS Code. Found 2 customizations that Copilot ignores. Move them to keep them available.',
-				confirmation: 'This moves 2 customizations out of user data.',
+				card: 'Agent Host harnesses do not discover customizations stored in your VS Code profile. Found 2 agents and instruction files that Copilot will ignore. Move them to portable Copilot folders to keep them available.',
+				confirmation: 'This moves 2 customizations out of your active VS Code profile.',
 			},
-			migrated: 'Migrated 1 user data customization.',
-			failed: 'Failed to migrate 1 user data customization: reviewer.agent.md.',
+			migrated: 'Migrated 1 VS Code profile customization.',
+			failed: 'Failed to migrate 1 VS Code profile customization: reviewer.agent.md.',
 		});
 	});
 

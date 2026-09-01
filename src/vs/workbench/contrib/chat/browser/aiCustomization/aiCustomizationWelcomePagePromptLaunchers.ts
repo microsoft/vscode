@@ -266,9 +266,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 				localize('overviewNeedsAttentionDescription', "Review customizations that need an update for the active agent."),
 				'welcome-prompts-attention-section',
 			);
-			for (const category of this.migrationCategories) {
-				this.renderCustomizationMigrationCard(migrationGrid, category);
-			}
+			this.renderCustomizationMigrationCard(migrationGrid, this.migrationCategories);
 		}
 
 		const exploreGrid = this.renderOverviewSection(
@@ -379,26 +377,30 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 		}
 	}
 
-	private renderCustomizationMigrationCard(parent: HTMLElement, category: ICustomizationMigrationCategorySummary): void {
+	private renderCustomizationMigrationCard(parent: HTMLElement, categories: readonly ICustomizationMigrationCategorySummary[]): void {
 		const migrationCard = DOM.append(parent, $('button.welcome-prompts-card.welcome-prompts-migration-card')) as HTMLButtonElement;
 		migrationCard.type = 'button';
-		migrationCard.setAttribute('aria-label', category.actionAriaLabel);
+		const totalCount = categories.reduce((total, category) => total + category.count, 0);
+		migrationCard.setAttribute('aria-label', localize('reviewCustomizationMigrationsAriaLabel', "Review {0} customizations that need migration", totalCount));
 
 		const cardHeader = DOM.append(migrationCard, $('.welcome-prompts-card-header'));
 		const iconEl = DOM.append(cardHeader, $('.welcome-prompts-card-icon'));
-		iconEl.classList.add(...ThemeIcon.asClassNameArray(Codicon.sync));
+		iconEl.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
+		iconEl.setAttribute('aria-hidden', 'true');
 		const labelEl = DOM.append(cardHeader, $('span.welcome-prompts-card-label'));
-		labelEl.textContent = category.label;
+		labelEl.textContent = localize('customizationMigrationOverviewCardLabel', "Review Customization Migrations");
 
 		const descEl = DOM.append(migrationCard, $('p.welcome-prompts-card-description'));
-		descEl.textContent = category.description;
+		descEl.textContent = totalCount === 1
+			? localize('customizationMigrationOverviewCardDescriptionSingle', "1 customization needs an update before it can be used by {0}. Review what will change before migrating.", this.harnessLabel)
+			: localize('customizationMigrationOverviewCardDescription', "{0} customizations need an update before they can be used by {1}. Review what will change before migrating.", totalCount, this.harnessLabel);
 
 		if (!this.firstCard) {
 			this.firstCard = migrationCard;
 		}
 		const actionLabel = DOM.append(migrationCard, $('span.welcome-prompts-card-action-label'));
-		actionLabel.textContent = category.actionLabel;
-		this.cardDisposables.add(DOM.addDisposableListener(migrationCard, 'click', () => this.callbacks.migrateCustomizations(category.id)));
+		actionLabel.textContent = localize('reviewCustomizationMigrations', "Review Migrations...");
+		this.cardDisposables.add(DOM.addDisposableListener(migrationCard, 'click', () => this.callbacks.reviewMigrations()));
 	}
 
 	focus(): void {
