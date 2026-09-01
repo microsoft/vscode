@@ -1971,14 +1971,11 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 			// Codex talks to every model through the `vscode-proxy` custom model
 			// provider with `wire_api="responses"` (see CodexProxyService), so it
-			// can only drive models that expose Copilot CAPI's OpenAI-shaped
-			// Responses endpoint. Filter the catalog to those advertising
-			// `/responses` in `supported_endpoints` (this drops Anthropic
-			// `/v1/messages` and chat-completions-only models, which codex cannot
-			// use). The chosen id is forwarded straight through; CAPI remains the
-			// authority on what the token may actually use.
+			// can only drive picker-eligible models that expose Copilot CAPI's
+			// OpenAI-shaped Responses endpoint. The chosen id is forwarded straight
+			// through; CAPI remains the authority on what the token may actually use.
 			const models = all
-				.filter(m => m.supported_endpoints?.includes(CODEX_RESPONSES_ENDPOINT))
+				.filter(m => m.model_picker_enabled && m.supported_endpoints?.includes(CODEX_RESPONSES_ENDPOINT))
 				.sort((a, b) => Number(b.is_chat_default) - Number(a.is_chat_default))
 				.map((m): IAgentModelInfo => ({
 					provider: CODEX_AGENT_PROVIDER_ID,
