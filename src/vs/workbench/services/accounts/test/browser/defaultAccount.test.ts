@@ -67,7 +67,7 @@ suite('DefaultAccountProvider managed settings', () => {
 		});
 	});
 
-	test('settings without a refresh requirement use the cache after one process fetch', async () => {
+	test('settings without a refresh requirement use the cache without fetching', async () => {
 		const requestService = new TestRequestService(async () => jsonResponse({
 			permissions: { disableBypassPermissionsMode: 'disable' },
 		}));
@@ -82,9 +82,32 @@ suite('DefaultAccountProvider managed settings', () => {
 			first: first.data,
 			second: second.data,
 		}, {
-			requestCount: 1,
-			first: { managedSettings: { 'permissions.disableBypassPermissionsMode': 'disable' } },
+			requestCount: 0,
+			first: cachedPolicy.policyData,
 			second: cachedPolicy.policyData,
+		});
+	});
+
+	test('forceRefresh fetches fresh even when the cache is fresh, without it the cache is honored', async () => {
+		const requestService = new TestRequestService(async () => jsonResponse({
+			permissions: { disableBypassPermissionsMode: 'disable' },
+		}));
+		const provider = await createProvider(requestService);
+		const cachedPolicy = createCachedPolicy(false);
+
+		// Without forceRefresh the fresh cache is served with no network round-trip.
+		const cached = await provider['getManagedSettings'](sessions, cachedPolicy);
+		// The forceRefresh command bypasses the fresh cache and fetches.
+		const forced = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true, retryManagedSettings: true });
+
+		assert.deepStrictEqual({
+			requestCount: requestService.requestCount,
+			cached: cached.data,
+			forced: forced.data,
+		}, {
+			requestCount: 1,
+			cached: cachedPolicy.policyData,
+			forced: { managedSettings: { 'permissions.disableBypassPermissionsMode': 'disable' } },
 		});
 	});
 
@@ -100,7 +123,51 @@ suite('DefaultAccountProvider managed settings', () => {
 			managedSettingsFetchedAt: Date.now() - 60 * 60 * 1000,
 		});
 
-		assert.strictEqual(requestService.requestCount, 2);
+		assert.strictEqual(requestService.requestCount, 1);
+	});
+
+	test('outstanding compatibility error revalidates instead of serving a fresh cache', async () => {
+		const requestService = new TestRequestService(async () => jsonResponse({}));
+		const provider = await createProvider(requestService);
+		provider['setManagedSettingsCompatibilityError']({ errorCode: 'client_update_required' });
+		const cachedPolicy = createCachedPolicy(false);
+
+		const result = await provider['getManagedSettings'](sessions, cachedPolicy);
+
+		assert.deepStrictEqual({
+			requestCount: requestService.requestCount,
+			compatibilityError: result.compatibilityError,
+		}, {
+			requestCount: 1,
+			compatibilityError: null,
+		});
+	});
+
+	test('a fresh cache from a different scope is not reused', async () => {
+		const requestService = new TestRequestService(async () => jsonResponse({
+			permissions: { disableBypassPermissionsMode: 'disable' },
+		}));
+		const provider = await createProvider(requestService);
+		const cachedPolicy = {
+			...createCachedPolicy(false),
+			managedSettingsScope: {
+				accountId,
+				authenticationProviderId: 'github-enterprise',
+				endpointOrigin: 'https://api.ghe.example.com',
+			},
+		};
+
+		// The cache was captured for a different provider/endpoint than the current github/api.github.com
+		// scope, so it must be revalidated rather than served for the rest of the cache lifetime.
+		const result = await provider['getManagedSettings'](sessions, cachedPolicy);
+
+		assert.deepStrictEqual({
+			requestCount: requestService.requestCount,
+			data: result.data,
+		}, {
+			requestCount: 1,
+			data: { managedSettings: { 'permissions.disableBypassPermissionsMode': 'disable' } },
+		});
 	});
 
 	test('fresh 404 clears a cached server requirement', async () => {
@@ -154,7 +221,7 @@ suite('DefaultAccountProvider managed settings', () => {
 		const provider = await createProvider(requestService);
 		const cachedPolicy = createCachedPolicy(false);
 
-		const result = await provider['getManagedSettings'](sessions, cachedPolicy);
+		const result = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
 
 		assert.deepStrictEqual({
 			status: provider.managedSettingsFetchStatus,
@@ -175,7 +242,7 @@ suite('DefaultAccountProvider managed settings', () => {
 		const requestService = new TestRequestService(async () => jsonResponse({ error_code: 'unexpected' }, 466));
 		const provider = await createProvider(requestService);
 
-		const result = await provider['getManagedSettings'](sessions, createCachedPolicy(false));
+		const result = await provider['getManagedSettings'](sessions, createCachedPolicy(false), { forceRefresh: true });
 
 		assert.deepStrictEqual({
 			data: result.data,
@@ -211,14 +278,14 @@ suite('DefaultAccountProvider managed settings', () => {
 		});
 	});
 
-	test('failed startup fetch retains cached managed settings when no rejection is known', async () => {
+	test('failed forced refresh retains cached managed settings when no rejection is known', async () => {
 		const requestService = new TestRequestService(async () => {
 			throw new Error('managed settings unavailable');
 		});
 		const provider = await createProvider(requestService);
 		const cachedPolicy = createCachedPolicy(false);
 
-		const result = await provider['getManagedSettings'](sessions, cachedPolicy);
+		const result = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
 
 		assert.deepStrictEqual({
 			requestCount: requestService.requestCount,
@@ -324,7 +391,7 @@ suite('DefaultAccountProvider managed settings', () => {
 		const provider = await createProvider(requestService);
 		const cachedPolicy = createCachedPolicy(false);
 
-		await provider['getManagedSettings'](sessions, cachedPolicy);
+		await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
 		await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
 
 		assert.strictEqual(requestService.requestCount, 2);
@@ -731,7 +798,7 @@ suite('DefaultAccountProvider managed settings', () => {
 		const provider = await createProvider(requestService);
 		const cachedPolicy = createCachedPolicy(false);
 
-		await provider['getManagedSettings'](sessions, cachedPolicy);
+		await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
 		const result = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
 
 		assert.deepStrictEqual({

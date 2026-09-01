@@ -341,7 +341,6 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	private readonly initPromise: Promise<void>;
 	private readonly updateThrottler = this._register(new ThrottledDelayer(100));
 	private readonly accountDataPollScheduler = this._register(new RunOnceScheduler(() => this.refetchDefaultAccount(), ACCOUNT_DATA_POLL_INTERVAL_MS));
-	private readonly managedSettingsFetchAttemptedAccounts = new Set<string>();
 	private readonly failedManagedSettingsFreshness = new Map<string, ManagedSettingsBlockedFreshness>();
 
 	constructor(
@@ -1143,10 +1142,14 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				compatibilityError: this._managedSettingsCompatibilityError,
 			};
 		}
-		const fetchScopeKey = this.getManagedSettingsScopeKey(scope);
-		const hasFetchedThisProcess = this.managedSettingsFetchAttemptedAccounts.has(fetchScopeKey);
+		const cachedScope = accountPolicyData?.managedSettingsScope;
+		// Only reuse a cache captured for the current provider and endpoint (a legacy cache with no recorded
+		// scope is trusted), so a previous GitHub Enterprise host's policy is not applied after a scope switch.
+		const cacheScopeMatches = !cachedScope || this.getManagedSettingsScopeKey(cachedScope) === this.getManagedSettingsScopeKey(scope);
 		const freshnessSatisfied = requirement.effective && isManagedSettingsFreshnessSatisfiedFor(this._managedSettingsFreshness, scope);
-		if (!options?.forceRefresh && cachedManagedSettings && ((hasFetchedThisProcess && !requirement.effective) || freshnessSatisfied)) {
+		// When forceRemoteSettingsRefresh is effective, reuse also requires this scope's freshness to be
+		// satisfied; an outstanding compatibility error always forces revalidation.
+		if (!options?.forceRefresh && cachedManagedSettings && cacheScopeMatches && (!requirement.effective || freshnessSatisfied) && !this._managedSettingsCompatibilityError) {
 			this.logService.debug('[DefaultAccount] Using last fetched managed settings data');
 			return { ...cachedManagedSettings, scope, compatibilityError: this._managedSettingsCompatibilityError };
 		}
@@ -1160,7 +1163,6 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				lastAttemptAt,
 			});
 		}
-		this.managedSettingsFetchAttemptedAccounts.add(fetchScopeKey);
 		const sharedBackoffActive = Date.now() < this._rateLimitBackoffUntil;
 		const result = await this.requestManagedSettings(requirement.effective ? [sessions[0]] : sessions, managedSettingsUrl);
 		if (requirement.effective && !sharedBackoffActive) {
