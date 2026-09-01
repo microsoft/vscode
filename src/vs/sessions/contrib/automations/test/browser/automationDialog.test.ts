@@ -15,23 +15,28 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { Context as SuggestContext } from '../../../../../editor/contrib/suggest/browser/suggest.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
+import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { createWorkbenchDialogOptions } from '../../../../../workbench/browser/parts/dialogs/dialog.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { GitRefType, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, IFormState, IValidationState, isAutomationDialogEditCommand, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, resolveAutomationModelIdentifier, updateSaveButtonState } from '../../browser/automationDialog.js';
+import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, resolveAutomationModelIdentifier, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
 
 const FOLDER = URI.file('/workspace');
@@ -51,7 +56,7 @@ function dispatchAutomationDialogCommand(target: HTMLElement, commandId: string)
 		upcastPartial<ILayoutService>({ activeContainer: document.body }),
 		upcastPartial<IHostService>({}),
 		new Set(),
-		(id, event) => isAutomationDialogEditCommand(id, event.target),
+		(id, event) => shouldPassThroughAutomationDialogCommand(id, event.target),
 	);
 	target.addEventListener('keydown', event => options.keyEventProcessor?.(new StandardKeyboardEvent(event)), { once: true });
 	return dispatchKey(target, 'keydown', 'z');
@@ -937,20 +942,44 @@ suite('Automation branch picker', () => {
 suite('Automation dialog keyboard navigation', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('allows undo and redo only for editable controls', () => {
+	test('passes editor commands through the dialog command filter', () => {
 		const prompt = document.createElement('textarea');
 		const button = document.createElement('button');
 
 		assert.deepStrictEqual({
 			undoPromptPrevented: dispatchAutomationDialogCommand(prompt, 'undo').defaultPrevented,
 			redoPromptPrevented: dispatchAutomationDialogCommand(prompt, 'redo').defaultPrevented,
+			acceptSuggestionPromptPrevented: dispatchAutomationDialogCommand(prompt, 'acceptSelectedSuggestion').defaultPrevented,
 			undoButtonPrevented: dispatchAutomationDialogCommand(button, 'undo').defaultPrevented,
 			unrelatedPromptPrevented: dispatchAutomationDialogCommand(prompt, 'workbench.action.files.save').defaultPrevented,
 		}, {
 			undoPromptPrevented: false,
 			redoPromptPrevented: false,
+			acceptSuggestionPromptPrevented: false,
 			undoButtonPrevented: true,
 			unrelatedPromptPrevented: true,
+		});
+	});
+
+	test('reserves Enter for suggestions while the suggest widget is visible', () => {
+		const rule = KeybindingsRegistry.getDefaultKeybindings()
+			.find(item => item.command === 'workbench.action.chat.automationsDialog.insertNewline');
+		const evaluate = (suggestWidgetVisible: boolean) => rule?.when?.evaluate({
+			getValue: <T>(key: string) => ({
+				[EditorContextKeys.textInputFocus.key]: true,
+				[ChatContextKeys.inAutomationsDialog.key]: true,
+				[SuggestContext.Visible.key]: suggestWidgetVisible,
+			})[key] as T | undefined,
+		} satisfies IContext) ?? false;
+
+		assert.deepStrictEqual({
+			ruleRegistered: !!rule,
+			withoutSuggestions: evaluate(false),
+			withSuggestions: evaluate(true),
+		}, {
+			ruleRegistered: true,
+			withoutSuggestions: true,
+			withSuggestions: false,
 		});
 	});
 

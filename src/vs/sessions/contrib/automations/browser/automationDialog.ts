@@ -22,6 +22,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
+import { Context as SuggestContext } from '../../../../editor/contrib/suggest/browser/suggest.js';
 import { State as SuggestState } from '../../../../editor/contrib/suggest/browser/suggestModel.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -74,8 +75,9 @@ export function isAutomationDialogPopupTarget(relatedTarget: HTMLElement): boole
 	);
 }
 
-export function isAutomationDialogEditCommand(commandId: string, target: HTMLElement): boolean {
-	return (commandId === 'undo' || commandId === 'redo') && DOM.isEditableElement(target);
+export function shouldPassThroughAutomationDialogCommand(commandId: string, target: HTMLElement): boolean {
+	return commandId === 'acceptSelectedSuggestion'
+		|| ((commandId === 'undo' || commandId === 'redo') && DOM.isEditableElement(target));
 }
 
 export async function canSelectAutomationWorkspace(
@@ -1435,6 +1437,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(
 		EditorContextKeys.textInputFocus,
 		ChatContextKeys.inAutomationsDialog,
+		SuggestContext.Visible.toNegated(),
 	),
 	primary: KeyCode.Enter,
 	handler: (accessor) => {
