@@ -1120,6 +1120,25 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 				return;
 			}
 			void setResponseMode(endpoint, responseModeSelect.value as EndpointResponseMode);
+			
+		});
+		$('format-editor').addEventListener('click', () => {
+			const raw = editor.value.trim();
+			if (!raw) {
+				return;
+			}
+			try {
+				const parsed = JSON.parse(raw);
+				editor.value = JSON.stringify(parsed, null, '\t');
+				drafts[activeId] = editor.value;
+				parseEditor();
+				debouncedSave();
+				toast('JSON formatted successfully');
+			} catch (e) {
+				toast('Cannot format: Invalid JSON', true);
+			}
+		});
+	 
 		});
 		presetSelect.addEventListener('change', applyPreset);
 		$('overrides-action').addEventListener('click', () => wire(!overridesWired));
