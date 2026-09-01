@@ -421,23 +421,23 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
-		return this._requireClient().createDetachedWorktree(session, prompt);
+		return this._getManagementService().createDetachedWorktree(session, prompt);
 	}
 
 	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {
-		return this._requireClient().setDetachedWorktreeArchived(handle, archived);
+		return this._getManagementService().setDetachedWorktreeArchived(handle, archived);
 	}
 
 	claimDetachedWorktree(handle: string): Promise<void> {
-		return this._requireClient().claimDetachedWorktree(handle);
+		return this._getManagementService().claimDetachedWorktree(handle);
 	}
 
 	deleteDetachedWorktree(handle: string): Promise<void> {
-		return this._requireClient().deleteDetachedWorktree(handle);
+		return this._getManagementService().deleteDetachedWorktree(handle);
 	}
 
 	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
-		return this._requireClient().reconcileDetachedWorktrees(scope, activeHandles);
+		return this._getManagementService().reconcileDetachedWorktrees(scope, activeHandles);
 	}
 
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {

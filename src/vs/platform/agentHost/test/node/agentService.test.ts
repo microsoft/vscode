@@ -7284,6 +7284,44 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
+	suite('management', () => {
+
+		test('routes detached worktree lifecycle operations outside the local data-plane protocol', async () => {
+			const session = AgentSession.uri('copilot', 'detached-worktree');
+			const worktree = URI.file('/workspace.worktrees/detached-worktree');
+			const calls: string[] = [];
+			service.createDetachedWorktree = async (actualSession, prompt) => {
+				calls.push(`create:${actualSession.toString()}:${prompt}`);
+				return { handle: 'handle', worktree };
+			};
+			service.setDetachedWorktreeArchived = async (handle, archived) => { calls.push(`archive:${handle}:${archived}`); };
+			service.claimDetachedWorktree = async handle => { calls.push(`claim:${handle}`); };
+			service.deleteDetachedWorktree = async handle => { calls.push(`delete:${handle}`); };
+			service.reconcileDetachedWorktrees = async (scope, activeHandles) => { calls.push(`reconcile:${scope}:${activeHandles.join(',')}`); };
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+
+			const created = await managementService.createDetachedWorktree(session, 'prepare');
+			await managementService.setDetachedWorktreeArchived(created.handle, true);
+			await managementService.claimDetachedWorktree(created.handle);
+			await managementService.reconcileDetachedWorktrees('scope', [created.handle]);
+			await managementService.deleteDetachedWorktree(created.handle);
+
+			assert.deepStrictEqual({
+				created: { handle: created.handle, worktree: created.worktree.toString() },
+				calls,
+			}, {
+				created: { handle: 'handle', worktree: worktree.toString() },
+				calls: [
+					`create:${session.toString()}:prepare`,
+					'archive:handle:true',
+					'claim:handle',
+					'reconcile:scope:handle',
+					'delete:handle',
+				],
+			});
+		});
+	});
+
 	// ---- shutdown -------------------------------------------------------
 
 	suite('shutdown', () => {
