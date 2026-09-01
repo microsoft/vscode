@@ -84,6 +84,11 @@ suite('EvaluationSessionRequest', () => {
 		assert.deepStrictEqual(getEvaluationSessionConfig('codex', 'assisted'), {
 			[CodexSessionConfigKey.PermissionsPreset]: 'auto-review',
 		});
+		assert.deepStrictEqual(getEvaluationSessionConfig('copilotcli', 'yolo', true), {
+			[SessionConfigKey.Mode]: 'autopilot',
+		});
+		assert.deepStrictEqual(getEvaluationSessionConfig('claude', 'yolo', true), {});
+		assert.deepStrictEqual(getEvaluationSessionConfig('codex', 'yolo', true), {});
 	});
 
 	test('waits for a target advertisement', async () => {
@@ -93,5 +98,13 @@ suite('EvaluationSessionRequest', () => {
 		available = true;
 		emitter.fire();
 		await waiting;
+	});
+
+	test('fails when a target is not advertised within the timeout', async () => {
+		const emitter = disposables.add(new Emitter<void>());
+		await assert.rejects(
+			waitForEvaluationTarget(() => false, emitter.event, CancellationToken.None, 1),
+			/not available within 1ms/,
+		);
 	});
 });

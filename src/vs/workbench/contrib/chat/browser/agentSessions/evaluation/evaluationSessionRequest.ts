@@ -3,20 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise, raceCancellation } from '../../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellation, raceTimeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { dirname, joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { localize } from '../../../../../../nls.js';
 import { agentHostAuthority, normalizeRemoteAgentHostAddress } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
-import { addWebSocketRemoteAgentHostEntry, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { GLOBAL_AUTO_APPROVE_SETTING_ID } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 
 export const EVALUATION_SESSION_REQUEST_ARG = 'evaluation-session-request';
@@ -65,14 +68,16 @@ export function shouldPreserveEvaluationRemoteHostAuthentication(address: string
 	return evaluationRemoteHostsWithExternalAuthentication.has(normalizeRemoteAgentHostAddress(address));
 }
 
-export async function configureEvaluationRemoteHost(request: IEvaluationSessionRequest, configurationService: IConfigurationService): Promise<string | undefined> {
+export interface IEvaluationRemoteHostRegistration extends IDisposable {
+	readonly sessionType: string;
+}
+
+export function configureEvaluationRemoteHost(request: IEvaluationSessionRequest, remoteAgentHostService: IRemoteAgentHostService): IEvaluationRemoteHostRegistration | undefined {
 	if (!request.remoteHost) {
 		return undefined;
 	}
 	preserveEvaluationRemoteHostAuthentication(request.remoteHost.address);
-	await configurationService.updateValue(RemoteAgentHostsEnabledSettingId, true, ConfigurationTarget.USER_LOCAL);
-	await configurationService.updateValue(RemoteAgentHostAutoConnectSettingId, true, ConfigurationTarget.USER_LOCAL);
-	await addWebSocketRemoteAgentHostEntry(configurationService, {
+	const disposable = remoteAgentHostService.addTransientRemoteAgentHost({
 		name: 'evaluation',
 		connectionToken: request.remoteHost.connectionToken,
 		connection: {
@@ -80,7 +85,10 @@ export async function configureEvaluationRemoteHost(request: IEvaluationSessionR
 			address: request.remoteHost.address,
 		},
 	});
-	return remoteAgentHostSessionTypeId(agentHostAuthority(request.remoteHost.address), request.agent);
+	return {
+		sessionType: remoteAgentHostSessionTypeId(agentHostAuthority(request.remoteHost.address), request.agent),
+		dispose: () => disposable.dispose(),
+	};
 }
 
 export function parseEvaluationSessionRequest(raw: string): IEvaluationSessionRequest {
@@ -125,7 +133,18 @@ export function parseEvaluationSessionRequest(raw: string): IEvaluationSessionRe
 	return request as unknown as IEvaluationSessionRequest;
 }
 
-export function getEvaluationSessionConfig(agent: EvaluationSessionAgent, approvals: EvaluationSessionApprovals): Readonly<Record<string, string>> {
+export function isEvaluationAutoApprovePolicyRestricted(configurationService: IConfigurationService): boolean {
+	return configurationService.inspect<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID).policyValue === false;
+}
+
+export function evaluationSessionStartingLabel(): string {
+	return localize('evaluationSession.starting', "Starting evaluation");
+}
+
+export function getEvaluationSessionConfig(agent: EvaluationSessionAgent, approvals: EvaluationSessionApprovals, policyRestricted = false): Readonly<Record<string, string>> {
+	if (policyRestricted) {
+		return agent === 'copilotcli' ? { [SessionConfigKey.Mode]: 'autopilot' } : {};
+	}
 	switch (agent) {
 		case 'copilotcli':
 			return {
@@ -163,7 +182,7 @@ export async function writeEvaluationSessionError(path: string, fileService: IFi
 	await fileService.writeFile(evaluationSessionResultResource(path), VSBuffer.fromString(`${JSON.stringify({ version: 1, error: message }, undefined, 2)}\n`));
 }
 
-export async function waitForEvaluationTarget(isAvailable: () => boolean, onDidChange: Event<unknown>, token: CancellationToken): Promise<void> {
+export async function waitForEvaluationTarget(isAvailable: () => boolean, onDidChange: Event<unknown>, token: CancellationToken, timeoutMs = 60_000): Promise<void> {
 	if (isAvailable()) {
 		return;
 	}
@@ -177,7 +196,13 @@ export async function waitForEvaluationTarget(isAvailable: () => boolean, onDidC
 		if (isAvailable()) {
 			ready.complete();
 		}
-		await raceCancellation(ready.p, token);
+		const result = await raceCancellation(
+			raceTimeout(ready.p.then(() => true), timeoutMs),
+			token,
+		);
+		if (result !== true) {
+			throw new Error(`Evaluation session target was not available within ${timeoutMs}ms.`);
+		}
 	} finally {
 		listener.dispose();
 	}

@@ -353,6 +353,28 @@ suite('RemoteAgentHostService', () => {
 		});
 	});
 
+	test('transient entries connect while settings are disabled and disappear on dispose', async () => {
+		configService.setEnabled(false);
+		const registration = service.addTransientRemoteAgentHost({
+			name: 'Evaluation',
+			connectionToken: 'transient-token',
+			connection: {
+				type: RemoteAgentHostEntryType.WebSocket,
+				address: 'ws://transient:8080',
+			},
+		});
+
+		await waitForCreatedClients(1);
+		createdClients[0].connectDeferred.complete();
+		await waitForConnected();
+		assert.strictEqual(service.getConnection('transient:8080'), createdClients[0]);
+
+		const removed = Event.toPromise(service.onDidChangeConnections);
+		registration.dispose();
+		await removed;
+		assert.strictEqual(service.getConnection('transient:8080'), undefined);
+	});
+
 	test('agents window service identifies its protocol client', async () => {
 		service.dispose();
 		service = disposables.add(instantiationService.createInstance(AgentsWindowRemoteAgentHostService));

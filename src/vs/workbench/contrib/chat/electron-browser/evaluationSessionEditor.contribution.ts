@@ -4,15 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import * as resources from '../../../../base/common/resources.js';
+import { localize } from '../../../../nls.js';
 import { editorWindowAgentHostClientInfo } from '../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../../../platform/agentHost/common/agentHostSessionType.js';
 import { AgentHostProtocolClient } from '../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { WebSocketClientTransport } from '../../../../platform/agentHost/browser/webSocketClientTransport.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
@@ -27,39 +29,66 @@ import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
 import { ChatSessionPosition, getResourceForNewChatSession, openChatSession } from '../browser/chatSessions/chatSessions.contribution.js';
 import { ChatEditorInput } from '../browser/widgetHosts/editor/chatEditorInput.js';
-import { EVALUATION_SESSION_REQUEST_ARG, getEvaluationSessionConfig, markEvaluationSessionRequestActive, readEvaluationSessionRequest, waitForEvaluationTarget, writeEvaluationSessionError, writeEvaluationSessionIdentity } from '../browser/agentSessions/evaluation/evaluationSessionRequest.js';
+import { EVALUATION_SESSION_REQUEST_ARG, getEvaluationSessionConfig, isEvaluationAutoApprovePolicyRestricted, markEvaluationSessionRequestActive, readEvaluationSessionRequest, waitForEvaluationTarget, writeEvaluationSessionError, writeEvaluationSessionIdentity } from '../browser/agentSessions/evaluation/evaluationSessionRequest.js';
 
-const evaluationRemoteStore = new DisposableStore();
-
-class EvaluationSessionEditorContribution implements IWorkbenchContribution {
+class EvaluationSessionEditorContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.evaluationSessionEditor';
+	private readonly evaluationRemoteStore = this._register(new DisposableStore());
 
 	constructor(
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
+		@IFileService fileService: IFileService,
+		@IChatSessionsService chatSessionsService: IChatSessionsService,
+		@IChatService chatService: IChatService,
+		@ILanguageModelsService languageModelsService: ILanguageModelsService,
+		@IAgentHostFileSystemService agentHostFileSystemService: IAgentHostFileSystemService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
+		super();
 		const path = environmentService.args[EVALUATION_SESSION_REQUEST_ARG];
 		if (!path) {
 			return;
 		}
 		logService.info('[EvaluationSession] Editor request detected.');
 		markEvaluationSessionRequestActive();
-		void instantiationService.invokeFunction(accessor => runEditorEvaluationSession(path, accessor));
+		void runEditorEvaluationSession(
+			path,
+			fileService,
+			logService,
+			instantiationService,
+			chatSessionsService,
+			chatService,
+			languageModelsService,
+			agentHostFileSystemService,
+			workspaceContextService,
+			editorGroupService,
+			editorService,
+			configurationService,
+			this.evaluationRemoteStore,
+		);
 	}
 }
 
-async function runEditorEvaluationSession(path: string, accessor: ServicesAccessor): Promise<void> {
-	const fileService = accessor.get(IFileService);
-	const logService = accessor.get(ILogService);
-	const instantiationService = accessor.get(IInstantiationService);
-	const chatSessionsService = accessor.get(IChatSessionsService);
-	const chatService = accessor.get(IChatService);
-	const languageModelsService = accessor.get(ILanguageModelsService);
-	const agentHostFileSystemService = accessor.get(IAgentHostFileSystemService);
-	const workspaceContextService = accessor.get(IWorkspaceContextService);
-	const editorGroupService = accessor.get(IEditorGroupsService);
-	const editorService = accessor.get(IEditorService);
+async function runEditorEvaluationSession(
+	path: string,
+	fileService: IFileService,
+	logService: ILogService,
+	instantiationService: IInstantiationService,
+	chatSessionsService: IChatSessionsService,
+	chatService: IChatService,
+	languageModelsService: ILanguageModelsService,
+	agentHostFileSystemService: IAgentHostFileSystemService,
+	workspaceContextService: IWorkspaceContextService,
+	editorGroupService: IEditorGroupsService,
+	editorService: IEditorService,
+	configurationService: IConfigurationService,
+	evaluationRemoteStore: DisposableStore,
+): Promise<void> {
 	try {
 		logService.info('[EvaluationSession] Reading Editor request.');
 		const request = await readEvaluationSessionRequest(path, fileService);
@@ -76,6 +105,7 @@ async function runEditorEvaluationSession(path: string, accessor: ServicesAccess
 				languageModelsService,
 				agentHostFileSystemService,
 				workspaceContextService,
+				evaluationRemoteStore,
 			)
 			: `agent-host-${request.agent}`;
 		logService.info(`[EvaluationSession] Waiting for Editor target '${type}'.`);
@@ -89,7 +119,7 @@ async function runEditorEvaluationSession(path: string, accessor: ServicesAccess
 		const newSessionOptions = {
 			type,
 			position: ChatSessionPosition.Editor,
-			displayName: `${request.agent} evaluation`,
+			displayName: localize('evaluationSession.editorTitle', "{0} evaluation", request.agent),
 		};
 		const sessionResource = getResourceForNewChatSession(newSessionOptions);
 		const openOptions = { ...newSessionOptions, resource: sessionResource };
@@ -98,7 +128,13 @@ async function runEditorEvaluationSession(path: string, accessor: ServicesAccess
 		const result = await chatService.sendRequest(sessionResource, request.prompt, {
 			agentIdSilent: type,
 			userSelectedModelId: request.modelId,
-			agentHostSessionConfig: { ...getEvaluationSessionConfig(request.agent, request.approvals) },
+			agentHostSessionConfig: {
+				...getEvaluationSessionConfig(
+					request.agent,
+					request.approvals,
+					isEvaluationAutoApprovePolicyRestricted(configurationService),
+				),
+			},
 		});
 		if (result.kind === 'rejected') {
 			throw new Error(`Evaluation session request was rejected: ${result.reason}`);
@@ -138,6 +174,7 @@ async function registerEvaluationRemoteAgent(
 	languageModelsService: ILanguageModelsService,
 	agentHostFileSystemService: IAgentHostFileSystemService,
 	workspaceContextService: IWorkspaceContextService,
+	evaluationRemoteStore: DisposableStore,
 ): Promise<string> {
 	const authority = agentHostAuthority(address);
 	const sessionType = remoteAgentHostSessionTypeId(authority, provider);

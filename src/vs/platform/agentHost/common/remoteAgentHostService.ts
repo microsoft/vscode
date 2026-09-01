@@ -668,6 +668,9 @@ export interface IRemoteAgentHostService {
 	/** Registers a factory for one connection kind. Throws if that kind already has one. */
 	registerConnectionFactory(factory: IRemoteAgentHostConnectionFactory): IDisposable;
 
+	/** Adds a process-local entry that is never persisted to configuration. */
+	addTransientRemoteAgentHost(entry: IRemoteAgentHostEntry): IDisposable;
+
 	/**
 	 * Get a per-connection {@link IAgentConnection} for subscribing to
 	 * state, dispatching actions, creating sessions, etc.
@@ -754,6 +757,9 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	readonly connections: readonly IRemoteAgentHostConnectionInfo[] = [];
 	readonly configuredEntries: readonly IRemoteAgentHostEntry[] = [];
 	registerConnectionFactory(): IDisposable {
+		throw new Error('Remote agent host connections are not supported in this environment.');
+	}
+	addTransientRemoteAgentHost(): IDisposable {
 		throw new Error('Remote agent host connections are not supported in this environment.');
 	}
 	getConnection(): IAgentConnection | undefined { return undefined; }
