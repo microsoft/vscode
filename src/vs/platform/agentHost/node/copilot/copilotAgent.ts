@@ -1550,6 +1550,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		this._logService.info(`[Copilot] Auth token ${token ? 'updated' : 'cleared'}`);
+		this._telemetryService.setCommonProperty('copilotSku', undefined);
 		this._githubToken = token;
 		this._updateRestrictedTelemetry(token);
 		this._refreshProxy();
@@ -1598,7 +1599,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			const copilotSku = await this._copilotApiService.resolveCopilotSku?.(githubToken);
 			if (copilotSku && this._githubToken === githubToken) {
-				// __GDPR__COMMON__ "copilotSku" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The raw Copilot entitlement SKU of the authenticated GitHub account." }
 				this._telemetryService.setCommonProperty('copilotSku', copilotSku);
 			}
 		} catch (err) {
