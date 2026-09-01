@@ -181,6 +181,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'install-source': { type: 'string' },
 	'enable-smoke-test-driver': { type: 'boolean' },
 	'skip-sessions-welcome': { type: 'boolean' },
+	'evaluation-session-request': { type: 'string' },
 	'logExtensionHostCommunication': { type: 'boolean' },
 	'skip-release-notes': { type: 'boolean' },
 	'skip-welcome': { type: 'boolean' },

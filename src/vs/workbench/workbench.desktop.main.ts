@@ -113,6 +113,7 @@ registerSingleton(IUserDataInitializationService, new SyncDescriptor(UserDataIni
 
 // Logs
 import './contrib/logs/electron-browser/logs.contribution.js';
+import './contrib/chat/electron-browser/evaluationSessionEditor.contribution.js';
 
 // Localizations
 import './contrib/localization/electron-browser/localization.contribution.js';

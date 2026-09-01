@@ -130,6 +130,7 @@ export interface NativeParsedArgs {
 	'file-chmod'?: boolean;
 	'enable-smoke-test-driver'?: boolean;
 	'skip-sessions-welcome'?: boolean;
+	'evaluation-session-request'?: string;
 	'remote'?: string;
 	'force'?: boolean;
 	'do-not-sync'?: boolean;
