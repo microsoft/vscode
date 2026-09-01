@@ -26,6 +26,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { migratedCopilotCliResource } from '../copilotCliEventsUri.js';
 import { adoptLegacyCopilotCliResource, LEGACY_MIGRATION_OPEN_TIMEOUT_MS, reportLegacyMigrationOpen } from './agentHost/agentHostLegacyMigration.js';
+import { SESSION_META_EHCLI_ADOPTABLE_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
 
 //#region Session Opener Registry
 
@@ -90,7 +91,8 @@ async function resolveMigratedSession(agentSessionsService: IAgentSessionsServic
 async function resolveMigratedSessionForOpen(accessor: ServicesAccessor, resource: URI): Promise<IAgentSession | undefined> {
 	// Only a superseded legacy resource can redirect; skip the progress wrapper for every
 	// normal open so they stay overhead-free.
-	if (!migratedCopilotCliResource(resource)) {
+	const twin = migratedCopilotCliResource(resource);
+	if (!twin) {
 		return undefined;
 	}
 
@@ -100,12 +102,26 @@ async function resolveMigratedSessionForOpen(accessor: ServicesAccessor, resourc
 	const configurationService = accessor.get(IConfigurationService);
 	const connection = accessor.get(IAgentHostConnectionsService).ambientConnection;
 
+	// External sessions (origin "other") are never migrated — the host declines
+	// to adopt them. But discovery still surfaces them under their agent-host
+	// twin, so once surfaced we open that twin directly and skip the adopt probe
+	// entirely (it would waste a round-trip only to be declined, and the EH
+	// resource can no longer be resolved once the extension provider is retired).
+	// A still-adoptable session carries the marker and must keep migrating.
+	const surfacedTwin = agentSessionsService.getSession(twin);
+	if (surfacedTwin && !surfacedTwin.metadata?.[SESSION_META_EHCLI_ADOPTABLE_KEY]) {
+		return surfacedTwin;
+	}
+
 	return accessor.get(IProgressService).withProgress(
 		{ location: ProgressLocation.Window, title: localize('chat.openingSession', "Opening chat…") },
 		async () => {
 			const migrated = await adoptLegacyCopilotCliResource(connection, resource, logService, configurationService, telemetryService, 'open', LEGACY_MIGRATION_OPEN_TIMEOUT_MS);
 			if (!migrated) {
-				return undefined;
+				// Not adopted (e.g. an external session the host declined). It may
+				// still be surfaced under its twin — open that as-is rather than
+				// falling back to the unresolvable EH resource.
+				return resolveMigratedSession(agentSessionsService, twin);
 			}
 			const surfaced = await resolveMigratedSession(agentSessionsService, migrated);
 			reportLegacyMigrationOpen(telemetryService, 'open', !!surfaced);

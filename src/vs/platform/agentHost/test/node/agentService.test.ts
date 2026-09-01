@@ -308,6 +308,16 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		return true;
 	}
 
+	async updateSessionModifiedTimes(updates: readonly { readonly session: string; readonly modifiedTime: number }[]): Promise<void> {
+		for (const { session, modifiedTime } of updates) {
+			this._beforeWrite();
+			const existing = this._sessions.get(session);
+			if (existing && Number.isFinite(modifiedTime) && existing.modifiedTime < modifiedTime) {
+				this._sessions.set(session, { ...existing, modifiedTime });
+			}
+		}
+	}
+
 	async listSessions(): Promise<readonly IAgentHostDatabaseSession[]> {
 		this.undefinedExternalListCalls++;
 		return [...this._sessions.values()].map(session => this._sessionsWithoutExternal.has(session.session)
@@ -423,6 +433,15 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 		}
 		this._sessions.set(session, { ...existing, modifiedTime });
 		return true;
+	}
+
+	async updateSessionModifiedTimes(updates: readonly { readonly session: string; readonly modifiedTime: number }[]): Promise<void> {
+		for (const { session, modifiedTime } of updates) {
+			const existing = this._sessions.get(session);
+			if (existing && Number.isFinite(modifiedTime) && existing.modifiedTime < modifiedTime) {
+				this._sessions.set(session, { ...existing, modifiedTime });
+			}
+		}
 	}
 
 	async listSessions(): Promise<readonly IAgentHostDatabaseSession[]> {

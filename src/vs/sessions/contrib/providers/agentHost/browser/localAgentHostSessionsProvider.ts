@@ -148,14 +148,20 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		if (!isLegacyMigrationEnabledAtStartup(this._configurationService)) {
 			return undefined;
 		}
-		const rawId = getCopilotCliSessionRawId(migratedCopilotCliResource(resource));
+		const twin = migratedCopilotCliResource(resource);
+		const rawId = getCopilotCliSessionRawId(twin);
 		if (rawId && this._sessionCache.has(rawId)) {
-			return migratedCopilotCliResource(resource); // already adopted; no round-trip
+			return twin; // already surfaced (adopted or external); no round-trip
 		}
 		// Startup restore reopens persisted slots against a cold host, where the
 		// first catalog pass is far slower than an interactive open.
 		const timeoutMs = reason === 'restore' ? LEGACY_MIGRATION_RESTORE_TIMEOUT_MS : LEGACY_MIGRATION_TIMEOUT_MS;
-		return adoptLegacyCopilotCliResource(this.connection, resource, this._logService, this._configurationService, this._telemetryService, reason ?? 'open', timeoutMs);
+		const adopted = await adoptLegacyCopilotCliResource(this.connection, resource, this._logService, this._configurationService, this._telemetryService, reason ?? 'open', timeoutMs);
+		// On decline (an external session the host will not migrate) or a timeout,
+		// still redirect to the surfaced twin so the session opens as-is instead of
+		// the extension-host resource, which can no longer be resolved once the
+		// extension provider is retired. Mirrors the chat-editor open path.
+		return adopted ?? twin;
 	}
 
 	constructor(
