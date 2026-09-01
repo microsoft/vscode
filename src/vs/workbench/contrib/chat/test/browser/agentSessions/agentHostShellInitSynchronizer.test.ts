@@ -174,6 +174,31 @@ suite('AgentHostShellInitSynchronizer', () => {
 		assert.ok(scripts(dispatched)[0].script.indexOf('.bashrc') < scripts(dispatched)[0].script.indexOf('activate-a'));
 	});
 
+	test('publishes a changed activation when environment collections change', async () => {
+		let currentCollection = collection([{ variable: ACTIVATION_VARIABLE, value: 'activate-a', folder: folderA }]);
+		const collectionsChanged = disposables.add(new Emitter<MergedEnvironmentVariableCollection>());
+		const { synchronizer, dispatched } = create({
+			enabled: true,
+			getCollection: () => currentCollection,
+			onDidChangeCollections: collectionsChanged.event,
+		});
+		const subscription = await register(synchronizer, state());
+		subscription.applyConfig(dispatched[0]);
+		await timeout(0);
+
+		currentCollection = collection([{ variable: ACTIVATION_VARIABLE, value: 'activate-b', folder: folderA }]);
+		collectionsChanged.fire(currentCollection);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			dispatches: dispatched.length,
+			hasUpdatedActivation: scripts(dispatched)[0].script.includes('activate-b'),
+		}, {
+			dispatches: 2,
+			hasUpdatedActivation: true,
+		});
+	});
+
 	test('reconcile waits for the config echo before the first turn', async () => {
 		const { synchronizer, dispatched } = create({ enabled: true });
 		const subscription = disposables.add(new TestSubscription(state()));
