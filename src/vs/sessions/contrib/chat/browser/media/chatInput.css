@@ -617,10 +617,10 @@
 .sessions-chat-attachment-image {
 	width: 13px;
 	height: 13px;
-	border-radius: 2px;
+	border-radius: var(--vscode-cornerRadius-xSmall);
 	object-fit: cover;
 	flex-shrink: 0;
-	margin: 0 3px;
+	margin: 0 var(--vscode-spacing-size40);
 }
 
 .sessions-chat-attachment-pill {
@@ -674,7 +674,8 @@
 	white-space: nowrap;
 }
 
-.sessions-chat-attachment-pill .codicon {
+.monaco-workbench .sessions-chat-attachment-pill .sessions-chat-attachment-content .codicon,
+.monaco-workbench .sessions-chat-attachment-pill .sessions-chat-attachment-open .codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 	flex-shrink: 0;
 	padding: 0 var(--vscode-spacing-size20);
@@ -719,14 +720,14 @@
 	cursor: pointer;
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
-	margin-left: var(--vscode-spacing-size20);
+	margin-right: var(--vscode-spacing-size20);
 }
 
 .sessions-chat-attachment-pill.openable:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.sessions-chat-attachment-pill .sessions-chat-attachment-remove .codicon {
+.monaco-workbench .sessions-chat-attachment-pill .sessions-chat-attachment-remove .codicon {
 	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	padding: 0;
 }

@@ -4,17 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IIconLabelValueOptions } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IResolvedTextEditorModel } from '../../../../../editor/common/services/resolverService.js';
+import { FileKind } from '../../../../../platform/files/common/files.js';
+import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
+import { FileThemeIcon, FolderThemeIcon } from '../../../../../platform/theme/common/themeService.js';
+import { IFileLabelOptions } from '../../../../../workbench/browser/labels.js';
 import { hasSendableNewChatContent, NewChatInputWidget } from '../../browser/newChatInput.js';
-import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { NewChatContextAttachments } from '../../browser/newChatContextAttachments.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 
@@ -95,13 +102,24 @@ interface IAttachmentRenderingHarness {
 	readonly _renderDisposables: DisposableStore;
 	readonly _resourceLabels: {
 		clear(): void;
-		create(container: HTMLElement, options: { supportIcons: boolean }): IDisposable & {
-			setLabel(label: string): void;
-			setFile(resource: URI, options: object): void;
+		create(container: HTMLElement): IDisposable & {
+			setLabel(label: string, description?: string, options?: IIconLabelValueOptions): void;
+			setFile(resource: URI, options?: IFileLabelOptions): void;
 		};
 	};
 	readonly openerService: {
 		open(resource: URI): Promise<boolean>;
+	};
+	readonly themeService?: {
+		getFileIconTheme(): { hasFileIcons: boolean; hasFolderIcons: boolean };
+		getColorTheme(): { type: ColorScheme };
+		readonly onDidColorThemeChange: Event<void>;
+	};
+	readonly modelService?: {
+		getModel(): null;
+	};
+	readonly languageService?: {
+		guessLanguageIdByFilepathOrFirstLine(): string;
 	};
 	removeAttachment(id: string): void;
 }
@@ -486,6 +504,233 @@ suite('NewChatInputWidget', () => {
 		}
 	});
 
+	test('renders leading removal and compact attachment icons', () => {
+		const container = document.createElement('div');
+		const entries: IChatRequestVariableEntry[] = [
+			{
+				kind: 'file',
+				id: 'file',
+				name: 'README.md',
+				value: URI.file('/workspace/README.md'),
+			},
+			{
+				kind: 'directory',
+				id: 'directory',
+				name: 'spritesheet',
+				value: URI.file('/workspace/spritesheet'),
+			},
+			{
+				kind: 'generic',
+				id: 'unknown',
+				name: 'Unknown context',
+				value: 'unknown',
+			},
+			{
+				kind: 'string',
+				id: 'themed-file',
+				name: 'Themed file',
+				value: 'themed-file',
+				uri: URI.parse('vscode://context/themed-file'),
+				resourceUri: URI.file('/workspace/src/index.ts'),
+				iconPath: FileThemeIcon,
+				handle: 1,
+			},
+			{
+				kind: 'image',
+				id: 'image',
+				name: 'image.png',
+				value: URI.file('/workspace/image.png'),
+			},
+		];
+		const labels: { label: string; icon?: string; extraClasses?: readonly string[] }[] = [];
+		const files: { resource: string; fileKind?: FileKind; icon?: string }[] = [];
+		const renderDisposables = disposables.add(new DisposableStore());
+		updateAttachmentRendering.call({
+			_container: container,
+			_attachedContext: entries,
+			_renderDisposables: renderDisposables,
+			_resourceLabels: {
+				clear: () => { },
+				create: content => {
+					const labelElement = document.createElement('span');
+					labelElement.className = 'resource-label';
+					content.appendChild(labelElement);
+					return {
+						dispose: () => { },
+						setLabel: (label, _description, options) => labels.push({
+							label,
+							icon: ThemeIcon.isThemeIcon(options?.iconPath) ? options.iconPath.id : options?.iconPath?.toString(),
+							extraClasses: options?.extraClasses,
+						}),
+						setFile: (resource, options) => files.push({
+							resource: resource.path,
+							fileKind: options?.fileKind,
+							icon: ThemeIcon.isThemeIcon(options?.icon) ? options.icon.id : options?.icon?.toString(),
+						}),
+					};
+				},
+			},
+			openerService: { open: async () => true },
+			themeService: {
+				getFileIconTheme: () => ({ hasFileIcons: true, hasFolderIcons: false }),
+				getColorTheme: () => ({ type: ColorScheme.DARK }),
+				onDidColorThemeChange: Event.None,
+			},
+			modelService: {
+				getModel: () => null,
+			},
+			languageService: {
+				guessLanguageIdByFilepathOrFirstLine: () => 'typescript',
+			},
+			removeAttachment: () => { },
+		});
+		const firstPill = container.querySelector<HTMLElement>('.sessions-chat-attachment-pill');
+		const openButton = firstPill?.querySelector<HTMLElement>('.sessions-chat-attachment-open');
+		const removeButton = firstPill?.querySelector<HTMLElement>('.sessions-chat-attachment-remove');
+
+		assert.deepStrictEqual({
+			pillChildren: Array.from(firstPill?.children ?? []).map(child => child.className),
+			removeButtonNestedInOpenButton: openButton?.contains(removeButton ?? null),
+			hasCompactImageIcon: !!container.querySelector('.codicon-file-media-compact'),
+			files,
+			labels,
+		}, {
+			pillChildren: ['sessions-chat-attachment-remove', 'sessions-chat-attachment-open'],
+			removeButtonNestedInOpenButton: false,
+			hasCompactImageIcon: true,
+			files: [
+				{ resource: '/workspace/README.md', fileKind: FileKind.FILE, icon: undefined },
+				{ resource: '/workspace/spritesheet', fileKind: FileKind.FOLDER, icon: FolderThemeIcon.id },
+			],
+			labels: [
+				{ label: 'Unknown context', icon: Codicon.attachCompact.id, extraClasses: undefined },
+				{
+					label: 'Themed file',
+					icon: undefined,
+					extraClasses: ['file-icon', 'src-name-dir-icon', 'index.ts-name-file-icon', 'name-file-icon', 'ts-ext-file-icon', 'ext-file-icon', 'typescript-lang-file-icon'],
+				},
+			],
+		});
+	});
+
+	test('updates light and dark attachment icons without rebuilding controls', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const colorThemeEmitter = disposables.add(new Emitter<void>());
+		const lightIcon = URI.parse('test:/light.svg');
+		const darkIcon = URI.parse('test:/dark.svg');
+		let colorScheme = ColorScheme.DARK;
+		const icons: string[] = [];
+		const renderDisposables = disposables.add(new DisposableStore());
+		updateAttachmentRendering.call({
+			_container: container,
+			_attachedContext: [{
+				kind: 'generic',
+				id: 'themed',
+				name: 'Themed context',
+				value: 'themed',
+				iconPath: { light: lightIcon, dark: darkIcon },
+			}],
+			_renderDisposables: renderDisposables,
+			_resourceLabels: {
+				clear: () => { },
+				create: content => {
+					content.appendChild(document.createElement('span'));
+					return {
+						dispose: () => { },
+						setLabel: (_label, _description, options) => {
+							if (URI.isUri(options?.iconPath)) {
+								icons.push(options.iconPath.toString());
+							}
+						},
+						setFile: () => { },
+					};
+				},
+			},
+			openerService: { open: async () => true },
+			themeService: {
+				getFileIconTheme: () => ({ hasFileIcons: true, hasFolderIcons: true }),
+				getColorTheme: () => ({ type: colorScheme }),
+				onDidColorThemeChange: colorThemeEmitter.event,
+			},
+			modelService: {
+				getModel: () => null,
+			},
+			languageService: {
+				guessLanguageIdByFilepathOrFirstLine: () => 'typescript',
+			},
+			removeAttachment: () => { },
+		});
+		const pill = container.querySelector('.sessions-chat-attachment-pill');
+		const removeButton = container.querySelector<HTMLElement>('.sessions-chat-attachment-remove');
+		removeButton?.focus();
+
+		colorScheme = ColorScheme.LIGHT;
+		colorThemeEmitter.fire();
+
+		assert.deepStrictEqual({
+			icons,
+			samePill: container.querySelector('.sessions-chat-attachment-pill') === pill,
+			sameRemoveButton: container.querySelector('.sessions-chat-attachment-remove') === removeButton,
+			focusedElementPreserved: document.activeElement === removeButton,
+		}, {
+			icons: [darkIcon.toString(), lightIcon.toString()],
+			samePill: true,
+			sameRemoveButton: true,
+			focusedElementPreserved: true,
+		});
+		container.remove();
+	});
+
+	test('marks the pasted text fallback as a predefined file icon', () => {
+		const container = document.createElement('div');
+		const entry = toPasteVariableEntry('Pasted text', 'const value = 1;', {
+			language: 'typescript',
+			fileName: 'pasted.ts',
+			pastedLines: '1 line',
+			_meta: { [ChatPasteAttachmentMetadata.TextArtifact]: true },
+		});
+		let labelOptions: IIconLabelValueOptions | undefined;
+		const renderDisposables = disposables.add(new DisposableStore());
+		updateAttachmentRendering.call({
+			_container: container,
+			_attachedContext: [entry],
+			_renderDisposables: renderDisposables,
+			_resourceLabels: {
+				clear: () => { },
+				create: content => {
+					content.appendChild(document.createElement('span'));
+					return {
+						dispose: () => { },
+						setLabel: (_label, _description, options) => labelOptions = options,
+						setFile: () => { },
+					};
+				},
+			},
+			openerService: { open: async () => true },
+			themeService: {
+				getFileIconTheme: () => ({ hasFileIcons: false, hasFolderIcons: false }),
+				getColorTheme: () => ({ type: ColorScheme.DARK }),
+				onDidColorThemeChange: Event.None,
+			},
+			modelService: {
+				getModel: () => null,
+			},
+			languageService: {
+				guessLanguageIdByFilepathOrFirstLine: () => 'typescript',
+			},
+			removeAttachment: () => { },
+		});
+
+		assert.deepStrictEqual({
+			iconPath: labelOptions?.iconPath,
+			extraClasses: labelOptions?.extraClasses,
+		}, {
+			iconPath: undefined,
+			extraClasses: ['codicon-file', 'predefined-file-icon'],
+		});
+	});
+
 	test('renders additional folder and repository context as attachment pills', () => {
 		const container = document.createElement('div');
 		const folder = URI.file('/workspace/docs');
@@ -518,6 +763,11 @@ suite('NewChatInputWidget', () => {
 				}),
 			},
 			openerService: { open: async () => true },
+			themeService: {
+				getFileIconTheme: () => ({ hasFileIcons: true, hasFolderIcons: false }),
+				getColorTheme: () => ({ type: ColorScheme.DARK }),
+				onDidColorThemeChange: Event.None,
+			},
 			removeAttachment: () => { },
 		});
 
@@ -525,10 +775,11 @@ suite('NewChatInputWidget', () => {
 			Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-attachment-pill')).map(pill => ({
 				text: pill.textContent,
 				removeAriaLabel: pill.querySelector('.sessions-chat-attachment-remove')?.getAttribute('aria-label'),
+				hasCompactRepositoryIcon: !!pill.querySelector('.codicon-repo-compact'),
 			})),
 			[
-				{ text: 'docs', removeAriaLabel: 'Remove docs' },
-				{ text: 'microsoft/typescript', removeAriaLabel: 'Remove microsoft/typescript' },
+				{ text: 'docs', removeAriaLabel: 'Remove docs', hasCompactRepositoryIcon: false },
+				{ text: 'microsoft/typescript', removeAriaLabel: 'Remove microsoft/typescript', hasCompactRepositoryIcon: true },
 			],
 		);
 	});

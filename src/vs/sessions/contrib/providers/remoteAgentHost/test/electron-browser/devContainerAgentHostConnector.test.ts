@@ -14,17 +14,15 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerWorktreeEnabledSettingId } from '../../../../../common/devContainerAgentHostService.js';
-import { ensureDevContainerAgentHostsEnabled, isDevContainerWorkspaceAvailable, registerDevContainerAgentHostConfiguration } from '../../electron-browser/devContainerAgentHostConnector.contribution.js';
+import { ensureDevContainerAgentHostsEnabled, isDevContainerWorkspaceAvailable } from '../../electron-browser/devContainerAgentHostConnector.contribution.js';
 
 suite('Dev Container Agent Host Connector', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	suiteSetup(() => {
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-		if (!configurationRegistry.getConfigurationProperties()[DevContainerAgentHostEnabledSettingId]) {
-			registerDevContainerAgentHostConfiguration();
-		}
-	});
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+	// Capture these before configuration registry tests clear global registrations.
+	const devContainerAgentHostEnabledProperty = configurationRegistry.getConfigurationProperties()[DevContainerAgentHostEnabledSettingId];
+	const devContainerWorktreeEnabledProperty = configurationRegistry.getExcludedConfigurationProperties()[DevContainerWorktreeEnabledSettingId];
 
 	test('requires Docker and a default Dev Container configuration', async () => {
 		const workspaceUri = URI.file('/workspace');
@@ -66,14 +64,11 @@ suite('Dev Container Agent Host Connector', () => {
 	});
 
 	test('registers an experimental, disabled-by-default user setting', () => {
-		const property = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-			.getConfigurationProperties()[DevContainerAgentHostEnabledSettingId];
-
 		assert.deepStrictEqual({
-			default: property.default,
-			scope: property.scope,
-			tags: property.tags,
-			experiment: property.experiment,
+			default: devContainerAgentHostEnabledProperty.default,
+			scope: devContainerAgentHostEnabledProperty.scope,
+			tags: devContainerAgentHostEnabledProperty.tags,
+			experiment: devContainerAgentHostEnabledProperty.experiment,
 		}, {
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
@@ -83,14 +78,11 @@ suite('Dev Container Agent Host Connector', () => {
 	});
 
 	test('registers a hidden experimental setting for combining Dev Containers and worktrees', () => {
-		const property = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-			.getExcludedConfigurationProperties()[DevContainerWorktreeEnabledSettingId];
-
 		assert.deepStrictEqual({
-			default: property.default,
-			scope: property.scope,
-			tags: property.tags,
-			experiment: property.experiment,
+			default: devContainerWorktreeEnabledProperty.default,
+			scope: devContainerWorktreeEnabledProperty.scope,
+			tags: devContainerWorktreeEnabledProperty.tags,
+			experiment: devContainerWorktreeEnabledProperty.experiment,
 		}, {
 			default: false,
 			scope: ConfigurationScope.APPLICATION,

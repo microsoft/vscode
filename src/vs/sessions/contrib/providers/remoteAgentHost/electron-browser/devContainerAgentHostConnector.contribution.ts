@@ -255,32 +255,27 @@ class DevContainerAgentHostConnectorContribution extends Disposable implements I
 	}
 }
 
-/** Registers the Dev Container Agent Host settings. */
-export function registerDevContainerAgentHostConfiguration(): void {
-	Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-		properties: {
-			[DevContainerAgentHostEnabledSettingId]: {
-				type: 'boolean',
-				description: localize('chat.agentHost.devContainer.enabled', "Enable running Agent Host sessions in Dev Containers."),
-				default: false,
-				scope: ConfigurationScope.APPLICATION,
-				tags: ['experimental'],
-				experiment: { mode: 'auto' },
-			},
-			[DevContainerWorktreeEnabledSettingId]: {
-				type: 'boolean',
-				description: localize('chat.agentHost.devContainer.worktree.enabled', "Enable running Dev Container Agent Host sessions in new worktrees."),
-				default: false,
-				scope: ConfigurationScope.APPLICATION,
-				included: false,
-				tags: ['experimental'],
-				experiment: { mode: 'auto' },
-			},
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	properties: {
+		[DevContainerAgentHostEnabledSettingId]: {
+			type: 'boolean',
+			description: localize('chat.agentHost.devContainer.enabled', "Enable running Agent Host sessions in Dev Containers."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
 		},
-	});
-}
-
-registerDevContainerAgentHostConfiguration();
+		[DevContainerWorktreeEnabledSettingId]: {
+			type: 'boolean',
+			description: localize('chat.agentHost.devContainer.worktree.enabled', "Enable running Dev Container Agent Host sessions in new worktrees."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+	},
+});
 
 registerWorkbenchContribution2(
 	DevContainerAgentHostConnectorContribution.ID,

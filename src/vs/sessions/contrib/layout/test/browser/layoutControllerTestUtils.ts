@@ -215,6 +215,8 @@ export interface ITestLayoutHarness {
 	activateAux: boolean;
 	/** Editors in the main part's active group (drives the single-pane managed-tab logic). */
 	activeGroupEditors: EditorInput[];
+	/** Fires when the active editor group begins disposal. */
+	onWillDisposeActiveGroup: Emitter<void>;
 	/** Records editors closed via `IEditorService.closeEditors`. */
 	closedEditors: EditorInput[];
 	/** Records untyped editors reopened via `IEditorService.openEditors`. */
@@ -248,7 +250,7 @@ export interface ITestLayoutHarness {
 	/** Optional async hook awaited before `closeEditors` mutates the group. */
 	onCloseEditors?: () => Promise<void> | void;
 	/** Optional async hook awaited before `replaceEditors` mutates the group. */
-	onReplaceEditors?: () => Promise<void> | void;
+	onReplaceEditors?: (replacements: IEditorReplacement[]) => Promise<void> | void;
 	/** Records every `openChangesEditor` call for assertions (session + whether active). */
 	openChangesEditorCalls: { sessionResource: URI; active: boolean }[];
 	readonly sessionChangesService: ISessionChangesService;
@@ -334,6 +336,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		editorPartAutoVisibilitySuppressionDepth: 0,
 		activateAux: options.activateAux ?? false,
 		activeGroupEditors: [],
+		onWillDisposeActiveGroup: store.add(new Emitter<void>()),
 		closedEditors: [],
 		openedEditors: [],
 		closeSuppressionFlags: [],
@@ -356,6 +359,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	const testActiveGroup: IEditorGroup = new class extends mock<IEditorGroup>() {
 		override readonly id = 1;
 		override get editors() { return harness.activeGroupEditors as IEditorGroup['editors']; }
+		override readonly onWillDispose = harness.onWillDisposeActiveGroup.event;
 		override readonly onWillCloseEditor = harness.onWillCloseEditor.event as IEditorGroup['onWillCloseEditor'];
 		override get count() { return harness.activeGroupEditors.length; }
 		override get isEmpty() { return harness.activeGroupEditors.length === 0; }
@@ -365,7 +369,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override pinEditor() { }
 		override getIndexOfEditor(editor: EditorInput) { return harness.activeGroupEditors.indexOf(editor); }
 		override async replaceEditors(replacements: IEditorReplacement[]) {
-			await harness.onReplaceEditors?.();
+			await harness.onReplaceEditors?.(replacements);
 			for (const replacement of replacements) {
 				const index = harness.activeGroupEditors.indexOf(replacement.editor);
 				if (index === -1) {
