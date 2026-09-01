@@ -9,6 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentPluginManager, type ISyncedCustomization } from '../common/agentPluginManager.js';
+import { AUTOMATION_ACTIVE_CLIENT_ID } from '../common/agentHostCustomizationConfig.js';
 import { CustomizationLoadStatus, type ClientPluginCustomization, type PluginCustomization } from '../common/state/sessionState.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
 
@@ -113,7 +114,9 @@ export class AgentPluginManager implements IAgentPluginManager {
 	 * Returns the local directory URI.
 	 */
 	private async _syncPlugin(clientId: string, ref: ClientPluginCustomization): Promise<URI> {
-		const pluginUri = toAgentClientUri(URI.parse(ref.uri), clientId);
+		const pluginUri = clientId === AUTOMATION_ACTIVE_CLIENT_ID
+			? URI.parse(ref.uri)
+			: toAgentClientUri(URI.parse(ref.uri), clientId);
 		const destDir = this._dirFor(ref.uri, ref.nonce);
 
 		// Nonce cache hit — the plugin is already materialized under the nonce

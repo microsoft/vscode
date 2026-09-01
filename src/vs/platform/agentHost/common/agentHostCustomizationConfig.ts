@@ -5,8 +5,11 @@
 
 import { localize } from '../../../nls.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
-import { CustomizationType, type Customization, type PluginCustomization } from './state/protocol/state.js';
+import { withCustomizationEnablement } from './customizationEnablement.js';
+import { CustomizationEnablementKind, CustomizationType, type ClientPluginCustomization, type Customization, type PluginCustomization } from './state/protocol/state.js';
 import { customizationId } from './state/sessionState.js';
+
+export const AUTOMATION_ACTIVE_CLIENT_ID = 'vscode-automations';
 
 /**
  * Well-known root-config keys used by the platform to configure agent-host
@@ -40,6 +43,8 @@ export const enum AgentHostConfigKey {
 	 * `agent-host-config.json`.
 	 */
 	GithubEnterpriseUri = 'githubEnterpriseUri',
+	/** Client-local plugins made available to host-owned Automation sessions. */
+	AutomationClientPlugins = 'automationClientPlugins',
 }
 
 export const SESSION_CUSTOMIZATION_DISCOVERY_MODES = ['scan', 'discover'] as const;
@@ -57,6 +62,13 @@ interface IPersistedCustomizationConfigEntry {
 	uri: string;
 	displayName: string;
 	description?: string;
+}
+
+export interface IAutomationClientPluginConfigEntry {
+	uri: string;
+	displayName: string;
+	nonce?: string;
+	enabled: boolean;
 }
 
 export const agentHostCustomizationConfigSchema = createSchema({
@@ -108,6 +120,35 @@ export const agentHostCustomizationConfigSchema = createSchema({
 		title: localize('agentHost.config.githubEnterpriseUri.title', "GitHub Enterprise URI"),
 		description: localize('agentHost.config.githubEnterpriseUri.description', "Optional base URI of a GitHub Enterprise instance (for example \"https://ghe.example.com\" for GitHub Enterprise Server, or \"https://tenant.ghe.com\" for GitHub Enterprise Cloud). When set, the agent host authenticates and makes GitHub API calls against this instance instead of github.com. Normally pushed by the connected VS Code client from the `github-enterprise.uri` setting; remote agent host operators can set it directly in the remote `agent-host-config.json`."),
 	}),
+	[AgentHostConfigKey.AutomationClientPlugins]: schemaProperty<IAutomationClientPluginConfigEntry[]>({
+		type: 'array',
+		title: localize('agentHost.config.automationClientPlugins.title', "Automation Client Plugins"),
+		description: localize('agentHost.config.automationClientPlugins.description', "Client-local plugins available to host-owned Automation sessions."),
+		default: [],
+		items: {
+			type: 'object',
+			title: localize('agentHost.config.automationClientPlugins.itemTitle', "Plugin"),
+			properties: {
+				uri: {
+					type: 'string',
+					title: localize('agentHost.config.automationClientPlugins.uri', "Plugin URI"),
+				},
+				displayName: {
+					type: 'string',
+					title: localize('agentHost.config.automationClientPlugins.displayName', "Name"),
+				},
+				nonce: {
+					type: 'string',
+					title: localize('agentHost.config.automationClientPlugins.nonce', "Version"),
+				},
+				enabled: {
+					type: 'boolean',
+					title: localize('agentHost.config.automationClientPlugins.enabled', "Enabled"),
+				},
+			},
+			required: ['uri', 'displayName', 'enabled'],
+		},
+	}),
 });
 
 export const defaultAgentHostCustomizationConfigValues = {
@@ -137,5 +178,19 @@ export function toContainerCustomization(entry: IPersistedCustomizationConfigEnt
 		id: customizationId(entry.uri),
 		uri: entry.uri,
 		name: entry.displayName,
+	};
+}
+
+export function toAutomationClientPluginCustomization(entry: IAutomationClientPluginConfigEntry): ClientPluginCustomization {
+	return {
+		type: CustomizationType.Plugin,
+		id: customizationId(entry.uri),
+		uri: entry.uri,
+		name: entry.displayName,
+		nonce: entry.nonce,
+		enablement: withCustomizationEnablement(undefined, CustomizationEnablementKind.Global, {
+			kind: CustomizationEnablementKind.Global,
+			enabled: entry.enabled,
+		}),
 	};
 }

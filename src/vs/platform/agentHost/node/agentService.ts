@@ -25,6 +25,7 @@ import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sess
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
+import { AgentHostConfigKey, agentHostCustomizationConfigSchema, AUTOMATION_ACTIVE_CLIENT_ID, toAutomationClientPluginCustomization } from '../common/agentHostCustomizationConfig.js';
 import { buildAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
 import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, isAgentHostAutomationMigrationCompletion } from '../common/automationMigration.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
@@ -644,17 +645,26 @@ export class AgentService extends Disposable implements IAgentService {
 		core.callbackBinder.bind({
 			automationExecution: {
 				isSessionTemplateAvailable: template => this._providerService.resolveProvider(template.provider) !== undefined,
-				createSession: (template, run) => this.createSession({
-					provider: template.provider,
-					model: template.model,
-					agent: template.agent,
-					workingDirectories: template.workingDirectories?.map(resource => URI.parse(resource)),
-					config: template.config,
-					_meta: {
-						automation: run.automation,
-						automationRun: run.resource,
-					},
-				}),
+				createSession: (template, run) => {
+					const automationPlugins = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AutomationClientPlugins) ?? [];
+					return this.createSession({
+						provider: template.provider,
+						model: template.model,
+						agent: template.agent,
+						workingDirectories: template.workingDirectories?.map(resource => URI.parse(resource)),
+						config: template.config,
+						activeClient: automationPlugins.length ? {
+							clientId: AUTOMATION_ACTIVE_CLIENT_ID,
+							displayName: localize('agentHost.automations.activeClient', "VS Code Automations"),
+							tools: [],
+							customizations: automationPlugins.map(toAutomationClientPluginCustomization),
+						} : undefined,
+						_meta: {
+							automation: run.automation,
+							automationRun: run.resource,
+						},
+					});
+				},
 				startSession: (session, message) => this._startAutomationMessage(session, message),
 				cancelSession: session => this._cancelAutomationSession(session),
 			},

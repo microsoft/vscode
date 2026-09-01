@@ -31,6 +31,8 @@ import { AgentChatMigrationDeferred, AgentSession, GITHUB_COPILOT_PROTECTED_RESO
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
+import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY } from '../../common/automationMigration.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
@@ -541,6 +543,84 @@ suite('AgentService (node dispatcher)', () => {
 			total: 100,
 			message: 'Downloading Codex agent',
 		}]);
+	});
+
+	test('seeds host-owned Automation sessions with client-local plugins', async () => {
+		registerTestAgentProvider(service, copilotAgent);
+		getTestAgentServiceComposition(service).configurationService.updateRootConfig({
+			[AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: true,
+			[AgentHostConfigKey.AutomationClientPlugins]: [{
+				uri: 'file:///plugins/local-plugin',
+				displayName: 'Local Plugin',
+				nonce: '1234',
+				enabled: true,
+			}],
+		});
+		const automationService = (service as unknown as {
+			_automationService: {
+				completeMigration(): Promise<void>;
+				handleCreate(action: {
+					type: ActionType.AutomationCreateRequested;
+					resource: string;
+					definition: {
+						title: string;
+						message: { text: string; origin: { kind: MessageKind.Automation } };
+						session: { provider: string };
+						enabled: boolean;
+						triggers: [];
+					};
+				}): Promise<void>;
+			};
+		})._automationService;
+		await automationService.completeMigration();
+		await automationService.handleCreate({
+			type: ActionType.AutomationCreateRequested,
+			resource: 'ahp-automation:/local-plugin',
+			definition: {
+				title: 'Use local plugin',
+				message: { text: 'Use the local plugin.', origin: { kind: MessageKind.Automation } },
+				session: { provider: 'copilot' },
+				enabled: true,
+				triggers: [],
+			},
+		});
+
+		const result = await service.runAutomation({
+			channel: 'ahp-automations://',
+			automation: 'ahp-automation:/local-plugin',
+			requestId: 'local-plugin-run',
+		});
+
+		const stateManager = getTestAgentStateManager(service);
+		let primarySession = stateManager.getAutomationRunState(result.resource)?.primarySession;
+		for (let i = 0; i < 20 && !primarySession; i++) {
+			await timeout(0);
+			primarySession = stateManager.getAutomationRunState(result.resource)?.primarySession;
+		}
+		const activeClient = primarySession ? stateManager.getSessionState(primarySession)?.activeClients[0] : undefined;
+		assert.deepStrictEqual({
+			clientId: activeClient?.clientId,
+			displayName: activeClient?.displayName,
+			tools: activeClient?.tools,
+			customizations: activeClient?.customizations?.map(customization => ({
+				type: customization.type,
+				uri: customization.uri,
+				name: customization.name,
+				nonce: customization.nonce,
+				enabled: isCustomizationEnabled(customization),
+			})),
+		}, {
+			clientId: 'vscode-automations',
+			displayName: 'VS Code Automations',
+			tools: [],
+			customizations: [{
+				type: CustomizationType.Plugin,
+				uri: 'file:///plugins/local-plugin',
+				name: 'Local Plugin',
+				nonce: '1234',
+				enabled: true,
+			}],
+		});
 	});
 
 	// ---- Provider registration ------------------------------------------

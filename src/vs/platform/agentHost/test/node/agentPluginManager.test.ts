@@ -15,6 +15,7 @@ import { IFileDeleteOptions } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientUri.js';
+import { AUTOMATION_ACTIVE_CLIENT_ID } from '../../common/agentHostCustomizationConfig.js';
 import { customizationId, type ClientPluginCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
 import { AgentPluginManager } from '../../node/agentPluginManager.js';
@@ -122,6 +123,24 @@ suite('AgentPluginManager', () => {
 			assert.ok(results[0].pluginDir, 'should have pluginDir');
 			assert.strictEqual(results[1].customization.load?.kind, 'loaded');
 			assert.ok(results[1].pluginDir, 'should have pluginDir');
+		});
+
+		test('copies Automation plugins directly from the host filesystem', async () => {
+			const plugin = URI.parse(pluginUri('automation'));
+			await fileService.createFolder(plugin);
+			await fileService.writeFile(URI.joinPath(plugin, 'index.js'), VSBuffer.fromString('automation'));
+
+			const results = await manager.syncCustomizations(AUTOMATION_ACTIVE_CLIENT_ID, [makeRef('automation', 'n1')]);
+
+			assert.deepStrictEqual({
+				load: results[0].customization.load,
+				content: results[0].pluginDir
+					? (await fileService.readFile(URI.joinPath(results[0].pluginDir, 'index.js'))).value.toString()
+					: undefined,
+			}, {
+				load: { kind: 'loaded' },
+				content: 'automation',
+			});
 		});
 
 		test('returns error status without pluginDir when source missing', async () => {
