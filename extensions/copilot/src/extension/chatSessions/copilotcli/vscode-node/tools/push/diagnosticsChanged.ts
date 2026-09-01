@@ -37,24 +37,20 @@ function severityToString(severity: vscode.DiagnosticSeverity): string {
 	}
 }
 
-export function serializeDiagnostic(d: vscode.Diagnostic): DiagnosticInfo['diagnostics'][number] {
-	return {
-		range: {
-			start: { line: d.range.start.line, character: d.range.start.character },
-			end: { line: d.range.end.line, character: d.range.end.character },
-		},
-		message: d.message,
-		severity: severityToString(d.severity),
-		source: d.source,
-		code: typeof d.code === 'object' && d.code !== null ? d.code.value : d.code,
-	};
-}
-
 function getDiagnosticsForUri(uri: vscode.Uri): DiagnosticInfo {
 	const diagnostics = vscode.languages.getDiagnostics(uri);
 	return {
 		uri: uri.toString(),
-		diagnostics: diagnostics.map(serializeDiagnostic),
+		diagnostics: diagnostics.map(d => ({
+			range: {
+				start: { line: d.range.start.line, character: d.range.start.character },
+				end: { line: d.range.end.line, character: d.range.end.character },
+			},
+			message: d.message,
+			severity: severityToString(d.severity),
+			source: d.source,
+			code: typeof d.code === 'object' && d.code !== null ? d.code.value : d.code,
+		})),
 	};
 }
 
