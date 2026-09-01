@@ -45,6 +45,7 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 	private _status: TunnelStatus = { type: 'uninitialized' };
 	private _hasReceivedMode = false;
 	private _hasReceivedStatus = false;
+	private _hasInitializedState = false;
 
 	constructor(
 		action: IAction,
@@ -104,10 +105,12 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 		this.element.setAttribute('aria-label', this._getAriaLabel());
 		this.element.setAttribute('aria-pressed', String(state.isSharing));
 
-		if (state.isSharing && !this._wasSharing && !state.isConnecting) {
-			this._showToast();
-		} else if (!state.isSharing && this._wasSharing) {
-			this._hideToast();
+		if (this._hasInitializedState) {
+			if (state.isSharing && !this._wasSharing && !state.isConnecting) {
+				this._showToast();
+			} else if (!state.isSharing && this._wasSharing) {
+				this._hideToast();
+			}
 		}
 
 		this._wasSharing = state.isSharing;
@@ -125,6 +128,7 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 			this._status = status;
 		}
 		this._updateState();
+		this._hasInitializedState = true;
 	}
 
 	private _showToast(): void {

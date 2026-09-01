@@ -4,26 +4,63 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Action } from '../../../../../base/common/actions.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOverrides } from '../../../../../platform/configuration/common/configuration.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IInputOptions, IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { CONFIGURATION_KEY_HOST_NAME, INACTIVE_TUNNEL_MODE, IRemoteTunnelService, type ActiveTunnelMode, type TunnelMode, type TunnelStatus } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
-import { getRemoteTunnelAccessState } from '../../electron-browser/toggleRemoteConnectionsActionViewItem.js';
+import { getRemoteTunnelAccessState, ToggleRemoteConnectionsActionViewItem } from '../../electron-browser/toggleRemoteConnectionsActionViewItem.js';
 import { executeToggleRemoteConnections } from '../../electron-browser/tunnelHost.contribution.js';
 import { promptToRenameRemoteTunnel } from '../../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 
 class TestRemoteTunnelService extends mock<IRemoteTunnelService>() {
 	mode: TunnelMode = INACTIVE_TUNNEL_MODE;
 	status: TunnelStatus = { type: 'disconnected' };
+	private readonly _onDidChangeMode = new Emitter<TunnelMode>();
+	override readonly onDidChangeMode = this._onDidChangeMode.event;
+	private readonly _onDidChangeTunnelStatus = new Emitter<TunnelStatus>();
+	override readonly onDidChangeTunnelStatus = this._onDidChangeTunnelStatus.event;
+	private readonly _initialMode = new DeferredPromise<TunnelMode>();
+	private readonly _initialStatus = new DeferredPromise<TunnelStatus>();
+	private _deferInitialState = false;
 
 	override getMode(): Promise<TunnelMode> {
-		return Promise.resolve(this.mode);
+		return this._deferInitialState ? this._initialMode.p : Promise.resolve(this.mode);
 	}
 
 	override getTunnelStatus(): Promise<TunnelStatus> {
-		return Promise.resolve(this.status);
+		return this._deferInitialState ? this._initialStatus.p : Promise.resolve(this.status);
+	}
+
+	deferInitialState(): void {
+		this._deferInitialState = true;
+	}
+
+	completeInitialState(mode: TunnelMode, status: TunnelStatus): void {
+		this._initialMode.complete(mode);
+		this._initialStatus.complete(status);
+	}
+
+	fireMode(mode: TunnelMode): void {
+		this.mode = mode;
+		this._onDidChangeMode.fire(mode);
+	}
+
+	fireStatus(status: TunnelStatus): void {
+		this.status = status;
+		this._onDidChangeTunnelStatus.fire(status);
+	}
+
+	dispose(): void {
+		this._onDidChangeMode.dispose();
+		this._onDidChangeTunnelStatus.dispose();
 	}
 }
 
@@ -59,7 +96,7 @@ class TestConfigurationService extends mock<IConfigurationService>() {
 }
 
 suite('ToggleRemoteConnectionsActionViewItem', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('derives unified access state from the authoritative remote tunnel state', () => {
 		const activeMode: ActiveTunnelMode = {
@@ -86,6 +123,86 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 			connecting: { isSharing: false, isConnecting: true, tunnelName: undefined },
 			connected: { isSharing: true, isConnecting: false, tunnelName: 'my-tunnel' },
 			externallyHosted: { isSharing: true, isConnecting: false, tunnelName: 'external-tunnel' },
+		});
+	});
+
+	test('does not announce an existing tunnel while initial state loads', async () => {
+		const testDisposables = store.add(new DisposableStore());
+		const remoteTunnelService = testDisposables.add(new TestRemoteTunnelService());
+		const activeMode: ActiveTunnelMode = {
+			active: true,
+			asService: false,
+			session: { providerId: 'github', sessionId: 'session', accountLabel: 'Account' },
+		};
+		const connectedStatus: TunnelStatus = {
+			type: 'connected',
+			info: { tunnelName: 'my-tunnel', isAttached: false },
+			serviceInstallFailed: false,
+		};
+		remoteTunnelService.deferInitialState();
+
+		const action = testDisposables.add(new Action('test.toggleRemoteConnections', 'Toggle Remote Connections'));
+		const viewItem = testDisposables.add(new ToggleRemoteConnectionsActionViewItem(
+			action,
+			remoteTunnelService,
+			NullHoverService,
+			new class extends mock<IProductService>() { }(),
+		));
+		const container = document.createElement('div');
+		viewItem.render(container);
+
+		remoteTunnelService.fireMode(activeMode);
+		remoteTunnelService.fireStatus(connectedStatus);
+		remoteTunnelService.completeInitialState(INACTIVE_TUNNEL_MODE, { type: 'disconnected' });
+		await timeout(0);
+
+		const toast = container.querySelector<HTMLElement>('.tunnel-host-toast');
+		assert.deepStrictEqual({
+			sharing: container.classList.contains('sharing'),
+			toastVisible: toast?.classList.contains('visible') ?? false,
+		}, {
+			sharing: true,
+			toastVisible: false,
+		});
+
+		remoteTunnelService.fireStatus({ type: 'disconnected' });
+		remoteTunnelService.fireStatus(connectedStatus);
+
+		assert.strictEqual(toast?.classList.contains('visible'), true);
+	});
+
+	test('does not announce an initially connected tunnel', async () => {
+		const testDisposables = store.add(new DisposableStore());
+		const remoteTunnelService = testDisposables.add(new TestRemoteTunnelService());
+		remoteTunnelService.mode = {
+			active: true,
+			asService: false,
+			session: { providerId: 'github', sessionId: 'session', accountLabel: 'Account' },
+		};
+		remoteTunnelService.status = {
+			type: 'connected',
+			info: { tunnelName: 'my-tunnel', isAttached: false },
+			serviceInstallFailed: false,
+		};
+
+		const action = testDisposables.add(new Action('test.toggleRemoteConnections', 'Toggle Remote Connections'));
+		const viewItem = testDisposables.add(new ToggleRemoteConnectionsActionViewItem(
+			action,
+			remoteTunnelService,
+			NullHoverService,
+			new class extends mock<IProductService>() { }(),
+		));
+		const container = document.createElement('div');
+		viewItem.render(container);
+		await timeout(0);
+
+		const toast = container.querySelector<HTMLElement>('.tunnel-host-toast');
+		assert.deepStrictEqual({
+			sharing: container.classList.contains('sharing'),
+			toastVisible: toast?.classList.contains('visible') ?? false,
+		}, {
+			sharing: true,
+			toastVisible: false,
 		});
 	});
 

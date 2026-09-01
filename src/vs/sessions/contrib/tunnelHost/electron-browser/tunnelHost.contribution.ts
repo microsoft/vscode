@@ -21,19 +21,7 @@ import { Menus } from '../../../browser/menus.js';
 
 export const TOGGLE_SHARING_FROM_AGENTS_ID = 'sessions.tunnelHost.toggleSharingFromAgents';
 
-MenuRegistry.appendMenuItem(Menus.TitleBarRightLayout, {
-	command: {
-		id: TOGGLE_SHARING_FROM_AGENTS_ID,
-		title: localize('toggleSharing', "Allow Remote Connections"),
-		icon: Codicon.radioTower,
-		toggled: ContextKeyExpr.equals(TUNNEL_HOST_SHARING_KEY, true),
-	},
-	group: 'navigation',
-	order: 90,
-	when: ContextKeyExpr.and(ChatContextKeys.enabled, IsSessionsWindowContext, IsAuxiliaryWindowContext.toNegated())
-});
-
-class SessionsTunnelHostTitlebarContribution extends Disposable implements IWorkbenchContribution {
+export class SessionsTunnelHostTitlebarContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionsTunnelHostTitlebar';
 
@@ -43,6 +31,37 @@ class SessionsTunnelHostTitlebarContribution extends Disposable implements IWork
 	) {
 		super();
 
+		this._register(MenuRegistry.appendMenuItem(Menus.TitleBarRightLayout, {
+			command: {
+				id: TOGGLE_SHARING_FROM_AGENTS_ID,
+				title: localize('toggleSharing', "Allow Remote Connections"),
+				icon: Codicon.radioTower,
+				toggled: ContextKeyExpr.equals(TUNNEL_HOST_SHARING_KEY, true),
+			},
+			group: 'navigation',
+			order: 90,
+			when: ContextKeyExpr.and(ChatContextKeys.enabled, IsSessionsWindowContext, IsAuxiliaryWindowContext.toNegated())
+		}));
+
+		this._register(registerAction2(class ToggleRemoteConnectionsFromAgentsAction extends Action2 {
+			constructor() {
+				super({
+					id: TOGGLE_SHARING_FROM_AGENTS_ID,
+					title: localize('toggleSharing', "Allow Remote Connections"),
+					icon: Codicon.radioTower,
+					toggled: ContextKeyExpr.equals(TUNNEL_HOST_SHARING_KEY, true),
+				});
+			}
+
+			async run(accessor: ServicesAccessor): Promise<void> {
+				await executeToggleRemoteConnections(
+					accessor.get(IRemoteTunnelService),
+					accessor.get(ICommandService),
+					{ authenticationProviderId: 'github', showServiceOption: false, showSuccessNotification: false },
+				);
+			}
+		}));
+
 		const viewItemFactory: IActionViewItemFactory = (action, _options, instantiationService) => {
 			return instantiationService.createInstance(ToggleRemoteConnectionsActionViewItem, action);
 		};
@@ -50,23 +69,5 @@ class SessionsTunnelHostTitlebarContribution extends Disposable implements IWork
 	}
 }
 
-registerAction2(class ToggleRemoteConnectionsFromAgentsAction extends Action2 {
-	constructor() {
-		super({
-			id: TOGGLE_SHARING_FROM_AGENTS_ID,
-			title: localize('toggleSharing', "Allow Remote Connections"),
-			icon: Codicon.radioTower,
-			toggled: ContextKeyExpr.equals(TUNNEL_HOST_SHARING_KEY, true),
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		await executeToggleRemoteConnections(
-			accessor.get(IRemoteTunnelService),
-			accessor.get(ICommandService),
-			{ authenticationProviderId: 'github', showServiceOption: false, showSuccessNotification: false },
-		);
-	}
-});
-
-registerWorkbenchContribution2(SessionsTunnelHostTitlebarContribution.ID, SessionsTunnelHostTitlebarContribution, WorkbenchPhase.BlockRestore);
+// Remote Tunnel registers its delegated commands during the restored phase.
+registerWorkbenchContribution2(SessionsTunnelHostTitlebarContribution.ID, SessionsTunnelHostTitlebarContribution, WorkbenchPhase.Eventually);
