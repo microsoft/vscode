@@ -19,7 +19,7 @@ export class RegionContextProvider {
 		}
 
 		if (ranges.length === 1) {
-			return this.findEnclosingScopes(sourceFile, ranges[0].start.line, ranges[0].start.character);
+			return this.findEnclosingScopes(sourceFile, ranges[0].start.line, ranges[0].start.character, requested);
 		}
 
 		const containersList: Region[][] = [];
