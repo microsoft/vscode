@@ -197,6 +197,25 @@ describe('diagnosticsChanged push notification', () => {
 		expect(notifiedDiag.range.end.character).toBe(20);
 	});
 
+	it('should serialize a null diagnostic code without crashing', async () => {
+		registerDiagnosticsChangedNotification(logger, httpServer as unknown as InProcHttpServer);
+
+		const uri = createMockUri('/test/file.ts');
+		const diag = createMockDiagnostic('Null code message', 0, 0, 0, 0, 10, 'test-source');
+		(diag as { code?: unknown }).code = null;
+
+		mockGetDiagnostics.mockReturnValue([diag]);
+
+		registeredCallback!({ uris: [uri] });
+		await vi.advanceTimersByTimeAsync(250);
+
+		const params = httpServer.broadcastNotification.mock.calls[0][1] as unknown as DiagnosticNotificationParams;
+		const notifiedDiag = params.uris[0].diagnostics[0];
+
+		expect(notifiedDiag.message).toBe('Null code message');
+		expect(notifiedDiag.code).toBeNull();
+	});
+
 	it('should handle multiple URIs in a single change event', async () => {
 		registerDiagnosticsChangedNotification(logger, httpServer as unknown as InProcHttpServer);
 

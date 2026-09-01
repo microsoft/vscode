@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { ILogger } from '../../../../../../platform/log/common/logService';
 import { Delayer } from '../../../../../../util/vs/base/common/async';
 import { InProcHttpServer } from '../../inProcHttpServer';
+import { normalizeDiagnosticCode } from '../utils';
 
 interface DiagnosticInfo {
 	uri: string;
@@ -49,7 +50,7 @@ function getDiagnosticsForUri(uri: vscode.Uri): DiagnosticInfo {
 			message: d.message,
 			severity: severityToString(d.severity),
 			source: d.source,
-			code: typeof d.code === 'object' ? d.code.value : d.code,
+			code: normalizeDiagnosticCode(d.code),
 		})),
 	};
 }
