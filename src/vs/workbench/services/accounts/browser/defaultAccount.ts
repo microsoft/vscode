@@ -273,6 +273,11 @@ interface IManagedSettingsSources {
 	readonly file: ManagedSettingsData;
 }
 
+interface IAuthenticatedRequestOptions {
+	readonly requestTimeoutMs?: number;
+	readonly retryNotFound?: boolean;
+}
+
 type DefaultAccountStatusTelemetry = {
 	status: string;
 	initial: boolean;
@@ -678,7 +683,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 
 	private onManagedSettingsSourceChanged(): void {
 		if (this.initialized) {
-			void this.updateDefaultAccount({ forceRefresh: true });
+			void this.updateDefaultAccount();
 		}
 	}
 
@@ -897,15 +902,10 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 
 	private async findMatchingProviderSession(authProviderId: string, allScopes: string[][]): Promise<AuthenticationSession[] | undefined> {
 		const sessions = await this.getSessions(authProviderId);
-		const matchingSessions = [];
-		for (const session of sessions) {
+		const matchingSessions = sessions.filter(session => {
 			this.logService.debug('[DefaultAccount] Checking session with scopes', session.scopes);
-			for (const scopes of allScopes) {
-				if (this.scopesMatch(session.scopes, scopes)) {
-					matchingSessions.push(session);
-				}
-			}
-		}
+			return allScopes.some(scopes => this.scopesMatch(session.scopes, scopes));
+		});
 		return matchingSessions.length > 0 ? matchingSessions : undefined;
 	}
 
@@ -999,7 +999,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	private async getEntitlements(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: IDefaultAccountRefreshOptions): Promise<{ data: IEntitlementsData | undefined | null; fetchedAt: number | undefined }> {
 		const accountId = sessions[0].account.id;
 		const existingData = this._defaultAccount?.accountId === accountId ? this._defaultAccount?.defaultAccount.entitlementsData : undefined;
-		if (!options?.forceRefresh && existingData && accountPolicyData?.entitlementsFetchedAt && !this.isDataStale(accountPolicyData.entitlementsFetchedAt)) {
+		if (!options?.forceRefresh && !options?.refreshEntitlements && existingData && accountPolicyData?.entitlementsFetchedAt && !this.isDataStale(accountPolicyData.entitlementsFetchedAt)) {
 			this.logService.debug('[DefaultAccount] Using last fetched entitlements data');
 			return { data: existingData, fetchedAt: accountPolicyData.entitlementsFetchedAt };
 		}
@@ -1152,7 +1152,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		const freshnessSatisfied = requirement.effective && isManagedSettingsFreshnessSatisfiedFor(this._managedSettingsFreshness, scope);
 		// When forceRemoteSettingsRefresh is effective, reuse also requires this scope's freshness to be
 		// satisfied; an outstanding compatibility error always forces revalidation.
-		if (!options?.forceRefresh && scopedCachedManagedSettings && (!requirement.effective || freshnessSatisfied) && !this._managedSettingsCompatibilityError) {
+		if (!options?.forceRefresh && !options?.retryManagedSettings && scopedCachedManagedSettings && (!requirement.effective || freshnessSatisfied) && !this._managedSettingsCompatibilityError) {
 			this.logService.debug('[DefaultAccount] Using last fetched managed settings data');
 			return { ...scopedCachedManagedSettings, scope, compatibilityError: this._managedSettingsCompatibilityError };
 		}
@@ -1281,7 +1281,10 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		const requestUrl = appendManagedSettingsClientIdentity(managedSettingsUrl, this.productService);
 		this.logService.debug('[DefaultAccount] Fetching managed settings from:', requestUrl);
 		const rateLimitBackoffActive = Date.now() < this._rateLimitBackoffUntil;
-		const response = await this.request(requestUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.managedSettings', MANAGED_SETTINGS_REQUEST_TIMEOUT_MS);
+		const response = await this.request(requestUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.managedSettings', {
+			requestTimeoutMs: MANAGED_SETTINGS_REQUEST_TIMEOUT_MS,
+			retryNotFound: false,
+		});
 		if (!response) {
 			this.logService.debug('[DefaultAccount] Managed settings fetch returned no response (network error, all selected sessions rejected, or active rate-limit backoff); falling back to local-only policy');
 			this.reportManagedSettingsOutcome('no-response', rateLimitBackoffActive);
@@ -1424,9 +1427,9 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 
 	private _rateLimitBackoffUntil = 0;
 
-	private async request(url: string, type: 'GET', body: undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string, requestTimeoutMs?: number): Promise<IRequestContext | undefined>;
-	private async request(url: string, type: 'POST', body: object, sessions: AuthenticationSession[], token: CancellationToken, callSite: string, requestTimeoutMs?: number): Promise<IRequestContext | undefined>;
-	private async request(url: string, type: 'GET' | 'POST', body: object | undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string, requestTimeoutMs?: number): Promise<IRequestContext | undefined> {
+	private async request(url: string, type: 'GET', body: undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string, options?: IAuthenticatedRequestOptions): Promise<IRequestContext | undefined>;
+	private async request(url: string, type: 'POST', body: object, sessions: AuthenticationSession[], token: CancellationToken, callSite: string, options?: IAuthenticatedRequestOptions): Promise<IRequestContext | undefined>;
+	private async request(url: string, type: 'GET' | 'POST', body: object | undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string, options?: IAuthenticatedRequestOptions): Promise<IRequestContext | undefined> {
 		if (Date.now() < this._rateLimitBackoffUntil) {
 			const remainingSec = Math.ceil((this._rateLimitBackoffUntil - Date.now()) / 1000);
 			this.logService.debug(`[DefaultAccount] Skipping request to ${url} — rate-limit backoff active for ${remainingSec}s more`);
@@ -1446,7 +1449,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 					url,
 					data: type === 'POST' ? JSON.stringify(body) : undefined,
 					disableCache: true,
-					timeout: requestTimeoutMs,
+					timeout: options?.requestTimeoutMs,
 					headers: {
 						'Authorization': `Bearer ${session.accessToken}`
 					},
@@ -1460,7 +1463,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 					this.logService.warn(`[DefaultAccount] Rate limited by ${url} (status ${status}); backing off for ${retryAfterSec}s`);
 					return response;
 				}
-				if (status === 401 || status === 404) {
+				if (status === 401 || (status === 404 && options?.retryNotFound !== false)) {
 					this.logService.debug(`[DefaultAccount] Received ${status} for URL ${url} with session ${session.id}, likely due to expired/revoked token or insufficient permissions.`, 'Trying next session if available.');
 					lastResponse = response;
 					continue; // try next session
