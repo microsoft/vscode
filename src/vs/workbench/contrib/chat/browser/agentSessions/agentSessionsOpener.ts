@@ -108,6 +108,12 @@ async function resolveMigratedSessionForOpen(accessor: ServicesAccessor, resourc
 	// entirely (it would waste a round-trip only to be declined, and the EH
 	// resource can no longer be resolved once the extension provider is retired).
 	// A still-adoptable session carries the marker and must keep migrating.
+	// External sessions (origin "other") are never migrated — the host declines
+	// to adopt them. But discovery still surfaces them under their agent-host
+	// twin, so once surfaced we open that twin directly and skip the adopt probe
+	// entirely (it would waste a round-trip only to be declined, and the EH
+	// resource can no longer be resolved once the extension provider is retired).
+	// A still-adoptable session carries the marker and must keep migrating.
 	const surfacedTwin = agentSessionsService.getSession(twin);
 	if (surfacedTwin && !surfacedTwin.metadata?.[SESSION_META_EHCLI_ADOPTABLE_KEY]) {
 		return surfacedTwin;
@@ -118,10 +124,13 @@ async function resolveMigratedSessionForOpen(accessor: ServicesAccessor, resourc
 		async () => {
 			const migrated = await adoptLegacyCopilotCliResource(connection, resource, logService, configurationService, telemetryService, 'open', LEGACY_MIGRATION_OPEN_TIMEOUT_MS);
 			if (!migrated) {
-				// Not adopted (e.g. an external session the host declined). It may
-				// still be surfaced under its twin — open that as-is rather than
-				// falling back to the unresolvable EH resource.
-				return resolveMigratedSession(agentSessionsService, twin);
+				// Not adopted. This also covers timeout/failure/no-connection, so
+				// re-check the marker on the refreshed result: only an external
+				// (or already-adopted) twin opens as-is; an adoptable session that
+				// failed to adopt must keep migrating, so fall through to the
+				// original resource by returning `undefined`.
+				const fallback = await resolveMigratedSession(agentSessionsService, twin);
+				return fallback && !fallback.metadata?.[SESSION_META_EHCLI_ADOPTABLE_KEY] ? fallback : undefined;
 			}
 			const surfaced = await resolveMigratedSession(agentSessionsService, migrated);
 			reportLegacyMigrationOpen(telemetryService, 'open', !!surfaced);

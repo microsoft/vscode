@@ -3269,6 +3269,42 @@ suite('CopilotAgent', () => {
 		});
 	});
 
+	suite('prewarmSessionMetadata cache', () => {
+		test('serves getChatMetadata from one bulk list, falls back on miss, and reverts after disposal', async () => {
+			const sessionA = AgentSession.uri('copilotcli', 'prewarm-a');
+			const sessionB = AgentSession.uri('copilotcli', 'prewarm-b');
+			const sessionMissing = AgentSession.uri('copilotcli', 'prewarm-missing');
+			const client = new TestCopilotClient([sdkSession('prewarm-a'), sdkSession('prewarm-b')]);
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				const read = (session: URI) => agent.getChatMetadata(defaultChatUri(session), exactChatContext(session, defaultChatUri(session), session));
+
+				const warm = await agent.prewarmSessionMetadata();
+				// One bulk list warmed the cache; a hit is served without a per-session RPC.
+				await read(sessionA);
+				const afterHit = { listCalls: client.listSessionCallCount, rpcCalls: [...client.getSessionMetadataCalls] };
+
+				// A session absent from the bulk list falls back to a per-session RPC.
+				await read(sessionMissing);
+				const afterMiss = [...client.getSessionMetadataCalls];
+
+				// After disposal the cache is cleared and normal per-session reads resume.
+				warm.dispose();
+				await read(sessionB);
+				const afterDisposal = [...client.getSessionMetadataCalls];
+
+				assert.deepStrictEqual({ afterHit, afterMiss, afterDisposal }, {
+					afterHit: { listCalls: 1, rpcCalls: [] },
+					afterMiss: ['prewarm-missing'],
+					afterDisposal: ['prewarm-missing', 'prewarm-b'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+	});
+
 	suite('restart on startup config change', () => {
 
 		class StopCountingClient extends TestCopilotClient {

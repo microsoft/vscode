@@ -397,6 +397,9 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 	private readonly _tombstones = new Set<string>();
 	private readonly _agentMergeEnabled = new Set<string>();
 	private _backfilled = false;
+	/** Test spies for the batched recency-write path. */
+	updateSessionModifiedTimesCalls = 0;
+	lastModifiedTimesBatchSize = 0;
 
 	async registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
 		if (registerOptions.checkTombstone && this._tombstones.has(session)) {
@@ -436,6 +439,8 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 	}
 
 	async updateSessionModifiedTimes(updates: readonly { readonly session: string; readonly modifiedTime: number }[]): Promise<void> {
+		this.updateSessionModifiedTimesCalls++;
+		this.lastModifiedTimesBatchSize = updates.length;
 		for (const { session, modifiedTime } of updates) {
 			const existing = this._sessions.get(session);
 			if (existing && Number.isFinite(modifiedTime) && existing.modifiedTime < modifiedTime) {
@@ -3505,6 +3510,50 @@ suite('AgentService (node dispatcher)', () => {
 				modifiedTime: rediscoveredModifiedTime,
 			});
 		});
+
+		test('discovery batches recency advances: unchanged times write nothing, advances produce one batch and one invalidation', async () => {
+			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+			const svc = createExternalSessionService(createSessionDataService(), orchestratorDb);
+			const agent = disposables.add(new MockAgent('copilot'));
+			const a = AgentSession.uri('copilot', 'batch-a');
+			const b = AgentSession.uri('copilot', 'batch-b');
+			for (const s of [a, b]) {
+				(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(s), s);
+			}
+			registerTestAgentProvider(svc, agent);
+			const register = (chats: readonly IAgentDiscoveredChat[]) => (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, chats);
+			const epoch = () => (svc as unknown as { _registryEpoch: number })._registryEpoch;
+
+			// Seed both sessions at a fixed, high baseline so the assertions below are
+			// independent of any earlier auto-registration timestamp.
+			const base = Date.now() + 1_000_000;
+			await register([discoveredChat(a, false, base), discoveredChat(b, false, base)]);
+
+			// Rediscover with UNCHANGED timestamps -> no batched write, no invalidation.
+			const batchesBeforeNoop = orchestratorDb.updateSessionModifiedTimesCalls;
+			const epochBeforeNoop = epoch();
+			await register([discoveredChat(a, false, base), discoveredChat(b, false, base)]);
+
+			// Rediscover with NEWER timestamps for both -> exactly one batch and one invalidation.
+			const batchesBeforeAdvance = orchestratorDb.updateSessionModifiedTimesCalls;
+			const epochBeforeAdvance = epoch();
+			await register([discoveredChat(a, false, base + 1000), discoveredChat(b, false, base + 1000)]);
+
+			assert.deepStrictEqual({
+				noopBatches: batchesBeforeAdvance - batchesBeforeNoop,
+				noopInvalidations: epochBeforeAdvance - epochBeforeNoop,
+				advanceBatches: orchestratorDb.updateSessionModifiedTimesCalls - batchesBeforeAdvance,
+				advanceInvalidations: epoch() - epochBeforeAdvance,
+				advanceBatchSize: orchestratorDb.lastModifiedTimesBatchSize,
+			}, {
+				noopBatches: 0,
+				noopInvalidations: 0,
+				advanceBatches: 1,
+				advanceInvalidations: 1,
+				advanceBatchSize: 2,
+			});
+		});
+
 
 		testWithExternalSessionClock('discovery does not ingest external sessions older than 30 days', async () => {
 			const day = 24 * 60 * 60 * 1000;
