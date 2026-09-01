@@ -117,6 +117,12 @@ interface IRecentLocalSessionUpdate {
 	readonly modifiedTime: number;
 }
 
+interface ISessionListComputation {
+	readonly epoch: number;
+	readonly promise: Promise<readonly IAgentSessionMetadata[]>;
+	trailing?: Promise<readonly IAgentSessionMetadata[]>;
+}
+
 type AgentHostLegacyMigrationEvent = {
 	provider: string;
 	outcome: 'migrated' | 'skipped' | 'failed';
@@ -2048,32 +2054,43 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	/** In-flight list computations, shared per mode until they settle or the registry changes. */
-	private readonly _inFlightListSessions = new Map<AgentHostExternalSessionsMode, { readonly epoch: number; readonly promise: Promise<readonly IAgentSessionMetadata[]> }>();
+	/** Active list computations and their optional trailing refresh, shared per mode. */
+	private readonly _inFlightListSessions = new Map<AgentHostExternalSessionsMode, ISessionListComputation>();
 
 	private _registryEpoch = 0;
 
 	private _invalidateSessionList(): void {
 		this._registryEpoch++;
-		this._inFlightListSessions.clear();
 	}
 
 	async listSessions(mode = this._getExternalSessionsMode()): Promise<IAgentSessionMetadata[]> {
 		const epoch = this._registryEpoch;
 		const inFlight = this._inFlightListSessions.get(mode);
-		if (inFlight && inFlight.epoch === epoch) {
-			// Callers own their array; the shared result must not be mutable by one of them.
+		if (!inFlight) {
+			return [...await this._startSessionListComputation(mode).promise];
+		}
+		if (inFlight.epoch === epoch) {
 			return [...await inFlight.promise];
 		}
-		const promise = this._computeSessions(mode);
-		const entry = { epoch, promise };
+		if (!inFlight.trailing) {
+			const startTrailing = () => this._startSessionListComputation(mode).promise;
+			inFlight.trailing = inFlight.promise.then(startTrailing, startTrailing);
+		}
+		return [...await inFlight.trailing];
+	}
+
+	private _startSessionListComputation(mode: AgentHostExternalSessionsMode): ISessionListComputation {
+		const entry: ISessionListComputation = {
+			epoch: this._registryEpoch,
+			promise: this._computeSessions(mode),
+		};
 		this._inFlightListSessions.set(mode, entry);
 		const clear = () => {
-			if (this._inFlightListSessions.get(mode) === entry) {
+			if (!entry.trailing && this._inFlightListSessions.get(mode) === entry) {
 				this._inFlightListSessions.delete(mode);
 			}
 		};
-		void promise.then(
+		void entry.promise.then(
 			() => {
 				clear();
 				// Only a served listing ends startup: a failed one is retried, and
@@ -2083,7 +2100,7 @@ export class AgentService extends Disposable implements IAgentService {
 			},
 			clear,
 		);
-		return [...await promise];
+		return entry;
 	}
 
 	private async _computeSessions(mode: AgentHostExternalSessionsMode): Promise<readonly IAgentSessionMetadata[]> {

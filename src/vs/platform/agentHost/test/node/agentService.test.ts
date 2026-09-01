@@ -4251,7 +4251,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('a caller after a registry mutation does not join an in-flight computation', async () => {
+		test('callers after registry mutations share one trailing computation', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
 			registerTestAgentProvider(svc, agent);
@@ -4267,22 +4267,29 @@ suite('AgentService (node dispatcher)', () => {
 
 			const preInvalidation = svc.listSessions();
 			await svc.createSession({ provider: 'copilot' });
+			await svc.createSession({ provider: 'copilot' });
+			const postInvalidation = svc.listSessions();
+			const secondPostInvalidation = svc.listSessions();
+			const computationsBeforeRelease = computations;
 			gate.complete();
-			const preInvalidationCount = (await preInvalidation).length;
-			const postInvalidationCount = (await svc.listSessions()).length;
+			const [preInvalidationResult, postInvalidationResult, secondPostInvalidationResult] = await Promise.all([preInvalidation, postInvalidation, secondPostInvalidation]);
 
 			assert.deepStrictEqual({
+				computationsBeforeRelease,
 				computations,
-				preInvalidation: preInvalidationCount,
-				postInvalidation: postInvalidationCount,
+				preInvalidation: preInvalidationResult.length,
+				postInvalidation: postInvalidationResult.length,
+				secondPostInvalidation: secondPostInvalidationResult.length,
 			}, {
+				computationsBeforeRelease: 1,
 				computations: 2,
-				preInvalidation: 1,
-				postInvalidation: 1,
+				preInvalidation: 2,
+				postInvalidation: 2,
+				secondPostInvalidation: 2,
 			});
 		});
 
-		test('provider registration invalidates an in-flight list computation', async () => {
+		test('provider registration queues a trailing list computation without overlap', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const gate = new DeferredPromise<void>();
 			const inner = svc as unknown as { _computeSessions(mode: AgentHostExternalSessionsMode): Promise<readonly IAgentSessionMetadata[]> };
@@ -4298,10 +4305,11 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = disposables.add(new MockAgent('copilot'));
 			registerTestAgentProvider(svc, agent);
 			const afterRegistration = svc.listSessions();
+			const computationsBeforeRelease = computations;
 			gate.complete();
 			await Promise.all([beforeRegistration, afterRegistration]);
 
-			assert.strictEqual(computations, 2);
+			assert.deepStrictEqual({ computationsBeforeRelease, computations }, { computationsBeforeRelease: 1, computations: 2 });
 		});
 
 		test('explicitly created sessions are registered as non-external', async () => {
