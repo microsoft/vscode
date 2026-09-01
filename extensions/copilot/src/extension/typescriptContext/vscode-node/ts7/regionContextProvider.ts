@@ -60,7 +60,8 @@ export class TS7RegionContextProvider implements Omit<IRegionContextProviderServ
 			}
 
 			if (ranges.length === 1) {
-				return this.findEnclosingScopes(sourceFile, ranges[0].start.line, ranges[0].start.character);
+				return this.findEnclosingScopes(sourceFile, ranges[0].start.line, ranges[0].start.character, requested);
+			}
 			} else {
 				const containersList: Region[][] = [];
 				for (const range of ranges) {
