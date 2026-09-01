@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { getEvaluationSessionConfig, parseEvaluationSessionRequest, waitForEvaluationTarget } from '../../../browser/agentSessions/evaluation/evaluationSessionRequest.js';
+import { getEvaluationSessionConfig, parseEvaluationSessionRequest, preserveEvaluationRemoteHostAuthentication, shouldPreserveEvaluationRemoteHostAuthentication, waitForEvaluationTarget } from '../../../browser/agentSessions/evaluation/evaluationSessionRequest.js';
 
 suite('EvaluationSessionRequest', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -22,7 +22,6 @@ suite('EvaluationSessionRequest', () => {
 			agent: 'copilotcli',
 			approvals: 'yolo',
 			prompt: 'Fix the issue.',
-			backendScheme: 'ahp-session',
 			folder: 'vscode-agent-host://example/workspace',
 			remoteHost: { address: '127.0.0.1:1234', connectionToken: 'token' },
 		})), {
@@ -31,7 +30,6 @@ suite('EvaluationSessionRequest', () => {
 			agent: 'copilotcli',
 			approvals: 'yolo',
 			prompt: 'Fix the issue.',
-			backendScheme: 'ahp-session',
 			folder: 'vscode-agent-host://example/workspace',
 			remoteHost: { address: '127.0.0.1:1234', connectionToken: 'token' },
 		});
@@ -42,22 +40,27 @@ suite('EvaluationSessionRequest', () => {
 			agent: 'claude',
 			approvals: 'assisted',
 			prompt: 'Review the code.',
-			backendScheme: 'claude',
 		})).surface, 'editor');
 	});
 
 	test('rejects unsupported or incomplete requests', () => {
 		for (const request of [
 			{},
-			{ version: 1, surface: 'headless', agent: 'copilotcli', approvals: 'yolo', prompt: 'x', backendScheme: 'ahp-session' },
-			{ version: 1, surface: 'editor', agent: 'other', approvals: 'yolo', prompt: 'x', backendScheme: 'other' },
-			{ version: 1, surface: 'editor', agent: 'codex', approvals: 'default', prompt: 'x', backendScheme: 'codex' },
-			{ version: 1, surface: 'agents', agent: 'copilotcli', approvals: 'yolo', prompt: 'x', backendScheme: 'ahp-session' },
-			{ version: 1, surface: 'editor', agent: 'codex', approvals: 'yolo', prompt: 'x' },
-			{ version: 1, surface: 'agents', agent: 'codex', approvals: 'yolo', prompt: 'x', backendScheme: 'ahp-session', folder: 'file:///workspace', remoteHost: { address: 1, connectionToken: 'x' } },
+			{ version: 1, surface: 'headless', agent: 'copilotcli', approvals: 'yolo', prompt: 'x' },
+			{ version: 1, surface: 'editor', agent: 'other', approvals: 'yolo', prompt: 'x' },
+			{ version: 1, surface: 'editor', agent: 'codex', approvals: 'default', prompt: 'x' },
+			{ version: 1, surface: 'agents', agent: 'copilotcli', approvals: 'yolo', prompt: 'x' },
+			{ version: 1, surface: 'agents', agent: 'codex', approvals: 'yolo', prompt: 'x', folder: 'file:///workspace', remoteHost: { address: 1, connectionToken: 'x' } },
 		]) {
 			assert.throws(() => parseEvaluationSessionRequest(JSON.stringify(request)));
 		}
+	});
+
+	test('preserves controller authentication only for the marked remote host', () => {
+		assert.strictEqual(shouldPreserveEvaluationRemoteHostAuthentication('ws://127.0.0.1:1234'), false);
+		preserveEvaluationRemoteHostAuthentication('ws://127.0.0.1:1234');
+		assert.strictEqual(shouldPreserveEvaluationRemoteHostAuthentication('127.0.0.1:1234'), true);
+		assert.strictEqual(shouldPreserveEvaluationRemoteHostAuthentication('127.0.0.1:5678'), false);
 	});
 
 	test('maps YOLO and Assisted to provider-native autonomous configuration', () => {

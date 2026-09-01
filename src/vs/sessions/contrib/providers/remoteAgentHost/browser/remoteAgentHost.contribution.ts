@@ -54,6 +54,7 @@ import { computeSSHConnectionKey, isSSHHostKeyDeniedError, ISSHRemoteAgentHostSe
 import { IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { categorizeSSHConnectError, logSSHConnectAttempt, logTerminalRecovery } from '../../../../common/sessionsTelemetry.js';
+import { shouldPreserveEvaluationRemoteHostAuthentication } from '../../../../../workbench/contrib/chat/browser/agentSessions/evaluation/evaluationSessionRequest.js';
 
 Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation).register({
 	matchSessionType: sessionType => isRemoteAgentHostSessionType(sessionType),
@@ -916,6 +917,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	private async _authenticateWithConnection(address: string, connection: IAgentConnection, agents: readonly AgentInfo[]): Promise<void> {
 		const providerId = `agenthost-${agentHostAuthority(address)}`;
 		const provider = this._sessionsProvidersService.getProvider<RemoteAgentHostSessionsProvider>(providerId);
+		if (shouldPreserveEvaluationRemoteHostAuthentication(address)) {
+			provider?.setAuthenticationPending(false);
+			return;
+		}
 		const authTokenCache = this._connections.get(address)?.authTokenCache;
 		provider?.setAuthenticationPending(true);
 		try {
@@ -939,6 +944,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	}
 
 	private _authenticateNotificationResource(address: string, connection: IAgentConnection, protectedResource: ProtectedResourceMetadata): void {
+		if (shouldPreserveEvaluationRemoteHostAuthentication(address)) {
+			return;
+		}
 		const connState = this._connections.get(address);
 		if (!connState) {
 			return;

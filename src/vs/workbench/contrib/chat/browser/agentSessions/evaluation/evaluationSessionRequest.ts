@@ -9,6 +9,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Event } from '../../../../../../base/common/event.js';
 import { dirname, joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { normalizeRemoteAgentHostAddress } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
@@ -27,7 +28,6 @@ export interface IEvaluationSessionRequest {
 	readonly agent: EvaluationSessionAgent;
 	readonly approvals: EvaluationSessionApprovals;
 	readonly prompt: string;
-	readonly backendScheme: string;
 	readonly modelId?: string;
 	readonly folder?: string;
 	readonly remoteHost?: {
@@ -41,6 +41,16 @@ export interface IEvaluationSessionIdentity {
 	readonly surface: EvaluationSessionSurface;
 	readonly sessionResource: string;
 	readonly backendSession: string;
+}
+
+const evaluationRemoteHostsWithExternalAuthentication = new Set<string>();
+
+export function preserveEvaluationRemoteHostAuthentication(address: string): void {
+	evaluationRemoteHostsWithExternalAuthentication.add(normalizeRemoteAgentHostAddress(address));
+}
+
+export function shouldPreserveEvaluationRemoteHostAuthentication(address: string): boolean {
+	return evaluationRemoteHostsWithExternalAuthentication.has(normalizeRemoteAgentHostAddress(address));
 }
 
 export function parseEvaluationSessionRequest(raw: string): IEvaluationSessionRequest {
@@ -63,9 +73,6 @@ export function parseEvaluationSessionRequest(raw: string): IEvaluationSessionRe
 	}
 	if (typeof request.prompt !== 'string' || request.prompt.trim().length === 0) {
 		throw new Error('Evaluation session prompt must be a non-empty string.');
-	}
-	if (typeof request.backendScheme !== 'string' || request.backendScheme.length === 0) {
-		throw new Error('Evaluation session backendScheme must be a non-empty string.');
 	}
 	if (request.modelId !== undefined && typeof request.modelId !== 'string') {
 		throw new Error('Evaluation session modelId must be a string.');
@@ -116,7 +123,7 @@ export async function writeEvaluationSessionIdentity(path: string, fileService: 
 		version: 1,
 		surface: request.surface,
 		sessionResource: sessionResource.toString(),
-		backendSession: AgentSession.uri(request.backendScheme, AgentSession.id(sessionResource)).toString(),
+		backendSession: AgentSession.uri(request.agent, AgentSession.id(sessionResource)).toString(),
 	};
 	await fileService.writeFile(evaluationSessionResultResource(path), VSBuffer.fromString(`${JSON.stringify(result, undefined, 2)}\n`));
 }
