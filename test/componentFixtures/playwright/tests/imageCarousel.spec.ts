@@ -71,8 +71,9 @@ test.describe('Image Carousel', () => {
 		await expect(caption).toHaveText('A green image');
 
 		await page.locator('button.next-arrow').click();
-		// Third image has no caption — element should be hidden
-		await expect(caption).toBeHidden();
+		// Third image has no caption — the file name is shown instead
+		await expect(caption).toBeVisible();
+		await expect(caption).toHaveText('Blue');
 	});
 
 	test('clicking a thumbnail selects that image', async ({ page }) => {
