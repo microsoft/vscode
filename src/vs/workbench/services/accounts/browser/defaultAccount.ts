@@ -1169,9 +1169,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		const freshnessSatisfied = requirement.effective && isManagedSettingsFreshnessSatisfiedFor(this._managedSettingsFreshness, scope);
 		// When forceRemoteSettingsRefresh is effective, reuse also requires this scope's freshness to be
 		// satisfied; an outstanding compatibility error always forces revalidation.
-		const forceManagedSettingsRefresh = options?.retryManagedSettings === true
-			|| options?.forceRefresh === true;
-		if (!forceManagedSettingsRefresh && scopedCachedManagedSettings && (!requirement.effective || freshnessSatisfied) && !this._managedSettingsCompatibilityError) {
+		if (!options?.forceRefresh && !options?.retryManagedSettings && scopedCachedManagedSettings && (!requirement.effective || freshnessSatisfied) && !this._managedSettingsCompatibilityError) {
 			this.logService.debug('[DefaultAccount] Using last fetched managed settings data');
 			return { ...scopedCachedManagedSettings, scope, compatibilityError: this._managedSettingsCompatibilityError };
 		}

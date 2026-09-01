@@ -40,7 +40,7 @@ export interface IDefaultAccountRefreshOptions {
 	readonly forceRefresh?: boolean;
 	/** Refreshes entitlement data even when its cache is fresh. */
 	readonly refreshEntitlements?: boolean;
-	/** Forces managed-settings revalidation and allows an explicit retry after a failed attempt. */
+	/** Allows an explicit user action to retry managed settings after a failed attempt. */
 	readonly retryManagedSettings?: boolean;
 }
 

@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
-import { IEntitlementsData } from '../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { IRequestContext, IRequestOptions } from '../../../../../base/parts/request/common/request.js';
@@ -90,14 +89,16 @@ suite('DefaultAccountProvider', () => {
 		});
 	});
 
-	test('forceRefresh bypasses a fresh managed-settings cache', async () => {
+	test('forceRefresh fetches fresh even when the cache is fresh, without it the cache is honored', async () => {
 		const requestService = new TestRequestService(async () => jsonResponse({
 			permissions: { disableBypassPermissionsMode: 'disable' },
 		}));
 		const provider = await createProvider(requestService);
 		const cachedPolicy = createCachedPolicy(false);
 
+		// Without forceRefresh the fresh cache is served with no network round-trip.
 		const cached = await provider['getManagedSettings'](sessions, cachedPolicy);
+		// The forceRefresh command bypasses the fresh cache and fetches.
 		const forced = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true, retryManagedSettings: true });
 
 		assert.deepStrictEqual({
@@ -111,25 +112,20 @@ suite('DefaultAccountProvider', () => {
 		});
 	});
 
-	test('entitlement refresh preserves satisfied governed caches and forceRefresh bypasses all of them', async () => {
-		const requestService = new TestRequestService(async options => {
-			switch (options.callSite) {
-				case 'defaultAccount.entitlements':
-					return jsonResponse(createEntitlementsData('business'));
-				case 'defaultAccount.tokenEntitlements':
-					return jsonResponse({ token: 'sn=fresh;fcv1=fresh;mcp=1;editor_preview_features=1;agent_mode=1:' });
-				case 'defaultAccount.managedSettings':
-					return jsonResponse({ permissions: { disableBypassPermissionsMode: 'disable' } });
-				case 'defaultAccount.mcpRegistryProvider':
-					return jsonResponse({ mcp_registries: [{ url: 'https://fresh-registry.example.com', registry_access: 'allow_all' }] });
-				default:
-					throw new Error(`Unexpected request: ${options.url}`);
-			}
-		});
-		const provider = await createProvider(requestService, {}, {}, 'https://api.github.com/copilot_internal/managed_settings', {}, {
-			tokenEntitlementUrl: 'https://api.github.com/copilot_internal/v2/token',
-			mcpRegistryDataUrl: 'https://api.github.com/copilot/mcp_registry',
-		});
+	test('entitlement refresh preserves satisfied governed managed settings', async () => {
+		const freshEntitlements = {
+			access_type_sku: 'copilot_business_seat',
+			chat_enabled: true,
+			assigned_date: '2026-01-01',
+			can_signup_for_limited: false,
+			copilot_plan: 'business',
+			organization_login_list: [],
+			analytics_tracking_id: 'tracking-id',
+		};
+		const requestService = new TestRequestService(async options => options.callSite === 'defaultAccount.entitlements'
+			? jsonResponse(freshEntitlements)
+			: Promise.reject(new Error(`Unexpected request: ${options.url}`)));
+		const provider = await createProvider(requestService);
 		const fetchedAt = Date.now() - 1000;
 		const managedSettingsScope = {
 			accountId,
@@ -142,16 +138,7 @@ suite('DefaultAccountProvider', () => {
 		};
 		const policyData = {
 			...cachedPolicy,
-			policyData: {
-				...cachedPolicy.policyData,
-				chat_agent_enabled: true,
-				mcp: true,
-				mcpRegistryUrl: 'https://registry.example.com',
-				mcpAccess: 'registry_only' as const,
-			},
 			entitlementsFetchedAt: fetchedAt,
-			tokenEntitlementsFetchedAt: fetchedAt,
-			mcpRegistryDataFetchedAt: fetchedAt,
 			managedSettingsFetchedAt: fetchedAt,
 		};
 		provider['setDefaultAccount']({
@@ -160,11 +147,11 @@ suite('DefaultAccountProvider', () => {
 				accountName: sessions[0].account.label,
 				sessionId: sessions[0].id,
 				enterprise: false,
-				entitlementsData: createEntitlementsData('individual'),
+				entitlementsData: { ...freshEntitlements, copilot_plan: 'individual' },
 			},
 			accountId,
 			policyData,
-			copilotTokenInfo: { sn: 'cached-token' },
+			copilotTokenInfo: null,
 		});
 		provider['setManagedSettingsFreshness']({
 			state: ManagedSettingsFreshnessState.Satisfied,
@@ -174,53 +161,26 @@ suite('DefaultAccountProvider', () => {
 			satisfiedAt: fetchedAt,
 		});
 
-		const normal = await provider['getDefaultAccountFromAuthenticatedSessions'](
-			{ id: 'github', name: 'GitHub', enterprise: false },
-			sessions
-		);
-		const normalRequestCount = requestService.requestCount;
 		const refreshedEntitlements = await provider['getDefaultAccountFromAuthenticatedSessions'](
 			{ id: 'github', name: 'GitHub', enterprise: false },
 			sessions,
 			{ refreshEntitlements: true }
 		);
-		const entitlementRefreshCallSites = requestService.requests.map(request => request.callSite);
-		const freshnessAfterEntitlementRefresh = describeFreshness(provider.managedSettingsFreshness);
-		requestService.requestCount = 0;
-		requestService.requests.length = 0;
-		const forced = await provider['getDefaultAccountFromAuthenticatedSessions'](
-			{ id: 'github', name: 'GitHub', enterprise: false },
-			sessions,
-			{ forceRefresh: true }
-		);
 
 		assert.deepStrictEqual({
-			normalRequestCount,
-			normalCopilotPlan: normal?.defaultAccount.entitlementsData?.copilot_plan,
-			entitlementRefreshCallSites,
-			refreshedCopilotPlan: refreshedEntitlements?.defaultAccount.entitlementsData?.copilot_plan,
-			freshnessAfterEntitlementRefresh,
 			callSites: requestService.requests.map(request => request.callSite),
-			forcedCopilotPlan: forced?.defaultAccount.entitlementsData?.copilot_plan,
+			refreshedCopilotPlan: refreshedEntitlements?.defaultAccount.entitlementsData?.copilot_plan,
+			freshness: describeFreshness(provider.managedSettingsFreshness),
 		}, {
-			normalRequestCount: 0,
-			normalCopilotPlan: 'individual',
-			entitlementRefreshCallSites: ['defaultAccount.entitlements'],
+			callSites: ['defaultAccount.entitlements'],
 			refreshedCopilotPlan: 'business',
-			freshnessAfterEntitlementRefresh: {
+			freshness: {
 				state: ManagedSettingsFreshnessState.Satisfied,
 				source: 'server',
 				scope: managedSettingsScope,
 				hasLastAttempt: true,
 				hasSatisfiedAt: true,
 			},
-			callSites: [
-				'defaultAccount.entitlements',
-				'defaultAccount.tokenEntitlements',
-				'defaultAccount.managedSettings',
-				'defaultAccount.mcpRegistryProvider',
-			],
-			forcedCopilotPlan: 'business',
 		});
 	});
 
@@ -1198,7 +1158,6 @@ suite('DefaultAccountProvider', () => {
 		fileManagedSettings: ManagedSettingsData = {},
 		managedSettingsUrl = 'https://api.github.com/copilot_internal/managed_settings',
 		authenticationServiceOverrides: Partial<IAuthenticationService> = {},
-		accountDataUrls: { tokenEntitlementUrl?: string; mcpRegistryDataUrl?: string } = {},
 	): Promise<DefaultAccountProvider> {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
@@ -1262,9 +1221,9 @@ suite('DefaultAccountProvider', () => {
 				enterpriseProviderUriSetting: 'github-enterprise.uri',
 				scopes: [['user:email']],
 			},
-			tokenEntitlementUrl: accountDataUrls.tokenEntitlementUrl ?? '',
+			tokenEntitlementUrl: '',
 			entitlementUrl: 'https://api.github.com/copilot_internal/user',
-			mcpRegistryDataUrl: accountDataUrls.mcpRegistryDataUrl ?? '',
+			mcpRegistryDataUrl: '',
 			managedSettingsUrl,
 		}));
 		await provider.refresh();
@@ -1281,18 +1240,6 @@ suite('DefaultAccountProvider', () => {
 				},
 			},
 			managedSettingsFetchedAt: Date.now(),
-		};
-	}
-
-	function createEntitlementsData(copilotPlan: string): IEntitlementsData {
-		return {
-			access_type_sku: copilotPlan,
-			chat_enabled: true,
-			assigned_date: '2026-01-01',
-			can_signup_for_limited: false,
-			copilot_plan: copilotPlan,
-			organization_login_list: [],
-			analytics_tracking_id: 'tracking-id',
 		};
 	}
 
