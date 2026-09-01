@@ -130,6 +130,16 @@ suite('LayoutService - getFloatingOuterEdgeOwners', () => {
 			// Visible horizontal (bottom) panel: not part of the vertical order, so it owns no
 			// edge; the secondary side bar still owns the right edge.
 			horizontalPanelVisible: owners(s => { s.panelPosition = Position.BOTTOM; s.visibleParts = new Set([Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART]); }),
+
+			// A maximized horizontal panel occupies the editor branch. It must therefore be
+			// considered when resolving the edge next to a single side bar.
+			horizontalPanelMaximizedPrimaryOnly: owners(s => { s.panelPosition = Position.BOTTOM; s.visibleParts = new Set([Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.PANEL_PART]); }),
+			horizontalPanelMaximizedAuxOnly: owners(s => { s.panelPosition = Position.BOTTOM; s.visibleParts = new Set([Parts.ACTIVITYBAR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART]); }),
+			horizontalPanelMaximizedBothSideBars: owners(s => { s.panelPosition = Position.BOTTOM; s.visibleParts = new Set([Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART]); }),
+			horizontalPanelMaximizedAuxOnlyNoActivityBar: owners(s => { s.panelPosition = Position.BOTTOM; s.visibleParts = new Set([Parts.PANEL_PART, Parts.AUXILIARYBAR_PART]); }),
+			horizontalPanelMaximizedAuxOnlySideBarRight: owners(s => { s.sideBarPosition = Position.RIGHT; s.panelPosition = Position.BOTTOM; s.visibleParts = new Set([Parts.ACTIVITYBAR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART]); }),
+			horizontalPanelMaximizedAuxOnlySideBarRightNoActivityBar: owners(s => { s.sideBarPosition = Position.RIGHT; s.panelPosition = Position.BOTTOM; s.visibleParts = new Set([Parts.PANEL_PART, Parts.AUXILIARYBAR_PART]); }),
+			horizontalPanelMaximizedPrimaryOnlySideBarRight: owners(s => { s.sideBarPosition = Position.RIGHT; s.panelPosition = Position.BOTTOM; s.visibleParts = new Set([Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.PANEL_PART]); }),
 		};
 
 		assert.deepStrictEqual(actual, {
@@ -145,6 +155,13 @@ suite('LayoutService - getFloatingOuterEdgeOwners', () => {
 			verticalPanelFull: { left: Parts.ACTIVITYBAR_PART, right: Parts.AUXILIARYBAR_PART },
 			maximizedVerticalPanel: { left: Parts.PANEL_PART, right: Parts.PANEL_PART },
 			horizontalPanelVisible: { left: Parts.SIDEBAR_PART, right: Parts.AUXILIARYBAR_PART },
+			horizontalPanelMaximizedAuxOnly: { left: Parts.ACTIVITYBAR_PART, right: Parts.AUXILIARYBAR_PART },
+			horizontalPanelMaximizedBothSideBars: { left: Parts.ACTIVITYBAR_PART, right: Parts.AUXILIARYBAR_PART },
+			horizontalPanelMaximizedAuxOnlyNoActivityBar: { left: Parts.PANEL_PART, right: Parts.AUXILIARYBAR_PART },
+			horizontalPanelMaximizedAuxOnlySideBarRight: { left: Parts.AUXILIARYBAR_PART, right: Parts.ACTIVITYBAR_PART },
+			horizontalPanelMaximizedAuxOnlySideBarRightNoActivityBar: { left: Parts.AUXILIARYBAR_PART, right: Parts.PANEL_PART },
+			horizontalPanelMaximizedPrimaryOnly: { left: Parts.ACTIVITYBAR_PART, right: Parts.PANEL_PART },
+			horizontalPanelMaximizedPrimaryOnlySideBarRight: { left: Parts.PANEL_PART, right: Parts.ACTIVITYBAR_PART },
 		});
 	});
 });
@@ -190,9 +207,27 @@ suite('LayoutService - getFloatingPaneCompositeHorizontalMargins', () => {
 			primarySideBarRight: margins(Parts.SIDEBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART], Position.RIGHT),
 			primarySideBarLeftNoActivityBar: margins(Parts.SIDEBAR_PART, [Parts.SIDEBAR_PART, Parts.EDITOR_PART], Position.LEFT),
 
+			// With a maximized horizontal panel, the panel is the card immediately to the
+			// right/left of a single primary side bar. The side bar must keep its normal
+			// trailing inner margin so the sash occupies the one inter-card gap.
+			primarySideBarLeftMaximizedPanel: margins(Parts.SIDEBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.PANEL_PART], Position.LEFT),
+			primarySideBarRightMaximizedPanel: margins(Parts.SIDEBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.PANEL_PART], Position.RIGHT),
+			primarySideBarLeftMaximizedPanelNoActivityBar: margins(Parts.SIDEBAR_PART, [Parts.SIDEBAR_PART, Parts.PANEL_PART], Position.LEFT),
+			primarySideBarRightMaximizedPanelNoActivityBar: margins(Parts.SIDEBAR_PART, [Parts.SIDEBAR_PART, Parts.PANEL_PART], Position.RIGHT),
+			auxiliaryBarLeftMaximizedPanelNoActivityBar: margins(Parts.AUXILIARYBAR_PART, [Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.LEFT),
+			auxiliaryBarRightMaximizedPanelNoActivityBar: margins(Parts.AUXILIARYBAR_PART, [Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.RIGHT),
+			auxiliaryBarRightMaximizedPanel: margins(Parts.AUXILIARYBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.RIGHT),
+
 			compactSecondarySideBarOnly: margins(Parts.AUXILIARYBAR_PART, [Parts.AUXILIARYBAR_PART], Position.LEFT, true),
 			compactPrimarySideBarLeft: margins(Parts.SIDEBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART], Position.LEFT, true),
 			compactPrimarySideBarRight: margins(Parts.SIDEBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART], Position.RIGHT, true),
+			compactPrimarySideBarLeftMaximizedPanel: margins(Parts.SIDEBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.PANEL_PART], Position.LEFT, true),
+			compactPrimarySideBarRightMaximizedPanel: margins(Parts.SIDEBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.PANEL_PART], Position.RIGHT, true),
+			compactPrimarySideBarLeftMaximizedPanelNoActivityBar: margins(Parts.SIDEBAR_PART, [Parts.SIDEBAR_PART, Parts.PANEL_PART], Position.LEFT, true),
+			compactPrimarySideBarRightMaximizedPanelNoActivityBar: margins(Parts.SIDEBAR_PART, [Parts.SIDEBAR_PART, Parts.PANEL_PART], Position.RIGHT, true),
+			compactAuxiliaryBarLeftMaximizedPanelNoActivityBar: margins(Parts.AUXILIARYBAR_PART, [Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.LEFT, true),
+			compactAuxiliaryBarRightMaximizedPanelNoActivityBar: margins(Parts.AUXILIARYBAR_PART, [Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.RIGHT, true),
+			compactAuxiliaryBarRightMaximizedPanel: margins(Parts.AUXILIARYBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.RIGHT, true),
 			compactJustifiedPanel: margins(Parts.PANEL_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.LEFT, true, 'justify'),
 			compactJustifiedPanelSideBarRight: margins(Parts.PANEL_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.RIGHT, true, 'justify'),
 		}, {
@@ -204,9 +239,23 @@ suite('LayoutService - getFloatingPaneCompositeHorizontalMargins', () => {
 			primarySideBarLeft: { left: FLOATING_PANEL_INNER_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
 			primarySideBarRight: { left: 4, right: FLOATING_PANEL_INNER_MARGIN },
 			primarySideBarLeftNoActivityBar: { left: 4, right: FLOATING_PANEL_INNER_MARGIN },
+			primarySideBarLeftMaximizedPanel: { left: FLOATING_PANEL_INNER_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
+			primarySideBarRightMaximizedPanel: { left: 4, right: FLOATING_PANEL_INNER_MARGIN },
+			primarySideBarLeftMaximizedPanelNoActivityBar: { left: 4, right: FLOATING_PANEL_INNER_MARGIN },
+			primarySideBarRightMaximizedPanelNoActivityBar: { left: FLOATING_PANEL_MARGIN, right: FLOATING_PANEL_MARGIN },
+			auxiliaryBarLeftMaximizedPanelNoActivityBar: { left: FLOATING_PANEL_MARGIN, right: FLOATING_PANEL_MARGIN },
+			auxiliaryBarRightMaximizedPanelNoActivityBar: { left: FLOATING_PANEL_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
+			auxiliaryBarRightMaximizedPanel: { left: FLOATING_PANEL_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
 			compactSecondarySideBarOnly: { left: COMPACT_FLOATING_PANEL_OUTER_MARGIN, right: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
 			compactPrimarySideBarLeft: { left: COMPACT_FLOATING_PANEL_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
 			compactPrimarySideBarRight: { left: COMPACT_FLOATING_PANEL_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
+			compactPrimarySideBarLeftMaximizedPanel: { left: FLOATING_PANEL_INNER_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
+			compactPrimarySideBarRightMaximizedPanel: { left: FLOATING_PANEL_INNER_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
+			compactPrimarySideBarLeftMaximizedPanelNoActivityBar: { left: COMPACT_FLOATING_PANEL_OUTER_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
+			compactPrimarySideBarRightMaximizedPanelNoActivityBar: { left: FLOATING_PANEL_INNER_MARGIN, right: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
+			compactAuxiliaryBarLeftMaximizedPanelNoActivityBar: { left: FLOATING_PANEL_INNER_MARGIN, right: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
+			compactAuxiliaryBarRightMaximizedPanelNoActivityBar: { left: COMPACT_FLOATING_PANEL_OUTER_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
+			compactAuxiliaryBarRightMaximizedPanel: { left: COMPACT_FLOATING_PANEL_OUTER_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
 			compactJustifiedPanel: { left: COMPACT_FLOATING_PANEL_MARGIN, right: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
 			compactJustifiedPanelSideBarRight: { left: COMPACT_FLOATING_PANEL_OUTER_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
 		});
