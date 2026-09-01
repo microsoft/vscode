@@ -20,7 +20,7 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IDefaultAccountProvider, IDefaultAccountRefreshOptions, IDefaultAccountService, IManagedSettingsCompatibilityError, MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE, ManagedSettingsFetchStatus } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { DefaultAccountRefreshTarget, IDefaultAccountProvider, IDefaultAccountRefreshOptions, IDefaultAccountService, IManagedSettingsCompatibilityError, MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE, ManagedSettingsFetchStatus } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IFileManagedSettingsService, INativeManagedSettingsService, ManagedSettingsChannel, ManagedSettingsData, resolveForceRemoteSettingsRefresh } from '../../../../platform/policy/common/copilotManagedSettings.js';
@@ -700,7 +700,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 
 	private onManagedSettingsSourceChanged(): void {
 		if (this.initialized) {
-			void this.updateDefaultAccount({ forceRefresh: true });
+			void this.updateDefaultAccount({ forceRefresh: DefaultAccountRefreshTarget.ManagedSettings });
 		}
 	}
 
@@ -834,7 +834,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				: undefined;
 			if (!requirement.effective) {
 				this.setManagedSettingsFreshness(MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED);
-			} else if ((!scope || !isManagedSettingsFreshnessSatisfiedFor(this._managedSettingsFreshness, scope) || options?.forceRefresh) && this.canRequestManagedSettings(options, scope)) {
+			} else if ((!scope || !isManagedSettingsFreshnessSatisfiedFor(this._managedSettingsFreshness, scope) || this.shouldForceRefresh(options, DefaultAccountRefreshTarget.ManagedSettings)) && this.canRequestManagedSettings(options, scope)) {
 				this.setManagedSettingsFreshness({
 					state: ManagedSettingsFreshnessState.Pending,
 					source: requirement.source,
@@ -961,7 +961,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	}
 
 	private async getTokenEntitlements(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: IDefaultAccountRefreshOptions): Promise<{ data: { policyData: Partial<IPolicyData>; copilotTokenInfo: ICopilotTokenInfo } | undefined; fetchedAt: number }> {
-		if (!options?.forceRefresh && accountPolicyData?.tokenEntitlementsFetchedAt && !this.isDataStale(accountPolicyData.tokenEntitlementsFetchedAt)) {
+		if (!this.shouldForceRefresh(options, DefaultAccountRefreshTarget.TokenEntitlements) && accountPolicyData?.tokenEntitlementsFetchedAt && !this.isDataStale(accountPolicyData.tokenEntitlementsFetchedAt)) {
 			this.logService.debug('[DefaultAccount] Using last fetched token entitlements data');
 			return { data: { policyData: accountPolicyData.policyData, copilotTokenInfo: this._copilotTokenInfo ?? {} }, fetchedAt: accountPolicyData.tokenEntitlementsFetchedAt };
 		}
@@ -1016,7 +1016,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	private async getEntitlements(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: IDefaultAccountRefreshOptions): Promise<{ data: IEntitlementsData | undefined | null; fetchedAt: number | undefined }> {
 		const accountId = sessions[0].account.id;
 		const existingData = this._defaultAccount?.accountId === accountId ? this._defaultAccount?.defaultAccount.entitlementsData : undefined;
-		if (!options?.forceRefresh && existingData && accountPolicyData?.entitlementsFetchedAt && !this.isDataStale(accountPolicyData.entitlementsFetchedAt)) {
+		if (!this.shouldForceRefresh(options, DefaultAccountRefreshTarget.Entitlements) && existingData && accountPolicyData?.entitlementsFetchedAt && !this.isDataStale(accountPolicyData.entitlementsFetchedAt)) {
 			this.logService.debug('[DefaultAccount] Using last fetched entitlements data');
 			return { data: existingData, fetchedAt: accountPolicyData.entitlementsFetchedAt };
 		}
@@ -1055,7 +1055,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	}
 
 	private async getMcpRegistryProvider(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: IDefaultAccountRefreshOptions): Promise<{ data: IMcpRegistryProvider | null; fetchedAt: number } | undefined> {
-		if (!options?.forceRefresh && accountPolicyData?.mcpRegistryDataFetchedAt && !this.isDataStale(accountPolicyData.mcpRegistryDataFetchedAt)) {
+		if (!this.shouldForceRefresh(options, DefaultAccountRefreshTarget.McpRegistry) && accountPolicyData?.mcpRegistryDataFetchedAt && !this.isDataStale(accountPolicyData.mcpRegistryDataFetchedAt)) {
 			this.logService.debug('[DefaultAccount] Using last fetched MCP registry data');
 			const data = accountPolicyData.policyData.mcpRegistryUrl && accountPolicyData.policyData.mcpAccess ? { url: accountPolicyData.policyData.mcpRegistryUrl, registry_access: accountPolicyData.policyData.mcpAccess } : null;
 			return { data, fetchedAt: accountPolicyData.mcpRegistryDataFetchedAt };
@@ -1170,7 +1170,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		// When forceRemoteSettingsRefresh is effective, reuse also requires this scope's freshness to be
 		// satisfied; an outstanding compatibility error always forces revalidation.
 		const forceManagedSettingsRefresh = options?.retryManagedSettings === true
-			|| (options?.forceRefresh === true && options.preserveManagedSettingsCache !== true);
+			|| this.shouldForceRefresh(options, DefaultAccountRefreshTarget.ManagedSettings);
 		if (!forceManagedSettingsRefresh && scopedCachedManagedSettings && (!requirement.effective || freshnessSatisfied) && !this._managedSettingsCompatibilityError) {
 			this.logService.debug('[DefaultAccount] Using last fetched managed settings data');
 			return { ...scopedCachedManagedSettings, scope, compatibilityError: this._managedSettingsCompatibilityError };
@@ -1358,6 +1358,10 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		return options?.retryManagedSettings === true
 			|| scope === undefined
 			|| !this.failedManagedSettingsFreshness.has(this.getManagedSettingsScopeKey(scope));
+	}
+
+	private shouldForceRefresh(options: IDefaultAccountRefreshOptions | undefined, target: DefaultAccountRefreshTarget): boolean {
+		return options?.forceRefresh === DefaultAccountRefreshTarget.All || options?.forceRefresh === target;
 	}
 
 	private updateFailedManagedSettingsFreshness(
