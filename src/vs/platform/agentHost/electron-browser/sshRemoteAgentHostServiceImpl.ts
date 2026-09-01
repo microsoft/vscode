@@ -38,6 +38,7 @@ import {
 	SSH_REMOTE_AGENT_HOST_CHANNEL,
 	computeSSHConnectionKey,
 	isSSHHostKeyDeniedError,
+	SSH_HOST_KEY_DENIED_ERROR_NAME,
 	SSHAuthMethod,
 	type ISSHAgentHostConfig,
 	type ISSHAgentHostConnection,
@@ -216,10 +217,14 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 					}));
 		} catch (error) {
 			// A refused host key is the user's decision, not a transient fault.
-			// Report it in the shared vocabulary for "do not retry", so the
-			// service does not redial and re-prompt the person who just declined.
+			// Report it in the shared vocabulary for "do not retry" while keeping
+			// the host-key-denial name, which `isSSHHostKeyDeniedError` matches
+			// across IPC — telemetry and the contribution's pause policy both
+			// depend on that identity surviving.
 			if (isSSHHostKeyDeniedError(error)) {
-				throw new NonReconnectableTransportError(error.message);
+				const denied = new NonReconnectableTransportError(error instanceof Error ? error.message : String(error));
+				denied.name = SSH_HOST_KEY_DENIED_ERROR_NAME;
+				throw denied;
 			}
 			throw error;
 		}
