@@ -13,6 +13,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathS
 import { homedir, tmpdir, userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { timeout } from '../../../../../../base/common/async.js';
+import { equals } from '../../../../../../base/common/objects.js';
 import { join } from '../../../../../../base/common/path.js';
 import { removeAnsiEscapeCodes } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -438,25 +439,29 @@ export async function createRealSession(
 
 /**
  * Pushes root config as the product client does on connect; the host applies
- * no schema defaults to unpushed keys. Call only after a session exists: the
- * reducer drops the action while the server's root config is uninitialized.
+ * no schema defaults to unpushed keys. May be called after initialization,
+ * including before session creation. The state check avoids waiting for an
+ * echo the server deliberately suppresses when the patch is already applied.
  */
 export async function setRootConfigValues(c: TestProtocolClient, config: Record<string, unknown>, clientSeq: number): Promise<void> {
 	const satisfied = (bag: Readonly<Record<string, unknown>> | undefined) =>
-		Object.entries(config).every(([key, value]) => JSON.stringify(bag?.[key]) === JSON.stringify(value));
+		Object.entries(config).every(([key, value]) => equals(bag?.[key], value));
 	const subscribed = await c.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
 	if (satisfied((subscribed.snapshot?.state as RootState | undefined)?.config?.values)) {
 		return;
 	}
-	c.clearReceived();
+	const afterServerSeq = latestReceivedServerSeq(c);
 	c.dispatch({ channel: ROOT_STATE_URI, clientSeq, action: { type: ActionType.RootConfigChanged, config } });
-	await c.waitForNotification(n => {
+	const notification = await c.waitForNotification(n => {
 		if (!isActionNotification(n, ActionType.RootConfigChanged)) {
 			return false;
 		}
-		const action = getActionEnvelope(n).action as { readonly config?: Readonly<Record<string, unknown>> };
-		return satisfied(action.config);
+		const envelope = getActionEnvelope(n);
+		return envelope.serverSeq > afterServerSeq
+			&& envelope.channel === ROOT_STATE_URI
+			&& envelope.origin?.clientSeq === clientSeq;
 	}, 30_000);
+	throwIfRejected(notification, ActionType.RootConfigChanged);
 }
 
 /**
@@ -465,7 +470,7 @@ export async function setRootConfigValues(c: TestProtocolClient, config: Record<
  * derived from host internals; update deliberately when the product's client
  * contract changes.
  */
-export function canonicalClientTools(): ToolDefinition[] {
+function canonicalClientTools(): ToolDefinition[] {
 	const plain = (name: string): ToolDefinition =>
 		({ name, description: `Client-provided ${name} tool.`, inputSchema: { type: 'object', properties: {} } });
 	return [
@@ -489,15 +494,40 @@ export function canonicalClientTools(): ToolDefinition[] {
  * client-tool-gated launch features.
  */
 export async function registerCanonicalActiveClient(c: TestProtocolClient, sessionUri: string, clientId: string, extraTools: readonly ToolDefinition[] = []): Promise<void> {
+	const clientSeq = 1;
+	const afterServerSeq = latestReceivedServerSeq(c);
 	c.dispatch({
 		channel: sessionUri,
-		clientSeq: 1,
+		clientSeq,
 		action: {
 			type: ActionType.SessionActiveClientSet,
 			activeClient: { clientId, tools: [...canonicalClientTools(), ...extraTools] },
 		},
 	});
-	await c.waitForNotification(n => isActionNotification(n, ActionType.SessionActiveClientSet), 30_000);
+	const notification = await c.waitForNotification(n => {
+		if (!isActionNotification(n, ActionType.SessionActiveClientSet)) {
+			return false;
+		}
+		const envelope = getActionEnvelope(n);
+		const action = envelope.action as { readonly activeClient?: { readonly clientId?: string } };
+		return envelope.serverSeq > afterServerSeq
+			&& envelope.channel === sessionUri
+			&& envelope.origin?.clientSeq === clientSeq
+			&& action.activeClient?.clientId === clientId;
+	}, 30_000);
+	throwIfRejected(notification, ActionType.SessionActiveClientSet);
+}
+
+function latestReceivedServerSeq(c: TestProtocolClient): number {
+	return c.receivedNotifications(n => n.method === 'action')
+		.reduce((latest, notification) => Math.max(latest, getActionEnvelope(notification).serverSeq), 0);
+}
+
+function throwIfRejected(notification: Parameters<typeof getActionEnvelope>[0], actionType: string): void {
+	const rejectionReason = getActionEnvelope(notification).rejectionReason;
+	if (rejectionReason) {
+		throw new Error(`Agent Host rejected ${actionType}: ${rejectionReason}`);
+	}
 }
 
 export async function runAhpSnapshotTest(
