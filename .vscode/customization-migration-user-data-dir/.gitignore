@@ -1,0 +1,8 @@
+/*
+!/.gitignore
+!/User/
+/User/*
+!/User/settings.json
+!/User/prompts/
+/User/prompts/*
+!/User/prompts/*.md

@@ -1696,6 +1696,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		const targetFolders = new Map<PromptsType, ReadonlyMap<PromptsStorage, ICustomizationSourceFolder>>();
+		const selectedDestinationRoots = new Map<PromptsStorage, URI>();
 		for (const [targetType, requiredStorages] of requiredStorageByTargetType) {
 			const availableFolders = availableSourceFolders.get(targetType) ?? [];
 			if (!this.isCustomizationMigrationSessionActive(sessionResource)) {
@@ -1709,9 +1710,21 @@ export class AICustomizationManagementEditor extends EditorPane {
 					return undefined;
 				}
 
-				const targetFolder = matchingFolders.length === 1
-					? matchingFolders[0]
-					: await this.pickCustomizationMigrationTargetFolder(matchingFolders, targetType);
+				const selectedDestinationRoot = selectedDestinationRoots.get(storage);
+				const foldersAtSelectedDestination = selectedDestinationRoot
+					? matchingFolders.filter(folder => isEqual(dirname(folder.uri), selectedDestinationRoot))
+					: [];
+				let targetFolder: ICustomizationSourceFolder | undefined;
+				if (foldersAtSelectedDestination.length === 1) {
+					targetFolder = foldersAtSelectedDestination[0];
+				} else if (matchingFolders.length === 1) {
+					targetFolder = matchingFolders[0];
+				} else {
+					targetFolder = await this.pickCustomizationMigrationTargetFolder(matchingFolders, targetType, requiredStorageByTargetType.size > 1);
+					if (targetFolder) {
+						selectedDestinationRoots.set(storage, dirname(targetFolder.uri));
+					}
+				}
 				if (!targetFolder || !this.isCustomizationMigrationSessionActive(sessionResource)) {
 					return undefined;
 				}
@@ -1747,7 +1760,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	private async pickCustomizationMigrationTargetFolder(sourceFolders: readonly ICustomizationSourceFolder[], targetType: PromptsType): Promise<ICustomizationSourceFolder | undefined> {
+	private async pickCustomizationMigrationTargetFolder(sourceFolders: readonly ICustomizationSourceFolder[], targetType: PromptsType, selectsMultipleTypes: boolean): Promise<ICustomizationSourceFolder | undefined> {
 		const picks: IMigrationTargetQuickPickItem[] = sourceFolders.map(folder => ({
 			label: folder.label,
 			description: this.labelService.getUriLabel(folder.uri, { relative: true }),
@@ -1756,13 +1769,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		const selected = await this.quickInputService.pick(picks, {
 			canPickMany: false,
-			placeHolder: this.getMigrationTargetFolderPlaceholder(targetType),
+			placeHolder: this.getMigrationTargetFolderPlaceholder(targetType, selectsMultipleTypes),
 			matchOnDescription: true,
 		});
 		return selected?.folder;
 	}
 
-	private getMigrationTargetFolderPlaceholder(targetType: PromptsType): string {
+	private getMigrationTargetFolderPlaceholder(targetType: PromptsType, selectsMultipleTypes: boolean): string {
+		if (selectsMultipleTypes) {
+			return localize('migrationPickCustomizationFolder', "Select a destination for the migrated customizations");
+		}
 		switch (targetType) {
 			case PromptsType.skill:
 				return localize('migrationPickSkillFolder', "Select a destination folder for migrated skills");

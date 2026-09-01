@@ -1,0 +1,4 @@
+{
+	"chat.customizations.userDataMigration.enabled": true,
+	"chat.customizations.promptMigration.enabled": true
+}

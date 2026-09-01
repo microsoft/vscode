@@ -77,6 +77,10 @@ suite('aiCustomizationManagementEditor', () => {
 		selectedCustomizationMigrationItems: ResourceMap<Set<PromptsStorage>>;
 		migrationPageDisposables: DisposableStore;
 		labelService: { getUriLabel(uri: URI, options?: { relative?: boolean }): string };
+		quickInputService: {
+			pick(items: readonly { folder: ICustomizationSourceFolder }[]): Promise<{ folder: ICustomizationSourceFolder } | undefined>;
+		};
+		notificationService: { error(message: string): void };
 		showEmbeddedEditor(...args: unknown[]): Promise<void>;
 		getActiveHarnessLabel(): string;
 		welcomePage: { setMigrationCategories(categories: readonly unknown[]): void } | undefined;
@@ -93,6 +97,11 @@ suite('aiCustomizationManagementEditor', () => {
 		setCustomizationsToMigrate(candidates: Map<CustomizationMigrationCategoryId, readonly MigratableConfiguration[]>, targetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>): void;
 		isCustomizationSelectedForMigration(customization: MigratableConfiguration): boolean;
 		setCustomizationSelectedForMigration(customization: MigratableConfiguration, selected: boolean): void;
+		resolveCustomizationMigrationTargetFolders(
+			customizations: readonly MigratableConfiguration[],
+			availableSourceFolders: ReadonlyMap<PromptsType, readonly ICustomizationSourceFolder[]>,
+			sessionResource: URI,
+		): Promise<ReadonlyMap<PromptsType, ReadonlyMap<PromptsStorage, ICustomizationSourceFolder>> | undefined>;
 		updateContentVisibility(): void;
 		setVisible(visible: boolean): void;
 	};
@@ -143,6 +152,12 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.migrationPageDisposables = editor.editorPreviewDisposables.add(new DisposableStore());
 		editor.labelService = {
 			getUriLabel: uri => uri.path,
+		};
+		editor.quickInputService = {
+			pick: async items => items[0],
+		};
+		editor.notificationService = {
+			error: () => { },
 		};
 		editor.showEmbeddedEditor = async () => { };
 		editor.getActiveHarnessLabel = () => 'Copilot';
@@ -739,6 +754,113 @@ suite('aiCustomizationManagementEditor', () => {
 		} finally {
 			editor.migrationListContainer.remove();
 			editor.migrationPageDisposables.dispose();
+			editor.editorPreviewDisposables.dispose();
+		}
+	});
+
+	test('mixed user data migration chooses one destination root', async () => {
+		const editor = createTestEditor();
+		const sessionResource = editor.harnessService.activeSessionResource.get();
+		let pickerInvocationCount = 0;
+		const pickedFolders: ICustomizationSourceFolder[] = [];
+		editor.quickInputService = {
+			pick: async items => {
+				pickerInvocationCount++;
+				pickedFolders.push(...items.map(item => item.folder));
+				return items[0];
+			},
+		};
+		const customizations = [
+			{
+				uri: URI.file('/user-data/prompts/reviewer.agent.md'),
+				storage: PromptsStorage.user,
+				type: PromptsType.agent,
+				source: PromptFileSource.UserData,
+			},
+			{
+				uri: URI.file('/user-data/prompts/review.instructions.md'),
+				storage: PromptsStorage.user,
+				type: PromptsType.instructions,
+				source: PromptFileSource.UserData,
+			},
+		] as const satisfies readonly MigratableConfiguration[];
+		const availableSourceFolders = new Map<PromptsType, readonly ICustomizationSourceFolder[]>([
+			[PromptsType.agent, [
+				{ uri: URI.file('/home/test/.copilot/agents'), label: 'Copilot', source: PromptsStorage.user },
+				{ uri: URI.file('/home/test/.claude/agents'), label: 'Claude', source: PromptsStorage.user },
+			]],
+			[PromptsType.instructions, [
+				{ uri: URI.file('/home/test/.copilot/instructions'), label: 'Copilot', source: PromptsStorage.user },
+				{ uri: URI.file('/home/test/.claude/rules'), label: 'Claude', source: PromptsStorage.user },
+			]],
+		]);
+
+		try {
+			const targetFolders = await editor.resolveCustomizationMigrationTargetFolders(customizations, availableSourceFolders, sessionResource);
+
+			assert.deepStrictEqual({
+				pickerInvocationCount,
+				pickerFolders: pickedFolders.map(folder => folder.uri.path),
+				agentTarget: targetFolders?.get(PromptsType.agent)?.get(PromptsStorage.user)?.uri.path,
+				instructionsTarget: targetFolders?.get(PromptsType.instructions)?.get(PromptsStorage.user)?.uri.path,
+			}, {
+				pickerInvocationCount: 1,
+				pickerFolders: ['/home/test/.copilot/agents', '/home/test/.claude/agents'],
+				agentTarget: '/home/test/.copilot/agents',
+				instructionsTarget: '/home/test/.copilot/instructions',
+			});
+		} finally {
+			editor.editorPreviewDisposables.dispose();
+		}
+	});
+
+	test('automatic migration target does not constrain a later folder choice', async () => {
+		const editor = createTestEditor();
+		const sessionResource = editor.harnessService.activeSessionResource.get();
+		let pickerInvocationCount = 0;
+		editor.quickInputService = {
+			pick: async items => {
+				pickerInvocationCount++;
+				return items[1];
+			},
+		};
+		const customizations = [
+			{
+				uri: URI.file('/user-data/prompts/reviewer.agent.md'),
+				storage: PromptsStorage.user,
+				type: PromptsType.agent,
+				source: PromptFileSource.UserData,
+			},
+			{
+				uri: URI.file('/user-data/prompts/review.instructions.md'),
+				storage: PromptsStorage.user,
+				type: PromptsType.instructions,
+				source: PromptFileSource.UserData,
+			},
+		] as const satisfies readonly MigratableConfiguration[];
+		const availableSourceFolders = new Map<PromptsType, readonly ICustomizationSourceFolder[]>([
+			[PromptsType.agent, [
+				{ uri: URI.file('/home/test/.copilot/agents'), label: 'Copilot', source: PromptsStorage.user },
+			]],
+			[PromptsType.instructions, [
+				{ uri: URI.file('/home/test/.copilot/instructions'), label: 'Copilot', source: PromptsStorage.user },
+				{ uri: URI.file('/home/test/.claude/rules'), label: 'Claude', source: PromptsStorage.user },
+			]],
+		]);
+
+		try {
+			const targetFolders = await editor.resolveCustomizationMigrationTargetFolders(customizations, availableSourceFolders, sessionResource);
+
+			assert.deepStrictEqual({
+				pickerInvocationCount,
+				agentTarget: targetFolders?.get(PromptsType.agent)?.get(PromptsStorage.user)?.uri.path,
+				instructionsTarget: targetFolders?.get(PromptsType.instructions)?.get(PromptsStorage.user)?.uri.path,
+			}, {
+				pickerInvocationCount: 1,
+				agentTarget: '/home/test/.copilot/agents',
+				instructionsTarget: '/home/test/.claude/rules',
+			});
+		} finally {
 			editor.editorPreviewDisposables.dispose();
 		}
 	});
