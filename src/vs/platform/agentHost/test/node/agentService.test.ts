@@ -11430,7 +11430,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('session creation tools inherit the calling chat model, session permissions, and host isolation', async () => {
+		test('session creation tools inherit the calling chat model and permissions and isolate a different project', async () => {
 			class ServerToolAgent extends MockAgent {
 				readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
 				readonly createChatOptions: (IAgentCreateChatOptions | undefined)[] = [];
@@ -11567,7 +11567,7 @@ suite('AgentService (node dispatcher)', () => {
 				chatOptions: agent.createChatOptions.at(-1),
 			}, {
 				sourceModelBeforeCreation: { id: 'source-model' },
-				createdIsolation: 'folder',
+				createdIsolation: 'worktree',
 				downgradedIsolation: 'folder',
 				delegation: {
 					sourceSession: sourceSession.toString(),
@@ -11674,6 +11674,7 @@ suite('AgentService (node dispatcher)', () => {
 				[SessionConfigKey.Mode]: 'interactive',
 				[ClaudeSessionConfigKey.PermissionMode]: 'acceptEdits',
 				[CodexSessionConfigKey.PermissionsPreset]: 'read-only',
+				[SessionConfigKey.Isolation]: 'worktree',
 			});
 		});
 
