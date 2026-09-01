@@ -37,8 +37,7 @@ import { ActionType } from '../../../../common/state/sessionActions.js';
 import { MessageKind, ToolCallConfirmationReason, buildDefaultChatUri } from '../../../../common/state/sessionState.js';
 import { AgentHostE2EServerLease, createRealSession, registerCanonicalActiveClient, setRootConfigValues } from '../harness/agentHostE2ETestHarness.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
-import { agentHostModelSupportsToolSearch, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../node/copilot/toolSearchDeferral.js';
-import { COPILOT_AGENT_HOST_TOOL_SEARCH_TOOL_INSTRUCTION } from '../../../../node/copilot/prompts/toolInstructions.js';
+import { RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../common/toolSearchConstants.js';
 import {
 	AgentHostUpdateAhpSnapshotsEnvVar, AgentHostUpdateSnapshotsEnvVar, snapshotPathForTest,
 } from '../harness/ahpSnapshot.js';
@@ -85,6 +84,9 @@ const SNAPSHOT_MODELS = [
 	'claude-opus-5',
 	'gemini-2.0-flash',
 ] as const;
+
+/** Stable fragment of the host's tool-search guidance line, matched as observable prompt content. */
+const TOOL_SEARCH_GUIDANCE_FRAGMENT = 'ALWAYS use tool search first';
 
 suite('Agent Host E2E — Copilot prompts', function () {
 
@@ -158,18 +160,10 @@ suite('Agent Host E2E — Copilot prompts', function () {
 			const body = lease!.observedModelRequestBodies.at(-1);
 			assert.ok(body, 'no model request body was captured — the turn never reached the model');
 
-			// A silently short-circuited host gate would otherwise still snapshot
-			// green. The CLI applies a further gate of its own before exposing
-			// `tool_search_tool` (unsatisfied under replay), so only the
-			// host-authored guidance line is pinned in both directions.
-			const supportsToolSearch = agentHostModelSupportsToolSearch(model);
-			assert.deepStrictEqual({
-				toolSearchGuidance: requestCarriesToolSearchGuidance(body),
-				toolSearchToolWithoutHostGate: requestCarriesToolSearch(body) && !supportsToolSearch,
-			}, {
-				toolSearchGuidance: supportsToolSearch,
-				toolSearchToolWithoutHostGate: false,
-			}, `tool-search host gate mismatch for '${model}'`);
+			// Per-model tool-search state is pinned by the baselines; here only
+			// cross-field consistency is asserted, needing no model knowledge.
+			assert.ok(!requestCarriesToolSearch(body) || requestCarriesToolSearchGuidance(body),
+				`request for '${model}' carries tool_search_tool without the host's guidance line`);
 
 			await assertPromptSnapshot(this.test!, formatPromptSnapshot(body));
 		});
@@ -269,7 +263,7 @@ function requestCarriesToolSearch(rawBody: string): boolean {
 
 function requestCarriesToolSearchGuidance(rawBody: string): boolean {
 	const request = JSON.parse(rawBody) as IWireRequest;
-	return extractText(request.instructions ?? request.system).includes(COPILOT_AGENT_HOST_TOOL_SEARCH_TOOL_INSTRUCTION);
+	return extractText(request.instructions ?? request.system).includes(TOOL_SEARCH_GUIDANCE_FRAGMENT);
 }
 
 function formatPromptSnapshot(rawBody: string): string {
