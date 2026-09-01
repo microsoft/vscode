@@ -22,7 +22,7 @@ import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPlugin
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
-import { autoModeTiers } from '../../common/autoModeTiers.js';
+import { autoModeTiers, type AutoModeTier } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CustomizationType, McpServerStatus, type ClientPluginCustomization, type ModelSelection } from '../../common/state/protocol/state.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
@@ -1528,7 +1528,7 @@ suite('CopilotSessionLauncher auto tier', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** Launches a session and returns the `capi` options the SDK was called with. */
-	async function capiOptionsFor(kind: 'create' | 'resume', model: ModelSelection | undefined, rootValues: Partial<Record<CopilotCliConfigKey, unknown>>): Promise<unknown> {
+	async function capiOptionsFor(kind: 'create' | 'resume', autoTier: AutoModeTier | undefined): Promise<unknown> {
 		let capi: unknown = 'not-called';
 		const session = {
 			sessionId: 'session-1',
@@ -1546,7 +1546,7 @@ suite('CopilotSessionLauncher auto tier', () => {
 				return session;
 			},
 		} as unknown as Pick<CopilotClient, 'createSession' | 'resumeSession'>;
-		const launcher = createTestLauncher(undefined, rootValues);
+		const launcher = createTestLauncher();
 		const base = {
 			client,
 			sessionId: 'session-1',
@@ -1558,8 +1558,8 @@ suite('CopilotSessionLauncher auto tier', () => {
 			githubToken: undefined,
 		};
 		const plan: CopilotSessionLaunchPlan = kind === 'create'
-			? { ...base, kind: 'create', model }
-			: { ...base, kind: 'resume', fallback: { model } };
+			? { ...base, kind: 'create', model: { id: 'auto' }, autoTier }
+			: { ...base, kind: 'resume', fallback: { model: { id: 'auto' }, autoTier } };
 
 		const sessions = new DisposableStore();
 		try {
@@ -1571,21 +1571,17 @@ suite('CopilotSessionLauncher auto tier', () => {
 		return capi;
 	}
 
-	test('sends the profile on create only, and only while the gate is on', async () => {
-		const auto: ModelSelection = { id: 'auto', config: { tier: 'intelligence' } };
-
+	test('sends the plan profile verbatim on create, and never on resume', async () => {
 		assert.deepStrictEqual(
 			[
-				await capiOptionsFor('create', auto, { [CopilotCliConfigKey.AutoModeTiers]: true }),
-				// Gate off: omitted entirely, so a runtime without the contract never sees the field.
-				await capiOptionsFor('create', auto, {}),
-				// No selection, and a profile left on a concrete model, both leave routing alone.
-				await capiOptionsFor('create', { id: 'auto' }, { [CopilotCliConfigKey.AutoModeTiers]: true }),
-				await capiOptionsFor('create', { id: 'gpt-5', config: { tier: 'intelligence' } }, { [CopilotCliConfigKey.AutoModeTiers]: true }),
+				// Sent exactly as frozen: the launcher must not re-resolve it against the live gate.
+				await capiOptionsFor('create', 'intelligence'),
+				// No profile: omitted entirely, so a runtime without the contract never sees the field.
+				await capiOptionsFor('create', undefined),
 				// Resume keeps whatever profile the runtime journaled for the session.
-				await capiOptionsFor('resume', auto, { [CopilotCliConfigKey.AutoModeTiers]: true }),
+				await capiOptionsFor('resume', 'intelligence'),
 			],
-			[{ autoTier: 'intelligence' }, undefined, undefined, undefined, undefined]
+			[{ autoTier: 'intelligence' }, undefined, undefined]
 		);
 	});
 });
