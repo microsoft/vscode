@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -59,6 +60,7 @@ type FinalizationTestService = {
 	_finalizedText: string;
 	_deltaText: string;
 	_logService: Pick<Console, 'warn'>;
+	_pendingLocalTeardown: Promise<void> | undefined;
 	_finishBackend: () => Promise<string | undefined>;
 };
 
@@ -142,6 +144,7 @@ suite('ChatSpeechToTextService', () => {
 	test('returns the streamed transcript when on-device finalization times out', async () => {
 		const clock = sinon.useFakeTimers();
 		const warnings: string[] = [];
+		const stop = new DeferredPromise<string>();
 		let cancellations = 0;
 		const service = Object.create(ChatSpeechToTextService.prototype) as FinalizationTestService;
 		service._activeBackend = 'nemo';
@@ -149,7 +152,7 @@ suite('ChatSpeechToTextService', () => {
 		service._deltaText = '';
 		service._logService = { warn: message => warnings.push(message) };
 		service._localTranscription = {
-			stop: () => new Promise(() => { }),
+			stop: () => stop.p,
 			cancel: async () => { cancellations++; },
 		};
 
@@ -160,12 +163,16 @@ suite('ChatSpeechToTextService', () => {
 			assert.deepStrictEqual({
 				result: await resultPromise,
 				cancellations,
+				teardownPending: service._pendingLocalTeardown !== undefined,
 				warnings,
 			}, {
 				result: 'streamed transcript',
 				cancellations: 1,
+				teardownPending: true,
 				warnings: ['[chat-stt] on-device final transcription timed out after 8000ms; using streamed transcript'],
 			});
+			stop.complete('');
+			await service._pendingLocalTeardown;
 		} finally {
 			clock.restore();
 		}

@@ -28,6 +28,10 @@ const INTERIM_PROCESSING_CLASS = 'dictation-interim-processing';
 const LOG_PREFIX = '[chat-stt-dictation]';
 const MAX_DICTATION_DURATION_MS = 20 * 60 * 1000;
 
+function isRecording(service: IChatSpeechToTextService): boolean {
+	return service.state === ChatSpeechToTextState.Recording;
+}
+
 /**
  * Renders the cumulative transcript into a code editor, replacing its own
  * inserted region on each update so dictation appears live as the user speaks.
@@ -445,7 +449,7 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 	setActiveDictation(activeDictation);
 	try {
 		await service.start(window, surface);
-		if (_active === activeDictation) {
+		if (_active === activeDictation && isRecording(service)) {
 			const durationLimit = window.setTimeout(() => {
 				logService.info(`${LOG_PREFIX} stopping after maximum duration`);
 				status(localize('chatStt.maximumDurationReached', "Dictation stopped after 20 minutes."));

@@ -459,6 +459,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _sessionGeneration = 0;
 	private _pendingStart: Promise<void> | undefined;
 	private _pendingStop: Promise<void> | undefined;
+	private _pendingLocalTeardown: Promise<void> | undefined;
 	/** Drains the capture worklet's trailing buffer; see {@link IPcmCaptureNode.flush}. */
 	private _flushCapture: (() => Promise<void>) | undefined;
 
@@ -827,6 +828,12 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	private async _startEntitled(window: Window & typeof globalThis, surface: ChatDictationSurface, backend: DictationBackend, generation: number, startGeneration: number): Promise<void> {
+		if (backend === 'nemo') {
+			await this._pendingLocalTeardown;
+			if (!this._isCurrentStart(generation, startGeneration, backend)) {
+				return;
+			}
+		}
 		const captureWindow = getMediaCaptureWindow(window);
 		this._sessionStartMs = Date.now();
 		this._sessionSegments = 0;
@@ -1648,12 +1655,23 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			]);
 			return this._transcript;
 		}
-		const finalText = await raceTimeout(this._localTranscription.stop(), NEMO_FINAL_TIMEOUT_MS);
+		const stop = this._localTranscription.stop();
+		const finalText = await raceTimeout(stop, NEMO_FINAL_TIMEOUT_MS);
 		if (finalText !== undefined) {
 			return finalText;
 		}
 		this._logService.warn(`[chat-stt] on-device final transcription timed out after ${NEMO_FINAL_TIMEOUT_MS}ms; using streamed transcript`);
-		void this._localTranscription.cancel().catch(error => this._logService.warn('[chat-stt] failed to cancel on-device transcription after finalization timeout', error));
+		const cancel = this._localTranscription.cancel();
+		const teardown = Promise.all([
+			stop.catch(error => this._logService.warn('[chat-stt] on-device final transcription failed after timing out', error)),
+			cancel.catch(error => this._logService.warn('[chat-stt] failed to cancel on-device transcription after finalization timeout', error)),
+		]).then(() => undefined);
+		this._pendingLocalTeardown = teardown;
+		void teardown.then(() => {
+			if (this._pendingLocalTeardown === teardown) {
+				this._pendingLocalTeardown = undefined;
+			}
+		});
 		return this._transcript;
 	}
 
