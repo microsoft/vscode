@@ -11,6 +11,7 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
+import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -555,6 +556,58 @@ suite('AgentHostProtocolClient', () => {
 
 		const sessions = await resultPromise;
 		assert.deepStrictEqual(sessions.map(s => readSessionExternal(s._meta)), [true]);
+	});
+
+	test('listSessions preserves client-addressed remote working directories across reload', async () => {
+		const { client, transport } = createClient();
+		const remoteDirectory = URI.parse('vscode-remote://ssh-remote+host/workspace');
+		const hostDirectory = URI.file('/workspace');
+		const summary = {
+			resource: 'agent-session://copilotcli/remote-1',
+			provider: 'copilotcli',
+			title: 'Remote Chat',
+			status: SessionStatus.Idle,
+			createdAt: new Date(1000).toISOString(),
+			modifiedAt: new Date(2000).toISOString(),
+			workingDirectories: [remoteDirectory.toString(), hostDirectory.toString()],
+		};
+		let liveWorkingDirectories: readonly string[] | undefined;
+		disposables.add(client.onDidNotification(notification => {
+			if (notification.type === 'root/sessionAdded') {
+				liveWorkingDirectories = notification.summary.workingDirectories;
+			}
+		}));
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			method: 'root/sessionAdded',
+			params: { channel: ROOT_STATE_URI, summary },
+		});
+
+		const resultPromise = client.listSessions();
+		const sent = transport.sentMessages[0] as JsonRpcRequest;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: sent.id,
+			result: {
+				items: [summary],
+			},
+		});
+
+		const [session] = await resultPromise;
+		assert.deepStrictEqual({
+			liveWorkingDirectories,
+			liveVisibleInWorkspace: liveWorkingDirectories?.some(directory => extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(directory), remoteDirectory)),
+			workingDirectories: session.workingDirectories?.map(uri => uri.toString()),
+			restoredVisibleInWorkspace: session.workingDirectories?.some(directory => extUriBiasedIgnorePathCase.isEqualOrParent(directory, remoteDirectory)),
+		}, {
+			liveWorkingDirectories: summary.workingDirectories,
+			liveVisibleInWorkspace: true,
+			workingDirectories: [
+				remoteDirectory.toString(),
+				client.resourceUris.fromAgentHost(hostDirectory).toString(),
+			],
+			restoredVisibleInWorkspace: true,
+		});
 	});
 
 	test('queues requests and notifications until a client transport initializes', async () => {
