@@ -30,6 +30,10 @@ export interface IEvaluationSessionRequest {
 	readonly backendScheme: string;
 	readonly modelId?: string;
 	readonly folder?: string;
+	readonly remoteHost?: {
+		readonly address: string;
+		readonly connectionToken: string;
+	};
 }
 
 export interface IEvaluationSessionIdentity {
@@ -71,6 +75,15 @@ export function parseEvaluationSessionRequest(raw: string): IEvaluationSessionRe
 	}
 	if (request.folder !== undefined && typeof request.folder !== 'string') {
 		throw new Error('Evaluation session folder must be a string.');
+	}
+	if (request.remoteHost !== undefined) {
+		if (!request.remoteHost || typeof request.remoteHost !== 'object' || Array.isArray(request.remoteHost)) {
+			throw new Error('Evaluation session remoteHost must be an object.');
+		}
+		const remoteHost = request.remoteHost as Record<string, unknown>;
+		if (typeof remoteHost.address !== 'string' || typeof remoteHost.connectionToken !== 'string') {
+			throw new Error('Evaluation session remoteHost requires address and connectionToken strings.');
+		}
 	}
 	return request as unknown as IEvaluationSessionRequest;
 }

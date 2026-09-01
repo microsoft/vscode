@@ -5,6 +5,8 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
+import { addWebSocketRemoteAgentHostEntry, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -38,10 +40,23 @@ async function runAgentsEvaluationSession(path: string, accessor: ServicesAccess
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
 	const providersService = accessor.get(ISessionsProvidersService);
 	const sessionsService = accessor.get(ISessionsService);
+	const configurationService = accessor.get(IConfigurationService);
 	try {
 		const request = await readEvaluationSessionRequest(path, fileService);
 		if (request.surface !== 'agents') {
 			throw new Error(`Evaluation session request targets '${request.surface}', not 'agents'.`);
+		}
+		if (request.remoteHost) {
+			await configurationService.updateValue(RemoteAgentHostsEnabledSettingId, true, ConfigurationTarget.USER_LOCAL);
+			await configurationService.updateValue(RemoteAgentHostAutoConnectSettingId, true, ConfigurationTarget.USER_LOCAL);
+			await addWebSocketRemoteAgentHostEntry(configurationService, {
+				name: 'evaluation',
+				connectionToken: request.remoteHost.connectionToken,
+				connection: {
+					type: RemoteAgentHostEntryType.WebSocket,
+					address: request.remoteHost.address,
+				},
+			});
 		}
 		const folder = URI.parse(request.folder!);
 		const createOptions = { sessionTypeId: request.agent };

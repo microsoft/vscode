@@ -24,6 +24,7 @@ suite('EvaluationSessionRequest', () => {
 			prompt: 'Fix the issue.',
 			backendScheme: 'ahp-session',
 			folder: 'vscode-agent-host://example/workspace',
+			remoteHost: { address: '127.0.0.1:1234', connectionToken: 'token' },
 		})), {
 			version: 1,
 			surface: 'agents',
@@ -32,6 +33,7 @@ suite('EvaluationSessionRequest', () => {
 			prompt: 'Fix the issue.',
 			backendScheme: 'ahp-session',
 			folder: 'vscode-agent-host://example/workspace',
+			remoteHost: { address: '127.0.0.1:1234', connectionToken: 'token' },
 		});
 
 		assert.deepStrictEqual(parseEvaluationSessionRequest(JSON.stringify({
@@ -52,6 +54,7 @@ suite('EvaluationSessionRequest', () => {
 			{ version: 1, surface: 'editor', agent: 'codex', approvals: 'default', prompt: 'x', backendScheme: 'codex' },
 			{ version: 1, surface: 'agents', agent: 'copilotcli', approvals: 'yolo', prompt: 'x', backendScheme: 'ahp-session' },
 			{ version: 1, surface: 'editor', agent: 'codex', approvals: 'yolo', prompt: 'x' },
+			{ version: 1, surface: 'agents', agent: 'codex', approvals: 'yolo', prompt: 'x', backendScheme: 'ahp-session', folder: 'file:///workspace', remoteHost: { address: 1, connectionToken: 'x' } },
 		]) {
 			assert.throws(() => parseEvaluationSessionRequest(JSON.stringify(request)));
 		}
