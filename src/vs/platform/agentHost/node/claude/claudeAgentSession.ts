@@ -882,6 +882,8 @@ export class ClaudeAgentSession extends Disposable {
 
 	private async _buildExternalMcpServers(gitHubMcpServerConfiguration: IMcpServerConfiguration | undefined): Promise<{ readonly servers: Record<string, McpServerConfig>; readonly deniedServers: readonly ClaudeDeniedMcpServerSpec[] }> {
 		const primaryCwd = this.workingDirectory;
+		// Discovery roots are host-local, so compare identities in that namespace.
+		const primaryRoot = primaryCwd && toHostLocalUri(primaryCwd);
 		if (!primaryCwd) {
 			return { servers: {}, deniedServers: [] };
 		}
@@ -896,12 +898,12 @@ export class ClaudeAgentSession extends Disposable {
 		const deniedServers: ClaudeDeniedMcpServerSpec[] = [];
 		for (const definition of discoveredDefinitions) {
 			if (discoveredEnablement.get(definition.customization.id) !== true) {
-				if (definition.defaultCwd && isEqual(definition.defaultCwd, primaryCwd)) {
+				if (definition.defaultCwd && primaryRoot && isEqual(definition.defaultCwd, primaryRoot)) {
 					deniedServers.push(toClaudeDeniedMcpServer(definition));
 				}
 				continue;
 			}
-			if (definition.defaultCwd && isEqual(definition.defaultCwd, primaryCwd)) {
+			if (definition.defaultCwd && primaryRoot && isEqual(definition.defaultCwd, primaryRoot)) {
 				continue;
 			}
 			definitions.set(definition.name, definition);

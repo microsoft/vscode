@@ -8689,6 +8689,53 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		});
 	});
 
+	test('a remote primary root still gates its own workspace MCP servers', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent, sdk, fileService, stateManager, configService } = buildCtxWith(pm);
+		configService.updateRootConfig({ [AgentHostClaudeMultiRootEnabledConfigKey]: true });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		// The window addresses the primary root in its own namespace; the files
+		// live on this host, where discovery reads them.
+		const primary = URI.from({ scheme: Schemas.vscodeRemote, authority: 'dev-container+abc', path: '/primary' });
+		await fileService.writeFile(URI.joinPath(URI.file('/primary'), '.mcp.json'), VSBuffer.fromString(JSON.stringify({
+			'primary-enabled': { type: 'http', url: 'https://primary-enabled.example.com/mcp' },
+			'primary-disabled': { type: 'http', url: 'https://primary-disabled.example.com/mcp' },
+		})));
+		const created = await createSession(agent, { workingDirectories: [primary] });
+		const chat = defaultChatUri(created.session);
+		// Identify the servers by the host-local path discovery resolves them at.
+		const mcpFile = URI.joinPath(URI.file('/primary'), '.mcp.json');
+		const customizations = [
+			makeMcpServerCustomization(mcpFile, 'primary-enabled'),
+			makeMcpServerCustomization(mcpFile, 'primary-disabled'),
+		];
+		publishReducerCustomizations(stateManager, created.session, customizations);
+		const disabled = customizations.find(customization => customization.type === CustomizationType.McpServer && customization.name === 'primary-disabled');
+		assert.ok(disabled);
+		stateManager.dispatchServerAction(created.session.toString(), {
+			type: ActionType.SessionCustomizationToggled,
+			id: disabled.id,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+		});
+
+		sdk.supportedAgentsResult = [];
+		sdk.mcpServerStatusResult = [];
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		await agent.chats.sendMessage(chat, 'first', [primary], undefined, 'turn-1', undefined, undefined, chatContext(chat));
+
+		const options = sdk.capturedStartupOptions[0];
+		const settings = options.settings;
+		assert.ok(settings && typeof settings !== 'string');
+		assert.deepStrictEqual({
+			// The primary root's own servers are implicit, never injected.
+			explicitServers: Object.keys(options.mcpServers ?? {}).sort(),
+			deniedServers: settings.deniedMcpServers,
+		}, {
+			explicitServers: ['github-mcp-server'],
+			deniedServers: [{ serverName: 'primary-disabled' }],
+		});
+	});
+
 	test('workspace MCP enablement gates SDK startup and rebuilds after re-enable', async () => {
 		const pm = new FakeAgentPluginManager();
 		const { agent, sdk, fileService, stateManager, configService } = buildCtxWith(pm);
