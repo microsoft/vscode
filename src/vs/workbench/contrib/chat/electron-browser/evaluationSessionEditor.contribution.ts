@@ -29,14 +29,30 @@ import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
 import { ChatSessionPosition, getResourceForNewChatSession, openChatSession } from '../browser/chatSessions/chatSessions.contribution.js';
 import { ChatEditorInput } from '../browser/widgetHosts/editor/chatEditorInput.js';
-import { EVALUATION_SESSION_REQUEST_ARG, getEvaluationSessionConfig, isEvaluationAutoApprovePolicyRestricted, markEvaluationSessionRequestActive, readEvaluationSessionRequest, waitForEvaluationTarget, writeEvaluationSessionError, writeEvaluationSessionIdentity } from '../browser/agentSessions/evaluation/evaluationSessionRequest.js';
+import { getEvaluationSessionConfig, isEvaluationAutoApprovePolicyRestricted, markEvaluationSessionRequestActive, readEvaluationSessionRequest, waitForEvaluationTarget, writeEvaluationSessionError, writeEvaluationSessionIdentity } from '../browser/agentSessions/evaluation/evaluationSessionRequest.js';
 
 class EvaluationSessionEditorContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.evaluationSessionEditor';
-	private readonly evaluationRemoteStore = this._register(new DisposableStore());
 
 	constructor(
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+		const path = environmentService.evaluationSessionRequest;
+		if (!path) {
+			return;
+		}
+		markEvaluationSessionRequestActive();
+		this._register(instantiationService.createInstance(EvaluationSessionEditorRunner, path));
+	}
+}
+
+class EvaluationSessionEditorRunner extends Disposable {
+	private readonly evaluationRemoteStore = this._register(new DisposableStore());
+
+	constructor(
+		path: string,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
 		@IFileService fileService: IFileService,
@@ -50,12 +66,7 @@ class EvaluationSessionEditorContribution extends Disposable implements IWorkben
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
-		const path = environmentService.args[EVALUATION_SESSION_REQUEST_ARG];
-		if (!path) {
-			return;
-		}
 		logService.info('[EvaluationSession] Editor request detected.');
-		markEvaluationSessionRequestActive();
 		void runEditorEvaluationSession(
 			path,
 			fileService,
@@ -227,6 +238,7 @@ async function registerEvaluationRemoteAgent(
 		extensionDisplayName: 'Evaluation Remote Agent Host',
 		resolveWorkingDirectory: () => workspaceContextService.getWorkspace().folders[0]?.uri,
 		isNewSession: resource => resource.path.substring(1).startsWith('untitled-'),
+		allowUntitledSessionContent: true,
 		onSessionMaterialized: resource => chatSessionsService.notifySessionMaterialized?.(resource),
 		resolveAuthentication: async () => true,
 	}));

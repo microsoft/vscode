@@ -1020,7 +1020,7 @@ function createSessionListController(disposables: DisposableStore, instantiation
 	return disposables.add(instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, description, 'local'));
 }
 
-function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; hideAutoExplainability?: boolean; pendingTreatment?: Promise<void> }) {
+function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; hideAutoExplainability?: boolean; pendingTreatment?: Promise<void>; handlerIsNewSession?: (sessionResource: URI) => boolean; allowUntitledSessionContent?: boolean }) {
 	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride, opts?.languageModelsServiceOverride, opts?.workspaceFolders);
 
 	if (opts?.hideAutoExplainability || opts?.pendingTreatment) {
@@ -1044,7 +1044,8 @@ function createContribution(disposables: DisposableStore, opts?: { authServiceOv
 		description: 'Copilot SDK agent running in the local agent host process',
 		connection: agentHostService,
 		connectionAuthority: 'local',
-		isNewSession: sessionResource => listController.isNewSession(sessionResource),
+		isNewSession: opts?.handlerIsNewSession ?? (sessionResource => listController.isNewSession(sessionResource)),
+		allowUntitledSessionContent: opts?.allowUntitledSessionContent,
 		onSessionMaterialized: sessionResource => listController.notifySessionMaterialized(sessionResource),
 	}));
 	const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
@@ -4184,8 +4185,10 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(agentHostService.turnActions.map(d => (d.action as ITurnStartedAction).message.text), ['Hello']);
 		}));
 
-		test('rejects generic contributed-chat untitled resource', async () => {
-			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+		test('rejects contributed-chat untitled resource without explicit opt-in', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				handlerIsNewSession: () => true,
+			});
 
 			await assert.rejects(
 				() => sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/untitled-abc123' }), CancellationToken.None),
@@ -4194,6 +4197,21 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.createSessionCalls.length, 0);
 			assert.strictEqual(chatAgentService.registeredAgents.has('agent-host-copilot'), true);
 		});
+
+		test('accepts contributed-chat untitled resource with explicit opt-in', async () => {
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-evaluation' });
+			const { sessionHandler, agentHostService } = createContribution(disposables, {
+				handlerIsNewSession: resource => resource.toString() === sessionResource.toString(),
+				allowUntitledSessionContent: true,
+			});
+
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			assert.strictEqual(chatSession.sessionResource.toString(), sessionResource.toString());
+			assert.strictEqual(agentHostService.createSessionCalls.length, 0);
+		});
+
 		test('passes raw model id extracted from language model identifier', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 

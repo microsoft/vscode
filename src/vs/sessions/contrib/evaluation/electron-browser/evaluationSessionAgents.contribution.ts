@@ -9,19 +9,36 @@ import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { INativeWorkbenchEnvironmentService } from '../../../../workbench/services/environment/electron-browser/environmentService.js';
-import { configureEvaluationRemoteHost, EVALUATION_SESSION_REQUEST_ARG, evaluationSessionStartingLabel, getEvaluationSessionConfig, isEvaluationAutoApprovePolicyRestricted, markEvaluationSessionRequestActive, readEvaluationSessionRequest, waitForEvaluationTarget, writeEvaluationSessionError, writeEvaluationSessionIdentity } from '../../../../workbench/contrib/chat/browser/agentSessions/evaluation/evaluationSessionRequest.js';
+import { configureEvaluationRemoteHost, evaluationSessionStartingLabel, getEvaluationSessionConfig, isEvaluationAutoApprovePolicyRestricted, markEvaluationSessionRequestActive, readEvaluationSessionRequest, waitForEvaluationTarget, writeEvaluationSessionError, writeEvaluationSessionIdentity } from '../../../../workbench/contrib/chat/browser/agentSessions/evaluation/evaluationSessionRequest.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 class EvaluationSessionAgentsContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'sessions.contrib.evaluationSessionAgents';
-	private readonly evaluationStore = this._register(new DisposableStore());
 
 	constructor(
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+		const path = environmentService.evaluationSessionRequest;
+		if (!path) {
+			return;
+		}
+		markEvaluationSessionRequestActive();
+		this._register(instantiationService.createInstance(EvaluationSessionAgentsRunner, path));
+	}
+}
+
+class EvaluationSessionAgentsRunner extends Disposable {
+	private readonly evaluationStore = this._register(new DisposableStore());
+
+	constructor(
+		path: string,
 		@IFileService fileService: IFileService,
 		@ILogService logService: ILogService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
@@ -30,11 +47,6 @@ class EvaluationSessionAgentsContribution extends Disposable implements IWorkben
 		@IRemoteAgentHostService remoteAgentHostService: IRemoteAgentHostService,
 	) {
 		super();
-		const path = environmentService.args[EVALUATION_SESSION_REQUEST_ARG];
-		if (!path) {
-			return;
-		}
-		markEvaluationSessionRequestActive();
 		void runAgentsEvaluationSession(
 			path,
 			fileService,
