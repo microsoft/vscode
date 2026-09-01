@@ -878,7 +878,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				}
 			}(),
 		}) as RefreshableRemoteAgentHostSessionsProvider;
-		const session = createSession('temporarily-unlisted', { metadata });
+		const session = createSession('temporarily-unlisted', { _meta: metadata });
 		connection.addSession(session);
 		await provider.refresh();
 

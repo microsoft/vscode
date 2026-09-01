@@ -359,7 +359,7 @@ suite('WorktreeIsolation', () => {
 			existsAfterUnarchive: true,
 			addExistingCalls: [{ worktree: created.worktree.toString(), branchName }],
 			removeCalls: [
-				{ worktree: created.worktree.toString(), force: false },
+				{ worktree: created.worktree.toString(), force: true },
 				{ worktree: created.worktree.toString(), force: true },
 			],
 		});
@@ -371,7 +371,7 @@ suite('WorktreeIsolation', () => {
 			tryOpenDatabase: async () => undefined,
 		};
 		const isolation = disposables.add(new WorktreeIsolation(
-			{ generateBranchName: async () => branchName },
+			{ _serviceBrand: undefined, generateBranchName: async () => branchName },
 			createGitService(),
 			sessionDataService,
 			new NullLogService(),

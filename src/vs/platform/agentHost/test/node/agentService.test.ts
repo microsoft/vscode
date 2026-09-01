@@ -14563,7 +14563,7 @@ suite('AgentService (node dispatcher)', () => {
 			gitService.removeWorktree = async () => { removeWorktreeCalls++; };
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			const isolation = disposables.add(new WorktreeIsolation(
-				{ generateBranchName: async () => 'agents/prepared' },
+				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/prepared' },
 				gitService,
 				sessionDataService,
 				new NullLogService(),
@@ -14632,7 +14632,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			const isolation = disposables.add(new WorktreeIsolation(
-				{ generateBranchName: async () => 'agents/retry' },
+				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/retry' },
 				gitService,
 				sessionDataService,
 				new NullLogService(),
