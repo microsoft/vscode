@@ -15,7 +15,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { HasSpeechProvider, ISpeechService, SpeechToTextInProgress, SpeechToTextStatus } from '../../../speech/common/speechService.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../chat/browser/speechToText/chatSpeechToTextService.js';
-import { activeDictationEditor, isDictating, startDictation, stopDictation } from '../../../chat/browser/speechToText/dictationSession.js';
+import { activeDictationEditor, cancelDictation, isDictating, startDictation, stopDictation } from '../../../chat/browser/speechToText/dictationSession.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
 import { EditorAction2, EditorContributionInstantiation, registerEditorContribution } from '../../../../../editor/browser/editorExtensions.js';
@@ -392,6 +392,10 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 		// Built-in dictation into this editor is owned by the shared chat
 		// dictation session; stop it there so the final transcript is applied.
 		if (isDictating() && activeDictationEditor() === this.editor) {
+			if (this.chatSpeechToTextService.state === ChatSpeechToTextState.Idle) {
+				cancelDictation();
+				return;
+			}
 			stopDictation();
 			return;
 		}

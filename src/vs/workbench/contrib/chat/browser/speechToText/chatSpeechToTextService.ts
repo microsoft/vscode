@@ -191,7 +191,7 @@ type SpeechToTextSessionClassification = {
 	finalizeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from the user stopping recording until the final transcript resolved; the post-stop wait. -1 when not applicable.' };
 	errorCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Short error identifier when the session failed, else empty.' };
 	errorName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Error type reported by the platform when the session failed, else empty.' };
-	closeCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Voice websocket close code when the session failed during connection, else 0.' };
+	closeCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Voice websocket close code when a cloud dictation session failed, else 0.' };
 	cleanupModel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language model used to attempt dictation cleanup, or none when no model request was made.' };
 };
 
@@ -564,6 +564,18 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._register(this._authenticationService.onDidChangeSessions(e => {
 			if (e.providerId === 'github') {
 				void this._refreshGitHubSession();
+			}
+		}));
+		this._register(this._authenticationService.onDidRegisterAuthenticationProvider(e => {
+			if (e.id === 'github') {
+				void this._refreshGitHubSession();
+			}
+		}));
+		this._register(this._authenticationService.onDidUnregisterAuthenticationProvider(e => {
+			if (e.id === 'github') {
+				this._githubSessionGeneration++;
+				this._hasGitHubSession = false;
+				this._updateConfiguredContextKey();
 			}
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
