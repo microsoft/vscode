@@ -29,10 +29,11 @@ export class ContainerContextProviderService implements IRegionContextProviderSe
 				this.updateProvider();
 			}
 		}));
-		this.provider = this.disposables.add(this.createProvider());
+		this.provider = this.createProvider();
 	}
 
 	dispose(): void {
+		this.provider.dispose();
 		this.disposables.dispose();
 	}
 
