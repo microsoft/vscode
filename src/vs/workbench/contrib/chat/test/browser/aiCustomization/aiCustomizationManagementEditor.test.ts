@@ -510,7 +510,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 			assert.deepStrictEqual({ userData, prompts }, {
 				userData: {
-					message: 'They are stored in user data, which only VS Code reads. Move them to \'~/.copilot\' so both VS Code and this harness can use them, keeping their name, type, and content.',
+					message: 'These files are stored in your active VS Code profile, a VS Code-only location that can roam through Settings Sync. Move them to \'~/.copilot\' so both VS Code and this harness can use them, keeping their name, type, and content.',
 					consequence: 'Migrated files aren\'t currently included in Settings Sync.',
 					bannerHidden: false,
 					descriptionHidden: true,
