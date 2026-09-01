@@ -11788,6 +11788,87 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('bridges an existing worktree checkout so the recorded base branch survives without a remote', async () => {
+			// #333642: the CLI committed the session's work onto the worktree branch.
+			// The checkout still exists, so the old bridge skipped it and — with no
+			// remote to resolve a default branch — persisted no base branch, hiding
+			// every committed-on-branch change. The marker's recorded base must flow
+			// through so Branch Changes diffs against the merge-base.
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const repositoryRoot = await fs.mkdtemp(`${os.tmpdir()}/adopt-repo-`);
+			const worktreePath = join(repositoryRoot, '..', `present.worktrees-${Date.now()}`, 'feature-z');
+			await fs.mkdir(worktreePath, { recursive: true });
+			const sessionId = 'legacy-worktree-present';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, worktreePath)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId, {
+					origin: 'vscode',
+					worktreeProperties: { worktreePath, repositoryPath: repositoryRoot, branchName: 'feature/z', baseBranchName: 'main' },
+				});
+
+				const adopted = await ensureDefaultChatAdopted(agent, session);
+
+				assert.deepStrictEqual(
+					{
+						adopted: adopted.adopted,
+						worktree: adopted.worktree && {
+							branchName: adopted.worktree.branchName,
+							baseBranch: adopted.worktree.baseBranch,
+							worktreePath: adopted.worktree.worktreePath.fsPath,
+							repositoryRoot: adopted.worktree.repositoryRoot.fsPath,
+						},
+					},
+					{
+						adopted: true,
+						worktree: { branchName: 'feature/z', baseBranch: 'main', worktreePath: URI.file(worktreePath).fsPath, repositoryRoot: URI.file(repositoryRoot).fsPath },
+					},
+				);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(repositoryRoot, { recursive: true, force: true });
+				await fs.rm(join(worktreePath, '..'), { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('leaves an existing worktree checkout without a recorded base branch to the probe-based bridge', async () => {
+			// An older marker carries no base branch. Taking over here would drop the
+			// probe's `origin/HEAD` fallback, so the checkout-exists case must defer to
+			// it (adoption still succeeds, just with no worktree in the result).
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const repositoryRoot = await fs.mkdtemp(`${os.tmpdir()}/adopt-repo-`);
+			const worktreePath = join(repositoryRoot, '..', `present.worktrees-${Date.now()}-nb`, 'feature-w');
+			await fs.mkdir(worktreePath, { recursive: true });
+			const sessionId = 'legacy-worktree-present-no-base';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, worktreePath)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId, {
+					origin: 'vscode',
+					worktreeProperties: { worktreePath, repositoryPath: repositoryRoot, branchName: 'feature/w' },
+				});
+
+				const adopted = await ensureDefaultChatAdopted(agent, session);
+
+				assert.deepStrictEqual(
+					{ adopted: adopted.adopted, worktree: adopted.worktree },
+					{ adopted: true, worktree: undefined },
+				);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(repositoryRoot, { recursive: true, force: true });
+				await fs.rm(join(worktreePath, '..'), { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
 		test('adopts a deleted worktree with the local repository as its project, not the remote', async () => {
 			// Git resolution runs in the (missing) checkout and falls back to the
 			// remote, whose URI is not a path — the session could then never be

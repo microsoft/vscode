@@ -3372,16 +3372,34 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Worktree identity the extension host recorded, when its checkout is gone but
-	 * the repository remains. Resume recreates the worktree from this, matching how
-	 * a natively worktree-isolated session recovers.
+	 * Worktree identity the extension host recorded, so the migrated session diffs
+	 * against the same base branch the worktree was branched from. Returned when the
+	 * repository still exists, covering two cases:
+	 *
+	 * - The checkout is gone: resume recreates the worktree from this, matching how
+	 *   a natively worktree-isolated session recovers.
+	 * - The checkout still exists but the marker carries a base branch: the recorded
+	 *   base is authoritative and independent of `refs/remotes/origin/HEAD`, which is
+	 *   the only source the probe-based bridge ({@link IAgentHostWorktreeIsolation.adoptExistingWorktreeMetadata})
+	 *   has. Without this, a worktree session in a repository with no remote (or no
+	 *   `origin/HEAD`) persists no base branch, so its Branch Changes diff falls back
+	 *   to `HEAD` and every committed-on-branch change is invisible (#333642).
+	 *
+	 * A still-existing checkout whose marker has no base branch is left to the
+	 * probe-based bridge so the pre-existing `origin/HEAD` fallback is preserved.
 	 */
 	private async _extensionHostCliAdoptedWorktree(sessionId: string): Promise<IAgentAdoptedWorktree | undefined> {
 		const worktree = (await this._readExtensionHostCliMarker(sessionId))?.worktreeProperties;
 		if (!worktree?.worktreePath || !worktree.repositoryPath || !worktree.branchName) {
 			return undefined;
 		}
-		if (await this._isExistingDirectory(worktree.worktreePath) || !(await this._isExistingDirectory(worktree.repositoryPath))) {
+		if (!(await this._isExistingDirectory(worktree.repositoryPath))) {
+			return undefined;
+		}
+		// The checkout still exists: only take over from the probe-based bridge when
+		// the marker gives us an authoritative base branch to persist; otherwise let
+		// the probe resolve it (e.g. from `origin/HEAD`) exactly as before.
+		if (await this._isExistingDirectory(worktree.worktreePath) && !worktree.baseBranchName) {
 			return undefined;
 		}
 		return {
@@ -3449,7 +3467,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const sdkWorkingDirectory = typeof sdkMetadata?.context?.workingDirectory === 'string' ? sdkMetadata.context.workingDirectory : undefined;
 			// A deleted worktree is recoverable the same way a native session recovers
 			// one: keep it as the working directory and let resume recreate it from the
-			// recorded branch.
+			// recorded branch. A worktree whose checkout still exists is also bridged
+			// (when the marker records its base branch) so the recorded base is
+			// persisted for the Branch Changes diff even without a remote (#333642).
 			const adoptedWorktree = await this._extensionHostCliAdoptedWorktree(sessionId);
 			const workingDirectory = adoptedWorktree?.worktreePath
 				?? (sdkWorkingDirectory && await this._isExistingDirectory(sdkWorkingDirectory) ? URI.file(sdkWorkingDirectory) : undefined)
@@ -3460,7 +3480,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._logService.warn(`[Copilot] Adoption skipped for ${sessionId}: no usable working directory (sdk='${sdkWorkingDirectory ?? '(none)'}' exists=${sdkWorkingDirectory ? await this._isExistingDirectory(sdkWorkingDirectory) : false}, no recorded worktree, no marker fallback). The session stays on the legacy provider.`);
 				return { adopted: false, eligible: true, reason: 'workingDirectoryMissing' };
 			}
-			this._logService.info(`[Copilot] Adopting legacy session ${sessionId} in place (reusing on-disk events.jsonl): cwd=${workingDirectory.fsPath}${adoptedWorktree ? ` worktree=${adoptedWorktree.worktreePath.fsPath} branch=${adoptedWorktree.branchName} base=${adoptedWorktree.baseBranch ?? '(none)'} repo=${adoptedWorktree.repositoryRoot.fsPath} (checkout missing, will be recreated on resume)` : ''}`);
+			const worktreeCheckoutMissing = adoptedWorktree ? !(await this._isExistingDirectory(adoptedWorktree.worktreePath.fsPath)) : false;
+			this._logService.info(`[Copilot] Adopting legacy session ${sessionId} in place (reusing on-disk events.jsonl): cwd=${workingDirectory.fsPath}${adoptedWorktree ? ` worktree=${adoptedWorktree.worktreePath.fsPath} branch=${adoptedWorktree.branchName} base=${adoptedWorktree.baseBranch ?? '(none)'} repo=${adoptedWorktree.repositoryRoot.fsPath}${worktreeCheckoutMissing ? ' (checkout missing, will be recreated on resume)' : ' (checkout present)'}` : ''}`);
 			// Resolve the project from the SDK-derived cwd (authoritative) — the
 			// caller may not have supplied a working directory (e.g. the chat
 			// editor), so we cannot trust a hint.

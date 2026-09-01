@@ -5217,9 +5217,11 @@ export class AgentService extends Disposable implements IAgentService {
 		// worktree-isolated sessions. No-op for folder / primary-checkout cwds.
 		let adoptedWorktree = false;
 		if (adopted && this._worktree.supported) {
-			// The predecessor recorded this worktree but its checkout is gone, so it
-			// cannot be probed; seed the same metadata a native session persists at
-			// creation and let resume recreate it.
+			// The predecessor recorded this worktree; seed the same metadata a native
+			// session persists at creation. When its checkout is gone this is the only
+			// way to recover it (resume recreates it from the branch); when the checkout
+			// still exists this carries the authoritatively recorded base branch, which
+			// the probe-based bridge below could not recover without a remote (#333642).
 			if (adoptionWorktree) {
 				try {
 					await this._worktree.recordAdoptedWorktreeMetadata(session, adoptionWorktree);
