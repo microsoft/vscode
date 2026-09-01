@@ -72,6 +72,7 @@ export interface ISessionsChatBackgroundService {
 	setBackground(background: URI | SessionsChatBackgroundPreset): Promise<void>;
 	clearBackground(): Promise<void>;
 	setBackgroundImageLayout(layout: ChatBackgroundImageLayout, persist?: boolean): Promise<void>;
+	restoreConfiguredBackgroundImageLayout(): void;
 }
 
 export class SessionsChatBackgroundService extends Disposable implements ISessionsChatBackgroundService {
@@ -183,13 +184,17 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 			try {
 				await this.configurationService.updateValue(setting, layout, ConfigurationTarget.USER);
 			} catch (error) {
-				const configuredLayout = this.readConfiguredBackgroundImageLayout();
-				if (configuredLayout !== this.backgroundImageLayout) {
-					this.backgroundImageLayout = configuredLayout;
-					this._onDidChangeBackground.fire();
-				}
+				this.restoreConfiguredBackgroundImageLayout();
 				throw error;
 			}
+		}
+	}
+
+	restoreConfiguredBackgroundImageLayout(): void {
+		const configuredLayout = this.readConfiguredBackgroundImageLayout();
+		if (configuredLayout !== this.backgroundImageLayout) {
+			this.backgroundImageLayout = configuredLayout;
+			this._onDidChangeBackground.fire();
 		}
 	}
 

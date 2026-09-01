@@ -248,7 +248,7 @@ suite('Sessions Chat Background Service', () => {
 		});
 	});
 
-	test('restores the active color scheme layout when preview is cancelled', async () => {
+	test('restores the active color scheme layout when the theme changes before preview cancellation', async () => {
 		const configurationService = new CapturingConfigurationService({
 			[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING]: URI.file('/textures/kirby.png').fsPath,
 			[AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING]: URI.file('/textures/kirby.png').fsPath,
@@ -266,29 +266,37 @@ suite('Sessions Chat Background Service', () => {
 
 		const configuredPosition = getPosition();
 		await service.setBackgroundImageLayout('bottom-right', false);
-		const previewPosition = getPosition();
-		await service.setBackgroundImageLayout('center', false);
-		const restoredPosition = getPosition();
+		const darkPreviewPosition = getPosition();
 		themeService.setTheme(new TestColorTheme({}, ColorScheme.LIGHT));
+		const lightPositionAfterThemeChange = getPosition();
+		await service.setBackgroundImageLayout('top', false);
+		const lightPreviewPosition = getPosition();
+		service.restoreConfiguredBackgroundImageLayout();
+		const restoredLightPosition = getPosition();
+		themeService.setTheme(new TestColorTheme({}, ColorScheme.DARK));
 
 		assert.deepStrictEqual({
 			configuredPosition,
-			previewPosition,
-			restoredPosition,
+			darkPreviewPosition,
+			lightPositionAfterThemeChange,
+			lightPreviewPosition,
+			restoredLightPosition,
 			persistedDarkLayout: configurationService.getValue(AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING),
-			lightLayout: service.getBackgroundImageLayout(),
-			lightPosition: getPosition(),
+			persistedLightLayout: configurationService.getValue(AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING),
+			restoredDarkPosition: getPosition(),
 			updates: configurationService.updates,
 			changes,
 		}, {
 			configuredPosition: 'center center',
-			previewPosition: 'right bottom',
-			restoredPosition: 'center center',
+			darkPreviewPosition: 'right bottom',
+			lightPositionAfterThemeChange: 'left center',
+			lightPreviewPosition: 'center top',
+			restoredLightPosition: 'left center',
 			persistedDarkLayout: 'center',
-			lightLayout: 'left',
-			lightPosition: 'left center',
+			persistedLightLayout: 'left',
+			restoredDarkPosition: 'center center',
 			updates: [],
-			changes: 3,
+			changes: 5,
 		});
 	});
 

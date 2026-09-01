@@ -330,7 +330,11 @@ class ChangeChatBackgroundLayoutAction extends Action2 {
 				onDidFocus: item => void backgroundService.setBackgroundImageLayout(item.layout, false),
 			});
 		} finally {
-			await backgroundService.setBackgroundImageLayout(selected?.layout ?? currentLayout, selected !== undefined);
+			if (selected) {
+				await backgroundService.setBackgroundImageLayout(selected.layout);
+			} else {
+				backgroundService.restoreConfiguredBackgroundImageLayout();
+			}
 		}
 		if (selected && selected.layout !== currentLayout) {
 			status(localize('chat.agentSessions.changeBackgroundLayout.changed', "Chat background layout changed to {0}.", selected.label));
