@@ -354,6 +354,7 @@ class TestCopilotApiService implements ICopilotApiService {
 	userLogin: string | undefined;
 	readonly restrictedTelemetryContexts = new Map<string, IRestrictedTelemetryContext>();
 	readonly restrictedTelemetryContextCalls: string[] = [];
+	resolveCopilotSkuHandler: (githubToken: string) => Promise<string | undefined> = async () => undefined;
 
 	messages(_githubToken: string, _request: Anthropic.MessageCreateParamsStreaming, _options?: ICopilotApiServiceRequestOptions): AsyncGenerator<Anthropic.MessageStreamEvent>;
 	messages(_githubToken: string, _request: Anthropic.MessageCreateParamsNonStreaming, _options?: ICopilotApiServiceRequestOptions): Promise<Anthropic.Message>;
@@ -376,6 +377,7 @@ class TestCopilotApiService implements ICopilotApiService {
 	}
 	async resolveApiEndpoint() { return this.apiEndpoint; }
 	async resolveUserLogin() { return this.userLogin; }
+	async resolveCopilotSku(githubToken: string): Promise<string | undefined> { return this.resolveCopilotSkuHandler(githubToken); }
 	async utilityChatCompletion(githubToken: string, request: ICopilotUtilityChatCompletionRequest, options?: ICopilotApiServiceRequestOptions): Promise<string> {
 		this.utilityCalls.push({ token: githubToken, request, options });
 		if (this.error) {
@@ -568,9 +570,16 @@ class RecordingTelemetryService extends NullTelemetryServiceShape {
 	readonly events: Array<{ eventName: string; data: unknown }> = [];
 	readonly errorEvents: Array<{ eventName: string; data: unknown }> = [];
 	readonly experimentProperties: Record<string, string> = {};
+	readonly commonPropertyUpdates: Array<{ name: string; value: string | boolean | undefined }> = [];
 
 	override setExperimentProperty(name?: string, value?: string): void {
 		this.experimentProperties[name ?? ''] = value ?? '';
+	}
+
+	override setCommonProperty(name?: string, value?: string | boolean): void {
+		if (name) {
+			this.commonPropertyUpdates.push({ name, value });
+		}
 	}
 
 	override publicLog2(eventName?: string, data?: unknown): void {
@@ -2073,6 +2082,35 @@ suite('CopilotAgent', () => {
 				githubToken: undefined,
 				models: [],
 			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('updates Copilot SKU telemetry across authentication changes and ignores stale resolution', async () => {
+		const client = new TestCopilotClient([]);
+		const copilotApiService = new TestCopilotApiService();
+		const telemetryService = new RecordingTelemetryService();
+		copilotApiService.resolveCopilotSkuHandler = async token => token === 'token-a' ? 'sku-a' : 'sku-b';
+		const agent = createTestAgent(disposables, { copilotClient: client, copilotApiService, telemetryService });
+		try {
+			await agent.authenticate('https://api.github.com', 'token-a');
+			const staleResolution = new DeferredPromise<string | undefined>();
+			copilotApiService.resolveCopilotSkuHandler = token => token === 'token-a' ? staleResolution.p : Promise.resolve('sku-b');
+			const staleResolutionCall = agent['_resolveCopilotSku']('token-a');
+
+			await agent.authenticate('https://api.github.com', 'token-b');
+			staleResolution.complete('stale-sku-a');
+			await staleResolutionCall;
+			await agent.authenticate('https://api.github.com', '');
+
+			assert.deepStrictEqual(telemetryService.commonPropertyUpdates.filter(update => update.name === 'copilotSku'), [
+				{ name: 'copilotSku', value: undefined },
+				{ name: 'copilotSku', value: 'sku-a' },
+				{ name: 'copilotSku', value: undefined },
+				{ name: 'copilotSku', value: 'sku-b' },
+				{ name: 'copilotSku', value: undefined },
+			]);
 		} finally {
 			await disposeAgent(agent);
 		}
