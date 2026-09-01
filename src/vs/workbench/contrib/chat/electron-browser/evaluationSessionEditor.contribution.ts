@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -12,7 +13,7 @@ import { INativeWorkbenchEnvironmentService } from '../../../services/environmen
 import { IChatService } from '../common/chatService/chatService.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSessionPosition, getResourceForNewChatSession, openChatSession } from '../browser/chatSessions/chatSessions.contribution.js';
-import { EVALUATION_SESSION_REQUEST_ARG, getEvaluationSessionConfig, markEvaluationSessionRequestActive, readEvaluationSessionRequest, waitForEvaluationTarget, writeEvaluationSessionError, writeEvaluationSessionIdentity } from '../browser/agentSessions/evaluation/evaluationSessionRequest.js';
+import { configureEvaluationRemoteHost, EVALUATION_SESSION_REQUEST_ARG, getEvaluationSessionConfig, markEvaluationSessionRequestActive, readEvaluationSessionRequest, waitForEvaluationTarget, writeEvaluationSessionError, writeEvaluationSessionIdentity } from '../browser/agentSessions/evaluation/evaluationSessionRequest.js';
 
 class EvaluationSessionEditorContribution implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.evaluationSessionEditor';
@@ -36,12 +37,13 @@ async function runEditorEvaluationSession(path: string, accessor: ServicesAccess
 	const instantiationService = accessor.get(IInstantiationService);
 	const chatSessionsService = accessor.get(IChatSessionsService);
 	const chatService = accessor.get(IChatService);
+	const configurationService = accessor.get(IConfigurationService);
 	try {
 		const request = await readEvaluationSessionRequest(path, fileService);
 		if (request.surface !== 'editor') {
 			throw new Error(`Evaluation session request targets '${request.surface}', not 'editor'.`);
 		}
-		const type = `agent-host-${request.agent}`;
+		const type = await configureEvaluationRemoteHost(request, configurationService) ?? `agent-host-${request.agent}`;
 		await waitForEvaluationTarget(
 			() => chatSessionsService.getChatSessionContribution(type) !== undefined,
 			chatSessionsService.onDidChangeItemsProviders,

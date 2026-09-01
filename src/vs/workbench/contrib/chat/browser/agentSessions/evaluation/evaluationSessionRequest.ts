@@ -9,8 +9,11 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Event } from '../../../../../../base/common/event.js';
 import { dirname, joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { normalizeRemoteAgentHostAddress } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, normalizeRemoteAgentHostAddress } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { addWebSocketRemoteAgentHostEntry, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -60,6 +63,24 @@ export function preserveEvaluationRemoteHostAuthentication(address: string): voi
 
 export function shouldPreserveEvaluationRemoteHostAuthentication(address: string): boolean {
 	return evaluationRemoteHostsWithExternalAuthentication.has(normalizeRemoteAgentHostAddress(address));
+}
+
+export async function configureEvaluationRemoteHost(request: IEvaluationSessionRequest, configurationService: IConfigurationService): Promise<string | undefined> {
+	if (!request.remoteHost) {
+		return undefined;
+	}
+	preserveEvaluationRemoteHostAuthentication(request.remoteHost.address);
+	await configurationService.updateValue(RemoteAgentHostsEnabledSettingId, true, ConfigurationTarget.USER_LOCAL);
+	await configurationService.updateValue(RemoteAgentHostAutoConnectSettingId, true, ConfigurationTarget.USER_LOCAL);
+	await addWebSocketRemoteAgentHostEntry(configurationService, {
+		name: 'evaluation',
+		connectionToken: request.remoteHost.connectionToken,
+		connection: {
+			type: RemoteAgentHostEntryType.WebSocket,
+			address: request.remoteHost.address,
+		},
+	});
+	return remoteAgentHostSessionTypeId(agentHostAuthority(request.remoteHost.address), request.agent);
 }
 
 export function parseEvaluationSessionRequest(raw: string): IEvaluationSessionRequest {
