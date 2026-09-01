@@ -590,12 +590,12 @@ suite('NewChatInputWidget', () => {
 
 		assert.deepStrictEqual({
 			pillChildren: Array.from(firstPill?.children ?? []).map(child => child.className),
-			removeButtonNestedInOpenButton: openButton?.contains(removeButton),
+			removeButtonNestedInOpenButton: openButton?.contains(removeButton ?? null),
 			hasCompactImageIcon: !!container.querySelector('.codicon-file-media-compact'),
 			files,
 			labels,
 		}, {
-			pillChildren: ['sessions-chat-attachment-remove', 'sessions-chat-attachment-open open-file'],
+			pillChildren: ['sessions-chat-attachment-remove', 'sessions-chat-attachment-open'],
 			removeButtonNestedInOpenButton: false,
 			hasCompactImageIcon: true,
 			files: [
