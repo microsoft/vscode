@@ -16,6 +16,7 @@ import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
+import { getShellInitScriptConfigWriteError } from '../common/shellInitScript.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotification } from '../common/agent.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
@@ -1443,6 +1444,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		},
 		createSession: async (_client, params) => {
 			let createdSession: URI;
+			const shellInitWriteError = getShellInitScriptConfigWriteError(params.config ?? {}, getAgentHostClientType(_client.clientInfo));
+			if (shellInitWriteError) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, shellInitWriteError);
+			}
 			// If the client eagerly claimed the active client role, validate
 			// the clientId matches the connection before forwarding.
 			if (params.activeClient && params.activeClient.clientId !== _client.clientId) {

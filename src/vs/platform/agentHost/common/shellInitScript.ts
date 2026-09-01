@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import { AgentHostClientType } from './agentHostClientInfo.js';
+import { SessionConfigKey } from './sessionConfigKeys.js';
 
 export type ShellInitScriptShell = 'bash' | 'powershell';
 
@@ -15,6 +17,24 @@ export type ShellInitScriptShell = 'bash' | 'powershell';
 export interface IShellInitScript {
 	readonly shell: ShellInitScriptShell;
 	readonly script: string;
+}
+
+export const SHELL_INIT_SCRIPT_EDITOR_ONLY_ERROR = 'Shell init script config can only be set by an Editor Window client.';
+
+/**
+ * Returns an authorization error for executable shell-init config.
+ * Any client may clear the capability with `[]`; only Editor Windows may add
+ * executable text.
+ */
+export function getShellInitScriptConfigWriteError(config: Record<string, unknown>, clientType: AgentHostClientType): string | undefined {
+	if (!Object.hasOwn(config, SessionConfigKey.ShellInitSnippets)) {
+		return undefined;
+	}
+	const value = config[SessionConfigKey.ShellInitSnippets];
+	if (Array.isArray(value) && value.length === 0) {
+		return undefined;
+	}
+	return clientType === AgentHostClientType.EditorWindow ? undefined : SHELL_INIT_SCRIPT_EDITOR_ONLY_ERROR;
 }
 
 function quoteBash(value: string): string {

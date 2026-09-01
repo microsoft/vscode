@@ -81,6 +81,7 @@ import { ICopilotApiService } from './shared/copilotApiService.js';
 import { INetworkDiagnosticsService } from './networkDiagnosticsService.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
+import { getShellInitScriptConfigWriteError } from '../common/shellInitScript.js';
 import { resolveLastNonLocalTurnId } from '../common/agentHostConversationContext.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
@@ -4514,6 +4515,10 @@ export class AgentService extends Disposable implements IAgentService {
 			? createUnknownAgentHostClientTelemetryContext(clientContextOrType)
 			: clientContextOrType;
 		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
+		if (action.type === ActionType.RootConfigChanged && Object.hasOwn(action.config, SessionConfigKey.ShellInitSnippets)) {
+			this._stateManager.rejectClientAction(channel, action, { clientId, clientSeq }, 'Shell init script config is session-only and cannot be set in root config.');
+			return;
+		}
 		if (action.type === ActionType.RootConfigChanged && Object.hasOwn(action.config, AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY)) {
 			const migration = action.config[AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY];
 			const origin = { clientId, clientSeq };
@@ -4771,11 +4776,9 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			const editorClient = clientContext.clientType === AgentHostClientType.EditorWindow;
 			const writesShellInit = Object.hasOwn(configAction.config, SessionConfigKey.ShellInitSnippets);
-			const clearsShellInit = writesShellInit
-				&& Array.isArray(configAction.config[SessionConfigKey.ShellInitSnippets])
-				&& configAction.config[SessionConfigKey.ShellInitSnippets].length === 0;
-			if (!editorClient && writesShellInit && !clearsShellInit) {
-				this._stateManager.rejectClientAction(channel, action, origin, 'Shell init script config can only be set by an Editor Window client.');
+			const shellInitWriteError = getShellInitScriptConfigWriteError(configAction.config, clientContext.clientType);
+			if (shellInitWriteError) {
+				this._stateManager.rejectClientAction(channel, action, origin, shellInitWriteError);
 				return;
 			}
 			if (!editorClient && configAction.replace && !writesShellInit) {

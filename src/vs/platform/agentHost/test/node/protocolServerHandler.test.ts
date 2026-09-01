@@ -1713,6 +1713,31 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('createSession accepts shell init scripts only from Editor Window clients', async () => {
+		const config = { shellInitSnippets: [{ shell: 'bash', script: 'export READY=1' }] };
+		const editor = connectClient('editor-create', undefined, editorWindowAgentHostClientInfo);
+		editor.sent.length = 0;
+		const editorResponse = waitForResponse(editor, 2);
+		editor.simulateMessage(request(2, 'createSession', { channel: 'copilot:///editor-created', config }));
+		await editorResponse;
+
+		const agentsWindow = connectClient('agents-create', undefined, agentsWindowAgentHostClientInfo);
+		agentsWindow.sent.length = 0;
+		const agentsResponse = waitForResponse(agentsWindow, 2);
+		agentsWindow.simulateMessage(request(2, 'createSession', { channel: 'copilot:///agents-created', config }));
+		const rejected = await agentsResponse as unknown as { error?: { message: string } };
+
+		assert.deepStrictEqual({
+			editorConfig: agentService.createSessionConfigs.find(candidate => candidate?.session?.path === '/editor-created')?.config,
+			rejectedMessage: rejected.error?.message,
+			agentsConfigCreated: agentService.createSessionConfigs.some(candidate => candidate?.session?.path === '/agents-created'),
+		}, {
+			editorConfig: config,
+			rejectedMessage: 'Shell init script config can only be set by an Editor Window client.',
+			agentsConfigCreated: false,
+		});
+	});
+
 	test('whenIdle waits for in-flight protocol requests after disposal', async () => {
 		const transport = connectClient('client-drain');
 		agentService.createSessionBarrier = new DeferredPromise<void>();

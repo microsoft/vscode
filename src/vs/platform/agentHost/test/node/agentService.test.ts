@@ -2391,6 +2391,25 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		});
 
+		test('rejects shell init scripts in root config', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [SessionConfigKey.ShellInitSnippets]: [{ shell: 'bash', script: 'export ROOT=1' }] },
+			}, 'editor-client', 1, AgentHostClientType.EditorWindow);
+			const envelope = await envelopePromise;
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				rootValue: getStateManager(svc).rootState.config?.values[SessionConfigKey.ShellInitSnippets],
+			}, {
+				rejectionReason: 'Shell init script config is session-only and cannot be set in root config.',
+				rootValue: undefined,
+			});
+		});
+
 		test('generates and persists an AI title after first-turn fallback title', async () => {
 			const copilotApiService = new TestCopilotApiService();
 			copilotApiService.response = '"Fix TypeScript compile errors."';
