@@ -11,7 +11,8 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { hash } from '../../../../../../base/common/hash.js';
-import { IFileService, IFileStatWithMetadata, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
+import { IFileService, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { AICustomizationSource } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -27,7 +28,7 @@ export { SYNCED_CUSTOMIZATION_SCHEME };
 
 const DISPLAY_NAME = 'VS Code Synced Data';
 const FILE_OPERATION_CONCURRENCY = 10;
-const SKILL_DIRECTORY_IGNORE = new IgnoreFile('.git/\nnode_modules/\n', '/', undefined, true);
+const SKILL_DIRECTORY_IGNORE = new IgnoreFile('.git\nnode_modules\n', '/', undefined, true);
 
 const MANIFEST_CONTENT = JSON.stringify({
 	name: DISPLAY_NAME,
@@ -54,9 +55,17 @@ function pluginDirForType(type: PromptsType): string | undefined {
 
 type QueueFileOperation = <T>(operation: () => Promise<T>) => Promise<T>;
 
-async function collectDirectoryFiles(fileService: IFileService, root: URI, directory: URI, queueFileOperation: QueueFileOperation): Promise<IFileStatWithMetadata[]> {
-	const stat = await queueFileOperation(() => fileService.resolve(directory, { resolveMetadata: true }));
-	const files = await Promise.all((stat.children ?? []).map(async child => {
+async function collectDirectoryFiles(fileService: IFileService, logService: ILogService, root: URI, directory: URI, queueFileOperation: QueueFileOperation): Promise<IFileStatWithPartialMetadata[]> {
+	const stat = await queueFileOperation(() => fileService.resolve(directory));
+	const children = (await Promise.all((stat.children ?? []).map(async child => {
+		try {
+			return await queueFileOperation(() => fileService.stat(child.resource));
+		} catch (error) {
+			logService.trace('[SyncedCustomizationBundler] Failed to stat skill resource', child.resource.toString(), error);
+			return undefined;
+		}
+	}))).filter((child): child is IFileStatWithPartialMetadata => child !== undefined);
+	const files = await Promise.all(children.map(async child => {
 		const relativePath = extUri.relativePath(root, child.resource);
 		if (relativePath === undefined) {
 			throw new Error(`Unable to resolve skill resource path: ${child.resource.toString()}`);
@@ -65,7 +74,7 @@ async function collectDirectoryFiles(fileService: IFileService, root: URI, direc
 			return [];
 		}
 		if (child.isDirectory) {
-			return collectDirectoryFiles(fileService, root, child.resource, queueFileOperation);
+			return collectDirectoryFiles(fileService, logService, root, child.resource, queueFileOperation);
 		}
 		return child.isFile ? [child] : [];
 	}));
@@ -156,6 +165,7 @@ export class SyncedCustomizationBundler extends Disposable {
 		authority: string,
 		@IFileService private readonly _fileService: IFileService,
 		@IAgentHostFileSystemService agentHostFileSystemService: IAgentHostFileSystemService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._authority = authority;
@@ -214,7 +224,12 @@ export class SyncedCustomizationBundler extends Disposable {
 			if (file.type === PromptsType.skill && fileName.toLowerCase() === 'skill.md') {
 				const skillRoot = dirname(file.uri);
 				const skillDirName = basename(skillRoot);
-				for (const source of await collectDirectoryFiles(this._fileService, skillRoot, skillRoot, operation => this._queueFileOperation(operation))) {
+				const entrypoint = await this._queueFileOperation(() => this._fileService.stat(file.uri));
+				addEntry(file, entrypoint, URI.joinPath(this._rootUri, dir, skillDirName, fileName), `${dir}/${skillDirName}/${fileName}`);
+				for (const source of await collectDirectoryFiles(this._fileService, this._logService, skillRoot, skillRoot, operation => this._queueFileOperation(operation))) {
+					if (extUri.isEqual(source.resource, file.uri)) {
+						continue;
+					}
 					const relativePath = extUri.relativePath(skillRoot, source.resource);
 					if (relativePath === undefined) {
 						throw new Error(`Unable to resolve skill resource path: ${source.resource.toString()}`);

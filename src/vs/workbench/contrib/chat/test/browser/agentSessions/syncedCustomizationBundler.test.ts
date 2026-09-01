@@ -5,12 +5,15 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { timeout } from '../../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { FileType, IFileService, IStat } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -19,12 +22,49 @@ import { type ISyncableMcpServer, type ISyncedCustomizationOrigin, SyncedCustomi
 import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+
+class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
+	private readonly symbolicLinks = new ResourceSet();
+	private readonly statFailures = new ResourceSet();
+	private statDelay = 0;
+	private activeStats = 0;
+	maxActiveStats = 0;
+
+	markSymbolicLink(resource: URI): void {
+		this.symbolicLinks.add(resource);
+	}
+
+	delayStats(delay: number): void {
+		this.statDelay = delay;
+	}
+
+	failStat(resource: URI): void {
+		this.statFailures.add(resource);
+	}
+
+	override async stat(resource: URI): Promise<IStat> {
+		this.activeStats++;
+		this.maxActiveStats = Math.max(this.maxActiveStats, this.activeStats);
+		try {
+			if (this.statDelay > 0) {
+				await timeout(this.statDelay);
+			}
+			if (this.statFailures.has(resource)) {
+				throw new Error('Unavailable test resource');
+			}
+			const stat = await super.stat(resource);
+			return this.symbolicLinks.has(resource) ? { ...stat, type: stat.type | FileType.SymbolicLink } : stat;
+		} finally {
+			this.activeStats--;
+		}
+	}
+}
 
 suite('SyncedCustomizationBundler', () => {
 
 	const disposables = new DisposableStore();
 	let fileService: FileService;
+	let memFs: TestInMemoryFileSystemProvider;
 	let instantiationService: TestInstantiationService;
 
 	const enabledMcpServer = (name: string, configuration: IMcpServerConfiguration): ISyncableMcpServer => ({
@@ -35,7 +75,7 @@ suite('SyncedCustomizationBundler', () => {
 
 	setup(() => {
 		fileService = disposables.add(new FileService(new NullLogService()));
-		const memFs = disposables.add(new InMemoryFileSystemProvider());
+		memFs = disposables.add(new TestInMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(Schemas.inMemory, memFs));
 
 		// Register the synced-customization scheme via a mock service
@@ -199,6 +239,113 @@ suite('SyncedCustomizationBundler', () => {
 		const updatedResult = await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
 		assert.notStrictEqual(updatedResult!.ref.nonce, result.ref.nonce);
 		assert.strictEqual((await fileService.readFile(referenceUri)).value.toString(), 'updated reference');
+	});
+
+	test('excludes worktree metadata files from skill directories', async () => {
+		const bundler = createBundler();
+		const skill = await seedFile('/skills/worktree/SKILL.md', 'skill content');
+		await seedFile('/skills/worktree/.git', 'gitdir: ../../.git/worktrees/worktree');
+
+		await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+
+		assert.strictEqual(await fileService.exists(URI.from({
+			scheme: SYNCED_CUSTOMIZATION_SCHEME,
+			path: '/test-agent/skills/worktree/.git',
+		})), false);
+	});
+
+	test('includes a symlinked SKILL.md entrypoint but excludes nested symlinks', async () => {
+		const bundler = createBundler();
+		const skill = await seedFile('/skills/symlinks/SKILL.md', 'skill content');
+		const nested = await seedFile('/skills/symlinks/references/linked.md', 'linked content');
+		memFs.markSymbolicLink(skill);
+		memFs.markSymbolicLink(nested);
+
+		await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+
+		const skillDestination = URI.from({
+			scheme: SYNCED_CUSTOMIZATION_SCHEME,
+			path: '/test-agent/skills/symlinks/SKILL.md',
+		});
+		const nestedDestination = URI.from({
+			scheme: SYNCED_CUSTOMIZATION_SCHEME,
+			path: '/test-agent/skills/symlinks/references/linked.md',
+		});
+		assert.deepStrictEqual({
+			skill: (await fileService.readFile(skillDestination)).value.toString(),
+			nestedExists: await fileService.exists(nestedDestination),
+		}, {
+			skill: 'skill content',
+			nestedExists: false,
+		});
+	});
+
+	test('rebuilds when nested skill resources are added or removed', async () => {
+		const bundler = createBundler();
+		const skill = await seedFile('/skills/evolving/SKILL.md', 'skill content');
+		const first = await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+
+		const added = await seedFile('/skills/evolving/references/notes.md', 'reference content');
+		const second = await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+		const destination = URI.from({
+			scheme: SYNCED_CUSTOMIZATION_SCHEME,
+			path: '/test-agent/skills/evolving/references/notes.md',
+		});
+
+		await fileService.del(added);
+		const third = await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+
+		assert.deepStrictEqual({
+			addedNonceChanged: second!.ref.nonce !== first!.ref.nonce,
+			removedNonceChanged: third!.ref.nonce !== second!.ref.nonce,
+			destinationExists: await fileService.exists(destination),
+		}, {
+			addedNonceChanged: true,
+			removedNonceChanged: true,
+			destinationExists: false,
+		});
+	});
+
+	test('limits concurrent skill filesystem operations', async () => {
+		const bundler = createBundler();
+		const skill = await seedFile('/skills/wide/SKILL.md', 'skill content');
+		for (let index = 0; index < 20; index++) {
+			await seedFile(`/skills/wide/references/${index}.md`, `reference ${index}`);
+		}
+		memFs.delayStats(5);
+
+		await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+
+		assert.strictEqual(memFs.maxActiveStats, 10);
+	});
+
+	test('skips unreadable nested skill resources', async () => {
+		const bundler = createBundler();
+		const skill = await seedFile('/skills/unreadable/SKILL.md', 'skill content');
+		const unavailable = await seedFile('/skills/unreadable/references/unavailable.md', 'unavailable content');
+		await seedFile('/skills/unreadable/references/available.md', 'available content');
+		memFs.failStat(unavailable);
+
+		await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+
+		assert.deepStrictEqual({
+			skill: (await fileService.readFile(URI.from({
+				scheme: SYNCED_CUSTOMIZATION_SCHEME,
+				path: '/test-agent/skills/unreadable/SKILL.md',
+			}))).value.toString(),
+			available: (await fileService.readFile(URI.from({
+				scheme: SYNCED_CUSTOMIZATION_SCHEME,
+				path: '/test-agent/skills/unreadable/references/available.md',
+			}))).value.toString(),
+			unavailableExists: await fileService.exists(URI.from({
+				scheme: SYNCED_CUSTOMIZATION_SCHEME,
+				path: '/test-agent/skills/unreadable/references/unavailable.md',
+			})),
+		}, {
+			skill: 'skill content',
+			available: 'available content',
+			unavailableExists: false,
+		});
 	});
 
 	test('bundles binary skill resources and invalidates the nonce when metadata changes', async () => {
