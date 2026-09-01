@@ -29,13 +29,13 @@ suite('codexCustomizations', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const skill = (name: string, scope: SkillScope, path: string, enabled = true): SkillMetadata =>
-		({ name, description: `${name} desc`, path, scope, enabled });
+		({ name, description: `${name} desc`, path, scope, enabled, pluginId: null });
 
 	const skillsResponse = (...entries: { cwd: string; skills: SkillMetadata[] }[]): SkillsListResponse =>
 		({ data: entries.map(e => ({ cwd: e.cwd, skills: e.skills, errors: [] })) });
 
 	const hook = (key: string, eventName: HookMetadata['eventName'], sourcePath: string, displayOrder = 0, enabled = true): HookMetadata =>
-		({ key, eventName, handlerType: 'command', matcher: null, command: 'echo hi', timeoutSec: 5n, statusMessage: null, additionalContextLimit: null, sourcePath, source: 'project', pluginId: null, displayOrder: BigInt(displayOrder), enabled, isManaged: false, currentHash: 'h', trustStatus: 'trusted' });
+		({ key, eventName, handlerType: 'command', matcher: null, command: 'echo hi', async: false, timeoutSec: 5n, statusMessage: null, additionalContextLimit: null, sourcePath, source: 'project', pluginId: null, displayOrder: BigInt(displayOrder), enabled, isManaged: false, currentHash: 'h', trustStatus: 'trusted' });
 
 	test('discovers workspace agents without client-pushed local customizations', async () => {
 		const fileService = disposables.add(new FileService(new NullLogService()));
