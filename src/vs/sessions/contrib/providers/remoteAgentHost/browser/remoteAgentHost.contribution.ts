@@ -566,6 +566,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
 		},
 		'chat.sshRemoteAgentHostCommand': {
 			type: 'string',
