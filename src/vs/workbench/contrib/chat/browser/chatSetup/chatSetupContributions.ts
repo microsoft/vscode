@@ -45,6 +45,7 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import { CONTEXT_DEFAULT_ACCOUNT_STATE, DefaultAccountStatus } from '../../../../services/accounts/browser/defaultAccount.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
@@ -781,7 +782,8 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
@@ -797,7 +799,7 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private handleChatDisabled(fromEvent: boolean): void {
-		if (isEvaluationSessionRequestActive()) {
+		if (isEvaluationSessionRequestActive() || this.environmentService.evaluationSessionRequest) {
 			return;
 		}
 		const chatDisabled = this.configurationService.inspect(ChatAIDisabledSettingId);
@@ -843,7 +845,7 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private async maybeEnableOrDisableExtension(state: EnablementState.EnabledGlobally | EnablementState.EnabledWorkspace | EnablementState.DisabledGlobally | EnablementState.DisabledWorkspace): Promise<void> {
-		if (isEvaluationSessionRequestActive()) {
+		if (isEvaluationSessionRequestActive() || this.environmentService.evaluationSessionRequest) {
 			return;
 		}
 		const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));

@@ -1736,6 +1736,8 @@ export type NewChatSessionOpenOptions = {
 	readonly type: string;
 	readonly position: ChatSessionPosition;
 	readonly displayName: string;
+	/** Use a caller-provided untitled resource instead of generating one. */
+	readonly resource?: URI;
 	/**
 	 * When set, the editor showing this (source) session resource is replaced
 	 * in place with the newly opened session. The source resource is resolved
@@ -1930,6 +1932,9 @@ async function resolvePromptSlashCommand(prompt: string, sessionResource: URI, c
 }
 
 export function getResourceForNewChatSession(options: NewChatSessionOpenOptions): URI {
+	if (options.resource) {
+		return options.resource;
+	}
 	const isRemoteSession = options.type !== AgentSessionProviders.Local;
 	if (isRemoteSession) {
 		return URI.from({
