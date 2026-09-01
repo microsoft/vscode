@@ -194,12 +194,12 @@ export class TS7RegionContextProvider implements Omit<IRegionContextProviderServ
 			case ts.SyntaxKind.ArrowFunction:
 				if (ts.isPropertyAssignment(parent) && ts.isIdentifier(parent.name)) {
 					name = parent.name.text;
-					return { kind: 'function', name, rangeNode: parent };
+					return { kind: 'function', name, rangeNode: parent, continueWith: parent };
 				} else if (ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name)) {
 					name = parent.name.text;
-					return { kind: 'arrow-function', name, rangeNode: parent };
+					return { kind: 'arrow-function', name, rangeNode: parent, continueWith: parent };
 				} else if (ts.isCallExpression(parent)) {
-					return { kind: 'arrow-function', rangeNode: parent };
+					return { kind: 'arrow-function', rangeNode: parent, continueWith: parent };
 				}
 				return { kind: 'arrow-function', rangeNode: node };
 			case ts.SyntaxKind.PropertyDeclaration:
