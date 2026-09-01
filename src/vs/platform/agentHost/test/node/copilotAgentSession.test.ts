@@ -12421,7 +12421,7 @@ Use the attached image as context.
 
 			await session.send('go', undefined, 'turn-1', 'interactive');
 			const scriptPath = (mockSession.shellInitScriptUpdates.at(-1) as Array<{ path: string }>)?.[0]?.path;
-			assert.ok(scriptPath?.startsWith(TEST_SHELL_INIT_DIR) && scriptPath.endsWith('init.sh'), String(scriptPath));
+			assert.ok(scriptPath?.startsWith(TEST_SHELL_INIT_DIR) && /init-\d+\.sh$/.test(scriptPath), String(scriptPath));
 
 			const afterFirst = mockSession.shellInitScriptUpdates.length;
 			await session.send('go', undefined, 'turn-2', 'interactive');
@@ -12430,12 +12430,14 @@ Use the attached image as context.
 			setConfigValue(SessionConfigKey.ShellInitSnippets, [{ ...initScript, script: 'changed' }]);
 			fireSessionConfigChange({ [SessionConfigKey.ShellInitSnippets]: [{ ...initScript, script: 'changed' }] });
 			await timeout(0);
+			const changedScriptPath = (mockSession.shellInitScriptUpdates.at(-1) as Array<{ path: string }>)?.[0]?.path;
+			assert.ok(changedScriptPath && changedScriptPath !== scriptPath, String(changedScriptPath));
 
 			setConfigValue(SessionConfigKey.ShellInitSnippets, []);
 			await session.send('go', undefined, 'turn-3', 'interactive');
 			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, [
 				[{ shell: 'bash', path: scriptPath }],
-				[{ shell: 'bash', path: scriptPath }],
+				[{ shell: 'bash', path: changedScriptPath }],
 				[],
 			]);
 		});
@@ -12453,6 +12455,32 @@ Use the attached image as context.
 			await session.send('go', undefined, 'turn-2', 'interactive');
 
 			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, [registered]);
+		});
+
+		test('keeps the registered script file unchanged when a replacement is rejected', async () => {
+			const { session, mockSession, storedFileContents, setConfigValue } = await createAgentSession(disposables);
+			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+			await session.send('go', undefined, 'turn-1', 'interactive');
+			const registeredPath = (mockSession.shellInitScriptUpdates.at(-1) as Array<{ path: string }>)[0].path;
+
+			mockSession.shellInitScriptUpdateSuccess = false;
+			setConfigValue(SessionConfigKey.ShellInitSnippets, [{ ...initScript, script: 'rejected' }]);
+			await session.send('go', undefined, 'turn-2', 'interactive');
+			const updatesAfterRejection = mockSession.shellInitScriptUpdates.length;
+
+			mockSession.shellInitScriptUpdateSuccess = true;
+			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+			await session.send('go', undefined, 'turn-3', 'interactive');
+
+			assert.deepStrictEqual({
+				registeredContent: storedFileContents.get(URI.file(registeredPath).toString()),
+				registeredFileCount: [...storedFileContents.keys()].filter(key => key.includes('/agentHost/shellInit/')).length,
+				updateCount: mockSession.shellInitScriptUpdates.length,
+			}, {
+				registeredContent: initScript.script,
+				registeredFileCount: 1,
+				updateCount: updatesAfterRejection,
+			});
 		});
 
 		test('each instance owns a distinct directory so a stale cleanup cannot delete a successor script', async () => {
@@ -12489,7 +12517,7 @@ Use the attached image as context.
 			});
 			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
 			await session.send('go', undefined, 'turn-1', 'interactive');
-			assert.strictEqual([...storedFileContents.keys()].filter(key => key.includes('/test-session-1/') && key.endsWith('init.sh')).length, 2);
+			assert.strictEqual([...storedFileContents.keys()].filter(key => key.includes('/test-session-1/') && key.endsWith('.sh')).length, 2);
 
 			// The session-directory prune must not take the successor's script
 			// with it; only this instance's directory may be removed.

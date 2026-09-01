@@ -999,6 +999,8 @@ export class CopilotAgentSession extends Disposable {
 	private _shellInitScriptRegistered = false;
 	private _shellInitScriptMaterializationAttempted = false;
 	private _shellInitSandboxGrantApplied = false;
+	private _shellInitScriptRevision = 0;
+	private _registeredShellInitScriptResource: URI | undefined;
 	private readonly _shellInitScriptSequencer = new Sequencer();
 	private _shellInitScriptDisposing = false;
 	/**
@@ -3916,36 +3918,53 @@ export class CopilotAgentSession extends Disposable {
 			// The SDK requires init scripts to be readable when registered.
 			await this._applyEffectiveSandboxConfig(true);
 			this._shellInitSandboxGrantApplied = true;
-			const ref = await this._materializeShellInitScript(snippets[0]);
-			if (!ref) {
+			const materialized = await this._materializeShellInitScript(snippets[0]);
+			if (!materialized) {
 				// The write failed. Leave the cache unchanged so the next turn
 				// retries rather than permanently treating the script as applied.
 				return;
 			}
-			const result = await this._wrapper.session.rpc.options.update({ shell: { initScripts: [ref] } });
+			const result = await this._wrapper.session.rpc.options.update({ shell: { initScripts: [materialized.ref] } });
 			if (!result.success) {
+				await this._deleteShellInitScriptFile(materialized.resource);
 				throw new Error('Copilot SDK rejected shell init script update');
 			}
+			const previousResource = this._registeredShellInitScriptResource;
 			this._shellInitScriptRegistered = true;
+			this._registeredShellInitScriptResource = materialized.resource;
 			this._lastAppliedShellInitScripts = serialized;
+			if (previousResource) {
+				await this._deleteShellInitScriptFile(previousResource);
+			}
 			this._logService.trace(`[Copilot:${this.sessionId}] Applied shell init script`);
 		} catch (err) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to update shell init scripts`, err);
 		}
 	}
 
-	private async _materializeShellInitScript(script: IShellInitScript): Promise<{ shell: IShellInitScript['shell']; path: string } | undefined> {
-		const resource = URI.joinPath(this._shellInitScriptInstanceDirectory(), script.shell === 'powershell' ? 'init.ps1' : 'init.sh');
+	private async _materializeShellInitScript(script: IShellInitScript): Promise<{ ref: { shell: IShellInitScript['shell']; path: string }; resource: URI } | undefined> {
+		const extension = script.shell === 'powershell' ? 'ps1' : 'sh';
+		const resource = URI.joinPath(this._shellInitScriptInstanceDirectory(), `init-${++this._shellInitScriptRevision}.${extension}`);
 		const atomic = this._fileService.hasCapability(resource, FileSystemProviderCapabilities.FileAtomicWrite)
 			? { postfix: '.vsctmp' }
 			: false;
 		this._shellInitScriptMaterializationAttempted = true;
 		try {
 			await this._fileService.writeFile(resource, VSBuffer.fromString(script.script), { atomic });
-			return { shell: script.shell, path: resource.fsPath };
+			return { ref: { shell: script.shell, path: resource.fsPath }, resource };
 		} catch (error) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to write shell init script: ${getErrorMessage(error)}`);
 			return undefined;
+		}
+	}
+
+	private async _deleteShellInitScriptFile(resource: URI): Promise<void> {
+		try {
+			await this._fileService.del(resource);
+		} catch (error) {
+			if (!(error instanceof Error) || toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+				this._logService.warn(`[Copilot:${this.sessionId}] Failed to remove replaced shell init script: ${getErrorMessage(error)}`);
+			}
 		}
 	}
 
@@ -3956,9 +3975,11 @@ export class CopilotAgentSession extends Disposable {
 		try {
 			await this._fileService.del(this._shellInitScriptInstanceDirectory(), { recursive: true });
 			this._shellInitScriptMaterializationAttempted = false;
+			this._registeredShellInitScriptResource = undefined;
 		} catch (error) {
 			if (error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
 				this._shellInitScriptMaterializationAttempted = false;
+				this._registeredShellInitScriptResource = undefined;
 			} else {
 				this._logService.warn(`[Copilot:${this.sessionId}] Failed to remove shell init script: ${getErrorMessage(error)}`);
 			}
