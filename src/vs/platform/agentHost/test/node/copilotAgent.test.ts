@@ -429,6 +429,9 @@ interface ITestCopilotModelInfo {
 	readonly billing?: CopilotModelInfo['billing'];
 	readonly modelPickerCategory?: CopilotModelInfo['modelPickerCategory'];
 	readonly modelPickerPriceCategory?: CopilotModelInfo['modelPickerPriceCategory'];
+	readonly warningText?: CopilotModelInfo['warningText'];
+	readonly infoMessages?: CopilotModelInfo['infoMessages'];
+	readonly warningMessages?: CopilotModelInfo['warningMessages'];
 	readonly supportedReasoningEfforts?: CopilotModelInfo['supportedReasoningEfforts'];
 }
 
@@ -469,6 +472,9 @@ function toSdkModelInfo(model: ITestCopilotModelInfo): CopilotModelInfo {
 		...(model.billing ? { billing: model.billing } : {}),
 		...(model.modelPickerCategory ? { modelPickerCategory: model.modelPickerCategory } : {}),
 		...(model.modelPickerPriceCategory ? { modelPickerPriceCategory: model.modelPickerPriceCategory } : {}),
+		...(model.warningText ? { warningText: model.warningText } : {}),
+		...(model.infoMessages ? { infoMessages: model.infoMessages } : {}),
+		...(model.warningMessages ? { warningMessages: model.warningMessages } : {}),
 		...(model.supportedReasoningEfforts ? { supportedReasoningEfforts: model.supportedReasoningEfforts } : {}),
 	};
 }
@@ -4853,7 +4859,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('models include picker and promo metadata when the SDK provides it', async () => {
+	test('models include picker, notice, and promo metadata when the SDK provides it', async () => {
 		const agent = createTestAgent(disposables, {
 			copilotClient: new TestCopilotClient([], [{
 				id: 'claude-sonnet',
@@ -4878,6 +4884,16 @@ suite('CopilotAgent', () => {
 				},
 				modelPickerCategory: 'powerful',
 				modelPickerPriceCategory: 'medium',
+				warningText: {
+					dataRetention: 'Prompts are retained for 30 days.',
+				},
+				infoMessages: [
+					{ code: 'model_pending_deprecation', message: 'Claude Sonnet will be retired soon.' },
+					{ code: 'model_relocated', message: 'Claude Sonnet now serves from a new region.' },
+				],
+				warningMessages: [
+					{ code: 'model_degraded', message: 'Claude Sonnet is currently degraded.' },
+				],
 			}]),
 		});
 		try {
@@ -4894,6 +4910,15 @@ suite('CopilotAgent', () => {
 				longContextOutputCost: 22.5,
 				priceCategory: 'medium',
 				category: 'powerful',
+				warningText: {
+					data_retention: 'Prompts are retained for 30 days.',
+					model_pending_deprecation: 'Claude Sonnet will be retired soon.',
+					model_degraded: 'Claude Sonnet is currently degraded.',
+				},
+				infoText: {
+					model_relocated: 'Claude Sonnet now serves from a new region.',
+				},
+				rowWarning: 'Claude Sonnet is currently degraded.',
 				promo: {
 					id: 'summer-sale',
 					discountPercent: 25,
