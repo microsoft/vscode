@@ -449,7 +449,7 @@ export class AgentSideEffects extends Disposable {
 		this._stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents: infos });
 	}
 
-	private async _publishSessionCustomizations(agent: IAgent, session: ProtocolURI, supersededRetries: number): Promise<readonly Customization[]> {
+	private async _publishSessionCustomizations(agent: IAgent, session: ProtocolURI, supersededRetries: number): Promise<void> {
 		const currentBeforeFetch = this._stateManager.getSessionState(session)?.customizations;
 		const chat = URI.parse(this._stateManager.getSessionState(session)?.defaultChat ?? buildDefaultChatUri(session));
 		const customizations = await agent.getChatCustomizations(chat, this._chatContext(session, chat.toString()), currentBeforeFetch);
@@ -471,19 +471,18 @@ export class AgentSideEffects extends Disposable {
 		// Agent progress received during the fetch is newer than this snapshot.
 		if (current !== currentBeforeFetch) {
 			if (supersededRetries < MAX_SUPERSEDED_CUSTOMIZATION_PUBLISH_RETRIES) {
-				this._publishSessionCustomizationsSoon(agent, session, supersededRetries + 1);
+				await this._publishSessionCustomizations(agent, session, supersededRetries + 1);
 			}
-			return current ?? [];
+			return;
 		}
 		if (current && equals(current, customizations)) {
-			return current;
+			return;
 		}
 
 		this._stateManager.dispatchServerAction(session, {
 			type: ActionType.SessionCustomizationsChanged,
 			customizations: [...customizations],
 		});
-		return customizations;
 	}
 
 	private _publishSessionCustomizationsSoon(agent: IAgent, session: ProtocolURI, supersededRetries = 0): void {
@@ -493,7 +492,7 @@ export class AgentSideEffects extends Disposable {
 	/**
 	 * Resolves and publishes the session's effective customizations in serialization order.
 	 */
-	refreshSessionCustomizations(agent: IAgent, session: ProtocolURI, supersededRetries = 0): Promise<readonly Customization[]> {
+	refreshSessionCustomizations(agent: IAgent, session: ProtocolURI, supersededRetries = 0): Promise<void> {
 		const previous = this._pendingSessionCustomizationPublishes.get(session) ?? Promise.resolve();
 		const publish = previous.then(() => this._publishSessionCustomizations(agent, session, supersededRetries));
 		const tracked = publish.then(() => undefined, err => {
