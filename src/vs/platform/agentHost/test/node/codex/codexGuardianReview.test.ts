@@ -5,8 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { formatGuardianDenialNotification, guardianReviewActionToEventAction, summarizeGuardianReviewAction, toGuardianAssessmentEventJson } from '../../../node/codex/codexGuardianReview.js';
-import type { GuardianApprovalReviewAction } from '../../../node/codex/protocol/generated/v2/GuardianApprovalReviewAction.js';
+import { formatGuardianDenialNotification, summarizeGuardianReviewAction, toGuardianAssessmentEventJson } from '../../../node/codex/codexGuardianReview.js';
 import type { ItemGuardianApprovalReviewCompletedNotification } from '../../../node/codex/protocol/generated/v2/ItemGuardianApprovalReviewCompletedNotification.js';
 
 suite('codexGuardianReview', () => {
@@ -78,29 +77,6 @@ suite('codexGuardianReview', () => {
 		}, {
 			command: { title: 'Run command', detail: 'rm -rf ~/secret', toolKind: 'terminal' },
 			execve: { title: 'Run program', detail: 'echo hi', toolKind: 'terminal' },
-		});
-	});
-
-	test('converts and summarizes writeStdin review actions', () => {
-		const action: GuardianApprovalReviewAction = {
-			type: 'writeStdin',
-			approvalId: 'approval-1',
-			processId: 'process-1',
-			stdin: 'yes\n',
-			cwd: '/workspace',
-		};
-		assert.deepStrictEqual({
-			eventAction: guardianReviewActionToEventAction(action),
-			summary: summarizeGuardianReviewAction(action),
-		}, {
-			eventAction: {
-				type: 'write_stdin',
-				approval_id: 'approval-1',
-				process_id: 'process-1',
-				stdin: 'yes\n',
-				cwd: '/workspace',
-			},
-			summary: { title: 'Write to terminal', detail: 'yes\n', toolKind: 'terminal' },
 		});
 	});
 

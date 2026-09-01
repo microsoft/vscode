@@ -29,7 +29,7 @@ suite('codexCustomizations', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const skill = (name: string, scope: SkillScope, path: string, enabled = true): SkillMetadata =>
-		({ name, description: `${name} desc`, path, scope, enabled, pluginId: null });
+		({ name, description: `${name} desc`, path, scope, enabled });
 
 	const skillsResponse = (...entries: { cwd: string; skills: SkillMetadata[] }[]): SkillsListResponse =>
 		({ data: entries.map(e => ({ cwd: e.cwd, skills: e.skills, errors: [] })) });

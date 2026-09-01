@@ -401,8 +401,6 @@ suite('CodexAgent model refresh', () => {
 							},
 							rateLimitsByLimitId: null,
 							rateLimitResetCredits: null,
-							accountId: null,
-							rateLimitUpsell: null,
 						};
 					}
 					if (method === 'getAuthStatus') {
@@ -465,7 +463,7 @@ suite('CodexAgent model refresh', () => {
 					if (method === 'account/rateLimits/read') {
 						await rateLimitStarted.complete();
 						await releaseRateLimit.p;
-						return { rateLimits: { primary: null, secondary: null }, rateLimitsByLimitId: null, rateLimitResetCredits: null, accountId: null, rateLimitUpsell: null };
+						return { rateLimits: { primary: null, secondary: null }, rateLimitsByLimitId: null, rateLimitResetCredits: null };
 					}
 					if (method === 'getAuthStatus') {
 						await authStatusStarted.complete();
@@ -570,7 +568,7 @@ suite('CodexAgent model refresh', () => {
 						return { type: 'chatgpt', loginId: 'login-1', authUrl: 'https://example.com/login' };
 					}
 					if (method === 'account/rateLimits/read') {
-						return { rateLimits: { primary: null, secondary: null }, rateLimitsByLimitId: null, rateLimitResetCredits: null, accountId: null, rateLimitUpsell: null };
+						return { rateLimits: { primary: null, secondary: null }, rateLimitsByLimitId: null, rateLimitResetCredits: null };
 					}
 					if (method === 'getAuthStatus') {
 						return { authMethod: 'chatgpt', authToken: null, requiresOpenaiAuth: true };
@@ -1299,16 +1297,12 @@ suite('CodexAgent model refresh', () => {
 			rateLimits: { limitId: null, limitName: null, primary: { usedPercent: 20, windowDurationMins: 300, resetsAt: 200 }, secondary: null, credits: null, individualLimit: null, spendControlReached: null, planType: null, rateLimitReachedType: null },
 			rateLimitsByLimitId: null,
 			rateLimitResetCredits: null,
-			accountId: null,
-			rateLimitUpsell: null,
 		});
 		await second;
 		resolveFirst({
 			rateLimits: { limitId: null, limitName: null, primary: { usedPercent: 90, windowDurationMins: 300, resetsAt: 100 }, secondary: null, credits: null, individualLimit: null, spendControlReached: null, planType: null, rateLimitReachedType: null },
 			rateLimitsByLimitId: null,
 			rateLimitResetCredits: null,
-			accountId: null,
-			rateLimitUpsell: null,
 		});
 		await first;
 

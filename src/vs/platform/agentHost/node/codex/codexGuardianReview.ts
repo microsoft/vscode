@@ -84,8 +84,6 @@ export function guardianReviewActionToEventAction(action: GuardianApprovalReview
 			return { type: 'command', source: commandSourceToEvent(action.source), command: action.command, cwd: action.cwd };
 		case 'execve':
 			return { type: 'execve', source: commandSourceToEvent(action.source), program: action.program, argv: action.argv, cwd: action.cwd };
-		case 'writeStdin':
-			return { type: 'write_stdin', approval_id: action.approvalId, process_id: action.processId, stdin: action.stdin, cwd: action.cwd };
 		case 'applyPatch':
 			return { type: 'apply_patch', cwd: action.cwd, files: action.files };
 		case 'networkAccess':
@@ -152,8 +150,6 @@ export function summarizeGuardianReviewAction(action: GuardianApprovalReviewActi
 			return { title: 'Run command', detail: unwrapShellInvocation(action.command), toolKind: 'terminal' };
 		case 'execve':
 			return { title: 'Run program', detail: unwrapShellInvocation([action.program, ...action.argv].join(' ')), toolKind: 'terminal' };
-		case 'writeStdin':
-			return { title: 'Write to terminal', detail: action.stdin, toolKind: 'terminal' };
 		case 'applyPatch':
 			return { title: 'Apply file changes', detail: action.files.join(', ') };
 		case 'networkAccess':
