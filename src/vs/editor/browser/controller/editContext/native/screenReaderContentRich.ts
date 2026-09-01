@@ -205,9 +205,10 @@ export class RichScreenReaderContent extends Disposable implements IScreenReader
 			renderControlCharacters,
 			useFontLigatures,
 			null,
-			null,
+			positionLineData.textDirection,
 			0,
-			true
+			true,
+			fontInfo.isMonospace && options.get(EditorOption.forceFullwidthCharacterWidth)
 		);
 		const htmlBuilder = new StringBuilder(10000);
 		const renderOutput = renderViewLine(renderLineInput, htmlBuilder);

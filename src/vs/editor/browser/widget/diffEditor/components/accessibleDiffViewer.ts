@@ -683,7 +683,9 @@ class View extends Disposable {
 			options.get(EditorOption.fontLigatures) !== EditorFontLigatures.OFF,
 			null,
 			null,
-			verticalScrollbarSize
+			verticalScrollbarSize,
+			false,
+			fontInfo.isMonospace && options.get(EditorOption.forceFullwidthCharacterWidth)
 		));
 
 		return r.html;

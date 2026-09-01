@@ -71,6 +71,14 @@ export class RangeUtil {
 		return result;
 	}
 
+	/**
+	 * Converts a client rect (viewport coordinates, possibly scaled by a CSS transform) into a
+	 * horizontal range relative to the start of the line, in unscaled pixels.
+	 */
+	private static _createHorizontalRangeFromClientRect(clientRect: DOMRect, clientRectDeltaLeft: number, clientRectScale: number): FloatHorizontalRange {
+		return new FloatHorizontalRange(Math.max(0, (clientRect.left - clientRectDeltaLeft) / clientRectScale), clientRect.width / clientRectScale);
+	}
+
 	private static _createHorizontalRangesFromClientRects(clientRects: DOMRectList | null, clientRectDeltaLeft: number, clientRectScale: number): FloatHorizontalRange[] | null {
 		if (!clientRects || clientRects.length === 0) {
 			return null;
@@ -81,11 +89,21 @@ export class RangeUtil {
 
 		const result: FloatHorizontalRange[] = [];
 		for (let i = 0, len = clientRects.length; i < len; i++) {
-			const clientRect = clientRects[i];
-			result[i] = new FloatHorizontalRange(Math.max(0, (clientRect.left - clientRectDeltaLeft) / clientRectScale), clientRect.width / clientRectScale);
+			result[i] = this._createHorizontalRangeFromClientRect(clientRects[i], clientRectDeltaLeft, clientRectScale);
 		}
 
 		return this._mergeAdjacentRanges(result);
+	}
+
+	/**
+	 * Reads the border box of a rendered `<span>` rather than a range over the text inside it.
+	 * Needed when the box is not laid out around its text, for example when a full-width character
+	 * is centered inside an exact two-cell span: a text range would omit the centering space.
+	 */
+	public static readHorizontalRangeForElement(element: HTMLElement, context: DomReadingContext): FloatHorizontalRange {
+		const clientRect = element.getBoundingClientRect();
+		context.markDidDomLayout();
+		return this._createHorizontalRangeFromClientRect(clientRect, context.clientRectDeltaLeft, context.clientRectScale);
 	}
 
 	public static readHorizontalRanges(domNode: HTMLElement, startChildIndex: number, startOffset: number, endChildIndex: number, endOffset: number, context: DomReadingContext): FloatHorizontalRange[] | null {

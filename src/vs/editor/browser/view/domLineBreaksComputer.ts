@@ -66,12 +66,11 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 	}
 
 	const overallWidth = Math.round(firstLineBreakColumn * fontInfo.typicalHalfwidthCharacterWidth);
-	const fullwidthCharacterWidth = forceFullwidthCharacterWidth ? fontInfo.spaceWidth * 2 : fontInfo.typicalFullwidthCharacterWidth;
 	const additionalIndent = (wrappingIndent === WrappingIndent.DeepIndent ? 2 : wrappingIndent === WrappingIndent.Indent ? 1 : 0);
 	const additionalIndentSize = Math.round(tabSize * additionalIndent);
 	const additionalIndentLength = Math.ceil(fontInfo.spaceWidth * additionalIndentSize);
 
-	const containerDomNode = document.createElement('div');
+	const containerDomNode = targetWindow.document.createElement('div');
 	applyFontInfo(containerDomNode, fontInfo);
 
 	const sb = new StringBuilder(10000);
@@ -86,6 +85,11 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 		const injectedTexts = context.getLineInjectedText(lineNumber);
 		const lineContent = LineInjectedText.applyInjectedText(context.getLineContent(lineNumber), injectedTexts);
 		const fixedWidthRanges = LineInjectedText.getFixedWidthInjectedTextRanges(injectedTexts);
+		const forceFullwidthCharacterWidthForLine = forceFullwidthCharacterWidth && fontInfo.isMonospace && !strings.containsRTL(lineContent);
+		const forcedFullwidthCharacterWidth = forceFullwidthCharacterWidthForLine ? fontInfo.spaceWidth * 2 : 0;
+		const fullwidthCharacterWidth = forceFullwidthCharacterWidthForLine
+			? forcedFullwidthCharacterWidth
+			: fontInfo.typicalFullwidthCharacterWidth;
 
 		let firstNonWhitespaceIndex = 0;
 		let wrappedTextIndentLength = 0;
@@ -135,7 +139,7 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 				endOffset: range.endOffset - firstNonWhitespaceIndex,
 				widthInEm: range.widthInEm
 			}));
-		const tmp = renderLine(renderLineContent, wrappedTextIndentLength, tabSize, width, sb, additionalIndentLength, shiftedFixedWidthRanges, forceFullwidthCharacterWidth ? fontInfo.spaceWidth * 2 : 0);
+		const tmp = renderLine(renderLineContent, wrappedTextIndentLength, tabSize, width, sb, additionalIndentLength, shiftedFixedWidthRanges, forcedFullwidthCharacterWidth);
 		firstNonWhitespaceIndices[i] = firstNonWhitespaceIndex;
 		wrappedTextIndentLengths[i] = wrappedTextIndentLength;
 		renderLineContents[i] = renderLineContent;
@@ -160,7 +164,7 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 	}
 	targetWindow.document.body.appendChild(containerDomNode);
 
-	const range = document.createRange();
+	const range = targetWindow.document.createRange();
 	const lineDomNodes = Array.prototype.slice.call(containerDomNode.children, 0);
 
 	const result: (ModelLineProjectionData | null)[] = [];
@@ -237,8 +241,9 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 	const spanStartOffsets: number[] = [0];
 	const visibleColumns: number[] = [];
 	let nextCharCode = (0 < len ? lineContent.charCodeAt(0) : CharCode.Null);
+	const fullwidthCharacterWidths = fullwidthCharacterWidth === 0 ? null : strings.getFullwidthCharacterColumnWidths(lineContent);
 	let spanOpen = true;
-	let spanIsFullWidth = fullwidthCharacterWidth !== 0 && strings.isFullWidthCharacter(nextCharCode);
+	let spanIsFullWidth = fullwidthCharacterWidths?.[0] === 2;
 
 	const appendNormalSpanStart = (isFullWidth: boolean): void => {
 		if (isFullWidth) {
@@ -253,7 +258,8 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 	for (let charIndex = 0; charIndex < len; charIndex++) {
 		let fixedWidthRange = fixedWidthRanges[fixedWidthRangeIndex];
 		const startsFixedWidth = fixedWidthRange && fixedWidthRange.startOffset === charIndex;
-		const charIsFullWidth = fullwidthCharacterWidth !== 0 && strings.isFullWidthCharacter(nextCharCode);
+		const charIsFullWidth = fullwidthCharacterWidths?.[charIndex] === 2;
+		const charIsFullWidthContinuation = fullwidthCharacterWidths?.[charIndex] === 0;
 		if (startsFixedWidth) {
 			if (spanOpen) {
 				sb.appendString('</span>');
@@ -288,12 +294,12 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 			spanStartOffsets.push(charOffset);
 			spanOpen = true;
 			spanIsFullWidth = charIsFullWidth;
-		} else if ((!fixedWidthRange || charIndex < fixedWidthRange.startOffset) && charIsFullWidth !== spanIsFullWidth) {
+		} else if ((!fixedWidthRange || charIndex < fixedWidthRange.startOffset) && !charIsFullWidthContinuation && charIsFullWidth !== spanIsFullWidth) {
 			sb.appendString('</span>');
 			appendNormalSpanStart(charIsFullWidth);
 			spanStartOffsets.push(charOffset);
 			spanIsFullWidth = charIsFullWidth;
-		} else if ((!fixedWidthRange || charIndex < fixedWidthRange.startOffset) && charIndex !== 0 && charIndex % Constants.SPAN_MODULO_LIMIT === 0) {
+		} else if ((!fixedWidthRange || charIndex < fixedWidthRange.startOffset) && !spanIsFullWidth && charIndex !== 0 && charIndex % Constants.SPAN_MODULO_LIMIT === 0) {
 			sb.appendString('</span>');
 			appendNormalSpanStart(spanIsFullWidth);
 			spanStartOffsets.push(charOffset);
@@ -349,7 +355,9 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 				break;
 
 			default:
-				if (strings.isFullWidthCharacter(charCode)) {
+				if (fullwidthCharacterWidths?.[charIndex] !== undefined && fullwidthCharacterWidths[charIndex] >= 0) {
+					charWidth = fullwidthCharacterWidths[charIndex];
+				} else if (strings.isFullWidthCharacter(charCode)) {
 					charWidth++;
 				}
 				if (charCode < 32) {
@@ -361,7 +369,7 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 
 		charOffset += producedCharacters;
 		visibleColumn += charWidth;
-		if (spanIsFullWidth) {
+		if (spanIsFullWidth && fullwidthCharacterWidths?.[charIndex + 1] !== 0) {
 			sb.appendString('</span>');
 			spanOpen = false;
 			spanIsFullWidth = false;

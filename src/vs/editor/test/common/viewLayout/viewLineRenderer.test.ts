@@ -10,6 +10,7 @@ import { assertSnapshot } from '../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
+import { TextDirection } from '../../../common/model.js';
 import { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
 import { CharacterMapping, DomPosition, IRenderLineInputOptions, RenderLineInput, RenderLineOutput2, renderViewLine2 as renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
@@ -193,7 +194,7 @@ suite('renderViewLine', () => {
 		assertParts('xyz', 4, [createPart(2, 1), createPart(3, 2)], '<span class="mtk1">xy</span><span class="mtk2">z</span>', [[0, [0, 0]], [1, [0, 1]], [2, [1, 0]], [3, [1, 1]]]);
 	});
 
-	test('centers full-width characters in individual two-cell spans', () => {
+	test('centers full-width characters in exact two-cell spans', () => {
 		const actual = renderViewLine(createRenderLineInput({
 			lineContent: 'a擦字b',
 			isBasicASCII: false,
@@ -219,7 +220,7 @@ suite('renderViewLine', () => {
 		});
 	});
 
-	test('forces full-width characters to two cells when rendering whitespace', () => {
+	test('gives full-width characters exactly two cells when rendering whitespace', () => {
 		const actual = renderViewLine(createRenderLineInput({
 			lineContent: '擦 字',
 			isBasicASCII: false,
@@ -232,6 +233,101 @@ suite('renderViewLine', () => {
 		assert.strictEqual(
 			actual.html,
 			'<span><span style="display:inline-block;box-sizing:border-box;width:20px;text-align:center" data-fullwidth="true" class="mtk1">擦</span><span class="mtkz" style="width:10px">·‌</span><span style="display:inline-block;box-sizing:border-box;width:20px;text-align:center" data-fullwidth="true" class="mtk1">字</span></span>'
+		);
+	});
+
+	test('keeps full-width grapheme clusters in one two-cell span', () => {
+		const lineContent = '擦\u0301a';
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent,
+			isBasicASCII: false,
+			lineTokens: createViewLineTokens([createPart(1, 1), createPart(lineContent.length, 2)]),
+			spaceWidth: 10,
+			forceFullwidthCharacterWidth: true
+		}));
+
+		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
+			html: [
+				'<span style="display:inline-block;box-sizing:border-box;width:20px;text-align:center" data-fullwidth="true" class="mtk1">擦\u0301</span>',
+				'<span class="mtk2">a</span>'
+			],
+			mapping: [
+				[0, 0, 0],
+				[0, 1, 2],
+				[1, 0, 2],
+				[1, 1, 3]
+			]
+		});
+	});
+
+	test('forces supplementary full-width characters as one grapheme', () => {
+		const lineContent = 'a𠀋b';
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent,
+			isBasicASCII: false,
+			lineTokens: createViewLineTokens([createPart(lineContent.length, 1)]),
+			spaceWidth: 10,
+			forceFullwidthCharacterWidth: true
+		}));
+
+		assert.strictEqual(
+			actual.html,
+			'<span><span class="mtk1">a</span><span style="display:inline-block;box-sizing:border-box;width:20px;text-align:center" data-fullwidth="true" class="mtk1">𠀋</span><span class="mtk1">b</span></span>'
+		);
+	});
+
+	test('does not force full-width characters on lines containing RTL text', () => {
+		const lineContent = '擦ا';
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent,
+			isBasicASCII: false,
+			containsRTL: true,
+			lineTokens: createViewLineTokens([createPart(lineContent.length, 1)]),
+			forceFullwidthCharacterWidth: true
+		}));
+
+		assert.strictEqual(actual.html.includes('data-fullwidth'), false);
+	});
+
+	test('checks rendered content when model character hints are stale', () => {
+		const cjkContent = 'a擦';
+		const cjk = renderViewLine(createRenderLineInput({
+			lineContent: cjkContent,
+			isBasicASCII: true,
+			containsRTL: false,
+			lineTokens: createViewLineTokens([createPart(cjkContent.length, 1)]),
+			spaceWidth: 10,
+			forceFullwidthCharacterWidth: true
+		}));
+
+		const bidiContent = '擦ا';
+		const bidi = renderViewLine(createRenderLineInput({
+			lineContent: bidiContent,
+			isBasicASCII: true,
+			containsRTL: false,
+			lineTokens: createViewLineTokens([createPart(bidiContent.length, 1)]),
+			spaceWidth: 10,
+			forceFullwidthCharacterWidth: true
+		}));
+
+		assert.strictEqual(cjk.html.includes('data-fullwidth="true"'), true);
+		assert.strictEqual(bidi.html.includes('data-fullwidth'), false);
+	});
+
+	test('keeps two-cell spans in logical order on explicitly RTL lines', () => {
+		const lineContent = '擦字';
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent,
+			isBasicASCII: false,
+			lineTokens: createViewLineTokens([createPart(lineContent.length, 1)]),
+			spaceWidth: 10,
+			textDirection: TextDirection.RTL,
+			forceFullwidthCharacterWidth: true
+		}));
+
+		assert.strictEqual(
+			actual.html,
+			'<span style="direction:ltr;unicode-bidi:isolate"><span style="display:inline-block;box-sizing:border-box;width:20px;text-align:center" data-fullwidth="true" class="mtk1">擦</span><span style="display:inline-block;box-sizing:border-box;width:20px;text-align:center" data-fullwidth="true" class="mtk1">字</span></span>'
 		);
 	});
 
@@ -484,7 +580,9 @@ suite('renderViewLine', () => {
 			false,
 			null,
 			null,
-			14
+			14,
+			false,
+			false
 		));
 
 		const inflated = inflateRenderLineOutput(_actual);

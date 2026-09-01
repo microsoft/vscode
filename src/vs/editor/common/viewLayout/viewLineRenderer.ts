@@ -71,6 +71,7 @@ export class RenderLineInput {
 	public readonly textDirection: TextDirection | null;
 	public readonly verticalScrollbarSize: number;
 	public readonly forceFullwidthCharacterWidth: boolean;
+	public readonly hasFullwidthCharacters: boolean;
 
 	/**
 	 * Defined only when renderWhitespace is 'selection'. Selections are non-overlapping,
@@ -108,8 +109,8 @@ export class RenderLineInput {
 		selectionsOnLine: OffsetRange[] | null,
 		textDirection: TextDirection | null,
 		verticalScrollbarSize: number,
-		renderNewLineWhenEmpty: boolean = false,
-		forceFullwidthCharacterWidth: boolean = false,
+		renderNewLineWhenEmpty: boolean,
+		forceFullwidthCharacterWidth: boolean,
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.canUseHalfwidthRightwardsArrow = canUseHalfwidthRightwardsArrow;
@@ -142,6 +143,12 @@ export class RenderLineInput {
 		this.textDirection = textDirection;
 		this.verticalScrollbarSize = verticalScrollbarSize;
 		this.forceFullwidthCharacterWidth = forceFullwidthCharacterWidth;
+		this.hasFullwidthCharacters = (
+			forceFullwidthCharacterWidth
+			&& this.isLTR
+			&& !strings.containsRTL(lineContent)
+			&& strings.containsFullWidthCharacter(lineContent)
+		);
 
 		const wsmiddotDiff = Math.abs(wsmiddotWidth - spaceWidth);
 		const middotDiff = Math.abs(middotWidth - spaceWidth);
@@ -463,6 +470,8 @@ class ResolvedRenderLineInput {
 		public readonly renderWhitespace: RenderWhitespace,
 		public readonly renderControlCharacters: boolean,
 		public readonly fullwidthCharacterWidth: number,
+		public readonly fullwidthCharacterWidths: Int8Array | null,
+		public readonly useFullwidthLTRIsolate: boolean,
 	) {
 		//
 	}
@@ -492,12 +501,18 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		tokens = extractControlCharacters(lineContent, tokens);
 	}
 	const fullwidthCharacterWidth = input.spaceWidth * 2;
+	let fullwidthCharacterWidths: Int8Array | null = null;
+	let lineContentForFullwidthCharacters: string | null = null;
+	if (input.hasFullwidthCharacters) {
+		lineContentForFullwidthCharacters = lineContent.substring(0, len);
+		fullwidthCharacterWidths = strings.getFullwidthCharacterColumnWidths(lineContentForFullwidthCharacters);
+	}
 	if (input.renderWhitespace === RenderWhitespace.All ||
 		input.renderWhitespace === RenderWhitespace.Boundary ||
 		(input.renderWhitespace === RenderWhitespace.Selection && !!input.selectionsOnLine) ||
 		(input.renderWhitespace === RenderWhitespace.Trailing && !input.continuesWithWrappedLine)
 	) {
-		tokens = _applyRenderWhitespace(input, lineContent, len, tokens);
+		tokens = _applyRenderWhitespace(input, lineContent, len, tokens, fullwidthCharacterWidths);
 	}
 	let containsForeignElements = ForeignElementType.None;
 	if (input.lineDecorations.length > 0) {
@@ -517,8 +532,8 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		}
 		tokens = _applyInlineDecorations(lineContent, len, tokens, input.lineDecorations);
 	}
-	if (input.forceFullwidthCharacterWidth && !input.isBasicASCII && !input.containsRTL) {
-		tokens = splitFullWidthCharacters(lineContent, tokens);
+	if (fullwidthCharacterWidths) {
+		tokens = splitFullWidthCharacters(lineContentForFullwidthCharacters!, tokens, fullwidthCharacterWidths);
 	}
 	if (!input.containsRTL) {
 		// We can never split RTL text, as it ruins the rendering
@@ -544,7 +559,9 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		input.renderSpaceCharCode,
 		input.renderWhitespace,
 		input.renderControlCharacters,
-		fullwidthCharacterWidth
+		fullwidthCharacterWidth,
+		fullwidthCharacterWidths,
+		input.textDirection === TextDirection.RTL && fullwidthCharacterWidths !== null,
 	);
 }
 
@@ -759,26 +776,52 @@ function extractControlCharacters(lineContent: string, tokens: LinePart[]): Line
 	return result;
 }
 
-function splitFullWidthCharacters(lineContent: string, tokens: LinePart[]): LinePart[] {
+function splitFullWidthCharacters(lineContent: string, tokens: LinePart[], fullwidthCharacterWidths: Int8Array): LinePart[] {
+	const ranges: { start: number; end: number }[] = [];
+	const graphemeIterator = new strings.GraphemeIterator(lineContent);
+	while (!graphemeIterator.eol()) {
+		const start = graphemeIterator.offset;
+		const length = graphemeIterator.nextGraphemeLength();
+		if (fullwidthCharacterWidths[start] === 2) {
+			ranges.push({ start, end: start + length });
+		}
+	}
+
 	const result: LinePart[] = [];
 	let tokenStartIndex = 0;
+	let rangeIndex = 0;
+	let coveredUntil = 0;
 	for (const token of tokens) {
 		if (tokenStartIndex === token.endIndex) {
-			result.push(token);
+			if (token.endIndex >= coveredUntil) {
+				result.push(token);
+			}
 			tokenStartIndex = token.endIndex;
 			continue;
 		}
-		let partStartIndex = tokenStartIndex;
-		for (let charIndex = tokenStartIndex; charIndex < token.endIndex; charIndex++) {
-			if (strings.isFullWidthCharacter(lineContent.charCodeAt(charIndex))) {
-				if (partStartIndex < charIndex) {
-					result.push(new LinePart(charIndex, token.type, token.metadata, token.containsRTL));
-				}
-				result.push(new LinePart(charIndex + 1, token.type, token.metadata | LinePartMetadata.IS_FULL_WIDTH, token.containsRTL));
-				partStartIndex = charIndex + 1;
-			}
+
+		let partStartIndex = Math.max(tokenStartIndex, coveredUntil);
+		// `ranges` comes from `fullwidthCharacterWidths` (see `strings.getFullwidthCharacterColumnWidths`):
+		// - `2` marks the first UTF-16 code unit of a full-width grapheme.
+		// - `0` marks *continuation code units* of that same grapheme (surrogate pair, variation selector, combining marks, ...).
+		// So a single full-width grapheme is represented as a contiguous [start, end) range in code units.
+		while (rangeIndex < ranges.length && ranges[rangeIndex].end <= tokenStartIndex) {
+			rangeIndex++;
 		}
-		if (partStartIndex < token.endIndex) {
+		while (rangeIndex < ranges.length && ranges[rangeIndex].start < token.endIndex) {
+			const range = ranges[rangeIndex++];
+			if (range.start < partStartIndex) {
+				partStartIndex = Math.max(partStartIndex, range.end);
+				continue;
+			}
+			if (partStartIndex < range.start) {
+				result.push(new LinePart(range.start, token.type, token.metadata, token.containsRTL));
+			}
+			result.push(new LinePart(range.end, token.type, token.metadata | LinePartMetadata.IS_FULL_WIDTH, token.containsRTL));
+			coveredUntil = range.end;
+			partStartIndex = range.end;
+		}
+		if (partStartIndex < token.endIndex && token.endIndex > coveredUntil) {
 			result.push(new LinePart(token.endIndex, token.type, token.metadata, token.containsRTL));
 		}
 		tokenStartIndex = token.endIndex;
@@ -791,7 +834,7 @@ function splitFullWidthCharacters(lineContent: string, tokens: LinePart[]): Line
  * Moreover, a token is created for every visual indent because on some fonts the glyphs used for rendering whitespace (&rarr; or &middot;) do not have the same width as &nbsp;.
  * The rendering phase will generate `style="width:..."` for these tokens.
  */
-function _applyRenderWhitespace(input: RenderLineInput, lineContent: string, len: number, tokens: LinePart[]): LinePart[] {
+function _applyRenderWhitespace(input: RenderLineInput, lineContent: string, len: number, tokens: LinePart[], fullwidthCharacterWidths: Int8Array | null): LinePart[] {
 
 	const continuesWithWrappedLine = input.continuesWithWrappedLine;
 	const fauxIndentLength = input.fauxIndentLength;
@@ -904,6 +947,8 @@ function _applyRenderWhitespace(input: RenderLineInput, lineContent: string, len
 
 		if (chCode === CharCode.Tab) {
 			tmpIndent = tabSize;
+		} else if (fullwidthCharacterWidths?.[charIndex] !== undefined && fullwidthCharacterWidths[charIndex] >= 0) {
+			tmpIndent += fullwidthCharacterWidths[charIndex];
 		} else if (strings.isFullWidthCharacter(chCode)) {
 			tmpIndent += 2;
 		} else {
@@ -1035,6 +1080,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 	const renderWhitespace = input.renderWhitespace;
 	const renderControlCharacters = input.renderControlCharacters;
 	const fullwidthCharacterWidth = input.fullwidthCharacterWidth;
+	const fullwidthCharacterWidths = input.fullwidthCharacterWidths;
 
 	const characterMapping = new CharacterMapping(len + 1, parts.length);
 	let lastCharacterMappingDefined = false;
@@ -1046,7 +1092,11 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 
 	let partDisplacement = 0;
 
-	sb.appendString('<span>');
+	if (input.useFullwidthLTRIsolate) {
+		sb.appendString('<span style="direction:ltr;unicode-bidi:isolate">');
+	} else {
+		sb.appendString('<span>');
+	}
 
 	for (let partIndex = 0, tokensLen = parts.length; partIndex < tokensLen; partIndex++) {
 
@@ -1057,7 +1107,10 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 		const partRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && part.isWhitespace());
 		const partRendersWhitespaceWithWidth = partRendersWhitespace && !fontIsMonospace && (partType === 'mtkw'/*only whitespace*/ || !containsForeignElements);
 		const partIsEmptyAndHasPseudoAfter = (charIndex === partEndIndex && part.isPseudoAfter());
-		const partIsFullWidth = part.isFullWidth();
+		// Full-width parts are expected to contain exactly one grapheme cluster (which can be >1 UTF-16 code unit).
+		// As an additional guardrail, verify the part boundaries match a single grapheme cluster before applying
+		// fixed-width centering. If they don't, fall back to normal rendering to avoid splitting a grapheme.
+		const partIsFullWidth = part.isFullWidth() && (strings.nextCharLength(lineContent, charIndex) === (partEndIndex - charIndex));
 		charOffsetInPart = 0;
 
 		sb.appendString('<span ');
@@ -1186,7 +1239,9 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 						break;
 
 					default:
-						if (strings.isFullWidthCharacter(charCode)) {
+						if (partIsFullWidth) {
+							charWidth = fullwidthCharacterWidths![charIndex];
+						} else if (strings.isFullWidthCharacter(charCode)) {
 							charWidth++;
 						}
 						// See https://unicode-table.com/en/blocks/control-pictures/

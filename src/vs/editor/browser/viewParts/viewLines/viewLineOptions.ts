@@ -39,12 +39,12 @@ export class ViewLineOptions {
 			&& !options.get(EditorOption.disableMonospaceOptimizations)
 		);
 		this.canUseHalfwidthRightwardsArrow = fontInfo.canUseHalfwidthRightwardsArrow;
-		this.forceFullwidthCharacterWidth = options.get(EditorOption.forceFullwidthCharacterWidth);
+		this.forceFullwidthCharacterWidth = fontInfo.isMonospace && options.get(EditorOption.forceFullwidthCharacterWidth);
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.stopRenderingLineAfter = options.get(EditorOption.stopRenderingLineAfter);
 		this.fontLigatures = options.get(EditorOption.fontLigatures);
 		this.verticalScrollbarSize = options.get(EditorOption.scrollbar).verticalScrollbarSize;
-		this.useGpu = options.get(EditorOption.experimentalGpuAcceleration) === 'on' && !this.forceFullwidthCharacterWidth;
+		this.useGpu = options.get(EditorOption.experimentalGpuAcceleration) === 'on';
 	}
 
 	public equals(other: ViewLineOptions): boolean {

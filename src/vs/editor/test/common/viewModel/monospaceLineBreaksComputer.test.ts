@@ -45,7 +45,7 @@ function toAnnotatedText(text: string, lineBreakData: ModelLineProjectionData | 
 	return actualAnnotatedText;
 }
 
-function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, text: string, previousLineBreakData: ModelLineProjectionData | null, injectedText: LineInjectedText[] | null = null, forceFullwidthCharacterWidth: boolean = false): ModelLineProjectionData | null {
+function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, text: string, previousLineBreakData: ModelLineProjectionData | null, injectedText: LineInjectedText[] | null = null, forceFullwidthCharacterWidth: boolean = false, isMonospace: boolean = true): ModelLineProjectionData | null {
 	const fontInfo = new FontInfo({
 		pixelRatio: 1,
 		fontFamily: 'testFontFamily',
@@ -55,7 +55,7 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 		fontVariationSettings: '',
 		lineHeight: 19,
 		letterSpacing: 0,
-		isMonospace: true,
+		isMonospace,
 		typicalHalfwidthCharacterWidth: 7,
 		typicalFullwidthCharacterWidth: 7 * columnsForFullWidthChar,
 		canUseHalfwidthRightwardsArrow: true,
@@ -150,12 +150,54 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		});
 	});
 
-	test('forces full-width characters to two columns when wrapping', () => {
+	test('uses exactly two cells when wrapping full-width characters', () => {
 		const factory = new MonospaceLineBreaksComputerFactory('', '');
 		const text = '擦擦a';
+
+		assert.deepStrictEqual([
+			toAnnotatedText(text, getLineBreakData(factory, 4, 4, 1.5, WrappingIndent.None, 'normal', false, text, null, null, true)),
+			toAnnotatedText(text, getLineBreakData(factory, 4, 4, 2.5, WrappingIndent.None, 'normal', false, text, null, null, true)),
+		], [
+			'擦擦|a',
+			'擦擦|a',
+		]);
+	});
+
+	test('does not force full-width characters for non-monospace fonts', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const text = '擦擦a';
+		const lineBreakData = getLineBreakData(factory, 4, 4, 1.5, WrappingIndent.None, 'normal', false, text, null, null, true, false);
+
+		assert.strictEqual(toAnnotatedText(text, lineBreakData), text);
+	});
+
+	test('does not wrap within forced full-width graphemes', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+
+		assert.deepStrictEqual([
+			toAnnotatedText('か\u3099a', getLineBreakData(factory, 4, 2, 1.5, WrappingIndent.None, 'normal', false, 'か\u3099a', null, null, true)),
+			toAnnotatedText('𠀋a', getLineBreakData(factory, 4, 2, 1.5, WrappingIndent.None, 'normal', false, '𠀋a', null, null, true)),
+		], [
+			'か\u3099|a',
+			'𠀋|a',
+		]);
+	});
+
+	test('uses natural widths for lines containing RTL text', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const text = 'ا擦擦a';
 		const lineBreakData = getLineBreakData(factory, 4, 4, 1.5, WrappingIndent.None, 'normal', false, text, null, null, true);
 
-		assert.strictEqual(toAnnotatedText(text, lineBreakData), '擦擦|a');
+		assert.strictEqual(toAnnotatedText(text, lineBreakData), 'ا擦擦|a');
+	});
+
+	test('recomputes forced grapheme wrapping instead of reusing stale code-unit breaks', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const text = '擦\u0301a';
+		const stale = new ModelLineProjectionData(null, null, [1, text.length], [2, 3], 0);
+		const recomputed = getLineBreakData(factory, 4, 2, 1.5, WrappingIndent.None, 'normal', false, text, stale, null, true);
+
+		assert.deepStrictEqual(recomputed?.breakOffsets, [2, 3]);
 	});
 
 	test('treats multi-character fixed-width injected text as an atomic span', () => {

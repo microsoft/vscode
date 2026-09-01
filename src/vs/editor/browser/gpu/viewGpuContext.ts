@@ -9,6 +9,7 @@ import { createFastDomNode, type FastDomNode } from '../../../base/browser/fastD
 import { Color } from '../../../base/common/color.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import * as strings from '../../../base/common/strings.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewLineOptions } from '../viewParts/viewLines/viewLineOptions.js';
 import { observableValue, runOnChange, type IObservable } from '../../../base/common/observable.js';
@@ -160,6 +161,10 @@ export class ViewGpuContext extends Disposable {
 	 */
 	public canRender(options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): boolean {
 		const data = viewportData.getViewLineRenderingData(lineNumber);
+		// The GPU renderer has no equivalent of the fixed two-cell boxes emitted by the DOM renderer.
+		if (options.forceFullwidthCharacterWidth && !strings.containsRTL(data.content) && strings.containsFullWidthCharacter(data.content)) {
+			return false;
+		}
 
 		// Check if the line has simple attributes that aren't supported
 		if (
@@ -206,6 +211,9 @@ export class ViewGpuContext extends Disposable {
 	public canRenderDetailed(options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): string[] {
 		const data = viewportData.getViewLineRenderingData(lineNumber);
 		const reasons: string[] = [];
+		if (options.forceFullwidthCharacterWidth && !strings.containsRTL(data.content) && strings.containsFullWidthCharacter(data.content)) {
+			reasons.push('forceFullwidthCharacterWidth');
+		}
 		if (data.containsRTL) {
 			reasons.push('containsRTL');
 		}

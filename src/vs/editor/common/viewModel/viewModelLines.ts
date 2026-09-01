@@ -109,7 +109,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this.wrappingIndent = wrappingIndent;
 		this.wordBreak = wordBreak;
 		this.wrapOnEscapedLineFeeds = wrapOnEscapedLineFeeds;
-		this.forceFullwidthCharacterWidth = forceFullwidthCharacterWidth;
+		this.forceFullwidthCharacterWidth = fontInfo.isMonospace && forceFullwidthCharacterWidth;
 
 		this._constructLines(/*resetHiddenAreas*/true, null);
 	}
@@ -278,6 +278,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	public setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', forceFullwidthCharacterWidth: boolean): boolean {
+		forceFullwidthCharacterWidth = fontInfo.isMonospace && forceFullwidthCharacterWidth;
 		const equalFontInfo = this.fontInfo.equals(fontInfo);
 		const equalWrappingStrategy = (this.wrappingStrategy === wrappingStrategy);
 		const equalWrappingColumn = (this.wrappingColumn === wrappingColumn);

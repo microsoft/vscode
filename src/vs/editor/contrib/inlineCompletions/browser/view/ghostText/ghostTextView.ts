@@ -682,7 +682,9 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: readonly Line
 			fontLigatures !== EditorFontLigatures.OFF,
 			null,
 			null,
-			0
+			0,
+			false,
+			fontInfo.isMonospace && opts.get(EditorOption.forceFullwidthCharacterWidth)
 		), sb);
 
 		sb.appendString('</div>');

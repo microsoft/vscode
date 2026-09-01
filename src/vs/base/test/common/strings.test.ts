@@ -337,6 +337,69 @@ suite('Strings', () => {
 		assert.strictEqual(strings.isFullWidthCharacter('?'.charCodeAt(0)), false, '? regular ASCII');
 	});
 
+	test('full-width code points and graphemes', () => {
+		assert.deepStrictEqual([
+			0x1100,
+			0x2E80,
+			0xFF21,
+			0x17000,
+			0x1F642,
+			0x20000,
+			0x3FFFD,
+		].map(strings.isFullWidthCodePoint), [
+			true,
+			true,
+			true,
+			true,
+			true,
+			true,
+			true,
+		]);
+
+		assert.deepStrictEqual([
+			-1,
+			0x41,
+			0xA1,
+			0x2E9A,
+			0xFE0F,
+			0xFF66,
+			0x1D11E,
+			0x3FFFE,
+			0x110000,
+			1.5,
+			NaN,
+		].map(strings.isFullWidthCodePoint), [
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+		]);
+
+		const text = 'a擦\u0301𠀋🙂𝄞Ａ';
+		assert.deepStrictEqual(Array.from({ length: text.length }, (_unused, index) => strings.isFullWidthCharacterAt(text, index)), [
+			false,
+			true,
+			false,
+			true,
+			true,
+			true,
+			true,
+			false,
+			false,
+			true,
+		]);
+		assert.deepStrictEqual(Array.from(strings.getFullwidthCharacterColumnWidths(text)), [-1, 2, 0, 2, 0, 2, 0, -1, -1, 2]);
+		assert.strictEqual(strings.containsFullWidthCharacter(text), true);
+		assert.strictEqual(strings.containsFullWidthCharacter('a\u0301𝄞'), false);
+	});
+
 	test('isBasicASCII', () => {
 		function assertIsBasicASCII(str: string, expected: boolean): void {
 			assert.strictEqual(strings.isBasicASCII(str), expected, str + ` (${str.charCodeAt(0)})`);

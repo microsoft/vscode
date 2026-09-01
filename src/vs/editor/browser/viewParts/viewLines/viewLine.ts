@@ -504,7 +504,7 @@ class RenderedViewLine implements IRenderedViewLine {
 		this._cachedWidth = -1;
 
 		this._pixelOffsetCache = null;
-		if (renderLineInput.isLTR) {
+		if (renderLineInput.isLTR || renderLineInput.hasFullwidthCharacters) {
 			this._pixelOffsetCache = new Float32Array(Math.max(2, this._characterMapping.length + 1));
 			for (let column = 0, len = this._characterMapping.length; column <= len; column++) {
 				this._pixelOffsetCache[column] = -1;
@@ -644,12 +644,15 @@ class RenderedViewLine implements IRenderedViewLine {
 
 		const domPosition = this._characterMapping.getDomPosition(column);
 		const readingTarget = this._getReadingTarget(domNode);
-		const part = <HTMLElement>readingTarget.children[domPosition.partIndex];
-		if (part.dataset.fullwidth) {
-			const clientRect = part.getBoundingClientRect();
-			context.markDidDomLayout();
-			const left = Math.max(0, (clientRect.left - context.clientRectDeltaLeft) / context.clientRectScale);
-			return domPosition.charIndex === 0 ? left : left + clientRect.width / context.clientRectScale;
+		// `partIndex` can point past the last child, for example on an empty line that only carries
+		// `Before` inline decorations. `RangeUtil.readHorizontalRanges` clamps it, so fall through to
+		// it rather than reading out of bounds here.
+		const part = <HTMLElement | undefined>readingTarget.children[domPosition.partIndex];
+		if (this.input.forceFullwidthCharacterWidth && part?.dataset.fullwidth) {
+			// Read the exact two-cell span instead of the text range so cursor and selection boundaries
+			// include the centering space.
+			const box = RangeUtil.readHorizontalRangeForElement(part, context);
+			return domPosition.charIndex === 0 ? box.left : box.left + box.width;
 		}
 
 		const r = RangeUtil.readHorizontalRanges(readingTarget, domPosition.partIndex, domPosition.charIndex, domPosition.partIndex, domPosition.charIndex, context);
