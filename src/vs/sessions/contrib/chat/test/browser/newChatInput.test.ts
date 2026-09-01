@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -32,6 +33,11 @@ const holdInputModelReference = Reflect.get(NewChatInputWidget.prototype, '_hold
 const getDraftState = Reflect.get(NewChatInputWidget.prototype, '_getDraftState') as (this: IDraftStateHarness) => { inputText: string; attachments: readonly IChatRequestVariableEntry[] } | undefined;
 const restoreState = Reflect.get(NewChatInputWidget.prototype, '_restoreState') as (this: IRestoreStateHarness) => void;
 const saveState = Reflect.get(NewChatInputWidget.prototype, 'saveState') as (this: IDraftStateHarness) => void;
+const clearDraftState = Reflect.get(NewChatInputWidget.prototype, '_clearDraftState') as (this: IDraftStateHarness) => void;
+const updateDraftState = Reflect.get(NewChatInputWidget.prototype, '_updateDraftState') as (this: IUpdateDraftStateHarness) => void;
+const updateAndSaveDraftState = Reflect.get(NewChatInputWidget.prototype, '_updateAndSaveDraftState') as (this: IUpdateAndSaveDraftStateHarness) => void;
+const updateSendButtonState = Reflect.get(NewChatInputWidget.prototype, '_updateSendButtonState') as (this: IUpdateSendButtonStateHarness) => void;
+const setInputEditorFocused = Reflect.get(NewChatInputWidget.prototype, '_setInputEditorFocused') as (container: HTMLElement, focused: boolean) => void;
 const updateAttachmentRendering = Reflect.get(NewChatContextAttachments.prototype, '_updateRendering') as (this: IAttachmentRenderingHarness) => void;
 
 interface IDraftStateHarness {
@@ -50,6 +56,37 @@ interface IRestoreStateHarness {
 	readonly _contextAttachments: {
 		setAttachments(entries: readonly IChatRequestVariableEntry[]): void;
 	};
+	_updateSendButtonState(): void;
+}
+
+interface IUpdateDraftStateHarness extends IDraftStateHarness {
+	readonly _editor: {
+		getModel(): { getValue(): string } | null;
+	};
+	readonly _contextAttachments: {
+		readonly attachments: readonly IChatRequestVariableEntry[];
+	};
+}
+
+interface IUpdateAndSaveDraftStateHarness extends IUpdateDraftStateHarness {
+	readonly _sending: boolean;
+	_updateDraftState(): void;
+	saveState(): void;
+}
+
+interface IUpdateSendButtonStateHarness {
+	readonly _sendButton: { enabled: boolean } | undefined;
+	readonly _sending: boolean;
+	readonly _editor: {
+		getModel(): { getValue(): string } | null;
+	};
+	readonly _contextAttachments: {
+		readonly attachments: readonly IChatRequestVariableEntry[];
+	};
+	readonly options: {
+		readonly hasAdditionalSendContent?: { get(): boolean };
+	};
+	readonly _canSendRequest: { get(): boolean };
 }
 
 interface IAttachmentRenderingHarness {
@@ -88,6 +125,31 @@ class InputModelReferenceHarness implements IInputModelReferenceHarness, IDispos
 
 suite('NewChatInputWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('only keeps the input frame focused while editor text has focus', () => {
+		const stack = document.createElement('div');
+		stack.classList.add('chat-input-stack');
+		const inputArea = document.createElement('div');
+		stack.appendChild(inputArea);
+
+		setInputEditorFocused(inputArea, true);
+		const focused = {
+			input: inputArea.classList.contains('focused'),
+			stack: stack.classList.contains('chat-input-stack-input-focused'),
+		};
+		setInputEditorFocused(inputArea, false);
+
+		assert.deepStrictEqual({
+			focused,
+			blurred: {
+				input: inputArea.classList.contains('focused'),
+				stack: stack.classList.contains('chat-input-stack-input-focused'),
+			},
+		}, {
+			focused: { input: true, stack: true },
+			blurred: { input: false, stack: false },
+		});
+	});
 
 	test('keeps the input model alive until reference acquisition settles during disposal', async () => {
 		const referenceDeferred = new DeferredPromise<IReference<IResolvedTextEditorModel>>();
@@ -178,11 +240,19 @@ suite('NewChatInputWidget', () => {
 				value: repositoryRoot,
 			},
 		];
-		const saveHarness: IDraftStateHarness = {
+		const saveHarness: IUpdateAndSaveDraftStateHarness = {
 			storageService,
-			_draftState: { inputText: 'Fix this', attachments },
+			_sending: false,
+			_editor: { getModel: () => ({ getValue: () => '' }) },
+			_contextAttachments: { attachments },
+			_updateDraftState() {
+				updateDraftState.call(this);
+			},
+			saveState() {
+				saveState.call(this);
+			},
 		};
-		saveState.call(saveHarness);
+		updateAndSaveDraftState.call(saveHarness);
 		const restored: { inputText?: string; attachments?: readonly IChatRequestVariableEntry[] } = {};
 		const draft = getDraftState.call({ storageService });
 
@@ -190,6 +260,7 @@ suite('NewChatInputWidget', () => {
 			_getDraftState: () => draft,
 			_editor: { getModel: () => ({ setValue: value => restored.inputText = value }) },
 			_contextAttachments: { setAttachments: entries => restored.attachments = entries },
+			_updateSendButtonState: () => { },
 		});
 
 		assert.deepStrictEqual({
@@ -198,11 +269,98 @@ suite('NewChatInputWidget', () => {
 			folderValue: restored.attachments?.[0].value,
 			repositoryValue: restored.attachments?.[1].value,
 		}, {
-			inputText: 'Fix this',
+			inputText: '',
 			attachmentIds: attachments.map(attachment => attachment.id),
 			folderValue: folder,
 			repositoryValue: repositoryRoot,
 		});
+	});
+
+	test('persists draft text when state is saved', () => {
+		let stored: string | undefined;
+		const storageService: IDraftStateHarness['storageService'] = {
+			get: () => stored,
+			store: (_key, value) => stored = value,
+		};
+		const harness: IUpdateAndSaveDraftStateHarness = {
+			storageService,
+			_sending: false,
+			_editor: { getModel: () => ({ getValue: () => 'Fix this after reload' }) },
+			_contextAttachments: { attachments: [] },
+			_updateDraftState() {
+				updateDraftState.call(this);
+			},
+			saveState() {
+				saveState.call(this);
+			},
+		};
+
+		updateDraftState.call(harness);
+		saveState.call(harness);
+
+		assert.deepStrictEqual(getDraftState.call({ storageService }), {
+			inputText: 'Fix this after reload',
+			attachments: [],
+		});
+	});
+
+	test('does not re-persist a sent prompt when attachments clear during send', () => {
+		let stored: string | undefined;
+		let editorValue = 'Fix this';
+		const storageService: IDraftStateHarness['storageService'] = {
+			get: () => stored,
+			store: (_key, value) => stored = value,
+		};
+		const harness: IUpdateAndSaveDraftStateHarness = {
+			storageService,
+			_sending: true,
+			_editor: { getModel: () => ({ getValue: () => editorValue }) },
+			_contextAttachments: { attachments: [] },
+			_updateDraftState() {
+				updateDraftState.call(this);
+			},
+			saveState() {
+				saveState.call(this);
+			},
+		};
+
+		clearDraftState.call(harness);
+		updateAndSaveDraftState.call(harness);
+		editorValue = '';
+		updateDraftState.call(harness);
+
+		assert.deepStrictEqual(getDraftState.call({ storageService }), {
+			inputText: '',
+			attachments: [],
+		});
+	});
+
+	test('enables send after restoring an unchanged retained input model', () => {
+		const sendButton = { enabled: false };
+		const harness: IRestoreStateHarness & IUpdateSendButtonStateHarness = {
+			_getDraftState: () => ({ inputText: 'Fix this', attachments: [] }),
+			_sendButton: sendButton,
+			_sending: false,
+			_editor: {
+				getModel: () => ({
+					getValue: () => 'Fix this',
+					setValue: () => { },
+				}),
+			},
+			_contextAttachments: {
+				attachments: [],
+				setAttachments: () => { },
+			},
+			options: {},
+			_canSendRequest: { get: () => true },
+			_updateSendButtonState() {
+				updateSendButtonState.call(this);
+			},
+		};
+
+		restoreState.call(harness);
+
+		assert.strictEqual(sendButton.enabled, true);
 	});
 
 	test('renders GitHub context pills as openable with a keyboard-reachable remove button', async () => {
@@ -266,6 +424,66 @@ suite('NewChatInputWidget', () => {
 			opened: 'https://github.com/microsoft/vscode/pull/332825',
 			removed: entry.id,
 		});
+	});
+
+	test('renders issue and pull request attachment icons without nested focus targets', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const entries = [
+			toPasteVariableEntry('microsoft/vscode#9014', 'Issue context', {
+				id: 'github-context:https://github.com/microsoft/vscode/issues/9014',
+				icon: { ...Codicon.issues, color: { id: 'charts.green' } },
+			}),
+			toPasteVariableEntry('microsoft/vscode#123', 'Pull request context', {
+				id: 'github-context:https://github.com/microsoft/vscode/pull/123',
+				icon: Codicon.gitPullRequest,
+			}),
+		];
+		const renderDisposables = disposables.add(new DisposableStore());
+		try {
+			updateAttachmentRendering.call({
+				_container: container,
+				_attachedContext: entries,
+				_renderDisposables: renderDisposables,
+				_resourceLabels: {
+					clear: () => { },
+					create: () => ({
+						dispose: () => { },
+						setLabel: () => { },
+						setFile: () => { },
+					}),
+				},
+				openerService: { open: async () => true },
+				removeAttachment: () => { },
+			});
+
+			const pills = Array.from(container.querySelectorAll('.sessions-chat-attachment-pill'));
+			const focusTargets = pills.map(pill => pill.querySelector<HTMLButtonElement>('.sessions-chat-attachment-open'));
+			focusTargets[0]?.focus();
+			const issueButtonFocused = document.activeElement === focusTargets[0];
+			focusTargets[1]?.focus();
+			const pullRequestButtonFocused = document.activeElement === focusTargets[1];
+
+			assert.deepStrictEqual({
+				pills: pills.map(pill => ({
+					label: pill.querySelector('.sessions-chat-attachment-name')?.textContent,
+					icon: pill.querySelector('.codicon:not(.codicon-close-compact)')?.className,
+					color: pill.querySelector<HTMLElement>('.codicon:not(.codicon-close-compact)')?.style.color,
+					nestedLinks: pill.querySelectorAll('a').length,
+				})),
+				issueButtonFocused,
+				pullRequestButtonFocused,
+			}, {
+				pills: [
+					{ label: 'microsoft/vscode#9014', icon: 'codicon codicon-issues', color: 'var(--vscode-charts-green)', nestedLinks: 0 },
+					{ label: 'microsoft/vscode#123', icon: 'codicon codicon-git-pull-request', color: '', nestedLinks: 0 },
+				],
+				issueButtonFocused: true,
+				pullRequestButtonFocused: true,
+			});
+		} finally {
+			container.remove();
+		}
 	});
 
 	test('renders additional folder and repository context as attachment pills', () => {

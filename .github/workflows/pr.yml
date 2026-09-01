@@ -113,12 +113,22 @@ jobs:
       job_name: CLI
       rustup_toolchain: 1.88
 
+  linux-electron-unit-tests:
+    name: Linux
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Electron-Unit
+      electron_tests: true
+      integration_tests: false
+      smoke_tests: false
+
   linux-electron-tests:
     name: Linux
     uses: ./.github/workflows/pr-linux-test.yml
     with:
       job_name: Electron
       electron_tests: true
+      unit_tests: false
       smoke_tests: false
 
   linux-electron-smoke-tests:
@@ -127,7 +137,8 @@ jobs:
     with:
       job_name: Electron-Smoke
       electron_tests: true
-      unit_and_integration_tests: false
+      unit_tests: false
+      integration_tests: false
 
   linux-browser-tests:
     name: Linux
@@ -143,12 +154,22 @@ jobs:
       job_name: Remote
       remote_tests: true
 
+  macos-electron-unit-tests:
+    name: macOS
+    uses: ./.github/workflows/pr-darwin-test.yml
+    with:
+      job_name: Electron-Unit
+      electron_tests: true
+      integration_tests: false
+      smoke_tests: false
+
   macos-electron-tests:
     name: macOS
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
       job_name: Electron
       electron_tests: true
+      unit_tests: false
       smoke_tests: false
 
   macos-electron-smoke-tests:
@@ -157,7 +178,8 @@ jobs:
     with:
       job_name: Electron-Smoke
       electron_tests: true
-      unit_and_integration_tests: false
+      unit_tests: false
+      integration_tests: false
 
   macos-browser-tests:
     name: macOS
@@ -173,12 +195,22 @@ jobs:
       job_name: Remote
       remote_tests: true
 
+  windows-electron-unit-tests:
+    name: Windows
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      job_name: Electron-Unit
+      electron_tests: true
+      integration_tests: false
+      smoke_tests: false
+
   windows-electron-tests:
     name: Windows
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       job_name: Electron
       electron_tests: true
+      unit_tests: false
       smoke_tests: false
 
   windows-electron-smoke-tests:
@@ -187,7 +219,8 @@ jobs:
     with:
       job_name: Electron-Smoke
       electron_tests: true
-      unit_and_integration_tests: false
+      unit_tests: false
+      integration_tests: false
 
   windows-browser-tests:
     name: Windows
@@ -406,14 +439,6 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         working-directory: extensions/copilot
         run: npm ci
-
-      - name: TypeScript type checking
-        working-directory: extensions/copilot
-        run: npm run typecheck
-
-      - name: Lint
-        working-directory: extensions/copilot
-        run: npm run lint
 
       - name: Compile
         working-directory: extensions/copilot

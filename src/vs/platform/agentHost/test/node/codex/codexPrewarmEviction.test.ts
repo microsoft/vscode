@@ -65,6 +65,10 @@ interface ITestWireRequest {
 		readonly cwd?: string;
 		readonly threadId?: string;
 		readonly includeTurns?: boolean;
+		readonly cursor?: string | null;
+		readonly limit?: number;
+		readonly sortDirection?: 'asc' | 'desc';
+		readonly itemsView?: 'notLoaded' | 'summary' | 'full';
 		readonly runtimeWorkspaceRoots?: readonly string[];
 		readonly model?: string;
 		readonly modelProvider?: string;
@@ -1089,7 +1093,7 @@ suite('CodexAgent prewarm eviction', () => {
 		assert.deepStrictEqual(agent['_sessions'].get('restored-updated-model')?.model, persistedModel);
 	});
 
-	test('cold chat history resumes its backing thread before reading turns', async () => {
+	test('cold chat history resumes its backing thread and pages turns', async () => {
 		const database = new TestSessionDatabase();
 		await database.setMetadata('codex.threadId', 'restored-history-thread');
 		const agent = await createAgent(disposables, { database });
@@ -1110,20 +1114,57 @@ suite('CodexAgent prewarm eviction', () => {
 		const inventory = await readNextRequest(peer.outbound);
 		peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
 		const read = await readNextRequest(peer.outbound);
+		assert.strictEqual(read.params.includeTurns, false);
 		peer.push({
 			id: read.id,
 			result: {
 				thread: {
 					id: 'restored-history',
-					turns: [{
-						id: 'turn-1',
-						items: [
-							{ type: 'userMessage', id: 'user-1', content: [{ type: 'text', text: 'hello', text_elements: [] }] },
-							{ type: 'agentMessage', id: 'agent-1', text: 'restored', phase: null, memoryCitation: null },
-						],
-						status: 'completed',
-					}],
+					historyMode: 'paginated',
+					turns: [],
 				},
+			},
+		});
+		const firstPage = await readNextRequest(peer.outbound);
+		assert.deepStrictEqual(firstPage.params, {
+			threadId: 'restored-history-thread',
+			cursor: null,
+			limit: 100,
+			sortDirection: 'asc',
+			itemsView: 'full',
+		});
+		peer.push({
+			id: firstPage.id,
+			result: {
+				data: [{
+					id: 'turn-1',
+					items: [
+						{ type: 'userMessage', id: 'user-1', content: [{ type: 'text', text: 'hello', text_elements: [] }] },
+						{ type: 'agentMessage', id: 'agent-1', text: 'restored one', phase: null, memoryCitation: null },
+					],
+					itemsView: 'full',
+					status: 'completed',
+				}],
+				nextCursor: 'page-2',
+				backwardsCursor: null,
+			},
+		});
+		const secondPage = await readNextRequest(peer.outbound);
+		assert.strictEqual(secondPage.params.cursor, 'page-2');
+		peer.push({
+			id: secondPage.id,
+			result: {
+				data: [{
+					id: 'turn-2',
+					items: [
+						{ type: 'userMessage', id: 'user-2', content: [{ type: 'text', text: 'again', text_elements: [] }] },
+						{ type: 'agentMessage', id: 'agent-2', text: 'restored two', phase: null, memoryCitation: null },
+					],
+					itemsView: 'full',
+					status: 'completed',
+				}],
+				nextCursor: null,
+				backwardsCursor: null,
 			},
 		});
 
@@ -1137,6 +1178,8 @@ suite('CodexAgent prewarm eviction', () => {
 				{ method: resume.method, threadId: resume.params.threadId },
 				{ method: inventory.method, threadId: inventory.params.threadId },
 				{ method: read.method, threadId: read.params.threadId },
+				{ method: firstPage.method, threadId: firstPage.params.threadId },
+				{ method: secondPage.method, threadId: secondPage.params.threadId },
 				{ method: turn.method, threadId: turn.params.threadId },
 			],
 			turns: turns.map(turn => ({
@@ -1149,12 +1192,18 @@ suite('CodexAgent prewarm eviction', () => {
 				{ method: 'thread/resume', threadId: 'restored-history-thread' },
 				{ method: 'mcpServerStatus/list', threadId: 'restored-history-thread' },
 				{ method: 'thread/read', threadId: 'restored-history-thread' },
+				{ method: 'thread/turns/list', threadId: 'restored-history-thread' },
+				{ method: 'thread/turns/list', threadId: 'restored-history-thread' },
 				{ method: 'turn/start', threadId: 'restored-history-thread' },
 			],
 			turns: [{
 				id: 'turn-1',
 				prompt: 'hello',
-				response: ['restored'],
+				response: ['restored one'],
+			}, {
+				id: 'turn-2',
+				prompt: 'again',
+				response: ['restored two'],
 			}],
 		});
 		peer.exit();
@@ -1214,7 +1263,9 @@ suite('CodexAgent prewarm eviction', () => {
 		const followUpInventory = await readNextRequest(peer.outbound);
 		peer.push({ id: followUpInventory.id, result: { data: [], nextCursor: null } });
 		const read = await readNextRequest(peer.outbound);
-		peer.push({ id: read.id, result: { thread: { id: 'restored-mcp-thread', turns: [] } } });
+		peer.push({ id: read.id, result: { thread: { id: 'restored-mcp-thread', historyMode: 'paginated', turns: [] } } });
+		const historyPage = await readNextRequest(peer.outbound);
+		peer.push({ id: historyPage.id, result: { data: [], nextCursor: null, backwardsCursor: null } });
 		await reading;
 
 		assert.deepStrictEqual({
@@ -2386,10 +2437,13 @@ suite('CodexAgent prewarm eviction', () => {
 					thread: {
 						id: 'source-thread',
 						cwd: repoA.fsPath,
-						turns: [{ id: 'turn-1' }],
+						historyMode: 'paginated',
+						turns: [],
 					},
 				},
 			});
+			const historyPage = await readNextRequest(peer.outbound);
+			peer.push({ id: historyPage.id, result: { data: [{ id: 'turn-1' }], nextCursor: null, backwardsCursor: null } });
 			const fork = await readNextRequest(peer.outbound);
 			peer.push({
 				id: fork.id,
@@ -2471,10 +2525,13 @@ suite('CodexAgent prewarm eviction', () => {
 				thread: {
 					id: 'managed-source',
 					cwd: sourceDirectory.fsPath,
-					turns: [{ id: 'turn-1' }],
+					historyMode: 'paginated',
+					turns: [],
 				},
 			},
 		});
+		const historyPage = await readNextRequest(peer.outbound);
+		peer.push({ id: historyPage.id, result: { data: [{ id: 'turn-1' }], nextCursor: null, backwardsCursor: null } });
 		const fork = await readNextRequest(peer.outbound);
 		const forkDirectory = fork.params.cwd;
 		assert.ok(forkDirectory);
@@ -2724,20 +2781,23 @@ suite('CodexAgent prewarm eviction', () => {
 		const resumeInventory = await readNextRequest(peer.outbound);
 		peer.push({ id: resumeInventory.id, result: { data: [], nextCursor: null } });
 		const historyRead = await readNextRequest(peer.outbound);
-		assert.strictEqual(historyRead.params.includeTurns, true);
+		assert.strictEqual(historyRead.params.includeTurns, false);
 		peer.push({
 			id: historyRead.id,
 			result: {
 				thread: {
 					id: historyRead.params.threadId,
 					cwd: workingDirectory.fsPath,
+					historyMode: 'paginated',
 					modelProvider: 'openai',
 					path: rollout.fsPath,
 					source: 'vscode',
-					turns: [persistedTurn],
+					turns: [],
 				},
 			},
 		});
+		const historyPage = await readNextRequest(peer.outbound);
+		peer.push({ id: historyPage.id, result: { data: [persistedTurn], nextCursor: null, backwardsCursor: null } });
 		const history = await historyPromise;
 
 		const send = agent.chats.sendMessage(chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, undefined, context);

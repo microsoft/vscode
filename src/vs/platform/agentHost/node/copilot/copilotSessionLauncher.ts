@@ -18,6 +18,7 @@ import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias,
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
+import { isAutoModeTier, type AutoModeTier } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
 import { RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
@@ -32,7 +33,7 @@ import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.j
 import { toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
-import { isGpt56Model } from './modelIdentifiers.js';
+import { isAutoModel, isGpt56Model } from './modelIdentifiers.js';
 import { EPHEMERAL_DISABLED_COPILOT_TOOLS } from './copilotToolDisplay.js';
 import './prompts/allPrompts.js';
 import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts/promptRegistry.js';
@@ -52,6 +53,11 @@ export const ContextSizeConfigKey = 'contextSize';
  * for backward compatibility.
  */
 export const ContextTierConfigKey = 'contextTier';
+/**
+ * Config key for the Auto model's routing-profile ("Optimize for") selection. Named to match the
+ * Copilot Chat extension's `AUTO_MODE_TIER_PROPERTY` so both Auto surfaces use the same picker key.
+ */
+export const AutoTierConfigKey = 'tier';
 
 /**
  * Every reasoning-effort tier that the runtime may advertise via a model's
@@ -93,6 +99,12 @@ export function toSdkReasoningEffort(effort: AgentHostReasoningEffort | undefine
 
 const ContextTiers = ['default', 'long_context'] as const;
 const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
+
+/**
+ * The SDK's CAPI options widened with `autoTier`. The published SDK types still declare only
+ * `enableWebSocketResponses`; drop the widening once they catch up.
+ */
+type CapiSessionOptionsWithAutoTier = NonNullable<SessionConfig['capi']> & { autoTier?: AutoModeTier };
 
 type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
 type UserInputRequest = Parameters<UserInputHandler>[0];
@@ -446,6 +458,47 @@ export function getCopilotContextTier(model: ModelSelection | undefined, longCon
 }
 
 /**
+ * The Auto routing profile ("Optimize for") a session should launch with. Only the Auto model routes
+ * per turn, so a profile left on another model by an earlier selection is ignored.
+ */
+export function getCopilotAutoTier(model: ModelSelection | undefined): AutoModeTier | undefined {
+	if (!isAutoModel(model?.id)) {
+		return undefined;
+	}
+	const tier = model?.config?.[AutoTierConfigKey];
+	return isAutoModeTier(tier) ? tier : undefined;
+}
+
+/**
+ * {@link getCopilotAutoTier} behind the `autoModeTiers` gate. Re-read here rather than trusted from
+ * the picker schema, since the runtime rejects unknown `capi` fields and would fail the session.
+ */
+export function resolveCopilotAutoTier(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): AutoModeTier | undefined {
+	const tier = getCopilotAutoTier(model);
+	if (tier === undefined) {
+		return undefined;
+	}
+	if (configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.AutoModeTiers) !== true) {
+		logService.trace(`[Copilot:${sessionId}] Auto routing profiles are disabled; ignoring '${tier}'`);
+		return undefined;
+	}
+	logService.info(`[Copilot:${sessionId}] Launching Auto session with the '${tier}' routing profile`);
+	return tier;
+}
+
+/**
+ * The CAPI session options for a routing profile. Omitting `capi` entirely, rather than sending an
+ * empty profile, is what leaves the runtime on its default routing.
+ */
+export function toSdkCapiSessionOptions(autoTier: AutoModeTier | undefined): Pick<SessionConfig, 'capi'> {
+	if (autoTier === undefined) {
+		return {};
+	}
+	const capi: CapiSessionOptionsWithAutoTier = { autoTier };
+	return { capi };
+}
+
+/**
  * Resolve the BYOK provider/model session config for `sessionId` from the
  * renderer's active bridge. Returns empty — the session launches without BYOK
  * models — when BYOK is gated off (no active bridge), when the renderer reports
@@ -621,6 +674,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			model: plan.model?.id,
 			reasoningEffort: resolveCopilotReasoningEffort(plan.model, this._configurationService, this._logService, plan.sessionId),
 			contextTier: getCopilotContextTier(plan.model, plan.longContextWindow, plan.freeLongContext),
+			// Create-time only: the runtime then owns the profile, keeping it fixed while the session is
+			// resident and restoring it on cold resume.
+			...toSdkCapiSessionOptions(resolveCopilotAutoTier(plan.model, this._configurationService, this._logService, plan.sessionId)),
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		}));
@@ -629,12 +685,60 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig | undefined, sessionId: string, modelId: string | undefined): Promise<CopilotSessionWrapper> {
 		await this._applySandboxConfig(raw, sandboxConfig, sessionId);
+		try {
+			await this._applyScriptSafety(raw, sessionId);
+		} catch (err) {
+			// Nothing owns `raw` until it is wrapped below, so a fail-closed launch has
+			// to disconnect it here or the runtime keeps an orphaned session alive.
+			await raw.disconnect().catch(() => { /* best-effort teardown */ });
+			throw err;
+		}
 		// TODO: Remove these post-launch updates once the SDK exposes verbosity and
 		// reasoningSummary in SessionConfig, alongside launch options such as reasoningEffort.
 		if (isGpt56Model(modelId)) {
 			await this._applyGpt56Customizations(raw, sessionId);
 		}
 		return new CopilotSessionWrapper(raw);
+	}
+
+	/**
+	 * Enables the runtime's shell-script safety classifier, which managed permissions
+	 * depend on to govern shell operations.
+	 *
+	 * Without it the runtime short-circuits the classifier, so a shell command reaches
+	 * the permission layer with an empty `possiblePaths` and `hasWriteFileRedirection:
+	 * false`. Managed `Read(...)`/`Edit(...)` rules then cannot match a redirect target,
+	 * letting `echo ... >> denied/path` bypass a managed deny. The Copilot CLI opts in at
+	 * session creation; the SDK exposes it to hosts only through `options.update`, so it
+	 * is applied here to cover both created and resumed sessions.
+	 *
+	 * This fails the launch closed unconditionally. The host cannot tell whether a
+	 * session is policy-bearing: `IAgentHostManagedSettingsService` only carries the
+	 * legacy VS Code settings bridge, which is itself behind a false-by-default
+	 * compatibility setting, while server and MDM policy is discovered by the runtime
+	 * itself under `enableManagedSettings`. Gating a security control on that signal
+	 * would leave exactly the enterprise sessions it protects unprotected, so the
+	 * option is treated as required for every session.
+	 *
+	 * The client-level `managedSettings.read` is not a usable substitute: it discovers
+	 * only device sources (MDM and managed-file), so a session governed solely by
+	 * GitHub org policy would still read as unmanaged. Approximating the boundary is
+	 * worse than not drawing one.
+	 */
+	private async _applyScriptSafety(session: CopilotSessionWrapper['session'], sessionId: string): Promise<void> {
+		try {
+			const result = await session.rpc.options.update({ enableScriptSafety: true });
+			if (!result.success) {
+				throw new Error('SDK rejected enabling script safety');
+			}
+		} catch (err) {
+			// The runtime reports success for any patch it accepts and signals real
+			// problems by failing the request, so this is the path a genuine failure
+			// takes. Log the reason before it propagates: the launch is aborted below
+			// and the raw RPC error alone would not say which option was refused.
+			this._logService.error(`[Copilot:${sessionId}] Could not enable script safety; managed permissions cannot govern shell paths`, err);
+			throw err;
+		}
 	}
 
 	/** Applies the post-launch session options used by GPT-5.6 models. */

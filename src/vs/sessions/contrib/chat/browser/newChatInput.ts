@@ -93,11 +93,12 @@ import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../workbench/
 import { registerChatInputOnboardingHosts } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputOnboardingHosts.js';
 import { IChatInputNoticeHubService } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHub.js';
 import { ChatInputPickerResponsiveLayout, IChatInputPickerResponsiveLayoutItem } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
-import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, refreshChatInputStack, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
+import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, refreshChatInputStack, setChatInputStackInputFocused, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { ModelPicker, ModelPickerActionViewItem } from './modelPicker.js';
 import { ISessionModelSelection, SessionModelSelection } from './sessionModelSelection.js';
+import { hasSendableModelSelection } from './sessionModelPickerState.js';
 import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { IChatStatusItemService } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusItemService.js';
@@ -510,7 +511,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				return true;
 			}
 			const modelSelection = this._modelSelection.state.read(reader);
-			return this.options.canSendRequest.read(reader) && modelSelection.hasSelectableModel && !modelSelection.pendingSelection;
+			return this.options.canSendRequest.read(reader) && hasSendableModelSelection(modelSelection);
 		});
 		this._scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
 			[INewChatModelPickerService, this._newChatModelPickerService],
@@ -526,6 +527,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				}
 			}));
 		}
+		this._register(this.storageService.onWillSaveState(() => this.saveState()));
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
 		// Always use the mobile-aware picker. Its overrides bail to the
 		// desktop behavior when `isPhoneLayout()` is false, so picking
@@ -534,7 +536,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// phone breakpoint after the chat input mounted.
 		this.sessionTypePicker = this._register(this.instantiationService.createInstance(MobileSessionTypePicker, this.options.session, this.options.sessionTypePickerOptions));
 		this._register(this._contextAttachments.onDidChangeContext(() => {
-			this._updateDraftState();
+			this._updateAndSaveDraftState();
 			this._updateSendButtonState();
 			this.focus();
 		}));
@@ -881,6 +883,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// The composer is a chat input, so it carries the shared focus key that
 		// chat input keybindings such as paste as text are scoped to.
 		const inputHasFocusKey = ChatContextKeys.inputHasFocus.bindTo(inputScopedContextKeyService);
+		this._register(this._editor.onDidFocusEditorText(() => {
+			this._setInputEditorFocused(container, true);
+		}));
+		this._register(this._editor.onDidBlurEditorText(() => {
+			this._setInputEditorFocused(container, false);
+		}));
 		this._register(this._editor.onDidFocusEditorWidget(() => {
 			dictationFocusKey.set(true);
 			inputHasFocusKey.set(true);
@@ -993,6 +1001,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this._updateEditorFontFamily();
 			this._promptOptionsWidget.value?.setInputValue(this._editor.getValue());
 		}));
+	}
+
+	private _setInputEditorFocused(container: HTMLElement, focused: boolean): void {
+		container.classList.toggle('focused', focused);
+		setChatInputStackInputFocused(container, focused);
 	}
 
 	/**
@@ -1120,6 +1133,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 					}
 					items.push({
 						element,
+						canShrink: configToolbar.getItemAction(index)?.id === 'sessions.modelPicker',
 						isCompact: () => element.classList.contains('compact-picker'),
 						setCompact: (compact: boolean) => {
 							element.classList.toggle('compact-picker', compact);
@@ -1375,6 +1389,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		};
 	}
 
+	private _updateAndSaveDraftState(): void {
+		if (this._sending) {
+			return;
+		}
+		this._updateDraftState();
+		this.saveState();
+	}
+
 	private _toHistoryEntry(draft: IDraftState): IChatModelInputState {
 		return {
 			...draft,
@@ -1513,6 +1535,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				this._contextAttachments.setAttachments(draft.attachments.map(IChatRequestVariableEntry.fromExport));
 			}
 		}
+		this._updateSendButtonState();
 	}
 
 	private _getDraftState(): IDraftState | undefined {
