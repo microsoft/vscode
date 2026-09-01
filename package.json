@@ -89,6 +89,7 @@
     "core-ci": "npm run gulp core-ci",
     "extensions-ci": "npm run gulp extensions-ci",
     "perf": "node scripts/code-perf.js",
+    "perf:css": "node .github/skills/auto-perf-optimize/scripts/workbench-css-performance.mts",
     "perf:chat": "node scripts/chat-simulation/test-chat-perf-regression.js",
     "perf:chat-leak": "node scripts/chat-simulation/test-chat-mem-leaks.js",
     "copilot:setup": "npm --prefix extensions/copilot run setup",

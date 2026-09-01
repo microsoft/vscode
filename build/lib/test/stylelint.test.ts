@@ -15,6 +15,11 @@ suite('stylelint', () => {
 			sources: Array.from(stylelintFilter),
 			explicit: false,
 		});
+
+		test('includes production extension CSS but excludes extension tests', () => {
+			assert.ok(stylelintFilter.includes('extensions/**/*.css'));
+			assert.ok(stylelintFilter.includes('!extensions/**/test/**'));
+		});
 	});
 
 	test('resolves multiple positional and path arguments', () => {
