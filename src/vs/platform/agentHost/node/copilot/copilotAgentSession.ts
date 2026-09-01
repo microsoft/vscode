@@ -998,6 +998,7 @@ export class CopilotAgentSession extends Disposable {
 	private _lastAppliedShellInitScripts: string | undefined;
 	private _shellInitScriptRegistered = false;
 	private _shellInitScriptMaterialized = false;
+	private _shellInitSandboxGrantApplied = false;
 	private readonly _shellInitScriptSequencer = new Sequencer();
 	private _shellInitScriptDisposing = false;
 	/**
@@ -3890,11 +3891,11 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const snippets = configured ?? [];
 			const serialized = JSON.stringify(snippets);
-			if (this._lastAppliedShellInitScripts === serialized && !(snippets.length === 0 && this._shellInitScriptMaterialized)) {
+			if (this._lastAppliedShellInitScripts === serialized && !(snippets.length === 0 && (this._shellInitScriptMaterialized || this._shellInitSandboxGrantApplied))) {
 				return;
 			}
 			if (snippets.length === 0) {
-				if (!this._shellInitScriptRegistered && !this._shellInitScriptMaterialized) {
+				if (!this._shellInitScriptRegistered && !this._shellInitScriptMaterialized && !this._shellInitSandboxGrantApplied) {
 					this._lastAppliedShellInitScripts = serialized;
 					return;
 				}
@@ -3907,12 +3908,14 @@ export class CopilotAgentSession extends Disposable {
 				}
 				await this._clearShellInitScript();
 				this._lastAppliedShellInitScripts = serialized;
-				await this._applyEffectiveSandboxConfig();
+				await this._applyEffectiveSandboxConfig(true);
+				this._shellInitSandboxGrantApplied = false;
 				return;
 			}
 
 			// The SDK requires init scripts to be readable when registered.
 			await this._applyEffectiveSandboxConfig(true);
+			this._shellInitSandboxGrantApplied = true;
 			const ref = await this._materializeShellInitScript(snippets[0]);
 			if (!ref) {
 				// The write failed. Leave the cache unchanged so the next turn

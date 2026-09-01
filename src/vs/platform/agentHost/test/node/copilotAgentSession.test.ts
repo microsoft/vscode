@@ -12359,6 +12359,19 @@ Use the attached image as context.
 			assert.strictEqual(mockSession.shellInitScriptUpdates.length, 1);
 		});
 
+		test('removes the sandbox grant when a failed write is followed by a clear', async () => {
+			const { session, mockSession, setConfigValue, setRootValue } = await createAgentSession(disposables, { shellInitWriteFailures: 1 });
+			setRootValue(AgentHostSandboxConfigKey.Sandbox, { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On });
+			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			setConfigValue(SessionConfigKey.ShellInitSnippets, []);
+			await session.send('go', undefined, 'turn-2', 'interactive');
+
+			const sandboxConfig = mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined;
+			assert.ok(!sandboxConfig?.userPolicy?.filesystem?.readonlyPaths?.includes(TEST_SHELL_INIT_DIR));
+		});
+
 		test('uses atomic writes when the file provider supports them', async () => {
 			const { mockSession, fileWriteOptions } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.ShellInitSnippets]: [initScript] },
