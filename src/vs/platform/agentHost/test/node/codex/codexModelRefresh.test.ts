@@ -207,7 +207,6 @@ suite('CodexAgent model refresh', () => {
 		});
 	});
 
-<<<<<<< HEAD
 	test('restored model waits for an authentication refresh queued behind activation', async () => {
 		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', supported_endpoints: ['/responses'] }] as CCAModel[];
 		const firstRefreshStarted = new DeferredPromise<void>();
@@ -273,7 +272,9 @@ suite('CodexAgent model refresh', () => {
 		assert.deepStrictEqual({ resolved, sessionModel: session.model }, {
 			resolved: selectedModel,
 			sessionModel: selectedModel,
-=======
+		});
+	});
+
 	test('starts host-requested chat discovery when Codex activates', async () => {
 		const agent = createAgent(disposables, async () => [], { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true });
 		const requests: string[] = [];
@@ -294,7 +295,6 @@ suite('CodexAgent model refresh', () => {
 		}, {
 			discoveriesBeforeActivation: 0,
 			discoveriesAfterActivation: 1,
->>>>>>> 6e1c256166a (Avoid Agent Host session listing starvation (#333579))
 		});
 	});
 
