@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, type IReference } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -15,10 +15,10 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY } from '../../../../../../platform/agentHost/common/automationMigration.js';
-import { readAutomationActiveClient } from '../../../../../../platform/agentHost/common/meta/automationActiveClientMeta.js';
+import { readAutomationCustomizationSnapshotPublication } from '../../../../../../platform/agentHost/common/meta/automationCustomizationSnapshotMeta.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, CustomizationType, MessageKind, type AutomationEntry, type AutomationState, type RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, CustomizationType, MessageKind, type AutomationEntry, type AutomationState, type RootState, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, customizationId, ROOT_STATE_URI, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -473,22 +473,24 @@ suite('AgentHostAutomationStore', () => {
 			target: { kind: 'workspace', providerId: 'local-agent-host', sessionTypeId: 'mock', folderUri: URI.file('/workspace'), isolation: { kind: 'default' } },
 		});
 		const create = connection.dispatched.find(entry => entry.action.type === ActionType.AutomationCreateRequested)?.action;
-		const activeClient = create?.type === ActionType.AutomationCreateRequested
-			? readAutomationActiveClient(create.definition._meta)
+		const publication = create?.type === ActionType.AutomationCreateRequested
+			? readAutomationCustomizationSnapshotPublication(create.definition._meta)
 			: undefined;
 
 		assert.deepStrictEqual({
 			resolutions,
-			activeClient,
+			publication: publication ? {
+				clientId: publication.clientId,
+				customizations: publication.customizations,
+			} : undefined,
 		}, {
 			resolutions: [{
 				sessionType: 'agent-host-mock',
 				roots: ['file:///workspace'],
 				clientId: 'test-client',
 			}],
-			activeClient: {
+			publication: {
 				clientId: 'test-client',
-				tools: [],
 				customizations: [{
 					type: CustomizationType.Plugin,
 					id: customizationId('file:///plugins/local'),
@@ -498,6 +500,61 @@ suite('AgentHostAutomationStore', () => {
 				}],
 			},
 		});
+	});
+
+	test('publishes customization scope changes while the client is connected', async () => {
+		const connection = new TestAutomationConnection(true);
+		disposables.add(connection);
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const initial: SessionActiveClient = {
+			clientId: connection.clientId,
+			tools: [],
+			customizations: [{
+				type: CustomizationType.Plugin,
+				id: customizationId('file:///plugins/initial'),
+				uri: 'file:///plugins/initial',
+				name: 'Initial Plugin',
+				nonce: 'revision-1',
+			}],
+		};
+		let publish: ((activeClient: SessionActiveClient) => void) | undefined;
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, {
+			toHost: resource => resource,
+			fromHost: resource => resource,
+			resourceSchemeForProvider: provider => `agent-host-${provider}`,
+			resolveActiveClient: async () => initial,
+			watchActiveClient: (_sessionType, _roots, _clientId, onChange) => {
+				publish = onChange;
+				return toDisposable(() => publish = undefined);
+			},
+		}, new NullLogService(), storage, NullTelemetryService, automationStorage));
+
+		await store.createAutomation({
+			name: 'Review changes',
+			prompt: 'Review the current changes.',
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+			target: { kind: 'workspace', providerId: 'local-agent-host', sessionTypeId: 'mock', folderUri: URI.file('/workspace'), isolation: { kind: 'default' } },
+		});
+		assert.ok(publish);
+		publish({
+			clientId: connection.clientId,
+			tools: [],
+			customizations: [{
+				type: CustomizationType.Plugin,
+				id: customizationId('file:///plugins/updated'),
+				uri: 'file:///plugins/updated',
+				name: 'Updated Plugin',
+				nonce: 'revision-2',
+			}],
+		});
+		await timeout(0);
+		const update = connection.dispatched.find(entry => entry.action.type === ActionType.AutomationUpdateRequested)?.action;
+		const publication = update?.type === ActionType.AutomationUpdateRequested
+			? readAutomationCustomizationSnapshotPublication(update.changes._meta)
+			: undefined;
+
+		assert.deepStrictEqual(publication?.customizations.map(customization => customization.name), ['Updated Plugin']);
 	});
 
 	test('switches authority only after host migration completion is verified', async () => {

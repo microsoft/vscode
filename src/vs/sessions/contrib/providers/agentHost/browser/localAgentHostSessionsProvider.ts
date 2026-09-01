@@ -195,6 +195,16 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 					scope.dispose();
 				}
 			},
+			watchActiveClient: (sessionType, roots, clientId, onChange) => {
+				const store = new DisposableStore();
+				const scope = store.add(activeClientService.acquireScope(sessionType, roots));
+				store.add(autorun(reader => {
+					if (scope.hasSuccessfulResolution.read(reader)) {
+						onChange(scope.activeClient(clientId).read(reader));
+					}
+				}));
+				return store;
+			},
 		}));
 		this.automations = automations;
 

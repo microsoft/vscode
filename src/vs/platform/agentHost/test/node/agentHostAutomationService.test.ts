@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -14,7 +14,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { NullLogService } from '../../../log/common/log.js';
 import { AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY, AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY } from '../../common/automationMigration.js';
 import type { IAgentPluginManager } from '../../common/agentPluginManager.js';
-import { withAutomationActiveClient } from '../../common/meta/automationActiveClientMeta.js';
+import { AUTOMATION_VIRTUAL_CLIENT_ID, automationCustomizationSnapshotRevision, readAutomationCustomizationSnapshotReference, withAutomationCustomizationSnapshotPublication } from '../../common/meta/automationCustomizationSnapshotMeta.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
@@ -172,6 +172,89 @@ suite('AgentHostAutomationService', () => {
 			version: 1,
 			automationCount: 1,
 			hasEntries: false,
+		});
+	});
+
+	test('invalid stored customization scopes do not disable the Automation catalog', async () => {
+		storageService.set('automations', {
+			version: 1,
+			catalog: { automations: [] },
+			customizationScopes: [{
+				key: 'invalid',
+				snapshot: {
+					revision: 'invalid',
+					capturedAt: '2026-01-01T00:00:00.000Z',
+					customizations: [],
+				},
+			}],
+		});
+		await storageService.whenIdle();
+
+		const service = createService();
+
+		assert.deepStrictEqual({
+			isAvailable: service.isAvailable,
+			catalog: stateManager.getAutomationCatalogState(),
+		}, {
+			isAvailable: true,
+			catalog: { entries: [] },
+		});
+	});
+
+	test('restores legacy per-Automation customizations into the shared virtual client', async () => {
+		const plugin = {
+			type: CustomizationType.Plugin,
+			id: customizationId('file:///plugins/legacy'),
+			uri: 'file:///plugins/legacy',
+			name: 'Legacy Plugin',
+			nonce: 'revision-1',
+		} as const;
+		storageService.set('automations', {
+			version: 1,
+			catalog: {
+				automations: [{
+					resource: 'ahp-automation:/legacy-customizations',
+					definition: {
+						...definition(),
+						_meta: {
+							'vscode.automationActiveClient': {
+								version: 1,
+								activeClient: {
+									clientId: 'legacy-client',
+									tools: [],
+									customizations: [plugin],
+								},
+							},
+						},
+					},
+					runs: [],
+					operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+					createdAt: '2026-01-01T00:00:00.000Z',
+					modifiedAt: '2026-01-01T00:00:00.000Z',
+				}],
+			},
+			migration: { status: 'complete', completedAt: '2026-01-01T00:00:00.000Z' },
+		});
+		await storageService.whenIdle();
+		const retained = new Map<string, readonly ClientPluginCustomization[]>();
+
+		createService(undefined, {
+			_serviceBrand: undefined,
+			basePath: URI.file('/agent-plugins'),
+			syncCustomizations: async () => { throw new Error('Legacy snapshots must not require a client sync'); },
+			retainCustomizations: (owner, customizations) => retained.set(owner, customizations),
+		});
+
+		assert.deepStrictEqual({
+			reference: readAutomationCustomizationSnapshotReference(stateManager.getAutomationCatalogState()?.entries[0].definition._meta),
+			retained: retained.get('automation-scope:["mock",[]]'),
+		}, {
+			reference: {
+				captureId: 'legacy',
+				sourceRevision: automationCustomizationSnapshotRevision([plugin]),
+				snapshotRevision: automationCustomizationSnapshotRevision([plugin]),
+			},
+			retained: [plugin],
 		});
 	});
 
@@ -347,7 +430,7 @@ suite('AgentHostAutomationService', () => {
 		});
 	});
 
-	test('materializes and reuses the Automation active client customizations', async () => {
+	test('materializes and reuses the Automation virtual client customizations', async () => {
 		const plugin = {
 			type: CustomizationType.Plugin,
 			id: customizationId('file:///plugins/local'),
@@ -397,8 +480,21 @@ suite('AgentHostAutomationService', () => {
 			resource: 'ahp-automation:/customized',
 			definition: {
 				...definition(),
-				_meta: withAutomationActiveClient(undefined, activeClient),
+				_meta: withAutomationCustomizationSnapshotPublication(undefined, 'capture-1', activeClient.clientId, activeClient.customizations),
 			},
+		}, activeClient.clientId);
+		await service.handleCreate({
+			type: ActionType.AutomationCreateRequested,
+			resource: 'ahp-automation:/customized',
+			definition: {
+				...definition(),
+				_meta: withAutomationCustomizationSnapshotPublication(undefined, 'capture-retry', activeClient.clientId, activeClient.customizations),
+			},
+		}, activeClient.clientId);
+		await service.handleUpdate({
+			type: ActionType.AutomationUpdateRequested,
+			resource: 'ahp-automation:/customized',
+			changes: { title: 'Updated customized Automation' },
 		}, activeClient.clientId);
 
 		await service.runAutomation({
@@ -410,12 +506,288 @@ suite('AgentHostAutomationService', () => {
 
 		assert.deepStrictEqual({
 			synced,
-			retained: retained.get('ahp-automation:/customized'),
+			retained: retained.get('automation-scope:["mock",[]]'),
 			createdActiveClient,
 		}, {
 			synced: ['editor-client'],
 			retained: [plugin],
-			createdActiveClient: activeClient,
+			createdActiveClient: {
+				clientId: AUTOMATION_VIRTUAL_CLIENT_ID,
+				displayName: 'VS Code Automations',
+				tools: [],
+				customizations: [plugin],
+			},
+		});
+	});
+
+	test('shares one customization snapshot across Automations with the same scope', async () => {
+		const plugin = {
+			type: CustomizationType.Plugin,
+			id: customizationId('file:///plugins/shared'),
+			uri: 'file:///plugins/shared',
+			name: 'Shared Plugin',
+			nonce: 'revision-1',
+		} as const;
+		let syncCount = 0;
+		const retained = new Map<string, readonly ClientPluginCustomization[]>();
+		const service = createService(undefined, {
+			_serviceBrand: undefined,
+			basePath: URI.file('/agent-plugins'),
+			syncCustomizations: async (_clientId, customizations) => {
+				syncCount++;
+				return customizations.map(customization => ({
+					customization,
+					pluginDir: URI.file(`/agent-plugins/${customization.id}`),
+				}));
+			},
+			retainCustomizations: (owner, customizations) => retained.set(owner, customizations),
+		});
+		await service.completeMigration();
+
+		for (const [index, resource] of ['ahp-automation:/first', 'ahp-automation:/second'].entries()) {
+			await service.handleCreate({
+				type: ActionType.AutomationCreateRequested,
+				resource,
+				definition: {
+					...definition(),
+					_meta: withAutomationCustomizationSnapshotPublication(undefined, `capture-${index}`, 'editor-client', [plugin]),
+				},
+			}, 'editor-client');
+		}
+
+		const catalog = stateManager.getAutomationCatalogState();
+		const revision = automationCustomizationSnapshotRevision([plugin]);
+		await service.handleRemove({ type: ActionType.AutomationRemoved, resource: 'ahp-automation:/first' });
+		const retainedAfterFirstRemoval = retained.get('automation-scope:["mock",[]]');
+		await service.handleRemove({ type: ActionType.AutomationRemoved, resource: 'ahp-automation:/second' });
+		assert.deepStrictEqual({
+			syncCount,
+			references: catalog?.entries.map(automation => readAutomationCustomizationSnapshotReference(automation.definition._meta)?.snapshotRevision),
+			retainedAfterFirstRemoval,
+			retainedAfterLastRemoval: retained.get('automation-scope:["mock",[]]'),
+			storedScopeCountAfterLastRemoval: storageService.get<{ customizationScopes?: readonly unknown[] }>('automations')?.customizationScopes?.length,
+		}, {
+			syncCount: 1,
+			references: [
+				revision,
+				revision,
+			],
+			retainedAfterFirstRemoval: [plugin],
+			retainedAfterLastRemoval: [],
+			storedScopeCountAfterLastRemoval: 0,
+		});
+	});
+
+	test('replaces the shared virtual client snapshot when a plugin is removed', async () => {
+		const first = {
+			type: CustomizationType.Plugin,
+			id: customizationId('file:///plugins/first'),
+			uri: 'file:///plugins/first',
+			name: 'First Plugin',
+			nonce: 'revision-1',
+		} as const;
+		const removed = {
+			type: CustomizationType.Plugin,
+			id: customizationId('file:///plugins/removed'),
+			uri: 'file:///plugins/removed',
+			name: 'Removed Plugin',
+			nonce: 'revision-1',
+		} as const;
+		let createdActiveClient: SessionActiveClient | undefined;
+		const session = URI.parse('mock:/removed-plugin-automation');
+		const service = createService({
+			createSession: async (_template, _run, activeClient) => {
+				createdActiveClient = activeClient;
+				stateManager.createSession({
+					resource: session.toString(),
+					provider: 'mock',
+					title: '',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				});
+				return session;
+			},
+			startSession: async () => { },
+		});
+		await service.completeMigration();
+		await service.handleCreate({
+			type: ActionType.AutomationCreateRequested,
+			resource: 'ahp-automation:/removal',
+			definition: {
+				...definition(),
+				_meta: withAutomationCustomizationSnapshotPublication(undefined, 'capture-1', 'editor-client', [first, removed]),
+			},
+		}, 'editor-client');
+		await service.handleUpdate({
+			type: ActionType.AutomationUpdateRequested,
+			resource: 'ahp-automation:/removal',
+			changes: {
+				_meta: withAutomationCustomizationSnapshotPublication(undefined, 'capture-2', 'editor-client', [first]),
+			},
+		}, 'editor-client');
+
+		await service.runAutomation({
+			channel: 'ahp-automations://',
+			automation: 'ahp-automation:/removal',
+			requestId: 'removal-run',
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual(createdActiveClient?.customizations?.map(customization => customization.name), ['First Plugin']);
+	});
+
+	test('restores the virtual client snapshot after Agent Host restart', async () => {
+		const plugin = {
+			type: CustomizationType.Plugin,
+			id: customizationId('file:///plugins/restored'),
+			uri: 'file:///plugins/restored',
+			name: 'Restored Plugin',
+			nonce: 'revision-1',
+		} as const;
+		const firstService = createService();
+		await firstService.completeMigration();
+		await firstService.handleCreate({
+			type: ActionType.AutomationCreateRequested,
+			resource: 'ahp-automation:/restored',
+			definition: {
+				...definition(),
+				_meta: withAutomationCustomizationSnapshotPublication(undefined, 'capture-1', 'editor-client', [plugin]),
+			},
+		}, 'editor-client');
+		firstService.dispose();
+
+		let createdActiveClient: SessionActiveClient | undefined;
+		const retained = new Map<string, readonly ClientPluginCustomization[]>();
+		const session = URI.parse('mock:/restored-automation');
+		const restoredService = createService({
+			createSession: async (_template, _run, activeClient) => {
+				createdActiveClient = activeClient;
+				stateManager.createSession({
+					resource: session.toString(),
+					provider: 'mock',
+					title: '',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				});
+				return session;
+			},
+			startSession: async () => { },
+		}, {
+			_serviceBrand: undefined,
+			basePath: URI.file('/agent-plugins'),
+			syncCustomizations: async () => { throw new Error('Restored snapshots must not require a client sync'); },
+			retainCustomizations: (owner, customizations) => retained.set(owner, customizations),
+		});
+
+		await restoredService.runAutomation({
+			channel: 'ahp-automations://',
+			automation: 'ahp-automation:/restored',
+			requestId: 'restored-run',
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			activeClient: createdActiveClient,
+			retained: retained.get('automation-scope:["mock",[]]'),
+		}, {
+			activeClient: {
+				clientId: AUTOMATION_VIRTUAL_CLIENT_ID,
+				displayName: 'VS Code Automations',
+				tools: [],
+				customizations: [plugin],
+			},
+			retained: [plugin],
+		});
+	});
+
+	test('retains the snapshot used by a running Automation when its scope advances', async () => {
+		const first = {
+			type: CustomizationType.Plugin,
+			id: customizationId('file:///plugins/versioned'),
+			uri: 'file:///plugins/versioned',
+			name: 'Versioned Plugin',
+			nonce: 'revision-1',
+		} as const;
+		const second = { ...first, nonce: 'revision-2' } as const;
+		const retained = new Map<string, readonly ClientPluginCustomization[]>();
+		const started = new DeferredPromise<string>();
+		const session = URI.parse('mock:/versioned-automation');
+		const service = createService({
+			createSession: async () => {
+				stateManager.createSession({
+					resource: session.toString(),
+					provider: 'mock',
+					title: '',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				});
+				return session;
+			},
+			startSession: async (createdSession, message) => {
+				const turnId = 'versioned-turn';
+				stateManager.dispatchServerAction(buildDefaultChatUri(createdSession), {
+					type: ActionType.ChatTurnStarted,
+					turnId,
+					startedAt: new Date().toISOString(),
+					message,
+				});
+				started.complete(turnId);
+			},
+		}, {
+			_serviceBrand: undefined,
+			basePath: URI.file('/agent-plugins'),
+			syncCustomizations: async (_clientId, customizations) => customizations.map(customization => ({
+				customization,
+				pluginDir: URI.file(`/agent-plugins/${customization.id}/${customization.nonce}`),
+			})),
+			retainCustomizations: (owner, customizations) => retained.set(owner, customizations),
+		});
+		await service.completeMigration();
+		await service.handleCreate({
+			type: ActionType.AutomationCreateRequested,
+			resource: 'ahp-automation:/versioned',
+			definition: {
+				...definition(),
+				_meta: withAutomationCustomizationSnapshotPublication(undefined, 'capture-1', 'editor-client', [first]),
+			},
+		}, 'editor-client');
+		const run = await service.runAutomation({
+			channel: 'ahp-automations://',
+			automation: 'ahp-automation:/versioned',
+			requestId: 'versioned-run',
+		});
+		const turnId = await started.p;
+
+		await service.handleUpdate({
+			type: ActionType.AutomationUpdateRequested,
+			resource: 'ahp-automation:/versioned',
+			changes: {
+				_meta: withAutomationCustomizationSnapshotPublication(undefined, 'capture-2', 'editor-client', [second]),
+			},
+		}, 'editor-client');
+		const retainedWhileRunning = {
+			scope: retained.get('automation-scope:["mock",[]]'),
+			run: retained.get(`automation-run:${run.resource}`),
+		};
+		stateManager.dispatchServerAction(buildDefaultChatUri(session), {
+			type: ActionType.ChatTurnComplete,
+			turnId,
+			duration: 10,
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			retainedWhileRunning,
+			retainedAfterCompletion: retained.get(`automation-run:${run.resource}`),
+		}, {
+			retainedWhileRunning: {
+				scope: [second],
+				run: [first],
+			},
+			retainedAfterCompletion: [],
 		});
 	});
 
@@ -428,11 +800,7 @@ suite('AgentHostAutomationService', () => {
 			resource: 'ahp-automation:/unauthorized',
 			definition: {
 				...definition(),
-				_meta: withAutomationActiveClient(undefined, {
-					clientId: 'other-client',
-					tools: [],
-					customizations: [],
-				}),
+				_meta: withAutomationCustomizationSnapshotPublication(undefined, 'capture-1', 'other-client', []),
 			},
 		}, 'editor-client'), /must be published by their active client/);
 	});
@@ -458,15 +826,50 @@ suite('AgentHostAutomationService', () => {
 			resource: 'ahp-automation:/degraded',
 			definition: {
 				...definition(),
-				_meta: withAutomationActiveClient(undefined, {
-					clientId: 'editor-client',
-					tools: [],
-					customizations: [plugin],
-				}),
+				_meta: withAutomationCustomizationSnapshotPublication(undefined, 'capture-1', 'editor-client', [plugin]),
 			},
 		}, 'editor-client');
 
 		assert.strictEqual(stateManager.getAutomationCatalogState()?.entries[0].resource, 'ahp-automation:/degraded');
+	});
+
+	test('releases temporary customization retention when persistence fails', async () => {
+		const plugin = {
+			type: CustomizationType.Plugin,
+			id: customizationId('file:///plugins/temporary'),
+			uri: 'file:///plugins/temporary',
+			name: 'Temporary Plugin',
+			nonce: 'revision-1',
+		} as const;
+		const retained = new Map<string, readonly ClientPluginCustomization[]>();
+		const service = createService(undefined, {
+			_serviceBrand: undefined,
+			basePath: URI.file('/agent-plugins'),
+			syncCustomizations: async (_clientId, customizations) => customizations.map(customization => ({
+				customization,
+				pluginDir: URI.file(`/agent-plugins/${customization.id}`),
+			})),
+			retainCustomizations: (owner, customizations) => retained.set(owner, customizations),
+		});
+		await service.completeMigration();
+		writeFailures = 1;
+
+		await assert.rejects(service.handleCreate({
+			type: ActionType.AutomationCreateRequested,
+			resource: 'ahp-automation:/temporary',
+			definition: {
+				...definition(),
+				_meta: withAutomationCustomizationSnapshotPublication(undefined, 'temporary-capture', 'editor-client', [plugin]),
+			},
+		}, 'editor-client'), /storage unavailable/);
+
+		assert.deepStrictEqual({
+			temporary: retained.get('automation-capture:temporary-capture'),
+			scope: retained.get('automation-scope:["mock",[]]'),
+		}, {
+			temporary: [],
+			scope: undefined,
+		});
 	});
 
 	test('run persistence failure prevents session side effects', async () => {

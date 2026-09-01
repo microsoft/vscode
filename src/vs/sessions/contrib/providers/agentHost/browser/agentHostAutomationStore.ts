@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, timeout } from '../../../../../base/common/async.js';
+import { disposableTimeout, SequencerByKey, timeout } from '../../../../../base/common/async.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
-import { Disposable, DisposableMap, DisposableStore, toDisposable, type IReference } from '../../../../../base/common/lifecycle.js';
-import { equals } from '../../../../../base/common/objects.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable, type IDisposable, type IReference } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, type IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -14,7 +13,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY } from '../../../../../platform/agentHost/common/automationMigration.js';
-import { withAutomationActiveClient } from '../../../../../platform/agentHost/common/meta/automationActiveClientMeta.js';
+import { automationCustomizationSnapshotRevision, readAutomationCustomizationSnapshotReference, withAutomationCustomizationSnapshotPublication } from '../../../../../platform/agentHost/common/meta/automationCustomizationSnapshotMeta.js';
 import { isAgentHostAutomationCatalogMigrated, isAgentHostLegacyAutomationImport, isAgentHostLegacyAutomationImportPending } from '../../../../../platform/agentHost/common/meta/automationMeta.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { type IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -71,6 +70,11 @@ export interface IAgentHostAutomationBoundaryMapper {
 	providerForSessionScheme?(scheme: string): string;
 	providerForResourceScheme?(scheme: string): string | undefined;
 	resolveActiveClient?(sessionType: string, roots: readonly URI[], clientId: string): Promise<SessionActiveClient>;
+	watchActiveClient?(sessionType: string, roots: readonly URI[], clientId: string, onChange: (activeClient: SessionActiveClient) => void): IDisposable;
+}
+
+interface ICustomizationScopeWatcher extends IDisposable {
+	readonly resource: string;
 }
 
 export class AgentHostAutomationStore extends Disposable implements ISessionsProviderAutomations {
@@ -91,6 +95,8 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	private _didRefreshCustomizations = false;
 	private _customizationRefreshPromise: Promise<void> | undefined;
 	private readonly _locallyResolvedCustomizationResources = new Set<string>();
+	private readonly _customizationScopeWatchers = this._register(new DisposableMap<string, ICustomizationScopeWatcher>());
+	private readonly _customizationRefreshSequencer = new SequencerByKey<string>();
 
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
@@ -146,6 +152,12 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			this._customizationRefreshPromise = this._refreshStoredCustomizations().catch(error => {
 				this._logService.error('[AgentHostAutomationStore] Failed to refresh Automation customizations.', error);
 			});
+		}));
+		this._register(autorun(reader => {
+			this._catalogChanged.read(reader);
+			if (this._ready.read(reader)) {
+				this._reconcileCustomizationScopeWatchers();
+			}
 		}));
 		this.automations = derived(this, reader => {
 			this._catalogChanged.read(reader);
@@ -891,7 +903,13 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		};
 	}
 
-	private async _resolveDefinitionFromDescriptor(descriptor: IAutomationDescriptor, existing?: AutomationDefinition, imported = false, importPending?: boolean): Promise<AutomationDefinition> {
+	private async _resolveDefinitionFromDescriptor(
+		descriptor: IAutomationDescriptor,
+		existing?: AutomationDefinition,
+		imported = false,
+		importPending?: boolean,
+		resolvedActiveClient?: SessionActiveClient,
+	): Promise<AutomationDefinition> {
 		const definition = this._definitionFromDescriptor(descriptor, existing, imported, importPending);
 		const mapper = this._boundaryMapper;
 		const resolveActiveClient = mapper?.resolveActiveClient;
@@ -900,13 +918,16 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		}
 		const roots = descriptor.target.kind === 'workspace' ? [descriptor.target.folderUri] : [];
 		const sessionType = mapper.resourceSchemeForProvider(definition.session.provider);
-		const activeClient = await resolveActiveClient(sessionType, roots, this._connection.clientId);
+		const activeClient = resolvedActiveClient ?? await resolveActiveClient(sessionType, roots, this._connection.clientId);
+		const customizations = activeClient.customizations ?? [];
+		const revision = automationCustomizationSnapshotRevision(customizations);
+		const reference = readAutomationCustomizationSnapshotReference(definition._meta);
+		if (reference?.sourceRevision === revision && reference.snapshotRevision === revision) {
+			return definition;
+		}
 		return {
 			...definition,
-			_meta: withAutomationActiveClient(definition._meta, {
-				...activeClient,
-				tools: [],
-			}),
+			_meta: withAutomationCustomizationSnapshotPublication(definition._meta, generateUuid(), activeClient.clientId, customizations),
 		};
 	}
 
@@ -936,14 +957,76 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			return;
 		}
 		const definition = await this._resolveDefinitionFromDescriptor(descriptor, automation.definition);
-		if (equalsProtocolMetadata(definition._meta, automation.definition._meta)) {
+		await this._publishDefinitionCustomizations(automation, definition);
+	}
+
+	private async _publishDefinitionCustomizations(automation: AutomationEntry, definition: AutomationDefinition): Promise<void> {
+		const requested = readAutomationCustomizationSnapshotReference(definition._meta);
+		if (requested?.captureId === readAutomationCustomizationSnapshotReference(automation.definition._meta)?.captureId) {
 			return;
 		}
 		await this._dispatchAndWait({
 			type: ActionType.AutomationUpdateRequested,
 			resource: automation.resource,
 			changes: { _meta: definition._meta },
-		}, catalog => equalsProtocolMetadata(catalog.entries.find(entry => entry.resource === automation.resource)?.definition._meta, definition._meta));
+		}, catalog => readAutomationCustomizationSnapshotReference(
+			catalog.entries.find(entry => entry.resource === automation.resource)?.definition._meta,
+		)?.captureId === requested?.captureId);
+	}
+
+	private _reconcileCustomizationScopeWatchers(): void {
+		const watchActiveClient = this._boundaryMapper?.watchActiveClient;
+		if (!watchActiveClient) {
+			return;
+		}
+		const desired = new Map<string, { resource: string; sessionType: string; roots: readonly URI[] }>();
+		const catalog = this._catalog.value;
+		if (catalog && !(catalog instanceof Error)) {
+			for (const automation of catalog.entries) {
+				const descriptor = this._projectAutomation(automation);
+				const provider = automation.definition.session.provider;
+				if (!descriptor || !provider) {
+					continue;
+				}
+				const roots = descriptor.target.kind === 'workspace' ? [descriptor.target.folderUri] : [];
+				const sessionType = this._boundaryMapper!.resourceSchemeForProvider(provider);
+				const key = JSON.stringify([sessionType, roots.map(root => root.toString())]);
+				if (!desired.has(key)) {
+					desired.set(key, { resource: automation.resource, sessionType, roots });
+				}
+			}
+		}
+
+		for (const [key, watcher] of this._customizationScopeWatchers) {
+			if (desired.get(key)?.resource !== watcher.resource) {
+				this._customizationScopeWatchers.deleteAndDispose(key);
+			}
+		}
+		for (const [key, scope] of desired) {
+			if (this._customizationScopeWatchers.has(key)) {
+				continue;
+			}
+			const disposable = watchActiveClient(scope.sessionType, scope.roots, this._connection.clientId, activeClient => {
+				void this._customizationRefreshSequencer.queue(key, async () => {
+					const automation = this._findAutomationEntryByResource(scope.resource);
+					if (!automation) {
+						return;
+					}
+					const descriptor = this._projectAutomation(automation);
+					if (!descriptor) {
+						return;
+					}
+					const definition = await this._resolveDefinitionFromDescriptor(descriptor, automation.definition, false, undefined, activeClient);
+					await this._publishDefinitionCustomizations(automation, definition);
+				}).catch(error => {
+					this._logService.error(`[AgentHostAutomationStore] Failed to publish customization scope ${key}.`, error);
+				});
+			});
+			this._customizationScopeWatchers.set(key, {
+				resource: scope.resource,
+				dispose: () => disposable.dispose(),
+			});
+		}
 	}
 
 	private _toHostModelId(modelId: string, provider: string | undefined): string {
@@ -1310,26 +1393,6 @@ function setOptional(target: Record<string, unknown>, key: string, value: unknow
 	} else {
 		target[key] = value;
 	}
-}
-
-function equalsProtocolMetadata(first: Record<string, unknown> | undefined, second: Record<string, unknown> | undefined): boolean {
-	return equals(toProtocolValue(first), toProtocolValue(second));
-}
-
-function toProtocolValue(value: unknown): unknown {
-	if (Array.isArray(value)) {
-		return value.map(item => item === undefined ? null : toProtocolValue(item));
-	}
-	if (typeof value !== 'object' || value === null) {
-		return value;
-	}
-	const result: Record<string, unknown> = {};
-	for (const [key, child] of Object.entries(value)) {
-		if (child !== undefined) {
-			result[key] = toProtocolValue(child);
-		}
-	}
-	return result;
 }
 
 function distinctById<T extends { readonly id: string }>(items: readonly T[]): T[] {
