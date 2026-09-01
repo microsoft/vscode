@@ -1102,6 +1102,7 @@ suite('SessionsManagementService', () => {
 			workspace: constObservable(workspace),
 		});
 		const preparation = new DeferredPromise<void>();
+		let preparedQuery: string | undefined;
 		const deleted: string[] = [];
 		const originalProvider = new class extends TestSessionsProvider {
 			override readonly id = 'local';
@@ -1112,7 +1113,8 @@ suite('SessionsManagementService', () => {
 				originalRequestInProgress.set(true, undefined);
 				return toDisposable(() => originalRequestInProgress.set(false, undefined));
 			}
-			override async prepareNewSession() {
+			override async prepareNewSession(_sessionId: string, _token: CancellationToken, query: string) {
+				preparedQuery = query;
 				await preparation.p;
 				return { session: replacement };
 			}
@@ -1160,6 +1162,7 @@ suite('SessionsManagementService', () => {
 
 		assert.deepStrictEqual({
 			deleted,
+			preparedQuery,
 			replacements,
 			sent,
 			visibleSessions: view.visibleSessions.get().map(session => session?.sessionId ?? null),
@@ -1168,6 +1171,7 @@ suite('SessionsManagementService', () => {
 			replacementRequestInProgress: replacement.isNewSessionRequestInProgress?.get(),
 		}, {
 			deleted: ['local-draft'],
+			preparedQuery: 'hi',
 			replacements: ['local-draft->dev-draft'],
 			sent: ['createNewChat', 'sendRequest:dev-draft'],
 			visibleSessions: ['dev-draft'],

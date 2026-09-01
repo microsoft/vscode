@@ -7284,6 +7284,44 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
+	suite('management', () => {
+
+		test('routes detached worktree lifecycle operations outside the local data-plane protocol', async () => {
+			const session = AgentSession.uri('copilot', 'detached-worktree');
+			const worktree = URI.file('/workspace.worktrees/detached-worktree');
+			const calls: string[] = [];
+			service.createDetachedWorktree = async (actualSession, prompt) => {
+				calls.push(`create:${actualSession.toString()}:${prompt}`);
+				return { handle: 'handle', worktree };
+			};
+			service.setDetachedWorktreeArchived = async (handle, archived) => { calls.push(`archive:${handle}:${archived}`); };
+			service.claimDetachedWorktree = async handle => { calls.push(`claim:${handle}`); };
+			service.deleteDetachedWorktree = async handle => { calls.push(`delete:${handle}`); };
+			service.reconcileDetachedWorktrees = async (scope, activeHandles) => { calls.push(`reconcile:${scope}:${activeHandles.join(',')}`); };
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+
+			const created = await managementService.createDetachedWorktree(session, 'prepare');
+			await managementService.setDetachedWorktreeArchived(created.handle, true);
+			await managementService.claimDetachedWorktree(created.handle);
+			await managementService.reconcileDetachedWorktrees('scope', [created.handle]);
+			await managementService.deleteDetachedWorktree(created.handle);
+
+			assert.deepStrictEqual({
+				created: { handle: created.handle, worktree: created.worktree.toString() },
+				calls,
+			}, {
+				created: { handle: 'handle', worktree: worktree.toString() },
+				calls: [
+					`create:${session.toString()}:prepare`,
+					'archive:handle:true',
+					'claim:handle',
+					'reconcile:scope:handle',
+					'delete:handle',
+				],
+			});
+		});
+	});
+
 	// ---- shutdown -------------------------------------------------------
 
 	suite('shutdown', () => {
@@ -9857,6 +9895,7 @@ suite('AgentService (node dispatcher)', () => {
 				workingDirectories: [URI.file('/repo')],
 				_meta: {
 					...withChatSurfaceMeta(withEphemeralSessionMeta(undefined, true), { surface: 'editorInline', languageId: 'typescript', targetUri: 'file:///repo/inline.ts' }),
+					'vscode.devContainerWorktree': { version: 1, handle: '00000000-0000-4000-8000-000000000001' },
 					// Session `_meta` is a whitelist, so an unrecognized slot must not survive.
 					'vscode.chat.unknownFutureSlot': { hello: 'world' },
 				},
@@ -9867,10 +9906,12 @@ suite('AgentService (node dispatcher)', () => {
 				ephemeral: readEphemeralSessionMeta(state ?? {}).isEphemeral,
 				surface: readChatSurfaceMeta(state ?? {}),
 				unknownSlot: state?._meta?.['vscode.chat.unknownFutureSlot'],
+				devContainerWorktree: state?._meta?.['vscode.devContainerWorktree'],
 			}, {
 				ephemeral: true,
 				surface: { surface: 'editorInline', languageId: 'typescript', targetUri: 'file:///repo/inline.ts' },
 				unknownSlot: undefined,
+				devContainerWorktree: { version: 1, handle: '00000000-0000-4000-8000-000000000001' },
 			});
 		});
 
@@ -14184,10 +14225,15 @@ suite('AgentService (node dispatcher)', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			registerTestAgentProvider(localService, localAgent);
 
-			const session = await localService.createSession({ provider: 'copilot', config: { autoApprove: 'autoApprove' } });
+			const session = await localService.createSession({
+				provider: 'copilot',
+				config: { autoApprove: 'autoApprove' },
+				_meta: { 'vscode.devContainerWorktree': { version: 1, handle: '00000000-0000-4000-8000-000000000001' } },
+			});
 
 			// Wait for the fire-and-forget persistence to flush
 			await new Promise(r => setTimeout(r, 50));
+			const listed = await localService.listSessions();
 
 			// Simulate a server restart: drop the in-memory state
 			getStateManager(localService).removeSession(session.toString());
@@ -14200,7 +14246,15 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = getStateManager(localService).getSessionState(session.toString());
 			assert.ok(state);
-			assert.deepStrictEqual(state!.config?.values, { autoApprove: 'autoApprove' });
+			assert.deepStrictEqual({
+				config: state!.config?.values,
+				listedDevContainerWorktree: listed[0]?._meta?.['vscode.devContainerWorktree'],
+				devContainerWorktree: state!._meta?.['vscode.devContainerWorktree'],
+			}, {
+				config: { autoApprove: 'autoApprove' },
+				listedDevContainerWorktree: { version: 1, handle: '00000000-0000-4000-8000-000000000001' },
+				devContainerWorktree: { version: 1, handle: '00000000-0000-4000-8000-000000000001' },
+			});
 		});
 
 		test('restoreSession ignores malformed persisted configValues', async () => {
@@ -14528,6 +14582,125 @@ suite('AgentService (node dispatcher)', () => {
 					sessionId: 'worktree-failure',
 					diagnostic: 'git worktree exited with code 128: git-lfs filter-process: git-lfs: command not found',
 				},
+			});
+		});
+
+		test('createDetachedWorktree outlives the source draft and is deleted by handle', async () => {
+			const sourceDir = URI.file(mkdtempSync(`${tmpdir()}/agent-worktree-prepare-`));
+			disposables.add(toDisposable(() => {
+				rmSync(sourceDir.fsPath, { recursive: true, force: true });
+				rmSync(getWorktreesRoot(sourceDir).fsPath, { recursive: true, force: true });
+			}));
+			const { service: sessionDataService, database } = createPerSessionDataService();
+			const gitService = createNoopGitService();
+			gitService.getRepositoryRoot = async () => sourceDir;
+			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+			let addWorktreeCalls = 0;
+			let removeWorktreeCalls = 0;
+			gitService.addWorktree = async () => { addWorktreeCalls++; };
+			gitService.removeWorktree = async () => { removeWorktreeCalls++; };
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			const isolation = disposables.add(new WorktreeIsolation(
+				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/prepared' },
+				gitService,
+				sessionDataService,
+				new NullLogService(),
+			));
+			setTestAgentHostWorktreeIsolation(localService, isolation);
+
+			const session = AgentSession.uri('copilot', 'worktree-prepare');
+			const sessionResource = session.toString();
+			getStateManager(localService).createSession({
+				resource: sessionResource,
+				provider: 'copilot',
+				title: '',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				workingDirectories: [sourceDir.toString()],
+			});
+			getStateManager(localService).setSessionConfig(sessionResource, {
+				schema: { type: 'object', properties: {} },
+				values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+			});
+			isolation.notePending(AgentSession.id(session));
+
+			const created = await localService.createDetachedWorktree(session, 'Fix the issue');
+			const detachedOwner = URI.from({ scheme: 'vscode-agent-host-worktree', path: `/devcontainer-worktree-${created.handle}` });
+			const branchName = await database(detachedOwner).getMetadata('copilot.worktree.branchName');
+			await localService.disposeSession(session);
+			const removalsAfterSourceDispose = removeWorktreeCalls;
+			await localService.deleteDetachedWorktree(created.handle);
+
+			assert.deepStrictEqual({
+				worktree: created.worktree.toString(),
+				handleIsUuid: /^[0-9a-f-]{36}$/.test(created.handle),
+				addWorktreeCalls,
+				pending: isolation.isWorkingDirectoryPending(AgentSession.id(session)),
+				removalsAfterSourceDispose,
+				removeWorktreeCalls,
+				branchName,
+			}, {
+				worktree: URI.joinPath(getWorktreesRoot(sourceDir), 'prepared').toString(),
+				handleIsUuid: true,
+				addWorktreeCalls: 1,
+				pending: false,
+				removalsAfterSourceDispose: 0,
+				removeWorktreeCalls: 1,
+				branchName: 'agents/prepared',
+			});
+		});
+
+		test('createDetachedWorktree can retry after worktree creation fails', async () => {
+			const sourceDir = URI.file(mkdtempSync(`${tmpdir()}/agent-worktree-prepare-retry-`));
+			disposables.add(toDisposable(() => {
+				rmSync(sourceDir.fsPath, { recursive: true, force: true });
+				rmSync(getWorktreesRoot(sourceDir).fsPath, { recursive: true, force: true });
+			}));
+			const sessionDataService = createSessionDataService(new TestSessionDatabase());
+			const gitService = createNoopGitService();
+			gitService.getRepositoryRoot = async () => sourceDir;
+			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+			let addWorktreeCalls = 0;
+			gitService.addWorktree = async () => {
+				addWorktreeCalls++;
+				if (addWorktreeCalls === 1) {
+					throw new Error('transient git failure');
+				}
+			};
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			const isolation = disposables.add(new WorktreeIsolation(
+				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/retry' },
+				gitService,
+				sessionDataService,
+				new NullLogService(),
+			));
+			setTestAgentHostWorktreeIsolation(localService, isolation);
+			const session = AgentSession.uri('copilot', 'worktree-prepare-retry');
+			getStateManager(localService).createSession({
+				resource: session.toString(),
+				provider: 'copilot',
+				title: '',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				workingDirectories: [sourceDir.toString()],
+			});
+			getStateManager(localService).setSessionConfig(session.toString(), {
+				schema: { type: 'object', properties: {} },
+				values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+			});
+			isolation.notePending(AgentSession.id(session));
+
+			await assert.rejects(localService.createDetachedWorktree(session, 'Fix the issue'), /transient git failure/);
+			const retried = await localService.createDetachedWorktree(session, 'Fix the issue');
+
+			assert.deepStrictEqual({
+				retried: retried.worktree.toString(),
+				addWorktreeCalls,
+			}, {
+				retried: URI.joinPath(getWorktreesRoot(sourceDir), 'retry').toString(),
+				addWorktreeCalls: 2,
 			});
 		});
 

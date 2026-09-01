@@ -84,6 +84,8 @@ Focused tests live beside the remote provider and remote-host services. Tests ow
 
 The service stages a runtime-only `DevContainer` entry and asks the remote Agent Host service to connect its factory-built client, then creates a `RemoteAgentHostSessionsProvider` around it. The shared remote Agent Host contribution observes the connection and supplies connection-level filesystem, model, terminal, and log integration. Dev Container CLI output is streamed into one stable `Dev Container (<workspace>)` Output channel per source workspace, which is reused across connection attempts.
 
+When both worktree isolation and Dev Container execution are selected, the local Agent Host creates the worktree before the container starts. The connector opens the Dev Container on that host worktree, and the container-backed session uses folder isolation so it does not create a second worktree inside the container. The remote session stores only an opaque worktree handle in its metadata; authoritative host paths stay in a local detached-worktree record. Archive, unarchive, and delete resolve that handle through the local Agent Host so cleanup and recreation match ordinary local worktree sessions without retaining a hidden local session. Successful remote listings reconcile their active handles with old local records; cleanup removes only clean worktrees and preserves dirty work.
+
 ## Change policy
 
 Update this specification only when connection/provider ownership, routing identity, or the shared Agent Host lifecycle boundary changes. Do not append transport algorithms, telemetry schemas, retry narratives, or incident history.
