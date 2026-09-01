@@ -4158,7 +4158,7 @@ suite('AgentService (node dispatcher)', () => {
 				sessions: [centralSession.toString(), fallbackSession.toString()],
 				providerMetadataCalls: [fallbackSession.toString()],
 				sessionDatabaseOpenSessions: [buildDefaultChatUri(fallbackSession), fallbackSession.toString()],
-				sessionDatabaseOpenCount: 3,
+				sessionDatabaseOpenCount: 4,
 			});
 		});
 
@@ -4876,6 +4876,10 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}));
 			exposeListedSessions(svc, initiallyListed);
+			for (let i = 0; i < 20 && notifications.length < initiallyListed.length; i++) {
+				await timeout(0);
+			}
+			notifications.length = 0;
 
 			agent.addSession('third', now);
 			(svc as unknown as { _queueSessionListReconciliation(previousMode?: AgentHostExternalSessionsMode, forceCatalogRefresh?: boolean): void })._queueSessionListReconciliation(undefined, true);
@@ -4891,7 +4895,7 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				initiallyListed: ['first', 'second'],
 				visible: ['second', 'third'],
-				notifications: ['add:first', 'add:third', 'remove:second', 'add:second', 'remove:first'],
+				notifications: ['add:third', 'remove:second', 'add:second', 'remove:first'],
 			});
 		});
 
@@ -7627,6 +7631,39 @@ suite('AgentService (node dispatcher)', () => {
 			const sessions = await svc.listSessions();
 			assert.strictEqual(sessions.length, 1);
 			assert.strictEqual(sessions[0].summary, 'My Custom Title');
+		});
+
+		test('first fallback listing uses the default chat title before background migration completes', async () => {
+			const migrationGate = new DeferredPromise<void>();
+			class DelayedMigrationAgent extends MockAgent {
+				override readonly onDidDiscoverChats = Event.None;
+				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[]> {
+					await migrationGate.p;
+					return this.listExternalChats();
+				}
+			}
+			const session = AgentSession.uri('copilot', 'chat-local-title');
+			const sessionData = createPerSessionDataService();
+			await sessionData.database(URI.parse(buildDefaultChatUri(session))).setMetadata(SESSION_CUSTOM_TITLE_KEY, 'Actual Chat Title');
+			const database = new TransientRegistryWriteDatabase();
+			await database.registerRuntimeSession(session.toString(), {
+				provider: 'copilot',
+				startTime: 1,
+				source: 'restore',
+			}, { checkTombstone: false });
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database));
+			const agent = disposables.add(new DelayedMigrationAgent('copilot'));
+			agent.sessionMetadataOverrides = { summary: 'Provider Title' };
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+			registerTestAgentProvider(svc, agent);
+
+			const listed = await svc.listSessions(AgentHostExternalSessionsMode.Last30Days);
+			migrationGate.complete();
+
+			assert.deepStrictEqual(listed.map(item => ({ session: item.session.toString(), summary: item.summary })), [{
+				session: session.toString(),
+				summary: 'Actual Chat Title',
+			}]);
 		});
 
 		test('listSessions overlays the AH-owned workspaceless marker for any agent', async () => {

@@ -119,6 +119,24 @@ suite('AgentHostCatalogSourceResolver', () => {
 		}]);
 	});
 
+	test('uses the default chat title as the session title when no explicit session title exists', async () => {
+		const metadata = { ...persistedMetadata() };
+		delete metadata[SESSION_CUSTOM_TITLE_KEY];
+		delete metadata[SESSION_CUSTOM_TITLE_SOURCE_KEY];
+		const result = await createResolver(metadata, false, {
+			[SESSION_CUSTOM_TITLE_KEY]: 'Default Chat Title',
+			[SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
+		}).buildCatalogSyncRequest(session, sourceState(), {}, true);
+
+		assert.deepStrictEqual({
+			summary: result.data.summary,
+			titleSource: result.data.titleSource,
+		}, {
+			summary: 'Default Chat Title',
+			titleSource: 'user',
+		});
+	});
+
 	test('prefers live chat titles over stale chat-local metadata during live synchronization', async () => {
 		const result = await createResolver(persistedMetadata(), false, {
 			[SESSION_CUSTOM_TITLE_KEY]: 'Stale chat-local title',

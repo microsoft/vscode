@@ -98,8 +98,15 @@ export class AgentHostCatalogSourceResolver {
 				ref.dispose();
 			}
 		})));
-		const title = (preferPersistedMetadata ? metadata[SESSION_CUSTOM_TITLE_KEY] : metadataOverrides[SESSION_CUSTOM_TITLE_KEY]) ?? state.title ?? '';
-		const titleSource = normalizeCatalogTitleSource(metadata[SESSION_CUSTOM_TITLE_SOURCE_KEY]);
+		const defaultChat = state.chats.find(chat => chat.kind === 'default');
+		const defaultChatMetadata = defaultChat ? chatMetadata.get(defaultChat.uri) : undefined;
+		const title = preferPersistedMetadata
+			? metadata[SESSION_CUSTOM_TITLE_KEY] ?? defaultChatMetadata?.[SESSION_CUSTOM_TITLE_KEY] ?? state.title ?? ''
+			: metadataOverrides[SESSION_CUSTOM_TITLE_KEY] ?? state.title ?? defaultChatMetadata?.[SESSION_CUSTOM_TITLE_KEY] ?? '';
+		const titleSource = normalizeCatalogTitleSource(
+			metadata[SESSION_CUSTOM_TITLE_SOURCE_KEY]
+			?? (metadata[SESSION_CUSTOM_TITLE_KEY] === undefined ? defaultChatMetadata?.[SESSION_CUSTOM_TITLE_SOURCE_KEY] : undefined),
+		);
 		const persistedMultiRoot = metadata[SESSION_META_MULTI_ROOT_KEY] !== undefined
 			? parseSessionMultiRootMetadata(metadata[SESSION_META_MULTI_ROOT_KEY])
 			: undefined;

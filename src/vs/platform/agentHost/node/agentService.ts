@@ -313,6 +313,11 @@ interface ICatalogChat {
 	readonly inheritedTurnId?: string;
 }
 
+interface ILegacyRegisteredSessionMetadata {
+	readonly metadata: IAgentSessionMetadata;
+	readonly persistedTitle?: string;
+}
+
 /**
  * Tracks one provider's in-flight external-chat discovery attempt. `promise` is
  * reassigned in place when a `force` request is chained onto an attempt that
@@ -1531,7 +1536,7 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 	}
 
-	private async _legacyRegisteredSessionMetadata(registered: IRegisteredSession): Promise<IAgentSessionMetadata | undefined> {
+	private async _legacyRegisteredSessionMetadata(registered: IRegisteredSession): Promise<ILegacyRegisteredSessionMetadata | undefined> {
 		const agent = this._providerService.getProvider(registered.provider);
 		if (!agent) {
 			return undefined;
@@ -1544,21 +1549,24 @@ export class AgentService extends Disposable implements IAgentService {
 		try {
 			const ref = await this._sessionDataService.tryOpenDatabase(metadata.session);
 			if (!ref) {
-				return sanitized;
+				return { metadata: sanitized, persistedTitle: await this._readPersistedSessionTitle(metadata.session) };
 			}
 			try {
 				const session = metadata.session.toString();
+				const defaultChatTitleKey = customChatTitleMetadataKey(buildDefaultChatUri(session));
 				const changesetKeys = this._changesetCoordinator.getListMetadataKeys(session);
 				const metadataKeys: Record<string, true> = changesetKeys
-					? { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
-					: { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS };
+					? { customTitle: true, [defaultChatTitleKey]: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
+					: { customTitle: true, [defaultChatTitleKey]: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS };
 				const persisted = await ref.object.getMetadataObject(metadataKeys);
 				if (persisted[CHAT_BACKING_METADATA_KEY]) {
 					return undefined;
 				}
 				let updated = sanitized;
-				if (persisted.customTitle) {
-					updated = { ...updated, summary: persisted.customTitle };
+				const persistedTitle = persisted.customTitle
+					|| await this._readDefaultChatTitle(metadata.session, persisted[defaultChatTitleKey]);
+				if (persistedTitle) {
+					updated = { ...updated, summary: persistedTitle };
 				}
 				if (persisted[AH_META_IS_READ_DB_KEY] !== undefined) {
 					updated = { ...updated, status: withSessionStatusFlag(updated.status ?? SessionStatus.Idle, SessionStatus.IsRead, persisted[AH_META_IS_READ_DB_KEY] === 'true') };
@@ -1617,13 +1625,16 @@ export class AgentService extends Disposable implements IAgentService {
 				if (worktreeProject) {
 					updated = { ...updated, project: worktreeProject };
 				}
-				return this._changesetCoordinator.decorateListEntry(updated, persisted as Record<string, string | undefined>);
+				return {
+					metadata: this._changesetCoordinator.decorateListEntry(updated, persisted as Record<string, string | undefined>),
+					persistedTitle,
+				};
 			} finally {
 				ref.dispose();
 			}
 		} catch (error) {
 			this._logService.warn(`[AgentService] Failed to read session metadata overlay for ${metadata.session}`, error);
-			return sanitized;
+			return { metadata: sanitized, persistedTitle: await this._readPersistedSessionTitle(metadata.session) };
 		}
 	}
 
@@ -1650,7 +1661,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._registeredSessionMetadata(agent, session, registered.external, registered);
 	}
 
-	private _withLiveSessionMetadata(metadata: IAgentSessionMetadata, liveSummary: SessionSummary, trustLiveMultiRoot = true): IAgentSessionMetadata {
+	private _withLiveSessionMetadata(metadata: IAgentSessionMetadata, liveSummary: SessionSummary, trustLiveMultiRoot = true, trustLiveTitle = true): IAgentSessionMetadata {
 		let _meta = liveSummary._meta !== undefined || metadata._meta !== undefined
 			? { ...metadata._meta, ...liveSummary._meta }
 			: undefined;
@@ -1660,7 +1671,7 @@ export class AgentService extends Disposable implements IAgentService {
 		_meta = withSessionMultiRootMetadata(_meta, liveMultiRoot ?? readSessionMultiRootMetadata(metadata._meta));
 		return {
 			...metadata,
-			summary: liveSummary.title || metadata.summary,
+			summary: trustLiveTitle ? liveSummary.title || metadata.summary : metadata.summary || liveSummary.title,
 			status: liveSummary.status,
 			activity: liveSummary.activity,
 			modifiedTime: Date.parse(liveSummary.modifiedAt),
@@ -2329,12 +2340,15 @@ export class AgentService extends Disposable implements IAgentService {
 		if (external && !readSessionEhcliAdoptable(canonicalMetadata._meta) && this._isExternalSessionOlderThanMaxAge(canonicalMetadata.modifiedTime, Date.now())) {
 			return { status: 'excluded', reason: 'staleExternal', fingerprint: String(canonicalMetadata.modifiedTime) };
 		}
+		const request = await this._buildImportedCatalogSyncRequest(provider, canonicalMetadata, external, !candidate.current && !candidate.legacy);
 		return {
 			status: 'ready',
 			identity,
 			external,
-			request: await this._buildImportedCatalogSyncRequest(provider, canonicalMetadata, external, !candidate.current && !candidate.legacy),
-			value: canonicalMetadata,
+			request,
+			value: request.data.summary === canonicalMetadata.summary
+				? canonicalMetadata
+				: { ...canonicalMetadata, summary: request.data.summary },
 		};
 	}
 
@@ -2570,6 +2584,7 @@ export class AgentService extends Disposable implements IAgentService {
 			: allRegistered;
 		const metadataLimiter = new Limiter<IAgentSessionMetadata | undefined>(4);
 		const repairSessions = new Set<string>();
+		const persistedFallbackTitles = new Map<string, string>();
 		const results = await Promise.all(registered.map(registeredSession => metadataLimiter.queue(async (): Promise<IAgentSessionMetadata | undefined> => {
 			const { session } = registeredSession;
 			// Idle provisional sessions stay hidden until they materialize or gain
@@ -2597,7 +2612,14 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 
 			try {
-				return await this._legacyRegisteredSessionMetadata(registeredSession);
+				const fallback = await this._legacyRegisteredSessionMetadata(registeredSession);
+				if (!fallback) {
+					return undefined;
+				}
+				if (fallback.persistedTitle) {
+					persistedFallbackTitles.set(session.toString(), fallback.persistedTitle);
+				}
+				return fallback.metadata;
 			} catch (err) {
 				this._logService.warn(`[AgentService] listSessions: failed to read metadata for ${session}`, err);
 				return undefined;
@@ -2630,10 +2652,13 @@ export class AgentService extends Disposable implements IAgentService {
 		// `notify/sessionSummaryChanged`.
 		const withStatus = result.map(s => {
 			const liveSummary = this._stateManager.getSessionSummary(s.session.toString());
-			if (liveSummary) {
-				return this._withLiveSessionMetadata(s, liveSummary, false);
-			}
-			return s;
+			const metadata = liveSummary
+				? this._withLiveSessionMetadata(s, liveSummary, false, !this._stateManager.getSurfacedSessionSummary(s.session.toString()))
+				: s;
+			const persistedTitle = persistedFallbackTitles.get(s.session.toString());
+			return persistedTitle && !this._stateManager.getSessionState(s.session.toString())
+				? { ...metadata, summary: persistedTitle }
+				: metadata;
 		});
 
 		// Overlay any session known to state but missing from the providers'
@@ -3106,18 +3131,75 @@ export class AgentService extends Disposable implements IAgentService {
 				this._announcedSurfacedKeys.delete(key);
 				return;
 			}
+			const title = await this._resolveSurfacedSessionTitle(meta);
+			const effectiveMetadata = title ? { ...meta, summary: title } : meta;
 			// The external-sessions mode may have changed during the await above; re-check so a row that is no longer visible is not surfaced.
-			if (!this._shouldIncludeSession(meta)) {
+			if (!this._shouldIncludeSession(effectiveMetadata)) {
 				this._announcedSurfacedKeys.delete(key);
 				return;
 			}
-			this._stateManager.announceSurfacedSession(this._surfacedSessionSummary(meta, provider));
-			if (readSessionExternal(meta._meta)) {
+			this._stateManager.announceSurfacedSession(this._surfacedSessionSummary(effectiveMetadata, provider));
+			if (readSessionExternal(effectiveMetadata._meta)) {
 				this._broadcastExternalSessions.add(key);
 			}
 		} catch (err) {
 			this._announcedSurfacedKeys.delete(key);
 			throw err;
+		}
+	}
+
+	private async _resolveSurfacedSessionTitle(metadata: IAgentSessionMetadata): Promise<string | undefined> {
+		const registered = await this._sessionRegistry.get(metadata.session);
+		if (registered) {
+			const central = await this._catalogListReader.read(registered);
+			if (central.eligible) {
+				return central.metadata.summary;
+			}
+		}
+		return this._readPersistedSessionTitle(metadata.session);
+	}
+
+	private async _readPersistedSessionTitle(session: URI): Promise<string | undefined> {
+		const defaultChat = buildDefaultChatUri(session);
+		const defaultChatTitleKey = customChatTitleMetadataKey(defaultChat);
+		let mirroredChatTitle: string | undefined;
+		try {
+			const sessionRef = await this._sessionDataService.tryOpenDatabase(session);
+			if (sessionRef) {
+				try {
+					const metadata = await sessionRef.object.getMetadataObject({
+						[SESSION_CUSTOM_TITLE_KEY]: true,
+						[defaultChatTitleKey]: true,
+					});
+					const sessionTitle = metadata[SESSION_CUSTOM_TITLE_KEY];
+					mirroredChatTitle = metadata[defaultChatTitleKey];
+					if (sessionTitle) {
+						return sessionTitle;
+					}
+				} finally {
+					sessionRef.dispose();
+				}
+			}
+		} catch (error) {
+			this._logService.warn(`[AgentService] Failed to read session title metadata for ${session.toString()}`, error);
+		}
+		return this._readDefaultChatTitle(session, mirroredChatTitle);
+	}
+
+	private async _readDefaultChatTitle(session: URI, fallback?: string): Promise<string | undefined> {
+		try {
+			const ref = await this._sessionDataService.tryOpenDatabase(URI.parse(buildDefaultChatUri(session)));
+			if (!ref) {
+				return fallback;
+			}
+			try {
+				return await ref.object.getMetadata(SESSION_CUSTOM_TITLE_KEY) || fallback;
+			} finally {
+				ref.dispose();
+			}
+		} catch (error) {
+			this._logService.warn(`[AgentService] Failed to read default chat title for ${session.toString()}`, error);
+			return fallback;
 		}
 	}
 
