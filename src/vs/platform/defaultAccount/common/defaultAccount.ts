@@ -38,7 +38,9 @@ export interface IManagedSettingsCompatibilityError {
 
 export interface IDefaultAccountRefreshOptions {
 	readonly forceRefresh?: boolean;
-	/** Allows an explicit user action to retry managed settings after a failed attempt. */
+	/** Keeps a fresh managed-settings cache during a forced refresh of other account data. */
+	readonly preserveManagedSettingsCache?: boolean;
+	/** Forces managed-settings revalidation and allows an explicit retry after a failed attempt. */
 	readonly retryManagedSettings?: boolean;
 }
 

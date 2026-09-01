@@ -89,26 +89,27 @@ suite('DefaultAccountProvider', () => {
 		});
 	});
 
-	test('forceRefresh fetches fresh even when the cache is fresh, without it the cache is honored', async () => {
+	test('forced account refresh can preserve the managed-settings cache until an explicit policy refresh', async () => {
 		const requestService = new TestRequestService(async () => jsonResponse({
 			permissions: { disableBypassPermissionsMode: 'disable' },
 		}));
 		const provider = await createProvider(requestService);
 		const cachedPolicy = createCachedPolicy(false);
 
-		// Without forceRefresh the fresh cache is served with no network round-trip.
 		const cached = await provider['getManagedSettings'](sessions, cachedPolicy);
-		// The forceRefresh command bypasses the fresh cache and fetches.
-		const forced = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true, retryManagedSettings: true });
+		const accountRefresh = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true, preserveManagedSettingsCache: true });
+		const policyRefresh = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true, retryManagedSettings: true });
 
 		assert.deepStrictEqual({
 			requestCount: requestService.requestCount,
 			cached: cached.data,
-			forced: forced.data,
+			accountRefresh: accountRefresh.data,
+			policyRefresh: policyRefresh.data,
 		}, {
 			requestCount: 1,
 			cached: cachedPolicy.policyData,
-			forced: { managedSettings: { 'permissions.disableBypassPermissionsMode': 'disable' } },
+			accountRefresh: cachedPolicy.policyData,
+			policyRefresh: { managedSettings: { 'permissions.disableBypassPermissionsMode': 'disable' } },
 		});
 	});
 
@@ -275,6 +276,26 @@ suite('DefaultAccountProvider', () => {
 			data: { managedSettings: undefined },
 			compatibilityError: null,
 			freshness: { state: ManagedSettingsFreshnessState.NotRequired },
+		});
+	});
+
+	test('managed settings 404 does not retry with another authentication session', async () => {
+		const requestService = new TestRequestService(async () => jsonResponse({}, 404));
+		const provider = await createProvider(requestService);
+
+		const result = await provider['getManagedSettings']([
+			sessions[0],
+			{ ...sessions[0], id: 'second-session' },
+		], undefined);
+
+		assert.deepStrictEqual({
+			requestCount: requestService.requestCount,
+			status: provider.managedSettingsFetchStatus,
+			data: result.data,
+		}, {
+			requestCount: 1,
+			status: 404,
+			data: { managedSettings: undefined },
 		});
 	});
 
@@ -555,6 +576,28 @@ suite('DefaultAccountProvider', () => {
 		], undefined);
 
 		assert.strictEqual(requestService.requestCount, 2);
+	});
+
+	test('matching authentication sessions are not duplicated by overlapping accepted scopes', async () => {
+		const broadSession: AuthenticationSession = {
+			...sessions[0],
+			scopes: ['read:user', 'user:email', 'repo', 'workflow'],
+		};
+		const provider = await createProvider(
+			new TestRequestService(async () => jsonResponse({})),
+			{},
+			{},
+			'',
+			{ getSessions: async () => [broadSession] }
+		);
+
+		const matching = await provider['findMatchingProviderSession']('github', [
+			['read:user', 'user:email', 'repo', 'workflow'],
+			['user:email'],
+			['read:user'],
+		]);
+
+		assert.deepStrictEqual(matching?.map(session => session.id), ['session']);
 	});
 
 	test('first server response can establish and satisfy a refresh requirement', async () => {
