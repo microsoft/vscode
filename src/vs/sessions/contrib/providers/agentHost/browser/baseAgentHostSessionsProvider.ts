@@ -4969,6 +4969,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		);
 	}
 
+	private _keepChatSessionStateAlive(chatChannel: string): void {
+		const parsedChat = parseChatUri(chatChannel);
+		if (!parsedChat) {
+			return;
+		}
+		const cached = this._sessionCache.get(AgentSession.id(parsedChat.session));
+		if (cached) {
+			this._keepSessionStateAlive(cached.sessionId);
+		}
+	}
+
 	/**
 	 * Lazily acquire a session-state subscription for `sessionId` so that
 	 * `_runningSessionConfigs` is seeded from the AHP `SessionState.config`
@@ -5664,6 +5675,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				return;
 			}
 			if (e.action.type === ActionType.ChatTurnComplete && isChatAction(e.action)) {
+				this._keepChatSessionStateAlive(e.channel);
 				this._refreshSessions();
 			} else if (e.action.type === ActionType.SessionTitleChanged && isSessionAction(e.action)) {
 				this._handleTitleChanged(e.channel, e.action.title);

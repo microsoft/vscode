@@ -9,8 +9,11 @@ import { URI } from '../../base/common/uri.js';
 import { IProtocolTransport } from '../../platform/agentHost/common/state/sessionTransport.js';
 import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
 
-/** Hidden setting that enables Dev Container Agent Host sessions. */
+/** Experimental setting that enables Dev Container Agent Host sessions. */
 export const DevContainerAgentHostEnabledSettingId = 'chat.agentHost.devContainer.enabled';
+
+/** Hidden experimental setting that enables combining Dev Container execution with a new worktree. */
+export const DevContainerWorktreeEnabledSettingId = 'chat.agentHost.devContainer.worktree.enabled';
 
 /** Agent Host transport and workspace mapping produced by a Dev Container connector. */
 export interface IDevContainerAgentHostConnection {

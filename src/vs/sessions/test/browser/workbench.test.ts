@@ -104,6 +104,7 @@ suite('Sessions - Workbench', () => {
 		readonly gridVisibility: Map<object, boolean>;
 		readonly mobileNavLayers: string[];
 		readonly focusedSessions: number;
+		readonly customViewTransitionSteps: string[];
 		readonly sidePaneToggleEvents: ('will' | { readonly did: ISidePaneToggleEvent })[];
 		layoutPolicy: { viewportClass: { get(): string } };
 		sessionsPartView: object;
@@ -212,7 +213,9 @@ suite('Sessions - Workbench', () => {
 		const renderedCustomViews: (object | undefined)[] = [];
 		const gridVisibility = new Map<object, boolean>();
 		const mobileNavLayers: string[] = [];
+		const customViewTransitionSteps: string[] = [];
 		let focusedSessions = 0;
+		let sessionsContentVisible = true;
 		const sidePaneToggleEvents: ('will' | { did: ISidePaneToggleEvent })[] = [];
 		const notifyPartVisibility = (view: object, visible: boolean) => notifyPartVisibilityOn(host as unknown as ITestWorkbench, view, visible);
 		let editorNodeVisible = (options.partVisibility?.editor ?? false) || (options.partVisibility?.auxiliaryBar ?? true);
@@ -244,6 +247,11 @@ suite('Sessions - Workbench', () => {
 				hasMaximizedView: () => false,
 				exitMaximizedView: () => { },
 				setViewVisible: (view: object, visible: boolean, sizing?: { type: string }) => {
+					if (view === customViewGridPartView) {
+						customViewTransitionSteps.push(`grid:customView:${visible}`);
+					} else if (view === sessionsPartView) {
+						customViewTransitionSteps.push(`grid:sessions:${visible}`);
+					}
 					if (view === editorPartView) {
 						editorNodeVisible = visible;
 						if (visible && partVisibility.editor && options.panelHeightOnEditorShow !== undefined) {
@@ -323,7 +331,15 @@ suite('Sessions - Workbench', () => {
 			},
 			customViewGridPartService: { setView: (descriptor: object | undefined) => { renderedCustomViews.push(descriptor); }, focusActiveView: () => { } },
 			_customViewVisibleKey: { set: () => { } },
-			sessionsPartService: { focusSession: () => { focusedSessions++; } },
+			sessionsPartService: {
+				focusSession: () => { focusedSessions++; },
+				setContentVisible: (visible: boolean) => {
+					if (sessionsContentVisible !== visible) {
+						sessionsContentVisible = visible;
+						customViewTransitionSteps.push(`content:${visible}`);
+					}
+				},
+			},
 			sessionsService: { activeSession: { get: () => undefined } },
 			// captures
 			resizes,
@@ -337,6 +353,7 @@ suite('Sessions - Workbench', () => {
 			renderedCustomViews,
 			gridVisibility,
 			mobileNavLayers,
+			customViewTransitionSteps,
 			sidePaneToggleEvents,
 			get focusedSessions() { return focusedSessions; },
 		};
@@ -2701,6 +2718,39 @@ suite('Sessions - Workbench', () => {
 				{ partId: Parts.PANEL_PART, visible: false },
 			],
 			focusedParts: [Parts.CUSTOM_VIEW_GRID_PART],
+		});
+	});
+
+	test('suspends session content throughout the custom view grid swap', () => {
+		const host = createHost();
+
+		applyCustomViewGridVisibility.call(host, {});
+		applyCustomViewGridVisibility.call(host, undefined);
+
+		assert.deepStrictEqual(host.customViewTransitionSteps, [
+			'content:false',
+			'grid:customView:true',
+			'grid:sessions:false',
+			'grid:sessions:true',
+			'grid:customView:false',
+			'content:true',
+		]);
+	});
+
+	test('keeps session content suspended when a custom view opens before grid creation', () => {
+		const host = createHost();
+		Object.assign(host, { workbenchGrid: undefined });
+
+		applyCustomViewGridVisibility.call(host, {});
+		const whileShown = [...host.customViewTransitionSteps];
+		applyCustomViewGridVisibility.call(host, undefined);
+
+		assert.deepStrictEqual({
+			whileShown,
+			afterHide: host.customViewTransitionSteps,
+		}, {
+			whileShown: ['content:false'],
+			afterHide: ['content:false', 'content:true'],
 		});
 	});
 
