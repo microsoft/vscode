@@ -3780,10 +3780,7 @@ export class CopilotAgentSession extends Disposable {
 
 	private _disposeShellInitScript(): Promise<void> {
 		this._shellInitScriptDisposing = true;
-		if (!this._shellInitScriptMaterialized) {
-			return Promise.resolve();
-		}
-		return this._shellInitScriptSequencer.queue(() => this._clearShellInitScript());
+		return this._shellInitScriptSequencer.queue(() => this._shellInitScriptMaterialized ? this._clearShellInitScript() : Promise.resolve());
 	}
 
 	private async _syncPermissionModeAfterConfigChange(): Promise<void> {

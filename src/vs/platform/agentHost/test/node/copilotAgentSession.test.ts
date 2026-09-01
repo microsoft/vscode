@@ -714,6 +714,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	fileReadErrors?: readonly string[];
 	shellInitWriteFailures?: number;
 	fileAtomicWrite?: boolean;
+	shellInitWriteGate?: Promise<void>;
+	onShellInitWrite?: () => void;
 	sessionDatabase?: ISessionDatabase;
 	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
 	configureMockSession?: (session: MockCopilotSession) => void;
@@ -869,9 +871,13 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			resource.fsPath.includes('/agentHost/shellInit/'),
 		writeFile: async (resource: URI, content: VSBuffer, writeOptions?: IWriteFileOptions) => {
 			fileWriteOptions.set(resource.fsPath, writeOptions);
-			if (resource.fsPath.includes('/agentHost/shellInit/') && shellInitWriteFailures > 0) {
-				shellInitWriteFailures--;
-				throw new Error('write failed');
+			if (resource.fsPath.includes('/agentHost/shellInit/')) {
+				options?.onShellInitWrite?.();
+				await options?.shellInitWriteGate;
+				if (shellInitWriteFailures > 0) {
+					shellInitWriteFailures--;
+					throw new Error('write failed');
+				}
 			}
 			storedFileContents.set(resource.toString(), content.toString());
 			return { resource } as Awaited<ReturnType<IFileService['writeFile']>>;
@@ -12498,6 +12504,25 @@ Use the attached image as context.
 			await timeout(0);
 
 			assert.ok(!mockSession.operationLog.includes('file.delete:shellInit'));
+		});
+
+		test('deletes a shell init script materialized while disposal waits for an in-flight update', async () => {
+			const writeStarted = new DeferredPromise<void>();
+			const writeGate = new DeferredPromise<void>();
+			const { session, storedFileContents, setConfigValue } = await createAgentSession(disposables, {
+				shellInitWriteGate: writeGate.p,
+				onShellInitWrite: () => writeStarted.complete(),
+			});
+			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+			const send = session.send('go', undefined, 'turn-1', 'interactive');
+			await writeStarted.p;
+
+			session.dispose();
+			writeGate.complete();
+			await send;
+			await timeout(0);
+
+			assert.ok(![...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')));
 		});
 
 		test('a failed registration is logged without aborting the turn', async () => {
