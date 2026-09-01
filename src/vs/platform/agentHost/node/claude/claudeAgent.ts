@@ -429,12 +429,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private readonly _onDidSpawnChat = this._register(new Emitter<IAgentSpawnChatEvent>());
 	readonly onDidSpawnChat: Event<IAgentSpawnChatEvent> = this._onDidSpawnChat.event;
 
-	private readonly _onDidDiscoverChats = this._register(new Emitter<readonly IAgentDiscoveredChat[]>({
-		// Discovery is provider-owned and only has observable value once the host
-		// subscribes. Registered chats remain independently available through
-		// listChatsToMigrate().
-		onDidAddFirstListener: () => { void this._startClaudeCodeChatDiscovery(); },
-	}));
+	private readonly _onDidDiscoverChats = this._register(new Emitter<readonly IAgentDiscoveredChat[]>());
 	readonly onDidDiscoverChats = this._onDidDiscoverChats.event;
 	private _claudeCodeChatDiscovery: Promise<void> | undefined;
 
@@ -2052,6 +2047,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			const chat = URI.parse(buildDefaultChatUri(session));
 			return this._withPersistedWorkingDirectories(session, { chat, ...this._metadataStore.project(entry) });
 		}));
+	}
+
+	startChatDiscovery(): Promise<void> {
+		return this._startClaudeCodeChatDiscovery();
 	}
 
 	async listChatsToMigrate(): Promise<AgentChatMigrationResult> {

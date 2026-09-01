@@ -48,6 +48,14 @@ suite('MCP Types', () => {
 			...overrides
 		});
 
+		const createHttpDefinition = (uri: URI): McpServerDefinition => createBasicDefinition({
+			launch: {
+				type: McpServerTransportType.HTTP,
+				uri,
+				headers: []
+			}
+		});
+
 		test('returns true for identical definitions', () => {
 			const def1 = createBasicDefinition();
 			const def2 = createBasicDefinition();
@@ -113,6 +121,102 @@ suite('MCP Types', () => {
 					sandbox: undefined
 				}
 			});
+			assert.strictEqual(McpServerDefinition.equals(def1, def2), false);
+		});
+
+		test('returns true when equivalent HTTP URI formatted cache state differs', () => {
+			const uri1 = URI.parse('https://example.com/mcp');
+			const uri2 = URI.parse('https://example.com/mcp');
+			uri1.toString();
+
+			assert.strictEqual(McpServerDefinition.equals(createHttpDefinition(uri1), createHttpDefinition(uri2)), true);
+		});
+
+		test('returns true when equivalent HTTP URI fsPath cache state differs', () => {
+			const uri1 = URI.parse('https://example.com/mcp');
+			const uri2 = URI.parse('https://example.com/mcp');
+			void uri1.fsPath;
+
+			assert.strictEqual(McpServerDefinition.equals(createHttpDefinition(uri1), createHttpDefinition(uri2)), true);
+		});
+
+		test('returns true when presentation origin URI cache state differs', () => {
+			const uri1 = URI.file('/path/to/mcp.json');
+			const uri2 = URI.file('/path/to/mcp.json');
+			const range = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
+			uri1.toString();
+
+			const def1 = createBasicDefinition({ presentation: { origin: { uri: uri1, range } } });
+			const def2 = createBasicDefinition({ presentation: { origin: { uri: uri2, range } } });
+
+			assert.strictEqual(McpServerDefinition.equals(def1, def2), true);
+		});
+
+		test('returns true when variable replacement folder URI cache state differs', () => {
+			const uri1 = URI.file('/workspace');
+			const uri2 = URI.file('/workspace');
+			uri1.toString();
+
+			const def1 = createBasicDefinition({
+				variableReplacement: {
+					target: ConfigurationTarget.USER,
+					folder: { uri: uri1, name: 'workspace', index: 0 }
+				}
+			});
+			const def2 = createBasicDefinition({
+				variableReplacement: {
+					target: ConfigurationTarget.USER,
+					folder: { uri: uri2, name: 'workspace', index: 0 }
+				}
+			});
+
+			assert.strictEqual(McpServerDefinition.equals(def1, def2), true);
+		});
+
+		test('returns false when HTTP endpoint differs', () => {
+			const def1 = createHttpDefinition(URI.parse('https://example.com/mcp-one'));
+			const def2 = createHttpDefinition(URI.parse('https://example.com/mcp-two'));
+
+			assert.strictEqual(McpServerDefinition.equals(def1, def2), false);
+		});
+
+		test('returns false when presentation range differs', () => {
+			const uri = URI.file('/path/to/mcp.json');
+			const def1 = createBasicDefinition({
+				presentation: {
+					origin: {
+						uri,
+						range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }
+					}
+				}
+			});
+			const def2 = createBasicDefinition({
+				presentation: {
+					origin: {
+						uri,
+						range: { startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 1 }
+					}
+				}
+			});
+
+			assert.strictEqual(McpServerDefinition.equals(def1, def2), false);
+		});
+
+		test('returns false when variable replacement folder index differs', () => {
+			const uri = URI.file('/workspace');
+			const def1 = createBasicDefinition({
+				variableReplacement: {
+					target: ConfigurationTarget.USER,
+					folder: { uri, name: 'workspace', index: 0 }
+				}
+			});
+			const def2 = createBasicDefinition({
+				variableReplacement: {
+					target: ConfigurationTarget.USER,
+					folder: { uri, name: 'workspace', index: 1 }
+				}
+			});
+
 			assert.strictEqual(McpServerDefinition.equals(def1, def2), false);
 		});
 	});

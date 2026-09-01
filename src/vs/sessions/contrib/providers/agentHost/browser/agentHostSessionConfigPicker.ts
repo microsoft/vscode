@@ -39,6 +39,7 @@ import { IChatInputPickerResponsiveState } from '../../../../../workbench/contri
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { Menus } from '../../../../browser/menus.js';
+import { DevContainerWorktreeEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
 import { SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
@@ -397,6 +398,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			this._renderConfigPickers();
 		}));
 		this._watchProviders(this._sessionsProvidersService.getProviders());
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(DevContainerWorktreeEnabledSettingId)) {
+				this._renderConfigPickers();
+			}
+		}));
 
 		// Re-render when the layout crosses the phone breakpoint so the
 		// isolation control swaps between the desktop checkbox and the
@@ -518,7 +524,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			const isReadOnly = this._isReadOnlyChip(property, schema, isNewSession);
 			// Isolation renders as a Worktree checkbox on desktop; the phone layout keeps the chip for the unified repo sheet.
 			if (property === SessionConfigKey.Isolation && this._shouldRenderIsolationAsCheckbox(schema)) {
-				this._renderIsolationCheckbox(session.sessionId, schema, value, isReadOnly, !isReadOnly && isLoading);
+				this._renderIsolationCheckbox(provider, session.sessionId, schema, value, isReadOnly, !isReadOnly && isLoading);
 				renderedIsolationCheckbox = true;
 				continue;
 			}
@@ -556,7 +562,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		if (isPhoneLayout(this._layoutService)) {
 			this._devContainerCheckbox.clear();
 		} else if (provider.isDevContainerAvailable?.(session.sessionId) && provider.isDevContainerEnabled && provider.setDevContainerEnabled) {
-			this._renderDevContainerCheckbox(provider, session.sessionId);
+			const isolationSchema = resolvedConfig.schema.properties[SessionConfigKey.Isolation];
+			const isolation = resolvedConfig.values[SessionConfigKey.Isolation] ?? isolationSchema?.default;
+			this._renderDevContainerCheckbox(provider, session.sessionId, isolation === 'worktree');
 		} else {
 			this._devContainerCheckbox.clear();
 		}
@@ -709,10 +717,16 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			&& schema.enum.includes('folder');
 	}
 
-	private _renderIsolationCheckbox(sessionId: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean, isLoading: boolean): void {
+	private _renderIsolationCheckbox(provider: IAgentHostSessionsProvider, sessionId: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean, isLoading: boolean): void {
 		const label = localize('agentHostSessionConfig.isolation.worktree', "New Worktree");
 		const worktreeIndex = schema.enum?.indexOf('worktree') ?? -1;
-		const tooltip = (worktreeIndex >= 0 ? schema.enumDescriptions?.[worktreeIndex] : undefined) ?? schema.description ?? schema.title;
+		const checked = value === 'worktree';
+		const combinationDisabled = !this._isDevContainerWorktreeEnabled()
+			&& provider.isDevContainerEnabled?.(sessionId) === true
+			&& !checked;
+		const tooltip = combinationDisabled
+			? localize('agentHostSessionConfig.isolation.devContainerDisabled', "New Worktree cannot be combined with Dev Container execution.")
+			: (worktreeIndex >= 0 ? schema.enumDescriptions?.[worktreeIndex] : undefined) ?? schema.description ?? schema.title;
 
 		let control = this._isolationCheckbox.value;
 		if (!control || control.sessionId !== sessionId) {
@@ -727,11 +741,13 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			this._isolationCheckbox.value = control;
 			this._container?.prepend(control.slot);
 		}
-		control.update(value === 'worktree', isReadOnly, isLoading, tooltip);
+		control.update(checked, isReadOnly || combinationDisabled, isLoading, tooltip);
 	}
 
-	private _renderDevContainerCheckbox(provider: IAgentHostSessionsProvider, sessionId: string): void {
+	private _renderDevContainerCheckbox(provider: IAgentHostSessionsProvider, sessionId: string, worktreeSelected: boolean): void {
 		const label = localize('agentHostSessionConfig.devContainer', "Dev Container");
+		const checked = provider.isDevContainerEnabled?.(sessionId) === true;
+		const combinationDisabled = !this._isDevContainerWorktreeEnabled() && worktreeSelected && !checked;
 		let control = this._devContainerCheckbox.value;
 		if (!control || control.sessionId !== sessionId) {
 			control = new ConfigCheckboxControl(
@@ -749,7 +765,18 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		} else {
 			this._container?.prepend(control.slot);
 		}
-		control.update(provider.isDevContainerEnabled?.(sessionId) === true, false, false, undefined);
+		control.update(
+			checked,
+			combinationDisabled,
+			false,
+			combinationDisabled
+				? localize('agentHostSessionConfig.devContainer.worktreeDisabled', "Dev Container execution cannot be combined with New Worktree.")
+				: undefined,
+		);
+	}
+
+	private _isDevContainerWorktreeEnabled(): boolean {
+		return this._configurationService.getValue<boolean>(DevContainerWorktreeEnabledSettingId) === true;
 	}
 
 	private _applyIsolationValue(sessionId: string, checked: boolean): void {
@@ -837,7 +864,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					return toActionItems(property, filteredItems, provider.getSessionConfig(sessionId)?.values[property] ?? schema.default, filteredPolicyRestricted, filteredRepositoryState.branchName, filteredRepositoryState.uncommittedChanges, onShowChanges);
 				})
 				: undefined,
-			onHide: () => trigger.focus(),
+			onHide: () => {
+				trigger.focus();
+			},
 		};
 
 		this._actionWidgetService.show<IConfigPickerItem>(

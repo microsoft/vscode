@@ -424,15 +424,61 @@ suite('Sessions - SessionsList', () => {
 			]);
 		});
 
-		test('"Recent" is capped at 10 sessions; the overflow within 7 days falls into "Older"', () => {
-			const sessions = Array.from({ length: 13 }, (_, i) =>
-				createSession(`s${i}`, { createdAt: minutesAgo(i + 1) }));
+		test('sessions updated within the last 24 hours stay in "Recent" when sorting by creation time', () => {
+			const sessions = [
+				createSession('recently-created', { createdAt: daysAgo(3) }),
+				createSession('recently-updated', { createdAt: daysAgo(10), updatedAt: minutesAgo(30) }),
+				createSession('old', { createdAt: daysAgo(11), updatedAt: daysAgo(2) }),
+			];
+
+			const sections = groupByDate(sessions, SessionsSorting.Created);
+
+			assert.deepStrictEqual(sections.map(s => ({ id: s.id, sessions: s.sessions.map(session => session.sessionId) })), [
+				{ id: 'recent', sessions: ['recently-created', 'recently-updated'] },
+				{ id: 'older', sessions: ['old'] },
+			]);
+		});
+
+		test('"Recent" is capped at 10 sessions that were not updated within the last 24 hours', () => {
+			const twoDaysAgo = daysAgo(2).getTime();
+			const sessions = Array.from({ length: 13 }, (_, i) => {
+				const createdAt = new Date(twoDaysAgo - i * 60_000);
+				return createSession(`s${i}`, { createdAt });
+			});
 
 			const sections = groupByDate(sessions, SessionsSorting.Created);
 
 			assert.deepStrictEqual(sections.map(s => ({ id: s.id, sessions: s.sessions.map(session => session.sessionId) })), [
 				{ id: 'recent', sessions: ['s0', 's1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9'] },
 				{ id: 'older', sessions: ['s10', 's11', 's12'] },
+			]);
+		});
+
+		test('"Recent" expands from 10 to 15 only for additional recently updated sessions', () => {
+			const twoDaysAgo = daysAgo(2).getTime();
+			const recentlyCreated = Array.from({ length: 10 }, (_, i) => {
+				const createdAt = new Date(twoDaysAgo - i * 60_000);
+				return createSession(`created-${i}`, { createdAt });
+			});
+			const sessions = [
+				...recentlyCreated,
+				createSession('not-recently-updated', { createdAt: daysAgo(10), updatedAt: daysAgo(2) }),
+				...Array.from({ length: 6 }, (_, i) =>
+					createSession(`updated-${i}`, { createdAt: daysAgo(11 + i), updatedAt: minutesAgo(i + 1) })),
+			];
+
+			const sections = groupByDate(sessions, SessionsSorting.Created);
+
+			assert.deepStrictEqual(sections.map(s => ({ id: s.id, sessions: s.sessions.map(session => session.sessionId) })), [
+				{
+					id: 'recent',
+					sessions: [
+						'created-0', 'created-1', 'created-2', 'created-3', 'created-4',
+						'created-5', 'created-6', 'created-7', 'created-8', 'created-9',
+						'updated-0', 'updated-1', 'updated-2', 'updated-3', 'updated-4',
+					],
+				},
+				{ id: 'older', sessions: ['not-recently-updated', 'updated-5'] },
 			]);
 		});
 

@@ -805,6 +805,7 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-list-widget .section-title-header .section-title-link,
 .ai-customization-management-editor .prompt-migration-content-container > .section-title-link,
+.ai-customization-management-editor .customization-migration-banner .section-title-link,
 .mcp-list-widget .section-title-header .section-title-link,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link {
 	font-size: var(--vscode-fontSize-body1);
@@ -821,6 +822,7 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-list-widget .section-title-header .section-title-link:hover,
 .ai-customization-management-editor .prompt-migration-content-container > .section-title-link:hover,
+.ai-customization-management-editor .customization-migration-banner .section-title-link:hover,
 .mcp-list-widget .section-title-header .section-title-link:hover,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link:hover {
 	text-decoration: underline;
@@ -829,6 +831,7 @@ per-word capitalization does not survive translation. */
 /* Inset the focus ring so it isn't clipped by the widget's overflow:hidden at the header's edge. */
 .ai-customization-list-widget .section-title-header .section-title-link:focus-visible,
 .ai-customization-management-editor .prompt-migration-content-container > .section-title-link:focus-visible,
+.ai-customization-management-editor .customization-migration-banner .section-title-link:focus-visible,
 .mcp-list-widget .section-title-header .section-title-link:focus-visible,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link:focus-visible {
 	outline-offset: -1px;
@@ -2505,8 +2508,9 @@ per-word capitalization does not survive translation. */
 	display: flex;
 	flex-direction: column;
 	gap: 0;
-	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	border-radius: var(--vscode-cornerRadius-medium);
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-agentsPanel-background));
 	overflow: hidden;
 }
 
@@ -2558,7 +2562,7 @@ per-word capitalization does not survive translation. */
 }
 
 .plugin-list-widget .plugin-home-row:not(:last-child) {
-	box-shadow: inset 0 calc(-1 * var(--vscode-strokeThickness)) var(--vscode-widget-border);
+	box-shadow: inset 0 calc(-1 * var(--vscode-strokeThickness)) var(--vscode-widget-border, var(--vscode-agentsPanel-border));
 }
 
 .plugin-list-widget .plugin-home-row:hover {
@@ -2906,7 +2910,7 @@ per-word capitalization does not survive translation. */
 	padding: var(--vscode-spacing-size120);
 	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	border-radius: var(--vscode-cornerRadius-large);
-	background: var(--vscode-editorWidget-background);
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-agentsPanel-background));
 	color: var(--vscode-foreground);
 	box-sizing: border-box;
 	cursor: pointer;

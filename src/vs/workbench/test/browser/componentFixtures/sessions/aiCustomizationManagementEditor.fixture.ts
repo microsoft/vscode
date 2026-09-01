@@ -178,7 +178,7 @@ function createMockAgentHostCustomizationService(mcpServers: readonly FixtureAge
 // item provider (bypassing the prompts-service discovery used by local
 // harnesses). Provide items and writable folders so the fixture exercises
 // the same discovery and migration availability as the real provider.
-function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[]): ICustomizationItemProvider {
+function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[], remoteClientSkillName?: string): ICustomizationItemProvider {
 	return {
 		onDidChange: Event.None,
 		async provideChatSessionCustomizations(): Promise<ICustomizationItem[]> {
@@ -188,7 +188,7 @@ function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[]): ICu
 				name: file.name ?? '',
 				description: file.description,
 				source: file.storage as AICustomizationSource,
-				groupKey: 'remote-host',
+				groupKey: file.type === PromptsType.skill && file.name === remoteClientSkillName ? 'remote-client' : 'remote-host',
 				extensionId: file.extensionId,
 				pluginUri: undefined,
 			}));
@@ -691,6 +691,8 @@ interface IRenderEditorOptions {
 	readonly height?: number;
 	readonly skillUIIntegrations?: ReadonlyMap<string, string>;
 	readonly activeSessionMcpServers?: readonly FixtureAgentHostMcpServer[];
+	readonly agentHostFiles?: readonly IFixtureFile[];
+	readonly remoteClientSkillName?: string;
 	/** When true, simulates clicking the first list row to enter the embedded editor / detail view. */
 	readonly openFirstItem?: boolean;
 	readonly openItemLabel?: string;
@@ -777,7 +779,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			icon: ThemeIcon.fromId(Codicon.server.id),
 			hiddenSections: [AICustomizationManagementSection.Prompts],
 			hideGenerateButton: true,
-			itemProvider: createFixtureAgentHostItemProvider(allFiles),
+			itemProvider: createFixtureAgentHostItemProvider(options.agentHostFiles ?? allFiles, options.remoteClientSkillName),
 		},
 	];
 
@@ -1899,6 +1901,9 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.Skills,
+			agentHostFiles: allFiles.filter(file => file.type !== PromptsType.skill || file.name === 'Accessibility' || file.name === 'Code Review'),
+			remoteClientSkillName: 'Code Review',
+			height: 800,
 		}),
 	}),
 

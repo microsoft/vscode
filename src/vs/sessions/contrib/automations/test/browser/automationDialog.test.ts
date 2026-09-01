@@ -885,12 +885,21 @@ suite('Automation branch picker', () => {
 		});
 	});
 
-	test('allows focus in mobile picker sheets', () => {
+	test('allows focus in popups rendered outside the dialog', () => {
 		const sheet = document.createElement('div');
 		sheet.classList.add('mobile-picker-sheet');
-		const item = sheet.appendChild(document.createElement('button'));
+		const sheetItem = sheet.appendChild(document.createElement('button'));
+		const suggestWidget = document.createElement('div');
+		suggestWidget.classList.add('suggest-widget');
+		const suggestion = suggestWidget.appendChild(document.createElement('div'));
 
-		assert.strictEqual(isAutomationDialogPopupTarget(item), true);
+		assert.deepStrictEqual({
+			sheet: isAutomationDialogPopupTarget(sheetItem),
+			suggestion: isAutomationDialogPopupTarget(suggestion),
+		}, {
+			sheet: true,
+			suggestion: true,
+		});
 	});
 
 	test('resolves a legacy model identifier to the selected concrete target', () => {

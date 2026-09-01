@@ -18,6 +18,7 @@ import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias,
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
+import { isAutoModeTier, type AutoModeTier } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
 import { RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
@@ -32,7 +33,7 @@ import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.j
 import { toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
-import { isGpt56Model } from './modelIdentifiers.js';
+import { isAutoModel, isGpt56Model } from './modelIdentifiers.js';
 import { EPHEMERAL_DISABLED_COPILOT_TOOLS } from './copilotToolDisplay.js';
 import './prompts/allPrompts.js';
 import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts/promptRegistry.js';
@@ -52,6 +53,11 @@ export const ContextSizeConfigKey = 'contextSize';
  * for backward compatibility.
  */
 export const ContextTierConfigKey = 'contextTier';
+/**
+ * Config key for the Auto model's routing-profile ("Optimize for") selection. Named to match the
+ * Copilot Chat extension's `AUTO_MODE_TIER_PROPERTY` so both Auto surfaces use the same picker key.
+ */
+export const AutoTierConfigKey = 'tier';
 
 /**
  * Every reasoning-effort tier that the runtime may advertise via a model's
@@ -93,6 +99,12 @@ export function toSdkReasoningEffort(effort: AgentHostReasoningEffort | undefine
 
 const ContextTiers = ['default', 'long_context'] as const;
 const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
+
+/**
+ * The SDK's CAPI options widened with `autoTier`. The published SDK types still declare only
+ * `enableWebSocketResponses`; drop the widening once they catch up.
+ */
+type CapiSessionOptionsWithAutoTier = NonNullable<SessionConfig['capi']> & { autoTier?: AutoModeTier };
 
 type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
 type UserInputRequest = Parameters<UserInputHandler>[0];
@@ -446,6 +458,47 @@ export function getCopilotContextTier(model: ModelSelection | undefined, longCon
 }
 
 /**
+ * The Auto routing profile ("Optimize for") a session should launch with. Only the Auto model routes
+ * per turn, so a profile left on another model by an earlier selection is ignored.
+ */
+export function getCopilotAutoTier(model: ModelSelection | undefined): AutoModeTier | undefined {
+	if (!isAutoModel(model?.id)) {
+		return undefined;
+	}
+	const tier = model?.config?.[AutoTierConfigKey];
+	return isAutoModeTier(tier) ? tier : undefined;
+}
+
+/**
+ * {@link getCopilotAutoTier} behind the `autoModeTiers` gate. Re-read here rather than trusted from
+ * the picker schema, since the runtime rejects unknown `capi` fields and would fail the session.
+ */
+export function resolveCopilotAutoTier(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): AutoModeTier | undefined {
+	const tier = getCopilotAutoTier(model);
+	if (tier === undefined) {
+		return undefined;
+	}
+	if (configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.AutoModeTiers) !== true) {
+		logService.trace(`[Copilot:${sessionId}] Auto routing profiles are disabled; ignoring '${tier}'`);
+		return undefined;
+	}
+	logService.info(`[Copilot:${sessionId}] Launching Auto session with the '${tier}' routing profile`);
+	return tier;
+}
+
+/**
+ * The CAPI session options for a routing profile. Omitting `capi` entirely, rather than sending an
+ * empty profile, is what leaves the runtime on its default routing.
+ */
+export function toSdkCapiSessionOptions(autoTier: AutoModeTier | undefined): Pick<SessionConfig, 'capi'> {
+	if (autoTier === undefined) {
+		return {};
+	}
+	const capi: CapiSessionOptionsWithAutoTier = { autoTier };
+	return { capi };
+}
+
+/**
  * Resolve the BYOK provider/model session config for `sessionId` from the
  * renderer's active bridge. Returns empty — the session launches without BYOK
  * models — when BYOK is gated off (no active bridge), when the renderer reports
@@ -621,6 +674,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			model: plan.model?.id,
 			reasoningEffort: resolveCopilotReasoningEffort(plan.model, this._configurationService, this._logService, plan.sessionId),
 			contextTier: getCopilotContextTier(plan.model, plan.longContextWindow, plan.freeLongContext),
+			// Create-time only: the runtime then owns the profile, keeping it fixed while the session is
+			// resident and restoring it on cold resume.
+			...toSdkCapiSessionOptions(resolveCopilotAutoTier(plan.model, this._configurationService, this._logService, plan.sessionId)),
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		}));

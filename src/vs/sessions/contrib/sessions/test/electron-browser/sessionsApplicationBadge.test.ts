@@ -13,10 +13,12 @@ import { BufferReader, BufferWriter, deserialize, serialize } from '../../../../
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IApplicationBadge, INativeHostService } from '../../../../../platform/native/common/native.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
 import { SESSIONS_APPLICATION_BADGE_SETTING, SessionsApplicationBadge } from '../../electron-browser/sessionsApplicationBadge.js';
 
 class TestSessionsManagementService extends mock<ISessionsManagementService>() {
@@ -48,6 +50,18 @@ class TestNativeHostService extends mock<INativeHostService>() {
 	}
 }
 
+class TestBlockedSessions extends mock<BlockedSessions>() {
+
+	private readonly _blockedSessions = observableValue<readonly ISession[]>('blockedSessions', []);
+	override readonly blockedSessions = this._blockedSessions;
+
+	setSessions(sessions: readonly ISession[]): void {
+		this._blockedSessions.set(sessions, undefined);
+	}
+
+	override dispose(): void { }
+}
+
 function createSession(id: string, state: { status?: SessionStatus; isRead?: boolean; isArchived?: boolean }) {
 	const status = observableValue<SessionStatus>(`status-${id}`, state.status ?? SessionStatus.Completed);
 	const isRead = observableValue(`isRead-${id}`, state.isRead ?? true);
@@ -73,21 +87,26 @@ suite('SessionsApplicationBadge', () => {
 
 		const nativeHost = new TestNativeHostService();
 		const configuration = new TestConfigurationService({ [SESSIONS_APPLICATION_BADGE_SETTING]: enabled });
+		const blockedSessions = new TestBlockedSessions();
+		blockedSessions.setSessions(sessions.filter(session => !session.isArchived.get() && session.status.get() === SessionStatus.NeedsInput));
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stubInstance(BlockedSessions, blockedSessions);
 
-		store.add(new SessionsApplicationBadge(management, nativeHost, configuration, new TestThemeService()));
+		store.add(new SessionsApplicationBadge(management, nativeHost, configuration, new TestThemeService(), instantiationService));
 
-		return { management, nativeHost, configuration };
+		return { management, nativeHost, configuration, blockedSessions };
 	}
 
 	function badgeCounts(nativeHost: TestNativeHostService): (number | undefined)[] {
 		return nativeHost.badges.map(badge => badge?.count);
 	}
 
-	test('counts unread and needs-input sessions, ignoring archived and idle ones', () => {
+	test('counts unread and needs-input sessions, ignoring archived, in-progress unread, and idle ones', () => {
 		const { nativeHost } = createBadge([
 			createSession('unread', { isRead: false }).session,
 			createSession('needs-input', { status: SessionStatus.NeedsInput }).session,
 			createSession('unread-and-needs-input', { isRead: false, status: SessionStatus.NeedsInput }).session,
+			createSession('in-progress-unread', { isRead: false, status: SessionStatus.InProgress }).session,
 			createSession('archived-unread', { isRead: false, isArchived: true }).session,
 			createSession('archived-needs-input', { status: SessionStatus.NeedsInput, isArchived: true }).session,
 			createSession('idle', {}).session,
@@ -100,6 +119,17 @@ suite('SessionsApplicationBadge', () => {
 			isPng: badge?.iconDataURL?.startsWith('data:image/png;base64,') ?? false
 		})), [
 			{ count: 3, description: '3 sessions need your attention', isPng: isWindows }
+		]);
+	});
+
+	test('counts a read session with failing CI', () => {
+		const failingCI = createSession('failing-ci', {});
+		const { nativeHost, blockedSessions } = createBadge([failingCI.session]);
+
+		blockedSessions.setSessions([failingCI.session]);
+
+		assert.deepStrictEqual(nativeHost.badges.map(badge => ({ count: badge?.count, description: badge?.description })), [
+			{ count: 1, description: '1 session needs your attention' }
 		]);
 	});
 
@@ -120,13 +150,14 @@ suite('SessionsApplicationBadge', () => {
 
 	test('follows session state and session list changes', () => {
 		const unread = createSession('unread', { isRead: false });
-		const { nativeHost, management } = createBadge([unread.session]);
+		const { nativeHost, management, blockedSessions } = createBadge([unread.session]);
 
 		unread.isRead.set(true, undefined);
 
 		const added = createSession('added', { status: SessionStatus.NeedsInput });
 		management.sessions.push(added.session);
 		management.change();
+		blockedSessions.setSessions([added.session]);
 
 		added.isArchived.set(true, undefined);
 

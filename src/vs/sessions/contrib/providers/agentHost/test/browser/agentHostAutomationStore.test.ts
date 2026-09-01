@@ -17,7 +17,7 @@ import type { IAgentConnection } from '../../../../../../platform/agentHost/comm
 import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY } from '../../../../../../platform/agentHost/common/automationMigration.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationCatalogState, type AutomationState, type RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationEntry, type AutomationState, type RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, ROOT_STATE_URI, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -37,9 +37,9 @@ class TestAutomationConnection {
 
 	private readonly _onDidAction = new Emitter<ActionEnvelope>();
 	readonly onDidAction = this._onDidAction.event;
-	private readonly _onDidCatalogChange = new Emitter<AutomationCatalogState>();
+	private readonly _onDidCatalogChange = new Emitter<AutomationState>();
 	private readonly _onDidRootChange = new Emitter<RootState>();
-	private _catalog: AutomationCatalogState = { automations: [] };
+	private _catalog: AutomationState = { entries: [] };
 	private _root: RootState;
 	private _serverSeq = 0;
 	private _migrationComplete: boolean;
@@ -86,7 +86,7 @@ class TestAutomationConnection {
 		kind: StateComponents.AutomationCatalog,
 		resource: URI,
 		_owner: string,
-	): IReference<IAgentSubscription<AutomationCatalogState>> {
+	): IReference<IAgentSubscription<AutomationState>> {
 		assert.strictEqual(kind, StateComponents.AutomationCatalog);
 		this.subscribedChannel = resource.toString();
 		const connection = this;
@@ -122,7 +122,7 @@ class TestAutomationConnection {
 				createdAt: timestamp,
 				modifiedAt: timestamp,
 			};
-			this._catalog = { automations: [...this._catalog.automations, automation] };
+			this._catalog = { entries: [...this._catalog.entries, automation] };
 			this._onDidCatalogChange.fire(this._catalog);
 			this._onDidAction.fire({
 				channel: AUTOMATION_CATALOG_URI,
@@ -134,7 +134,7 @@ class TestAutomationConnection {
 			if (this.updateError) {
 				throw this.updateError;
 			}
-			const current = this._catalog.automations.find(automation => automation.resource === action.resource);
+			const current = this._catalog.entries.find(automation => automation.resource === action.resource);
 			if (!current) {
 				throw new Error(`Missing Automation: ${action.resource}`);
 			}
@@ -151,7 +151,7 @@ class TestAutomationConnection {
 				modifiedAt: new Date().toISOString(),
 			};
 			this._catalog = {
-				automations: this._catalog.automations.map(candidate => candidate.resource === automation.resource ? automation : candidate),
+				entries: this._catalog.entries.map(candidate => candidate.resource === automation.resource ? automation : candidate),
 			};
 			this._onDidCatalogChange.fire(this._catalog);
 			this._onDidAction.fire({
@@ -163,14 +163,14 @@ class TestAutomationConnection {
 		} else if (action.type === ActionType.AutomationRemoved) {
 			this._catalog = {
 				...this._catalog,
-				automations: this._catalog.automations.filter(automation => automation.resource !== action.resource),
+				entries: this._catalog.entries.filter(automation => automation.resource !== action.resource),
 			};
 			this._onDidCatalogChange.fire(this._catalog);
 		} else if (action.type === ActionType.RootConfigChanged && action.config[AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY]) {
 			this._migrationComplete = true;
 			this._catalog = {
 				...this._catalog,
-				automations: this._catalog.automations.map(automation => ({
+				entries: this._catalog.entries.map(automation => ({
 					...automation,
 					operations: automation.definition._meta?.[AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]
 						? automation.operations.filter(op => op !== AutomationOperation.Run && op !== AutomationOperation.Remove)
@@ -197,7 +197,7 @@ class TestAutomationConnection {
 	}
 
 	async runAutomation(params: { readonly automation: string }) {
-		const automation = this._catalog.automations.find(candidate => candidate.resource === params.automation);
+		const automation = this._catalog.entries.find(candidate => candidate.resource === params.automation);
 		if (!automation) {
 			throw new Error(`Missing Automation: ${params.automation}`);
 		}
@@ -216,30 +216,30 @@ class TestAutomationConnection {
 		};
 		this._catalog = {
 			...this._catalog,
-			automations: this._catalog.automations.map(candidate => candidate.resource === updated.resource ? updated : candidate),
+			entries: this._catalog.entries.map(candidate => candidate.resource === updated.resource ? updated : candidate),
 		};
 		this._onDidCatalogChange.fire(this._catalog);
 		return { resource };
 	}
 
 	setOperations(resource: string, operations: AutomationOperation[]): void {
-		const current = this._catalog.automations.find(automation => automation.resource === resource);
+		const current = this._catalog.entries.find(automation => automation.resource === resource);
 		if (!current) {
 			throw new Error(`Missing Automation: ${resource}`);
 		}
 		const automation = { ...current, operations };
 		this._catalog = {
 			...this._catalog,
-			automations: this._catalog.automations.map(candidate => candidate.resource === resource ? automation : candidate),
+			entries: this._catalog.entries.map(candidate => candidate.resource === resource ? automation : candidate),
 		};
 		this._onDidCatalogChange.fire(this._catalog);
 	}
 
-	setAutomation(automation: AutomationState): void {
+	setAutomation(automation: AutomationEntry): void {
 		this._catalog = {
 			...this._catalog,
-			automations: [
-				...this._catalog.automations.filter(candidate => candidate.resource !== automation.resource),
+			entries: [
+				...this._catalog.entries.filter(candidate => candidate.resource !== automation.resource),
 				automation,
 			],
 		};
@@ -250,7 +250,7 @@ class TestAutomationConnection {
 		const timestamp = new Date().toISOString();
 		this._catalog = {
 			...this._catalog,
-			automations: this._catalog.automations.map(automation => ({
+			entries: this._catalog.entries.map(automation => ({
 				...automation,
 				runs: automation.runs.map(run => run.resource === resource ? {
 					...run,
@@ -422,7 +422,7 @@ suite('AgentHostAutomationStore', () => {
 				enabled: automation.enabled,
 			},
 		}, {
-			subscribedChannel: AUTOMATION_CATALOG_URI,
+			subscribedChannel: URI.parse(AUTOMATION_CATALOG_URI).toString(),
 			dispatchChannel: AUTOMATION_CATALOG_URI,
 			definitionMeta: undefined,
 			triggerExpression: '30 9 * * *',
@@ -1626,7 +1626,7 @@ suite('AgentHostAutomationStore', () => {
 			subscriptions: connection.subscribedChannel,
 			completionRequests: connection.dispatched.filter(entry => entry.channel === ROOT_STATE_URI).length,
 		}, {
-			subscriptions: AUTOMATION_CATALOG_URI,
+			subscriptions: URI.parse(AUTOMATION_CATALOG_URI).toString(),
 			completionRequests: 1,
 		});
 	});
