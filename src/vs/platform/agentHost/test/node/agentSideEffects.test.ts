@@ -1065,6 +1065,38 @@ suite('AgentSideEffects', () => {
 				{ session: sessionUri.toString(), customizations: [{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] }] },
 			]);
 		});
+
+		test('awaits a refresh retry superseded by a direct customization update', async () => {
+			setupSession();
+			const updatedPlugin: PluginCustomization = { ...plugin, name: 'Updated Plugin' };
+			let fetchCount = 0;
+			let signalFetchStarted!: () => void;
+			const fetchStarted = new Promise<void>(resolve => { signalFetchStarted = resolve; });
+			let releaseFetch!: () => void;
+			agent.getSessionCustomizations = async () => {
+				fetchCount++;
+				if (fetchCount === 1) {
+					signalFetchStarted();
+					await new Promise<void>(resolve => { releaseFetch = resolve; });
+					return [plugin];
+				}
+				return [updatedPlugin];
+			};
+
+			const refresh = sideEffects.refreshSessionCustomizations(agent, sessionUri.toString());
+			await fetchStarted;
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [plugin] });
+			releaseFetch();
+			await refresh;
+
+			assert.deepStrictEqual({
+				fetchCount,
+				customizations: stateManager.getSessionState(sessionUri.toString())?.customizations,
+			}, {
+				fetchCount: 2,
+				customizations: [updatedPlugin],
+			});
+		});
 	});
 
 	suite('handleAction — session/turnStarted', () => {

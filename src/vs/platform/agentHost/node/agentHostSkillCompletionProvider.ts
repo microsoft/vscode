@@ -12,7 +12,7 @@ import { isCustomizationEnabled } from '../common/customizationEnablement.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
 import { toSkillCompletionAttachmentMeta } from '../common/meta/agentCompletionAttachmentMeta.js';
-import { buildDefaultChatUri, CustomizationType, DirectoryCustomization, PluginCustomization, SkillCustomization, type Customization } from '../common/state/sessionState.js';
+import { buildDefaultChatUri, CustomizationType, DirectoryCustomization, isAhpChatChannel, parseRequiredSessionUriFromChatUri, PluginCustomization, SkillCustomization, type Customization } from '../common/state/sessionState.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
 import { extractWhitespaceDelimitedSlashToken, matchesSlashCompletion } from './agentHostSlashCompletion.js';
 
@@ -36,6 +36,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 		 * snapshot for the session yet.
 		 */
 		private readonly _getHostCustomizations: (session: URI | string) => readonly Customization[] | undefined = () => undefined,
+		private readonly _refreshSessionCustomizations?: (agent: IAgent, session: URI) => Promise<void>,
 	) {
 		super();
 	}
@@ -46,7 +47,8 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 			return [];
 		}
 
-		const sessionUri = typeof params.channel === 'string' ? URI.parse(params.channel) : params.channel;
+		const channel = params.channel;
+		const sessionUri = URI.parse(isAhpChatChannel(channel) ? parseRequiredSessionUriFromChatUri(channel) : channel);
 		const agent = this._getAgent(sessionUri);
 		if (!agent) {
 			return [];
@@ -88,7 +90,13 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 
 	private async _getCandidates(agent: IAgent, session: URI): Promise<readonly SlashCommmandCandidate[]> {
 		const chat = URI.parse(buildDefaultChatUri(session));
-		const customizations = await agent.getChatCustomizations(chat, { configurationResource: session, resource: session }, this._getHostCustomizations(session));
+		let customizations: readonly Customization[];
+		if (this._refreshSessionCustomizations) {
+			await this._refreshSessionCustomizations(agent, session);
+			customizations = this._getHostCustomizations(session) ?? [];
+		} else {
+			customizations = await agent.getChatCustomizations(chat, { configurationResource: session, resource: session }, this._getHostCustomizations(session));
+		}
 		const result: SlashCommmandCandidate[] = [];
 		for (const c of customizations) {
 			if (c.type === CustomizationType.McpServer || (c.type === CustomizationType.Plugin ? !isCustomizationEnabled(c) : !c.enabled) || !c.children) {

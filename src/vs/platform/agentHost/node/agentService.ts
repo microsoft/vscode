@@ -1129,6 +1129,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const provider = this._register(new AgentHostSkillCompletionProvider(
 			session => this._providerService.getProviderForSession(session),
 			session => this._hostCustomizations(URI.isUri(session) ? session : URI.parse(session)),
+			(agent, session) => this._sideEffects.refreshSessionCustomizations(agent, session.toString()),
 		));
 		this._register(this._completions.registerProvider(provider));
 	}
