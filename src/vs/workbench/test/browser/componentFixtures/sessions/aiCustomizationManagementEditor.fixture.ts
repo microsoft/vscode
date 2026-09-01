@@ -731,6 +731,7 @@ interface IRenderEditorOptions {
 	readonly openItemLabel?: string;
 	readonly editorDisplayMode?: 'preview' | 'raw';
 	readonly migrationCategory?: CustomizationMigrationCategoryId;
+	readonly migrationDashboard?: boolean;
 }
 
 // ============================================================================
@@ -1212,6 +1213,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		editor.revealLastItem();
 		// Allow the 500ms hide delay and 800ms fade transition to complete.
 		await new Promise(resolve => setTimeout(resolve, 1400));
+	}
+
+	if (options.migrationDashboard) {
+		editor.showCustomizationMigrationDashboard();
 	}
 
 	if (options.openFirstItem) {
@@ -2144,6 +2149,24 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
+		}),
+	}),
+
+	MigrationDashboard: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+		}),
+	}),
+
+	MigrationDashboardNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			width: 550,
+			height: 500,
 		}),
 	}),
 

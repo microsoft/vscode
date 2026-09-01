@@ -110,6 +110,7 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage, type ICustomizationMigrationCategorySummary } from './aiCustomizationWelcomePage.js';
 import { type CustomizationMigrationTargetFolders, type IMigratedCustomizationsResult, migrateCustomizations } from './customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, type ICustomizationMigrationBanner, type ICustomizationMigrationCandidatePresentation, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
+import { CustomizationMigrationDashboard, type ICustomizationMigrationDashboardItem } from './customizationMigrationDashboard.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { showNoFoldersDialog } from '../promptSyntax/pickers/askForPromptSourceFolder.js';
@@ -551,6 +552,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private migrationBannerContainer: HTMLElement | undefined;
 	private migrationLinkElement: HTMLAnchorElement | undefined;
 	private migrationSelectedCountElement: HTMLElement | undefined;
+	private migrationFooter: HTMLElement | undefined;
+	private migrationBackButton: HTMLButtonElement | undefined;
 	private migrationFirstFocusableElement: HTMLElement | undefined;
 	private migrationSectionLists: IMigrationSectionList[] = [];
 	private collapsedMigrationSections: Set<string> | undefined = new Set<string>();
@@ -608,7 +611,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private homeButtonIcon: HTMLElement | undefined;
 	private homeButtonLabel: HTMLElement | undefined;
 	private migrationShortcutContainer: HTMLElement | undefined;
-	private readonly migrationShortcuts = new Map<CustomizationMigrationCategoryId, { readonly button: HTMLButtonElement; readonly count: HTMLElement }>();
+	private migrationShortcutButton: HTMLButtonElement | undefined;
+	private migrationShortcutCount: HTMLElement | undefined;
 	private sidebarWidth = 0;
 	private sidebarHeight = 0;
 
@@ -1008,28 +1012,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		DOM.append(container, $('div.sidebar-migration-separator'));
 
-		for (const category of CUSTOMIZATION_MIGRATION_CATEGORIES) {
-			const button = DOM.append(container, $('button.sidebar-migration-button')) as HTMLButtonElement;
-			button.type = 'button';
-			button.style.display = 'none';
-			button.setAttribute('aria-label', category.shortcutLabel);
-			this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, category.shortcutTooltip));
+		const button = this.migrationShortcutButton = DOM.append(container, $('button.sidebar-migration-button')) as HTMLButtonElement;
+		button.type = 'button';
+		button.setAttribute('aria-label', localize('customizationMigrationShortcut', "Migrations"));
+		this.editorDisposables.add(this.hoverService.setupManagedHover(
+			getDefaultHoverDelegate('element'),
+			button,
+			localize('customizationMigrationShortcutTooltip', "Review customizations that need migration"),
+		));
 
-			const icon = DOM.append(button, $('span.sidebar-migration-icon'));
-			icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
-			icon.setAttribute('aria-hidden', 'true');
+		const icon = DOM.append(button, $('span.sidebar-migration-icon'));
+		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
+		icon.setAttribute('aria-hidden', 'true');
 
-			const label = DOM.append(button, $('span.sidebar-migration-label'));
-			label.textContent = category.shortcutLabel;
-
-			const count = DOM.append(button, $('span.sidebar-migration-count'));
-
-			this.editorDisposables.add(DOM.addDisposableListener(button, 'click', () => {
-				void this.showCustomizationMigrationPage(category.id);
-			}));
-
-			this.migrationShortcuts.set(category.id, { button, count });
-		}
+		DOM.append(button, $('span.sidebar-migration-label')).textContent = localize('customizationMigrationShortcutLabel', "Migrations");
+		this.migrationShortcutCount = DOM.append(button, $('span.sidebar-migration-count'));
+		this.editorDisposables.add(DOM.addDisposableListener(button, 'click', () => this.showCustomizationMigrationDashboard()));
 	}
 
 	private createWelcomePage(parent: HTMLElement): void {
@@ -1044,8 +1042,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 						this.group.closeEditor(this.input);
 					}
 				},
-				migrateCustomizations: (categoryId) => {
-					void this.showCustomizationMigrationPage(categoryId);
+				reviewMigrations: () => {
+					this.showCustomizationMigrationDashboard();
 				},
 				prefillChat: async (query, options) => {
 					try {
@@ -1081,11 +1079,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.welcomePage.setMigrationCategories(this.getMigrationCategorySummaries());
 	}
 
-	private createBackArrowButton(onClick?: () => void): HTMLButtonElement {
+	private createBackArrowButton(
+		onClick?: () => void,
+		ariaLabel = localize('backToOverview', "Back to overview"),
+		tooltip = localize('backToOverviewTooltip', "Back to overview"),
+	): HTMLButtonElement {
 		const button = $('button.section-back-arrow-button') as HTMLButtonElement;
 		button.type = 'button';
-		button.setAttribute('aria-label', localize('backToOverview', "Back to overview"));
-		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, localize('backToOverviewTooltip', "Back to overview")));
+		button.setAttribute('aria-label', ariaLabel);
+		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, tooltip));
 		const icon = DOM.append(button, $('span.section-back-arrow-icon'));
 		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.arrowLeft));
 		icon.setAttribute('aria-hidden', 'true');
@@ -1104,6 +1106,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		const header = DOM.append(this.migrationContentContainer, $('.section-title-header'));
 		const titleRow = DOM.append(header, $('.section-title-row'));
+		this.migrationBackButton = this.createBackArrowButton(
+			() => this.showCustomizationMigrationDashboard(),
+			localize('backToCustomizationMigrationDashboard', "Back to customization migrations"),
+			localize('backToCustomizationMigrationDashboardTooltip', "Back to customization migrations"),
+		);
+		titleRow.appendChild(this.migrationBackButton);
 		this.migrationTitleElement = DOM.append(titleRow, $('h2.section-title'));
 		this.migrationDescriptionElement = DOM.append(header, $('p.section-title-description'));
 		this.migrationDescriptionTextElement = DOM.append(this.migrationDescriptionElement, $('span.section-title-description-text'));
@@ -1128,7 +1136,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		migrationListScrollableNode.classList.add('prompt-migration-list-scrollable');
 		this.migrationContentContainer.appendChild(migrationListScrollableNode);
 
-		const footer = DOM.append(this.migrationContentContainer, $('.prompt-migration-footer'));
+		const footer = this.migrationFooter = DOM.append(this.migrationContentContainer, $('.prompt-migration-footer'));
 		this.migrationSelectedCountElement = DOM.append(footer, $('span.prompt-migration-selected-count'));
 		this.migrationSelectedCountElement.setAttribute('aria-live', 'polite');
 		const clearSettingsLabel = localize('customizationMigrationClearSettings', "Clear unused location settings after migration");
@@ -1557,30 +1565,19 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private updateSidebarMigrationShortcut(): void {
-		if (!this.migrationShortcutContainer) {
+		if (!this.migrationShortcutContainer || !this.migrationShortcutButton || !this.migrationShortcutCount) {
 			return;
 		}
 
-		let hasVisibleShortcut = false;
-		for (const category of CUSTOMIZATION_MIGRATION_CATEGORIES) {
-			const shortcut = this.migrationShortcuts.get(category.id);
-			if (!shortcut) {
-				continue;
-			}
-
-			const count = this.getMigrationCandidates(category).length;
-			if (count === 0) {
-				shortcut.button.style.display = 'none';
-				continue;
-			}
-
-			hasVisibleShortcut = true;
-			shortcut.button.style.display = '';
-			shortcut.count.textContent = String(count);
-			shortcut.button.setAttribute('aria-label', category.getShortcutAriaLabel(count));
-		}
-
-		this.migrationShortcutContainer.style.display = hasVisibleShortcut ? '' : 'none';
+		const count = this.getMigrationCategorySummaries().reduce((total, category) => total + category.count, 0);
+		this.migrationShortcutContainer.style.display = count > 0 ? '' : 'none';
+		this.migrationShortcutCount.textContent = String(count);
+		this.migrationShortcutButton.setAttribute(
+			'aria-label',
+			count === 1
+				? localize('customizationMigrationShortcutAriaLabelSingle', "Migrations, 1 customization needs attention")
+				: localize('customizationMigrationShortcutAriaLabel', "Migrations, {0} customizations need attention", count),
+		);
 		this.layoutSidebar(this.sidebarWidth, this.sidebarHeight);
 	}
 
@@ -1807,7 +1804,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.migrationFirstFocusableElement = undefined;
 		this.migrationSectionLists = [];
 
-		const category = this.getActiveMigrationCategory() ?? CUSTOMIZATION_MIGRATION_CATEGORIES[0];
+		const category = this.getActiveMigrationCategory();
+		if (!category) {
+			this.renderCustomizationMigrationDashboard();
+			return;
+		}
 		const candidates = this.getMigrationCandidates(category);
 		this.updateCustomizationMigrationPageHeader(category, candidates);
 		this.updateCustomizationMigrationActionState();
@@ -2191,6 +2192,85 @@ export class AICustomizationManagementEditor extends EditorPane {
 		});
 	}
 
+	private renderCustomizationMigrationDashboard(): void {
+		if (!this.migrationListContainer || !this.migrationMigrateButton) {
+			return;
+		}
+
+		if (this.migrationTitleElement) {
+			this.migrationTitleElement.textContent = localize('customizationMigrationDashboardTitle', "Prepare customizations for Agent Host");
+		}
+		if (this.migrationDescriptionElement) {
+			this.migrationDescriptionElement.style.display = 'none';
+		}
+		if (this.migrationLinkElement) {
+			this.migrationLinkElement.style.display = 'none';
+		}
+		if (this.migrationBackButton) {
+			this.migrationBackButton.style.display = 'none';
+		}
+		if (this.migrationFooter) {
+			this.migrationFooter.style.display = 'none';
+		}
+		this.renderCustomizationMigrationBanner(undefined);
+
+		if (this.customizationMigrationLoading) {
+			this.renderCustomizationMigrationState(
+				localize('customizationMigrationLoading', "Loading customizations..."),
+				localize('customizationMigrationLoadingDescription', "Checking the active harness and available destinations."),
+			);
+			return;
+		}
+
+		if (this.customizationMigrationLoadError) {
+			this.renderCustomizationMigrationState(
+				localize('customizationMigrationLoadError', "Customizations could not be loaded"),
+				localize('customizationMigrationLoadErrorDescription', "Check the active agent connection, then try again."),
+				() => void this.refreshCustomizationMigrationInfo(),
+			);
+			return;
+		}
+
+		const dashboard = this.migrationPageDisposables.add(new CustomizationMigrationDashboard(
+			this.migrationListContainer,
+			id => {
+				const category = CUSTOMIZATION_MIGRATION_CATEGORIES.find(candidate => candidate.id === id);
+				if (category) {
+					this.showCustomizationMigrationPage(category.id);
+				}
+			},
+			url => void this.openerService.open(URI.parse(url)),
+		));
+		dashboard.setItems(this.getCustomizationMigrationDashboardItems(), this.getActiveHarnessLabel());
+		this.migrationFirstFocusableElement = dashboard.getFirstFocusableElement();
+		this.migrationListScrollable?.scanDomNode();
+	}
+
+	private getCustomizationMigrationDashboardItems(): readonly ICustomizationMigrationDashboardItem[] {
+		const harnessLabel = this.getActiveHarnessLabel();
+		return CUSTOMIZATION_MIGRATION_CATEGORIES.flatMap(category => {
+			const candidates = this.getMigrationCandidates(category);
+			if (candidates.length === 0) {
+				return [];
+			}
+			const destinationLabel = this.getCustomizationMigrationDestinationLabel(
+				candidates.flatMap(customization => {
+					const targetType = getCustomizationMigrationTargetType(customization);
+					return this.customizationMigrationTargetFoldersByType.get(targetType)?.filter(folder => folder.source === customization.storage) ?? [];
+				}),
+			);
+			return [{
+				id: category.id,
+				label: category.cardLabel,
+				description: category.getCardDescription(candidates, harnessLabel),
+				count: candidates.length,
+				actionLabel: category.cardActionLabel,
+				actionAriaLabel: category.cardActionAriaLabel,
+				...category.getDashboardItem(candidates, harnessLabel, destinationLabel),
+			}];
+		});
+	}
+
 	private renderCustomizationMigrationState(title: string, description: string, retry?: () => void): void {
 		const state = DOM.append(this.migrationListContainer!, $('.plugin-inventory-empty.prompt-migration-state'));
 		DOM.append(state, $('strong.prompt-migration-state-title')).textContent = title;
@@ -2205,6 +2285,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private updateCustomizationMigrationPageHeader(category: ICustomizationMigrationCategory, candidates: readonly CustomizationMigrationCandidate[]): void {
+		if (this.migrationBackButton) {
+			this.migrationBackButton.style.display = '';
+		}
+		if (this.migrationFooter) {
+			this.migrationFooter.style.display = '';
+		}
 		if (this.migrationTitleElement) {
 			this.migrationTitleElement.textContent = category.pageTitle;
 		}
@@ -2235,6 +2321,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		if (this.migrationLinkElement) {
+			this.migrationLinkElement.style.display = '';
 			this.migrationLinkElement.textContent = category.pageLinkLabel;
 			this.migrationLinkElement.href = category.pageLinkUrl;
 		}
@@ -2277,9 +2364,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (!this.migrationMigrateButton) {
 			return;
 		}
-		const category = this.getActiveMigrationCategory() ?? CUSTOMIZATION_MIGRATION_CATEGORIES[0];
-		const candidates = this.getMigrationCandidates(category);
-		const selectedCount = candidates.filter(customization => this.isCustomizationSelectedForMigration(customization)).length;
+		const category = this.getActiveMigrationCategory();
+		if (!category) {
+			this.migrationMigrateButton.enabled = false;
+			return;
+		}
+		const selectedCount = this.getMigrationCandidates(category).filter(customization => this.isCustomizationSelectedForMigration(customization)).length;
 		this.migrationMigrateButton.enabled = selectedCount > 0 && !this.customizationMigrationInProgress;
 		if (this.migrationClearSettingsCheckbox) {
 			const hasModifiedSettings = this.getModifiedConfiguredLocationSettingIds(category).length > 0;
@@ -2601,6 +2691,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		this.selectedSection = undefined;
+		this.activeMigrationCategoryId = undefined;
 		this.sectionContextKey.set('');
 
 		// Clear persisted section so welcome shows next time
@@ -2737,6 +2828,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 		if (this.migrationContentContainer) {
 			this.migrationContentContainer.style.display = isMigrationMode ? '' : 'none';
+		}
+		if (this.migrationShortcutButton) {
+			this.migrationShortcutButton.classList.toggle('selected', isMigrationMode);
+			if (isMigrationMode) {
+				this.migrationShortcutButton.setAttribute('aria-current', 'page');
+			} else {
+				this.migrationShortcutButton.removeAttribute('aria-current');
+			}
 		}
 		if (this.modelsContentContainer) {
 			this.modelsContentContainer.style.display = !isEditorMode && !isMigrationMode && !isDetailMode && isModelsSection ? '' : 'none';
@@ -2996,6 +3095,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.viewMode === 'migration') {
 			this.scheduleMigrationSectionLayout();
 		}
+		if (this.migrationContentContainer) {
+			const migrationWidth = this.migrationContentContainer.offsetWidth || dimension.width;
+			this.migrationContentContainer.classList.toggle('narrow-layout', migrationWidth < 500);
+		}
+		this.migrationListScrollable?.scanDomNode();
 	}
 
 	override focus(): void {
@@ -3009,7 +3113,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 		if (this.viewMode === 'migration') {
-			this.focusCustomizationMigrationPage();
+			if (this.activeMigrationCategoryId) {
+				this.focusCustomizationMigrationPage();
+			}
 			return;
 		}
 		if (this.selectedSection === undefined) {
@@ -3080,17 +3186,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	public async showCustomizationMigrationPage(categoryId?: CustomizationMigrationCategoryId): Promise<void> {
-		if (!categoryId) {
-			await this.refreshCustomizationMigrationInfo();
-		}
-		const category = categoryId
-			? getCustomizationMigrationCategory(categoryId)
-			: CUSTOMIZATION_MIGRATION_CATEGORIES.find(candidate => this.getMigrationCandidates(candidate).length > 0);
-		if (!category || !this.isMigrationCategoryEnabled(category)) {
-			return;
-		}
-
+	private prepareCustomizationMigrationView(): void {
 		if (this.viewMode === 'editor') {
 			this.goBackToList();
 		}
@@ -3104,14 +3200,36 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.goBackFromToolDetail();
 		}
 
-		this.activeMigrationCategoryId = category.id;
-		if (this.migrationClearSettingsCheckbox) {
-			this.migrationClearSettingsCheckbox.checked = true;
-		}
 		this.selectedSection = undefined;
 		this.sectionContextKey.set('');
 		this.viewMode = 'migration';
 		this.ensureSectionsListReflectsActiveSection(undefined);
+	}
+
+	public showCustomizationMigrationDashboard(): void {
+		this.prepareCustomizationMigrationView();
+		this.activeMigrationCategoryId = undefined;
+		this.renderCustomizationMigrationPage();
+		this.updateContentVisibility();
+		if (this.dimension) {
+			this.layout(this.dimension);
+		}
+	}
+
+	public showCustomizationMigrationPage(categoryId?: CustomizationMigrationCategoryId): void {
+		if (!categoryId) {
+			this.showCustomizationMigrationDashboard();
+			return;
+		}
+		if (!this.isMigrationCategoryEnabled(getCustomizationMigrationCategory(categoryId))) {
+			return;
+		}
+
+		this.prepareCustomizationMigrationView();
+		this.activeMigrationCategoryId = categoryId;
+		if (this.migrationClearSettingsCheckbox) {
+			this.migrationClearSettingsCheckbox.checked = true;
+		}
 		this.renderCustomizationMigrationPage();
 		this.updateContentVisibility();
 		if (this.dimension) {
