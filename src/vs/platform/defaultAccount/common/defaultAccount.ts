@@ -36,17 +36,9 @@ export interface IManagedSettingsCompatibilityError {
 	readonly minimumClientVersion?: string;
 }
 
-export const enum DefaultAccountRefreshTarget {
-	All = 'all',
-	Entitlements = 'entitlements',
-	TokenEntitlements = 'tokenEntitlements',
-	McpRegistry = 'mcpRegistry',
-	ManagedSettings = 'managedSettings',
-}
-
 export interface IDefaultAccountRefreshOptions {
 	/** Account data whose fresh cache should be bypassed. */
-	readonly forceRefresh?: DefaultAccountRefreshTarget;
+	readonly forceRefresh?: 'entitlements' | 'managedSettings';
 	/** Forces managed-settings revalidation and allows an explicit retry after a failed attempt. */
 	readonly retryManagedSettings?: boolean;
 }

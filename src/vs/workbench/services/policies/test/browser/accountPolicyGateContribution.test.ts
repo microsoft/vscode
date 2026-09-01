@@ -9,7 +9,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { DefaultAccountRefreshTarget, IDefaultAccountRefreshOptions, IDefaultAccountService, IManagedSettingsCompatibilityError } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountRefreshOptions, IDefaultAccountService, IManagedSettingsCompatibilityError } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -348,7 +348,7 @@ suite('AccountPolicyGateContribution', () => {
 				},
 			],
 			notificationCount: 0,
-			retryOptions: [{ forceRefresh: DefaultAccountRefreshTarget.ManagedSettings, retryManagedSettings: true }],
+			retryOptions: [{ retryManagedSettings: true }],
 			retryResult: undefined,
 		});
 		assert.match(promptStub.getCall(5).args[0].message, /requires Code to refresh managed settings whenever it starts or reloads\.\n\nAn error prevented the required policy/);

@@ -14,7 +14,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { DefaultAccountRefreshTarget, IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IManagedSettingsFreshness, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../platform/policy/common/managedSettingsFreshness.js';
 
 export const enum SessionsBlockedReason {
@@ -195,7 +195,7 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 			&& freshness?.failure !== ManagedSettingsFreshnessFailure.UpdateRequired) {
 			const retryButton = this._register(new Button(card, { ...defaultButtonStyles }));
 			retryButton.label = localize('managedSettingsRefresh.retry', "Retry");
-			this._register(retryButton.onDidClick(() => this.defaultAccountService.refresh({ forceRefresh: DefaultAccountRefreshTarget.ManagedSettings, retryManagedSettings: true })));
+			this._register(retryButton.onDidClick(() => this.defaultAccountService.refresh({ retryManagedSettings: true })));
 		}
 
 		const openVSCodeButton = this._register(new Button(card, { ...defaultButtonStyles, secondary: true }));

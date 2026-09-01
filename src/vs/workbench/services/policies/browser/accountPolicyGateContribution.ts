@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { DefaultAccountRefreshTarget, IDefaultAccountService, IManagedSettingsCompatibilityError } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountService, IManagedSettingsCompatibilityError } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDialogService, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -348,7 +348,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 			buttons.push({
 				label: localize('managedSettingsRefresh.dialog.retry', "Retry"),
 				run: () => {
-					void this.defaultAccountService.refresh({ forceRefresh: DefaultAccountRefreshTarget.ManagedSettings, retryManagedSettings: true });
+					void this.defaultAccountService.refresh({ retryManagedSettings: true });
 				},
 			});
 		}

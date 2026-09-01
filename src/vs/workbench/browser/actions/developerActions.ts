@@ -46,7 +46,7 @@ import product from '../../../platform/product/common/product.js';
 import { CommandsRegistry, ICommandService } from '../../../platform/commands/common/commands.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
-import { DefaultAccountRefreshTarget, IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
 import { isManagedSettingsFreshnessBlocking } from '../../../platform/policy/common/managedSettingsFreshness.js';
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
@@ -1391,7 +1391,7 @@ class SyncAccountPolicyAction extends Action2 {
 
 		try {
 			logService.info('[DefaultAccount] Manually syncing account policy');
-			await defaultAccountService.refresh({ forceRefresh: DefaultAccountRefreshTarget.ManagedSettings, retryManagedSettings: true });
+			await defaultAccountService.refresh({ retryManagedSettings: true });
 			if (isManagedSettingsFreshnessBlocking(defaultAccountService.managedSettingsFreshness)) {
 				logService.warn('[DefaultAccount] Account policy sync completed without satisfying managed settings freshness');
 				await dialogService.error(localize('syncAccountPolicy.blocked', "Failed to sync account policy."), localize('syncAccountPolicy.blocked.detail', "The required managed settings could not be refreshed."));

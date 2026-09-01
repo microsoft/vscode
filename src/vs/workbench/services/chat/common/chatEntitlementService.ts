@@ -31,7 +31,7 @@ import { ILifecycleService } from '../../lifecycle/common/lifecycle.js';
 import { Mutable } from '../../../../base/common/types.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
-import { DefaultAccountRefreshTarget, IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDefaultAccount, IEntitlementsData } from '../../../../base/common/defaultAccount.js';
 import { isInternalAccount } from '../../../../platform/assignment/common/assignment.js';
 
@@ -1221,7 +1221,7 @@ export class ChatEntitlementRequests extends Disposable {
 	}
 
 	async forceResolveEntitlement(token = CancellationToken.None): Promise<IEntitlements | undefined> {
-		const defaultAccount = await this.defaultAccountService.refresh({ forceRefresh: DefaultAccountRefreshTarget.Entitlements });
+		const defaultAccount = await this.defaultAccountService.refresh({ forceRefresh: 'entitlements' });
 		if (!defaultAccount) {
 			return undefined;
 		}
