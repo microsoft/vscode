@@ -1045,7 +1045,8 @@ suite('DefaultAccountProvider managed settings', () => {
 		requestService: TestRequestService,
 		nativeManagedSettings: ManagedSettingsData = {},
 		fileManagedSettings: ManagedSettingsData = {},
-		managedSettingsUrl = 'https://api.github.com/copilot_internal/managed_settings'
+		managedSettingsUrl = 'https://api.github.com/copilot_internal/managed_settings',
+		authenticationServiceOverrides: Partial<IAuthenticationService> = {},
 	): Promise<DefaultAccountProvider> {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
@@ -1058,6 +1059,7 @@ suite('DefaultAccountProvider managed settings', () => {
 			onDidChangeSessions: Event.None,
 			onDidRegisterAuthenticationProvider: Event.None,
 			onDidUnregisterAuthenticationProvider: Event.None,
+			...authenticationServiceOverrides,
 		});
 		instantiationService.stub(IAuthenticationExtensionsService, {
 			getAccountPreference: () => undefined,
