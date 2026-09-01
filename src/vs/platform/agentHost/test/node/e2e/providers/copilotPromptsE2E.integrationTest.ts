@@ -18,10 +18,12 @@
  * the CLI. See the README's "Prompt snapshots" section for what is elided and
  * how to add a model.
  *
- * Sessions run with the harness's canonical client-tool profile, including the
- * Copilot extension's `toolSearch` AHP reference. The host consumes that
- * reference, so these model-wire snapshots pin its prompt contribution rather
- * than the extension's internal tool definition.
+ * Sessions run with the harness's representative production client-tool
+ * profile, including the Copilot extension's `toolSearch` AHP reference and a
+ * deferred browser pair. The host consumes the search reference, so these
+ * model-wire snapshots pin its prompt contribution rather than the extension's
+ * internal tool definition, while also exercising deferred-tool assembly and
+ * browser-gated guidance.
  *
  * Run, then accept a new baseline and review the diff:
  *   ./scripts/test-integration.sh --run <this file>
