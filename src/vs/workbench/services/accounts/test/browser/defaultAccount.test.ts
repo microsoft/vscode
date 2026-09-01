@@ -112,6 +112,78 @@ suite('DefaultAccountProvider', () => {
 		});
 	});
 
+	test('entitlement refresh preserves satisfied governed managed settings', async () => {
+		const freshEntitlements = {
+			access_type_sku: 'copilot_business_seat',
+			chat_enabled: true,
+			assigned_date: '2026-01-01',
+			can_signup_for_limited: false,
+			copilot_plan: 'business',
+			organization_login_list: [],
+			analytics_tracking_id: 'tracking-id',
+		};
+		const requestService = new TestRequestService(async options => options.callSite === 'defaultAccount.entitlements'
+			? jsonResponse(freshEntitlements)
+			: Promise.reject(new Error(`Unexpected request: ${options.url}`)));
+		const provider = await createProvider(requestService);
+		const fetchedAt = Date.now() - 1000;
+		const managedSettingsScope = {
+			accountId,
+			authenticationProviderId: 'github',
+			endpointOrigin: 'https://api.github.com',
+		};
+		const cachedPolicy = {
+			...createCachedPolicy(true),
+			managedSettingsScope,
+		};
+		const policyData = {
+			...cachedPolicy,
+			entitlementsFetchedAt: fetchedAt,
+			managedSettingsFetchedAt: fetchedAt,
+		};
+		provider['setDefaultAccount']({
+			defaultAccount: {
+				authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
+				accountName: sessions[0].account.label,
+				sessionId: sessions[0].id,
+				enterprise: false,
+				entitlementsData: { ...freshEntitlements, copilot_plan: 'individual' },
+			},
+			accountId,
+			policyData,
+			copilotTokenInfo: null,
+		});
+		provider['setManagedSettingsFreshness']({
+			state: ManagedSettingsFreshnessState.Satisfied,
+			source: 'server',
+			scope: managedSettingsScope,
+			lastAttemptAt: fetchedAt,
+			satisfiedAt: fetchedAt,
+		});
+
+		const refreshedEntitlements = await provider['getDefaultAccountFromAuthenticatedSessions'](
+			{ id: 'github', name: 'GitHub', enterprise: false },
+			sessions,
+			{ refreshEntitlements: true }
+		);
+
+		assert.deepStrictEqual({
+			callSites: requestService.requests.map(request => request.callSite),
+			refreshedCopilotPlan: refreshedEntitlements?.defaultAccount.entitlementsData?.copilot_plan,
+			freshness: describeFreshness(provider.managedSettingsFreshness),
+		}, {
+			callSites: ['defaultAccount.entitlements'],
+			refreshedCopilotPlan: 'business',
+			freshness: {
+				state: ManagedSettingsFreshnessState.Satisfied,
+				source: 'server',
+				scope: managedSettingsScope,
+				hasLastAttempt: true,
+				hasSatisfiedAt: true,
+			},
+		});
+	});
+
 	test('settings without a refresh requirement refetch only after the cache becomes stale', async () => {
 		const requestService = new TestRequestService(async () => jsonResponse({}));
 		const provider = await createProvider(requestService);
@@ -275,6 +347,26 @@ suite('DefaultAccountProvider', () => {
 			data: { managedSettings: undefined },
 			compatibilityError: null,
 			freshness: { state: ManagedSettingsFreshnessState.NotRequired },
+		});
+	});
+
+	test('managed settings 404 does not retry with another authentication session', async () => {
+		const requestService = new TestRequestService(async () => jsonResponse({}, 404));
+		const provider = await createProvider(requestService);
+
+		const result = await provider['getManagedSettings']([
+			sessions[0],
+			{ ...sessions[0], id: 'second-session' },
+		], undefined);
+
+		assert.deepStrictEqual({
+			requestCount: requestService.requestCount,
+			status: provider.managedSettingsFetchStatus,
+			data: result.data,
+		}, {
+			requestCount: 1,
+			status: 404,
+			data: { managedSettings: undefined },
 		});
 	});
 
@@ -555,6 +647,28 @@ suite('DefaultAccountProvider', () => {
 		], undefined);
 
 		assert.strictEqual(requestService.requestCount, 2);
+	});
+
+	test('matching authentication sessions are not duplicated by overlapping accepted scopes', async () => {
+		const broadSession: AuthenticationSession = {
+			...sessions[0],
+			scopes: ['read:user', 'user:email', 'repo', 'workflow'],
+		};
+		const provider = await createProvider(
+			new TestRequestService(async () => jsonResponse({})),
+			{},
+			{},
+			'',
+			{ getSessions: async () => [broadSession] }
+		);
+
+		const matching = await provider['findMatchingProviderSession']('github', [
+			['read:user', 'user:email', 'repo', 'workflow'],
+			['user:email'],
+			['read:user'],
+		]);
+
+		assert.deepStrictEqual(matching?.map(session => session.id), ['session']);
 	});
 
 	test('first server response can establish and satisfy a refresh requirement', async () => {

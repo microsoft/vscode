@@ -147,6 +147,7 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 
 		const method = this._requireMergeMethod(mergeability?.allowedMergeMethods ?? []);
 		const result = await this._gitHubService.mutations.merge(preparation, { method, authorization }, signal);
+		this._statusService.markPullRequestMerged(sessionUri, status.url);
 		this._logService.info(`[AgentHostPullRequestLifecycleOperationHandler] Pull request merged: session=${sessionUri}, pr=${status.url}, method=${method}, outcome=${result.outcome}`);
 		return localize('agentHost.changeset.pr.merged', "Pull request was merged.");
 	}

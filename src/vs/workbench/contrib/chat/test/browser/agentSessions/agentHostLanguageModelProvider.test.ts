@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
@@ -134,6 +135,28 @@ suite('AgentHostLanguageModelProvider', () => {
 				promo: { id: 'featured', discountPercent: 0, message: 'Now available' },
 			},
 		]);
+	});
+
+	test('carries model notices and flags row warnings', async () => {
+		const provider = createProvider();
+		provider.updateModels([makeModel('gpt-5', {
+			warningText: { model_degraded: 'GPT-5 is currently degraded.' },
+			infoText: { model_relocated: 'GPT-5 now serves from a new region.' },
+			rowWarning: 'GPT-5 is currently degraded.',
+		})]);
+
+		const metadata = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0].metadata;
+		assert.deepStrictEqual({
+			tooltip: metadata.tooltip,
+			statusIcon: metadata.statusIcon?.id,
+			warningText: metadata.warningText,
+			infoText: metadata.infoText,
+		}, {
+			tooltip: 'GPT-5 is currently degraded.',
+			statusIcon: Codicon.warning.id,
+			warningText: { model_degraded: 'GPT-5 is currently degraded.' },
+			infoText: { model_relocated: 'GPT-5 now serves from a new region.' },
+		});
 	});
 
 	test('derives the picker group from the model-id prefix, not the harness provider', async () => {
