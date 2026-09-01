@@ -199,6 +199,23 @@ suite('AgentHostShellInitSynchronizer', () => {
 		await assert.rejects(reconcile, /not authorized/);
 	});
 
+	test('reconcile waits when the desired value is only optimistic', async () => {
+		const { synchronizer, dispatched } = create({ enabled: true });
+		const subscription = disposables.add(new TestSubscription(state()));
+		disposables.add(synchronizer.register(session, subscription));
+		await timeout(0);
+		subscription.set(state({ values: dispatched[0] }));
+
+		let resolved = false;
+		const reconcile = synchronizer.reconcile(session, CancellationToken.None).then(() => resolved = true);
+		await timeout(0);
+		assert.strictEqual(resolved, false);
+
+		subscription.applyConfig(dispatched[0]);
+		await reconcile;
+		assert.strictEqual(resolved, true);
+	});
+
 	test('uses the session folder in a multi-root workspace and project for worktrees', async () => {
 		const { synchronizer, dispatched } = create({
 			enabled: true,

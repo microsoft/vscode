@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellation, RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellation, RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { structuralEquals } from '../../../../../../base/common/equals.js';
-import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -16,6 +15,7 @@ import { SessionConfigKey } from '../../../../../../platform/agentHost/common/se
 import { createShellInitScript, type IShellInitScript, type ShellInitScriptShell } from '../../../../../../platform/agentHost/common/shellInitScript.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
+import type { ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
@@ -45,6 +45,7 @@ interface IRegistration {
 	readonly store: DisposableStore;
 	readonly scheduler: RunOnceScheduler;
 	schemaReady: boolean;
+	pendingPublication: { readonly serialized: string; readonly desired: readonly IShellInitScript[]; readonly applied: DeferredPromise<ActionEnvelope> } | undefined;
 }
 
 /**
@@ -89,6 +90,7 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 			store,
 			scheduler,
 			schemaReady: this._supportsShellInit(subscription.value),
+			pendingPublication: undefined,
 		};
 		this._registrations.set(key, registration);
 		store.add(subscription.onDidChange(state => {
@@ -98,6 +100,15 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 			if (!registration.schemaReady && this._supportsShellInit(state)) {
 				registration.schemaReady = true;
 				scheduler.schedule();
+			}
+		}));
+		store.add(subscription.onDidApplyAction(envelope => {
+			const pending = registration.pendingPublication;
+			if (pending
+				&& envelope.action.type === ActionType.SessionConfigChanged
+				&& structuralEquals(envelope.action.config[SessionConfigKey.ShellInitSnippets], pending.desired)
+			) {
+				pending.applied.complete(envelope);
 			}
 		}));
 		store.add(toDisposable(() => {
@@ -142,8 +153,16 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 			return;
 		}
 		const desired = enabled && folder ? [createShellInitScript(TOOL_SHELL, this._readPythonActivation(folder))] : [];
-		const current = state.config.values[SessionConfigKey.ShellInitSnippets] as readonly IShellInitScript[] | undefined;
-		if (structuralEquals(current, desired) || (!desired.length && current === undefined)) {
+		const serialized = JSON.stringify(desired);
+		const pending = registration.pendingPublication;
+		if (pending?.serialized === serialized) {
+			if (token) {
+				await this._awaitPublication(registration, pending, token);
+			}
+			return;
+		}
+		const confirmed = registration.subscription.verifiedValue?.config?.values[SessionConfigKey.ShellInitSnippets] as readonly IShellInitScript[] | undefined;
+		if (structuralEquals(confirmed, desired) || (!desired.length && confirmed === undefined)) {
 			return;
 		}
 
@@ -151,16 +170,30 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 			type: ActionType.SessionConfigChanged,
 			config: { [SessionConfigKey.ShellInitSnippets]: desired },
 		} as const;
-		const applied = token ? Event.toPromise(Event.filter(registration.subscription.onDidApplyAction, envelope =>
-			envelope.action.type === ActionType.SessionConfigChanged
-			&& structuralEquals(envelope.action.config[SessionConfigKey.ShellInitSnippets], desired)
-		)) : undefined;
-		this._agentHostService.dispatch(key, action);
-		if (applied && token) {
-			const envelope = await raceCancellation(applied, token);
-			if (envelope?.rejectionReason) {
-				throw new Error(`Agent Host rejected shell init config: ${envelope.rejectionReason}`);
+		const publication = {
+			serialized,
+			desired,
+			applied: new DeferredPromise<ActionEnvelope>(),
+		};
+		registration.pendingPublication = publication;
+		void publication.applied.p.then(() => {
+			if (registration.pendingPublication === publication) {
+				registration.pendingPublication = undefined;
 			}
+		});
+		this._agentHostService.dispatch(key, action);
+		if (token) {
+			await this._awaitPublication(registration, publication, token);
+		}
+	}
+
+	private async _awaitPublication(registration: IRegistration, publication: NonNullable<IRegistration['pendingPublication']>, token: CancellationToken): Promise<void> {
+		const envelope = await raceCancellation(publication.applied.p, token);
+		if (registration.pendingPublication === publication) {
+			registration.pendingPublication = undefined;
+		}
+		if (envelope?.rejectionReason) {
+			throw new Error(`Agent Host rejected shell init config: ${envelope.rejectionReason}`);
 		}
 	}
 
