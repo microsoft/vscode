@@ -7,9 +7,12 @@ import assert from 'assert';
 import { addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Action } from '../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatPillActionViewItem } from '../../../../../workbench/browser/chatPills.js';
+import { getAgentMergeAwarePullRequestIcon, ISessionAgentMergeConfiguration } from '../../../../browser/sessionAgentMerge.js';
 import { OpenIssueActionViewItem } from '../../browser/issueActions.js';
 import { OpenPullRequestActionViewItem } from '../../browser/pullRequestActions.js';
 
@@ -23,7 +26,8 @@ interface IIssueViewItemTestHarness {
 
 interface IPullRequestViewItemTestHarness {
 	_pullRequestList: object | undefined;
-	readonly _pullRequestsObs: { get(): readonly object[] };
+	readonly _pullRequestsObs: { get(): readonly { readonly icon?: ThemeIcon }[] };
+	readonly _icon?: { get(): ThemeIcon };
 	readonly _hoverService: { hideHover(force?: boolean): void };
 	hasOpenDropdown(): boolean;
 	_showPullRequestPicker(pullRequests: readonly object[]): void;
@@ -31,6 +35,7 @@ interface IPullRequestViewItemTestHarness {
 
 const openIssueViewItemOnDidClickButton = Reflect.get(OpenIssueActionViewItem.prototype, 'onDidClickButton') as (this: IIssueViewItemTestHarness) => void;
 const openPullRequestViewItemOnDidClickButton = Reflect.get(OpenPullRequestActionViewItem.prototype, 'onDidClickButton') as (this: IPullRequestViewItemTestHarness) => void;
+const openPullRequestViewItemGetIconElement = Reflect.get(OpenPullRequestActionViewItem.prototype, 'getIconElement') as (this: IPullRequestViewItemTestHarness) => HTMLElement;
 
 class TestDropdownMetaActionViewItem extends ChatPillActionViewItem {
 
@@ -143,5 +148,50 @@ suite('GitHub Reference Action View Items', () => {
 		openPullRequestViewItemOnDidClickButton.call(harness);
 
 		assert.deepStrictEqual(events, ['show', 'hide:true']);
+	});
+
+	test('Agent Merge shows the open pull request icon instead of blocker variants', () => {
+		const agentMerge = (overrides: Partial<ISessionAgentMergeConfiguration['actions']> = {}): ISessionAgentMergeConfiguration => ({
+			enabled: true,
+			actions: {
+				addressReviews: true,
+				fixCI: true,
+				resolveConflicts: true,
+				mergePullRequest: 'never',
+				mergeMethod: 'auto',
+				replyAttribution: true,
+				...overrides,
+			},
+		});
+		let icon = getAgentMergeAwarePullRequestIcon(Codicon.gitPullRequestError, agentMerge(), { hasFailingChecks: true });
+		const harness: IPullRequestViewItemTestHarness = {
+			_pullRequestList: undefined,
+			_pullRequestsObs: { get: () => [{ icon }] },
+			_icon: { get: () => icon },
+			_hoverService: { hideHover() { } },
+			hasOpenDropdown: () => false,
+			_showPullRequestPicker() { },
+		};
+		const iconId = () => [...openPullRequestViewItemGetIconElement.call(harness).classList]
+			.find(className => className.startsWith('codicon-git-pull-request'));
+
+		const failingCI = iconId();
+		icon = getAgentMergeAwarePullRequestIcon(Codicon.gitPullRequestError, agentMerge({ fixCI: false }), { hasFailingChecks: true });
+		const failingCIDisabled = iconId();
+		icon = getAgentMergeAwarePullRequestIcon(Codicon.gitPullRequestComment, agentMerge());
+		const reviewComments = iconId();
+		icon = getAgentMergeAwarePullRequestIcon(Codicon.gitPullRequestComment, agentMerge({ addressReviews: false }));
+
+		assert.deepStrictEqual({
+			failingCI,
+			failingCIDisabled,
+			reviewComments,
+			reviewsDisabled: iconId(),
+		}, {
+			failingCI: 'codicon-git-pull-request',
+			failingCIDisabled: 'codicon-git-pull-request-error',
+			reviewComments: 'codicon-git-pull-request',
+			reviewsDisabled: 'codicon-git-pull-request-comment',
+		});
 	});
 });

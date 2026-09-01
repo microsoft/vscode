@@ -7027,6 +7027,72 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- Server-echoed SessionConfigChanged -------
 
+	test('projects Agent Merge enablement without notifying for unrelated session state changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('agent-merge-enabled', { summary: 'Agent Merge Session' }));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(session => session.title.get() === 'Agent Merge Session');
+		assert.ok(session);
+		const agentMergeState = provider.getAgentMergeClientStateObservable(session.sessionId);
+
+		const observed: boolean[] = [];
+		const observer = disposables.add(autorun(reader => observed.push(agentMergeState.read(reader)?.enabled === true)));
+		const sessionUri = AgentSession.uri('copilotcli', 'agent-merge-enabled').toString();
+		const defaultChatUri = buildDefaultChatUri(sessionUri);
+		const subscriptionsWhileObserved = {
+			session: agentHost.sessionSubscribeCounts.get(sessionUri) ?? 0,
+			defaultChat: agentHost.sessionSubscribeCounts.get(defaultChatUri) ?? 0,
+		};
+		const state = (enabled: boolean, autoApprove: string): SessionState => ({
+			provider: 'copilotcli',
+			title: 'Agent Merge Session',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			config: {
+				schema: {
+					type: 'object',
+					properties: {
+						autoApprove: { type: 'string', title: 'Auto Approve', enum: ['default', 'autoApprove'], sessionMutable: true },
+					},
+				},
+				values: {
+					autoApprove,
+					[SessionConfigKey.AgentMerge]: { enabled },
+				},
+			},
+		});
+
+		agentHost.setSessionState('agent-merge-enabled', 'copilotcli', state(true, 'default'));
+		agentHost.setSessionState('agent-merge-enabled', 'copilotcli', state(true, 'autoApprove'));
+		agentHost.setSessionState('agent-merge-enabled', 'copilotcli', state(false, 'autoApprove'));
+		observer.dispose();
+		await timeout(10_000);
+		const replacementObserver = disposables.add(autorun(reader => observed.push(agentMergeState.read(reader)?.enabled === true)));
+		const subscriptionsAfterReobserve = agentHost.sessionSubscribeCounts.get(sessionUri) ?? 0;
+		replacementObserver.dispose();
+		await timeout(31_000);
+
+		assert.deepStrictEqual({
+			subscriptionsWhileObserved,
+			subscriptionsAfterReobserve,
+			observed,
+			current: agentMergeState.get()?.enabled,
+			unsubscriptionsAfterIdle: {
+				session: agentHost.sessionUnsubscribeCounts.get(sessionUri) ?? 0,
+				defaultChat: agentHost.sessionUnsubscribeCounts.get(defaultChatUri) ?? 0,
+			},
+		}, {
+			subscriptionsWhileObserved: { session: 1, defaultChat: 0 },
+			subscriptionsAfterReobserve: 1,
+			observed: [false, true, false, false],
+			current: false,
+			unsubscriptionsAfterIdle: { session: 1, defaultChat: 0 },
+		});
+	}));
+
 	test('server-echoed SessionConfigChanged merges config values into the running cache by default', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('cfg-merge', { summary: 'Merge Session' }));
 		const provider = createProvider(disposables, agentHost);

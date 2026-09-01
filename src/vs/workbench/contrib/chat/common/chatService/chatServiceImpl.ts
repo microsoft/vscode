@@ -941,6 +941,7 @@ export class ChatService extends Disposable implements IChatService {
 					message.timestamp ?? null,
 					message.isHidden,
 					message.origin,
+					message.isRequestHidden,
 				);
 			} else {
 				// response
@@ -1006,7 +1007,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			// Handle server-initiated requests (e.g. consumed queued messages).
 			if (providedSession.onDidStartServerRequest) {
-				disposables.add(providedSession.onDidStartServerRequest(({ id, prompt, variableData, timestamp, isSystemInitiated, isHidden, systemInitiatedLabel, isTerminalRequest, resume, origin }) => {
+				disposables.add(providedSession.onDidStartServerRequest(({ id, prompt, variableData, timestamp, isSystemInitiated, isHidden, isRequestHidden, systemInitiatedLabel, isTerminalRequest, resume, origin }) => {
 					if (resume) {
 						const request = model.getRequests().find(request => request.id === id);
 						if (!request?.response) {
@@ -1046,6 +1047,7 @@ export class ChatService extends Disposable implements IChatService {
 						timestamp,
 						isHidden,
 						origin,
+						isRequestHidden,
 					);
 
 					// Reset progress tracking for the new turn
