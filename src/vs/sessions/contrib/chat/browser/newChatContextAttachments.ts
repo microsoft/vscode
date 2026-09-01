@@ -111,7 +111,6 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 		super();
 		this._resourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 		this._register(this.themeService.onDidFileIconThemeChange(() => this._updateRendering()));
-		this._register(this.themeService.onDidColorThemeChange(() => this._updateRendering()));
 	}
 
 	// --- Rendering ---
@@ -171,7 +170,7 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 				content = dom.append(pill, dom.$('span.sessions-chat-attachment-content'));
 			}
 			if (entry.kind === 'image') {
-				const icon = dom.append(content, renderIcon(Codicon.fileMedia));
+				const icon = dom.append(content, renderIcon(Codicon.fileMediaCompact));
 				dom.append(content, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
 				if (imageData) {
 					// Swap the generic icon for a thumbnail once the shared helper
@@ -184,7 +183,7 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 					this._renderDisposables.add(preview.disposable);
 				}
 			} else if (entry.id.startsWith(ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX)) {
-				const icon = dom.append(content, renderIcon(Codicon.repo));
+				const icon = dom.append(content, renderIcon(Codicon.repoCompact));
 				icon.setAttribute('aria-hidden', 'true');
 				dom.append(content, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
 			} else if (entry.icon) {
@@ -211,19 +210,25 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 					// language, and how much text it stands in for.
 					label.setLabel(entry.fileName, undefined, this.themeService.getFileIconTheme().hasFileIcons
 						? { extraClasses: ['file-icon', `${entry.language}-lang-file-icon`] }
-						: { iconPath: FileThemeIcon });
+						: { extraClasses: getIconClasses(this.modelService, this.languageService, undefined, FileKind.FILE, FileThemeIcon) });
 					dom.append(content, dom.$('span.sessions-chat-attachment-info', undefined, localize('pastedLines', "Pasted {0}", entry.pastedLines)));
 				} else {
 					const iconPath = (isStringVariableEntry(entry) || entry.kind === 'generic') ? entry.iconPath : undefined;
 					const attachmentLabel = entry.fullName ?? entry.name;
-					if (isStringVariableEntry(entry) && ThemeIcon.isThemeIcon(iconPath) && (ThemeIcon.isFile(iconPath) || ThemeIcon.isFolder(iconPath)) && entry.resourceUri) {
-						const fileKind = ThemeIcon.isFolder(iconPath) ? FileKind.FOLDER : FileKind.FILE;
-						label.setLabel(attachmentLabel, undefined, { extraClasses: getIconClasses(this.modelService, this.languageService, entry.resourceUri, fileKind) });
-					} else {
-						const icon = iconPath
-							? resolveChatContextIcon(iconPath, isDark(this.themeService.getColorTheme().type))
-							: entry.icon ?? Codicon.attach;
-						label.setLabel(attachmentLabel, undefined, { iconPath: icon });
+					const updateLabel = () => {
+						if (isStringVariableEntry(entry) && ThemeIcon.isThemeIcon(iconPath) && (ThemeIcon.isFile(iconPath) || ThemeIcon.isFolder(iconPath)) && entry.resourceUri) {
+							const fileKind = ThemeIcon.isFolder(iconPath) ? FileKind.FOLDER : FileKind.FILE;
+							label.setLabel(attachmentLabel, undefined, { extraClasses: getIconClasses(this.modelService, this.languageService, entry.resourceUri, fileKind) });
+						} else {
+							const icon = iconPath
+								? resolveChatContextIcon(iconPath, isDark(this.themeService.getColorTheme().type))
+								: entry.icon ?? Codicon.attachCompact;
+							label.setLabel(attachmentLabel, undefined, { iconPath: icon });
+						}
+					};
+					updateLabel();
+					if (iconPath && !ThemeIcon.isThemeIcon(iconPath) && !URI.isUri(iconPath)) {
+						this._renderDisposables.add(this.themeService.onDidColorThemeChange(updateLabel));
 					}
 				}
 			}

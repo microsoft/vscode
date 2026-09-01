@@ -636,19 +636,6 @@
 	width: fit-content;
 }
 
-.sessions-chat-attachment-content {
-	display: flex;
-	align-items: center;
-	height: 100%;
-	min-width: 0;
-	overflow: hidden;
-}
-
-.sessions-chat-attachment-content:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
 .sessions-chat-attachment-name {
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -687,7 +674,8 @@
 	white-space: nowrap;
 }
 
-.sessions-chat-attachment-pill .codicon {
+.monaco-workbench .sessions-chat-attachment-pill .sessions-chat-attachment-content .codicon,
+.monaco-workbench .sessions-chat-attachment-pill .sessions-chat-attachment-open .codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 	flex-shrink: 0;
 	padding: 0 var(--vscode-spacing-size20);
@@ -739,7 +727,7 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.sessions-chat-attachment-pill .sessions-chat-attachment-remove .codicon {
+.monaco-workbench .sessions-chat-attachment-pill .sessions-chat-attachment-remove .codicon {
 	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	padding: 0;
 }
