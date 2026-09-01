@@ -9,7 +9,7 @@ import { BrowserView } from './browserView.js';
 import { ICDPTarget, CDPBrowserVersion, CDPWindowBounds, CDPTargetInfo, ICDPConnection, ICDPBrowserTarget, CDPRequest, CDPResponse, CDPEvent } from '../common/cdp/types.js';
 import { CDPBrowserProxy } from '../common/cdp/proxy.js';
 import { IBrowserViewGroup, IBrowserViewGroupFilter, matchesBrowserViewGroupFilter } from '../common/browserViewGroup.js';
-import { IBrowserViewCreationContext } from '../common/browserView.js';
+import { BrowserViewStorageScope, IBrowserViewCreationContext } from '../common/browserView.js';
 import { IBrowserViewMainService } from './browserViewMainService.js';
 import { IProductService } from '../../product/common/productService.js';
 import { BrowserSession } from './browserSession.js';
@@ -317,11 +317,17 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 	}
 
 	async createBrowserContext(): Promise<string> {
-		const browserSession = BrowserSession.getOrCreateEphemeral(this.instantiationService, generateUuid(), 'cdp-created');
-		const contextId = browserSession.id;
-		this.knownContextIds.add(contextId);
-		this.ownedContextIds.add(contextId);
-		return contextId;
+		const contextId = generateUuid();
+		const sessionSelector = this.targetContext.session;
+		const usesAgentStorage = typeof sessionSelector === 'string'
+			? BrowserSession.get(sessionSelector)?.storageScope === BrowserViewStorageScope.Agent
+			: sessionSelector.scope === BrowserViewStorageScope.Agent;
+		const browserSession = usesAgentStorage
+			? BrowserSession.getOrCreateAgent(this.instantiationService, undefined, contextId)
+			: BrowserSession.getOrCreateEphemeral(this.instantiationService, contextId, 'cdp-created');
+		this.knownContextIds.add(browserSession.id);
+		this.ownedContextIds.add(browserSession.id);
+		return browserSession.id;
 	}
 
 	async disposeBrowserContext(browserContextId: string): Promise<void> {

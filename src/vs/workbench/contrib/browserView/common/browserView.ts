@@ -37,6 +37,7 @@ import {
 	IBrowserViewDevToolsStateEvent,
 	IBrowserViewService,
 	BrowserViewStorageScope,
+	isInMemoryStorageScope,
 	IBrowserViewCaptureScreenshotOptions,
 	IBrowserViewFindInPageOptions,
 	IBrowserViewFindInPageResult,
@@ -454,7 +455,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _certificateError: IBrowserViewCertificateError | undefined = undefined;
 	private _storageScope: BrowserViewStorageScope = BrowserViewStorageScope.Ephemeral;
 	private _isRemoteSession: boolean = false;
-	private _isEphemeral: boolean = false;
+	private _isInMemory: boolean = false;
 	private _zoomHost: string | undefined = undefined;
 	private _sharedWithAgent: boolean = false;
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
@@ -516,7 +517,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._isAreaSelectionActive = initialState.isAreaSelectionActive;
 		this._device = initialState.device;
 		this._sharedWithAgent = initialState.audiences.some(audience => audience.type === 'agent');
-		this._isEphemeral = this._storageScope === BrowserViewStorageScope.Ephemeral;
+		this._isInMemory = isInMemoryStorageScope(this._storageScope);
 		this._zoomHost = parseZoomHost(this._url);
 
 		const { history: entriesKey, favicons: faviconsKey } = initialState.storageKeys;
@@ -540,7 +541,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			snapshot => this.permissions.hydrate(snapshot)));
 
 		// Sync initial zoom
-		const effectiveZoomIndex = this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isEphemeral);
+		const effectiveZoomIndex = this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isInMemory);
 		if (effectiveZoomIndex !== this._browserZoomIndex) {
 			void this.setBrowserZoomIndex(effectiveZoomIndex).catch(e => {
 				this.logService.warn(`[BrowserViewModel] Failed to set initial zoom:`, e);
@@ -548,13 +549,13 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		}
 		// Set up state synchronization
 
-		this._register(this.zoomService.onDidChangeZoom(({ host, isEphemeralChange }) => {
-			if (isEphemeralChange && !this._isEphemeral) {
+		this._register(this.zoomService.onDidChangeZoom(({ host, isInMemoryChange }) => {
+			if (isInMemoryChange && !this._isInMemory) {
 				return;
 			}
 			if (host === undefined || host === this._zoomHost) {
 				void this.setBrowserZoomIndex(
-					this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isEphemeral)
+					this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isInMemory)
 				).catch(() => { });
 			}
 		}));
@@ -575,7 +576,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			// Always forceApply because Chromium resets zoom on cross-origin navigation,
 			// and an origin change may not correspond to a host change (e.g. http→https).
 			void this.setBrowserZoomIndex(
-				this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isEphemeral),
+				this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isInMemory),
 				true
 			);
 		}));
@@ -836,7 +837,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		}
 		await this.setBrowserZoomIndex(this._browserZoomIndex + 1);
 		if (this._zoomHost) {
-			this.zoomService.setHostZoomIndex(this._zoomHost, this._browserZoomIndex, this._isEphemeral);
+			this.zoomService.setHostZoomIndex(this._zoomHost, this._browserZoomIndex, this._isInMemory);
 		}
 	}
 
@@ -846,7 +847,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		}
 		await this.setBrowserZoomIndex(this._browserZoomIndex - 1);
 		if (this._zoomHost) {
-			this.zoomService.setHostZoomIndex(this._zoomHost, this._browserZoomIndex, this._isEphemeral);
+			this.zoomService.setHostZoomIndex(this._zoomHost, this._browserZoomIndex, this._isInMemory);
 		}
 	}
 
@@ -854,7 +855,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		const defaultIndex = this.zoomService.getEffectiveZoomIndex(undefined, false);
 		await this.setBrowserZoomIndex(defaultIndex);
 		if (this._zoomHost) {
-			this.zoomService.setHostZoomIndex(this._zoomHost, defaultIndex, this._isEphemeral);
+			this.zoomService.setHostZoomIndex(this._zoomHost, defaultIndex, this._isInMemory);
 		}
 	}
 
