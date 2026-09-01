@@ -614,6 +614,7 @@ suite('SessionServerTools', () => {
 				chat: buildDefaultChatUri('copilot:/caller'),
 				turnId: 'turn-1',
 			},
+			config: { [SessionConfigKey.Isolation]: 'worktree' },
 		});
 		assert.strictEqual(prompted?.prompt, 'do it');
 		assert.strictEqual(prompted?.chat.toString(), buildDefaultChatUri(URI.parse('copilot:/new')));
@@ -667,7 +668,7 @@ suite('SessionServerTools', () => {
 		store.dispose();
 	});
 
-	test('create_session inherits the calling chat model, permission config, and isolation', async () => {
+	test('create_session inherits the calling chat model, permission config, and isolation for the same project', async () => {
 		const source = URI.parse(buildChatUri('copilot:/caller', 'peer'));
 		let creationSource: URI | undefined;
 		let created: IAgentCreateSessionConfig | undefined;
@@ -682,6 +683,7 @@ suite('SessionServerTools', () => {
 						permissions: { allow: ['shell'], deny: ['write'] },
 					},
 					isolation: 'folder',
+					project: workspace,
 				};
 			},
 			onCreate: config => { created = config; },
@@ -715,6 +717,41 @@ suite('SessionServerTools', () => {
 		store.dispose();
 	});
 
+	test('create_session uses worktree isolation when the source project differs or is workspace-less', async () => {
+		const created: (IAgentCreateSessionConfig | undefined)[] = [];
+		const sourceProject = URI.file('/workspace/source');
+		let project: URI | undefined = sourceProject;
+		const accessor = createAccessor({
+			getCreationDefaults: () => ({ provider: 'copilot', isolation: 'folder', project }),
+			onCreate: config => { created.push(config); },
+		});
+
+		await applyCreateSessionTool(accessor, { relationship: 'independent', workspace: workspace.toString(), prompt: 'different project', title: 'Different Project' }, URI.parse('copilot:/source'));
+		project = undefined;
+		await applyCreateSessionTool(accessor, { relationship: 'independent', workspace: workspace.toString(), prompt: 'quick chat', title: 'Quick Chat Task' }, URI.parse('copilot:/quick-chat'));
+
+		assert.deepStrictEqual(created.map(createConfigSnapshot), [
+			{
+				workingDirectories: [workspace],
+				provider: 'copilot',
+				createdBySession: {
+					session: 'copilot:/source',
+					chat: 'copilot:/source',
+				},
+				config: { [SessionConfigKey.Isolation]: 'worktree' },
+			},
+			{
+				workingDirectories: [workspace],
+				provider: 'copilot',
+				createdBySession: {
+					session: 'copilot:/quick-chat',
+					chat: 'copilot:/quick-chat',
+				},
+				config: { [SessionConfigKey.Isolation]: 'worktree' },
+			},
+		]);
+	});
+
 	test('create_session inherits the calling provider when its model is the provider default', async () => {
 		let created: IAgentCreateSessionConfig | undefined;
 		const accessor = createAccessor({
@@ -734,15 +771,18 @@ suite('SessionServerTools', () => {
 				session: 'claude:/source',
 				chat: 'claude:/source',
 			},
-			config: { permissionMode: 'acceptEdits' },
+			config: {
+				permissionMode: 'acceptEdits',
+				[SessionConfigKey.Isolation]: 'worktree',
+			},
 		});
 	});
 
-	test('create_session inherits worktree isolation', async () => {
+	test('create_session inherits worktree isolation for the same project', async () => {
 		const gitWorkspace = URI.file('/workspace/git-repository');
 		let created: IAgentCreateSessionConfig | undefined;
 		const accessor = createAccessor({
-			getCreationDefaults: () => ({ provider: 'copilot', isolation: 'worktree' }),
+			getCreationDefaults: () => ({ provider: 'copilot', isolation: 'worktree', project: gitWorkspace }),
 			onCreate: config => { created = config; },
 		});
 
@@ -775,7 +815,7 @@ suite('SessionServerTools', () => {
 				project: { uri: remoteProject, displayName: 'Remote App' },
 			}],
 			getModels: () => [claudeModel],
-			getCreationDefaults: () => ({ provider: 'copilot', model: { id: 'gpt-4o' }, config: { autoApprove: 'autoApprove' }, isolation: 'folder' }),
+			getCreationDefaults: () => ({ provider: 'copilot', model: { id: 'gpt-4o' }, config: { autoApprove: 'autoApprove' }, isolation: 'folder', project: remoteProject }),
 			onCreate: config => { created = config; },
 		});
 

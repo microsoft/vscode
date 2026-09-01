@@ -1241,6 +1241,7 @@ export class AgentService extends Disposable implements IAgentService {
 			...(model !== undefined ? { model } : {}),
 			...(config !== undefined ? { config } : {}),
 			...(isolation === 'folder' || isolation === 'worktree' ? { isolation } : {}),
+			...(session.project ? { project: URI.parse(session.project.uri) } : {}),
 		};
 	}
 
