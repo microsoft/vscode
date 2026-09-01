@@ -432,6 +432,13 @@ export type ISessionTurnFileChange = ISessionFileChange & {
 export const BRANCH_CHANGES_CHANGESET_ID = 'branchChanges';
 
 /**
+ * Well-known id of the changeset that holds uncommitted working-tree changes.
+ *
+ * Must match the agent host provider's `ChangesetKind.Uncommitted` value.
+ */
+export const UNCOMMITTED_CHANGES_CHANGESET_ID = 'uncommitted';
+
+/**
  * Well-known id of the changeset that holds the diff made during the session's
  * **last turn** only (as opposed to the cumulative session diff). Consumers that
  * want to reflect just the most recent turn — e.g. the chat input status pills —

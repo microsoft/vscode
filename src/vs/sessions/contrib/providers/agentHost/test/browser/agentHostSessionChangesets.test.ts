@@ -4,16 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { IReference } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { isLinux } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import type { InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
+import { ChangesetOperationScope, ChangesetOperationStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChangesetStatus, StateComponents, type ChangesetState, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISessionFileChange } from '../../../../../services/sessions/common/session.js';
+import { ISessionFileChange, SessionChangesetOperationStatus } from '../../../../../services/sessions/common/session.js';
 import { createChangesets, filterChangesToPrimaryWorkingDirectory, IAgentHostChangeset } from '../../browser/agentHostSessionChangesets.js';
 import { IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
 
@@ -220,6 +229,68 @@ suite('AgentHostSessionChangesets', () => {
 			assert.deepStrictEqual(
 				selectDefault(['uncommitted'], ChangesetKind.Session),
 				['uncommitted*']);
+		});
+	});
+
+	test('marks an invoked operation running locally until the host request settles', async () => {
+		const operationId = 'create-pr-auto-merge';
+		const operationResult = new DeferredPromise<InvokeChangesetOperationResult>();
+		const changesetState: ChangesetState = {
+			status: ChangesetStatus.Ready,
+			files: [],
+			operations: [{
+				id: operationId,
+				label: 'Create PR (Auto-Merge)',
+				scopes: [ChangesetOperationScope.Changeset],
+				status: ChangesetOperationStatus.Idle,
+			}],
+		};
+		const connection = new class extends mock<IAgentConnection>() {
+			override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
+				const subscription = new class extends mock<IAgentSubscription<ComponentToState[T]>>() {
+					override readonly value = changesetState as ComponentToState[T];
+					override readonly verifiedValue = changesetState as ComponentToState[T];
+					override readonly onDidChange = Event.None;
+					override readonly onWillApplyAction = Event.None;
+					override readonly onDidApplyAction = Event.None;
+				}();
+				return {
+					object: subscription,
+					dispose: () => { },
+				};
+			}
+
+			override invokeChangesetOperation(): Promise<InvokeChangesetOperationResult> {
+				return operationResult.p;
+			}
+		}();
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+		const options: IAgentHostAdapterOptions = {
+			icon: Codicon.copilot,
+			loading: constObservable(false),
+			buildWorkspace: () => undefined,
+			instantiationService,
+			getConnection: () => connection,
+			agentCapabilities: constObservable(undefined),
+			mapBackendSessionResource: resource => resource,
+		};
+		const changeset = createChangesets(
+			URI.parse('ahp-session:/session-1'),
+			options,
+			constObservable(true),
+			[{ label: 'Session Changes', changeKind: ChangesetKind.Session, uriTemplate: 'changeset:/session-1' }],
+		)[0];
+
+		const invocation = changeset.invokeOperation(operationId);
+		const whileRunning = changeset.operations.get().map(operation => ({ id: operation.id, status: operation.status }));
+		operationResult.complete({});
+		await invocation;
+		const afterCompletion = changeset.operations.get().map(operation => ({ id: operation.id, status: operation.status }));
+
+		assert.deepStrictEqual({ whileRunning, afterCompletion }, {
+			whileRunning: [{ id: operationId, status: SessionChangesetOperationStatus.Running }],
+			afterCompletion: [{ id: operationId, status: SessionChangesetOperationStatus.Idle }],
 		});
 	});
 });

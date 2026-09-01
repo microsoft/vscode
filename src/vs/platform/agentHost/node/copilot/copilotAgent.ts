@@ -36,6 +36,7 @@ import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointSer
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
 import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
+import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
@@ -1549,6 +1550,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		this._logService.info(`[Copilot] Auth token ${token ? 'updated' : 'cleared'}`);
+		this._telemetryService.setCommonProperty('copilotSku', undefined);
 		this._githubToken = token;
 		this._updateRestrictedTelemetry(token);
 		this._refreshProxy();
@@ -1609,7 +1611,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			const copilotSku = await this._copilotApiService.resolveCopilotSku?.(githubToken);
 			if (copilotSku && this._githubToken === githubToken) {
-				// __GDPR__COMMON__ "copilotSku" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The raw Copilot entitlement SKU of the authenticated GitHub account." }
 				this._telemetryService.setCommonProperty('copilotSku', copilotSku);
 			}
 		} catch (err) {
@@ -2308,11 +2309,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	/**
-	 * Builds the open `_meta` model picker bag from the SDK's billing and picker metadata.
-	 */
 	private _createModelPickerMeta(modelInfo: CopilotModelInfo, billing: ICAPIModelBilling | undefined): Record<string, unknown> | undefined {
-		return createPricingMetaFromBilling(billing, modelInfo.modelPickerPriceCategory, modelInfo.modelPickerCategory);
+		const pricing = createPricingMetaFromBilling(billing, modelInfo.modelPickerPriceCategory, modelInfo.modelPickerCategory);
+		const notices = isAutoModel(modelInfo.id) ? undefined : createAgentModelNoticesMeta(modelInfo);
+		return pricing || notices ? { ...pricing, ...notices } : undefined;
 	}
 
 	private _createModelConfigSchema(m: CopilotModelInfo, billing: ICAPIModelBilling | undefined): ConfigSchema | undefined {
