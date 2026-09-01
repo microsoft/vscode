@@ -233,7 +233,7 @@ suite('Sessions list context menus', () => {
 		})), [
 			{ id: 'sessions.list.renameChat', title: 'Rename...', group: '1_chat', order: 1, when: 'sessionChatItem.canRename && !sessionChatItem.isUntitled' },
 			{ id: 'sessions.list.openChatToSide', title: 'Open to the Side', group: '1_chat', order: 2, when: undefined },
-			{ id: 'sessions.list.deleteChat', title: 'Delete…', group: '2_delete', order: 1, when: 'sessionChatItem.canDelete' },
+			{ id: 'sessions.list.deleteChat', title: 'Delete...', group: '2_delete', order: 1, when: 'sessionChatItem.canDelete' },
 		]);
 		const chatContext = { session, chat: peer };
 		for (const actionId of ['sessions.list.renameChat', 'sessions.list.openChatToSide', 'sessions.list.deleteChat']) {

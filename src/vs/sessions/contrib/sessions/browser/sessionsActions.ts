@@ -605,7 +605,7 @@ registerAction2(class DeleteSessionListChatAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.list.deleteChat',
-			title: localize2('deleteChat', "Delete…"),
+			title: localize2('deleteChat', "Delete..."),
 			f1: false,
 			menu: {
 				id: Menus.SessionChatItemContext,
