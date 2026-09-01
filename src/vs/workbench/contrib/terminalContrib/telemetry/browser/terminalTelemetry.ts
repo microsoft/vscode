@@ -6,6 +6,7 @@
 import { getWindowById } from '../../../../../base/browser/dom.js';
 import { isAuxiliaryWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { cancelOnDispose } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../base/common/path.js';
@@ -32,12 +33,13 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 		this._register(terminalService.onDidCreateInstance(async instance => {
 			const store = new DisposableStore();
 			this._store.add(store);
+			const cancellationToken = cancelOnDispose(store);
 
 			await Promise.race([
 				// Wait for process ready so the shell launch config is fully resolved, then
 				// allow another 10 seconds for the shell integration to be fully initialized
 				instance.processReady.then(() => {
-					return timeout(10000);
+					return timeout(10000, cancellationToken);
 				}),
 				// If the terminal is disposed, it's ready to report on immediately
 				Event.toPromise(instance.onDisposed, store),
