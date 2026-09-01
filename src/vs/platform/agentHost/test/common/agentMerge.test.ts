@@ -222,7 +222,7 @@ suite('Agent Merge gate', () => {
 			'Replies it posts will identify Agent Merge as the source.',
 			'After each update, it will wait for new CI results and review comments.',
 			'It will not merge the pull request automatically and will keep monitoring it.',
-		].join(' '));
+		].map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n'));
 	});
 
 	test('describes effective Agent Merge configuration changes', () => {
@@ -249,7 +249,7 @@ suite('Agent Merge gate', () => {
 			'It will no longer resolve merge conflicts or update a behind branch.',
 			'It will now merge the pull request automatically when it is ready.',
 			'It will now squash-merge the pull request.',
-		].join(' '));
+		].map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n'));
 	});
 
 	test('describes an already-bound pull request without claiming disabled review behavior', () => {
@@ -268,7 +268,7 @@ suite('Agent Merge gate', () => {
 			'After each update, it will wait for new CI results.',
 			'When the pull request is ready, Agent Merge will merge it automatically.',
 			'It will squash-merge the pull request.',
-		].join(' '));
+		].map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n'));
 	});
 
 	test('announces reply-attribution changes only while review replies are enabled', () => {
@@ -279,7 +279,7 @@ suite('Agent Merge gate', () => {
 				{ ...configuration, addressReviews: false, replyAttribution: false },
 			),
 		}, {
-			enabled: 'Agent Merge settings changed. Replies it posts will no longer identify Agent Merge as the source.',
+			enabled: 'Agent Merge settings changed.\n\n- Replies it posts will no longer identify Agent Merge as the source.',
 			reviewsDisabled: undefined,
 		});
 	});

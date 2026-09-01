@@ -2463,8 +2463,8 @@ suite('stateToProgressAdapter', () => {
 					_meta: { kind: 'somethingNewer' },
 				}]), undefined)[0],
 			}, {
-				enabled: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.gitMerge },
-				configurationChanged: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.settingsGear },
+				enabled: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.gitMerge, collapsible: true },
+				configurationChanged: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.settingsGear, collapsible: true },
 				disabled: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.circleSlash },
 				unknown: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state') },
 			});

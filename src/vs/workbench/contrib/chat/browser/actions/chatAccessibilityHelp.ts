@@ -101,6 +101,9 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('chat.inspectResponse', 'In the input box, inspect the last response in the accessible view{0}. Thinking content is included in order by default.', '<keybinding:editor.action.accessibleView>'));
 		content.push(localize('chat.inspectResponseThinkingToggle', 'To include or exclude thinking content in the accessible view, run the Toggle Thinking Content in Accessible View command from the Command Palette.'));
 		content.push(localize('chat.completedResponseDisclosure', 'When completed response collapsing is enabled, the final response remains visible while earlier work is collapsed. Use Tab to focus the work disclosure and press Enter or Space to show or hide that work.'));
+		if (type === 'agentView') {
+			content.push(localize('chat.systemNotificationDisclosure', 'Some session status messages have additional details. Use Tab to focus the status message and press Enter or Space to show or hide its details.'));
+		}
 		content.push(localize('chat.subagentPill', 'When a subagent pill appears in a response, use Tab to focus it and press Enter or Space to open that subagent chat.'));
 		content.push(localize('workbench.action.chat.focus', 'To focus the chat request and response list, invoke the Focus Chat command{0}. This will move focus to the most recent response, which you can then navigate using the up and down arrow keys.', getChatFocusKeybindingLabel(keybindingService, type, 'last')));
 		content.push(localize('workbench.action.chat.focusLastFocusedItem', 'To return to the last chat response you focused, invoke the Focus Last Focused Chat Response command{0}.', getChatFocusKeybindingLabel(keybindingService, type, 'lastFocused')));

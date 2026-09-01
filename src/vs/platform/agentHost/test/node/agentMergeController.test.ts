@@ -579,13 +579,13 @@ suite('AgentMergeController', () => {
 					'It will no longer fix failing CI checks.',
 					'It will now merge the pull request automatically when it is ready.',
 					'It will now choose an available merge method automatically.',
-				].join(' '),
+				].map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n'),
 			}, {
 				kind: AgentSystemNotificationKind.AgentMergeConfigurationChanged,
 				content: [
 					'Agent Merge settings changed.',
 					'It will no longer address new pull request review comments or wait for them before merging.',
-				].join(' '),
+				].map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n'),
 			}],
 			notices: [{
 				kind: AgentSystemNotificationKind.AgentMergeConfigurationChanged,
@@ -594,16 +594,16 @@ suite('AgentMergeController', () => {
 					'It will no longer fix failing CI checks.',
 					'It will now merge the pull request automatically when it is ready.',
 					'It will now choose an available merge method automatically.',
-				].join(' '),
+				].map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n'),
 			}, {
 				kind: AgentSystemNotificationKind.AgentMergeConfigurationChanged,
 				content: [
 					'Agent Merge settings changed.',
 					'It will no longer address new pull request review comments or wait for them before merging.',
-				].join(' '),
+				].map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n'),
 			}, {
 				kind: AgentSystemNotificationKind.AgentMergeConfigurationChanged,
-				content: 'Agent Merge settings changed. It will no longer resolve merge conflicts or update a behind branch.',
+				content: 'Agent Merge settings changed.\n\n- It will no longer resolve merge conflicts or update a behind branch.',
 			}],
 		});
 	});

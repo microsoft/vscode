@@ -486,9 +486,9 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 		// Agent Merge reports a state change rather than a completed step, so the
 		// default check would misdescribe both of these.
 		case AgentSystemNotificationKind.AgentMergeEnabled:
-			return { kind: 'systemNotification', content: markdown, icon: Codicon.gitMerge };
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.gitMerge, collapsible: true };
 		case AgentSystemNotificationKind.AgentMergeConfigurationChanged:
-			return { kind: 'systemNotification', content: markdown, icon: Codicon.settingsGear };
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.settingsGear, collapsible: true };
 		case AgentSystemNotificationKind.AgentMergeDisabled:
 			return { kind: 'systemNotification', content: markdown, icon: Codicon.circleSlash };
 		default:

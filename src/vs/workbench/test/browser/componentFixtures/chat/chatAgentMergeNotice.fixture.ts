@@ -27,7 +27,7 @@ import '../../../../contrib/chat/browser/widget/media/chat.css';
  * from the same mapping the Agents window uses rather than from hand-built
  * view data that could drift from it.
  */
-function renderNotice(context: ComponentFixtureContext, content: string, kind: AgentSystemNotificationKind): void {
+function renderNotice(context: ComponentFixtureContext, content: string, kind: AgentSystemNotificationKind, expanded = false): void {
 	const { container, disposableStore } = context;
 
 	const anchorService = new class extends mock<IChatMarkdownAnchorService>() {
@@ -52,6 +52,9 @@ function renderNotice(context: ComponentFixtureContext, content: string, kind: A
 
 	const markdownRenderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
 	const part = disposableStore.add(instantiationService.createInstance(ChatSystemNotificationContentPart, progress, markdownRenderer));
+	if (expanded) {
+		part.domNode.querySelector<HTMLElement>('.chat-system-notification-disclosure-header')?.click();
+	}
 
 	// `.interactive-session` supplies the chat font tokens and
 	// `.interactive-item-container` the row layout the progress container needs.
@@ -70,6 +73,16 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			ctx,
 			agentMergeEnabledNotice({ branchName: 'benibenj/agents/hover-widget-structure-improvements' }, defaultAgentMergeConfiguration),
 			AgentSystemNotificationKind.AgentMergeEnabled,
+		),
+	}),
+
+	EnabledExpanded: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (ctx) => renderNotice(
+			ctx,
+			agentMergeEnabledNotice({ branchName: 'benibenj/agents/hover-widget-structure-improvements' }, defaultAgentMergeConfiguration),
+			AgentSystemNotificationKind.AgentMergeEnabled,
+			true,
 		),
 	}),
 

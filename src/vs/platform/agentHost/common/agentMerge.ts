@@ -338,7 +338,7 @@ export function agentMergeEnabledNotice(target: Pick<AgentMergeTarget, 'branchNa
 	if (configuration.mergePullRequest !== 'never') {
 		lines.push(agentMergeMergeMethodNotice(configuration.mergeMethod));
 	}
-	return lines.join(' ');
+	return [lines[0], '', ...lines.slice(1).map(line => `- ${line}`)].join('\n');
 }
 
 /** The transcript notice shown when effective Agent Merge behavior changes. */
@@ -372,7 +372,7 @@ export function agentMergeConfigurationChangedNotice(previous: AgentMergeConfigu
 			: localize('agentMerge.notice.configuration.replyAttribution.disabled', "Replies it posts will no longer identify Agent Merge as the source."));
 	}
 	return changes.length > 0
-		? [localize('agentMerge.notice.configuration.changed', "Agent Merge settings changed."), ...changes].join(' ')
+		? [localize('agentMerge.notice.configuration.changed', "Agent Merge settings changed."), '', ...changes.map(change => `- ${change}`)].join('\n')
 		: undefined;
 }
 
