@@ -21,11 +21,13 @@ class EvaluationSessionEditorContribution implements IWorkbenchContribution {
 	constructor(
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ILogService logService: ILogService,
 	) {
 		const path = environmentService.args[EVALUATION_SESSION_REQUEST_ARG];
 		if (!path) {
 			return;
 		}
+		logService.info('[EvaluationSession] Editor request detected.');
 		markEvaluationSessionRequestActive();
 		void instantiationService.invokeFunction(accessor => runEditorEvaluationSession(path, accessor));
 	}
@@ -39,16 +41,19 @@ async function runEditorEvaluationSession(path: string, accessor: ServicesAccess
 	const chatService = accessor.get(IChatService);
 	const configurationService = accessor.get(IConfigurationService);
 	try {
+		logService.info('[EvaluationSession] Reading Editor request.');
 		const request = await readEvaluationSessionRequest(path, fileService);
 		if (request.surface !== 'editor') {
 			throw new Error(`Evaluation session request targets '${request.surface}', not 'editor'.`);
 		}
 		const type = await configureEvaluationRemoteHost(request, configurationService) ?? `agent-host-${request.agent}`;
+		logService.info(`[EvaluationSession] Waiting for Editor target '${type}'.`);
 		await waitForEvaluationTarget(
 			() => chatSessionsService.getChatSessionContribution(type) !== undefined,
 			chatSessionsService.onDidChangeItemsProviders,
 			CancellationToken.None,
 		);
+		logService.info(`[EvaluationSession] Editor target '${type}' is available.`);
 
 		const openOptions = {
 			type,
