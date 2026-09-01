@@ -45,7 +45,7 @@ import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPlu
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
-import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel } from '../../common/autoModeTiers.js';
+import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel, type AutoModeTier } from '../../common/autoModeTiers.js';
 import { isAutoModel } from './modelIdentifiers.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -83,7 +83,7 @@ import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitP
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
 import { CopilotGitHubTelemetryForwarder } from './copilotGitHubTelemetryForwarder.js';
 import { CopilotSecondaryAssignmentContext } from './copilotSecondaryAssignmentContext.js';
-import { CopilotSessionLauncher, AutoTierConfigKey, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, isCopilotReasoningEffort, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
+import { CopilotSessionLauncher, AutoTierConfigKey, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, isCopilotReasoningEffort, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { CopilotAgentStartupConfig } from './copilotAgentStartupConfig.js';
 import { ShellManager } from './copilotShellTools.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
@@ -3693,6 +3693,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			const resolvedAgent = provisional.isEphemeral ? undefined : await this._resolveAgentWhenMaterializing(provisional, snapshot, workingDirectory);
 			agent = resolvedAgent?.agent;
+			// Resolve the profile once and freeze it on the plan. The gate can flip while the session
+			// is provisional, or during the async launch below.
+			const autoTier = resolveCopilotAutoTier(provisional.model, this._configurationService, this._logService, sdkSessionId);
+			const model = provisional.model
+				? this._withEffectiveAutoTier(provisional.model, autoTier, sdkSessionId, 'Auto routing profiles are unavailable')
+				: undefined;
+			provisional.model = model;
 			const launchPlan: CopilotSessionLaunchPlan = {
 				kind: 'create',
 				client,
@@ -3710,6 +3717,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				model: provisional.model,
 				longContextWindow: this._longContextWindowFor(provisional.model?.id),
 				freeLongContext: this._isFreeLongContext(provisional.model?.id),
+				autoTier,
 				workspaceless: provisional.workspaceless,
 			};
 			const chatChannelUri = this._findBoundSessionChatUri(sdkSessionId) ?? URI.parse(buildDefaultChatUri(sessionUri));
@@ -4189,6 +4197,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			let launchPlan: CopilotSessionLaunchPlan;
 			let sdkSessionId: string;
 			let inheritedTurnId: string | undefined;
+			// Frozen before the async launch so the profile sent matches the one persisted below.
+			const forkAutoTier = resolveCopilotAutoTier(model, this._configurationService, this._logService, chatSdkId);
 			let sourceEntry: CopilotAgentSession | undefined;
 			if (fork) {
 				sourceEntry = await this._ensureResolvedChatSession(this._resolveChatContext(fork.source, { configurationResource: forkSourceScope!, resource: this._resolveChatStorageScope(fork.source) }));
@@ -4209,7 +4219,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
-					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id), freeLongContext: this._isFreeLongContext(model?.id) },
+					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id), freeLongContext: this._isFreeLongContext(model?.id), autoTier: forkAutoTier },
 				};
 			} else {
 				sdkSessionId = chatSdkId;
@@ -4227,6 +4237,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					model,
 					longContextWindow: this._longContextWindowFor(model?.id),
 					freeLongContext: this._isFreeLongContext(model?.id),
+					autoTier: forkAutoTier,
 				};
 			}
 
@@ -4634,7 +4645,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
-					fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id), freeLongContext: this._isFreeLongContext(info.model?.id) },
+					fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id), freeLongContext: this._isFreeLongContext(info.model?.id), autoTier: resolveCopilotAutoTier(info.model, this._configurationService, this._logService, context.sdkSessionId ?? context.configurationId) },
 				};
 				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { sessionUri: configurationResource, chatChannelUri: chat, resource: context.resource });
 				await agentSession.initializeSession();
@@ -4740,27 +4751,31 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Rewrites a model selection so its Auto routing profile is the one `session` launched with.
-	 * The runtime fixes the profile for a session's lifetime, so a requested change cannot be recorded.
+	 * Rewrites a model selection so its Auto routing profile matches the one the runtime is actually
+	 * using. Recording anything else would leave the picker and resume metadata out of step.
 	 */
-	private _pinLaunchAutoTier(model: ModelSelection, session: CopilotAgentSession, sessionId: string): ModelSelection {
+	private _withEffectiveAutoTier(model: ModelSelection, effective: AutoModeTier | undefined, sessionId: string, reason: string): ModelSelection {
 		// Only the Auto model routes per turn, so any other selection carries no profile to correct.
 		if (!isAutoModel(model.id)) {
 			return model;
 		}
 		const requested = model.config?.[AutoTierConfigKey];
-		const launched = session.launchAutoTier;
-		if (requested === launched) {
+		if (requested === effective) {
 			return model;
 		}
-		this._logService.info(`[Copilot:${sessionId}] Auto routing profile is fixed for this session; keeping '${launched ?? 'the service default'}' instead of '${requested}'`);
+		this._logService.info(`[Copilot:${sessionId}] ${reason}; recording '${effective ?? 'the service default'}' instead of '${requested}'`);
 		const config = { ...model.config };
-		if (launched === undefined) {
+		if (effective === undefined) {
 			delete config[AutoTierConfigKey];
 		} else {
-			config[AutoTierConfigKey] = launched;
+			config[AutoTierConfigKey] = effective;
 		}
 		return Object.keys(config).length > 0 ? { ...model, config } : { id: model.id };
+	}
+
+	/** The selection to record for a session that launched with `session`'s fixed routing profile. */
+	private _pinLaunchAutoTier(model: ModelSelection, session: CopilotAgentSession, sessionId: string): ModelSelection {
+		return this._withEffectiveAutoTier(model, session.launchAutoTier, sessionId, 'Auto routing profile is fixed for this session');
 	}
 
 	private async _changeAgent(chat: URI, agent: AgentSelection | undefined, operationContext: URI | IAgentChatContext): Promise<void> {
@@ -5184,6 +5199,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				model: storedMetadata.model,
 				longContextWindow: this._longContextWindowFor(storedMetadata.model?.id),
 				freeLongContext: this._isFreeLongContext(storedMetadata.model?.id),
+				autoTier: resolveCopilotAutoTier(storedMetadata.model, this._configurationService, this._logService, sessionId),
 			},
 		};
 

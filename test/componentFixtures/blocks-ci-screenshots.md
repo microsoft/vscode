@@ -18,6 +18,12 @@
 #### chat/aiCustomizations/aiCustomizationManagementEditor/AgentsTabNarrow/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/e652f2a9309c421bf0a7c805160521ad2837e320fdec9e00393ff981a2eac014)
 
+#### chat/aiCustomizations/aiCustomizationManagementEditor/EmbeddedMcpDetailUninstalled/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/a5c4c329b3df33c748b8cd46ba7585490b58b2d42fa71c25a44a7f327b344b1b)
+
+#### chat/aiCustomizations/aiCustomizationManagementEditor/EmbeddedMcpDetailUninstalled/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/b150bed8ecf034a2ac61bc46081007101d109ed98bc176824e045965dfff94da)
+
 #### chat/aiCustomizations/aiCustomizationManagementEditor/HooksEmptyWorkspace/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/34ca750e1747a1e89fbeaab3b755d1372ee503e009f4c2a32a4d7205742b3dce)
 

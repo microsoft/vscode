@@ -6,7 +6,7 @@
 import { Dimension, h } from '../../../../base/browser/dom.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ITransaction, autorun, autorunWithStore, derived, mapObservableArrayCached, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IObservable, IReader, ITransaction, autorun, autorunWithStore, constObservable, derived, mapObservableArrayCached, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyValue, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -71,6 +71,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
 		private readonly _diffLayoutOptions: IObservable<IDiffEditorOptions | undefined>,
 		private readonly _diffEditorOptions: IDiffEditorOptions | undefined,
+		private readonly _paddingBottomPx: IObservable<number>,
 		@IContextKeyService private readonly _parentContextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
@@ -81,6 +82,12 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			return { ...this._diffEditorOptions, ...this._diffLayoutOptions.read(reader) };
 		});
 		this._spaceBetweenPx = observableValue(this, 0);
+		const paddingBottomItem = this._paddingBottomPx.map<ICompressedVirtualizedScrollItem>(this, size => ({
+			size: constObservable(size),
+			maxScroll: constObservable({ maxScroll: 0 }),
+			render() { },
+			hide() { },
+		}));
 
 		let viewItemsInfo!: IObservable<{ items: readonly VirtualizedViewItem[]; getItem: (viewModel: DocumentDiffItemViewModel) => VirtualizedViewItem }>;
 		let viewItems!: IObservable<readonly VirtualizedViewItem[]>;
@@ -93,7 +100,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				const manager = this._register(new VirtualizedItemManager<DocumentDiffItemViewModel, DiffEditorItemBinding, DiffEditorItemTemplate>(sourceItems, context, {
 					getId: item => item,
 					getTemplateId: () => 'diffEditor',
-					getUnboundSize: item => derived(item, reader => item.collapsed.read(reader) ? 40 : item.lastTemplateData.read(reader).expandedContentHeight),
+					getUnboundSize: item => derived(item, reader => item.collapsed.read(reader)
+						? this._workbenchUIElementFactory.diffEditorItemHeaderHeight ?? 40
+						: item.lastTemplateData.read(reader).expandedContentHeight),
 					createTemplate: () => this._instantiationService.createInstance(
 						DiffEditorItemTemplate,
 						context.contentDomNode,
@@ -143,7 +152,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 					return { items, getItem: d => map.get(d)! };
 				});
 				viewItems = viewItemsInfo.map(this, items => items.items);
-				return viewItems;
+				return derived(this, reader => [...viewItems.read(reader), paddingBottomItem.read(reader)]);
 			},
 		));
 		this._viewItemsInfo = viewItemsInfo;
