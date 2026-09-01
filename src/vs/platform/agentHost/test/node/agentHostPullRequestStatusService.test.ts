@@ -83,13 +83,15 @@ class TestPullRequestResources implements IPullRequestResources {
 	readonly subscribed: PullRequestRef[] = [];
 	disposedCount = 0;
 	private _snapshot = observableValue<PullRequestSnapshot | undefined>('snapshot', undefined);
+	private _nextSubscriptionSnapshot: PullRequestSnapshot | undefined;
 	refreshHandler: (() => Promise<void>) | undefined;
 
 	get liveSubscriptions(): number { return this.subscribed.length - this.disposedCount; }
 
 	subscribePullRequest(ref: PullRequestRef): PullRequestSubscription {
 		this.subscribed.push(ref);
-		this._snapshot.set(snapshot(ref), undefined);
+		this._snapshot.set(this._nextSubscriptionSnapshot ?? snapshot(ref), undefined);
+		this._nextSubscriptionSnapshot = undefined;
 		return {
 			resource: { ref, snapshot: this._snapshot as never },
 			update: () => { },
@@ -100,6 +102,10 @@ class TestPullRequestResources implements IPullRequestResources {
 
 	setSnapshot(value: PullRequestSnapshot): void {
 		this._snapshot.set(value, undefined);
+	}
+
+	setNextSubscriptionSnapshot(value: PullRequestSnapshot): void {
+		this._nextSubscriptionSnapshot = value;
 	}
 
 	invalidatePullRequest(): void { }
@@ -327,6 +333,29 @@ suite('AgentHostPullRequestStatusService', () => {
 			whileRefreshing: undefined,
 			afterRefresh: 'open',
 		});
+	});
+
+	test('does not apply persisted merged state from another GitHub host', async () => {
+		const { service, stateManager, subscriptions, resources, session } = createHarness();
+		const retainedOpenSnapshot = snapshot({ ...account, owner: 'octo', repo: 'repo', number: 7 });
+		resources.setNextSubscriptionSnapshot({
+			...retainedOpenSnapshot,
+			core: { ...retainedOpenSnapshot.core, status: 'loading', complete: false },
+		});
+		stateManager.setSessionMeta(session, withSessionGitHubState(
+			stateManager.getSessionState(session)?._meta,
+			{
+				pullRequestUrls: [pullRequestUrl],
+				pullRequestBranchName: 'feature',
+				pullRequestState: 'merged',
+				pullRequestStateUrl: 'https://github.example.com/octo/repo/pull/7',
+			},
+		));
+
+		subscriptions.addSubscription(session, `${session}/changes`);
+		await waitForWatch(resources);
+
+		assert.strictEqual(service.getPullRequestStatus(session)?.state, 'open');
 	});
 
 	test('does not install a watch when the session stopped being eligible mid-sync', async () => {

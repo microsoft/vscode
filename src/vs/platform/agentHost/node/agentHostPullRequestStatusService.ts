@@ -367,7 +367,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		const persistedPullRequest = gitHubState?.pullRequestStateUrl ? parsePullRequestUrl(gitHubState.pullRequestStateUrl) : undefined;
 		const persistedMergedStateApplies = gitHubState?.pullRequestState === 'merged'
 			&& persistedPullRequest !== undefined
-			&& sameRef(watch.ref, persistedPullRequest);
+			&& sameRefAndHost(watch.ref, persistedPullRequest);
 		if (snapshot.core.status !== 'ready' && (watch.status?.state === 'merged' || persistedMergedStateApplies)) {
 			return;
 		}

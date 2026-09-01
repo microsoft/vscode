@@ -313,10 +313,12 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 			isEqual(x.uri, y.uri) &&
 			x.icon?.id === y.icon?.id &&
 			x.state === y.state &&
+			x.liveState === y.liveState &&
 			x.title === y.title) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
 		a.pullRequest?.icon?.id === b.pullRequest?.icon?.id &&
 		a.pullRequest?.state === b.pullRequest?.state &&
+		a.pullRequest?.liveState === b.pullRequest?.liveState &&
 		a.pullRequest?.title === b.pullRequest?.title &&
 		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
 		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid &&
@@ -994,6 +996,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				)
 			}));
 			const icon = pullRequests[0].icon;
+			const liveState = pullRequests[0].liveState;
 			const title = pullRequests[0].title;
 			return {
 				...baseGitHubInfo,
@@ -1001,6 +1004,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				pullRequest: {
 					...baseGitHubInfo.pullRequest,
 					icon,
+					liveState,
 					title,
 				}
 			};

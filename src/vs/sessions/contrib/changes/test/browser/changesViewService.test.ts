@@ -24,8 +24,8 @@ suite('ChangesViewService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSession(id: string, options?: { readonly changesets?: readonly ISessionChangeset[]; readonly baseBranchProtected?: boolean; readonly pullRequestState?: 'open' | 'closed' | 'merged' }): IActiveSession {
-		const workspace = options?.baseBranchProtected === undefined && options?.pullRequestState === undefined
+	function createSession(id: string, options?: { readonly changesets?: readonly ISessionChangeset[]; readonly baseBranchProtected?: boolean; readonly pullRequestState?: 'open' | 'closed' | 'merged'; readonly livePullRequestState?: 'open' | 'closed' | 'merged'; readonly pullRequestIcon?: { readonly id: string } }): IActiveSession {
+		const workspace = options?.baseBranchProtected === undefined && options?.pullRequestState === undefined && options?.livePullRequestState === undefined && options?.pullRequestIcon === undefined
 			? undefined
 			: upcastPartial<ISessionWorkspace>({
 				folders: [upcastPartial<ISessionFolder>({
@@ -36,14 +36,15 @@ suite('ChangesViewService', () => {
 						workTreeUri: URI.file('/repo.worktrees/session'),
 						baseBranchName: 'main',
 						baseBranchProtected: options.baseBranchProtected,
-						gitHubInfo: constObservable(options.pullRequestState ? {
+						gitHubInfo: constObservable(options.pullRequestState || options.livePullRequestState || options.pullRequestIcon ? {
 							owner: 'microsoft',
 							repo: 'vscode',
 							pullRequest: {
 								number: 1,
 								uri: URI.parse('https://github.com/microsoft/vscode/pull/1'),
-								icon: Codicon.gitPullRequest,
+								icon: options.pullRequestIcon ?? Codicon.gitPullRequest,
 								state: options.pullRequestState,
+								liveState: options.livePullRequestState,
 							},
 						} : undefined),
 					}),
@@ -349,15 +350,21 @@ suite('ChangesViewService', () => {
 		]);
 	});
 
-	test('uses host pull request state while the live icon is stale', () => {
+	test('reconciles host pull request state with the live icon', () => {
 		const openSession = createSession('open', { pullRequestState: 'open' });
-		const mergedSession = createSession('merged', { pullRequestState: 'merged' });
+		const mergedSession = createSession('merged', { pullRequestState: 'merged', livePullRequestState: 'open' });
+		const cachedTerminalSession = createSession('cached-terminal', { pullRequestState: 'open', pullRequestIcon: Codicon.gitPullRequestDone });
+		const liveTerminalSession = createSession('live-terminal', { pullRequestState: 'open', livePullRequestState: 'merged', pullRequestIcon: Codicon.gitPullRequestDone });
 		const { activeSession, service } = createHarness(openSession);
 
 		const hasOpenPullRequest = [service.activeSessionStateObs.get()?.hasOpenPullRequest];
 		activeSession.set(mergedSession, undefined);
 		hasOpenPullRequest.push(service.activeSessionStateObs.get()?.hasOpenPullRequest);
+		activeSession.set(cachedTerminalSession, undefined);
+		hasOpenPullRequest.push(service.activeSessionStateObs.get()?.hasOpenPullRequest);
+		activeSession.set(liveTerminalSession, undefined);
+		hasOpenPullRequest.push(service.activeSessionStateObs.get()?.hasOpenPullRequest);
 
-		assert.deepStrictEqual(hasOpenPullRequest, [true, false]);
+		assert.deepStrictEqual(hasOpenPullRequest, [true, false, true, false]);
 	});
 });
