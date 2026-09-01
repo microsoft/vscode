@@ -1137,8 +1137,12 @@ suite('AgentHostProtocolClient', () => {
 				'vscode.clientDevDeviceId': 'client-dev-device-id',
 			},
 		});
+<<<<<<< HEAD
 		assert.strictEqual(params.protocolVersions[0], PROTOCOL_VERSION);
 		assert.ok(!params.protocolVersions.includes('0.8.0'));
+=======
+		assert.strictEqual(params.protocolVersions.includes(PROTOCOL_VERSION), true);
+>>>>>>> c8ea8df5223 (Merge pull request #333795 from microsoft/agentHost/release-ahp-0.9.0)
 
 		// Reply with a successful handshake so `connect()` resolves and the
 		// test can finish cleanly.

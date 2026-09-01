@@ -35,6 +35,10 @@ export const PROTOCOL_VERSION = '0.9.0';
  * `scripts/verify-release-metadata.ts`.
  */
 export const SUPPORTED_PROTOCOL_VERSIONS: readonly string[] = Object.freeze([
+<<<<<<< HEAD
+=======
+	'1.0.0',
+>>>>>>> c8ea8df5223 (Merge pull request #333795 from microsoft/agentHost/release-ahp-0.9.0)
 	'0.9.0',
 	'0.8.0',
 	'0.7.0',
