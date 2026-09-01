@@ -62,6 +62,8 @@ export class ShellManager extends Disposable {
 	private readonly _toolCallShells = new Map<string, string>();
 	private _resolvedExecutable: Promise<string> | undefined;
 	private _sandboxEngine: TerminalSandboxEngine | undefined;
+	private _workingDirectory: URI | undefined;
+	private _pendingShellCreations = 0;
 	/** Set of shell ids currently executing a command and unsafe to share. */
 	private readonly _busyShellIds = new Set<string>();
 	/** Release listeners for shells held after a tool returns while the command is still running. */
@@ -69,10 +71,11 @@ export class ShellManager extends Disposable {
 
 	private readonly _onDidAssociateTerminal = this._register(new Emitter<{ toolCallId: string; terminalUri: string; displayName: string }>());
 	readonly onDidAssociateTerminal: Event<{ toolCallId: string; terminalUri: string; displayName: string }> = this._onDidAssociateTerminal.event;
+	private readonly _onDidChangeRoots = this._register(new Emitter<void>());
 
 	constructor(
 		private readonly _sessionUri: URI,
-		public readonly workingDirectory: URI | undefined,
+		workingDirectory: URI | undefined,
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -82,6 +85,7 @@ export class ShellManager extends Disposable {
 		@ISandboxHelperService private readonly _sandboxHelper: ISandboxHelperService,
 	) {
 		super();
+		this._workingDirectory = workingDirectory;
 
 		this._register(toDisposable(() => {
 			for (const store of this._heldShellReleaseListeners.values()) {
@@ -97,6 +101,32 @@ export class ShellManager extends Disposable {
 			this._toolCallShells.clear();
 			this._busyShellIds.clear();
 		}));
+	}
+
+	get workingDirectory(): URI | undefined {
+		return this._workingDirectory;
+	}
+
+	/** Throws if shell activity prevents changing the working directory safely. */
+	assertCanSetWorkingDirectory(): void {
+		if (this._busyShellIds.size > 0 || this._heldShellReleaseListeners.size > 0 || this._pendingShellCreations > 0) {
+			throw new Error('Cannot change the working directory while a shell is busy');
+		}
+	}
+
+	/** Re-anchors future shells and sandbox roots after safely discarding idle shell state. */
+	setWorkingDirectory(workingDirectory: URI): void {
+		this.assertCanSetWorkingDirectory();
+
+		for (const shell of this._shells.values()) {
+			if (this._terminalManager.hasTerminal(shell.terminalUri)) {
+				this._terminalManager.disposeTerminal(shell.terminalUri);
+			}
+		}
+		this._shells.clear();
+		this._toolCallShells.clear();
+		this._workingDirectory = workingDirectory;
+		this._onDidChangeRoots.fire();
 	}
 
 	/**
@@ -126,7 +156,8 @@ export class ShellManager extends Disposable {
 				this._agentConfigurationService,
 				this._sandboxHelper,
 				sessionId,
-				this.workingDirectory,
+				() => this.workingDirectory,
+				this._onDidChangeRoots.event,
 			);
 			this._register(engine);
 			this._register(toDisposable(() => {
@@ -184,22 +215,27 @@ export class ShellManager extends Disposable {
 		};
 
 		const shellDisplayName = shellType === 'bash' ? 'Bash' : 'PowerShell';
-		const executable = await this.getResolvedExecutable();
+		this._pendingShellCreations++;
+		try {
+			const executable = await this.getResolvedExecutable();
 
-		await this._terminalManager.createTerminal({
-			channel: terminalUri,
-			claim,
-			name: shellDisplayName,
-			cwd: cwd ?? this.workingDirectory?.fsPath,
-		}, { shell: executable, preventShellHistory: true, nonInteractive: true });
+			await this._terminalManager.createTerminal({
+				channel: terminalUri,
+				claim,
+				name: shellDisplayName,
+				cwd: cwd ?? this.workingDirectory?.fsPath,
+			}, { shell: executable, preventShellHistory: true, nonInteractive: true });
 
-		const shell: IManagedShell = { id, terminalUri, shellType, executable };
-		this._shells.set(id, shell);
-		this._busyShellIds.add(id);
-		this._trackToolCall(toolCallId, id);
+			const shell: IManagedShell = { id, terminalUri, shellType, executable };
+			this._shells.set(id, shell);
+			this._busyShellIds.add(id);
+			this._trackToolCall(toolCallId, id);
 
-		this._logService.info(`[ShellManager] Created ${shellType} shell ${id} (terminal=${terminalUri},  executable=${executable})`);
-		return this._makeReference(shell);
+			this._logService.info(`[ShellManager] Created ${shellType} shell ${id} (terminal=${terminalUri},  executable=${executable})`);
+			return this._makeReference(shell);
+		} finally {
+			this._pendingShellCreations--;
+		}
 	}
 
 	private _makeReference(shell: IManagedShell): IReference<IManagedShell> {

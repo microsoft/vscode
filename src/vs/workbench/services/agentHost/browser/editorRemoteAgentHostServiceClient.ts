@@ -159,6 +159,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		// The remote owns the agent host process lifecycle.
 	}
 
+	async setSessionWorkingDirectoryForTesting(_chat: URI, _workingDirectory: URI): Promise<void> {
+		throw REMOTE_NOT_SUPPORTED('setSessionWorkingDirectoryForTesting');
+	}
+
 	async startWebSocketServer(): Promise<IAgentHostSocketInfo> {
 		throw REMOTE_NOT_SUPPORTED('startWebSocketServer');
 	}

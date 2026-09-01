@@ -49,6 +49,7 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 		getChatContext: (session, chatId) => this.value.sessionServerToolAccessor.getChatContext(session, chatId),
 		getSessionSpawnDepth: session => this.value.sessionServerToolAccessor.getSessionSpawnDepth(session),
 		setSessionSpawnDepth: (session, depth) => this.value.sessionServerToolAccessor.setSessionSpawnDepth(session, depth),
+		scheduleQuickChatWorkspaceConversion: (chat, turnId, workspaceFolder, isolation) => this.value.sessionServerToolAccessor.scheduleQuickChatWorkspaceConversion(chat, turnId, workspaceFolder, isolation),
 	};
 
 	readonly artifactServerToolAccessor: IArtifactServerToolAccessor = {

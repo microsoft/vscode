@@ -59,6 +59,7 @@ export class NullAgentHostService implements IAgentHostService {
 	async getSessionStateFile(_session: URI): Promise<URI | undefined> { return notSupported(); }
 	async collectDebugLogs(_session: URI | undefined, _kind: AgentHostDebugLogsArtifactKind, _chat?: URI): Promise<IAgentHostDebugLogsArtifact> { return notSupported(); }
 	async readDebugLogsChunk(_resource: URI, _position: number): Promise<IAgentHostDebugLogsChunk> { return notSupported(); }
+	async setSessionWorkingDirectoryForTesting(_chat: URI, _workingDirectory: URI): Promise<void> { return notSupported(); }
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return notSupported(); }
 	async createDetachedWorktree(_session: URI, _prompt: string): Promise<{ handle: string; worktree: URI }> { return notSupported(); }

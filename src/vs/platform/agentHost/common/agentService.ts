@@ -787,6 +787,8 @@ export interface IAgentHostManagementService {
 	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined>;
 	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
 	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk>;
+	/** Temporary local-only path for exercising live provider cwd mutation from a development build. */
+	setSessionWorkingDirectoryForTesting(chat: URI, workingDirectory: URI): Promise<void>;
 	startWebSocketServer(): Promise<IAgentHostSocketInfo>;
 	getInspectInfo(tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined>;
 }
@@ -926,6 +928,9 @@ export interface IAgentService {
 	collectDebugLogs?(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
 
 	readDebugLogsChunk?(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk>;
+
+	/** Temporary local management entry point for exercising provider cwd mutation. */
+	setSessionWorkingDirectoryForTesting(chat: URI, workingDirectory: URI): Promise<void>;
 
 	// ---- Protocol methods (sessions process protocol) ----------------------
 
@@ -1249,6 +1254,9 @@ export interface IAgentHostService extends IAgentConnection {
 
 	/** Restart the agent host process, if this connection owns its lifecycle. */
 	restartAgentHost(): Promise<void>;
+
+	/** Temporary local-only path for exercising live provider cwd mutation from a development build. */
+	setSessionWorkingDirectoryForTesting(chat: URI, workingDirectory: URI): Promise<void>;
 
 	startWebSocketServer(): Promise<IAgentHostSocketInfo>;
 

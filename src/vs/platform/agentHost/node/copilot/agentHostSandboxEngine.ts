@@ -27,13 +27,13 @@ const SANDBOX_TEMP_DIR_NAME = 'tmp';
  * {@link createAgentHostSandboxEngine}.
  */
 class AgentHostTerminalSandboxHost implements ITerminalSandboxEngineHost {
-	readonly onDidChangeRoots = Event.None;
 	readonly onDidChangeSandboxSettings: Event<void>;
 	private readonly _sandboxHelper: ISandboxHelperService;
 
 	constructor(
 		private readonly _sessionId: string,
-		private readonly _workingDirectory: URI | undefined,
+		private readonly _getWorkingDirectory: () => URI | undefined,
+		readonly onDidChangeRoots: Event<void>,
 		private readonly _environmentService: INativeEnvironmentService,
 		private readonly _productService: IProductService,
 		private readonly _agentConfigurationService: IAgentConfigurationService,
@@ -86,7 +86,8 @@ class AgentHostTerminalSandboxHost implements ITerminalSandboxEngineHost {
 	}
 
 	getWriteRoots(): readonly URI[] {
-		return this._workingDirectory ? [this._workingDirectory] : [];
+		const workingDirectory = this._getWorkingDirectory();
+		return workingDirectory ? [workingDirectory] : [];
 	}
 
 	async checkSandboxDependencies(): Promise<ISandboxDependencyStatus | undefined> {
@@ -132,8 +133,9 @@ export function createAgentHostSandboxEngine(
 	agentConfigurationService: IAgentConfigurationService,
 	sandboxHelper: ISandboxHelperService,
 	sessionId: string,
-	workingDirectory: URI | undefined,
+	getWorkingDirectory: () => URI | undefined,
+	onDidChangeRoots: Event<void>,
 ): TerminalSandboxEngine {
-	const host = new AgentHostTerminalSandboxHost(sessionId, workingDirectory, environmentService as INativeEnvironmentService, productService, agentConfigurationService, sandboxHelper);
+	const host = new AgentHostTerminalSandboxHost(sessionId, getWorkingDirectory, onDidChangeRoots, environmentService as INativeEnvironmentService, productService, agentConfigurationService, sandboxHelper);
 	return instantiationService.createInstance(TerminalSandboxEngine, host);
 }

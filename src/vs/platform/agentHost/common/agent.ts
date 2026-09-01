@@ -27,6 +27,16 @@ export class AgentHostStartError extends Error {
 	}
 }
 
+/** Reports a provider CWD error after the new directory became irreversible and authoritative. */
+export class AgentWorkingDirectoryChangedError extends Error {
+	constructor(
+		readonly workingDirectory: URI,
+		message: string,
+	) {
+		super(message);
+	}
+}
+
 export function isInvalidUtilityProcessConfigurationMessage(message: string): boolean {
 	return /^Invalid value for (?:args|env|execArgv)$/.test(message);
 }
@@ -1142,6 +1152,9 @@ export interface IAgent {
 
 	/** Optional history mutation for providers with a native truncation operation. */
 	truncateChat?(chat: URI, turnId: string | undefined, context?: URI | IAgentChatContext): Promise<void>;
+
+	/** Changes the working directory of an exact chat's existing provider-native backing. */
+	setWorkingDirectory?(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI): Promise<void>;
 
 	/** Return bounded diagnostics for an in-flight turn when supported. */
 	getTurnDiagnosticSnapshot?(chat: URI, turnId: string): IAgentTurnDiagnosticSnapshot | undefined;

@@ -213,6 +213,16 @@ suite('AgentHostPromptRegistry', () => {
 	});
 
 	suite('workspace-less scratch/repoless wiring', () => {
+		test('prefers attaching a workspace over creating a replacement session', () => {
+			assert.deepStrictEqual({
+				usesSetWorkspace: COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('`set_workspace` is available, prefer attaching that workspace and continuing this same conversation'),
+				avoidsReplacementSession: COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Do not create another session solely to move the work'),
+			}, {
+				usesSetWorkspace: true,
+				avoidsReplacementSession: true,
+			});
+		});
+
 		test('appends the scratch instructions to the default config for a workspace-less chat', () => {
 			const registry = new AgentHostPromptRegistry();
 			assert.deepStrictEqual(

@@ -23,7 +23,7 @@ import type { ResolveSessionConfigResult } from '../../../../../../platform/agen
 import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withSessionCreationReference, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
-import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -409,7 +409,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 // ---- Test helpers -----------------------------------------------------------
 
-function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string }; adoptable?: boolean; _meta?: IAgentSessionMetadata['_meta'] }): IAgentSessionMetadata {
+function createSession(id: string, opts?: { provider?: string; summary?: string; status?: ProtocolSessionStatus; activity?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string }; adoptable?: boolean; _meta?: IAgentSessionMetadata['_meta'] }): IAgentSessionMetadata {
 	let _meta = opts?._meta;
 	_meta = opts?.quickChat ? withSessionWorkspaceless(_meta, true) : _meta;
 	_meta = withSessionMultiRootMetadata(_meta, opts?.multiRoot);
@@ -421,6 +421,8 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 		startTime: opts?.startTime ?? 1000,
 		modifiedTime: opts?.modifiedTime ?? 2000,
 		summary: opts?.summary,
+		status: opts?.status,
+		activity: opts?.activity,
 		project: opts?.project,
 		workingDirectories: opts?.workingDirectory ? [opts?.workingDirectory] : undefined,
 		_meta,
@@ -620,7 +622,7 @@ function fireSessionRemoved(agentHost: MockAgentHostService, rawId: string, prov
 	});
 }
 
-function fireSessionSummaryChanged(agentHost: MockAgentHostService, rawId: string, changes: Partial<SessionSummary>, provider = 'copilotcli'): void {
+function fireSessionSummaryChanged(agentHost: MockAgentHostService, rawId: string, changes: SessionSummaryChangedParams['changes'], provider = 'copilotcli'): void {
 	const sessionUri = AgentSession.uri(provider, rawId);
 	agentHost.fireNotification({
 		channel: 'ahp-root://',
@@ -3308,6 +3310,136 @@ suite('LocalAgentHostSessionsProvider', () => {
 			afterListing: { workspace: undefined, isQuickChat: true },
 			announced: true,
 			healedInPlace: true,
+		});
+	}));
+
+	test('authoritative session state converts a quick chat to a workspace session in place', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const scratchDirectory = URI.file('/tmp/copilot-scratch/quick-converted');
+		const workspaceDirectory = URI.file('/home/user/project');
+		agentHost.addSession(createSession('quick-converted', {
+			summary: 'Quick Chat',
+			workingDirectory: scratchDirectory,
+			quickChat: true,
+		}));
+
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+
+		const session = provider.getSessions()[0] as AgentHostSessionAdapter;
+		provider.getSessionConfig(session.sessionId);
+		const sessionUri = AgentSession.uri('copilotcli', 'quick-converted').toString();
+		const defaultChat = buildDefaultChatUri(sessionUri);
+		agentHost.setSessionState('quick-converted', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'Quick Chat',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			defaultChat,
+			workingDirectories: [scratchDirectory.toString()],
+			_meta: withSessionWorkspaceless(undefined, true),
+			chats: [{ resource: defaultChat, title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() }],
+		});
+		const observed: Array<{ isQuickChat: boolean | undefined; workspace: string | undefined }> = [];
+		disposables.add(autorun(reader => {
+			observed.push({
+				isQuickChat: session.isQuickChat?.read(reader),
+				workspace: session.workspace.read(reader)?.uri.toString(),
+			});
+		}));
+		const changed: string[] = [];
+		disposables.add(provider.onDidChangeSessions(event => changed.push(...event.changed.map(candidate => candidate.sessionId))));
+
+		agentHost.setSessionState('quick-converted', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'Quick Chat',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			defaultChat,
+			workingDirectories: [workspaceDirectory.toString()],
+			chats: [{ resource: defaultChat, title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() }],
+		});
+
+		assert.deepStrictEqual({
+			observed,
+			workingDirectories: session.workingDirectories.map(directory => directory.toString()),
+			announced: changed.includes(session.sessionId),
+			sameAdapter: provider.getSessions()[0] === session,
+		}, {
+			observed: [
+				{ isQuickChat: true, workspace: undefined },
+				{ isQuickChat: false, workspace: workspaceDirectory.toString() },
+			],
+			workingDirectories: [workspaceDirectory.toString()],
+			announced: true,
+			sameAdapter: true,
+		});
+	}));
+
+	test('isolated conversion groups by repository while running in the worktree', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const scratchDirectory = URI.file('/tmp/copilot-scratch/quick-isolated');
+		const repository = URI.file('/home/user/project');
+		const worktree = URI.file('/home/user/project.worktrees/implement-feature');
+		agentHost.addSession(createSession('quick-isolated', {
+			summary: 'Quick Chat',
+			workingDirectory: scratchDirectory,
+			quickChat: true,
+		}));
+
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		assert.ok(session);
+
+		fireSessionSummaryChanged(agentHost, 'quick-isolated', {
+			project: { uri: repository.toString(), displayName: 'project' },
+			workingDirectories: [worktree.toString()],
+			_meta: withSessionWorkspaceless(undefined, false),
+		});
+		await timeout(0);
+
+		const workspace = session.workspace.get();
+		assert.deepStrictEqual({
+			isQuickChat: session.isQuickChat?.get(),
+			workspace: workspace?.uri.toString(),
+			folderRoot: workspace?.folders[0]?.root.toString(),
+			workingDirectory: workspace?.folders[0]?.workingDirectory.toString(),
+			workTreeUri: workspace?.folders[0]?.gitRepository?.workTreeUri?.toString(),
+			sameAdapter: provider.getSessions()[0] === session,
+		}, {
+			isQuickChat: false,
+			workspace: repository.toString(),
+			folderRoot: repository.toString(),
+			workingDirectory: worktree.toString(),
+			workTreeUri: worktree.toString(),
+			sameAdapter: true,
+		});
+	}));
+
+	test('clears session activity from a summary notification', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('activity-clear', {
+			summary: 'Creating worktree',
+			status: ProtocolSessionStatus.InProgress,
+			activity: 'Creating isolated worktree',
+		}));
+
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const before = session.description.get();
+
+		fireSessionSummaryChanged(agentHost, 'activity-clear', { activity: null });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			before: before ? renderAsPlaintext(before) : undefined,
+			after: session.description.get(),
+		}, {
+			before: 'Creating isolated worktree',
+			after: undefined,
 		});
 	}));
 

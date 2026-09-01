@@ -40,7 +40,7 @@ import { gitHubMcpServerUrl } from '../../common/githubEndpoints.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { AgentSession, AgentSignal, AuthenticateParams, IMcpNotification, type AgentTurnProviderCallState, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot } from '../../common/agent.js';
+import { AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, type AgentTurnProviderCallState, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot } from '../../common/agent.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
@@ -981,6 +981,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _sessionUsageMetricsRefreshThrottler = this._register(new Throttler());
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
+	private _workingDirectoryMutationInProgress = false;
 	private readonly _slashCommandProvider: CopilotSlashCommandProvider;
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
 	private _lastAppliedMode: CopilotSdkMode | undefined;
@@ -1058,8 +1059,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _shellManager: ShellManager | undefined;
 	/** Streams runtime-executed shell output into output-only (non-pty) terminal channels. */
 	private readonly _nonPtyShellTerminals: NonPtyShellTerminalStreams;
-	private readonly _workingDirectory: URI | undefined;
-	private readonly _customizationDirectory: URI | undefined;
+	private _workingDirectory: URI | undefined;
+	private _customizationDirectory: URI | undefined;
 	private readonly _serverToolHost: IAgentServerToolHost | undefined;
 	/** Bridges SDK-reported MCP server state into AHP customization actions. */
 	private readonly _mcpCustomizations: McpCustomizationController;
@@ -2417,7 +2418,123 @@ export class CopilotAgentSession extends Disposable {
 
 	// ---- session operations -------------------------------------------------
 
+	async setWorkingDirectory(workingDirectory: URI, transaction?: {
+		prepare(): Promise<void>;
+		revert(): Promise<void>;
+		reconcile(authoritativeWorkingDirectory: URI): Promise<void>;
+	}): Promise<void> {
+		if (!this._wrapper) {
+			throw new Error('Cannot change the working directory before the session is initialized');
+		}
+		if (this.hasActiveTurn) {
+			throw new Error('Cannot change the working directory while a turn is active');
+		}
+		if (this._workingDirectoryMutationInProgress) {
+			throw new Error('Cannot change the working directory while another working directory change is in progress');
+		}
+		const previousWorkingDirectory = this._workingDirectory;
+		if (!previousWorkingDirectory) {
+			throw new Error('Cannot change the working directory for a session without an existing working directory');
+		}
+		this._shellManager?.assertCanSetWorkingDirectory();
+
+		this._workingDirectoryMutationInProgress = true;
+		try {
+			if (transaction) {
+				try {
+					await transaction.prepare();
+				} catch (prepareError) {
+					try {
+						await transaction.revert();
+					} catch (revertError) {
+						throw new Error(`Working directory preparation failed: ${getErrorMessage(prepareError)}; failed to revert the prepared working directory: ${getErrorMessage(revertError)}`);
+					}
+					throw prepareError;
+				}
+
+				if (this.hasActiveTurn) {
+					const activeTurnError = new Error('Cannot change the working directory while a turn is active');
+					try {
+						await transaction.revert();
+					} catch (revertError) {
+						throw new Error(`${activeTurnError.message}; failed to revert the prepared working directory: ${getErrorMessage(revertError)}`);
+					}
+					throw activeTurnError;
+				}
+			}
+
+			let result: Awaited<ReturnType<CopilotSession['rpc']['metadata']['setWorkingDirectory']>>;
+			try {
+				result = await this._wrapper.session.rpc.metadata.setWorkingDirectory({ workingDirectory: workingDirectory.fsPath });
+			} catch (sdkError) {
+				if (transaction) {
+					try {
+						await transaction.revert();
+					} catch (revertError) {
+						throw new Error(`Failed to change the SDK working directory: ${getErrorMessage(sdkError)}; failed to revert the prepared working directory: ${getErrorMessage(revertError)}`);
+					}
+				}
+				throw sdkError;
+			}
+
+			const requestedUri = normalizePath(URI.file(workingDirectory.fsPath));
+			const actualUri = normalizePath(URI.file(result.workingDirectory));
+			let runtimeAlignmentError: string | undefined;
+			try {
+				const updateResult = await this._wrapper.session.rpc.options.update({ workingDirectory: actualUri.fsPath });
+				if (!updateResult.success) {
+					runtimeAlignmentError = 'the SDK rejected the runtime working directory update';
+				}
+			} catch (error) {
+				runtimeAlignmentError = `failed to update the SDK runtime working directory: ${getErrorMessage(error)}`;
+			}
+			if (extUriBiasedIgnorePathCase.isEqual(actualUri, requestedUri)) {
+				let shellAlignmentError: string | undefined;
+				try {
+					this._shellManager?.setWorkingDirectory(workingDirectory);
+				} catch (error) {
+					shellAlignmentError = `failed to align the local shell working directory: ${getErrorMessage(error)}`;
+				} finally {
+					this._workingDirectory = workingDirectory;
+					this._customizationDirectory = workingDirectory;
+				}
+				const alignmentErrors = [runtimeAlignmentError, shellAlignmentError].filter(isDefined);
+				if (alignmentErrors.length > 0) {
+					throw new AgentWorkingDirectoryChangedError(workingDirectory, `The SDK working directory changed to '${workingDirectory.fsPath}', but runtime alignment failed: ${alignmentErrors.join('; ')}`);
+				}
+				return;
+			}
+
+			const mismatchError = new Error(`The SDK returned working directory '${result.workingDirectory}' instead of '${workingDirectory.fsPath}'`);
+			const alignmentErrors = runtimeAlignmentError ? [runtimeAlignmentError] : [];
+			try {
+				this._shellManager?.setWorkingDirectory(actualUri);
+			} catch (shellError) {
+				alignmentErrors.push(`failed to align the local shell working directory: ${getErrorMessage(shellError)}`);
+			} finally {
+				this._workingDirectory = actualUri;
+				this._customizationDirectory = actualUri;
+			}
+			if (transaction) {
+				try {
+					await transaction.reconcile(actualUri);
+				} catch (reconcileError) {
+					alignmentErrors.push(`failed to reconcile the authoritative working directory: ${getErrorMessage(reconcileError)}`);
+				}
+			}
+			if (alignmentErrors.length > 0) {
+				throw new AgentWorkingDirectoryChangedError(actualUri, `${mismatchError.message}; ${alignmentErrors.join('; ')}`);
+			}
+			throw new AgentWorkingDirectoryChangedError(actualUri, mismatchError.message);
+		} finally {
+			this._workingDirectoryMutationInProgress = false;
+		}
+	}
+
 	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, hostInstructions?: readonly string[], clientContext = createUnknownAgentHostClientTelemetryContext(clientType), agentMergeTurn = false): Promise<void> {
+		if (this._workingDirectoryMutationInProgress) {
+			throw new Error('Cannot start a turn while the working directory is changing');
+		}
 		this._resetAbortToken();
 		this._agentMergeTurn = agentMergeTurn;
 		if (turnId && this._currentTurn.value?.id !== turnId) {

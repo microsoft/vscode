@@ -17,6 +17,7 @@ import { getErrorResponsePart, isAhpChatChannel, parseRequiredSessionUriFromChat
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostProviderService } from '../../agentHostProviderService.js';
 import { startTurn } from '../../agentHostTurnStarter.js';
+import { IQuickChatWorkspaceConversionService } from '../quickChatWorkspaceConversion/quickChatWorkspaceConversionService.js';
 
 const QueuedSender = createChatMementoKey<IQueuedMessageSender | undefined, [messageId: string]>('queueDrain.sender', () => undefined);
 
@@ -33,6 +34,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IQuickChatWorkspaceConversionService private readonly _conversionService: IQuickChatWorkspaceConversionService,
 	) {
 		super();
 	}
@@ -89,6 +91,9 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 	}
 
 	private _tryConsumeNextQueuedMessage(channel: ProtocolURI): void {
+		if (this._conversionService.isPending(channel)) {
+			return;
+		}
 		if (this._stateManager.getActiveTurnId(channel)) {
 			return;
 		}

@@ -97,6 +97,7 @@ import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_STATE, META_G
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
+import { IQuickChatWorkspaceConversionService } from './chatContributions/quickChatWorkspaceConversion/quickChatWorkspaceConversionService.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -622,6 +623,7 @@ export class AgentService extends Disposable implements IAgentService {
 		@IAgentHostWorktreeIsolation private readonly _worktree: IAgentHostWorktreeIsolation,
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 		@IAgentHostStorageService private readonly _storageService: IAgentHostStorageService,
+		@IQuickChatWorkspaceConversionService private readonly _quickChatWorkspaceConversionService: IQuickChatWorkspaceConversionService,
 	) {
 		super();
 		this._authService = core.authenticationService;
@@ -647,6 +649,9 @@ export class AgentService extends Disposable implements IAgentService {
 		this._sideEffects = collaborators.sideEffects;
 		this._serverToolHost = collaborators.serverToolHost;
 		this._automationService = collaborators.automationService;
+		this._register(this._quickChatWorkspaceConversionService.registerHost({
+			startContinuation: (chat, message) => this._startSessionMessage(chat, message),
+		}));
 		this._register(this._providerService.registerProviderInitializer(provider => this._initializeProvider(provider)));
 		this._register(this._providerService.onDidRegisterProvider(provider => this._onDidRegisterProvider(provider)));
 		this._sessionResidency = this._register(instantiationService.createInstance(
@@ -1198,6 +1203,7 @@ export class AgentService extends Disposable implements IAgentService {
 				type: ActionType.SessionMetaChanged,
 				_meta: withSessionSpawnDepth(this._stateManager.getSessionSummary(session.toString())?._meta, depth),
 			}),
+			scheduleQuickChatWorkspaceConversion: (chat, turnId, workspaceFolder, isolation) => this._quickChatWorkspaceConversionService.schedule(chat, turnId, workspaceFolder, isolation),
 		};
 	}
 
@@ -6792,6 +6798,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
 		return this._providerService.getProviderForSession(session)?.getSessionStateFile?.(session, chat);
+	}
+
+	async setSessionWorkingDirectoryForTesting(chat: URI, workingDirectory: URI): Promise<void> {
+		await this._quickChatWorkspaceConversionService.convertNow(chat, workingDirectory, false);
 	}
 
 	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {

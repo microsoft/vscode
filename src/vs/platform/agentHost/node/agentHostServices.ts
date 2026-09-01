@@ -64,6 +64,7 @@ import { EditArcReporterService, IEditArcReporterService } from './shared/editAr
 import { EditSurvivalReporterFactory, IEditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
 import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js';
+import { IQuickChatWorkspaceConversionService, QuickChatWorkspaceConversionService } from './chatContributions/quickChatWorkspaceConversion/quickChatWorkspaceConversionService.js';
 
 export interface IAgentHostCoreServiceInputs {
 	readonly storageResource: URI | undefined;
@@ -99,6 +100,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentHostCompletions, new SyncDescriptor(AgentHostCompletions));
 	services.set(IAgentHostTerminalManager, new SyncDescriptor(AgentHostTerminalManager));
 	services.set(IAgentHostChatContributions, new SyncDescriptor(AgentHostChatContributions));
+	services.set(IQuickChatWorkspaceConversionService, new SyncDescriptor(QuickChatWorkspaceConversionService));
 	services.set(IAgentHostTelemetryReporter, new SyncDescriptor(AgentHostTelemetryReporter));
 	services.set(IAgentHostTurnTracker, new SyncDescriptor(AgentHostTurnTracker));
 	services.set(IAgentHostToolCallTracker, new SyncDescriptor(AgentHostToolCallTracker));

@@ -47,8 +47,8 @@ export const COPILOT_AGENT_HOST_SYSTEM_MESSAGE = {
  * Scratch/repoless guidance appended to a workspace-less chat's system message.
  * A workspace-less chat's working directory is a throwaway SCRATCH dir, not a
  * code repository — so this tells the agent not to treat it like a project, to
- * stay read-only on real repos, and to delegate code changes to a dedicated
- * session. Modeled on the GitHub app's `build_general_chat_system_message`.
+ * stay read-only on real repos, and to attach a workspace before project work.
+ * Modeled on the GitHub app's `build_general_chat_system_message`.
  */
 export const COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS = [
 	'<workspaceless_chat>',
@@ -56,7 +56,7 @@ export const COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS = [
 	'',
 	'- Your working directory is a SCRATCH directory for running commands and saving throwaway artifacts — it is NOT a code repository. Do not treat it as a project to build, test, or commit.',
 	'- If the user points you at a real repository, prefer read-only operations: read files, search code, and inspect git metadata (branch, log, diff, status) to answer questions. Avoid modifying files or running builds, tests, linters, or installs in their working copies.',
-	'- When the user wants code changes, test runs, or any work that modifies or executes against a real project, delegate it to a dedicated session rather than doing it here.',
+	'- When the task should continue in a real workspace and `set_workspace` is available, prefer attaching that workspace and continuing this same conversation. Do not create another session solely to move the work. Use `list_sessions` to discover a known workspace when needed, and never guess a path.',
 	'</workspaceless_chat>',
 ].join('\n');
 

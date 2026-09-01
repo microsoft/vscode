@@ -41,7 +41,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification } from '../../common/state/sessionActions.js';
-import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -2801,6 +2801,107 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				supported: 'file:///state/session-1/events.jsonl',
 				unsupported: undefined,
+			});
+		});
+
+		test('converts a workspace-less session in place after the provider changes its working directory', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			const provider: IAgent = agent;
+			const calls: { chat: string; context: string; workingDirectory: string }[] = [];
+			provider.setWorkingDirectory = async (chat, context, workingDirectory) => {
+				calls.push({
+					chat: chat.toString(),
+					context: URI.isUri(context) ? context.toString() : context.resource.toString(),
+					workingDirectory: workingDirectory.toString(),
+				});
+				getStateManager(localService).setSessionMeta(session.toString(), {
+					workspaceless: true,
+					duringConversion: 'preserved',
+				});
+			};
+			registerTestAgentProvider(localService, provider);
+			const session = await localService.createSession({ provider: agent.id });
+			getStateManager(localService).dispatchServerAction(session.toString(), {
+				type: ActionType.SessionWorkingDirectorySet,
+				directory: URI.file('/tmp/copilot-scratch/session-1').toString(),
+			});
+			const before = getStateManager(localService).getSessionState(session.toString());
+			assert.ok(before);
+			assert.strictEqual(before.workingDirectories?.length, 1);
+			assert.ok(readSessionWorkspaceless(before._meta));
+			assert.ok(before.defaultChat);
+			const chat = URI.parse(before.defaultChat);
+			await db.setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'true');
+			const managementService = new AgentHostManagementService(localService, {} as IConnectionTrackerService, async () => { }, createSessionDataService(db), new NullLogService());
+
+			await managementService.setSessionWorkingDirectoryForTesting(
+				chat,
+				URI.file('/workspace/project'),
+			);
+
+			const after = getStateManager(localService).getSessionState(session.toString());
+			assert.deepStrictEqual({
+				calls,
+				session: session.toString(),
+				defaultChat: after?.defaultChat,
+				workingDirectories: after?.workingDirectories?.map(directory => directory.toString()),
+				workspaceless: readSessionWorkspaceless(after?._meta),
+				duringConversion: after?._meta?.duringConversion,
+				persistedWorkspaceless: await db.getMetadata(AH_META_WORKSPACELESS_DB_KEY),
+			}, {
+				calls: [{
+					chat: chat.toString(),
+					context: session.toString(),
+					workingDirectory: 'file:///workspace/project',
+				}],
+				session: session.toString(),
+				defaultChat: before.defaultChat,
+				workingDirectories: ['file:///workspace/project'],
+				workspaceless: false,
+				duringConversion: 'preserved',
+				persistedWorkspaceless: 'false',
+			});
+		});
+
+		test('leaves authoritative session state workspace-less when the provider mutation fails', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			const provider: IAgent = agent;
+			provider.setWorkingDirectory = async () => {
+				throw new Error('provider failed');
+			};
+			registerTestAgentProvider(localService, provider);
+			const session = await localService.createSession({ provider: agent.id });
+			getStateManager(localService).dispatchServerAction(session.toString(), {
+				type: ActionType.SessionWorkingDirectorySet,
+				directory: URI.file('/tmp/copilot-scratch/session-1').toString(),
+			});
+			const before = getStateManager(localService).getSessionState(session.toString());
+			assert.ok(before);
+			assert.strictEqual(before.workingDirectories?.length, 1);
+			assert.ok(before.defaultChat);
+			await db.setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'true');
+			const managementService = new AgentHostManagementService(localService, {} as IConnectionTrackerService, async () => { }, createSessionDataService(db), new NullLogService());
+
+			await assert.rejects(managementService.setSessionWorkingDirectoryForTesting(
+				URI.parse(before.defaultChat),
+				URI.file('/workspace/project'),
+			), /provider failed/);
+
+			const after = getStateManager(localService).getSessionState(session.toString());
+			assert.deepStrictEqual({
+				workingDirectories: after?.workingDirectories?.map(directory => directory.toString()),
+				workspaceless: readSessionWorkspaceless(after?._meta),
+				persistedWorkspaceless: await db.getMetadata(AH_META_WORKSPACELESS_DB_KEY),
+			}, {
+				workingDirectories: before.workingDirectories?.map(directory => directory.toString()),
+				workspaceless: true,
+				persistedWorkspaceless: 'true',
 			});
 		});
 	});
