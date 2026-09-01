@@ -246,7 +246,7 @@ class LoggedToolCall implements ILoggedToolCall {
 
 	async toJSON(): Promise<object> {
 		const responseData: string[] = [];
-		for (const content of this.response.content) {
+		for (const content of this.response?.content ?? []) {
 			if (content instanceof LanguageModelTextPart) {
 				responseData.push(content.value);
 			} else if (content instanceof LanguageModelDataPart) {
