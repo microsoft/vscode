@@ -720,9 +720,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * Fires when the native chat catalog may have changed. The {@link AgentService}
 	 * responds with an additive discovery pass.
 	 */
-	private readonly _onDidDiscoverChats = this._register(new Emitter<readonly IAgentDiscoveredChat[]>({
-		onDidAddFirstListener: () => { void this._startCopilotChatDiscovery(); },
-	}));
+	private readonly _onDidDiscoverChats = this._register(new Emitter<readonly IAgentDiscoveredChat[]>());
 	readonly onDidDiscoverChats = this._onDidDiscoverChats.event;
 	/**
 	 * Per-session MCP notifications, fanned in from every active
@@ -2457,6 +2455,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	setKnownSessionsFilter(filter: IAgentKnownSessionsFilter): void {
 		this._knownSessionsFilter = filter;
+	}
+
+	startChatDiscovery(): Promise<void> {
+		return this._startCopilotChatDiscovery();
 	}
 
 	/**

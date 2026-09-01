@@ -27,7 +27,7 @@ import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { RecordingAgentSdkDownloader } from '../testAgentSdkDownloader.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, readAgentSdkSetupInfos } from '../../../common/agentSdkSetup.js';
-import { AgentSession } from '../../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession } from '../../../common/agent.js';
 import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
@@ -137,6 +137,9 @@ function createChatGPTConnection(account: unknown = { type: 'chatgpt', email: 'p
 				if (method === 'model/list') {
 					return modelListResponse;
 				}
+				if (method === 'thread/list') {
+					return { data: [], nextCursor: null };
+				}
 				throw new Error(`Unexpected request: ${method}`);
 			},
 		},
@@ -172,7 +175,7 @@ suite('CodexAgent model refresh', () => {
 		assert.deepStrictEqual({ connectionRequested, metadata, migrated, models: agent.models.get() }, {
 			connectionRequested: false,
 			metadata: undefined,
-			migrated: [],
+			migrated: AgentChatMigrationDeferred,
 			models: [],
 		});
 
@@ -189,10 +192,12 @@ suite('CodexAgent model refresh', () => {
 			connectionRequested,
 			// One enumeration, not one per caller that happened to want the connection.
 			enumerations: requests.filter(method => method === 'model/list').length,
+			discoveries: requests.filter(method => method === 'thread/list').length,
 			models: agent.models.get().map(model => ({ provider: model.provider, id: model.id, name: model.name, meta: model._meta })),
 		}, {
 			connectionRequested: true,
 			enumerations: 1,
+			discoveries: 0,
 			models: [{
 				provider: 'codex',
 				id: toCodexModelSelectionId('openai', 'gpt-5.6-sol'),
@@ -267,6 +272,29 @@ suite('CodexAgent model refresh', () => {
 		assert.deepStrictEqual({ resolved, sessionModel: session.model }, {
 			resolved: selectedModel,
 			sessionModel: selectedModel,
+		});
+	});
+
+	test('starts host-requested chat discovery when Codex activates', async () => {
+		const agent = createAgent(disposables, async () => [], { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true });
+		const requests: string[] = [];
+		const connection = createChatGPTConnection(undefined, requests);
+		agent['_ensureConnection'] = async () => {
+			agent['_connection'] = connection as never;
+			return connection as never;
+		};
+
+		await agent.startChatDiscovery();
+		const discoveriesBeforeActivation = requests.filter(method => method === 'thread/list').length;
+		agent['_activate']();
+		await agent['_codexChatDiscovery'];
+
+		assert.deepStrictEqual({
+			discoveriesBeforeActivation,
+			discoveriesAfterActivation: requests.filter(method => method === 'thread/list').length,
+		}, {
+			discoveriesBeforeActivation: 0,
+			discoveriesAfterActivation: 1,
 		});
 	});
 
