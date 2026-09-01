@@ -389,6 +389,40 @@ const migrations = [
 	},
 ] as const;
 
+async function bridgeUpstreamVersion4(database: Database, currentVersion: number): Promise<number> {
+	if (currentVersion !== 4 || await get(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'sessions_v2'`, [])) {
+		return currentVersion;
+	}
+	await exec(database, 'BEGIN TRANSACTION');
+	try {
+		await exec(database, `
+			CREATE TABLE sessions_v2 (
+				session_uri         TEXT PRIMARY KEY NOT NULL,
+				provider            TEXT NOT NULL,
+				start_time          INTEGER NOT NULL,
+				external            INTEGER,
+				registration_source TEXT NOT NULL,
+				session_generation  TEXT,
+				source_revision     INTEGER CHECK (source_revision >= 0),
+				payload_version     INTEGER CHECK (payload_version >= 0),
+				payload_hash        TEXT,
+				verified            INTEGER NOT NULL DEFAULT 0 CHECK (verified IN (0, 1)),
+				payload             TEXT,
+				is_chat_backing     INTEGER NOT NULL DEFAULT 0 CHECK (is_chat_backing IN (0, 1)),
+				modified_time       INTEGER NOT NULL DEFAULT 0
+			);
+			INSERT INTO sessions_v2 (session_uri, provider, start_time, external, registration_source, modified_time)
+				SELECT session_uri, provider, start_time, external, registration_source, modified_time FROM sessions;
+			PRAGMA user_version = 10;
+		`);
+		await exec(database, 'COMMIT');
+		return 10;
+	} catch (error) {
+		await exec(database, 'ROLLBACK');
+		throw error;
+	}
+}
+
 function openDatabase(path: string): Promise<Database> {
 	return new Promise((resolve, reject) => {
 		import('@vscode/sqlite3').then(sqlite3 => {
@@ -1480,7 +1514,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					database.serialize();
 					await exec(database, 'PRAGMA foreign_keys = ON');
 					const versionRow = await get(database, 'PRAGMA user_version', []);
-					const currentVersion = (versionRow?.user_version as number | undefined) ?? 0;
+					const currentVersion = await bridgeUpstreamVersion4(database, (versionRow?.user_version as number | undefined) ?? 0);
 					for (const migration of migrations) {
 						if (migration.version > currentVersion) {
 							await exec(database, 'BEGIN TRANSACTION');

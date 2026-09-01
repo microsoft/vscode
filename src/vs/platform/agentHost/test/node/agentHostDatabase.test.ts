@@ -155,6 +155,27 @@ async function createPublishedSessionsV2Database(path: string, version: 4 | 5 | 
 	}
 }
 
+async function createUpstreamVersion4Database(path: string): Promise<void> {
+	const database = await openDatabase(path);
+	try {
+		await exec(database, `
+			CREATE TABLE sessions (
+				session_uri TEXT PRIMARY KEY NOT NULL,
+				provider TEXT NOT NULL,
+				start_time INTEGER NOT NULL,
+				external INTEGER NOT NULL DEFAULT 0,
+				registration_source TEXT NOT NULL DEFAULT 'explicit',
+				modified_time INTEGER NOT NULL DEFAULT 0
+			);
+			CREATE TABLE metadata (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
+			INSERT INTO sessions VALUES ('copilotcli:/upstream-v4', 'copilotcli', 10, 0, 'explicit', 20);
+			PRAGMA user_version = 4;
+		`);
+	} finally {
+		await close(database);
+	}
+}
+
 suite('AgentHostDatabase sessions_v2', () => {
 
 	let database: IAgentHostDatabase | undefined;
@@ -311,6 +332,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					directLegacy: await upgraded.getSession(direct),
 					directCurrent: await upgraded.getSessionV2Registration(direct),
 				});
+
 			} finally {
 				await upgraded.close();
 			}
@@ -331,6 +353,42 @@ suite('AgentHostDatabase sessions_v2', () => {
 				source: 'explicit',
 			},
 		})));
+	});
+
+	test('bridges the upstream v4 migration collision before applying current migrations', async () => {
+		const path = join(temporaryDirectory!, 'agent-host-upstream-v4.db');
+		await createUpstreamVersion4Database(path);
+		database = new AgentHostDatabase(path);
+
+		assert.deepStrictEqual({
+			registration: await database.getSessionV2Registration('copilotcli:/upstream-v4'),
+			catalog: await database.getSessionV2('copilotcli:/upstream-v4'),
+		}, {
+			registration: {
+				session: 'copilotcli:/upstream-v4',
+				provider: 'copilotcli',
+				startTime: 10,
+				modifiedTime: 20,
+				external: false,
+				source: 'explicit',
+			},
+			catalog: undefined,
+		});
+		await database.close();
+		database = undefined;
+
+		const rawDatabase = await openDatabase(path);
+		try {
+			assert.deepStrictEqual({
+				version: await all(rawDatabase, 'PRAGMA user_version'),
+				tables: (await all(rawDatabase, `SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`)).map(row => row.name),
+			}, {
+				version: [{ user_version: 11 }],
+				tables: ['metadata', 'session_chat_catalogs', 'session_chats', 'sessions', 'sessions_v2'],
+			});
+		} finally {
+			await close(rawDatabase);
+		}
 	});
 
 	test('migrates v7 registry rows to the v8 envelope and requires payload reseeding', async () => {
