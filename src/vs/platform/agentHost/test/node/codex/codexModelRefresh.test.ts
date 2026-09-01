@@ -27,7 +27,7 @@ import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { RecordingAgentSdkDownloader } from '../testAgentSdkDownloader.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, readAgentSdkSetupInfos } from '../../../common/agentSdkSetup.js';
-import { AgentSession } from '../../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession } from '../../../common/agent.js';
 import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
@@ -175,7 +175,7 @@ suite('CodexAgent model refresh', () => {
 		assert.deepStrictEqual({ connectionRequested, metadata, migrated, models: agent.models.get() }, {
 			connectionRequested: false,
 			metadata: undefined,
-			migrated: [],
+			migrated: AgentChatMigrationDeferred,
 			models: [],
 		});
 

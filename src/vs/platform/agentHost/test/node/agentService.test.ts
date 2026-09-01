@@ -3364,6 +3364,29 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		testWithExternalSessionClock('a deferred migration does not request discovery while external sessions are hidden', async () => {
+			class DeferredDiscoveryAgent extends ControlledDiscoveryAgent {
+				override async listChatsToMigrate(): Promise<typeof AgentChatMigrationDeferred> {
+					return AgentChatMigrationDeferred;
+				}
+			}
+
+			const svc = createExternalSessionService();
+			const agent = disposables.add(new DeferredDiscoveryAgent('codex'));
+			registerTestAgentProvider(svc, agent);
+			svc.markStartupComplete();
+			await svc.listSessions();
+			await svc.whenDeferredWorkSettled();
+
+			assert.deepStrictEqual({
+				discoveryStarts: agent.discoveryStarts,
+				providerBackfilled: await svc.isProviderRegistryBackfilled('codex'),
+			}, {
+				discoveryStarts: 0,
+				providerBackfilled: false,
+			});
+		});
+
 		function testWithExternalSessionClock(name: string, fn: () => Promise<void>): void {
 			test(name, () => runWithFakedTimers({
 				useFakeTimers: true,

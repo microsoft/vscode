@@ -6590,11 +6590,10 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	async listChatsToMigrate(): Promise<AgentChatMigrationResult> {
-		// Registration-time migration is ambient. Report an empty initial catalog
-		// so provider registration can finish without starting Codex; activated
-		// discovery later emits both known (internal) and unknown (external) chats.
+		// Registration-time migration is ambient. Defer until explicit Codex use
+		// rather than claiming an authoritative empty catalog without enumerating.
 		if (!this._activated) {
-			return [];
+			return AgentChatMigrationDeferred;
 		}
 		if (!(await this._isSdkResolvableWithoutDownload())) {
 			this._logService.info('[Codex] SDK not downloaded yet; deferring the migratable chat list');
