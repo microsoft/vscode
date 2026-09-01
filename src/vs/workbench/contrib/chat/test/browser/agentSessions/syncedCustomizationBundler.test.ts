@@ -14,7 +14,7 @@ import { InMemoryFileSystemProvider } from '../../../../../../platform/files/com
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { type ISyncableMcpServer, SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
+import { type ISyncableMcpServer, type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -66,6 +66,14 @@ suite('SyncedCustomizationBundler', () => {
 		const uri = URI.from({ scheme: Schemas.inMemory, path });
 		await fileService.writeFile(uri, VSBuffer.fromByteArray(content));
 		return uri;
+	}
+
+	function serializeOrigin(origin: ISyncedCustomizationOrigin | undefined) {
+		return origin && {
+			...origin,
+			uri: origin.uri.toString(),
+			pluginUri: origin.pluginUri?.toString(),
+		};
 	}
 
 	test('returns undefined for empty file list', async () => {
@@ -574,15 +582,16 @@ suite('SyncedCustomizationBundler', () => {
 		const extUri = await seedFile('/ext/rule.md', 'ext rule');
 		const skillMd = await seedFile('/plugins/my-skill/SKILL.md', '# skill');
 		const skillReference = await seedFile('/plugins/my-skill/references/notes.md', '# reference');
+		const pluginUri = URI.from({ scheme: Schemas.inMemory, path: '/plugins/my-skill' });
 
 		await bundler.bundle([
 			{ uri: extUri, type: PromptsType.instructions, source: 'extension', extensionId: 'pub.ext' },
-			{ uri: skillMd, type: PromptsType.skill, source: 'plugin', pluginUri: URI.from({ scheme: Schemas.inMemory, path: '/plugins/my-skill' }) },
+			{ uri: skillMd, type: PromptsType.skill, source: 'plugin', pluginUri },
 		]);
 
 		const ruleDest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/rule.md' });
-		assert.deepStrictEqual(bundler.getOrigin(ruleDest), {
-			uri: extUri,
+		assert.deepStrictEqual(serializeOrigin(bundler.getOrigin(ruleDest)), {
+			uri: extUri.toString(),
 			source: 'extension',
 			extensionId: 'pub.ext',
 			pluginUri: undefined,
@@ -590,19 +599,19 @@ suite('SyncedCustomizationBundler', () => {
 
 		// Skills preserve their directory: skills/{skillName}/SKILL.md.
 		const skillDest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill/SKILL.md' });
-		assert.deepStrictEqual(bundler.getOrigin(skillDest), {
-			uri: skillMd,
+		assert.deepStrictEqual(serializeOrigin(bundler.getOrigin(skillDest)), {
+			uri: skillMd.toString(),
 			source: 'plugin',
 			extensionId: undefined,
-			pluginUri: URI.from({ scheme: Schemas.inMemory, path: '/plugins/my-skill' }),
+			pluginUri: pluginUri.toString(),
 		});
 
 		const skillReferenceDest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill/references/notes.md' });
-		assert.deepStrictEqual(bundler.getOrigin(skillReferenceDest), {
-			uri: skillReference,
+		assert.deepStrictEqual(serializeOrigin(bundler.getOrigin(skillReferenceDest)), {
+			uri: skillReference.toString(),
 			source: 'plugin',
 			extensionId: undefined,
-			pluginUri: URI.from({ scheme: Schemas.inMemory, path: '/plugins/my-skill' }),
+			pluginUri: pluginUri.toString(),
 		});
 
 		assert.strictEqual(bundler.getOrigin(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/unknown.md' })), undefined);
