@@ -38,7 +38,7 @@ suite('MultiDiffEditorWidget', () => {
 		sinon.restore();
 	});
 
-	test('models bottom padding as trailing scroll content', async () => {
+	test('models bottom padding as trailing scroll content', () => {
 		const services = new ServiceCollection();
 		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
 		services.set(IActionViewItemService, new NullActionViewItemService());
@@ -63,17 +63,18 @@ suite('MultiDiffEditorWidget', () => {
 			undefined,
 		);
 		widget.layout(new Dimension(800, 200));
+		const initialState = widget.getLayoutDebugState().get();
 		widget.setPaddingBottom(24);
 
 		try {
-			const state = await waitForState(widget.getLayoutDebugState(), state => state.scrollDimensions.scrollHeight === 24);
+			const state = widget.getLayoutDebugState().get();
 			assert.deepStrictEqual({
-				logicalScrollHeight: state.layout.logicalScrollHeight,
-				scrollHeight: state.scrollDimensions.scrollHeight,
+				logicalScrollHeightDelta: state.layout.logicalScrollHeight - initialState.layout.logicalScrollHeight,
+				scrollHeightDelta: state.scrollDimensions.scrollHeight - initialState.scrollDimensions.scrollHeight,
 				diffItems: state.items.length,
 			}, {
-				logicalScrollHeight: 24,
-				scrollHeight: 24,
+				logicalScrollHeightDelta: 24,
+				scrollHeightDelta: 24,
 				diffItems: 0,
 			});
 		} finally {

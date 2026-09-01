@@ -82,12 +82,12 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			return { ...this._diffEditorOptions, ...this._diffLayoutOptions.read(reader) };
 		});
 		this._spaceBetweenPx = observableValue(this, 0);
-		const paddingBottomItem: ICompressedVirtualizedScrollItem = {
-			size: this._paddingBottomPx,
+		const paddingBottomItem = this._paddingBottomPx.map<ICompressedVirtualizedScrollItem>(this, size => ({
+			size: constObservable(size),
 			maxScroll: constObservable({ maxScroll: 0 }),
 			render() { },
 			hide() { },
-		};
+		}));
 
 		let viewItemsInfo!: IObservable<{ items: readonly VirtualizedViewItem[]; getItem: (viewModel: DocumentDiffItemViewModel) => VirtualizedViewItem }>;
 		let viewItems!: IObservable<readonly VirtualizedViewItem[]>;
@@ -152,7 +152,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 					return { items, getItem: d => map.get(d)! };
 				});
 				viewItems = viewItemsInfo.map(this, items => items.items);
-				return derived(this, reader => [...viewItems.read(reader), paddingBottomItem]);
+				return derived(this, reader => [...viewItems.read(reader), paddingBottomItem.read(reader)]);
 			},
 		));
 		this._viewItemsInfo = viewItemsInfo;
