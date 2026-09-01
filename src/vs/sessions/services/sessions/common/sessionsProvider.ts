@@ -45,6 +45,8 @@ export interface ISendRequestOptions {
 	readonly title?: string;
 	/** Hide this request and its response from the chat transcript. */
 	readonly hideFromTranscript?: boolean;
+	/** Initial Agent Host configuration to apply before this request starts. */
+	readonly agentHostSessionConfig?: Record<string, unknown>;
 }
 
 /** Provider options applied when creating a new session draft. */

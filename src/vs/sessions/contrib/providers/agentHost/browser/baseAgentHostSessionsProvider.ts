@@ -4680,7 +4680,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			},
 			agentIdSilent: contribution?.type,
 			attachedContext,
-			agentHostSessionConfig: this.getCreateSessionConfig(chatId),
+			agentHostSessionConfig: options.agentHostSessionConfig ?? this.getCreateSessionConfig(chatId),
 			hideFromTranscript: options.hideFromTranscript,
 		};
 

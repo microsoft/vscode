@@ -13,10 +13,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { INativeWorkbenchEnvironmentService } from '../../../../workbench/services/environment/electron-browser/environmentService.js';
 import { EVALUATION_SESSION_REQUEST_ARG, getEvaluationSessionConfig, readEvaluationSessionRequest, waitForEvaluationTarget, writeEvaluationSessionError, writeEvaluationSessionIdentity } from '../../../../workbench/contrib/chat/browser/agentSessions/evaluation/evaluationSessionRequest.js';
-import { isAgentHostProvider, IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 class EvaluationSessionAgentsContribution implements IWorkbenchContribution {
@@ -38,7 +35,6 @@ async function runAgentsEvaluationSession(path: string, accessor: ServicesAccess
 	const fileService = accessor.get(IFileService);
 	const logService = accessor.get(ILogService);
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
-	const providersService = accessor.get(ISessionsProvidersService);
 	const sessionsService = accessor.get(ISessionsService);
 	const configurationService = accessor.get(IConfigurationService);
 	try {
@@ -66,22 +62,25 @@ async function runAgentsEvaluationSession(path: string, accessor: ServicesAccess
 			CancellationToken.None,
 		);
 
-		let preparation: Promise<void> | undefined;
+		let identityWritten: Promise<void> | undefined;
 		const session = await sessionsManagementService.createAndSendNewChatRequest(folder, {
 			kind: 'deferred',
 			activity: 'Starting evaluation',
 			resolve: async () => {
-				if (!preparation) {
+				if (!identityWritten) {
 					throw new Error('Evaluation session was not created.');
 				}
-				await preparation;
-				return { query: request.prompt };
+				await identityWritten;
+				return {
+					query: request.prompt,
+					agentHostSessionConfig: { ...getEvaluationSessionConfig(request.agent, request.approvals) },
+				};
 			},
 		}, {
 			...createOptions,
 			modelId: request.modelId,
 			onSessionCreated: session => {
-				preparation = prepareAgentsSession(path, request, session, fileService, providersService);
+				identityWritten = writeEvaluationSessionIdentity(path, fileService, request, session.resource);
 			},
 		}, CancellationToken.None);
 		if (!session) {
@@ -92,29 +91,6 @@ async function runAgentsEvaluationSession(path: string, accessor: ServicesAccess
 	} catch (error) {
 		logService.error('[EvaluationSession] Agents run failed.', error);
 		await writeEvaluationSessionError(path, fileService, error);
-	}
-}
-
-async function prepareAgentsSession(
-	path: string,
-	request: Awaited<ReturnType<typeof readEvaluationSessionRequest>>,
-	session: ISession,
-	fileService: IFileService,
-	providersService: ISessionsProvidersService,
-): Promise<void> {
-	await writeEvaluationSessionIdentity(path, fileService, request, session.resource);
-	const provider = providersService.getProvider<IAgentHostSessionsProvider>(session.providerId);
-	if (!provider || !isAgentHostProvider(provider)) {
-		throw new Error(`Sessions provider '${session.providerId}' is not an Agent Host provider.`);
-	}
-	for (const [key, value] of Object.entries(getEvaluationSessionConfig(request.agent, request.approvals))) {
-		await provider.setSessionConfigValue(session.sessionId, key, value);
-	}
-	const resolved = provider.getSessionConfig(session.sessionId)?.values;
-	for (const [key, value] of Object.entries(getEvaluationSessionConfig(request.agent, request.approvals))) {
-		if (resolved?.[key] !== value) {
-			throw new Error(`Evaluation session configuration '${key}' was not applied.`);
-		}
 	}
 }
 
