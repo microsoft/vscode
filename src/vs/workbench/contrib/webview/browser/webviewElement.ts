@@ -8,13 +8,14 @@ import { addDisposableListener, EventType, getWindow, getWindowById } from '../.
 import { parentOriginHash } from '../../../../base/browser/iframe.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
-import { promiseWithResolvers, ThrottledDelayer } from '../../../../base/common/async.js';
+import { disposableTimeout, promiseWithResolvers, ThrottledDelayer } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { COI } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
+import Severity from '../../../../base/common/severity.js';
 import { listenStream } from '../../../../base/common/stream.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -169,7 +170,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		protected readonly webviewThemeDataProvider: WebviewThemeDataProvider,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@INotificationService notificationService: INotificationService,
+		@INotificationService private readonly _notificationService: INotificationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
@@ -245,8 +246,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}));
 
 		this._register(this.on('fatal-error', (e) => {
-			notificationService.error(localize('fatalErrorMessage', "Error loading webview: {0}", e.message));
-			this._onFatalError.fire({ message: e.message });
+			this.handleFatalError(e.message);
 		}));
 
 		this._register(this.on('did-keydown', (data) => {
@@ -619,6 +619,57 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 				this._onMissingCsp.fire(this.extension.id);
 			}
 		}
+	}
+
+	private static readonly _serviceWorkerReloadDelays = [1000, 1000, 2000, 3000, 5000];
+	private _serviceWorkerReloadAttempt = 0;
+	private _serviceWorkerLastFailureTime = 0;
+	private readonly _serviceWorkerReloadTimeout = this._register(new MutableDisposable<IDisposable>());
+
+	/**
+	 * Handles a fatal error reported by the webview. Service worker registration
+	 * failures are often transient (e.g. the webview's document may not have
+	 * been fully active when registration was attempted, a state which can
+	 * never recover without a new document), so before surfacing the error to
+	 * the user we retry by reloading the webview, which creates a fresh
+	 * document and re-attempts registration.
+	 */
+	private handleFatalError(message: string): void {
+		if (/^Could not register service worker:/.test(message)) {
+			// If the webview has been working since the last failure, start a
+			// fresh retry cycle so that sporadic failures keep self-healing
+			if (Date.now() - this._serviceWorkerLastFailureTime > 60_000) {
+				this._serviceWorkerReloadAttempt = 0;
+			}
+			this._serviceWorkerLastFailureTime = Date.now();
+
+			if (this._serviceWorkerReloadAttempt < WebviewElement._serviceWorkerReloadDelays.length && !this._disposed && this.element?.parentElement) {
+				const attempt = ++this._serviceWorkerReloadAttempt;
+				const delay = WebviewElement._serviceWorkerReloadDelays[attempt - 1];
+				this._logService.warn(`Webview(${this.id}): service worker registration failed (${message}). Reloading webview in ${delay}ms (retry ${attempt} of ${WebviewElement._serviceWorkerReloadDelays.length})`);
+				this._serviceWorkerReloadTimeout.value = disposableTimeout(() => {
+					this._serviceWorkerReloadTimeout.clear();
+					this.reinitializeAfterDismount();
+				}, delay);
+				return;
+			}
+
+			this._logService.error(`Webview(${this.id}): service worker registration failed after ${this._serviceWorkerReloadAttempt} reload retries (${message})`);
+			this._notificationService.prompt(Severity.Error,
+				localize('fatalErrorMessage', "Error loading webview: {0}", message),
+				[{
+					label: localize('reloadWebview', "Reload Webview"),
+					run: () => {
+						this._serviceWorkerReloadAttempt = 0;
+						this.reinitializeAfterDismount();
+					}
+				}]);
+			this._onFatalError.fire({ message });
+			return;
+		}
+
+		this._notificationService.error(localize('fatalErrorMessage', "Error loading webview: {0}", message));
+		this._onFatalError.fire({ message });
 	}
 
 	public reload(): void {

@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-FFQoOVVa2tOE3uqUvirwaMNT20TZmrHcL2aaOjJ8BUo=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-NzhQp9y6/PwqdjTbET5hRTrvFKhwC+4AXQUQzhkJq7s=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -242,6 +242,74 @@
 				`;
 		}
 
+		// Registration of the webview service worker can transiently fail
+		// (e.g. due to temporary browser storage errors), so retry a few
+		// times before giving up and reporting a fatal error.
+		const registerRetryDelays = [1000, 1000, 2000, 3000, 5000];
+
+		/**
+		 * Best effort cleanup of potentially corrupted service worker state
+		 * before retrying the registration.
+		 */
+		const cleanupServiceWorkerState = async () => {
+			try {
+				if (typeof caches !== 'undefined') {
+					const keys = await caches.keys();
+					await Promise.all(keys.map(key => caches.delete(key)));
+				}
+			} catch (e) {
+				console.warn(`Failed to clear webview caches: ${e}`);
+			}
+
+			// On desktop, each webview is served from its own origin, so it is
+			// safe to unregister the broken worker. In the browser, service
+			// workers are shared across webviews, so we must not unregister.
+			if (onElectron) {
+				try {
+					const registrations = await navigator.serviceWorker.getRegistrations();
+					await Promise.all(registrations.map(registration => registration.unregister()));
+				} catch (e) {
+					console.warn(`Failed to unregister webview service workers: ${e}`);
+				}
+			}
+		};
+
+		/**
+		 * @param {string} swPath
+		 * @return {Promise<ServiceWorkerRegistration>}
+		 */
+		const registerWithRetry = async (swPath) => {
+			for (let attempt = 0; ; ++attempt) {
+				try {
+					return await navigator.serviceWorker.register(swPath, { type: 'module', updateViaCache: 'none' });
+				} catch (error) {
+					if (
+						error instanceof Error
+						&& error.message.includes('user denied permission')
+					) {
+						// Permanent condition; retrying will not help
+						throw error;
+					}
+					if (
+						error instanceof DOMException
+						&& error.name === 'InvalidStateError'
+					) {
+						// The document is not fully active (e.g. it was re-parented or
+						// navigated mid-registration). This document can never recover;
+						// fail fast so that the host can reload us into a fresh document.
+						throw error;
+					}
+					if (attempt >= registerRetryDelays.length) {
+						throw new Error(`${error} (gave up after ${attempt + 1} attempts)`);
+					}
+					const delay = registerRetryDelays[attempt];
+					console.warn(`Failed to register service worker (attempt ${attempt + 1} of ${registerRetryDelays.length + 1}): ${error}. Retrying in ${delay}ms`);
+					await new Promise(resolve => setTimeout(resolve, delay));
+					await cleanupServiceWorkerState();
+				}
+			}
+		};
+
 		/** @type {Promise<void>} */
 		const workerReady = new Promise((resolve, reject) => {
 			if (disableServiceWorker) {
@@ -253,7 +321,7 @@
 			}
 
 			const swPath = encodeURI(`service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}&remoteAuthority=${searchParams.get('remoteAuthority') ?? ''}&platform=${searchParams.get('platform')}`);
-			navigator.serviceWorker.register(swPath, { type: 'module', updateViaCache: 'none' })
+			registerWithRetry(swPath)
 				.then(async registration => {
 					if (navigator.serviceWorker.controller) {
 						// A previous SW is already controlling. Force an update
