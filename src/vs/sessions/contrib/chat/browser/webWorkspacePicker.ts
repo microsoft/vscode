@@ -19,6 +19,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
@@ -62,6 +63,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
 		@IHoverService hoverService: IHoverService,
+		@IGitService gitService: IGitService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
@@ -84,6 +86,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			telemetryService,
 			notificationService,
 			hoverService,
+			gitService,
 		);
 
 		// When the scoped host changes, if the current selection no longer

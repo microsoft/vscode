@@ -48,6 +48,8 @@ import { NewSessionWorkspacePreselectionSource } from './newSessionComposerServi
 import { type IResolvedFolderWorkspace, SessionWorkspaceFallback } from './sessionWorkspaceFallback.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX, ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX, getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
+import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
+import { getGitHubRemoteInfo } from '../../../../workbench/contrib/git/common/utils.js';
 
 export type { IResolvedFolderWorkspace } from './sessionWorkspaceFallback.js';
 
@@ -187,6 +189,7 @@ export class WorkspacePicker extends Disposable {
 	private _inputGitHubRepositoryId: string | undefined;
 	private _inputGitHubWorkspaceApplied = false;
 	private _selectionBeforeInputGitHubWorkspace: IRestoredWorkspaceSelection | undefined;
+	private _pendingInputGitHubRepositoryResolution: { repositoryId: string; selectionGeneration: number } | undefined;
 	private _selectionGeneration = 0;
 	private _sessionRestoreGeneration = 0;
 	private readonly _sessionWorkspaceFallback: SessionWorkspaceFallback | undefined;
@@ -361,6 +364,7 @@ export class WorkspacePicker extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IGitService private readonly gitService: IGitService,
 	) {
 		super();
 
@@ -932,10 +936,14 @@ export class WorkspacePicker extends Disposable {
 			return this._restoreSelectionBeforeInputGitHubWorkspace();
 		}
 
-		if (this._selectedResolved
-			&& this._selectedResolved.workspace.group === SESSION_WORKSPACE_GROUP_LOCAL
-			&& this._getRepositoryIdForResolvedWorkspace(this._selectedResolved) === normalizedRepositoryId) {
-			return false;
+		if (this._selectedResolved?.workspace.group === SESSION_WORKSPACE_GROUP_LOCAL) {
+			const selectedRepositoryId = this._getRepositoryIdForResolvedWorkspace(this._selectedResolved);
+			if (selectedRepositoryId === normalizedRepositoryId) {
+				return false;
+			}
+			if (!selectedRepositoryId && this._resolveSelectedLocalGitHubRepository(normalizedRepositoryId)) {
+				return false;
+			}
 		}
 
 		const resolved = this._findWorkspaceForRepository(normalizedRepositoryId);
@@ -947,6 +955,10 @@ export class WorkspacePicker extends Disposable {
 			return false;
 		}
 
+		return this._applyInputGitHubWorkspace(resolved);
+	}
+
+	private _applyInputGitHubWorkspace(resolved: IResolvedFolderWorkspace): boolean {
 		if (!this._inputGitHubWorkspaceApplied) {
 			this._selectionBeforeInputGitHubWorkspace = this._selectedResolved
 				? { resolved: this._selectedResolved, source: this._preselectionSource }
@@ -964,7 +976,64 @@ export class WorkspacePicker extends Disposable {
 		return true;
 	}
 
+	private _resolveSelectedLocalGitHubRepository(repositoryId: string): boolean {
+		const roots = this._getSelectedRepositoryWorkspaceCandidates()
+			.flatMap(workspace => workspace.folders)
+			.flatMap(folder => {
+				const repository = folder.gitRepository;
+				return repository?.gitHubInfo.get() === undefined && repository?.resolveGitHubInfo !== undefined
+					? [repository.workTreeUri ?? repository.uri]
+					: [];
+			});
+		if (!roots.length) {
+			return false;
+		}
+
+		const pending = this._pendingInputGitHubRepositoryResolution;
+		if (pending?.repositoryId === repositoryId && pending.selectionGeneration === this._selectionGeneration) {
+			return true;
+		}
+
+		const resolution = { repositoryId, selectionGeneration: this._selectionGeneration };
+		this._pendingInputGitHubRepositoryResolution = resolution;
+		const complete = (repositories: readonly (IGitRepository | undefined)[]) => {
+			if (this._pendingInputGitHubRepositoryResolution !== resolution
+				|| this._inputGitHubRepositoryId !== repositoryId
+				|| this._userHasPicked
+				|| this._selectionGeneration !== resolution.selectionGeneration) {
+				return;
+			}
+			this._pendingInputGitHubRepositoryResolution = undefined;
+			const selectedRepositoryId = this._selectedResolved && this._getRepositoryIdForResolvedWorkspace(this._selectedResolved);
+			const selectedMatches = selectedRepositoryId === repositoryId || repositories.some(repository => {
+				const gitHubRemote = repository && getGitHubRemoteInfo(repository.state.get());
+				return gitHubRemote && `${gitHubRemote.owner}/${gitHubRemote.repo}`.toLowerCase() === repositoryId;
+			});
+			if (!selectedMatches) {
+				const resolved = this._findWorkspaceForRepository(repositoryId);
+				if (resolved) {
+					this._applyInputGitHubWorkspace(resolved);
+				}
+			}
+		};
+		void Promise.all(roots.map(root => this.gitService.openRepository(root))).then(complete, error => {
+			this.notificationService.error(error);
+			complete([]);
+		});
+		return true;
+	}
+
 	private _findWorkspaceForRepository(repositoryId: string): IResolvedFolderWorkspace | undefined {
+		for (const repository of this.gitService.repositories) {
+			const gitHubRemote = getGitHubRemoteInfo(repository.state.get());
+			if (gitHubRemote && `${gitHubRemote.owner}/${gitHubRemote.repo}`.toLowerCase() === repositoryId) {
+				const resolved = this._resolveAllowedWorkspace(repository.rootUri);
+				if (resolved?.workspace.group === SESSION_WORKSPACE_GROUP_LOCAL) {
+					return resolved;
+				}
+			}
+		}
+
 		const matchesRepository = (candidate: IResolvedFolderWorkspace) =>
 			this._getRepositoryIdForResolvedWorkspace(candidate) === repositoryId;
 		const localWorkspace = this._getRecentWorkspaces().find(candidate =>
@@ -986,13 +1055,16 @@ export class WorkspacePicker extends Disposable {
 			authority: 'github',
 			path: `/${owner}/${repo}/HEAD`,
 		});
+		return this._resolveAllowedWorkspace(uri);
+	}
+
+	private _resolveAllowedWorkspace(uri: URI): IResolvedFolderWorkspace | undefined {
 		for (const provider of this.sessionsProvidersService.getProviders()) {
-			if (!this._canRestoreProviderWorkspace(provider.id) || this._isProviderUnavailable(provider.id)) {
-				continue;
-			}
-			const workspace = provider.resolveWorkspace(uri);
-			if (workspace) {
-				return { providerId: provider.id, workspace };
+			if (this._canRestoreProviderWorkspace(provider.id) && !this._isProviderUnavailable(provider.id)) {
+				const workspace = provider.resolveWorkspace(uri);
+				if (workspace) {
+					return { providerId: provider.id, workspace };
+				}
 			}
 		}
 		return undefined;
@@ -1201,6 +1273,9 @@ export class WorkspacePicker extends Disposable {
 					store.add(autorun(reader => {
 						gitHubInfo.read(reader);
 						this._updateTriggerLabel();
+						if (this._inputGitHubRepositoryId && !this._userHasPicked) {
+							this.syncInputGitHubRepository(this._inputGitHubRepositoryId);
+						}
 					}));
 				}
 			}
