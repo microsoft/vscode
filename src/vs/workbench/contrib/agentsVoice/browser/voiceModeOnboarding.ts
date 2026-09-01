@@ -618,6 +618,15 @@ class VoiceSamplePlayer extends Disposable {
 			audio.src = '';
 		}));
 
+		// The analyser graph opens a real audio output device via
+		// `AudioContext`/`destination`. When a caller supplies its own audio
+		// element (only tests do) that device would keep spinning with no input,
+		// stalling headless runners with `SyncReader::Read timed out` warnings, so
+		// skip the best-effort waveform analysis - the sample still plays.
+		if (this.audioFactory) {
+			return audio;
+		}
+
 		try {
 			const context = new targetWindow.AudioContext();
 			this._register(toDisposable(() => void context.close().catch(() => { /* already closing */ })));
