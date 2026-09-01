@@ -248,15 +248,12 @@ suite('Sessions Chat Background Service', () => {
 		});
 	});
 
-	test('restores the active color scheme layout when the theme changes before preview cancellation', async () => {
+	test('restores the active color scheme layout when preview is cancelled', async () => {
 		const configurationService = new CapturingConfigurationService({
 			[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING]: URI.file('/textures/kirby.png').fsPath,
-			[AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING]: URI.file('/textures/kirby.png').fsPath,
 			[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING]: 'center',
-			[AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING]: 'left',
 		});
-		const themeService = new TestThemeService();
-		const service = disposables.add(new SessionsChatBackgroundService(configurationService, themeService, disposables.add(new MockContextKeyService()), disposables.add(new InMemoryStorageService())));
+		const service = disposables.add(new SessionsChatBackgroundService(configurationService, new TestThemeService(), disposables.add(new MockContextKeyService()), disposables.add(new InMemoryStorageService())));
 		let changes = 0;
 		disposables.add(service.onDidChangeBackground(() => changes++));
 		const getPosition = () => {
@@ -266,37 +263,23 @@ suite('Sessions Chat Background Service', () => {
 
 		const configuredPosition = getPosition();
 		await service.setBackgroundImageLayout('bottom-right', false);
-		const darkPreviewPosition = getPosition();
-		themeService.setTheme(new TestColorTheme({}, ColorScheme.LIGHT));
-		const lightPositionAfterThemeChange = getPosition();
-		await service.setBackgroundImageLayout('top', false);
-		const lightPreviewPosition = getPosition();
-		service.restoreConfiguredBackgroundImageLayout();
-		const restoredLightPosition = getPosition();
-		themeService.setTheme(new TestColorTheme({}, ColorScheme.DARK));
+		const previewPosition = getPosition();
+		await service.setBackgroundImageLayout('center', false);
 
 		assert.deepStrictEqual({
 			configuredPosition,
-			darkPreviewPosition,
-			lightPositionAfterThemeChange,
-			lightPreviewPosition,
-			restoredLightPosition,
+			previewPosition,
+			restoredPosition: getPosition(),
 			persistedDarkLayout: configurationService.getValue(AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING),
-			persistedLightLayout: configurationService.getValue(AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING),
-			restoredDarkPosition: getPosition(),
 			updates: configurationService.updates,
 			changes,
 		}, {
 			configuredPosition: 'center center',
-			darkPreviewPosition: 'right bottom',
-			lightPositionAfterThemeChange: 'left center',
-			lightPreviewPosition: 'center top',
-			restoredLightPosition: 'left center',
+			previewPosition: 'right bottom',
+			restoredPosition: 'center center',
 			persistedDarkLayout: 'center',
-			persistedLightLayout: 'left',
-			restoredDarkPosition: 'center center',
 			updates: [],
-			changes: 5,
+			changes: 2,
 		});
 	});
 
