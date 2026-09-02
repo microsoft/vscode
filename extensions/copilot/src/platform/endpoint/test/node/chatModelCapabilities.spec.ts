@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
+import * as crypto from '../../../../util/common/crypto';
 import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import type { IChatEndpoint } from '../../../networking/common/networking';
-import { getModelCapabilityOverride, isGpt51Family, isGpt53Codex, isGpt54, isGpt55, isGpt56, isKimiFamily, isOpenAIModel, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsContextEditing, modelSupportsMultiReplaceString, modelSupportsPDFDocuments, modelSupportsReplaceString, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
+import { getModelCapabilityOverride, getVerbosityForModelSync, isGpt51Family, isGpt53Codex, isGpt54, isGpt55, isGpt56, isHiddenModelN, isKimiFamily, isOpenAIModel, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelPrefersJsonNotebookRepresentation, modelSupportCacheBreakPoints, modelSupportsApplyPatch, modelSupportsContextEditing, modelSupportsMultiReplaceString, modelSupportsPDFDocuments, modelSupportsReplaceString, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
 
 function fakeModel(family: string, model: string = family) {
 	return { family, model } as unknown as IChatEndpoint;
@@ -46,6 +47,41 @@ describe('OpenAI prompt model classification', () => {
 			matches(`${family}0-codex`),
 			matches(`${family}.1`),
 		]).toEqual([true, true, true, false, false, false]);
+	});
+});
+
+describe('Hidden model N capabilities', () => {
+	afterEach(() => vi.restoreAllMocks());
+
+	test.each([true, false, undefined])('shares GPT-5.6 capability gates with verbosity enabled: %s', responsesApiVerbosityEnabled => {
+		const family = 'hidden-model-n-test';
+		const originalHash = crypto.getCachedSha256Hash;
+		vi.spyOn(crypto, 'getCachedSha256Hash').mockImplementation(value => value === family
+			? 'a5665bddcc9b4005649f48ba7925b9437ccb321f5b670f026ed5a349c7561499'
+			: originalHash(value));
+		const model = fakeModel(family);
+
+		expect({
+			isHidden: isHiddenModelN(model),
+			isGpt56: isGpt56(model),
+			applyPatch: modelSupportsApplyPatch(model),
+			jsonNotebook: modelPrefersJsonNotebookRepresentation(model),
+			pdf: modelSupportsPDFDocuments(model),
+			cacheBreakpoints: modelSupportCacheBreakPoints(model),
+			toolSearch: modelSupportsToolSearch(model),
+			toolSearchByFamily: modelSupportsToolSearch(family),
+			verbosity: getVerbosityForModelSync(model, responsesApiVerbosityEnabled),
+		}).toEqual({
+			isHidden: true,
+			isGpt56: false,
+			applyPatch: true,
+			jsonNotebook: true,
+			pdf: true,
+			cacheBreakpoints: true,
+			toolSearch: true,
+			toolSearchByFamily: true,
+			verbosity: responsesApiVerbosityEnabled ? 'low' : undefined,
+		});
 	});
 });
 
