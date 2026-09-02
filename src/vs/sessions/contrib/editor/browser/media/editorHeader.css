@@ -33,6 +33,7 @@
 	align-items: center;
 	min-width: 0;
 	flex: 1 1 auto;
+	gap: var(--vscode-spacing-size20, 2px);
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-primary-actions {
@@ -63,6 +64,9 @@
 	flex-shrink: 0;
 }
 
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-primary-actions > .monaco-toolbar,
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-primary-actions > .monaco-toolbar > .monaco-action-bar,
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-primary-actions > .monaco-toolbar > .monaco-action-bar > .actions-container,
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-secondary-actions > .monaco-toolbar,
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-secondary-actions > .monaco-toolbar > .monaco-action-bar,
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-secondary-actions > .monaco-toolbar > .monaco-action-bar > .actions-container {

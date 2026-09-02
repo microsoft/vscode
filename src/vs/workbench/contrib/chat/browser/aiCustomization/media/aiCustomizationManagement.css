@@ -961,6 +961,9 @@ per-word capitalization does not survive translation. */
 	position: relative;
 	flex: 1;
 	min-height: 0;
+	width: 100%;
+	max-width: calc(840px + var(--vscode-spacing-size160));
+	margin-inline: auto;
 }
 
 .ai-customization-management-editor .prompt-migration-footer {
@@ -1068,7 +1071,8 @@ per-word capitalization does not survive translation. */
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
-	padding-bottom: var(--vscode-spacing-size60);
+	padding: 0 var(--vscode-spacing-size160) var(--vscode-spacing-size60) 0;
+	box-sizing: border-box;
 }
 
 .ai-customization-management-editor .prompt-migration-group {

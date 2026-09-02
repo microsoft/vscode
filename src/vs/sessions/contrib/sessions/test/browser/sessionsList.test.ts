@@ -1263,6 +1263,30 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('parent session row shows progress while one non-main chat needs input and another is in progress', () => {
+			const main = createChat('Main chat');
+			const waiting = createChat('Waiting chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
+			const active = createChat('Active chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.InProgress);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				status: constObservable(SessionStatus.NeedsInput),
+				chats: constObservable([main, waiting, active]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+
+			const container = renderSessionChats(session, undefined, true);
+
+			assert.deepStrictEqual({
+				session: sessionRowSnapshot(container),
+				hasProgress: !!container.querySelector('.session-item .session-icon > .monaco-pixel-spinner'),
+			}, {
+				session: { inProgress: true, needsInput: false, ariaLabel: 'Session, updated now, State: In Progress' },
+				hasProgress: true,
+			});
+		});
+
 		test('needs-input chat row gets the same accent-pulse feedback class as a needs-input session row', () => {
 			const main = createChat('Main chat');
 			const waiting = createChat('Waiting chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
