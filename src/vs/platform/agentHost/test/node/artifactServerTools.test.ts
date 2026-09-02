@@ -54,6 +54,21 @@ suite('Artifact Server Tools', () => {
 		});
 	});
 
+	test('classifies worked-on issues and pull requests as artifacts', () => {
+		const addDefinition = artifactServerToolDefinitions.find(definition => definition.name === ArtifactServerToolName.AddArtifactOrReference);
+		const classification = 'is an artifact even if';
+
+		assert.deepStrictEqual({
+			definition: addDefinition?.description?.includes(classification),
+			input: addDefinition?.inputSchema?.properties?.isArtifact.description?.includes(classification),
+			instruction: ARTIFACT_TOOLS_INSTRUCTION.includes(classification),
+		}, {
+			definition: true,
+			input: true,
+			instruction: true,
+		});
+	});
+
 	test('rejects session-management links during execution', async () => {
 		const sessionUri = 'copilot:/caller';
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
