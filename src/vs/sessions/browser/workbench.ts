@@ -1876,9 +1876,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	protected _layoutGrid(): void {
 		const mobileTopBarHeight = this.mobileTopBarElement?.offsetHeight ?? 0;
-		// Keep in sync with the desktop grid margin in workbench.css.
+		// Keep the desktop grid margin stable when sidebar visibility changes.
 		const isPhone = this.layoutPolicy.viewportClass.get() === 'phone';
-		const gridGutterW = isPhone ? 0 : AGENTS_FLOATING_PANEL_GAP + (this.partVisibility.sidebar ? 0 : AGENTS_FLOATING_PANEL_GAP);
+		const gridGutterW = isPhone ? 0 : AGENTS_FLOATING_PANEL_GAP;
 		const gridGutterH = isPhone ? 0 : AGENTS_FLOATING_PANEL_GAP;
 		this.workbenchGrid.layout(
 			this._mainContainerDimension.width - gridGutterW,

@@ -8,7 +8,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
-import { constObservable, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -55,9 +55,10 @@ function createSession(id: string, opts: {
 	isAutomation?: boolean;
 	isExternal?: boolean;
 	resource?: URI;
-}): ISession {
+}): ISession & { readonly isArchived: ISettableObservable<boolean, void> } {
 	const createdAt = opts.createdAt ?? new Date();
 	const updatedAt = opts.updatedAt ?? createdAt;
+	const isArchived = observableValue(`isArchived-${id}`, opts.isArchived ?? false);
 	return {
 		sessionId: id,
 		resource: opts.resource ?? URI.parse(`session://${id}`),
@@ -84,7 +85,7 @@ function createSession(id: string, opts: {
 		modelId: observableValue(`modelId-${id}`, undefined),
 		mode: observableValue(`mode-${id}`, undefined),
 		loading: observableValue(`loading-${id}`, false),
-		isArchived: observableValue(`isArchived-${id}`, opts.isArchived ?? false),
+		isArchived,
 		isRead: observableValue(`isRead-${id}`, opts.isRead ?? true),
 		description: observableValue(`description-${id}`, undefined),
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
@@ -251,16 +252,26 @@ suite('Sessions - SessionsList', () => {
 				}], undefined);
 				statuses.push(renderer.automationStatus.get());
 			}
+			session.isArchived.set(true, undefined);
+			const archivedStatus = renderer.automationStatus.get();
+			session.isArchived.set(false, undefined);
+			const restoredStatus = renderer.automationStatus.get();
 
 			assert.deepStrictEqual({
 				resourcesAreDistinct: session.resource.toString() !== runResource.toString(),
 				resourcesAreEquivalent: uriIdentityService.extUri.isEqual(session.resource, runResource),
 				statuses,
+				archivedStatus,
+				restoredStatus,
+				isRead: session.isRead.get(),
 				managementCalls,
 			}, {
 				resourcesAreDistinct: true,
 				resourcesAreEquivalent: true,
 				statuses: [SessionStatus.Completed, SessionStatus.Completed],
+				archivedStatus: undefined,
+				restoredStatus: SessionStatus.Completed,
+				isRead: false,
 				managementCalls: [],
 			});
 		});

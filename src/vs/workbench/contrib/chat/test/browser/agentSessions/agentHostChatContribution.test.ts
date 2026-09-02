@@ -89,6 +89,7 @@ import { ITerminalChatService, type ITerminalInstance } from '../../../../termin
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostSessionWorkingDirectorySynchronizer } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectorySynchronizer.js';
+import { IAgentHostShellInitSynchronizer } from '../../../browser/agentSessions/agentHost/agentHostShellInitSynchronizer.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
@@ -918,6 +919,10 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		register: () => toDisposable(() => { }),
 		reconcile: async () => { },
 	} as Partial<IAgentHostSessionWorkingDirectorySynchronizer> as IAgentHostSessionWorkingDirectorySynchronizer);
+	instantiationService.stub(IAgentHostShellInitSynchronizer, {
+		register: () => toDisposable(() => { }),
+		reconcile: async () => { },
+	});
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow } as Partial<IWorkbenchEnvironmentService>);
 	instantiationService.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 	instantiationService.stub(IChatInputNotificationService, {

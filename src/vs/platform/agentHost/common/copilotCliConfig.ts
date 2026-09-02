@@ -16,6 +16,8 @@ import { reasoningEffortLevels } from './reasoningEffort.js';
 export const enum CopilotCliConfigKey {
 	/** Use Agent Host's custom terminal tool instead of the SDK's default. Off by default. */
 	EnableCustomTerminalTool = 'enableCustomTerminalTool',
+	/** Apply the shell init script a client published for a session to SDK shell commands. Off by default. */
+	EnableShellInitScript = 'enableShellInitScript',
 	/** Log level passed to the Copilot SDK client. */
 	CopilotSdkLogLevel = 'copilotSdkLogLevel',
 	/** Enable the rubber duck critic subagent. */
@@ -51,6 +53,9 @@ export const CopilotCliVSCodeAssignmentContextKey = 'copilotCliVSCodeAssignmentC
 // (and, for the terminal-tool toggle, `AgentHostTerminalContribution`).
 
 export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.customTerminalTool.enabled';
+
+/** Enable VS Code's generated init script for the SDK built-in shell tool. */
+export const AgentHostShellToolInitScriptEnabledSettingId = 'chat.agentHost.shellTool.initScript.enabled';
 
 export const AgentHostCopilotSdkLogLevelSettingId = 'chat.agentHost.copilotSdk.logLevel';
 
@@ -146,6 +151,12 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.enableCustomTerminalTool.title', "Use Agent Host Terminal Tool"),
 		description: localize('agentHost.config.enableCustomTerminalTool.description', "When enabled, Copilot SDK sessions use Agent Host's terminal tool override instead of the SDK's default terminal behavior."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.EnableShellInitScript]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.enableShellInitScript.title', "Shell Init Script"),
+		description: localize('agentHost.config.enableShellInitScript.description', "When enabled, Copilot SDK sessions apply the shell init script published by the client before each shell command."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.CopilotSdkLogLevel]: schemaProperty<CopilotSdkLogLevelSetting>({

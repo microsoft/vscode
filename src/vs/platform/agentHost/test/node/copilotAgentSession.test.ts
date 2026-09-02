@@ -19,7 +19,7 @@ import { join, sep } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { IFileService } from '../../../files/common/files.js';
+import { FileSystemProviderCapabilities, IFileService, type IWriteFileOptions } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
@@ -47,9 +47,10 @@ import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, 
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { buildNonPtyShellTerminalUri } from '../../node/copilot/copilotNonPtyShellTerminals.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
-import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk.js';
+import { buildSandboxConfigForSdk, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { type IShellInitScript } from '../../common/shellInitScript.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../../node/agentHostCustomizationEnablementService.js';
@@ -100,6 +101,7 @@ class MockCopilotSession {
 	readonly experimentalModeUpdates: boolean[] = [];
 	experimentalModeUpdateSuccess = true;
 	sandboxConfigUpdateSuccess = true;
+	shellInitScriptUpdateSuccess = true;
 	abortCalls = 0;
 	abortGate: Promise<void> | undefined;
 	readonly compactCalls: unknown[] = [];
@@ -434,13 +436,18 @@ class MockCopilotSession {
 			cancelSamplingExecution: async () => { /* no-op */ },
 		},
 		options: {
-			update: async (params: { sandboxConfig?: unknown; isExperimentalMode?: boolean }) => {
+			update: async (params: { sandboxConfig?: unknown; isExperimentalMode?: boolean; shell?: { initScripts?: unknown } }) => {
 				if (params.sandboxConfig !== undefined) {
 					this.operationLog.push('options.update:sandbox');
 					this.sandboxConfigUpdates.push(params.sandboxConfig);
 				}
 				if (params.isExperimentalMode !== undefined) {
 					this.experimentalModeUpdates.push(params.isExperimentalMode);
+				}
+				if (params.shell !== undefined) {
+					this.operationLog.push('options.update:shell');
+					this.shellInitScriptUpdates.push(params.shell.initScripts);
+					return { success: this.shellInitScriptUpdateSuccess };
 				}
 				return { success: params.sandboxConfig !== undefined ? this.sandboxConfigUpdateSuccess : this.experimentalModeUpdateSuccess };
 			},
@@ -472,6 +479,7 @@ class MockCopilotSession {
 	};
 
 	readonly sandboxConfigUpdates: unknown[] = [];
+	readonly shellInitScriptUpdates: unknown[] = [];
 
 	mcpListResult: { servers: ReadonlyArray<{ name: string; status: 'connected' | 'failed' | 'needs-auth' | 'pending' | 'disabled' | 'not_configured'; error?: string }> } = { servers: [] };
 	mcpListError: unknown = undefined;
@@ -608,6 +616,7 @@ function invokeClientToolHandler(tool: Pick<Tool, 'name' | 'handler'>, toolCallI
 
 type ISessionInternalsForTest = {
 	_onDidSessionProgress: { fire(event: AgentSignal): void };
+	_agentMergeTurn: boolean;
 	_editTracker: {
 		trackEditStart(path: string): Promise<void>;
 		completeEdit(path: string): Promise<void>;
@@ -720,6 +729,12 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	rootValues?: Record<string, unknown>;
 	fileContents?: Record<string, string>;
 	fileReadErrors?: readonly string[];
+	shellInitWriteFailures?: number;
+	fileAtomicWrite?: boolean;
+	shellInitWriteGate?: Promise<void>;
+	onShellInitWrite?: () => void;
+	/** Values visible only through `getEffectiveValue`, as if inherited from root or a parent session. */
+	inheritedConfigValues?: Record<string, unknown>;
 	sessionDatabase?: ISessionDatabase;
 	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
 	configureMockSession?: (session: MockCopilotSession) => void;
@@ -759,6 +774,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	signals: AgentSignal[];
 	waitForSignal: (predicate: (signal: AgentSignal) => boolean) => Promise<AgentSignal>;
 	terminalManager: TestAgentHostTerminalManager;
+	storedFileContents: ReadonlyMap<string, string>;
+	fileWriteOptions: ReadonlyMap<string, IWriteFileOptions | undefined>;
 	dispatchedActions: readonly StateAction[];
 	sessionConfigUpdates: ReadonlyArray<{ session: string; patch: Record<string, unknown> }>;
 	setConfigValue: (key: string, value: unknown) => void;
@@ -857,6 +874,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	copilotApiService.restrictedTelemetryContextError = options?.restrictedTelemetryContextError;
 	services.set(ICopilotApiService, copilotApiService);
 	const storedFileContents = new Map(Object.entries(options?.fileContents ?? {}));
+	const fileWriteOptions = new Map<string, IWriteFileOptions | undefined>();
+	let shellInitWriteFailures = options?.shellInitWriteFailures ?? 0;
 	services.set(IFileService, {
 		_serviceBrand: undefined,
 		readFile: async (resource: URI) => {
@@ -866,15 +885,38 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			return { value: VSBuffer.fromString(storedFileContents.get(resource.toString()) ?? storedFileContents.get(resource.fsPath) ?? '') };
 		},
 		exists: async (resource: URI) => storedFileContents.has(resource.toString()) || storedFileContents.has(resource.fsPath),
-		writeFile: async (resource: URI, content: VSBuffer) => {
+		hasCapability: (resource: URI, capability: FileSystemProviderCapabilities) =>
+			options?.fileAtomicWrite === true &&
+			capability === FileSystemProviderCapabilities.FileAtomicWrite &&
+			resource.path.includes('/agentHost/shellInit/'),
+		writeFile: async (resource: URI, content: VSBuffer, writeOptions?: IWriteFileOptions) => {
+			fileWriteOptions.set(resource.fsPath, writeOptions);
+			if (resource.path.includes('/agentHost/shellInit/')) {
+				options?.onShellInitWrite?.();
+				await options?.shellInitWriteGate;
+				if (shellInitWriteFailures > 0) {
+					shellInitWriteFailures--;
+					throw new Error('write failed');
+				}
+			}
 			storedFileContents.set(resource.toString(), content.toString());
 			return { resource } as Awaited<ReturnType<IFileService['writeFile']>>;
 		},
-		del: async (resource: URI) => {
-			storedFileContents.delete(resource.toString());
-			storedFileContents.delete(resource.fsPath);
+		del: async (resource: URI, delOptions?: { recursive?: boolean }) => {
+			if (resource.path.includes('/agentHost/shellInit/')) {
+				mockSession.operationLog.push('file.delete:shellInit');
+			}
+			const matches = [...storedFileContents.keys()].filter(key => key.startsWith(resource.toString()) || key.startsWith(resource.fsPath));
+			// Like the disk provider, a non-recursive delete removes only an
+			// empty directory and fails while descendants remain.
+			if (!delOptions?.recursive && matches.some(key => key !== resource.toString() && key !== resource.fsPath)) {
+				throw new Error('ENOTEMPTY: directory not empty');
+			}
+			for (const key of matches) {
+				storedFileContents.delete(key);
+			}
 		},
-	} as Partial<IFileService> as IFileService);
+	} as unknown as IFileService);
 	services.set(ISessionDataService, createSessionDataService(options?.sessionDatabase));
 	services.set(IDiffComputeService, createZeroDiffComputeService());
 	const sessionConfigUpdates: Array<{ session: string; patch: Record<string, unknown> }> = [];
@@ -893,9 +935,12 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		// session class will read. Gated on `sessionUri` (the owning
 		// session/configuration scope) so tests can catch a caller that
 		// mistakenly reads with a peer chat's own resource URI instead.
-		getEffectiveValue: ((session: string, _schema: unknown, key: string) => session === sessionUri.toString() ? configValues[key] : undefined) as IAgentConfigurationService['getEffectiveValue'],
+		getEffectiveValue: ((session: string, _schema: unknown, key: string) => session === sessionUri.toString() ? (configValues[key] ?? options?.inheritedConfigValues?.[key]) : undefined) as IAgentConfigurationService['getEffectiveValue'],
 		getEffectiveWorkingDirectories: () => undefined,
-		getSessionConfigValues: () => undefined,
+		// Own values only, like the real service; `inheritedConfigValues` is
+		// visible through `getEffectiveValue` alone so tests can prove a
+		// consumer does not fall through to root or parent config.
+		getSessionConfigValues: (session: string) => session === sessionUri.toString() ? configValues : undefined,
 		updateSessionConfig: (session, patch) => { sessionConfigUpdates.push({ session, patch }); },
 		getRootValue: ((_schema: unknown, key: string) => rootValues[key]) as IAgentConfigurationService['getRootValue'],
 		updateRootConfig: () => { /* no-op */ },
@@ -976,6 +1021,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		_serviceBrand: undefined,
 		userHome: URI.file('/mock-home'),
 		tmpDir: URI.file('/mock-tmp'),
+		userDataPath: '/mock-userdata',
 	} as INativeEnvironmentService;
 	if (options?.environmentServiceRegistration !== 'none') {
 		services.set(INativeEnvironmentService, environmentService);
@@ -1029,6 +1075,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		signals,
 		waitForSignal,
 		terminalManager,
+		storedFileContents,
+		fileWriteOptions,
 		dispatchedActions: stateManager.dispatchedActions,
 		sessionConfigUpdates,
 		setConfigValue: (key, value) => { configValues[key] = value; },
@@ -1056,6 +1104,13 @@ function expectedSnapshotReadonlyNote(paths: string[]): string {
 		+ '(pasted text, an unsaved editor, or a diff view) and must not be edited:\n'
 		+ paths.map(path => `- ${path}`).join('\n');
 }
+
+/**
+ * Session-scoped shell init root granted read access while a script is active.
+ * Scripts land in an instance-scoped subdirectory beneath it.
+ */
+const TEST_SHELL_INIT_DIRECTORY = URI.file('/mock-userdata/agentHost/shellInit/test-session-1');
+const TEST_SHELL_INIT_DIR = TEST_SHELL_INIT_DIRECTORY.fsPath;
 
 suite('CopilotAgentSession', () => {
 
@@ -9355,6 +9410,35 @@ Use the attached image as context.
 			assert.strictEqual(entry.args[0], '[Copilot:test-session-1] Failed in onPreToolUse: tool=edit');
 		});
 
+		test('denies GitHub fallback tools during Agent Merge turns', async () => {
+			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+			const { session } = await createAgentSession(disposables, { captureRuntime: capturedRuntime });
+			(session as unknown as ISessionInternalsForTest)._agentMergeTurn = true;
+
+			const result = await capturedRuntime.current!.handlePreToolUse({
+				sessionId: 'test-session-1',
+				timestamp: new Date(0),
+				workingDirectory: '/tmp',
+				toolName: 'bash',
+				toolArgs: { command: 'gh pr review --approve' },
+			});
+
+			assert.deepStrictEqual(result, {
+				permissionDecision: 'deny',
+				permissionDecisionReason: 'Agent Merge must use its dedicated GitHub tools for CI details, review-thread mutations, and workflow reruns. Stop this turn instead of using another GitHub tool or the GitHub CLI.',
+				additionalContext: 'Agent Merge must use its dedicated GitHub tools for CI details, review-thread mutations, and workflow reruns. Stop this turn instead of using another GitHub tool or the GitHub CLI.',
+			});
+
+			const mcpResult = await capturedRuntime.current!.handlePreToolUse({
+				sessionId: 'test-session-1',
+				timestamp: new Date(0),
+				workingDirectory: '/tmp',
+				toolName: 'github-mcp-server-pull_request_review_write',
+				toolArgs: { method: 'resolve_review_thread' },
+			});
+			assert.strictEqual(mcpResult?.permissionDecision, 'deny');
+		});
+
 		test('logs and rethrows onPostToolUse failures', async () => {
 			const logService = new CapturingLogService();
 			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
@@ -12452,6 +12536,346 @@ Use the attached image as context.
 
 			assert.strictEqual(telemetryService.events.filter(e => e.eventName === 'agentHost.instructionsCollected').length, 0);
 			assert.strictEqual(mockSession.getInstructionSourcesCallCount, 1);
+		});
+	});
+	suite('shell init scripts', () => {
+
+		const initScript = { shell: 'bash', script: 'activate' } satisfies IShellInitScript;
+
+		/** The workbench forwards its setting into root config; the host applies nothing without it. */
+		function createEnabledSession(options?: Parameters<typeof createAgentSession>[1]) {
+			return createAgentSession(disposables, {
+				...options,
+				rootValues: { [CopilotCliConfigKey.EnableShellInitScript]: true, ...options?.rootValues },
+			});
+		}
+
+		test('grants sandbox access before initial SDK registration', async () => {
+			const { mockSession } = await createEnabledSession({
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				configValues: { [SessionConfigKey.ShellInitScripts]: [initScript] },
+			});
+
+			assert.ok(
+				mockSession.operationLog.indexOf('options.update:sandbox') < mockSession.operationLog.indexOf('options.update:shell'),
+				JSON.stringify(mockSession.operationLog),
+			);
+		});
+
+		test('does not apply a session script while the host flag is off', async () => {
+			const { session, mockSession, storedFileContents, setConfigValue } = await createAgentSession(disposables);
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			// The host honors the forwarded setting regardless of the session value.
+			assert.deepStrictEqual({
+				registered: mockSession.shellInitScriptUpdates,
+				materialized: [...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')),
+			}, {
+				registered: [],
+				materialized: false,
+			});
+		});
+
+		test('unregisters when the host flag turns off', async () => {
+			const { session, mockSession, setConfigValue, setRootValue, fireRootConfigChange } = await createEnabledSession();
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			setRootValue(CopilotCliConfigKey.EnableShellInitScript, false);
+			fireRootConfigChange();
+			await timeout(0);
+
+			assert.deepStrictEqual(mockSession.shellInitScriptUpdates.map(update => (update as unknown[]).length), [1, 0]);
+		});
+
+		test('unregisters when the host flag turns off even if the session value became malformed', async () => {
+			const { session, mockSession, setConfigValue, setRootValue, fireRootConfigChange } = await createEnabledSession();
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			// The off state is decided before the payload is validated.
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript, { ...initScript, script: 'second' }]);
+			setRootValue(CopilotCliConfigKey.EnableShellInitScript, false);
+			fireRootConfigChange();
+			await timeout(0);
+
+			assert.deepStrictEqual(mockSession.shellInitScriptUpdates.map(update => (update as unknown[]).length), [1, 0]);
+		});
+
+		test('unregisters when the custom terminal tool replaces the SDK shell mid-session', async () => {
+			const { session, mockSession, setConfigValue, setRootValue, fireRootConfigChange } = await createEnabledSession();
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			setRootValue(CopilotCliConfigKey.EnableCustomTerminalTool, true);
+			fireRootConfigChange();
+			await timeout(0);
+
+			assert.deepStrictEqual(mockSession.shellInitScriptUpdates.map(update => (update as unknown[]).length), [1, 0]);
+		});
+
+		test('ignores a script that only exists in inherited config', async () => {
+			// Root and parent-session values must never reach the shell.
+			const { session, mockSession, storedFileContents } = await createEnabledSession({
+				inheritedConfigValues: { [SessionConfigKey.ShellInitScripts]: [initScript] },
+			});
+
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			assert.deepStrictEqual({
+				registered: mockSession.shellInitScriptUpdates,
+				materialized: [...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')),
+			}, {
+				registered: [],
+				materialized: false,
+			});
+		});
+
+		test('does not register a shell init script when the sandbox update fails', async () => {
+			const { session, mockSession, storedFileContents, setConfigValue } = await createEnabledSession();
+			mockSession.sandboxConfigUpdateSuccess = false;
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			// Best-effort: the turn still runs, just without the script. The file
+			// is written before the grant, so only registration is withheld.
+			assert.deepStrictEqual({
+				registered: mockSession.shellInitScriptUpdates,
+				materialized: [...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')),
+				sends: mockSession.sendRequests.length,
+			}, {
+				registered: [],
+				materialized: true,
+				sends: 1,
+			});
+		});
+
+		test('retries materialization after a write failure', async () => {
+			const { session, mockSession, setConfigValue } = await createEnabledSession({ shellInitWriteFailures: 1 });
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+
+			await session.send('go', undefined, 'turn-1', 'interactive');
+			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, []);
+
+			await session.send('go', undefined, 'turn-2', 'interactive');
+			assert.strictEqual(mockSession.shellInitScriptUpdates.length, 1);
+		});
+
+		test('uses atomic writes when the file provider supports them', async () => {
+			const { mockSession, fileWriteOptions } = await createEnabledSession({
+				configValues: { [SessionConfigKey.ShellInitScripts]: [initScript] },
+				fileAtomicWrite: true,
+			});
+			const scriptPath = (mockSession.shellInitScriptUpdates.at(-1) as Array<{ path: string }>)?.[0]?.path;
+
+			assert.deepStrictEqual(scriptPath ? fileWriteOptions.get(scriptPath)?.atomic : undefined, { postfix: '.vsctmp' });
+		});
+
+		test('materializes, registers, rewrites in place, and clears', async () => {
+			const { session, mockSession, storedFileContents, setConfigValue, fireSessionConfigChange } = await createEnabledSession();
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+
+			await session.send('go', undefined, 'turn-1', 'interactive');
+			const scriptPath = (mockSession.shellInitScriptUpdates.at(-1) as Array<{ path: string }>)?.[0]?.path;
+			assert.ok(scriptPath?.startsWith(TEST_SHELL_INIT_DIR) && scriptPath.endsWith('init.sh'), String(scriptPath));
+
+			await session.send('go', undefined, 'turn-2', 'interactive');
+			assert.strictEqual(mockSession.shellInitScriptUpdates.length, 1);
+
+			// Changed content is rewritten at the registered path. The runtime
+			// re-reads the file before each command, so no RPC is needed.
+			setConfigValue(SessionConfigKey.ShellInitScripts, [{ ...initScript, script: 'changed' }]);
+			fireSessionConfigChange({ [SessionConfigKey.ShellInitScripts]: [{ ...initScript, script: 'changed' }] });
+			await timeout(0);
+			assert.deepStrictEqual({
+				updates: mockSession.shellInitScriptUpdates.length,
+				content: storedFileContents.get(URI.file(scriptPath).toString()),
+			}, {
+				updates: 1,
+				content: 'changed',
+			});
+
+			// Clearing unregisters but keeps the file until dispose, so a command
+			// already holding the path can still source it.
+			setConfigValue(SessionConfigKey.ShellInitScripts, []);
+			await session.send('go', undefined, 'turn-3', 'interactive');
+			assert.deepStrictEqual({
+				updates: mockSession.shellInitScriptUpdates,
+				retained: storedFileContents.has(URI.file(scriptPath).toString()),
+			}, {
+				updates: [[{ shell: 'bash', path: scriptPath }], []],
+				retained: true,
+			});
+
+			session.dispose();
+			await timeout(0);
+			assert.ok(![...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')));
+		});
+
+		test('keeps the last valid registration when config becomes malformed', async () => {
+			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createEnabledSession();
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+			await session.send('go', undefined, 'turn-1', 'interactive');
+			const registered = mockSession.shellInitScriptUpdates.at(-1);
+
+			const malformed = [initScript, { ...initScript, script: 'second' }];
+			setConfigValue(SessionConfigKey.ShellInitScripts, malformed);
+			fireSessionConfigChange({ [SessionConfigKey.ShellInitScripts]: malformed });
+			await timeout(0);
+			await session.send('go', undefined, 'turn-2', 'interactive');
+
+			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, [registered]);
+		});
+
+		test('each instance owns a distinct directory so a stale cleanup cannot delete a successor script', async () => {
+			// dispose() queues the deletion without awaiting it; a resumed
+			// replacement for the same SDK session may register its script first.
+			const first = await createEnabledSession();
+			const second = await createEnabledSession();
+			first.setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+			second.setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+
+			await first.session.send('go', undefined, 'turn-1', 'interactive');
+			await second.session.send('go', undefined, 'turn-1', 'interactive');
+
+			const firstPath = (first.mockSession.shellInitScriptUpdates.at(-1) as Array<{ path: string }>)?.[0]?.path;
+			const secondPath = (second.mockSession.shellInitScriptUpdates.at(-1) as Array<{ path: string }>)?.[0]?.path;
+			assert.ok(firstPath && secondPath && firstPath !== secondPath, `${firstPath} vs ${secondPath}`);
+		});
+
+		test('does nothing when the custom terminal tool replaces the SDK shell', async () => {
+			const { session, mockSession, setConfigValue } = await createEnabledSession({
+				rootValues: { [CopilotCliConfigKey.EnableCustomTerminalTool]: true },
+			});
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, []);
+		});
+
+		test('removes its own script on dispose and leaves a successor instance script intact', async () => {
+			const successorScript = '/mock-userdata/agentHost/shellInit/test-session-1/successor-instance/init.sh';
+			const { session, storedFileContents, setConfigValue } = await createEnabledSession({
+				fileContents: { [successorScript]: 'successor' },
+			});
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+			await session.send('go', undefined, 'turn-1', 'interactive');
+			assert.strictEqual([...storedFileContents.keys()].filter(key => key.includes('/test-session-1/') && key.endsWith('.sh')).length, 2);
+
+			// The session-directory prune must not take the successor's script
+			// with it; only this instance's directory may be removed.
+			session.dispose();
+			await timeout(0);
+			assert.deepStrictEqual([...storedFileContents.keys()].filter(key => key.includes('/test-session-1/')), [successorScript]);
+		});
+
+		test('does not grant shell init directory read access when no script is configured', async () => {
+			const { session, mockSession, setRootValue } = await createEnabledSession();
+			setRootValue(AgentHostSandboxConfigKey.Sandbox, { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On });
+
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			const sandboxConfig = mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined;
+			assert.ok(!sandboxConfig?.userPolicy?.filesystem?.readonlyPaths?.includes(TEST_SHELL_INIT_DIR));
+		});
+
+		test('grants the shell init directory read access while a script is configured', async () => {
+			const { session, mockSession, setConfigValue, setRootValue } = await createEnabledSession();
+			setRootValue(AgentHostSandboxConfigKey.Sandbox, { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On });
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			// The SDK fails silently when an init script is outside the sandbox
+			// read policy, so the per-turn policy must include this directory.
+			const sandboxConfig = mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined;
+			assert.ok(
+				sandboxConfig?.userPolicy?.filesystem?.readonlyPaths?.includes(TEST_SHELL_INIT_DIR),
+				JSON.stringify(sandboxConfig?.userPolicy?.filesystem),
+			);
+		});
+
+		test('unregisters on clear and keeps the file and sandbox grant until dispose', async () => {
+			const { session, mockSession, storedFileContents, setConfigValue, setRootValue } = await createEnabledSession();
+			setRootValue(AgentHostSandboxConfigKey.Sandbox, { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On });
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+			await session.send('go', undefined, 'turn-1', 'interactive');
+			const scriptPath = (mockSession.shellInitScriptUpdates.at(-1) as Array<{ path: string }>)[0].path;
+
+			mockSession.operationLog.length = 0;
+			setConfigValue(SessionConfigKey.ShellInitScripts, []);
+			await session.send('go', undefined, 'turn-2', 'interactive');
+
+			// A command that already captured the path can still read the file.
+			assert.deepStrictEqual({
+				operations: mockSession.operationLog.filter(operation => operation === 'options.update:shell' || operation === 'file.delete:shellInit'),
+				hasGrant: (mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined)?.userPolicy?.filesystem?.readonlyPaths?.includes(TEST_SHELL_INIT_DIR) ?? false,
+				retainedContent: storedFileContents.get(URI.file(scriptPath).toString()),
+			}, {
+				operations: ['options.update:shell'],
+				hasGrant: true,
+				retainedContent: initScript.script,
+			});
+		});
+
+		test('does not delete shell init files on dispose when none were materialized', async () => {
+			const { session, mockSession } = await createEnabledSession();
+
+			session.dispose();
+			await timeout(0);
+
+			assert.ok(!mockSession.operationLog.includes('file.delete:shellInit'));
+		});
+
+		test('deletes a shell init script materialized while disposal waits for an in-flight update', async () => {
+			const writeStarted = new DeferredPromise<void>();
+			const writeGate = new DeferredPromise<void>();
+			const { session, storedFileContents, setConfigValue } = await createEnabledSession({
+				shellInitWriteGate: writeGate.p,
+				onShellInitWrite: () => writeStarted.complete(),
+			});
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+			const send = session.send('go', undefined, 'turn-1', 'interactive');
+			await writeStarted.p;
+
+			session.dispose();
+			writeGate.complete();
+			await send;
+			await timeout(0);
+
+			assert.ok(![...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')));
+		});
+
+		test('a failed registration is logged without aborting the turn', async () => {
+			const { session, mockSession, setConfigValue } = await createEnabledSession();
+			mockSession.shellInitScriptUpdateSuccess = false;
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			assert.deepStrictEqual({
+				abortCalls: mockSession.abortCalls,
+				sends: mockSession.sendRequests.length,
+			}, {
+				abortCalls: 0,
+				sends: 1,
+			});
+		});
+
+		test('removes the script on dispose even when disconnect fails', async () => {
+			const { session, mockSession, storedFileContents, setConfigValue } = await createEnabledSession();
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+			await session.send('go', undefined, 'turn-1', 'interactive');
+			mockSession.disconnectError = new Error('disconnect failed');
+
+			session.dispose();
+			await timeout(0);
+
+			assert.ok(![...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')));
 		});
 	});
 });

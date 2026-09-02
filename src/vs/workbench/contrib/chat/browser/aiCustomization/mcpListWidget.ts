@@ -987,15 +987,17 @@ function createBuiltinEntry(server: IMcpServer, activeSessionServer?: AgentHostM
 	};
 }
 
-function createInstalledMcpServerDetailInput(entry: IMcpInstalledEntry): IMcpServerDetailInput {
+export function createInstalledMcpServerDetailInput(entry: IMcpInstalledEntry): IMcpServerDetailInput {
 	if (entry.type === 'server-item') {
 		return createWorkbenchMcpServerDetailInput(entry.server);
 	}
 
 	const activeSessionServer = getActiveSessionServer(entry);
 	const localServer = entry.type === 'session-server-item' ? undefined : entry.localServer;
-	const localDefinition = localServer?.readDefinitions().get().server;
-	const localSource = localDefinition?.presentation?.origin;
+	const localDefinitions = localServer?.readDefinitions().get();
+	const localDefinition = localDefinitions?.server;
+	const collectionOrigin = localDefinitions?.collection?.presentation?.origin;
+	const localSource = localDefinition?.presentation?.origin ?? (collectionOrigin ? { uri: collectionOrigin } : undefined);
 	const activeSessionSource = activeSessionServer?.sourceUri
 		? {
 			uri: activeSessionServer.sourceUri,

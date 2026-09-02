@@ -27,7 +27,7 @@ import type { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId, AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { findDeepestContainingWorkingDirectory } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
@@ -102,6 +102,7 @@ import { IAgentCustomizationScope, IAgentHostActiveClientService } from './agent
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostSessionWorkingDirectorySynchronizer } from './agentHostSessionWorkingDirectorySynchronizer.js';
+import { IAgentHostShellInitSynchronizer } from './agentHostShellInitSynchronizer.js';
 import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './agentHostNewSessionFolderService.js';
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { AgentHostResponseFileChangesProvider } from './agentHostResponseFileChanges.js';
@@ -1080,6 +1081,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * lives exactly as long as that session's {@link _sessionSubscriptions} entry.
 	 */
 	private readonly _workingDirectoryRegistrations = this._register(new DisposableMap<string>());
+	private readonly _shellInitRegistrations = this._register(new DisposableMap<string>());
 
 	/**
 	 * Active default-chat subscriptions, keyed by backend session URI string.
@@ -1136,6 +1138,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IAgentHostSessionWorkingDirectorySynchronizer private readonly _workingDirectorySynchronizer: IAgentHostSessionWorkingDirectorySynchronizer,
+		@IAgentHostShellInitSynchronizer private readonly _shellInitSynchronizer: IAgentHostShellInitSynchronizer,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisionalService: IAgentHostUntitledProvisionalSessionService,
 		@IAgentHostImportConversationStore private readonly _importConversationStore: IAgentHostImportConversationStore,
@@ -2971,6 +2974,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		onFailureStage('prepareTurn');
+		// Synchronous, so the turn dispatched next observes the current script.
+		this._shellInitSynchronizer.reconcile(session);
 		if (request.acceptedConfirmationData?.some(isResumeTurnConfirmationData)) {
 			return this._handleResumedTurn(session, request, progress, cancellationToken);
 		}
@@ -6602,6 +6607,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._sessionSubscriptions.delete(sessionUri);
 			ref.dispose();
 			this._workingDirectoryRegistrations.deleteAndDispose(sessionUri);
+			this._shellInitRegistrations.deleteAndDispose(sessionUri);
 			ref = undefined;
 		}
 		if (!ref) {
@@ -6613,6 +6619,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				connection: this._config.connection,
 				subscription: ref.object,
 			}));
+			if (this._config.connectionAuthority === LOCAL_AGENT_HOST_AUTHORITY) {
+				this._shellInitRegistrations.set(sessionUri, this._shellInitSynchronizer.register(URI.parse(sessionUri), ref.object));
+			}
 		}
 		return ref.object;
 	}
@@ -6675,6 +6684,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._sessionSubscriptions.delete(sessionUri);
 			ref.dispose();
 			this._workingDirectoryRegistrations.deleteAndDispose(sessionUri);
+			this._shellInitRegistrations.deleteAndDispose(sessionUri);
 		}
 		const chatRef = this._defaultChatSubscriptions.get(sessionUri);
 		if (chatRef) {
