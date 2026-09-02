@@ -13398,6 +13398,126 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 		}));
 
+		test('a subagent chat created after the parent turn completed is still observed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const parentSession = parseDefaultChatUri(session);
+			assert.ok(parentSession);
+			const toolCallId = 'tc-late-task';
+			const childChatUri = buildSubagentChatUri(parentSession, toolCallId);
+
+			// The measured ordering: the whole parent turn settles before the subagent's chat exists.
+			fire({
+				type: 'chat/toolCallStart', session, turnId,
+				toolCallId, toolName: 'task', displayName: 'Delegate Task',
+				_meta: { toolKind: 'subagent', subagentChatUri: childChatUri },
+			} as ChatAction);
+			fire({
+				type: 'chat/toolCallReady', session, turnId,
+				toolCallId, invocationMessage: 'Delegating task',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			} as ChatAction);
+			fire({
+				type: 'chat/toolCallComplete', session, turnId, toolCallId,
+				result: { success: true, pastTenseMessage: 'Delegated task' },
+			} as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+			await timeout(0);
+
+			assert.strictEqual(agentHostService.hasLiveSubscription(childChatUri), true, 'the not-yet-created subagent chat must stay subscribed past its parent turn');
+		}));
+
+		test('a background subagent stays observed after the parent turn ends and is released when it finishes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const parentSession = parseDefaultChatUri(session);
+			assert.ok(parentSession);
+			const toolCallId = 'tc-background-task';
+			const childChatUri = buildSubagentChatUri(parentSession, toolCallId);
+			agentHostService.sessionStates.set(childChatUri, makeChildState(childChatUri, 'tc-child-bg'));
+
+			fire({
+				type: 'chat/toolCallStart', session, turnId,
+				toolCallId, toolName: 'task', displayName: 'Delegate Task',
+				_meta: { toolKind: 'subagent', subagentChatUri: childChatUri },
+			} as ChatAction);
+			fire({
+				type: 'chat/toolCallReady', session, turnId,
+				toolCallId, invocationMessage: 'Delegating task',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			} as ChatAction);
+			// A background subagent's tool call returns while the subagent keeps running.
+			fire({
+				type: 'chat/toolCallComplete', session, turnId, toolCallId,
+				result: { success: true, pastTenseMessage: 'Delegated task' },
+			} as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+			await timeout(50);
+
+			const parent = collected.flat()
+				.filter((p): p is IChatToolInvocation => p.kind === 'toolInvocation')
+				.find(t => t.toolCallId === toolCallId);
+			assert.ok(parent, 'parent task tool invocation should be emitted');
+			assert.deepStrictEqual({
+				subscribed: agentHostService.hasLiveSubscription(childChatUri),
+				isActive: (parent!.toolSpecificData as IChatSubagentToolInvocationData).isActive,
+			}, { subscribed: true, isActive: true }, 'a running background subagent must survive its parent turn');
+
+			agentHostService.fireAction({
+				channel: childChatUri,
+				action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', turnId: 'child-turn-1' } as ChatAction,
+				serverSeq: 2001,
+				origin: undefined,
+			});
+			await timeout(50);
+
+			assert.deepStrictEqual({
+				subscribed: agentHostService.hasLiveSubscription(childChatUri),
+				isActive: (parent!.toolSpecificData as IChatSubagentToolInvocationData).isActive,
+			}, { subscribed: false, isActive: false }, 'the detached observer must react to the subagent finishing and then release it');
+		}));
+
+		test('a subagent that finished during its parent turn is released when that turn ends', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const parentSession = parseDefaultChatUri(session);
+			assert.ok(parentSession);
+			const toolCallId = 'tc-foreground-task';
+			const childChatUri = buildSubagentChatUri(parentSession, toolCallId);
+			agentHostService.sessionStates.set(childChatUri, makeChildState(childChatUri, 'tc-child-fg'));
+
+			fire({
+				type: 'chat/toolCallStart', session, turnId,
+				toolCallId, toolName: 'task', displayName: 'Delegate Task',
+				_meta: { toolKind: 'subagent', subagentChatUri: childChatUri },
+			} as ChatAction);
+			fire({
+				type: 'chat/toolCallReady', session, turnId,
+				toolCallId, invocationMessage: 'Delegating task',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			} as ChatAction);
+			await timeout(50);
+			assert.strictEqual(agentHostService.hasLiveSubscription(childChatUri), true);
+
+			agentHostService.fireAction({
+				channel: childChatUri,
+				action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', turnId: 'child-turn-1' } as ChatAction,
+				serverSeq: 3001,
+				origin: undefined,
+			});
+			fire({
+				type: 'chat/toolCallComplete', session, turnId, toolCallId,
+				result: { success: true, pastTenseMessage: 'Delegated task' },
+			} as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+			await timeout(50);
+
+			assert.strictEqual(agentHostService.hasLiveSubscription(childChatUri), false, 'a settled subagent must not be kept alive past its parent turn');
+		}));
+
 		test('inner subagent tool calls fired AFTER parent observation are also grouped', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
