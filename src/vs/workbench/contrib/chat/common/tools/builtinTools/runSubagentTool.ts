@@ -21,7 +21,7 @@ import { ChatRequestVariableSet } from '../../attachments/chatVariableEntries.js
 import { isByokModel } from '../../chatSelectedModel.js';
 import { IChatProgress, IChatService } from '../../chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../constants.js';
-import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
+import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, type ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../languageModels.js';
 import type { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
 import { getChatSessionType } from '../../model/chatUri.js';
 import { IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../participants/chatAgents.js';
@@ -111,7 +111,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		};
 		properties.model = {
 			type: 'string',
-			description: 'Optional model for the subagent. Format: "Model Name (Vendor)", vendor is usually "copilot". Only use to enforce a specific model.',
+			description: 'Optional model for the subagent. Either the qualified name — "Model Name (Vendor)", vendor is usually "copilot" — or the model identifier, e.g. "myvendor/my-group/my-model". Custom/BYOK models must use the identifier, since their display names are not unique. Only use to enforce a specific model.',
 		};
 
 		const inputSchema: IJSONSchema & { properties: IJSONSchemaMap } = {
@@ -467,17 +467,37 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			return 'No models available.';
 		}
 
+		// A qualified name is only usable as a selector when it unambiguously maps
+		// back to its model. Custom/BYOK models configured under one vendor share a
+		// qualified name, so first exclude names that collide within the agent-mode
+		// list.
+		const qualifiedNameCounts = new Map<string, number>();
+		for (const { metadata } of models) {
+			const qualifiedName = ILanguageModelChatMetadata.asQualifiedName(metadata);
+			qualifiedNameCounts.set(qualifiedName, (qualifiedNameCounts.get(qualifiedName) ?? 0) + 1);
+		}
+
 		const available: string[] = [];
 		const unavailableDueToMultiplier: string[] = [];
 
 		for (const { id, metadata } of models) {
 			const qualifiedName = ILanguageModelChatMetadata.asQualifiedName(metadata);
+			// Advertise the qualified name only when it is unique among agent-mode
+			// models *and* resolves back to this identifier. The second check
+			// matters because `lookupLanguageModelByQualifiedName` scans the whole
+			// model cache — including models excluded above (e.g. non-agent or
+			// session-targeted) — so a same-named model outside this list could
+			// otherwise win the lookup and make the advertised name resolve to the
+			// wrong model. Fall back to the unambiguous identifier when either
+			// check fails.
+			const resolvesToSelf = this.languageModelsService.lookupLanguageModelByQualifiedName(qualifiedName)?.identifier === id;
+			const selector = qualifiedNameCounts.get(qualifiedName) === 1 && resolvesToSelf ? qualifiedName : id;
 			const check = this.checkMultiplierConstraint(id, mainModelId);
 
 			if (check.exceeds) {
-				unavailableDueToMultiplier.push(qualifiedName);
+				unavailableDueToMultiplier.push(selector);
 			} else {
-				available.push(qualifiedName);
+				available.push(selector);
 			}
 		}
 
@@ -493,6 +513,23 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	}
 
 	/**
+	 * Resolves an explicitly requested model, accepting either the qualified name
+	 * (`"Model Name (Vendor)"`) or the model identifier (`<vendor>/<group>/<id>`).
+	 *
+	 * Custom/BYOK models need the identifier: every model configured under a custom
+	 * endpoint shares one vendor, so their qualified names are ambiguous and can
+	 * resolve to a sibling model rather than the requested one.
+	 */
+	private lookupExplicitModel(requestedModel: string): ILanguageModelChatMetadataAndIdentifier | undefined {
+		const byIdentifier = this.languageModelsService.lookupLanguageModel(requestedModel);
+		if (byIdentifier) {
+			return { metadata: byIdentifier, identifier: requestedModel };
+		}
+
+		return this.languageModelsService.lookupLanguageModelByQualifiedName(requestedModel);
+	}
+
+	/**
 	 * Resolves the model to be used by a subagent.
 	 * @param explicitModelQualifiedName Optional explicit model specified by the caller.
 	 *        If provided and not found or not allowed, throws an error with available models.
@@ -504,7 +541,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 		// Explicit model parameter takes highest priority
 		if (explicitModelQualifiedName) {
-			const lm = this.languageModelsService.lookupLanguageModelByQualifiedName(explicitModelQualifiedName);
+			const lm = this.lookupExplicitModel(explicitModelQualifiedName);
 			if (lm?.identifier) {
 				modeModelId = lm.identifier;
 				explicitModelResolved = true;
@@ -525,7 +562,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				const skipCopilotFallbacks = mainModelIsByok && isBuiltinAgent(subagent.source, subagent.uri, this.productService);
 				// Find the actual model identifier from the qualified name(s)
 				for (const qualifiedName of modeModelQualifiedNames) {
-					const lmByQualifiedName = this.languageModelsService.lookupLanguageModelByQualifiedName(qualifiedName);
+					const lmByQualifiedName = this.lookupExplicitModel(qualifiedName);
 					if (lmByQualifiedName?.identifier) {
 						if (skipCopilotFallbacks && lmByQualifiedName.metadata.vendor === COPILOT_VENDOR_ID) {
 							continue;

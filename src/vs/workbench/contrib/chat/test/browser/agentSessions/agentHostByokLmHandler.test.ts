@@ -11,7 +11,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import type { IByokLmChatRequest } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
+import { getByokLmAgentModelId, getByokLmSelectionModelId, type IByokLmChatRequest } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -195,6 +195,39 @@ suite('AgentHostByokLmHandler', () => {
 			{ vendor: 'openrouter', id: 'ai21/jamba-large-1.7', name: 'openrouter ai21/jamba-large-1.7', modelIdentifier: groupedId, maxContextWindowTokens: 2000, supportsVision: false },
 			{ vendor: 'openrouter', id: 'gpt-4', name: 'openrouter gpt-4', modelIdentifier: 'openrouter/gpt-4', maxContextWindowTokens: 2000, supportsVision: false },
 		]);
+	});
+
+	test('advertises a case-folded selection id and routes it back to the source model', async () => {
+		// A configured provider group contributes its name verbatim to the selection
+		// id (`customendpoint/Acme/...`). The agent runtime folds the candidate
+		// ids it matches a requested subagent model against but not the request, so
+		// an id carrying upper case can never match itself — the model is reported
+		// unavailable by an error that lists it as available. Advertising the id
+		// folded keeps both sides equal; the bridge must still route it home.
+		const groupedId = 'customendpoint/Acme/anthropic/claude-sonnet-4.6-high';
+		const service = new TestLanguageModelsService(
+			new Map<string, ILanguageModelChatMetadata>([
+				[groupedId, byokModel('customendpoint', 'anthropic/claude-sonnet-4.6-high')],
+			]),
+			() => responseOf([]),
+		);
+		const handler = createHandler(service);
+
+		const models = await handler.listModels(CancellationToken.None);
+		const advertisedId = getByokLmSelectionModelId(models[0]);
+		const result = await handler.chat({ vendor: 'customendpoint', modelId: advertisedId, input: [] }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			advertisedId,
+			agentModelId: getByokLmAgentModelId(models[0]),
+			routedTo: service.captured?.modelId,
+			error: result.error,
+		}, {
+			advertisedId: 'acme/anthropic/claude-sonnet-4.6-high',
+			agentModelId: 'customendpoint/acme/anthropic/claude-sonnet-4.6-high',
+			routedTo: groupedId,
+			error: undefined,
+		});
 	});
 
 	test('listModels excludes hidden BYOK sources and Agent Host copies', async () => {

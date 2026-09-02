@@ -10,6 +10,8 @@ import { decodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js'
 import {
 	ByokLmImageMimeType,
 	getByokLmAgentModelId,
+	getByokLmSelectionModelId,
+	getByokLmUnfoldedAgentModelId,
 	IAgentHostByokLmHandler,
 	IByokLmChatRequest,
 	IByokLmChatResult,
@@ -181,8 +183,14 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 					...(supportedReasoningEfforts?.length ? { supportedReasoningEfforts } : {}),
 					...(defaultReasoningEffort !== undefined ? { defaultReasoningEffort } : {}),
 				};
-				const agentHostModelIdentifier = `${SessionType.AgentHostCopilot}:${getByokLmAgentModelId(model)}`;
-				if (!this._languageModelsService.isModelHidden(identifier) && !this._languageModelsService.isModelHidden(agentHostModelIdentifier)) {
+				// The agent-host copy's visibility is keyed by the identifier the
+				// provider registers it under. `getByokLmAgentModelId` case-folds
+				// so the agent runtime can match the id it advertises, but the
+				// unfolded form is what older sessions persisted, so honour both.
+				const agentHostPrefix = `${SessionType.AgentHostCopilot}:`;
+				const isCopyHidden = this._languageModelsService.isModelHidden(`${agentHostPrefix}${getByokLmAgentModelId(model)}`)
+					|| this._languageModelsService.isModelHidden(`${agentHostPrefix}${getByokLmUnfoldedAgentModelId(model)}`);
+				if (!this._languageModelsService.isModelHidden(identifier) && !isCopyHidden) {
 					models.push(model);
 				}
 			}
@@ -193,6 +201,12 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 	/**
 	 * Find the LM API identifier for a BYOK model addressed by its vendor and
 	 * provider-local id (the `provider/id` selection id the picker surfaced).
+	 *
+	 * The agent host advertises both the vendor and the provider-local id
+	 * case-folded (see {@link getByokLmSelectionModelId} and
+	 * {@link getByokLmAgentModelId}), so the id coming back over the bridge may
+	 * differ in case from the registered model. Matching is therefore
+	 * case-insensitive on both the vendor and the provider-local id.
 	 */
 	private _resolveModelIdentifier(vendor: string, modelId: string): string | undefined {
 		const exactIdentifier = `${vendor}/${modelId}`;
@@ -200,9 +214,20 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		if (exactMetadata?.isBYOK && exactMetadata.vendor === vendor) {
 			return exactIdentifier;
 		}
+		const foldedVendor = vendor.toLowerCase();
+		const foldedModelId = modelId.toLowerCase();
 		for (const identifier of this._languageModelsService.getLanguageModelIds()) {
 			const metadata = this._languageModelsService.lookupLanguageModel(identifier);
-			if (metadata?.isBYOK && metadata.vendor === vendor && metadata.id === modelId) {
+			if (!metadata?.isBYOK || metadata.vendor.toLowerCase() !== foldedVendor) {
+				continue;
+			}
+			if (metadata.id === modelId || metadata.id.toLowerCase() === foldedModelId) {
+				return identifier;
+			}
+			// The bridge addresses models by their advertised selection id, which
+			// keeps any configured provider group (`group/id`) that the metadata
+			// id alone does not carry.
+			if (getByokLmSelectionModelId({ vendor: metadata.vendor, id: metadata.id, modelIdentifier: identifier }) === foldedModelId) {
 				return identifier;
 			}
 		}

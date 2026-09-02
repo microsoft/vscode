@@ -875,7 +875,13 @@ suite('RunSubagentTool', () => {
 				['other-model-id', otherMeta],
 			]);
 
-			const tool = createTool({ models, qualifiedNameMap: new Map() });
+			// Unambiguous qualified names resolve back to their own model, so the
+			// error advertises them as selectors.
+			const qualifiedNameMap = new Map([
+				['GPT-4o (TestVendor)', { metadata: mainMeta, identifier: 'main-model-id' }],
+				['Claude Sonnet (TestVendor)', { metadata: otherMeta, identifier: 'other-model-id' }],
+			]);
+			const tool = createTool({ models, qualifiedNameMap });
 
 			await assert.rejects(
 				() => tool.prepareToolInvocation({
@@ -890,6 +896,43 @@ suite('RunSubagentTool', () => {
 					assert.ok(err.message.includes('Available models:'));
 					assert.ok(err.message.includes('GPT-4o (TestVendor)'));
 					assert.ok(err.message.includes('Claude Sonnet (TestVendor)'));
+					return true;
+				}
+			);
+		});
+
+		test('advertises the identifier when a unique name resolves to a model outside the agent list', async () => {
+			// The agent-mode list holds one model named "Shared", so its name is not
+			// a local collision — but `lookupLanguageModelByQualifiedName` scans the
+			// whole cache and resolves that name to a *different* model excluded from
+			// the list (e.g. a non-agent or session-targeted sibling). Advertising
+			// the name would hand the caller a selector that picks the wrong model,
+			// so the unambiguous identifier must be advertised instead.
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const listed = createMetadata('Shared', 1);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['customendpoint/group/listed-id', listed],
+			]);
+			// The shared qualified name resolves to a sibling that is not in the list.
+			const qualifiedNameMap = new Map([
+				['Shared (TestVendor)', { metadata: createMetadata('Shared', 1), identifier: 'hidden-sibling-id' }],
+			]);
+
+			const tool = createTool({ models, qualifiedNameMap });
+
+			await assert.rejects(
+				() => tool.prepareToolInvocation({
+					parameters: { prompt: 'test', description: 'test task', model: 'Nonexistent Model (Vendor)' },
+					toolCallId: 'model-call-4c',
+					modelId: 'main-model-id',
+					chatSessionResource: URI.parse('test://session'),
+				}, CancellationToken.None),
+				(err: Error) => {
+					// The listed model is advertised by its identifier; the ambiguous
+					// qualified name is never offered as a selector.
+					assert.ok(err.message.includes('customendpoint/group/listed-id'), err.message);
+					assert.ok(!err.message.includes('Shared (TestVendor)'), err.message);
 					return true;
 				}
 			);
@@ -912,6 +955,152 @@ suite('RunSubagentTool', () => {
 					return true;
 				}
 			);
+		});
+
+		test('resolves an explicit custom model by its identifier', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const customMeta = createMetadata('Claude Haiku 4.5', 1);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['customendpoint/Acme/claude-haiku-4-5', customMeta],
+			]);
+
+			// Custom endpoint models are not reachable by qualified name.
+			const tool = createTool({ models, qualifiedNameMap: new Map() });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', model: 'customendpoint/Acme/claude-haiku-4-5' },
+				toolCallId: 'model-call-byok-1',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: undefined,
+				prompt: 'test',
+				modelName: 'Claude Haiku 4.5',
+			});
+		});
+
+		test('advertises identifiers for custom models whose qualified names collide', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			// Two distinct models registered under one custom endpoint vendor, sharing a name.
+			const first = createMetadata('Claude Haiku 4.5', 1);
+			const second = createMetadata('Claude Haiku 4.5', 1);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['customendpoint/Acme/claude-haiku-4-5', first],
+				['customendpoint/Other/claude-haiku-4-5', second],
+			]);
+
+			// The unique GPT-4o name resolves to itself (as it would in production);
+			// the shared Haiku name is a local collision, so its lookup is ambiguous.
+			const qualifiedNameMap = new Map([
+				['GPT-4o (TestVendor)', { metadata: mainMeta, identifier: 'main-model-id' }],
+			]);
+			const tool = createTool({ models, qualifiedNameMap });
+
+			await assert.rejects(
+				() => tool.prepareToolInvocation({
+					parameters: { prompt: 'test', description: 'test task', model: 'Nope (TestVendor)' },
+					toolCallId: 'model-call-byok-2',
+					modelId: 'main-model-id',
+					chatSessionResource: URI.parse('test://session'),
+				}, CancellationToken.None),
+				(err: Error) => {
+					// The unique name stays a qualified name; the colliding pair is
+					// listed by identifier so the caller can address them unambiguously.
+					assert.ok(err.message.includes('GPT-4o (TestVendor)'), err.message);
+					assert.ok(err.message.includes('customendpoint/Acme/claude-haiku-4-5'), err.message);
+					assert.ok(err.message.includes('customendpoint/Other/claude-haiku-4-5'), err.message);
+					assert.ok(!err.message.includes('Claude Haiku 4.5 (TestVendor)'), err.message);
+					return true;
+				}
+			);
+		});
+
+		test('resolves an agent-pinned custom model by its identifier', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const customMeta = createMetadata('Claude Haiku 4.5', 1);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['customendpoint/Acme/claude-haiku-4-5', customMeta],
+			]);
+
+			const agent = createAgent('MyAgent', ['customendpoint/Acme/claude-haiku-4-5']);
+			const tool = createTool({ models, qualifiedNameMap: new Map(), customAgents: [agent] });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', agentName: 'MyAgent' },
+				toolCallId: 'model-call-byok-3',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: 'MyAgent',
+				prompt: 'test',
+				modelName: 'Claude Haiku 4.5',
+			});
+		});
+
+		test('resolves an explicit selector by identifier before qualified name', async () => {
+			// The selector string is a valid identifier *and* a qualified name that
+			// maps to a different model. Identifier resolution must win so that a
+			// BYOK id (which can collide with a sibling's qualified name) always
+			// selects the model it names.
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const byIdentifier = createMetadata('ByIdentifier', 1);
+			const byName = createMetadata('ByName', 1);
+			const selector = 'Shared (TestVendor)';
+			const models = new Map([
+				['main-model-id', mainMeta],
+				[selector, byIdentifier],
+				['by-name-id', byName],
+			]);
+			const qualifiedNameMap = new Map([
+				[selector, { metadata: byName, identifier: 'by-name-id' }],
+			]);
+
+			const tool = createTool({ models, qualifiedNameMap });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', model: selector },
+				toolCallId: 'model-call-byok-4',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.strictEqual(result?.toolSpecificData?.kind === 'subagent' ? result.toolSpecificData.modelName : undefined, 'ByIdentifier');
+		});
+
+		test('falls back to the qualified name when the selector is not an identifier', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const byName = createMetadata('Shared', 1);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['by-name-id', byName],
+			]);
+			const qualifiedNameMap = new Map([
+				['Shared (TestVendor)', { metadata: byName, identifier: 'by-name-id' }],
+			]);
+
+			const tool = createTool({ models, qualifiedNameMap });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', model: 'Shared (TestVendor)' },
+				toolCallId: 'model-call-byok-4b',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.strictEqual(result?.toolSpecificData?.kind === 'subagent' ? result.toolSpecificData.modelName : undefined, 'Shared');
 		});
 	});
 
