@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -60,6 +61,52 @@ suite('ExtHostTimeline', function () {
 		}, extension);
 
 		assert.strictEqual(cachedItem, undefined);
+		replacement.dispose();
+	});
+
+	test('does not cache an in-flight timeline result after provider disposal', async function () {
+		let argumentProcessor: ArgumentProcessor | undefined;
+		const commands = new class extends mock<ExtHostCommands>() {
+			override registerArgumentProcessor(processor: ArgumentProcessor): void {
+				argumentProcessor = processor;
+			}
+		};
+		const proxy = new class extends mock<MainThreadTimelineShape>() {
+			override $registerTimelineProvider(): void { }
+			override $unregisterTimelineProvider(): void { }
+		};
+		const timeline = new ExtHostTimeline(SingleProxyRPCProtocol(proxy), commands);
+		const extension: IExtensionDescription = {
+			...nullExtensionDescription,
+			identifier: new ExtensionIdentifier('test.timeline'),
+			enabledApiProposals: ['timeline'],
+		};
+		const uri = URI.parse('file:///timeline.txt');
+		const deferredResult = new DeferredPromise<{ items: TimelineItem[] }>();
+		const provider = {
+			id: 'test-timeline',
+			label: 'Test Timeline',
+			provideTimeline: () => deferredResult.p,
+		};
+		const converter = new class extends mock<CommandsConverter>() { };
+		const registration = timeline.registerTimelineProvider('file', provider, extension.identifier, converter);
+		const options: TimelineOptions = { cacheResults: true };
+		const resultPromise = timeline.$getTimeline(provider.id, uri, options, CancellationToken.None);
+
+		registration.dispose();
+		const replacement = timeline.registerTimelineProvider('file', {
+			...provider,
+			provideTimeline: () => ({ items: [] }),
+		}, extension.identifier, converter);
+		deferredResult.complete({ items: [new TimelineItem('stale item', 1)] });
+
+		assert.strictEqual(await resultPromise, undefined);
+		assert.strictEqual(argumentProcessor?.processArgument({
+			$mid: MarshalledId.TimelineActionContext,
+			handle: `${provider.id}|1`,
+			source: provider.id,
+			uri,
+		}, extension), undefined);
 		replacement.dispose();
 	});
 });
