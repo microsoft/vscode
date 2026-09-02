@@ -989,6 +989,9 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		if (this.autopilotRetryCount >= ToolCallingLoop.MAX_AUTOPILOT_RETRIES) {
 			return false;
 		}
+		if (isVisionAttachmentInaccessible(response)) {
+			return false;
+		}
 		switch (response.type) {
 			case ChatFetchResponseType.RateLimited:
 			case ChatFetchResponseType.QuotaExceeded:
@@ -2429,4 +2432,12 @@ export interface IToolCallSingleResult {
 export interface IToolCallLoopResult extends IToolCallSingleResult {
 	toolCallRounds: IToolCallRound[];
 	toolCallResults: Record<string, LanguageModelToolResult2>;
+}
+
+export function isVisionAttachmentInaccessible(response: ChatResponse): boolean {
+	if (response.type !== ChatFetchResponseType.BadRequest && response.type !== ChatFetchResponseType.Failed) {
+		return false;
+	}
+	const haystack = `${response.reason ?? ''} ${response.reasonDetail ?? ''}`.toLowerCase();
+	return haystack.includes('vision_attachment_not_accessible') || (haystack.includes('attachment') && haystack.includes('not accessible'));
 }
