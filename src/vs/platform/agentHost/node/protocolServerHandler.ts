@@ -1440,7 +1440,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					client.subscriptions.delete(classified.uri);
 				}
 				if (err instanceof SubscriptionCancelledError) {
-					this._logService.info(`[ProtocolServer] Subscribe cancelled by client: ${params.channel}`);
+					this._logService.info(`[ProtocolServer] Subscribe cancelled: ${params.channel}`);
 					throw err;
 				}
 				if (err instanceof ProtocolError) {

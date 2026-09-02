@@ -1171,7 +1171,7 @@ suite('ProtocolServerHandler', () => {
 			code: AHP_SESSION_NOT_FOUND,
 			message: `Subscription cancelled: ${sessionUri}`,
 			errorCount: 0,
-			infoMessages: [`[ProtocolServer] Subscribe cancelled by client: ${sessionUri}`],
+			infoMessages: [`[ProtocolServer] Subscribe cancelled: ${sessionUri}`],
 		});
 	});
 

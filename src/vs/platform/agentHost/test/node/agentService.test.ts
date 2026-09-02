@@ -59,7 +59,7 @@ import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
-import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, SubscriptionCancelledError } from '../../common/state/sessionProtocol.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
@@ -11333,6 +11333,35 @@ suite('AgentService (node dispatcher)', () => {
 
 			const snapshot = await subscribePromise;
 			assert.strictEqual(snapshot.resource, subagentUri);
+		});
+
+		test('a subscription cancelled while its subagent chat is still pending rejects as cancelled', async () => {
+			registerTestAgentProvider(service, copilotAgent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const parentChat = buildDefaultChatUri(session.toString());
+			startParentTurn(session, 'turn-1');
+
+			copilotAgent.fireProgress({
+				kind: 'action', resource: URI.parse(parentChat),
+				action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: 'subagent', language: undefined } },
+			});
+			copilotAgent.fireProgress({
+				kind: 'action', resource: URI.parse(parentChat),
+				action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-sub', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded },
+			});
+
+			const subagentUri = buildSubagentChatUri(session.toString(), 'tc-sub');
+			let isActive = true;
+			const subscribePromise = service.subscribe(URI.parse(subagentUri), 'client-cancelled', () => isActive);
+			let settled = false;
+			void subscribePromise.then(() => { settled = true; }, () => { settled = true; });
+			await timeout(0);
+			assert.strictEqual(settled, false, 'subscribe should be parked on the pending subagent chat, past the release-wait check');
+
+			isActive = false;
+			copilotAgent.fireProgress({ kind: 'subagent_started', chat: URI.parse(parentChat), toolCallId: 'tc-sub', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' });
+
+			await assert.rejects(subscribePromise, (err: unknown) => err instanceof SubscriptionCancelledError);
 		});
 
 		test('subscribe to an announced subagent chat that never spawns eventually rejects instead of hanging', () => {
