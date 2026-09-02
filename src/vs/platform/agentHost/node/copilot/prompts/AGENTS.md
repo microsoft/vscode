@@ -44,12 +44,12 @@ provides a YAML `promptOverrideString` or `promptOverrideFile` containing
    `content` for every mode, including `replace`, so a full replacement owns the
    prompt body but not the host's response-format plumbing.
 
-The per-model prompt override mirrors the Copilot Chat debug prompt override:
-inline YAML takes precedence over a YAML file, `systemPrompt` bypasses this
-registry and is sent directly as the Copilot SDK's `systemMessage` in `replace`
-mode, and `toolDescriptions` replaces descriptions on tools registered by Agent
-Host. The resulting system prompt retains neither the layers above nor
-SDK-managed sections and guardrails.
+The per-model prompt override supports the same fields and precedence as the
+Copilot Chat debug prompt override: inline YAML takes precedence over a YAML
+file, `systemPrompt` bypasses this registry and is sent directly as the Copilot
+SDK's `systemMessage` in `replace` mode, and `toolDescriptions` replaces
+descriptions on tools registered by Agent Host. This internal debugging setting
+assumes those values use the documented string shape.
 
 > **Launch-time freeze.** The SDK accepts a system message only at session
 > create/resume; there is no mid-session update. The prompt is resolved once per

@@ -5,7 +5,7 @@
 
 import type { Tool } from '@github/copilot-sdk';
 import { URI } from '../../../../../base/common/uri.js';
-import { parse as parseYaml, type YamlMapNode, type YamlNode, type YamlParseError, type YamlScalarNode } from '../../../../../base/common/yaml.js';
+import { parse as parseYaml, type YamlMapNode, type YamlNode, type YamlParseError } from '../../../../../base/common/yaml.js';
 import type { IFileService } from '../../../../files/common/files.js';
 import type { ILogService } from '../../../../log/common/log.js';
 
@@ -120,26 +120,8 @@ function getProperty(map: YamlMapNode, name: string): YamlNode | undefined {
 
 function getStringProperty(map: YamlMapNode, name: string): string | undefined {
 	const value = getProperty(map, name);
-	return value?.type === 'scalar' && isYamlString(value) ? value.value : undefined;
+	return value?.type === 'scalar' && value.rawValue.length > 0 ? value.value : undefined;
 }
-
-function isYamlString(value: YamlScalarNode): boolean {
-	if (value.format !== 'none') {
-		return true;
-	}
-	const rawValue = value.rawValue.trim();
-	if (!rawValue || /^(?:~|null|true|false)$/i.test(rawValue)) {
-		return false;
-	}
-	if (YAML_DATE.test(rawValue) || YAML_TIMESTAMP.test(rawValue)) {
-		return false;
-	}
-	return !YAML_NUMBER.test(rawValue);
-}
-
-const YAML_DATE = /^\d{4}-\d{2}-\d{2}$/;
-const YAML_TIMESTAMP = /^\d{4}-\d{1,2}-\d{1,2}(?:[Tt]|[ \t]+)\d{1,2}:\d{2}:\d{2}(?:\.\d*)?(?:[ \t]*(?:Z|[-+]\d{1,2}(?::\d{2})?))?$/;
-const YAML_NUMBER = /^[-+]?(?:(?:0b[01_]+)|(?:0o[0-7_]+)|(?:0x[\da-f_]+)|(?:\d[\d_]*(?::[0-5]?\d)+)|(?:(?:\d[\d_]*)?\.[\d_]+|(?:\d[\d_]*)\.)(?:e[-+]?\d+)?|(?:\d[\d_]*e[-+]?\d+)|(?:\d[\d_]*)|\.(?:inf|nan))$/i;
 
 function logPromptOverrideFailure(logService: ILogService, source: string, message: string, error: unknown): void {
 	if (warnedSources.has(source)) {
