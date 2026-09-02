@@ -12,7 +12,7 @@ import { isAgentHostSessionResource } from '../../common/chatSessionsService.js'
 import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationTargetType, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerMigrationFailure, IMcpServerMigrationResult, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigration, McpServerMigrationFailureReason, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationTargetType, getMcpServerCustomizationMigrationCandidateKey, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerMigrationFailure, IMcpServerMigrationResult, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigration, McpServerMigrationFailureReason, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
@@ -70,11 +70,10 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 
 	async migrateMcpServers(sessionResource: URI, requestedCandidates: readonly IMcpServerCustomizationMigrationCandidate[]): Promise<IMcpServerMigrationResult> {
 		const currentMigration = await this.computeMigration(sessionResource, CustomizationMigrationType.McpServers);
-		const requestedIds = new Set(requestedCandidates.map(candidate => candidate.id));
-		const currentCandidates = currentMigration.candidates.filter(candidate => requestedIds.has(candidate.id));
-		const currentIds = new Set(currentCandidates.map(candidate => candidate.id));
+		const currentCandidateKeys = new Set(currentMigration.candidates.map(getMcpServerCustomizationMigrationCandidateKey));
+		const eligibleCandidates = requestedCandidates.filter(candidate => currentCandidateKeys.has(getMcpServerCustomizationMigrationCandidateKey(candidate)));
 		const failures: IMcpServerMigrationFailure[] = requestedCandidates
-			.filter(candidate => !currentIds.has(candidate.id))
+			.filter(candidate => !currentCandidateKeys.has(getMcpServerCustomizationMigrationCandidateKey(candidate)))
 			.map(candidate => ({
 				id: candidate.id,
 				name: candidate.name,
@@ -83,8 +82,8 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 				reason: McpServerMigrationFailureReason.NoLongerEligible,
 			}));
 
-		this.logService.info(`[MCP Migration] Starting migration: selected=${requestedCandidates.length}, eligible=${currentCandidates.length}, noLongerEligible=${failures.length}`);
-		const result = await this.mcpServerMigration.migrate(currentCandidates);
+		this.logService.info(`[MCP Migration] Starting migration: selected=${requestedCandidates.length}, eligible=${eligibleCandidates.length}, noLongerEligible=${failures.length}`);
+		const result = await this.mcpServerMigration.migrate(eligibleCandidates);
 		const combined = { migratedCount: result.migratedCount, failures: [...failures, ...result.failures] };
 		for (const failure of combined.failures) {
 			if (failure.error) {

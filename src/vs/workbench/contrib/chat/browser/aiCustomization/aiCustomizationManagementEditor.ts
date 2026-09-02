@@ -64,7 +64,7 @@ import {
 import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, pluginIcon, toolsIcon } from './aiCustomizationIcons.js';
 import { ChatModelsWidget } from '../chatManagement/chatModelsWidget.js';
 import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigrationCandidate, CustomizationMigrationType, getCustomizationMigrationTargetType, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationCandidate, CustomizationMigrationType, getCustomizationMigrationTargetType, getMcpServerCustomizationMigrationCandidateKey, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { IHeaderAttribute, IValue, ParsedPromptFile } from '../../common/promptSyntax/promptFileParser.js';
 import { AGENT_MD_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
@@ -1141,7 +1141,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private getCustomizationMigrationItemKey(customization: CustomizationMigrationCandidate): string {
 		return isMcpServerCustomizationMigrationCandidate(customization)
-			? `mcp:${customization.id}`
+			? `mcp:${getMcpServerCustomizationMigrationCandidateKey(customization)}`
 			: `file:${customization.uri.toString()}:${customization.storage}`;
 	}
 

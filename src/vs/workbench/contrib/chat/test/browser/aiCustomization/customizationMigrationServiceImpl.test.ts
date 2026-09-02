@@ -104,6 +104,69 @@ function createMcpFileService(servers: Record<string, unknown> = {}): IFileServi
 suite('CustomizationMigrationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	async function createMcpRevalidationContext(root: URI) {
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const targetUri = URI.joinPath(root, '.mcp.json');
+		const server = {
+			id: 'mcp.config.ws0.server',
+			name: 'server',
+			collectionId: 'mcp.config.ws0',
+			source: {
+				group: 'local' as const,
+				kind: AgentHostMcpServerSourceKind.VscodeWorkspaceFolder,
+				label: 'Workspace',
+				collectionUri: sourceUri,
+				definitionLocation: undefined,
+				remoteAuthority: null,
+				extensionId: undefined,
+				pluginUri: undefined,
+			},
+			enablement: { enabled: true, state: AgentHostMcpServerEnablementState.EnabledWorkspace },
+			applicability: AgentHostMcpServerApplicability.Applicable,
+			delivery: AgentHostMcpServerDelivery.ClientForwarded,
+			compatibility: { kind: 'supported' as const },
+		};
+		const snapshot = observableValue<IAgentHostMcpServerSupportSnapshot>('support', {
+			servers: [server],
+			discoveryComplete: true,
+			coverage: {
+				restrictedByMcpAccess: false,
+				restrictedByCustomizationPolicy: false,
+			},
+		});
+		const activeClientService = {
+			acquireMcpServerSupportScope: () => ({
+				support: snapshot,
+				isResolved: constObservable(true),
+				whenResolved: () => Promise.resolve(),
+				dispose: () => { },
+			}),
+		} as Partial<IAgentHostActiveClientService> as IAgentHostActiveClientService;
+		const fileService = store.add(new FileService(new NullLogService()));
+		const provider = store.add(new InMemoryFileSystemProvider());
+		store.add(fileService.registerProvider(Schemas.file, provider));
+		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"type":"stdio","command":"server"}}}'));
+		const service = new CustomizationMigrationService(
+			store.add(new TestPromptsService([])),
+			new TestCustomizationHarnessService(),
+			activeClientService,
+			new class extends mock<IAgentHostCustomizationService>() {
+				override getWorkingDirectories() { return [root.toString()]; }
+			}(),
+			fileService,
+			new NullLogService(),
+		);
+		return {
+			fileService,
+			server,
+			service,
+			sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }),
+			snapshot,
+			sourceUri,
+			targetUri,
+		};
+	}
+
 	test('computes file and MCP migration candidates for Agent Host sessions', async () => {
 		const root = URI.file('/workspace');
 		const promptsService = store.add(new TestPromptsService([
@@ -379,76 +442,25 @@ suite('CustomizationMigrationService', () => {
 
 	test('revalidates MCP candidates before migration', async () => {
 		const root = URI.file('/workspace-revalidation');
-		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
-		const targetUri = URI.joinPath(root, '.mcp.json');
-		const server = {
-			id: 'mcp.config.ws0.server',
-			name: 'server',
-			collectionId: 'mcp.config.ws0',
-			source: {
-				group: 'local' as const,
-				kind: AgentHostMcpServerSourceKind.VscodeWorkspaceFolder,
-				label: 'Workspace',
-				collectionUri: sourceUri,
-				definitionLocation: undefined,
-				remoteAuthority: null,
-				extensionId: undefined,
-				pluginUri: undefined,
-			},
-			enablement: { enabled: true, state: AgentHostMcpServerEnablementState.EnabledWorkspace },
-			applicability: AgentHostMcpServerApplicability.Applicable,
-			delivery: AgentHostMcpServerDelivery.ClientForwarded,
-			compatibility: { kind: 'supported' as const },
-		};
-		const snapshot = observableValue<IAgentHostMcpServerSupportSnapshot>('support', {
-			servers: [server],
-			discoveryComplete: true,
-			coverage: {
-				restrictedByMcpAccess: false,
-				restrictedByCustomizationPolicy: false,
-			},
-		});
-		const activeClientService = {
-			acquireMcpServerSupportScope: () => ({
-				support: snapshot,
-				isResolved: constObservable(true),
-				whenResolved: () => Promise.resolve(),
-				dispose: () => { },
-			}),
-		} as Partial<IAgentHostActiveClientService> as IAgentHostActiveClientService;
-		const fileService = store.add(new FileService(new NullLogService()));
-		const provider = store.add(new InMemoryFileSystemProvider());
-		store.add(fileService.registerProvider(Schemas.file, provider));
-		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"type":"stdio","command":"server"}}}'));
-		const service = new CustomizationMigrationService(
-			store.add(new TestPromptsService([])),
-			new TestCustomizationHarnessService(),
-			activeClientService,
-			new class extends mock<IAgentHostCustomizationService>() {
-				override getWorkingDirectories() { return [root.toString()]; }
-			}(),
-			fileService,
-			new NullLogService(),
-		);
-		const sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' });
-		const migration = await service.computeMigration(sessionResource, CustomizationMigrationType.McpServers);
-		snapshot.set({
-			...snapshot.get(),
+		const context = await createMcpRevalidationContext(root);
+		const migration = await context.service.computeMigration(context.sessionResource, CustomizationMigrationType.McpServers);
+		context.snapshot.set({
+			...context.snapshot.get(),
 			servers: [{
-				...server,
+				...context.server,
 				enablement: { enabled: false, state: AgentHostMcpServerEnablementState.DisabledWorkspace },
 			}],
 		}, undefined);
 
-		const result = await service.migrateMcpServers(sessionResource, migration.candidates);
+		const result = await context.service.migrateMcpServers(context.sessionResource, migration.candidates);
 
 		assert.deepStrictEqual({
 			result: {
 				migratedCount: result.migratedCount,
 				failures: result.failures.map(failure => ({ name: failure.name, reason: failure.reason })),
 			},
-			source: JSON.parse((await fileService.readFile(sourceUri)).value.toString()),
-			targetExists: await fileService.exists(targetUri),
+			source: JSON.parse((await context.fileService.readFile(context.sourceUri)).value.toString()),
+			targetExists: await context.fileService.exists(context.targetUri),
 		}, {
 			result: {
 				migratedCount: 0,
@@ -456,6 +468,71 @@ suite('CustomizationMigrationService', () => {
 			},
 			source: { servers: { server: { type: 'stdio', command: 'server' } } },
 			targetExists: false,
+		});
+	});
+
+	test('compares the source against the candidate confirmed by the user', async () => {
+		const context = await createMcpRevalidationContext(URI.file('/workspace-confirmed-source'));
+		const migration = await context.service.computeMigration(context.sessionResource, CustomizationMigrationType.McpServers);
+		await context.fileService.writeFile(context.sourceUri, VSBuffer.fromString('{"servers":{"server":{"type":"stdio","command":"updated"}}}'));
+
+		const result = await context.service.migrateMcpServers(context.sessionResource, migration.candidates);
+
+		assert.deepStrictEqual({
+			result: {
+				migratedCount: result.migratedCount,
+				failures: result.failures.map(failure => ({ name: failure.name, reason: failure.reason })),
+			},
+			source: JSON.parse((await context.fileService.readFile(context.sourceUri)).value.toString()),
+			targetExists: await context.fileService.exists(context.targetUri),
+		}, {
+			result: {
+				migratedCount: 0,
+				failures: [{ name: 'server', reason: McpServerMigrationFailureReason.SourceChanged }],
+			},
+			source: { servers: { server: { type: 'stdio', command: 'updated' } } },
+			targetExists: false,
+		});
+	});
+
+	test('does not migrate a different source that reuses a positional server ID', async () => {
+		const context = await createMcpRevalidationContext(URI.file('/workspace-original-source'));
+		const migration = await context.service.computeMigration(context.sessionResource, CustomizationMigrationType.McpServers);
+		const replacementRoot = URI.file('/workspace-replacement-source');
+		const replacementSourceUri = URI.joinPath(replacementRoot, '.vscode', 'mcp.json');
+		const replacementTargetUri = URI.joinPath(replacementRoot, '.mcp.json');
+		await context.fileService.writeFile(replacementSourceUri, VSBuffer.fromString('{"servers":{"server":{"type":"stdio","command":"replacement"}}}'));
+		context.snapshot.set({
+			...context.snapshot.get(),
+			servers: [{
+				...context.server,
+				source: {
+					...context.server.source,
+					collectionUri: replacementSourceUri,
+				},
+			}],
+		}, undefined);
+
+		const result = await context.service.migrateMcpServers(context.sessionResource, migration.candidates);
+
+		assert.deepStrictEqual({
+			result: {
+				migratedCount: result.migratedCount,
+				failures: result.failures.map(failure => ({ name: failure.name, reason: failure.reason })),
+			},
+			originalSource: JSON.parse((await context.fileService.readFile(context.sourceUri)).value.toString()),
+			replacementSource: JSON.parse((await context.fileService.readFile(replacementSourceUri)).value.toString()),
+			originalTargetExists: await context.fileService.exists(context.targetUri),
+			replacementTargetExists: await context.fileService.exists(replacementTargetUri),
+		}, {
+			result: {
+				migratedCount: 0,
+				failures: [{ name: 'server', reason: McpServerMigrationFailureReason.NoLongerEligible }],
+			},
+			originalSource: { servers: { server: { type: 'stdio', command: 'server' } } },
+			replacementSource: { servers: { server: { type: 'stdio', command: 'replacement' } } },
+			originalTargetExists: false,
+			replacementTargetExists: false,
 		});
 	});
 

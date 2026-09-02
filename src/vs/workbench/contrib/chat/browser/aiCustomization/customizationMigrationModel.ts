@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { RunOnceScheduler, Throttler } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { getErrorMessage, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { getComparisonKey, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { isAgentHostTarget } from '../../common/chatSessionsService.js';
@@ -19,7 +19,7 @@ import { IPromptsService } from '../../common/promptSyntax/service/promptsServic
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
-import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
+import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId } from './customizationMigrationCategories.js';
 
 export interface ICustomizationMigrationModelState {
 	readonly loading: boolean;
@@ -34,6 +34,19 @@ const emptyMigrationState: ICustomizationMigrationModelState = {
 	targetFoldersByType: new Map(),
 };
 
+const allMigrationCategoryIds = CUSTOMIZATION_MIGRATION_CATEGORIES.map(category => category.id);
+
+interface ICustomizationMigrationRefreshContext {
+	readonly generation: number;
+	readonly harnessId: string;
+	readonly sessionResource: URI;
+}
+
+type CustomizationMigrationCategoryCandidates = readonly [
+	CustomizationMigrationCategoryId,
+	readonly CustomizationMigrationCandidate[],
+];
+
 /**
  * Owns migration discovery and refresh lifecycle independently from the management editor's DOM.
  */
@@ -41,16 +54,14 @@ export class CustomizationMigrationModel extends Disposable {
 	private readonly _state = observableValue<ICustomizationMigrationModelState>(this, emptyMigrationState);
 	readonly state: IObservable<ICustomizationMigrationModelState> = this._state;
 
-	private refreshSequence = 0;
+	// Prevents an in-flight refresh from publishing after the session or working-directory context changes away and back.
+	private contextGeneration = 0;
 	private workingDirectoriesSignature = '';
 	private contextKey = '';
 	private readonly pendingCategories = new Set<CustomizationMigrationCategoryId>();
-	private readonly categoriesPendingAfterFullRefresh = new Set<CustomizationMigrationCategoryId>();
-	private fullRefreshInProgress = false;
+	private readonly refreshThrottler = this._register(new Throttler());
 	private readonly refreshScheduler = this._register(new RunOnceScheduler(() => {
-		const categories = new Set(this.pendingCategories);
-		this.pendingCategories.clear();
-		void this.refreshCategories(categories);
+		void this.runPendingRefresh();
 	}, 0));
 
 	constructor(
@@ -63,28 +74,45 @@ export class CustomizationMigrationModel extends Disposable {
 	) {
 		super();
 
+		// Prompt and user-data changes.
 		this._register(promptsService.onDidChangeSlashCommands(() => this.scheduleRefresh([CustomizationMigrationCategoryId.PromptFiles])));
 		this._register(Event.any(
 			promptsService.onDidChangeCustomAgents,
 			promptsService.onDidChangeInstructions,
 			promptsService.onDidChangeAgentInstructions,
 		)(() => this.scheduleRefresh([CustomizationMigrationCategoryId.UserData])));
-		this._register(configurationService.onDidChangeConfiguration(event => {
+
+		// Migration enablement changes.
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (CUSTOMIZATION_MIGRATION_CATEGORIES.some(category => category.enablementSetting && event.affectsConfiguration(category.enablementSetting))) {
 				this.scheduleRefresh();
 			}
 		}));
+
+		// Active session and working-directory changes.
 		this._register(autorun(reader => {
-			const sessionResource = harnessService.activeSessionResource.read(reader);
-			const harnessId = harnessService.activeHarness.read(reader);
-			const nextContextKey = `${harnessId}\n${sessionResource.toString()}`;
+			const sessionResource = this.harnessService.activeSessionResource.read(reader);
+			const harnessId = this.harnessService.activeHarness.read(reader);
+			const nextContextKey = `${harnessId}\n${getComparisonKey(sessionResource)}`;
 			if (nextContextKey !== this.contextKey) {
 				this.contextKey = nextContextKey;
+				this.contextGeneration++;
 				this._state.set(emptyMigrationState, undefined);
 			}
 			this.workingDirectoriesSignature = agentHostCustomizationService.getWorkingDirectories(sessionResource).join('\n');
 			this.scheduleRefresh();
 		}));
+		this._register(agentHostCustomizationService.onDidChangeCustomizations(() => {
+			const sessionResource = this.harnessService.activeSessionResource.get();
+			const nextSignature = agentHostCustomizationService.getWorkingDirectories(sessionResource).join('\n');
+			if (nextSignature !== this.workingDirectoriesSignature) {
+				this.workingDirectoriesSignature = nextSignature;
+				this.contextGeneration++;
+				this.scheduleRefresh();
+			}
+		}));
+
+		// MCP inventory changes.
 		this._register(autorun(reader => {
 			for (const server of mcpService.servers.read(reader)) {
 				server.enablement.read(reader);
@@ -92,113 +120,65 @@ export class CustomizationMigrationModel extends Disposable {
 			}
 			this.scheduleRefresh([CustomizationMigrationCategoryId.McpServers]);
 		}));
-		this._register(agentHostCustomizationService.onDidChangeCustomizations(() => {
-			const sessionResource = harnessService.activeSessionResource.get();
-			const nextSignature = agentHostCustomizationService.getWorkingDirectories(sessionResource).join('\n');
-			if (nextSignature !== this.workingDirectoriesSignature) {
-				this.workingDirectoriesSignature = nextSignature;
-				this.scheduleRefresh();
-			}
-		}));
 	}
 
 	async refresh(): Promise<void> {
 		this.refreshScheduler.cancel();
-		this.pendingCategories.clear();
-		await this.refreshCategories(new Set(CUSTOMIZATION_MIGRATION_CATEGORIES.map(category => category.id)));
+		this.addPendingCategories(allMigrationCategoryIds);
+		await this.runPendingRefresh();
 	}
 
-	private scheduleRefresh(categories = CUSTOMIZATION_MIGRATION_CATEGORIES.map(category => category.id)): void {
-		for (const category of categories) {
-			this.pendingCategories.add(category);
-		}
+	private scheduleRefresh(categories = allMigrationCategoryIds): void {
+		this.addPendingCategories(categories);
 		this.refreshScheduler.schedule();
 	}
 
-	private async refreshCategories(categoryIds: ReadonlySet<CustomizationMigrationCategoryId>): Promise<void> {
-		const isFullRefresh = categoryIds.size === CUSTOMIZATION_MIGRATION_CATEGORIES.length;
-		if (!isFullRefresh && this.fullRefreshInProgress) {
-			for (const categoryId of categoryIds) {
-				this.categoriesPendingAfterFullRefresh.add(categoryId);
-			}
-			return;
-		}
-		if (isFullRefresh) {
-			this.fullRefreshInProgress = true;
-		}
-		try {
-			await this.doRefreshCategories(categoryIds, isFullRefresh);
-		} finally {
-			if (isFullRefresh) {
-				this.fullRefreshInProgress = false;
-				if (this.categoriesPendingAfterFullRefresh.size > 0) {
-					this.scheduleRefresh([...this.categoriesPendingAfterFullRefresh]);
-					this.categoriesPendingAfterFullRefresh.clear();
-				}
-			}
+	private addPendingCategories(categories: readonly CustomizationMigrationCategoryId[]): void {
+		for (const category of categories) {
+			this.pendingCategories.add(category);
 		}
 	}
 
-	private async doRefreshCategories(categoryIds: ReadonlySet<CustomizationMigrationCategoryId>, isFullRefresh: boolean): Promise<void> {
-		const activeHarnessId = this.harnessService.activeHarness.get();
-		const activeSessionResource = this.harnessService.activeSessionResource.get();
-		const refreshSequence = ++this.refreshSequence;
+	private runPendingRefresh(): Promise<void> {
+		if (this.pendingCategories.size === 0) {
+			return Promise.resolve();
+		}
+
+		return this.refreshThrottler.queue(async () => {
+			if (this.pendingCategories.size === 0) {
+				return;
+			}
+			const categoryIds = new Set(this.pendingCategories);
+			this.pendingCategories.clear();
+			await this.refreshCategories(categoryIds);
+		});
+	}
+
+	private async refreshCategories(categoryIds: ReadonlySet<CustomizationMigrationCategoryId>): Promise<void> {
+		// Capture one context snapshot so asynchronous work can reject results invalidated while it was running.
+		const context: ICustomizationMigrationRefreshContext = {
+			generation: this.contextGeneration,
+			harnessId: this.harnessService.activeHarness.get(),
+			sessionResource: this.harnessService.activeSessionResource.get(),
+		};
 		this._state.set({
 			...this._state.get(),
-			loading: isFullRefresh,
+			loading: categoryIds.size === allMigrationCategoryIds.length,
 			loadError: undefined,
 		}, undefined);
 
-		if (!isAgentHostTarget(activeHarnessId)) {
-			this.setStateIfCurrent(refreshSequence, activeHarnessId, activeSessionResource, emptyMigrationState);
+		if (!isAgentHostTarget(context.harnessId)) {
+			this.setStateIfCurrent(context, emptyMigrationState);
 			return;
 		}
 
 		try {
-			const enabledCategories = this.getEnabledCategories();
-			if (enabledCategories.length === 0) {
-				this.setStateIfCurrent(refreshSequence, activeHarnessId, activeSessionResource, emptyMigrationState);
-				return;
+			const state = await this.computeRefreshState(context, categoryIds);
+			if (state) {
+				this.setStateIfCurrent(context, state);
 			}
-
-			const categoriesToRefresh = enabledCategories.filter(category => categoryIds.has(category.id));
-			const migrationsByCategory = await Promise.all(categoriesToRefresh.map(async category => {
-				const migration = category.migrationType === CustomizationMigrationType.McpServers
-					? await this.migrationService.computeMigration(activeSessionResource, CustomizationMigrationType.McpServers)
-					: await this.migrationService.computeMigration(activeSessionResource, category.migrationType);
-				return [category.id, migration.candidates] as const;
-			}));
-			if (!this.isCurrent(refreshSequence, activeHarnessId, activeSessionResource)) {
-				return;
-			}
-
-			const enabledCategoryIds = new Set(enabledCategories.map(category => category.id));
-			const candidatesByCategory = new Map(
-				[...this._state.get().candidatesByCategory].filter(([categoryId]) => enabledCategoryIds.has(categoryId))
-			);
-			for (const [categoryId, candidates] of migrationsByCategory) {
-				candidatesByCategory.set(categoryId, candidates);
-			}
-			const refreshesFileCategories = categoriesToRefresh.some(category => category.migrationType !== CustomizationMigrationType.McpServers);
-			let targetFoldersByType = this._state.get().targetFoldersByType;
-			if (refreshesFileCategories) {
-				const provider = this.harnessService.findHarnessById(activeHarnessId)?.itemProvider;
-				const targetTypes = new Set([...candidatesByCategory.values()].flat()
-					.filter(candidate => !isMcpServerCustomizationMigrationCandidate(candidate))
-					.map(getCustomizationMigrationTargetType));
-				const targetFolderEntries = await Promise.all([...targetTypes].map(async targetType => {
-					const folders = await provider?.provideSourceFolders?.(activeSessionResource, targetType, CancellationToken.None);
-					return [targetType, folders ?? []] as const;
-				}));
-				targetFoldersByType = new Map(targetFolderEntries);
-			}
-			this.setStateIfCurrent(refreshSequence, activeHarnessId, activeSessionResource, {
-				loading: false,
-				candidatesByCategory,
-				targetFoldersByType,
-			});
 		} catch (error) {
-			if (this.isCurrent(refreshSequence, activeHarnessId, activeSessionResource)) {
+			if (this.isCurrent(context)) {
 				this._state.set({
 					...this._state.get(),
 					loading: false,
@@ -209,8 +189,59 @@ export class CustomizationMigrationModel extends Disposable {
 		}
 	}
 
-	private getEnabledCategories(): readonly ICustomizationMigrationCategory[] {
-		return CUSTOMIZATION_MIGRATION_CATEGORIES.filter(category => this.isCategoryEnabled(category.id));
+	private async computeRefreshState(
+		context: ICustomizationMigrationRefreshContext,
+		categoryIds: ReadonlySet<CustomizationMigrationCategoryId>,
+	): Promise<ICustomizationMigrationModelState | undefined> {
+		const enabledCategories = CUSTOMIZATION_MIGRATION_CATEGORIES.filter(category => this.isCategoryEnabled(category.id));
+		if (enabledCategories.length === 0) {
+			return emptyMigrationState;
+		}
+
+		const categoriesToRefresh = enabledCategories.filter(category => categoryIds.has(category.id));
+		// Compute enabled categories together so the refresh publishes one consistent candidate snapshot.
+		const migrationsByCategory: CustomizationMigrationCategoryCandidates[] = await Promise.all(categoriesToRefresh.map(async category => {
+			const migration = category.migrationType === CustomizationMigrationType.McpServers
+				? await this.migrationService.computeMigration(context.sessionResource, CustomizationMigrationType.McpServers)
+				: await this.migrationService.computeMigration(context.sessionResource, category.migrationType);
+			return [category.id, migration.candidates] as const;
+		}));
+		if (!this.isCurrent(context)) {
+			return undefined;
+		}
+
+		// Preserve untouched enabled categories while replacing only those included in this partial refresh.
+		const enabledCategoryIds = new Set(enabledCategories.map(category => category.id));
+		const candidatesByCategory = new Map(
+			[...this._state.get().candidatesByCategory].filter(([categoryId]) => enabledCategoryIds.has(categoryId))
+		);
+		for (const [categoryId, candidates] of migrationsByCategory) {
+			candidatesByCategory.set(categoryId, candidates);
+		}
+		const refreshesFileCategories = categoriesToRefresh.some(category => category.migrationType !== CustomizationMigrationType.McpServers);
+		const targetFoldersByType = refreshesFileCategories
+			? await this.computeTargetFolders(context, candidatesByCategory)
+			: this._state.get().targetFoldersByType;
+		return {
+			loading: false,
+			candidatesByCategory,
+			targetFoldersByType,
+		};
+	}
+
+	private async computeTargetFolders(
+		context: ICustomizationMigrationRefreshContext,
+		candidatesByCategory: ReadonlyMap<CustomizationMigrationCategoryId, readonly CustomizationMigrationCandidate[]>,
+	): Promise<ReadonlyMap<PromptsType, readonly ICustomizationSourceFolder[]>> {
+		const provider = this.harnessService.findHarnessById(context.harnessId)?.itemProvider;
+		const targetTypes = new Set([...candidatesByCategory.values()].flat()
+			.filter(candidate => !isMcpServerCustomizationMigrationCandidate(candidate))
+			.map(getCustomizationMigrationTargetType));
+		const targetFolderEntries = await Promise.all([...targetTypes].map(async targetType => {
+			const folders = await provider?.provideSourceFolders?.(context.sessionResource, targetType, CancellationToken.None);
+			return [targetType, folders ?? []] as const;
+		}));
+		return new Map(targetFolderEntries);
 	}
 
 	isCategoryEnabled(categoryId: CustomizationMigrationCategoryId): boolean {
@@ -219,19 +250,17 @@ export class CustomizationMigrationModel extends Disposable {
 	}
 
 	private setStateIfCurrent(
-		refreshSequence: number,
-		activeHarnessId: string,
-		activeSessionResource: URI,
+		context: ICustomizationMigrationRefreshContext,
 		state: ICustomizationMigrationModelState,
 	): void {
-		if (this.isCurrent(refreshSequence, activeHarnessId, activeSessionResource)) {
+		if (this.isCurrent(context)) {
 			this._state.set(state, undefined);
 		}
 	}
 
-	private isCurrent(refreshSequence: number, activeHarnessId: string, activeSessionResource: URI): boolean {
-		return refreshSequence === this.refreshSequence
-			&& activeHarnessId === this.harnessService.activeHarness.get()
-			&& isEqual(activeSessionResource, this.harnessService.activeSessionResource.get());
+	private isCurrent(context: ICustomizationMigrationRefreshContext): boolean {
+		return context.generation === this.contextGeneration
+			&& context.harnessId === this.harnessService.activeHarness.get()
+			&& isEqual(context.sessionResource, this.harnessService.activeSessionResource.get());
 	}
 }

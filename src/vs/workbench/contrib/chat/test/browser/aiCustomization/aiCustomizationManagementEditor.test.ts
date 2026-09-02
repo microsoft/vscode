@@ -413,7 +413,8 @@ suite('aiCustomizationManagementEditor', () => {
 		};
 		setMigrationState(editor, new Map([[CustomizationMigrationCategoryId.McpServers, [serverA, serverB]]]));
 		editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.McpServers;
-		editor.selectedCustomizationMigrationItems = new Set([`mcp:${serverA.id}`]);
+		editor.selectedCustomizationMigrationItems = new Set();
+		editor.setCustomizationSelectedForMigration(serverA, true);
 		editor.migrationListContainer = document.createElement('div');
 		editor.migrationMigrateButton = { enabled: false, label: '' };
 
@@ -433,6 +434,36 @@ suite('aiCustomizationManagementEditor', () => {
 				'Select server from /workspace-b/.vscode/mcp.json',
 			],
 			button: { enabled: true, label: 'Migrate 1' },
+		});
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('does not preserve MCP migration selection when a positional ID moves to another source', () => {
+		const editor = createTestEditor();
+		const serverA: IMcpServerCustomizationMigrationCandidate = {
+			type: CustomizationMigrationType.McpServers,
+			id: 'mcp.config.ws0.server',
+			name: 'server',
+			sourceUri: URI.file('/workspace-a/.vscode/mcp.json'),
+			targetUri: URI.file('/workspace-a/.mcp.json'),
+			configuration: { type: McpServerType.LOCAL, command: 'server' },
+		};
+		const serverB: IMcpServerCustomizationMigrationCandidate = {
+			...serverA,
+			sourceUri: URI.file('/workspace-b/.vscode/mcp.json'),
+			targetUri: URI.file('/workspace-b/.mcp.json'),
+		};
+
+		editor.setCustomizationsToMigrate(new Map([[CustomizationMigrationCategoryId.McpServers, [serverA]]]));
+		editor.setCustomizationSelectedForMigration(serverA, false);
+		editor.setCustomizationsToMigrate(new Map([[CustomizationMigrationCategoryId.McpServers, [serverB]]]));
+
+		assert.deepStrictEqual({
+			oldSourceSelected: editor.isCustomizationSelectedForMigration(serverA),
+			newSourceSelected: editor.isCustomizationSelectedForMigration(serverB),
+		}, {
+			oldSourceSelected: false,
+			newSourceSelected: true,
 		});
 		editor.editorPreviewDisposables.dispose();
 	});

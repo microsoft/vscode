@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { getComparisonKey } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptFileSource, PromptsType } from '../promptTypes.js';
@@ -62,6 +63,15 @@ export interface IMcpServerCustomizationMigrationCandidate {
 	readonly sourceUri: URI;
 	readonly targetUri: URI;
 	readonly configuration: IMcpServerConfiguration;
+}
+
+export function getMcpServerCustomizationMigrationCandidateKey(candidate: IMcpServerCustomizationMigrationCandidate): string {
+	return JSON.stringify([
+		candidate.id,
+		candidate.name,
+		getComparisonKey(candidate.sourceUri),
+		getComparisonKey(candidate.targetUri),
+	]);
 }
 
 export interface IAgentHostMcpServerSupportCoverage {

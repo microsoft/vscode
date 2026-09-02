@@ -13,6 +13,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { CustomizationMigrationCategoryId } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 import { CustomizationMigrationModel } from '../../../browser/aiCustomization/customizationMigrationModel.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
@@ -172,6 +173,99 @@ suite('CustomizationMigrationModel', () => {
 			requestsAddedByMcpChange: 1,
 			requestsAddedByRootChange: 3,
 			requestedSessions: ['/session-a', '/session-b'],
+		});
+	});
+
+	test('serializes overlapping partial refreshes without discarding either category', async () => {
+		const session = URI.parse('agent-host-test:/session');
+		const promptRefreshStarted = new DeferredPromise<void>();
+		const releasePromptRefresh = new DeferredPromise<void>();
+		let blockPromptRefresh = false;
+		let promptVersion = 0;
+		let mcpVersion = 0;
+		const migrationService = new class extends TestMigrationService {
+			override async computeMigration(sessionResource: URI, type: FileCustomizationMigrationType): Promise<FileCustomizationMigration>;
+			override async computeMigration(sessionResource: URI, type: CustomizationMigrationType.McpServers): Promise<McpServerCustomizationMigration>;
+			override async computeMigration(sessionResource: URI, type: CustomizationMigrationType): Promise<CustomizationMigration> {
+				this.requestedSessions.push(sessionResource);
+				if (blockPromptRefresh && type === CustomizationMigrationType.PromptFiles) {
+					promptRefreshStarted.complete();
+					await releasePromptRefresh.p;
+				}
+				if (type === CustomizationMigrationType.McpServers) {
+					return {
+						type,
+						servers: [],
+						candidates: [{
+							type,
+							id: `mcp-${mcpVersion}`,
+							name: 'server',
+							sourceUri: URI.file('/workspace/.vscode/mcp.json'),
+							targetUri: URI.file('/workspace/.mcp.json'),
+							configuration: { type: McpServerType.LOCAL, command: `server-${mcpVersion}` },
+						}],
+						discoveryComplete: true,
+						coverage: {
+							restrictedByMcpAccess: false,
+							restrictedByCustomizationPolicy: false,
+						},
+					};
+				}
+				const candidate = {
+					uri: URI.file(`/prompt-${promptVersion}.prompt.md`),
+					storage: PromptsStorage.local,
+					type: PromptsType.prompt,
+				};
+				return type === CustomizationMigrationType.PromptFiles
+					? { type, files: [candidate.uri], candidates: [candidate] }
+					: { type, files: [], candidates: [] };
+			}
+		}();
+		const onDidChangeSlashCommands = store.add(new Emitter<void>());
+		const promptsService = store.add(new MockPromptsService());
+		promptsService.onDidChangeSlashCommands = onDidChangeSlashCommands.event;
+		const mcpServers = observableValue<readonly never[]>('mcpServers', []);
+		const harnessService = new class extends mock<ICustomizationHarnessService>() {
+			override readonly activeSessionResource = observableValue('activeSessionResource', session);
+			override readonly activeHarness = observableValue('activeHarness', session.scheme);
+			override findHarnessById() {
+				return { id: session.scheme, label: 'Test', icon: Codicon.beaker };
+			}
+		}();
+		const model = store.add(new CustomizationMigrationModel(
+			migrationService,
+			harnessService,
+			promptsService,
+			{ onDidChangeConfiguration: Event.None, getValue: () => true } as Partial<IConfigurationService> as IConfigurationService,
+			{ servers: mcpServers } as Partial<IMcpService> as IMcpService,
+			{ onDidChangeCustomizations: Event.None, getWorkingDirectories: () => [] } as Partial<IAgentHostCustomizationService> as IAgentHostCustomizationService,
+		));
+		const getPromptVersion = () => {
+			const candidate = model.state.get().candidatesByCategory.get(CustomizationMigrationCategoryId.PromptFiles)?.[0];
+			return candidate && !isMcpServerCustomizationMigrationCandidate(candidate) ? candidate.uri.path : undefined;
+		};
+		const getMcpVersion = () => {
+			const candidate = model.state.get().candidatesByCategory.get(CustomizationMigrationCategoryId.McpServers)?.[0];
+			return candidate && isMcpServerCustomizationMigrationCandidate(candidate) ? candidate.id : undefined;
+		};
+		await waitForState(model.state, state => !state.loading && getPromptVersion() === '/prompt-0.prompt.md' && getMcpVersion() === 'mcp-0');
+
+		blockPromptRefresh = true;
+		promptVersion = 1;
+		onDidChangeSlashCommands.fire();
+		await promptRefreshStarted.p;
+		mcpVersion = 1;
+		mcpServers.set([], undefined);
+		await timeout(10);
+		releasePromptRefresh.complete();
+		await waitForState(model.state, state => !state.loading && getPromptVersion() === '/prompt-1.prompt.md' && getMcpVersion() === 'mcp-1');
+
+		assert.deepStrictEqual({
+			prompt: getPromptVersion(),
+			mcp: getMcpVersion(),
+		}, {
+			prompt: '/prompt-1.prompt.md',
+			mcp: 'mcp-1',
 		});
 	});
 
