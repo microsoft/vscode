@@ -53,6 +53,7 @@ export class ImageCarouselEditor extends EditorPane {
 	private readonly _contentDisposables = this._register(new DisposableStore());
 	private readonly _imageDisposables = this._register(new DisposableStore());
 	private readonly _blobUrlCache = new Map<string, string>();
+	private _blobUrlCacheGeneration = 0;
 
 	private _videoWebview: IWebviewElement | undefined;
 	private _elements: {
@@ -389,6 +390,7 @@ export class ImageCarouselEditor extends EditorPane {
 		// Capture the navigation index before starting async work so that
 		// we can discard stale results if the user navigates while loading/decoding.
 		const navigationIndex = this._currentIndex;
+		const blobUrlCacheGeneration = this._blobUrlCacheGeneration;
 
 		// Swap main image using cached/lazy-loaded blob URL.
 		// Pre-decode via decode() before assigning to <img> so the browser
@@ -406,7 +408,7 @@ export class ImageCarouselEditor extends EditorPane {
 
 			// Load raw data to send via postMessage
 			const rawData = await this._loadRawData(currentImage);
-			if (this._currentIndex !== navigationIndex) {
+			if (this._currentIndex !== navigationIndex || this._blobUrlCacheGeneration !== blobUrlCacheGeneration) {
 				return;
 			}
 
@@ -453,7 +455,7 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 			const url = await this._loadBlobUrl(currentImage);
 
 			// If the user navigated while loading the blob URL, discard this result.
-			if (this._currentIndex !== navigationIndex) {
+			if (this._currentIndex !== navigationIndex || this._blobUrlCacheGeneration !== blobUrlCacheGeneration) {
 				return;
 			}
 
@@ -461,13 +463,13 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 			tmp.src = url;
 			tmp.decode().then(() => {
 				// Only apply if user hasn't navigated away during decode
-				if (this._currentIndex === navigationIndex && this._elements) {
+				if (this._currentIndex === navigationIndex && this._blobUrlCacheGeneration === blobUrlCacheGeneration && this._elements) {
 					this._elements.mainImage.src = url;
 					this._elements.mainImage.alt = currentImage.name;
 				}
 			}, () => {
 				// Decode failed (invalid image) — still show src for browser fallback
-				if (this._currentIndex === navigationIndex && this._elements) {
+				if (this._currentIndex === navigationIndex && this._blobUrlCacheGeneration === blobUrlCacheGeneration && this._elements) {
 					this._elements.mainImage.src = url;
 					this._elements.mainImage.alt = currentImage.name;
 				}
@@ -539,6 +541,7 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 		if (cached) {
 			return cached;
 		}
+		const blobUrlCacheGeneration = this._blobUrlCacheGeneration;
 
 		let buffer: Uint8Array;
 		if (image.data) {
@@ -550,6 +553,9 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 		} else {
 			return '';
 		}
+		if (this._blobUrlCacheGeneration !== blobUrlCacheGeneration) {
+			return '';
+		}
 
 		const blob = new Blob([buffer as Uint8Array<ArrayBuffer>], { type: image.mimeType });
 		const url = this._blobUrlCache.get(image.id) ?? URL.createObjectURL(blob);
@@ -558,6 +564,7 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 	}
 
 	private _revokeCachedBlobUrls(): void {
+		this._blobUrlCacheGeneration++;
 		for (const url of this._blobUrlCache.values()) {
 			URL.revokeObjectURL(url);
 		}
