@@ -206,6 +206,21 @@ suite('ExtHostTelemetry', function () {
 		assert.strictEqual(telemetryLoggers.has(mockExtensionIdentifier.identifier.value), false);
 	});
 
+	test('Telemetry loggers are removed from extension bookkeeping when flush throws', function () {
+		const extensionTelemetry = createExtHostTelemetry();
+		const logger = extensionTelemetry.instantiateLogger(mockExtensionIdentifier, {
+			sendEventData: () => { },
+			sendErrorData: () => { },
+			flush: () => { throw new Error('flush failed'); }
+		});
+		store.add(logger);
+		const telemetryLoggers = Reflect.get(extensionTelemetry, '_telemetryLoggers') as Map<string, ExtHostTelemetryLogger[]>;
+
+		assert.strictEqual(telemetryLoggers.get(mockExtensionIdentifier.identifier.value)?.length, 1);
+		assert.throws(() => logger.dispose(), /flush failed/);
+		assert.strictEqual(telemetryLoggers.has(mockExtensionIdentifier.identifier.value), false);
+	});
+
 	test('Simple log event to TelemetryLogger with options', function () {
 		const functionSpy: TelemetryLoggerSpy = { dataArr: [], exceptionArr: [], flushCalled: false };
 

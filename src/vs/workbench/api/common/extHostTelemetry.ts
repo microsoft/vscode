@@ -340,17 +340,20 @@ export class ExtHostTelemetryLogger {
 
 	dispose(): void {
 		const wasDisposed = this.isDisposed;
-		if (this._sender?.flush) {
-			let tempSender: vscode.TelemetrySender | undefined = this._sender;
-			this._sender = undefined;
-			Promise.resolve(tempSender.flush!()).then(tempSender = undefined);
-			this._apiObject = undefined;
-		} else {
-			this._sender = undefined;
-		}
-		this._onDidChangeEnableStates.dispose();
-		if (!wasDisposed) {
-			this._onDidDispose(this);
+		try {
+			if (this._sender?.flush) {
+				let tempSender: vscode.TelemetrySender | undefined = this._sender;
+				this._sender = undefined;
+				this._apiObject = undefined;
+				Promise.resolve(tempSender.flush!()).then(tempSender = undefined);
+			} else {
+				this._sender = undefined;
+			}
+		} finally {
+			this._onDidChangeEnableStates.dispose();
+			if (!wasDisposed) {
+				this._onDidDispose(this);
+			}
 		}
 	}
 }
