@@ -48,7 +48,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { parseRemoteAgentHostSessionTypeAuthority } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { parseAgentMergePrompt } from '../../../../../platform/agentHost/common/agentMergePrompt.js';
-import { isCreateChatTool, isCreateSessionTool } from '../../../../../platform/agentHost/common/openSessionLink.js';
+import { isCreateChatTool, isCreateSessionTool, isSendMessageTool } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CodiconActionViewItem } from '../../../notebook/browser/view/cellParts/cellActionView.js';
 import { annotateSpecialMarkdownContent, extractSubAgentInvocationIdFromText, hasCodeblockUriTag, hasEditCodeblockUriTag } from '../../common/widget/annotations.js';
@@ -338,12 +338,18 @@ export function moveResponseOutcomeToolsAfterFinalResponse(content: ReadonlyArra
 	const responseLinkTargets = outcomeTools.some(part => getSessionCreatedOutcomeLink(part) !== undefined)
 		? getFinalResponseLinkTargets(content)
 		: undefined;
-	const uniqueOutcomeTools = responseLinkTargets
-		? outcomeTools.filter(part => {
-			const openLink = getSessionCreatedOutcomeLink(part);
-			return openLink === undefined || !responseLinkTargets.has(openLink);
-		})
-		: outcomeTools;
+	const seenSessionLinks = new Set<string>();
+	const uniqueOutcomeTools = outcomeTools.filter(part => {
+		const openLink = getSessionCreatedOutcomeLink(part);
+		if (openLink === undefined) {
+			return true;
+		}
+		if (responseLinkTargets?.has(openLink) || seenSessionLinks.has(openLink)) {
+			return false;
+		}
+		seenSessionLinks.add(openLink);
+		return true;
+	});
 
 	const finalResponseStartIndex = getFinalResponseStartIndexAfterMovingResponseOutcomeTools(content);
 	if (finalResponseStartIndex === undefined) {
@@ -3220,7 +3226,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// "Open Session" button must stay visible, not hidden inside a collapsed
 		// thinking group. Keyed on toolId so this holds while the tool streams too
 		// (before `toolSpecificData` is set on completion).
-		if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && (isCreateSessionTool(part.toolId) || isCreateChatTool(part.toolId))) {
+		if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && (isCreateSessionTool(part.toolId) || isCreateChatTool(part.toolId) || isSendMessageTool(part.toolId))) {
 			return false;
 		}
 

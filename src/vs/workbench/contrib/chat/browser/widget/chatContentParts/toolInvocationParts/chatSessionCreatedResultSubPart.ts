@@ -19,8 +19,8 @@ import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import '../media/chatSessionCreatedResult.css';
 
 /**
- * Renders the target title of a completed `create_session` or `create_chat`
- * tool call as a link. The link comes from the tool call's
+ * Renders the target title of a completed `create_session`, `create_chat`, or
+ * `send_message` tool call as a link. The link comes from the tool call's
  * structured {@link IChatSessionCreatedData} rather than the model's prose.
  */
 export class ChatSessionCreatedResultSubPart extends BaseChatToolInvocationSubPart {
