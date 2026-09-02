@@ -110,6 +110,7 @@ const markdownThreads: AgentMergePromptContext['reviewThreads'] = [
 ];
 
 const failedChecks = ['Compile / Compile (ubuntu-latest)', 'Linux Unit Tests (Electron)'];
+const fixtureTimestamp = new Date().setHours(15, 33, 0, 0);
 
 function createContext(overrides?: Partial<AgentMergePromptContext>): AgentMergePromptContext {
 	return {
@@ -195,7 +196,7 @@ function renderAgentMerge({ container, disposableStore, theme }: ComponentFixtur
 	instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 
 	const markdownRenderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
-	const part = disposableStore.add(instantiationService.createInstance(ChatAgentMergeContentPart, options.summary, sessionResource, markdownRenderer));
+	const part = disposableStore.add(instantiationService.createInstance(ChatAgentMergeContentPart, options.summary, sessionResource, markdownRenderer, fixtureTimestamp));
 	container.appendChild(part.domNode);
 
 	if (options.expanded) {
@@ -326,6 +327,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 						failedChecks,
 					})),
 					isSystemInitiated: true,
+					timestamp: fixtureTimestamp,
 					assistant: [{
 						kind: 'markdown',
 						text: 'I addressed the review feedback and fixed the failing checks. The branch is ready for another review.',

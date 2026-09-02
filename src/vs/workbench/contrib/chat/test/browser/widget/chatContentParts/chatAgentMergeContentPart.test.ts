@@ -40,12 +40,14 @@ function createPart(
 	options: {
 		readonly hoverService?: IHoverService;
 		readonly markdownRenderer?: IMarkdownRenderer;
+		readonly timestamp?: number;
 	} = {},
 ): ChatAgentMergeContentPart {
 	return new ChatAgentMergeContentPart(
 		data,
 		URI.parse('test://session'),
 		options.markdownRenderer ?? upcastPartial<IMarkdownRenderer>({}),
+		options.timestamp,
 		upcastPartial<IOpenerService>({}),
 		options.hoverService ?? upcastPartial<IHoverService>({ setupDelayedHover: () => toDisposable(() => { }) }),
 		upcastPartial<ICommandService>({}),
@@ -151,6 +153,27 @@ suite('ChatAgentMergeContentPart file labels', () => {
 		}));
 
 		assert.strictEqual(hoverTarget, part.domNode.querySelector('.chat-agent-merge-header-disclosure'));
+	});
+
+	test('renders the request timestamp and participant below the card', () => {
+		const timestamp = new Date().setHours(15, 33, 0, 0);
+		const part = store.add(createPart(summary(), { timestamp }));
+		const metadata = part.domNode.querySelector('.chat-agent-merge-metadata');
+		const time = metadata?.querySelector('time');
+
+		assert.deepStrictEqual({
+			cardParent: part.domNode.querySelector('.chat-agent-merge-card')?.parentElement,
+			metadataParent: metadata?.parentElement,
+			metadataText: metadata?.textContent,
+			dateTime: time?.dateTime,
+			tabIndex: time?.tabIndex,
+		}, {
+			cardParent: part.domNode,
+			metadataParent: part.domNode,
+			metadataText: '3:33 PM\u2022Agent Merge',
+			dateTime: new Date(timestamp).toISOString(),
+			tabIndex: 0,
+		});
 	});
 
 	test('shows section headings only when comments and checks are both present', () => {

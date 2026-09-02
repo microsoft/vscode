@@ -22,6 +22,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ChatPillActionViewItem } from '../../../../../browser/chatPills.js';
+import { formatChatRequestTimestamp } from '../../../common/chatProgressFormatting.js';
 import { AgentFeedbackReviewCommandId, IChatAgentFeedbackPullRequestThreadLink } from '../../../common/chatService/chatService.js';
 import { IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
 import './media/chatAgentMergeContent.css';
@@ -67,7 +68,7 @@ interface IAgentMergeCommentItem extends IAgentMergeFileLocation {
 const agentMergeSource = localize('chat.agentMerge.source', "Agent Merge");
 
 /** The status shown in the header, describing why the turn was started. */
-function describeAgentMergeStatus(summary: IAgentMergePromptSummary, commentCount: number): { readonly icon: ThemeIcon; readonly title: string } {
+function describeAgentMergeStatus(summary: IAgentMergePromptSummary, commentCount: number): string {
 	const events: string[] = [];
 	if (commentCount > 0) {
 		events.push(commentCount === 1
@@ -89,19 +90,7 @@ function describeAgentMergeStatus(summary: IAgentMergePromptSummary, commentCoun
 		events.push(localize('chat.agentMerge.noPendingFeedback', "No Pending Feedback"));
 	}
 
-	const icon = summary.failedChecks.length > 0
-		? Codicon.errorCompact
-		: summary.conflicting
-			? Codicon.warningCompact
-			: commentCount > 0
-				? Codicon.commentCompact
-				: summary.behind
-					? Codicon.arrowDown
-					: Codicon.checkCompact;
-	return {
-		icon,
-		title: formatAgentMergeEvents(events),
-	};
+	return formatAgentMergeEvents(events);
 }
 
 function formatAgentMergeEvents(events: readonly string[]): string {
@@ -124,7 +113,7 @@ function formatAgentMergeEvents(events: readonly string[]): string {
  */
 export function getAgentMergeSummaryLabel(summary: IAgentMergePromptSummary): string {
 	const status = describeAgentMergeStatus(summary, collectComments(summary).length);
-	return localize('chat.agentMerge.summaryLabel', "{0}, {1}", status.title, agentMergeSource);
+	return localize('chat.agentMerge.summaryLabel', "{0}, {1}", status, agentMergeSource);
 }
 
 /**
@@ -152,6 +141,7 @@ export class ChatAgentMergeContentPart extends Disposable {
 		private readonly _summary: IAgentMergePromptSummary,
 		private readonly _sessionResource: URI,
 		private readonly _markdownRenderer: IMarkdownRenderer,
+		timestamp: number | undefined,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -162,14 +152,16 @@ export class ChatAgentMergeContentPart extends Disposable {
 		this._fileLabels = describeAgentMergeFileLabels(this._comments);
 
 		this.domNode = dom.$('.chat-agent-merge');
-		this._createHeader(this.domNode);
+		const card = dom.append(this.domNode, dom.$('.chat-agent-merge-card'));
+		this._createHeader(card);
 
-		const body = dom.append(this.domNode, dom.$('.chat-agent-merge-body'));
+		const body = dom.append(card, dom.$('.chat-agent-merge-body'));
 		const details = dom.append(body, dom.$('.chat-agent-merge-details'));
 		this._createPullRequestRow(details);
 		this._createCommentsSection(details);
 		this._createChecksSection(details);
 		this._createAgentMessage(body);
+		this._createMetadata(this.domNode, timestamp);
 	}
 
 	private _createHeader(parent: HTMLElement): void {
@@ -185,11 +177,8 @@ export class ChatAgentMergeContentPart extends Disposable {
 
 		const status = describeAgentMergeStatus(this._summary, this._comments.length);
 		const content = dom.append(header, dom.$('.chat-agent-merge-header-content', { 'aria-hidden': 'true' }));
-		const icon = dom.append(content, dom.$('span.chat-agent-merge-status-icon'));
-		icon.classList.add(...ThemeIcon.asClassNameArray(status.icon));
-		dom.append(content, dom.$('span.chat-agent-merge-title', undefined, status.title));
-		this._register(this._hoverService.setupDelayedHover(disclosureButton.element, { content: status.title }));
-		dom.append(content, dom.$('span.chat-agent-merge-source', undefined, agentMergeSource));
+		dom.append(content, dom.$('span.chat-agent-merge-title', undefined, status));
+		this._register(this._hoverService.setupDelayedHover(disclosureButton.element, { content: status }));
 
 		let messageButton: Button | undefined;
 		const setExpanded = (expanded: boolean) => {
@@ -233,6 +222,21 @@ export class ChatAgentMergeContentPart extends Disposable {
 
 		const twistie = dom.append(header, dom.$('span.chat-agent-merge-twistie', { 'aria-hidden': 'true' }));
 		twistie.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRightCompact));
+	}
+
+	private _createMetadata(parent: HTMLElement, timestamp: number | undefined): void {
+		const metadata = dom.append(parent, dom.$('.chat-agent-merge-metadata'));
+		const formattedTimestamp = formatChatRequestTimestamp(timestamp);
+		if (formattedTimestamp) {
+			const time = dom.append(metadata, dom.$('time.chat-agent-merge-timestamp', {
+				datetime: formattedTimestamp.dateTime,
+				'aria-label': localize('chat.agentMerge.startedAt', "Started {0}", formattedTimestamp.fullText),
+				tabindex: 0,
+			}, formattedTimestamp.text));
+			this._register(this._hoverService.setupDelayedHover(time, { content: formattedTimestamp.fullText }));
+			dom.append(metadata, dom.$('span.chat-agent-merge-metadata-separator', { 'aria-hidden': 'true' }, '\u2022'));
+		}
+		dom.append(metadata, dom.$('span.chat-agent-merge-participant', undefined, agentMergeSource));
 	}
 
 	private _createPullRequestRow(body: HTMLElement): void {

@@ -6,33 +6,41 @@
 .chat-agent-merge {
 	display: flex;
 	flex-direction: column;
-	align-self: flex-start;
+	gap: var(--vscode-spacing-size40);
 	margin: var(--vscode-spacing-size40) 0;
+	width: 100%;
+	max-width: 100%;
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.chat-agent-merge > .chat-agent-merge-card {
+	display: flex;
+	flex-direction: column;
+	align-self: flex-start;
 	background-color: var(--vscode-chat-statusBackground);
 	border: var(--vscode-strokeThickness) solid transparent;
 	border-radius: var(--vscode-cornerRadius-medium);
 	overflow: hidden;
-	font-size: var(--vscode-fontSize-label1);
 	/* Collapsed, the card hugs its header; expanded, the body grows it to the transcript width. */
 	width: fit-content;
 	max-width: 100%;
 }
 
-.hc-black .chat-agent-merge,
-.hc-light .chat-agent-merge {
+.hc-black .chat-agent-merge > .chat-agent-merge-card,
+.hc-light .chat-agent-merge > .chat-agent-merge-card {
 	border-color: var(--vscode-chat-requestBorder);
 }
 
-.chat-agent-merge > .chat-agent-merge-header,
+.chat-agent-merge > .chat-agent-merge-card > .chat-agent-merge-header,
 .chat-agent-merge .chat-agent-merge-header-content {
 	display: flex;
 	align-items: center;
 }
 
-.chat-agent-merge > .chat-agent-merge-header {
+.chat-agent-merge > .chat-agent-merge-card > .chat-agent-merge-header {
 	position: relative;
 	gap: var(--vscode-spacing-size40);
-	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80) var(--vscode-spacing-size60) var(--vscode-spacing-size120);
 	border-radius: calc(var(--vscode-cornerRadius-medium) - var(--vscode-strokeThickness)) calc(var(--vscode-cornerRadius-medium) - var(--vscode-strokeThickness)) 0 0;
 	overflow: hidden;
 }
@@ -54,17 +62,16 @@
 	position: relative;
 	z-index: 1;
 	flex: 0 1 auto;
-	gap: var(--vscode-spacing-size60);
 	min-width: 0;
 	min-height: var(--vscode-spacing-size200);
 	pointer-events: none;
 }
 
-.chat-agent-merge.collapsed > .chat-agent-merge-header {
+.chat-agent-merge.collapsed > .chat-agent-merge-card > .chat-agent-merge-header {
 	border-radius: calc(var(--vscode-cornerRadius-medium) - var(--vscode-strokeThickness));
 }
 
-.chat-agent-merge > .chat-agent-merge-header:hover {
+.chat-agent-merge > .chat-agent-merge-card > .chat-agent-merge-header:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
@@ -105,8 +112,8 @@
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
-.chat-agent-merge:not(.collapsed) > .chat-agent-merge-header:hover .chat-agent-merge-message-toggle,
-.chat-agent-merge:not(.collapsed) > .chat-agent-merge-header:focus-within .chat-agent-merge-message-toggle {
+.chat-agent-merge:not(.collapsed) > .chat-agent-merge-card > .chat-agent-merge-header:hover .chat-agent-merge-message-toggle,
+.chat-agent-merge:not(.collapsed) > .chat-agent-merge-card > .chat-agent-merge-header:focus-within .chat-agent-merge-message-toggle {
 	opacity: 1;
 	pointer-events: auto;
 }
@@ -138,8 +145,8 @@ the codicon base rule, which would otherwise force every glyph to 16px. */
 	opacity: 0;
 }
 
-.chat-agent-merge > .chat-agent-merge-header:hover > .chat-agent-merge-twistie,
-.chat-agent-merge > .chat-agent-merge-header:focus-within > .chat-agent-merge-twistie {
+.chat-agent-merge > .chat-agent-merge-card > .chat-agent-merge-header:hover > .chat-agent-merge-twistie,
+.chat-agent-merge > .chat-agent-merge-card > .chat-agent-merge-header:focus-within > .chat-agent-merge-twistie {
 	opacity: 1;
 }
 
@@ -148,20 +155,12 @@ which sits either on an ancestor or on the workbench element itself. */
 .monaco-reduce-motion .chat-agent-merge .chat-agent-merge-twistie.codicon,
 .monaco-workbench.monaco-reduce-motion .chat-agent-merge .chat-agent-merge-twistie.codicon,
 .monaco-reduce-motion .chat-agent-merge .chat-agent-merge-message-toggle,
-.monaco-workbench.monaco-reduce-motion .chat-agent-merge .chat-agent-merge-message-toggle,
-.monaco-reduce-motion .chat-agent-merge .chat-agent-merge-source,
-.monaco-workbench.monaco-reduce-motion .chat-agent-merge .chat-agent-merge-source {
+.monaco-workbench.monaco-reduce-motion .chat-agent-merge .chat-agent-merge-message-toggle {
 	transition: none;
 }
 
-.chat-agent-merge:not(.collapsed) > .chat-agent-merge-header > .chat-agent-merge-twistie {
+.chat-agent-merge:not(.collapsed) > .chat-agent-merge-card > .chat-agent-merge-header > .chat-agent-merge-twistie {
 	transform: rotate(90deg);
-}
-
-.chat-agent-merge .chat-agent-merge-status-icon.codicon {
-	flex: 0 0 auto;
-	font-size: var(--vscode-codiconFontSize-compact);
-	color: var(--vscode-descriptionForeground);
 }
 
 .chat-agent-merge .chat-agent-merge-title {
@@ -172,48 +171,50 @@ which sits either on an ancestor or on the workbench element itself. */
 	white-space: nowrap;
 }
 
-.chat-agent-merge .chat-agent-merge-source {
-	display: none;
-	align-items: center;
-	flex: 0 0 auto;
-	gap: var(--vscode-spacing-size60);
-	color: var(--vscode-descriptionForeground);
-	font-weight: var(--vscode-fontWeight-regular);
-	opacity: 0;
-	white-space: nowrap;
-	transition:
-		opacity 60ms ease-out,
-		display 60ms allow-discrete;
-}
-
-.chat-agent-merge:not(.collapsed) .chat-agent-merge-source,
-.chat-agent-merge.collapsed > .chat-agent-merge-header:hover .chat-agent-merge-source,
-.chat-agent-merge.collapsed > .chat-agent-merge-header:focus-within .chat-agent-merge-source {
+.chat-agent-merge > .chat-agent-merge-metadata {
+	align-self: flex-end;
 	display: flex;
-	opacity: 1;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	line-height: var(--vscode-spacing-size160);
+	opacity: 0;
+	pointer-events: none;
+	white-space: nowrap;
+	transition: opacity 100ms ease-in-out;
 }
 
-@starting-style {
-
-	.chat-agent-merge:not(.collapsed) .chat-agent-merge-source,
-	.chat-agent-merge.collapsed > .chat-agent-merge-header:hover .chat-agent-merge-source,
-	.chat-agent-merge.collapsed > .chat-agent-merge-header:focus-within .chat-agent-merge-source {
-		opacity: 0;
-	}
+.chat-agent-merge:hover > .chat-agent-merge-metadata,
+.chat-agent-merge:focus-within > .chat-agent-merge-metadata {
+	opacity: 0.7;
+	pointer-events: auto;
 }
 
-.chat-agent-merge .chat-agent-merge-source::before {
-	content: '\2022';
+.chat-agent-merge .chat-agent-merge-timestamp {
+	font-variant-numeric: tabular-nums;
+	font-feature-settings: "tnum";
 }
 
-.chat-agent-merge > .chat-agent-merge-body {
+.chat-agent-merge .chat-agent-merge-timestamp:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+.monaco-reduce-motion .chat-agent-merge > .chat-agent-merge-metadata,
+.monaco-workbench.monaco-reduce-motion .chat-agent-merge > .chat-agent-merge-metadata {
+	transition: none;
+}
+
+.chat-agent-merge > .chat-agent-merge-card > .chat-agent-merge-body {
 	display: flex;
 	flex-direction: column;
 	gap: var(--vscode-spacing-size80);
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size120) var(--vscode-spacing-size120);
 }
 
-.chat-agent-merge.collapsed > .chat-agent-merge-body {
+.chat-agent-merge.collapsed > .chat-agent-merge-card > .chat-agent-merge-body {
 	display: none;
 }
 
@@ -244,6 +245,7 @@ which sits either on an ancestor or on the workbench element itself. */
 	display: flex;
 	align-items: center;
 	padding-top: var(--vscode-spacing-size40);
+	padding-bottom: var(--vscode-spacing-size40);
 	margin-inline: calc(var(--vscode-spacing-size60) - var(--vscode-spacing-size120));
 	min-width: 0;
 }
