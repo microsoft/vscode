@@ -552,7 +552,7 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 		}
 
 		const blob = new Blob([buffer as Uint8Array<ArrayBuffer>], { type: image.mimeType });
-		const url = URL.createObjectURL(blob);
+		const url = this._blobUrlCache.get(image.id) ?? URL.createObjectURL(blob);
 		this._blobUrlCache.set(image.id, url);
 		return url;
 	}
