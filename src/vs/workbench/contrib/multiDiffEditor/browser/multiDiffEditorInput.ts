@@ -28,9 +28,14 @@ import { IEditorConfiguration } from '../../../browser/parts/editor/textEditor.j
 import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOptions, GroupIdentifier, IEditorSerializer, IResourceMultiDiffEditorInput, IRevertOptions, ISaveOptions, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
-import { ILanguageSupport, ITextFileEditorModel, ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { ILanguageSupport, ITextFileEditorModel, ITextFileService, TextFileOperationError, TextFileOperationResult } from '../../../services/textfile/common/textfiles.js';
 import { MultiDiffEditorIcon } from './icons.contribution.js';
 import { IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
+
+function isBinaryTextFileOperationError(error: unknown): error is TextFileOperationError {
+	return TextFileOperationError.isTextFileOperationError(error)
+		&& error.textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY;
+}
 
 export class MultiDiffEditorInput extends EditorInput implements ILanguageSupport {
 	public static fromResourceMultiDiffEditorInput(input: IResourceMultiDiffEditorInput, instantiationService: IInstantiationService): MultiDiffEditorInput {
@@ -226,25 +231,30 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 				return undefined;
 			}
 
-			let errorResult: PromiseRejectedResult | undefined;
-			if (originalResult.status === 'rejected') {
-				errorResult = originalResult;
-			} else if (modifiedResult.status === 'rejected') {
-				errorResult = modifiedResult;
-			}
+			const errorResults = [originalResult, modifiedResult].filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+			const errorResult = errorResults.find(result => !isBinaryTextFileOperationError(result.reason));
 			if (errorResult) {
 				multiDiffItemStore.dispose();
-				// e.g. "File seems to be binary and cannot be opened as text"
 				console.error(errorResult.reason);
 				onUnexpectedError(errorResult.reason);
 				return undefined;
 			}
 
+			const isBinary = errorResults.length > 0;
+			if (isBinary) {
+				multiDiffItemStore.clear();
+				original = undefined;
+				modified = undefined;
+			}
+
 			const uri = (r.modifiedUri ?? r.originalUri)!;
 			const result: IDocumentDiffItemWithMultiDiffEditorItem = {
 				multiDiffEditorItem: r,
+				originalUri: r.originalUri,
+				modifiedUri: r.modifiedUri,
 				original: original?.object.textEditorModel,
 				modified: modified?.object.textEditorModel,
+				isBinary,
 				contextKeys: r.contextKeys,
 				get options() {
 					return {
@@ -321,6 +331,9 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		const items = this._viewModel.currentValue?.items.get();
 		if (items) {
 			await Promise.all(items.map(async item => {
+				if (item.documentDiffItem.isBinary) {
+					return;
+				}
 				const model = item.diffEditorViewModel.model;
 				const handleOriginal = model.original.uri.scheme !== Schemas.untitled && this._textFileService.isDirty(model.original.uri); // match diff editor behaviour
 
