@@ -330,6 +330,11 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 	// https://github.com/aadsm/jschardet/blob/v2.1.1/src/index.js#L36-L40
 	const binaryString = encodeLatin1(limitedBuffer.buffer);
 
+	// Keep the original candidate encodings for superset/explicit comparison
+	// after jschardet detection (the jschardet names may differ, e.g., gb18030
+	// is not a known jschardet encoding but maps to GB2312).
+	const originalCandidateEncodings = candidateGuessEncodings;
+
 	// ensure to convert candidate encodings to jschardet encoding names if provided
 	if (candidateGuessEncodings) {
 		candidateGuessEncodings = coalesce(candidateGuessEncodings.map(e => toJschardetEncoding(e)));
@@ -354,12 +359,45 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 		return null; // see comment above why we ignore some encodings
 	}
 
-	return toIconvLiteEncoding(guessed.encoding);
+	const detectedEncoding = toIconvLiteEncoding(guessed.encoding);
+
+	if (originalCandidateEncodings) {
+		const normalizedDetected = normalizeEncoding(detectedEncoding);
+
+		// Match candidates in their configured order, preferring an exact match over a later superset.
+		for (const candidate of originalCandidateEncodings) {
+			const normalizedCandidate = normalizeEncoding(candidate);
+			if (normalizedCandidate === normalizedDetected) {
+				return detectedEncoding;
+			}
+			if (ENCODING_SUBSET_TO_SUPERSET[normalizedDetected] === normalizedCandidate) {
+				return normalizedCandidate;
+			}
+		}
+	}
+
+	// Automatically upgrade subset encodings to their superset equivalents
+	// for safer decoding (e.g., GB2312 → GB18030).
+	const normalizedDetected = normalizeEncoding(detectedEncoding);
+	const upgraded = ENCODING_SUBSET_TO_SUPERSET[normalizedDetected];
+	if (upgraded) {
+		return upgraded;
+	}
+
+	return detectedEncoding;
 }
 
 const JSCHARDET_TO_ICONV_ENCODINGS: { [name: string]: string } = {
 	'ibm866': 'cp866',
 	'big5': 'cp950'
+};
+
+// Maps subset encodings to their superset equivalents.
+// When jschardet detects a subset encoding, upgrading to the superset
+// ensures all characters can be decoded (e.g., GB18030 is a superset of GB2312
+// and supports the full Unicode range).
+const ENCODING_SUBSET_TO_SUPERSET: { [name: string]: string } = {
+	'gb2312': 'gb18030'
 };
 
 function normalizeEncoding(encodingName: string): string {
@@ -711,7 +749,8 @@ export const SUPPORTED_ENCODINGS: EncodingsMap = {
 	gb18030: {
 		labelLong: 'Simplified Chinese (GB18030)',
 		labelShort: 'GB18030',
-		order: 37
+		order: 37,
+		guessableName: 'GB2312'
 	},
 	cp950: {
 		labelLong: 'Traditional Chinese (Big5)',
