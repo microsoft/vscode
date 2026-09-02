@@ -9684,6 +9684,44 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('destroys live sessions concurrently during shutdown', async () => {
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+			const firstGate = new DeferredPromise<void>();
+			const secondGate = new DeferredPromise<void>();
+			const started = new Set<string>();
+			try {
+				setDefaultSessionStub(agent, 'shutdown-first', {
+					async destroySession() {
+						started.add('first');
+						await firstGate.p;
+					},
+					dispose() { },
+				});
+				setDefaultSessionStub(agent, 'shutdown-second', {
+					async destroySession() {
+						started.add('second');
+						await secondGate.p;
+					},
+					dispose() { },
+				});
+
+				const shutdown = agent.shutdown();
+				for (let i = 0; i < 50 && started.size < 2; i++) {
+					await timeout(0);
+				}
+				const startedBeforeCompletion = [...started].sort();
+				firstGate.complete();
+				secondGate.complete();
+				await shutdown;
+
+				assert.deepStrictEqual(startedBeforeCompletion, ['first', 'second']);
+			} finally {
+				firstGate.complete();
+				secondGate.complete();
+				await disposeAgent(agent);
+			}
+		});
+
 		test('resumes peers after recreating a disposed session ID', async () => {
 			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
 			try {

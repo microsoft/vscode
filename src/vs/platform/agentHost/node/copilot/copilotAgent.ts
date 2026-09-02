@@ -4884,9 +4884,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._modelRefreshRetry.clear();
 				this._logService.info('[Copilot] Shutting down...');
 				await Promise.all([...this._sessionLifetimes.values()].map(lifetime => lifetime.close()));
-				for (const session of this._allLiveSessions()) {
-					await this._destroyLiveSession(session);
-				}
+				await Promise.all(this._allLiveSessions().map(session => this._destroyLiveSession(session)));
 				await this._stopClient();
 				this._sessionLifetimes.clear();
 			})();
