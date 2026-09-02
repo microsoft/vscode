@@ -16,7 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostShellToolInitScriptEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import type { IShellInitScript } from '../../../../../../platform/agentHost/common/shellInitScript.js';
+import { createShellInitScript, type IShellInitScript, type ShellInitScriptShell } from '../../../../../../platform/agentHost/common/shellInitScript.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionEnvelope, ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -30,6 +30,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 
 const PYTHON_EXTENSION = 'ms-python.vscode-python-envs';
 const ACTIVATION_VARIABLE = isWindows ? 'VSCODE_PYTHON_PWSH_ACTIVATE' : 'VSCODE_PYTHON_BASH_ACTIVATE';
+const TOOL_SHELL: ShellInitScriptShell = isWindows ? 'powershell' : 'bash';
 
 class TestSubscription extends Disposable implements IAgentSubscription<SessionState> {
 	private readonly _onDidChange = this._register(new Emitter<SessionState>());
@@ -170,9 +171,18 @@ suite('AgentHostShellInitSynchronizer', () => {
 			collection: collection([{ variable: ACTIVATION_VARIABLE, value: 'activate-a', folder: folderA }]),
 		});
 		await register(synchronizer, state());
-		assert.strictEqual(scripts(dispatched).length, 1);
-		assert.ok(scripts(dispatched)[0].script.includes('activate-a'));
-		assert.ok(scripts(dispatched)[0].script.indexOf('.bashrc') < scripts(dispatched)[0].script.indexOf('activate-a'));
+		const published = scripts(dispatched)[0];
+		const profileMarker = isWindows ? '$PROFILE.CurrentUserAllHosts' : '.bashrc';
+		const activationMarker = isWindows ? 'FromBase64String' : 'activate-a';
+		assert.deepStrictEqual({
+			scripts: scripts(dispatched),
+			profileBeforeActivation: published.script.includes(profileMarker)
+				&& published.script.includes(activationMarker)
+				&& published.script.indexOf(profileMarker) < published.script.indexOf(activationMarker),
+		}, {
+			scripts: [createShellInitScript(TOOL_SHELL, 'activate-a')],
+			profileBeforeActivation: true,
+		});
 	});
 
 	test('publishes a changed activation when environment collections change', async () => {
@@ -193,10 +203,10 @@ suite('AgentHostShellInitSynchronizer', () => {
 
 		assert.deepStrictEqual({
 			dispatches: dispatched.length,
-			hasUpdatedActivation: scripts(dispatched)[0].script.includes('activate-b'),
+			scripts: scripts(dispatched),
 		}, {
 			dispatches: 2,
-			hasUpdatedActivation: true,
+			scripts: [createShellInitScript(TOOL_SHELL, 'activate-b')],
 		});
 	});
 
@@ -311,8 +321,7 @@ suite('AgentHostShellInitSynchronizer', () => {
 			]),
 		});
 		await register(synchronizer, state({ cwd: URI.file('/tmp/worktree'), project: folderB.uri }));
-		assert.ok(scripts(dispatched)[0].script.includes('activate-b'));
-		assert.ok(!scripts(dispatched)[0].script.includes('activate-a'));
+		assert.deepStrictEqual(scripts(dispatched), [createShellInitScript(TOOL_SHELL, 'activate-b')]);
 	});
 
 	test('ignores activation published by another extension', async () => {

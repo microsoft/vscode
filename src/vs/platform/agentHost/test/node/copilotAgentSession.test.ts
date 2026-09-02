@@ -870,10 +870,10 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		hasCapability: (resource: URI, capability: FileSystemProviderCapabilities) =>
 			options?.fileAtomicWrite === true &&
 			capability === FileSystemProviderCapabilities.FileAtomicWrite &&
-			resource.fsPath.includes('/agentHost/shellInit/'),
+			resource.path.includes('/agentHost/shellInit/'),
 		writeFile: async (resource: URI, content: VSBuffer, writeOptions?: IWriteFileOptions) => {
 			fileWriteOptions.set(resource.fsPath, writeOptions);
-			if (resource.fsPath.includes('/agentHost/shellInit/')) {
+			if (resource.path.includes('/agentHost/shellInit/')) {
 				options?.onShellInitWrite?.();
 				await options?.shellInitWriteGate;
 				if (shellInitWriteFailures > 0) {
@@ -888,11 +888,11 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			return { resource } as Awaited<ReturnType<IFileService['writeFile']>>;
 		},
 		del: async (resource: URI, delOptions?: { recursive?: boolean }) => {
-			if (resource.fsPath.includes('/agentHost/shellInit/')) {
+			if (resource.path.includes('/agentHost/shellInit/')) {
 				mockSession.operationLog.push('file.delete:shellInit');
 			}
 			const matches = [...storedFileContents.keys()].filter(key => key.startsWith(resource.toString()) || key.startsWith(resource.fsPath));
-			if (options?.shellInitDeleteMissingThrows && resource.fsPath.includes('/agentHost/shellInit/') && matches.length === 0) {
+			if (options?.shellInitDeleteMissingThrows && resource.path.includes('/agentHost/shellInit/') && matches.length === 0) {
 				throw new FileOperationError('not found', FileOperationResult.FILE_NOT_FOUND);
 			}
 			// Like the disk provider, a non-recursive delete removes only an

@@ -703,6 +703,7 @@ Copilot's ordinary provider shell also omits `ToolResultTerminalContent.result.p
 - `lists workspace entries`
 - `runs a deterministic shell command`
 - `inspects git status`
+- `shell init script runs before the shell command`
 
 Use the affected provider command with `--grep "<exact test title>"` and temporarily remove the platform gate to reevaluate a row.
 
