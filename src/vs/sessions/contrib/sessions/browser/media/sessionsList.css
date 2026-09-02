@@ -193,6 +193,7 @@
 	box-sizing: border-box;
 	position: relative;
 	overflow: visible;
+	min-width: 0;
 	padding: 8px 6px 8px 12px;
 
 	&.archived {
@@ -507,6 +508,7 @@
 	box-sizing: border-box;
 	position: relative;
 	overflow: visible;
+	min-width: 0;
 	padding: 0 var(--vscode-spacing-size120) 0 var(--vscode-spacing-size360);
 	color: var(--vscode-foreground);
 	font-size: var(--vscode-fontSize-body1);

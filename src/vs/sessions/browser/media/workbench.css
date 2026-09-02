@@ -27,10 +27,6 @@
 	height: calc(100% - var(--vscode-agents-layout-floatingPanelGap));
 }
 
-.monaco-workbench.agent-sessions-workbench.nosidebar > .monaco-grid-view {
-	margin-left: var(--vscode-agents-layout-floatingPanelGap);
-}
-
 .monaco-workbench.agent-sessions-workbench.shell-gradient-background {
 	position: relative;
 	isolation: isolate;

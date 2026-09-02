@@ -215,11 +215,13 @@ function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[], remo
 					uri: URI.file(`/workspace/.github/${folderName}`),
 					label: '.github',
 					source: PromptsStorage.local,
+					destinationGroupId: 'workspace-github',
 				},
 				{
 					uri: URI.file(`/home/dev/.copilot/${folderName}`),
 					label: '~/.copilot',
 					source: PromptsStorage.user,
+					destinationGroupId: 'user-copilot',
 				},
 			];
 		},

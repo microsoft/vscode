@@ -10235,6 +10235,28 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
+		test('creates a fresh side chat from a completed tool-origin chat', async () => {
+			const agent = disposables.add(new SideChatAgent('copilot'));
+			registerTestAgentProvider(service, agent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const sourceChat = buildSubagentChatUri(session, 'tool-1');
+			getStateManager(service).addChat(session.toString(), sourceChat, {
+				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session), toolCallId: 'tool-1' },
+				turns: [completedTurn('t1')],
+			});
+			const chatUri = URI.parse(buildChatUri(session, 'side-1'));
+
+			await service.createChat(session, chatUri, { sideChat: { source: URI.parse(sourceChat), turnId: 't1' } });
+
+			assert.deepStrictEqual({
+				origin: getStateManager(service).getChatState(chatUri.toString())?.origin,
+				forkForwarded: agent.lastCreateOptions?.fork,
+			}, {
+				origin: { kind: ChatOriginKind.SideChat, chat: sourceChat, turnId: 't1' },
+				forkForwarded: undefined,
+			});
+		});
+
 		test('creates a fresh peer with a SideChat origin and no copied source turns', async () => {
 			const agent = disposables.add(new SideChatAgent('copilot'));
 			registerTestAgentProvider(service, agent);
@@ -15128,7 +15150,7 @@ suite('AgentService (node dispatcher)', () => {
 				state: TurnState.Complete,
 				responseParts: [{
 					kind: ResponsePartKind.SystemNotification,
-					content: 'Agent Merge was turned off for this session.',
+					content: 'Agent Merge was disabled for this session.',
 					_meta: { kind: 'agentMergeDisabled' },
 				}],
 				sentToAgent: 0,
@@ -15211,7 +15233,7 @@ suite('AgentService (node dispatcher)', () => {
 				afterTurn: {
 					responseParts: [{
 						kind: ResponsePartKind.SystemNotification,
-						content: 'Agent Merge was turned off for this session.',
+						content: 'Agent Merge was disabled for this session.',
 						_meta: { kind: 'agentMergeDisabled' },
 					}],
 					anchoredTo: ['agent-turn'],
