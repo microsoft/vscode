@@ -747,6 +747,39 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 
   Temporarily clear `shellToolReplayUnstableOnLinux`.
 
+### Codex successful shell result text
+
+- Tests:
+  - `worktree session uses the resolved worktree as working directory`
+  - `reads an existing text file`
+  - `reads a file from a nested directory`
+  - `lists workspace entries`
+  - `reads a value from JSON`
+  - `counts lines in a file`
+  - `handles a missing file without a session error`
+  - `runs a deterministic shell command`
+  - `inspects git status`
+- Scope: Codex.
+- Expected: successful shell tool completions include the command output in their result text.
+- Observed: the turn response contains the expected value, but the successful tool completion can have an empty `text` field.
+- Gate: these nine tests remain enabled for other providers and are skipped for Codex.
+- Tracking issue: [#329512](https://github.com/microsoft/vscode/issues/329512).
+- Failing runs:
+  - [PR #329485](https://github.com/microsoft/vscode/actions/runs/31132506547/job/92724492870?pr=329485)
+  - [PR #329492](https://github.com/microsoft/vscode/actions/runs/31130785836/job/92718953820?pr=329492)
+  - [PR #329517](https://github.com/microsoft/vscode/actions/runs/31148098482/job/92771783938?pr=329517)
+  - [PR #329867](https://github.com/microsoft/vscode/actions/runs/31342377741/job/93319069992?pr=329867)
+  - [Build 469897](https://dev.azure.com/monacotools/a6d41577-0fa3-498e-af22-257312ff0545/_build/results?buildId=469897&view=logs&j=e352877c-ff47-5dec-32e2-b206099d9704&t=b83513b4-f303-5ddc-d18a-1b47c02d8dad)
+- Reproduce:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "handles a missing file without a session error"
+  ```
+
+  Temporarily clear `shellToolResultTextUnreliable`.
+
 ### Claude subagent replay on Windows
 
 - Test: `reopening a session keeps sub-agent messages out of the parent transcript (replay path)`.

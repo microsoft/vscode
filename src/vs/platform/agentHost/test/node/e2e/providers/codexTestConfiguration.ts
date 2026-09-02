@@ -52,4 +52,5 @@ export const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsSideChats: true,
 	supportsSideChatsE2E: true,
 	shellToolReplayUnstableOnLinux: true,
+	shellToolResultTextUnreliable: true,
 };
