@@ -15,6 +15,7 @@ import {
 	AgentHostGitHubMcpServerEnabledSettingId,
 	AgentHostActiveAgentTitleGenerationSettingId,
 	AgentHostClaudeAgentEnabledSettingId,
+	AgentHostClaudeDefaultPermissionModeSettingId,
 	AgentHostClaudeMultiRootEnabledSettingId,
 	AgentHostCodexAgentBinaryArgsSettingId,
 	AgentHostCodexAgentEnabledSettingId,
@@ -36,6 +37,7 @@ import {
 	ArtifactToolsSettingId,
 } from './agentService.js';
 import {
+	AgentHostClaudeDefaultPermissionModeConfigKey,
 	AgentHostClaudeMultiRootEnabledConfigKey,
 	AgentHostActiveAgentTitleGenerationConfigKey,
 	AgentHostArtifactToolsConfigKey,
@@ -242,6 +244,22 @@ configurationRegistry.registerConfiguration({
 			// `product.quality !== 'stable'`) to enable it for a build channel.
 			included: false,
 			agentHost: { key: AgentHostClaudeMultiRootEnabledConfigKey },
+		},
+		[AgentHostClaudeDefaultPermissionModeSettingId]: {
+			type: 'string',
+			enum: ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'],
+			enumDescriptions: [
+				nls.localize('chat.agentHost.claudeAgent.defaultPermissionMode.default', "Claude asks before editing files."),
+				nls.localize('chat.agentHost.claudeAgent.defaultPermissionMode.acceptEdits', "Claude edits files without asking, and asks before using other tools."),
+				nls.localize('chat.agentHost.claudeAgent.defaultPermissionMode.plan', "Claude creates a plan before making changes."),
+				nls.localize('chat.agentHost.claudeAgent.defaultPermissionMode.auto', "Claude decides whether to ask for each tool operation."),
+				nls.localize('chat.agentHost.claudeAgent.defaultPermissionMode.bypassPermissions', "Claude runs all tools without asking. As a default this removes every approval prompt from new sessions, so only pick it for an isolated environment such as a container."),
+			],
+			markdownDescription: nls.localize('chat.agentHost.claudeAgent.defaultPermissionMode', "The approval mode new Claude agent sessions start in. A restored session keeps the mode it was left in, and changing the mode of a running session always wins over this setting. When organization policy disables `#chat.tools.global.autoApprove#`, a value that auto-approves tool calls falls back to Ask Before Edits."),
+			default: 'default',
+			scope: ConfigurationScope.APPLICATION_MACHINE,
+			tags: ['experimental', 'advanced'],
+			agentHost: { key: AgentHostClaudeDefaultPermissionModeConfigKey },
 		},
 		[AgentHostCodexMultiRootEnabledSettingId]: {
 			type: 'boolean',

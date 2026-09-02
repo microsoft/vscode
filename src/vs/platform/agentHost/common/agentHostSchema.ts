@@ -10,6 +10,7 @@ import { ChatExternalSessionsMode, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, type Chat
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { telemetryLevelToAgentHostValue } from './agentHostTelemetry.js';
+import type { ClaudePermissionMode } from './claudeSessionConfigKeys.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
 import type { IShellInitScript } from './shellInitScript.js';
 import type { SessionConfigPropertySchema, SessionConfigSchema } from './state/protocol/commands.js';
@@ -568,6 +569,13 @@ export const AgentHostCopilotMultiRootEnabledConfigKey = 'copilotMultiRootEnable
  */
 export const AgentHostClaudeMultiRootEnabledConfigKey = 'claudeMultiRootEnabled';
 
+/**
+ * Root config key forwarded from the renderer that supplies the approval mode
+ * new Claude sessions start in. Mirrors the
+ * `chat.agentHost.claudeAgent.defaultPermissionMode` VS Code setting.
+ */
+export const AgentHostClaudeDefaultPermissionModeConfigKey = 'claudeDefaultPermissionMode';
+
 /** Root config key forwarded from the renderer that gates Codex multiple-working-directory support. */
 export const AgentHostCodexMultiRootEnabledConfigKey = 'codexMultiRootEnabled';
 
@@ -879,6 +887,13 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.claudeMultiRootEnabled.title', "Claude Multiple Working Directories"),
 		description: localize('agentHost.config.claudeMultiRootEnabled.description', "Whether the Claude provider advertises support for multiple working directories, letting a session span every folder of a multi-root workspace."),
 		default: false,
+	}),
+	[AgentHostClaudeDefaultPermissionModeConfigKey]: schemaProperty<ClaudePermissionMode>({
+		type: 'string',
+		title: localize('agentHost.config.claudeDefaultPermissionMode.title', "Claude Default Approvals"),
+		description: localize('agentHost.config.claudeDefaultPermissionMode.description', "The approval mode new Claude sessions start in. A session that already carries a mode keeps it."),
+		enum: ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'],
+		default: 'default',
 	}),
 	[AgentHostCodexMultiRootEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

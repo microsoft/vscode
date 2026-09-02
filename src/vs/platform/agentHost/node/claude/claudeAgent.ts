@@ -24,7 +24,7 @@ import { IAgentSdkDownloader } from '../agentSdkDownloader.js';
 import { AgentSdkSetupChannel } from '../agentSdkSetupChannel.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, createSchema, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeDefaultPermissionModeConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, createSchema, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -178,6 +178,9 @@ export function fromSdkModelInfo(m: ModelInfo, provider: AgentProvider): IAgentM
 		...(configSchema ? { configSchema } : {}),
 	};
 }
+
+/** Modes that auto-approve tool calls `default` would prompt for. */
+const ELEVATED_CLAUDE_PERMISSION_MODES: ReadonlySet<ClaudePermissionMode> = new Set(['acceptEdits', 'auto', 'bypassPermissions']);
 
 // Narrowing an arbitrary runtime value to the closed `ClaudePermissionMode`
 // union lives in `../../common/claudeSessionConfigKeys.ts` so it is shared by
@@ -2217,7 +2220,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		});
 
 		const values = sessionSchema.validateOrDefault(_params.config, {
-			[ClaudeSessionConfigKey.PermissionMode]: 'default' satisfies ClaudePermissionMode,
+			[ClaudeSessionConfigKey.PermissionMode]: this._defaultPermissionMode(),
 			// Permissions intentionally omitted from defaults — leave
 			// unset so auto-approval falls through to the host-level
 			// default, materializing on the session only once the user
@@ -2228,6 +2231,16 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			schema: sessionSchema.toProtocol(),
 			values,
 		});
+	}
+
+	/**
+	 * The configured approval mode new chats start in. A mode that auto-approves
+	 * tool calls degrades to `'default'` while policy restricts auto-approval.
+	 */
+	private _defaultPermissionMode(): ClaudePermissionMode {
+		const configured = narrowClaudePermissionMode(this._configurationService.getRootValue(platformRootSchema, AgentHostClaudeDefaultPermissionModeConfigKey)) ?? 'default';
+		const policyRestricted = this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true;
+		return policyRestricted && ELEVATED_CLAUDE_PERMISSION_MODES.has(configured) ? 'default' : configured;
 	}
 
 	getInheritedChatConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
