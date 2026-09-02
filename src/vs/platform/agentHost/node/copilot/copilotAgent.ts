@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type GitHubTelemetryNotification, type ManagedSettingsResolvedData, type SessionMode as CopilotSdkMode } from '@github/copilot-sdk';
+import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type GitHubTelemetryNotification, type ManagedSettingsResolvedData, type SessionMetadata, type SessionMode as CopilotSdkMode } from '@github/copilot-sdk';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import { pathToFileURL } from 'url';
@@ -2724,6 +2724,38 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
+	/**
+	 * Short-lived cache of per-session SDK metadata, warmed by
+	 * {@link prewarmSessionMetadata} from a single bulk `listSessions()` call so a
+	 * `listSessions` pass over a large catalogue serves {@link getChatMetadata}
+	 * from memory instead of one `getSessionMetadata` RPC per session. Ref-counted
+	 * so overlapping passes share one warm set and clear it once all release.
+	 */
+	private _prewarmedSessionMetadata: ReadonlyMap<string, SessionMetadata> | undefined;
+	private _prewarmSessionMetadataRefs = 0;
+
+	async prewarmSessionMetadata(): Promise<IDisposable> {
+		// One bulk read replaces N per-session `getSessionMetadata` round-trips
+		// during the metadata phase. Best-effort: when the client cannot enumerate
+		// (SDK not ready), callers transparently fall back to per-session reads.
+		const sessions = await this._listSdkSessions('prewarm session metadata', client => client.listSessions());
+		if (!sessions) {
+			return Disposable.None;
+		}
+		const byId = new Map<string, SessionMetadata>();
+		for (const metadata of sessions) {
+			byId.set(metadata.sessionId, metadata);
+		}
+		this._prewarmedSessionMetadata = byId;
+		this._prewarmSessionMetadataRefs++;
+		return toDisposable(() => {
+			if (--this._prewarmSessionMetadataRefs <= 0) {
+				this._prewarmSessionMetadataRefs = 0;
+				this._prewarmedSessionMetadata = undefined;
+			}
+		});
+	}
+
 	async getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined> {
 		const session = resolveAgentChatContext(context, chat).configurationResource;
 		const sessionId = providerData ? decodeProviderData(providerData)?.sdkSessionId : AgentSession.id(session);
@@ -2732,7 +2764,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const storedMetadata = await this._readStoredSessionMetadata(session);
 
-		const sessionMetadata = await this._retryAfterClosedConnection('getSessionMetadata', client => client.getSessionMetadata(sessionId), createCopilotFailureCorrelation(session, chat, undefined, sessionId));
+		// Serve from the bulk-warmed cache when available; otherwise fall back to a
+		// per-session RPC (also covers a session the bulk list transiently omitted).
+		const prewarmed = this._prewarmedSessionMetadata?.get(sessionId);
+		const sessionMetadata = prewarmed ?? await this._retryAfterClosedConnection('getSessionMetadata', client => client.getSessionMetadata(sessionId), createCopilotFailureCorrelation(session, chat, undefined, sessionId));
 		if (!sessionMetadata) {
 			return undefined;
 		}
