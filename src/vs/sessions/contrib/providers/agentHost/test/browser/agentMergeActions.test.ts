@@ -12,14 +12,15 @@ import { AgentMergeSettingId } from '../../../../../../platform/agentHost/common
 import { IsSessionsWindowContext } from '../../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../../../../browser/menus.js';
-import { SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionIsArchivedContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext } from '../../../../../common/contextkeys.js';
-import '../../browser/agentMergeActions.js';
+import { SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionIsArchivedContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext, SessionPullRequestReadyForReviewContext } from '../../../../../common/contextkeys.js';
+import { GitHubCIOverallStatus } from '../../../../github/common/types.js';
+import { isPullRequestReadyForReview } from '../../browser/agentMergeActions.js';
 
 suite('Agent Merge Actions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** A session where Agent Merge applies: agent host provider, live, with an open pull request. */
-	function createContext(options: { readonly primaryOperation: string; readonly agentMergeEnabled: boolean; readonly featureEnabled?: boolean; readonly archived?: boolean; readonly hasOpenPullRequest?: boolean }): Context {
+	function createContext(options: { readonly primaryOperation: string; readonly agentMergeEnabled: boolean; readonly featureEnabled?: boolean; readonly archived?: boolean; readonly hasOpenPullRequest?: boolean; readonly pullRequestReadyForReview?: boolean }): Context {
 		const context = new Context(1, null);
 		context.setValue(IsSessionsWindowContext.key, true);
 		context.setValue(ChatContextKeys.enabled.key, true);
@@ -29,10 +30,11 @@ suite('Agent Merge Actions', () => {
 		context.setValue(SessionHasOpenPullRequestContext.key, options.hasOpenPullRequest ?? true);
 		context.setValue(SessionPrimaryPullRequestOperationContext.key, options.primaryOperation);
 		context.setValue(SessionAgentMergeEnabledContext.key, options.agentMergeEnabled);
+		context.setValue(SessionPullRequestReadyForReviewContext.key, options.pullRequestReadyForReview ?? true);
 		return context;
 	}
 
-	function ownsPrimaryButton(options: { readonly primaryOperation: string; readonly agentMergeEnabled: boolean; readonly featureEnabled?: boolean; readonly archived?: boolean; readonly hasOpenPullRequest?: boolean }): boolean {
+	function ownsPrimaryButton(options: { readonly primaryOperation: string; readonly agentMergeEnabled: boolean; readonly featureEnabled?: boolean; readonly archived?: boolean; readonly hasOpenPullRequest?: boolean; readonly pullRequestReadyForReview?: boolean }): boolean {
 		const item = MenuRegistry.getMenuItems(Menus.ChangesOperationsDropdown)
 			.find(entry => !isIMenuItem(entry) && entry.submenu === Menus.ChangesAgentMerge);
 		assert.ok(item, 'Agent Merge is contributed to the changes operations dropdown');
@@ -56,6 +58,38 @@ suite('Agent Merge Actions', () => {
 			disableAutoMergeWhileOff: true,
 			disableAutoMergeWhileOn: true,
 			noOperationWhileOff: true,
+		});
+	});
+
+	test('Agent Merge owns a draft pull request until CI and review comments are ready', () => {
+		assert.deepStrictEqual({
+			disabled: ownsPrimaryButton({ primaryOperation: AgentHostPullRequestOperationId.MarkReady, agentMergeEnabled: false, pullRequestReadyForReview: false }),
+			enabledAndWaiting: ownsPrimaryButton({ primaryOperation: AgentHostPullRequestOperationId.MarkReady, agentMergeEnabled: true, pullRequestReadyForReview: false }),
+			enabledAndReady: ownsPrimaryButton({ primaryOperation: AgentHostPullRequestOperationId.MarkReady, agentMergeEnabled: true, pullRequestReadyForReview: true }),
+		}, {
+			disabled: false,
+			enabledAndWaiting: true,
+			enabledAndReady: false,
+		});
+	});
+
+	test('a pull request is ready for review only after CI and comments are settled', () => {
+		assert.deepStrictEqual({
+			loadingCI: isPullRequestReadyForReview(undefined, []),
+			pendingCI: isPullRequestReadyForReview(GitHubCIOverallStatus.Pending, []),
+			failingCI: isPullRequestReadyForReview(GitHubCIOverallStatus.Failure, []),
+			loadingComments: isPullRequestReadyForReview(GitHubCIOverallStatus.Success, undefined),
+			unresolvedComments: isPullRequestReadyForReview(GitHubCIOverallStatus.Success, [{ isResolved: false }]),
+			passingCI: isPullRequestReadyForReview(GitHubCIOverallStatus.Success, []),
+			noCI: isPullRequestReadyForReview(GitHubCIOverallStatus.Neutral, [{ isResolved: true }]),
+		}, {
+			loadingCI: false,
+			pendingCI: false,
+			failingCI: false,
+			loadingComments: false,
+			unresolvedComments: false,
+			passingCI: true,
+			noCI: true,
 		});
 	});
 

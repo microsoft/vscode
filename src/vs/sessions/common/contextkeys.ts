@@ -98,6 +98,9 @@ export const SessionAgentMergeEnabledContext = new RawContextKey<boolean>('sessi
  */
 export const SessionHasOpenPullRequestContext = new RawContextKey<boolean>('sessionHasOpenPullRequest', false, localize('sessionHasOpenPullRequest', "Whether the active session's branch has an open pull request"));
 
+/** Whether the active pull request's CI has settled without failures and all review threads are resolved. */
+export const SessionPullRequestReadyForReviewContext = new RawContextKey<boolean>('sessionPullRequestReadyForReview', false, localize('sessionPullRequestReadyForReview', "Whether the active pull request is ready to be marked for review"));
+
 //#endregion
 
 //#region < --- Welcome --- >

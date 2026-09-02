@@ -5,7 +5,7 @@
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Disposable, IDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { GitHubCIOverallStatus, IGitHubCICheck } from '../../common/types.js';
@@ -58,6 +58,9 @@ export class GitHubPullRequestCIModel extends Disposable {
 
 	private readonly _overallStatus = observableValue<GitHubCIOverallStatus>(this, GitHubCIOverallStatus.Neutral);
 	readonly overallStatus: IObservable<GitHubCIOverallStatus> = this._overallStatus;
+
+	private readonly _hasLoaded = observableValue(this, false);
+	readonly hasLoaded: IObservable<boolean> = this._hasLoaded;
 
 	private readonly _fixRequested = observableValue<boolean>(this, false);
 	/**
@@ -154,10 +157,14 @@ export class GitHubPullRequestCIModel extends Disposable {
 		this._logService.trace(`${TRACE_PREFIX} [CIModel] Refreshing CI for ${this.owner}/${this.repo}#${this.prNumber}@${this.headSha} (checksEtag ${this._checksEtag ?? 'none'})`);
 		try {
 			const response = await this._fetcher.getCheckRuns(this.owner, this.repo, this.headSha, this._checksEtag);
-			if (response.statusCode === 200 && response.data) {
+			const data = response.data;
+			if (response.statusCode === 200 && data) {
 				this._checksEtag = response.etag;
-				this._checks.set(response.data, undefined);
-				this._overallStatus.set(computeOverallCIStatus(response.data), undefined);
+				transaction(tx => {
+					this._checks.set(data, tx);
+					this._overallStatus.set(computeOverallCIStatus(data), tx);
+					this._hasLoaded.set(true, tx);
+				});
 			}
 			this._logService.trace(`${TRACE_PREFIX} [CIModel] Refreshed CI for ${this.owner}/${this.repo}#${this.prNumber}@${this.headSha}: status ${response.statusCode}, ${this._checks.get().length} check(s), overallStatus ${this._overallStatus.get()}`);
 		} catch (err) {
