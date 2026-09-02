@@ -27,6 +27,7 @@ export class MultiDiffEditorWidget extends Disposable {
 	private readonly _dimension = observableValue<Dimension | undefined>(this, undefined);
 	private readonly _viewModel = observableValue<MultiDiffEditorViewModel | undefined>(this, undefined);
 	private readonly _diffLayoutOptions = observableValue<IDiffEditorOptions | undefined>(this, undefined);
+	private readonly _paddingBottomPx = observableValue<number>(this, 0);
 
 	private readonly _widgetImpl = derived(this, (reader) => {
 		readHotReloadableExport(DiffEditorItemTemplate, reader);
@@ -38,6 +39,7 @@ export class MultiDiffEditorWidget extends Disposable {
 			this._workbenchUIElementFactory,
 			this._diffLayoutOptions,
 			this._diffEditorOptions,
+			this._paddingBottomPx,
 		));
 	});
 
@@ -112,6 +114,11 @@ export class MultiDiffEditorWidget extends Disposable {
 		this.setRenderSideBySide(!(this._diffLayoutOptions.get()?.renderSideBySide ?? true));
 	}
 
+	/** Reserves empty space below the last diff entry. */
+	public setPaddingBottom(px: number): void {
+		this._paddingBottomPx.set(px, undefined);
+	}
+
 	private readonly _activeControl = derived(this, (reader) => this._widgetImpl.read(reader).activeControl.read(reader));
 
 	public getActiveControl(): DiffEditorWidget | undefined {
@@ -119,6 +126,10 @@ export class MultiDiffEditorWidget extends Disposable {
 	}
 
 	public readonly onDidChangeActiveControl = Event.fromObservableLight(this._activeControl);
+
+	public focus(): boolean {
+		return this._widgetImpl.get().focus();
+	}
 
 	public getViewState(): IMultiDiffEditorViewState {
 		return this._widgetImpl.get().getViewState();

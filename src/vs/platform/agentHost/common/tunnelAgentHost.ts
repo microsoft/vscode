@@ -81,6 +81,8 @@ export interface ICachedTunnel {
 	readonly tunnelId: string;
 	readonly clusterId: string;
 	readonly name: string;
+	/** Protocol version at cache time. Optional because entries from older builds do not contain it. */
+	readonly protocolVersion?: number;
 	readonly authProvider?: 'github' | 'microsoft';
 }
 
@@ -506,13 +508,22 @@ export interface ITunnelAgentHostService {
 	/** Remove a tunnel from the cache. */
 	removeCachedTunnel(tunnelId: string): void;
 
-	/** Whether startup/background auto-connect should skip this tunnel because the user disconnected it. */
+	/** Whether the user dismissed this tunnel from the remote-host picker. */
+	isTunnelDismissed(tunnelId: string): boolean;
+
+	/** Persist that the user dismissed this tunnel from the remote-host picker. */
+	dismissTunnel(tunnelId: string): void;
+
+	/** Clear a previous picker-dismissal after the user explicitly reconnects this tunnel. */
+	clearTunnelDismissal(tunnelId: string): void;
+
+	/** Whether startup/background auto-connect should skip this tunnel, because this machine hosts it. */
 	isAutoConnectSuppressed(tunnelId: string): boolean;
 
-	/** Remember that the user explicitly disconnected this tunnel, so startup/background auto-connect skips it. */
+	/** Remember that startup/background auto-connect must skip this tunnel, because this machine hosts it. */
 	suppressAutoConnect(tunnelId: string): void;
 
-	/** Clear a previous user-disconnect marker after the user explicitly reconnects this tunnel. */
+	/** Clear a previous auto-connect suppression once this machine no longer hosts the tunnel. */
 	clearAutoConnectSuppression(tunnelId: string): void;
 
 	/**
@@ -522,14 +533,6 @@ export interface ITunnelAgentHostService {
 	 */
 	getAuthProvider(options?: { silent?: boolean }): Promise<'github' | 'microsoft' | undefined>;
 }
-
-// ---- Tunnel hosting (exposing the local agent host to remote clients) --------
-
-/** IPC channel name for the tunnel host service. */
-export const TUNNEL_HOST_CHANNEL = 'tunnelHost';
-
-/** Output channel ID for the tunnel host logs. */
-export const TUNNEL_HOST_LOG_ID = 'tunnelHostService';
 
 /** Information about an actively hosted tunnel. */
 export interface ITunnelHostInfo {
@@ -548,35 +551,4 @@ export function isTunnelHosted(sharingInfo: ITunnelHostInfo | undefined, tunnel:
 	return sharingInfo.tunnelId !== undefined
 		? sharingInfo.tunnelId === tunnel.tunnelId
 		: sharingInfo.tunnelName === tunnel.name;
-}
-
-/** Status of the tunnel host. */
-export type TunnelHostStatus =
-	| { readonly active: false }
-	| { readonly active: true; readonly info: ITunnelHostInfo };
-
-/**
- * Shared-process service that hosts a dev tunnel using the code CLI.
- */
-export const ITunnelAgentHostHostingService = createDecorator<ITunnelAgentHostHostingService>('tunnelAgentHostHostingService');
-
-export interface ITunnelAgentHostHostingService {
-	readonly _serviceBrand: undefined;
-
-	/** Fires when the hosting status changes. */
-	readonly onDidChangeStatus: Event<TunnelHostStatus>;
-
-	/**
-	 * Start hosting a dev tunnel that exposes the local agent host.
-	 *
-	 * @param token The user's access token.
-	 * @param authProvider The auth provider that issued the token.
-	 */
-	startHosting(token: string, authProvider: 'github' | 'microsoft'): Promise<ITunnelHostInfo>;
-
-	/** Stop hosting and clean up the tunnel. */
-	stopHosting(): Promise<void>;
-
-	/** Get the current hosting status. */
-	getStatus(): Promise<TunnelHostStatus>;
 }

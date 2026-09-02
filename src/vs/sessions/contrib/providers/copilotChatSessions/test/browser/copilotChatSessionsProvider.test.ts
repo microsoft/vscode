@@ -30,7 +30,7 @@ import { AgentSessionProviders } from '../../../../../../workbench/contrib/chat/
 import { IChatService, ChatSendResult, IChatSendRequestData, IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatSessionStatus, IChatSessionProviderOptionGroup, IChatSessionsService, SessionType } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
-import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
@@ -360,7 +360,7 @@ function createProviderForSendTests(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
 	sendRequest: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>,
-	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; configurationService?: TestConfigurationService; agentHostEnabled?: boolean },
+	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; configurationService?: TestConfigurationService; agentHostEnabled?: boolean; getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined },
 ): TestSandboxCopilotProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
@@ -384,7 +384,7 @@ function createProviderForSendTests(
 		getChatSessionContribution: () => ({ type: 'test-copilot', name: 'test', displayName: 'Test', description: 'test', icon: undefined }),
 		getOrCreateChatSession: async () => ({ onWillDispose: () => ({ dispose() { } }), sessionResource: URI.from({ scheme: 'test' }), history: [], dispose() { } }),
 		onDidCommitSession: opts?.onDidCommitSession ?? Event.None,
-		getOptionGroupsForSessionType: () => undefined,
+		getOptionGroupsForSessionType: () => opts?.getOptionGroups?.(),
 		updateSessionOptions: () => true,
 		setSessionOption: () => true,
 		getSessionOption: () => undefined,
@@ -558,18 +558,6 @@ suite('CopilotChatSessionsProvider', () => {
 		const sessions = provider.getSessions();
 
 		assert.strictEqual(sessions.length, 2);
-	});
-
-	test('registers Copilot CLI session state directories as resource label homes', () => {
-		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/session-1' });
-		model.addSession(createMockAgentSession(resource));
-
-		const { labelService } = createProviderWithConfig(disposables, model);
-
-		assert.strictEqual(
-			labelService.getUriHome(URI.file('/home/test/.copilot/session-state/session-1/artifact.md'))?.toString(),
-			URI.file('/home/test/.copilot/session-state/session-1').toString()
-		);
 	});
 
 	test('getSessions does not emit session changes while reading the initial cache', () => {
@@ -1958,7 +1946,7 @@ suite('CopilotChatSessionsProvider', () => {
 		// `repoNwo` has to strip back down to `owner/repo`.
 		const repoWorkspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, path: '/osortega/simple-server/HEAD' });
 
-		function createSandboxProvider(opts: { enabled?: boolean; provision?: () => Promise<ICloudSandboxProvisionedSession> } = {}) {
+		function createSandboxProvider(opts: { enabled?: boolean; provision?: () => Promise<ICloudSandboxProvisionedSession>; getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined } = {}) {
 			const configurationService = new TestConfigurationService();
 			configurationService.setUserConfiguration(CloudSandboxEnabledSettingId, opts.enabled ?? true);
 			configurationService.setUserConfiguration(RemoteAgentHostsEnabledSettingId, true);
@@ -1968,7 +1956,7 @@ suite('CopilotChatSessionsProvider', () => {
 				cloudSends.push(message);
 				// Never settles: these tests only assert which path the send took.
 				return new Promise<ChatSendResult>(() => { });
-			}, { configurationService });
+			}, { configurationService, getOptionGroups: opts.getOptionGroups });
 
 			const provisionRequests: ICloudSandboxCreateSessionRequest[] = [];
 			provider.sandboxContribution = {
@@ -1983,8 +1971,14 @@ suite('CopilotChatSessionsProvider', () => {
 			return { provider, provisionRequests, cloudSends };
 		}
 
-		/** A provisioned session whose provider immediately commits the send. */
-		function provisionedSession(sendRequest?: () => Promise<ISession>): ICloudSandboxProvisionedSession & { published: string[] } {
+		/**
+		 * A provisioned session whose provider immediately commits the send.
+		 *
+		 * `sandboxModels` is a function so a test can model a catalog that is still arriving:
+		 * resolution reports `pending` until it yields the model, mirroring an agent host that has
+		 * connected but not yet published.
+		 */
+		function provisionedSession(sendRequest?: () => Promise<ISession>, sandboxModels: () => readonly ILanguageModelChatMetadataAndIdentifier[] = () => []): ICloudSandboxProvisionedSession & { published: string[]; modelSelections: { modelId: string; source: ChatModelSource }[]; modelsChanged: Emitter<void> } {
 			const committed = upcastPartial<ISession>({
 				sessionId: 'agenthost:sess-new',
 				resource: URI.parse('agent-host-copilot:/sess-new'),
@@ -1995,18 +1989,124 @@ suite('CopilotChatSessionsProvider', () => {
 				mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/sess-new') })),
 			});
 			const published: string[] = [];
+			const modelSelections: { modelId: string; source: ChatModelSource }[] = [];
+			const modelsChanged = disposables.add(new Emitter<void>());
 			return {
 				taskId: 'task-new',
 				sessionId: 'sess-new',
 				environmentId: 'env-new',
 				session: sandboxSession,
 				published,
+				modelSelections,
+				modelsChanged,
 				provider: upcastPartial<CloudSandboxSessionsProvider>({
 					sendRequest: sendRequest ?? (async () => committed),
 					publishWithheldSession: (rawId: string) => { published.push(rawId); },
+					onDidChangeModels: modelsChanged.event,
+					getModelsSnapshot: (_sessionId: string, desiredModelId?: string) => {
+						const models = sandboxModels();
+						const model = models.find(m => m.identifier === desiredModelId);
+						return {
+							models,
+							desiredModelResolution: !desiredModelId
+								? { kind: 'notRequested' as const }
+								: model
+									? { kind: 'available' as const, model }
+									// An empty catalog is "not yet"; a populated one that lacks the
+									// model is conclusive.
+									: models.length === 0
+										? { kind: 'pending' as const, identifier: desiredModelId }
+										: { kind: 'unavailable' as const, identifier: desiredModelId },
+							modelTarget: 'agent-host-copilot',
+						};
+					},
+					setModel: (_sessionId: string, _chatResource: URI, modelId: string, source: ChatModelSource) => { modelSelections.push({ modelId, source }); },
 				}) as CloudSandboxSessionsProvider,
 			};
 		}
+
+		/** A model as the sandbox advertises it: vendor-prefixed identifier, bare backend id. */
+		function sandboxModel(rawId: string): ILanguageModelChatMetadataAndIdentifier {
+			return upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
+				identifier: `agent-host-copilot:${rawId}`,
+				metadata: upcastPartial<ILanguageModelChatMetadata>({ id: rawId, name: rawId }),
+			});
+		}
+
+		/** The `models` option group a cloud composer picks from, whose ids are its own. */
+		function cloudModelOptionGroup(itemId: string, backendModelId: string): IChatSessionProviderOptionGroup[] {
+			return [{
+				id: 'models',
+				name: 'Models',
+				items: [{ id: itemId, name: backendModelId, modelMetadata: { id: backendModelId, name: backendModelId } }],
+			}];
+		}
+
+		test('carries the composer model into the sandbox before the first turn', async () => {
+			// Mission Control starts no run, so a session that has never run has no model to
+			// restore: without this the first turn would silently take the agent host default.
+			const provisioned = provisionedSession(undefined, () => [sandboxModel('claude-sonnet-4.6')]);
+			const { provider } = createSandboxProvider({
+				provision: async () => provisioned,
+				getOptionGroups: () => cloudModelOptionGroup('synthetic-cloud-model', 'claude-sonnet-4.6'),
+			});
+			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			session.setUseSandbox(true);
+			provider.setModel(sessionInfo.sessionId, session.mainChat.get().resource, 'synthetic-cloud-model', ChatModelSource.Chosen);
+
+			await provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' });
+
+			// The id crosses id spaces by backend model id, and arrives as carried over: the user
+			// picked it for the composer, not for the session that replaced it.
+			assert.deepStrictEqual(provisioned.modelSelections, [{ modelId: 'agent-host-copilot:claude-sonnet-4.6', source: ChatModelSource.CarriedOver }]);
+		});
+
+		test('waits for a sandbox catalog that is still arriving rather than sending without the model', async () => {
+			// A freshly connected sandbox publishes its models asynchronously. Treating that empty
+			// window as a miss would reinstate the very race this carries the model to avoid.
+			let models: readonly ILanguageModelChatMetadataAndIdentifier[] = [];
+			const provisioned = provisionedSession(undefined, () => models);
+			const { provider } = createSandboxProvider({
+				provision: async () => provisioned,
+				getOptionGroups: () => cloudModelOptionGroup('synthetic-cloud-model', 'claude-sonnet-4.6'),
+			});
+			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			session.setUseSandbox(true);
+			provider.setModel(sessionInfo.sessionId, session.mainChat.get().resource, 'synthetic-cloud-model', ChatModelSource.Chosen);
+
+			const sent = provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' });
+			// Publish only once the send is already waiting on the pending catalog.
+			await timeout(0);
+			const beforeCatalog = [...provisioned.modelSelections];
+			models = [sandboxModel('claude-sonnet-4.6')];
+			provisioned.modelsChanged.fire();
+			await sent;
+
+			assert.deepStrictEqual(
+				{ beforeCatalog, afterCatalog: provisioned.modelSelections },
+				{ beforeCatalog: [], afterCatalog: [{ modelId: 'agent-host-copilot:claude-sonnet-4.6', source: ChatModelSource.CarriedOver }] }
+			);
+		});
+
+		test('leaves the model to the agent host when the sandbox does not advertise it', async () => {
+			// Sending an unroutable id would fail the turn outright, so an unmatched pick keeps
+			// the previous behavior of letting the host choose.
+			const provisioned = provisionedSession(undefined, () => [sandboxModel('gpt-5')]);
+			const { provider } = createSandboxProvider({
+				provision: async () => provisioned,
+				getOptionGroups: () => cloudModelOptionGroup('synthetic-cloud-model', 'claude-sonnet-4.6'),
+			});
+			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			session.setUseSandbox(true);
+			provider.setModel(sessionInfo.sessionId, session.mainChat.get().resource, 'synthetic-cloud-model', ChatModelSource.Chosen);
+
+			await provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' });
+
+			assert.deepStrictEqual(provisioned.modelSelections, []);
+		});
 
 		test('provisions a sandbox and replaces the draft with the committed session', async () => {
 			const { provider, provisionRequests, cloudSends } = createSandboxProvider({ provision: async () => provisionedSession() });

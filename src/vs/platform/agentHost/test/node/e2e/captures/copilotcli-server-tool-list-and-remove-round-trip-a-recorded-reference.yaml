@@ -1,0 +1,209 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call add_artifact_or_reference exactly once with type "website", label "Design notes", isArtifact false, and link "https://example.com/design". Then reply with exactly "added".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: add_artifact_or_reference
+          input:
+            type: website
+            label: Design notes
+            isArtifact: false
+            link: https://example.com/design
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call add_artifact_or_reference exactly once with type "website", label "Design notes", isArtifact false, and link "https://example.com/design". Then reply with exactly "added".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: add_artifact_or_reference
+              input:
+                type: website
+                label: Design notes
+                isArtifact: false
+                link: https://example.com/design
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Added reference: ${uuid_0} (website, reference) Design notes — https://example.com/design'
+    response:
+      content: added
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call add_artifact_or_reference exactly once with type "website", label "Design notes", isArtifact false, and link "https://example.com/design". Then reply with exactly "added".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: add_artifact_or_reference
+              input:
+                type: website
+                label: Design notes
+                isArtifact: false
+                link: https://example.com/design
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Added reference: ${uuid_0} (website, reference) Design notes — https://example.com/design'
+        - role: assistant
+          content: added
+        - role: user
+          content: Call list_artifacts_and_references exactly once, then reply with exactly "listed".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: list_artifacts_and_references
+          input: {}
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call add_artifact_or_reference exactly once with type "website", label "Design notes", isArtifact false, and link "https://example.com/design". Then reply with exactly "added".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: add_artifact_or_reference
+              input:
+                type: website
+                label: Design notes
+                isArtifact: false
+                link: https://example.com/design
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Added reference: ${uuid_0} (website, reference) Design notes — https://example.com/design'
+        - role: assistant
+          content: added
+        - role: user
+          content: Call list_artifacts_and_references exactly once, then reply with exactly "listed".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: list_artifacts_and_references
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: ${uuid_0} (website, reference) Design notes — https://example.com/design
+    response:
+      content: listed
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call add_artifact_or_reference exactly once with type "website", label "Design notes", isArtifact false, and link "https://example.com/design". Then reply with exactly "added".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: add_artifact_or_reference
+              input:
+                type: website
+                label: Design notes
+                isArtifact: false
+                link: https://example.com/design
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Added reference: ${uuid_0} (website, reference) Design notes — https://example.com/design'
+        - role: assistant
+          content: added
+        - role: user
+          content: Call list_artifacts_and_references exactly once, then reply with exactly "listed".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: list_artifacts_and_references
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: ${uuid_0} (website, reference) Design notes — https://example.com/design
+        - role: assistant
+          content: listed
+        - role: user
+          content: Call remove_artifact_or_reference exactly once with id "${uuid_0}", then reply with exactly "removed".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_2
+          name: remove_artifact_or_reference
+          input:
+            id: ${uuid_0}
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call add_artifact_or_reference exactly once with type "website", label "Design notes", isArtifact false, and link "https://example.com/design". Then reply with exactly "added".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: add_artifact_or_reference
+              input:
+                type: website
+                label: Design notes
+                isArtifact: false
+                link: https://example.com/design
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Added reference: ${uuid_0} (website, reference) Design notes — https://example.com/design'
+        - role: assistant
+          content: added
+        - role: user
+          content: Call list_artifacts_and_references exactly once, then reply with exactly "listed".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: list_artifacts_and_references
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: ${uuid_0} (website, reference) Design notes — https://example.com/design
+        - role: assistant
+          content: listed
+        - role: user
+          content: Call remove_artifact_or_reference exactly once with id "${uuid_0}", then reply with exactly "removed".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: remove_artifact_or_reference
+              input:
+                id: ${uuid_0}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: 'Removed reference: ${uuid_0} (website, reference) Design notes — https://example.com/design'
+    response:
+      content: removed
+      stopReason: end_turn

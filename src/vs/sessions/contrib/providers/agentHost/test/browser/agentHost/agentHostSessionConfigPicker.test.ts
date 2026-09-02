@@ -17,6 +17,7 @@ import { IActionWidgetService } from '../../../../../../../platform/actionWidget
 import { SessionConfigKey } from '../../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
@@ -29,6 +30,7 @@ import { IViewsService } from '../../../../../../../workbench/services/views/com
 import { IAgentWorkbenchLayoutService } from '../../../../../../browser/workbench.js';
 import { Menus } from '../../../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../common/agentHostSessionsProvider.js';
+import { DevContainerWorktreeEnabledSettingId } from '../../../../../../common/devContainerAgentHostService.js';
 import { ISessionChangesService } from '../../../../../../contrib/changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../../../../contrib/changes/common/changes.js';
 import { ISessionsProvidersService } from '../../../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -151,7 +153,10 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	async getSessionConfigCompletions(): Promise<readonly SessionConfigValueItem[]> { return this.completions; }
 	isDevContainerAvailable(): boolean { return this.devContainerAvailable; }
 	isDevContainerEnabled(): boolean { return this.devContainerEnabled; }
-	setDevContainerEnabled(_sessionId: string, enabled: boolean): void { this.devContainerEnabled = enabled; }
+	setDevContainerEnabled(_sessionId: string, enabled: boolean): void {
+		this.devContainerEnabled = enabled;
+		this._emitter.fire(SESSION_ID);
+	}
 
 	/** Swap the config + resolving flag and pulse, as the real provider does. */
 	set(config: ResolveSessionConfigResult, resolving: boolean): void {
@@ -204,7 +209,7 @@ class CapturingActionWidgetHolder {
 	readonly events: string[] = [];
 }
 
-function setupServices(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, 'add'>) {
+function setupServices(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, 'add'>, options?: { devContainerWorktreeEnabled?: boolean }) {
 	const emitter = store.add(new Emitter<string>());
 	const provider = new FakeProvider(emitter);
 	const actionWidget = new CapturingActionWidgetHolder();
@@ -220,7 +225,9 @@ function setupServices(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeake
 	} as Partial<IActionWidgetService> as IActionWidgetService);
 	instantiationService.stub(IHoverService, { setupDelayedHover: () => ({ dispose: () => { } }) } as Partial<IHoverService> as IHoverService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
-	instantiationService.stub(IConfigurationService, new (class extends mock<IConfigurationService>() { })());
+	instantiationService.stub(IConfigurationService, new TestConfigurationService({
+		[DevContainerWorktreeEnabledSettingId]: options?.devContainerWorktreeEnabled ?? false,
+	}));
 	instantiationService.stub(IDialogService, new (class extends mock<IDialogService>() { })());
 	instantiationService.stub(IStorageService, new (class extends mock<IStorageService>() { })());
 	instantiationService.stub(IContextKeyService, new (class extends mock<IContextKeyService>() {
@@ -579,7 +586,7 @@ suite('Agent Host Session Config Picker', () => {
 	});
 
 	test('renders Dev Container before the Worktree and Branch controls and updates the draft', () => {
-		const services = setupServices(store);
+		const services = setupServices(store, { devContainerWorktreeEnabled: true });
 		const { provider } = services;
 		const { container } = renderPicker(store, services);
 
@@ -600,6 +607,53 @@ suite('Agent Host Session Config Picker', () => {
 			worktreeImmediatelyPrecedesBranch: true,
 			devContainerChecked: 'true',
 			devContainerEnabled: true,
+			setSessionConfigValueCalls: 0,
+		});
+	});
+
+	test('disables Dev Container while New Worktree is selected when the combination is disabled', () => {
+		const services = setupServices(store);
+		const { provider } = services;
+		const { container } = renderPicker(store, services);
+		const devContainer = devContainerSlot(container)!;
+
+		devContainer.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+		assert.deepStrictEqual({
+			devContainerDisabled: devContainer.classList.contains('disabled'),
+			devContainerAriaDisabled: devContainer.querySelector('.monaco-checkbox')?.getAttribute('aria-disabled'),
+			devContainerEnabled: provider.devContainerEnabled,
+			worktreeDisabled: isolationSlot(container)!.classList.contains('disabled'),
+		}, {
+			devContainerDisabled: true,
+			devContainerAriaDisabled: 'true',
+			devContainerEnabled: false,
+			worktreeDisabled: false,
+		});
+	});
+
+	test('disables New Worktree while Dev Container is selected when the combination is disabled', () => {
+		const services = setupServices(store);
+		services.provider.config = makeRepoConfig('main', 'folder');
+		const { provider } = services;
+		const { container } = renderPicker(store, services);
+		const devContainer = devContainerSlot(container)!;
+
+		devContainer.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		const worktree = isolationSlot(container)!;
+		worktree.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+		assert.deepStrictEqual({
+			devContainerChecked: devContainer.querySelector('.monaco-checkbox')?.getAttribute('aria-checked'),
+			devContainerDisabled: devContainer.classList.contains('disabled'),
+			worktreeDisabled: worktree.classList.contains('disabled'),
+			worktreeAriaDisabled: worktree.querySelector('.monaco-checkbox')?.getAttribute('aria-disabled'),
+			setSessionConfigValueCalls: provider.setSessionConfigValueCalls,
+		}, {
+			devContainerChecked: 'true',
+			devContainerDisabled: false,
+			worktreeDisabled: true,
+			worktreeAriaDisabled: 'true',
 			setSessionConfigValueCalls: 0,
 		});
 	});

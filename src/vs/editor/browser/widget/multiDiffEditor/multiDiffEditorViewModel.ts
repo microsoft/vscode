@@ -34,7 +34,7 @@ export class MultiDiffEditorViewModel extends Disposable {
 
 	public readonly focusedDiffItem = derived(this, reader => this.items.read(reader).find(i => i.isFocused.read(reader)));
 	public readonly activeDiffItem = derivedObservableWithWritableCache<DocumentDiffItemViewModel | undefined>(this,
-		(reader, lastValue) => this.focusedDiffItem.read(reader) ?? (lastValue && this.items.read(reader).indexOf(lastValue) !== -1) ? lastValue : undefined
+		(reader, lastValue) => this.focusedDiffItem.read(reader) ?? (lastValue && this.items.read(reader).indexOf(lastValue) !== -1 ? lastValue : undefined)
 	);
 
 	public async waitForDiffOr1s(): Promise<void> {
@@ -135,8 +135,18 @@ export class DocumentDiffItemViewModel extends Disposable {
 
 	public get originalUri(): URI | undefined { return this.documentDiffItem.original?.uri; }
 	public get modifiedUri(): URI | undefined { return this.documentDiffItem.modified?.uri; }
+	public get isBinary(): boolean {
+		const { original, modified } = this.documentDiffItem;
+		return (original !== undefined && original.textModel === undefined)
+			|| (modified !== undefined && modified.textModel === undefined);
+	}
 
 	public readonly isActive: IObservable<boolean> = derived(this, reader => this._editorViewModel.activeDiffItem.read(reader) === this);
+	public readonly isFirst: IObservable<boolean> = derived(this, reader => this._editorViewModel.items.read(reader)[0] === this);
+
+	public setActive(tx: ITransaction | undefined): void {
+		this._editorViewModel.activeDiffItem.setCache(this, tx);
+	}
 
 	private readonly _isFocusedSource = observableValue<IObservable<boolean>>(this, constObservable(false));
 	public readonly isFocused = derived(this, reader => this._isFocusedSource.read(reader).read(reader));
@@ -183,8 +193,8 @@ export class DocumentDiffItemViewModel extends Disposable {
 		}
 
 		const diffEditorViewModelStore = new DisposableStore();
-		const originalTextModel = this.documentDiffItem.original ?? diffEditorViewModelStore.add(this._modelService.createModel('', null));
-		const modifiedTextModel = this.documentDiffItem.modified ?? diffEditorViewModelStore.add(this._modelService.createModel('', null));
+		const originalTextModel = this.documentDiffItem.original?.textModel ?? diffEditorViewModelStore.add(this._modelService.createModel('', null));
+		const modifiedTextModel = this.documentDiffItem.modified?.textModel ?? diffEditorViewModelStore.add(this._modelService.createModel('', null));
 		diffEditorViewModelStore.add(this._documentDiffItemRef.createNewRef(this));
 
 		this.diffEditorViewModelRef = this._register(RefCounted.createWithDisposable(

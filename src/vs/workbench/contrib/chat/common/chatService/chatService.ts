@@ -321,6 +321,10 @@ export interface IChatSystemNotificationPart {
 	 * notifications that report something completing.
 	 */
 	icon?: ThemeIcon;
+	/** Render the first line as an always-visible summary and the remaining Markdown as collapsible details. */
+	collapsible?: boolean;
+	/** Render response timing beside the notification instead of using the response footer. */
+	renderInlineTiming?: boolean;
 }
 
 export interface IChatTask extends IChatTaskDto {

@@ -112,6 +112,7 @@ const CHAT_PET_CREATE_PULL_REQUEST_ACTION_IDS = new Set([
 	'create-pr-auto-merge',
 	'create-pr-auto-squash',
 	'create-pr-auto-rebase',
+	'create-pr-agent-merge',
 	'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR',
 	'workbench.action.agentSessions.runSkill.createPR',
 ]);
@@ -311,7 +312,6 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatPetService chatPetService: IChatPetService,
-		@IContextMenuService contextMenuService: IContextMenuService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -323,6 +323,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		// config provider below, which `buttonBar.update` calls synchronously
 		// from the same autorun that computes it.
 		let primaryIsBusy = false;
+		let primaryCustomLabel: string | undefined;
 
 		const buttonBar = this._buttonBar = this._register(instantiationService.createInstance(
 			WorkbenchButtonBar,
@@ -332,7 +333,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 				renderSecondaryActions: false,
 				buttonConfigProvider: (action, index) => {
 					return index === 0
-						? { showIcon: true, showLabel: true, customLabel: stripIcons(action.label), showSpinner: primaryIsBusy }
+						? { showIcon: true, showLabel: true, customLabel: primaryCustomLabel ?? stripIcons(action.label), showSpinner: primaryIsBusy }
 						: { showIcon: true, showLabel: false };
 				}
 			}
@@ -352,29 +353,28 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		// there takes over the primary button when it applies, which is how
 		// Agent Merge can own the button without the widget knowing about it.
 		//
-		// A submenu contributed to that group names a group of related actions
-		// rather than being an action itself, so clicking the button opens just
-		// those actions as a context menu — the button's own dropdown carries
-		// unrelated operations too.
+		// A submenu contributed to that group names related actions. Its first
+		// entry is the primary invocation; the button's dropdown carries the
+		// remaining entries together with unrelated operations.
 		const dropdownMenuActionsObs = observableFromEvent(dropdownMenu.onDidChange, () => {
 			const groups = dropdownMenu.getActions({ shouldForwardArgs: true });
 			const primaryGroup = groups.find(([group]) => group === CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP)?.[1] ?? [];
 			const rest = groups.filter(([group]) => group !== CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP).map(([, actions]) => actions);
 			const contributed = primaryGroup[0];
-			const primary = contributed instanceof SubmenuItemAction
+			const delegated = contributed instanceof SubmenuItemAction ? contributed.actions[0] : undefined;
+			const primary = contributed instanceof SubmenuItemAction && delegated
 				? toAction({
-					id: contributed.item.submenu.id,
-					label: contributed.label,
+					id: delegated.id,
+					label: delegated.label,
+					tooltip: delegated.tooltip,
+					enabled: delegated.enabled,
 					// Wrapping the submenu in a plain action would drop the icon
 					// its menu item declared, so it is carried over the way any
 					// action carries one.
 					class: ThemeIcon.isThemeIcon(contributed.item.icon) ? ThemeIcon.asClassName(contributed.item.icon) : undefined,
-					run: () => contextMenuService.showContextMenu({
-						getAnchor: () => buttonBar.buttons[0]?.element ?? container,
-						getActions: () => contributed.actions,
-					}),
+					run: () => delegated.run(),
 				})
-				: contributed;
+				: contributed instanceof SubmenuItemAction ? undefined : contributed;
 			return { primary, contributed, isAgentMerge: contributed instanceof SubmenuItemAction && contributed.item.submenu === Menus.ChangesAgentMerge, groups: primaryGroup.length > 0 ? [primaryGroup, ...rest] : rest };
 		});
 
@@ -494,6 +494,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			primaryIsBusy = usesContributedPrimary
 				? dropdownMenuActions.isAgentMerge && agentMergeEnabledObs.read(reader)
 				: operations.hasRunning;
+			primaryCustomLabel = usesContributedPrimary ? stripIcons(dropdownMenuActions.contributed?.label ?? primaryAction?.label ?? '') : undefined;
 			buttonBar.update(primaryActions, menuActions.secondary);
 
 			this._logButtonBar(primaryAction, usesContributedPrimary, operations.hasRunning, primaryIsBusy, groups, menuActions.primary);

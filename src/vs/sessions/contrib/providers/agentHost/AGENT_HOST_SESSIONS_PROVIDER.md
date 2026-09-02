@@ -24,6 +24,7 @@ Agent Host providers implement `IAgentHostSessionsProvider`, which extends `ISes
 
 - optional remote connection state and connect/disconnect operations;
 - observable host-declared session configuration;
+- observable Agent Merge state for committed sessions;
 - configuration mutation and completion APIs;
 - optional local-draft Dev Container availability and selection.
 

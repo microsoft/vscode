@@ -1,5 +1,8 @@
 # Modern UI theming
 
+CSS selector performance requirements, audit scope, and the repeatable workbench
+benchmark are documented in [CSS_PERFORMANCE.md](./CSS_PERFORMANCE.md).
+
 Modern UI uses the standard workbench color theme system. Theme authors can use these color IDs in a theme's `colors` object, and users can use them in `workbench.colorCustomizations`.
 
 | Color ID | Purpose | Default |

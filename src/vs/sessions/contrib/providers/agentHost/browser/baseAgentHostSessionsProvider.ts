@@ -11,8 +11,8 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
-import { isEqual, isEqualOrParent, relativePath } from '../../../../../base/common/resources.js';
+import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
+import { basename, dirname, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { themeColorFromId, ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -28,13 +28,15 @@ import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/gi
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
+import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionGitHubState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionGitHubState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -49,7 +51,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel
 import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
-import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
+import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, IAgentMergeClientState, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionChatCustomization, ISessionCreationReference, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
@@ -206,6 +208,7 @@ interface ISerializedSessionMetadata {
 	readonly external?: boolean;
 	readonly multiRoot?: ISessionMultiRootMetadata;
 	readonly createdBySession?: IProtocolSessionCreationReference;
+	readonly devContainerWorktree?: IAgentDevContainerWorktreeMetadata;
 }
 
 /**
@@ -230,6 +233,7 @@ function serializeMetadata(meta: IAgentSessionMetadata): ISerializedSessionMetad
 		external: readSessionExternal(meta._meta) || undefined,
 		multiRoot: readSessionMultiRootMetadata(meta._meta),
 		createdBySession: readSessionCreationReference(meta._meta),
+		devContainerWorktree: readAgentDevContainerWorktreeMetadata(meta._meta),
 	};
 }
 
@@ -241,6 +245,9 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 		_meta = withSessionGitHubState(_meta, raw.github);
 		if (raw.createdBySession) {
 			_meta = withSessionCreationReference(_meta, raw.createdBySession);
+		}
+		if (raw.devContainerWorktree) {
+			_meta = withAgentDevContainerWorktreeMetadata(_meta, raw.devContainerWorktree.handle);
 		}
 		return {
 			session: URI.parse(raw.session),
@@ -312,9 +319,13 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 			x.number === y.number &&
 			isEqual(x.uri, y.uri) &&
 			x.icon?.id === y.icon?.id &&
+			x.state === y.state &&
+			x.liveState === y.liveState &&
 			x.title === y.title) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
 		a.pullRequest?.icon?.id === b.pullRequest?.icon?.id &&
+		a.pullRequest?.state === b.pullRequest?.state &&
+		a.pullRequest?.liveState === b.pullRequest?.liveState &&
 		a.pullRequest?.title === b.pullRequest?.title &&
 		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
 		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid &&
@@ -348,7 +359,7 @@ function toGitHubIssueRefs(issueUrls: readonly string[] | undefined): readonly I
  * title. Every pull request published here belongs to the session — it either
  * produced it or its branch relates to it — so all are marked as such.
  */
-function toGitHubPullRequestRefs(pullRequestUrls: readonly string[] | undefined, titles: ReadonlyMap<string, string>): readonly IGitHubPullRequestRef[] | undefined {
+function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullRequestUrls: readonly string[] | undefined, titles: ReadonlyMap<string, string>): readonly IGitHubPullRequestRef[] | undefined {
 	const refs: IGitHubPullRequestRef[] = [];
 	for (const url of pullRequestUrls ?? []) {
 		const reference = parseGitHubPullRequestUrl(url);
@@ -357,6 +368,7 @@ function toGitHubPullRequestRefs(pullRequestUrls: readonly string[] | undefined,
 			refs.push({
 				...reference,
 				uri: URI.parse(url),
+				state: state?.pullRequestStateUrl && linkKey(state.pullRequestStateUrl) === linkKey(url) ? state.pullRequestState : undefined,
 				...(title ? { title } : {}),
 				createdByThisSession: true,
 			});
@@ -381,7 +393,7 @@ function toGitHubPromotion(meta: SessionMeta | undefined): IGitHubPromotion {
 
 	// Only pull requests the session produced are promoted, so the ones it
 	// recorded lead the discovered ones and the first is the main pull request.
-	const allPullRequests = toGitHubPullRequestRefs(dedupeLinks(pullRequestUrls, getSessionRelatedPullRequestUrls(state)), pullRequestTitles);
+	const allPullRequests = toGitHubPullRequestRefs(state, dedupeLinks(pullRequestUrls, getSessionRelatedPullRequestUrls(state)), pullRequestTitles);
 	const repository = state?.owner && state.repo
 		? { owner: state.owner, repo: state.repo }
 		: gitState?.githubOwner && gitState.githubRepo
@@ -417,6 +429,7 @@ function toGitHubPromotion(meta: SessionMeta | undefined): IGitHubPromotion {
 			pullRequest: pullRequest ? {
 				number: pullRequest.number,
 				uri: pullRequest.uri,
+				state: pullRequest.state,
 			} : undefined,
 			issues: issues?.length ? issues : undefined,
 		},
@@ -990,6 +1003,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				)
 			}));
 			const icon = pullRequests[0].icon;
+			const liveState = pullRequests[0].liveState;
 			const title = pullRequests[0].title;
 			return {
 				...baseGitHubInfo,
@@ -997,6 +1011,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				pullRequest: {
 					...baseGitHubInfo.pullRequest,
 					icon,
+					liveState,
 					title,
 				}
 			};
@@ -1973,6 +1988,7 @@ class NewSession extends Disposable {
 
 	private readonly _activeClientScope: IAgentCustomizationScope;
 	private readonly _initialMetadata: Record<string, unknown> | undefined;
+	get initialMetadata(): Record<string, unknown> | undefined { return this._initialMetadata; }
 
 	private readonly _logService: ILogService;
 	private readonly _providerId: string;
@@ -2552,6 +2568,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	protected readonly _onDidChangeSessionConfig = this._register(new Emitter<string>());
 	readonly onDidChangeSessionConfig = this._onDidChangeSessionConfig.event;
+	private readonly _onDidChangeAgentMergeSessionState = this._register(new Emitter<string>());
 
 	protected readonly _onDidChangeRootConfig = this._register(new Emitter<void>());
 	readonly onDidChangeRootConfig = this._onDidChangeRootConfig.event;
@@ -2667,7 +2684,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!rawId) {
 			return undefined;
 		}
+
 		return this._sessionCache.get(rawId)?.backendUri ?? this._newSessions.get(sessionId)?.backendUri;
+	}
+
+	protected _hasSession(sessionId: string): boolean {
+		const rawId = this._rawIdFromChatId(sessionId);
+		return !!rawId && this._sessionCache.has(rawId);
 	}
 
 	/**
@@ -2676,15 +2699,34 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * connection drops and the composed-but-unsent drafts can no longer commit.
 	 */
 	protected _disposeAllNewSessions(): void {
+		for (const sessionId of this._newSessions.keys()) {
+			this._onNewSessionAbandoned(sessionId, 'providerDisposed');
+		}
 		this._newSessions.clearAndDisposeAll();
 		this._onDidChangeDraftSessions.fire();
 	}
 
 	deleteNewSession(sessionId: string): void {
 		if (this._newSessions.has(sessionId)) {
+			this._onNewSessionAbandoned(sessionId, 'discarded');
 			this._newSessions.deleteAndDispose(sessionId);
 			this._onDidChangeDraftSessions.fire();
 		}
+	}
+
+	protected _onNewSessionAbandoned(_sessionId: string, _reason: 'discarded' | 'sendFailed' | 'providerDisposed'): void { }
+
+	protected _getSessionMetadata(sessionId: string): Record<string, unknown> | undefined {
+		const draft = this._newSessions.get(sessionId);
+		if (draft) {
+			return draft.initialMetadata;
+		}
+		const rawId = this._rawIdFromChatId(sessionId);
+		return rawId ? this._metaByRawId.get(rawId)?._meta : undefined;
+	}
+
+	protected _getSessionMetadataByRawId(rawId: string): Record<string, unknown> | undefined {
+		return this._metaByRawId.get(rawId)?._meta;
 	}
 
 	/** Full resolved config (schema + values) for running sessions, keyed by session ID. */
@@ -2710,6 +2752,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * state can be evicted on the agent host. Keyed by session ID.
 	 */
 	protected readonly _sessionStateSubscriptions = this._register(new DisposableMap<string, DisposableStore>());
+	private readonly _agentMergeSessionStateSubscriptions = this._register(new DisposableMap<string, DisposableStore>());
+	private readonly _agentMergeSessionStateIdleTimers = this._register(new DisposableMap<string, IDisposable>());
+	private readonly _agentMergeSessionStateObservables = new Map<string, IObservable<IAgentMergeClientState | undefined>>();
+	private readonly _observedAgentMergeSessionStates = new Set<string>();
 
 	/**
 	 * Idle-release timers paired with {@link _sessionStateSubscriptions}. Each
@@ -2793,6 +2839,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// live, instead of relying on the idle timer that only client actions
 		// refresh.
 		this._register(autorun(reader => this._syncVisibleSessionStatePins(reader)));
+		this._register(this._onDidChangeSessionsImmediately(() => {
+			for (const sessionId of this._observedAgentMergeSessionStates) {
+				this._keepAgentMergeSessionStateAlive(sessionId);
+			}
+		}));
 		this._register(autorun(reader => {
 			this._sessionsService.activeSession.read(reader);
 			this._syncActiveClient();
@@ -3150,7 +3201,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return sessions;
 	}
 
-	getResourceLabelHomes(): { readonly uri: URI; readonly label: string }[] {
+	protected getResourceLabelHomes(): { readonly uri: URI; readonly label: string }[] {
 		const homes: { readonly uri: URI; readonly label: string }[] = [];
 		for (const session of this.getKnownSessions()) {
 			if (session.isQuickChat?.get()) {
@@ -3162,9 +3213,66 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return homes;
 	}
 
+	private readonly _resourceLabelHomeRegistrations = this._register(new DisposableMap<string>());
+	private readonly _resourceLabelHomeLabels = new Map<string, Map<string, string>>();
+
+	protected updateResourceLabelHomeFormatters(homes: readonly { readonly uri: URI; readonly label: string }[], labelService: ILabelService, onDidChange: Event<void>): void {
+		const groups = new Map<string, { readonly parent: URI; readonly labels: Map<string, string> }>();
+		for (const home of homes) {
+			const parent = dirname(home.uri);
+			const key = getComparisonKey(parent);
+			let group = groups.get(key);
+			if (!group) {
+				group = { parent, labels: new Map() };
+				groups.set(key, group);
+			}
+			group.labels.set(basename(home.uri), home.label);
+		}
+
+		this._resourceLabelHomeLabels.clear();
+		const registrationKeys = new Set<string>();
+		for (const [key, group] of groups) {
+			this._resourceLabelHomeLabels.set(key, group.labels);
+			const separator = labelService.getSeparator(group.parent.scheme, group.parent.authority);
+			const templateKey = `template:${key}`;
+			if (group.labels.size > (group.labels.has('') ? 1 : 0)) {
+				registrationKeys.add(templateKey);
+				if (!this._resourceLabelHomeRegistrations.has(templateKey)) {
+					this._resourceLabelHomeRegistrations.set(templateKey, labelService.registerFormatter({
+						home: joinPath(group.parent, '${sessionId}'),
+						onDidChangeFormatting: onDidChange,
+						formatting: context => {
+							const label = this._resourceLabelHomeLabels.get(key)?.get(context.parameters.get('sessionId') ?? '');
+							return label === undefined ? undefined : { label, separator };
+						},
+					}));
+				}
+			}
+			const rootKey = `root:${key}`;
+			if (group.labels.has('')) {
+				registrationKeys.add(rootKey);
+				if (!this._resourceLabelHomeRegistrations.has(rootKey)) {
+					this._resourceLabelHomeRegistrations.set(rootKey, labelService.registerFormatter({
+						home: group.parent,
+						onDidChangeFormatting: onDidChange,
+						formatting: () => {
+							const label = this._resourceLabelHomeLabels.get(key)?.get('');
+							return label === undefined ? undefined : { label, separator };
+						},
+					}));
+				}
+			}
+		}
+		for (const [key] of this._resourceLabelHomeRegistrations) {
+			if (!registrationKeys.has(key)) {
+				this._resourceLabelHomeRegistrations.deleteAndDispose(key);
+			}
+		}
+	}
+
 	protected getResourceLabelHomeLabel(session: ISession): string {
 		const providerLabel = this.sessionTypes.find(type => type.id === session.sessionType)?.label ?? session.sessionType;
-		return `${providerLabel}/${localize('sessionHome', "Session")}`;
+		return `${providerLabel}/${session.title.get() || localize('sessionHome', "Session")}`;
 	}
 
 	protected getKnownSessions(): ISession[] {
@@ -3695,6 +3803,30 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return readAgentMergeSessionState(this._lastSessionStates.get(sessionId)?.config?.values);
 	}
 
+	getAgentMergeClientStateObservable(sessionId: string): IObservable<IAgentMergeClientState | undefined> {
+		const existing = this._agentMergeSessionStateObservables.get(sessionId);
+		if (existing) {
+			return existing;
+		}
+		const onDidChange = Event.filter(this._onDidChangeAgentMergeSessionState.event, changedSessionId => changedSessionId === sessionId);
+		const observedEvent: Event<string> = listener => {
+			this._observedAgentMergeSessionStates.add(sessionId);
+			this._keepAgentMergeSessionStateAlive(sessionId);
+			const listenerDisposable = onDidChange(listener);
+			return toDisposable(() => {
+				listenerDisposable.dispose();
+				this._observedAgentMergeSessionStates.delete(sessionId);
+				this._scheduleAgentMergeSessionStateIdleRelease(sessionId);
+			});
+		};
+		const observable = observableFromEvent(this, observedEvent, () => {
+			const state = this.getAgentMergeSessionState(sessionId);
+			return state ? { enabled: state.enabled, overrides: state.overrides } : undefined;
+		});
+		this._agentMergeSessionStateObservables.set(sessionId, observable);
+		return observable;
+	}
+
 	async setAgentMergeEnabled(sessionId: string, enabled: boolean): Promise<void> {
 		const current = this.getAgentMergeSessionState(sessionId);
 		await this._writeAgentMergeClientState(sessionId, enabled, current?.overrides);
@@ -3833,6 +3965,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	clearSessionConfig(sessionId: string): void {
 		if (this._newSessions.has(sessionId)) {
+			this._onNewSessionAbandoned(sessionId, 'discarded');
 			this._newSessions.deleteAndDispose(sessionId);
 			this._onDidChangeDraftSessions.fire();
 		}
@@ -4212,16 +4345,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * Skips the local flip when disconnected: showing a session as archived when
 	 * the change can never be recorded is worse than appearing not to archive.
 	 */
-	private _setSessionArchived(sessionId: string, isArchived: boolean): void {
+	protected _setSessionArchived(sessionId: string, isArchived: boolean): boolean {
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
 		if (!cached || !rawId || !connection) {
-			return;
+			return false;
 		}
 		cached.isArchived.set(isArchived, undefined);
 		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		connection.dispatch(cached.backendUri.toString(), { type: ActionType.SessionIsArchivedChanged as const, isArchived });
+		return true;
 	}
 
 	async setSessionReadState(sessionId: string, isRead: boolean): Promise<void> {
@@ -4471,7 +4605,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(`Session '${sessionId}' does not support side chats`);
 		}
 
-		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const sessionUri = cached.backendUri;
 		const newChatId = generateUuid();
 		const chatUri = URI.parse(buildChatUri(sessionUri, newChatId));
 		const sourceBackendUri = this._resolveBackendSourceChatUri(cached.sessionId, sessionUri, sourceChat);
@@ -4509,10 +4643,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private _resolveBackendSourceChatUri(sessionId: string, sessionUri: URI, sourceChat: URI): URI {
+		const state = this._lastSessionStates.get(sessionId);
+		const backendResource = state && getSessionChatResource(state, sourceChat.fragment || DEFAULT_CHAT_ID);
+		if (backendResource) {
+			return URI.parse(backendResource);
+		}
 		if (sourceChat.fragment) {
+			const subagentPrefix = 'subagent/';
+			if (sourceChat.fragment.startsWith(subagentPrefix)) {
+				return URI.parse(buildSubagentChatUri(sessionUri, sourceChat.fragment.slice(subagentPrefix.length)));
+			}
 			return URI.parse(buildChatUri(sessionUri, sourceChat.fragment));
 		}
-		const hydratedDefaultChat = this._lastSessionStates.get(sessionId)?.defaultChat;
+		const hydratedDefaultChat = state?.defaultChat;
 		return hydratedDefaultChat ? URI.parse(hydratedDefaultChat.toString()) : URI.parse(buildDefaultChatUri(sessionUri));
 	}
 
@@ -4794,6 +4937,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// than risking a double-dispose race on transient failures.
 		newSession.graduate();
 		if (this._newSessions.get(newSession.sessionId) === newSession) {
+			this._onNewSessionAbandoned(newSession.sessionId, 'sendFailed');
 			this._newSessions.deleteAndDispose(newSession.sessionId);
 			this._onDidChangeDraftSessions.fire();
 		}
@@ -4863,6 +5007,51 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private static readonly SESSION_STATE_SUBSCRIPTION_IDLE_MS = 30_000;
 	private static readonly CHAT_MODEL_RETENTION_MS = 10_000;
 
+	private _keepAgentMergeSessionStateAlive(sessionId: string): void {
+		this._agentMergeSessionStateIdleTimers.deleteAndDispose(sessionId);
+		if (this._agentMergeSessionStateSubscriptions.has(sessionId)) {
+			return;
+		}
+		const connection = this.connection;
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!connection || !rawId || !cached || readSessionEhcliAdoptable(this._metaByRawId.get(rawId)?._meta)) {
+			return;
+		}
+		const ref = connection.getSubscription(StateComponents.Session, cached.backendUri, 'BaseAgentHostSessionsProvider.agentMergeState');
+		if (ref.object.value instanceof Error) {
+			ref.dispose();
+			return;
+		}
+		const store = new DisposableStore();
+		store.add(ref);
+		store.add(ref.object.onDidChange(state => this._applySessionStateUpdate(sessionId, state)));
+		const onDidError = ref.object.onDidError;
+		if (onDidError) {
+			store.add(onDidError(() => {
+				if (this._agentMergeSessionStateSubscriptions.get(sessionId) === store) {
+					this._agentMergeSessionStateIdleTimers.deleteAndDispose(sessionId);
+					this._agentMergeSessionStateSubscriptions.deleteAndDispose(sessionId);
+				}
+			}));
+		}
+		this._agentMergeSessionStateSubscriptions.set(sessionId, store);
+		const value = ref.object.value;
+		if (value && !(value instanceof Error)) {
+			this._applySessionStateUpdate(sessionId, value);
+		}
+	}
+
+	private _scheduleAgentMergeSessionStateIdleRelease(sessionId: string): void {
+		if (this._observedAgentMergeSessionStates.has(sessionId) || !this._agentMergeSessionStateSubscriptions.has(sessionId)) {
+			return;
+		}
+		this._agentMergeSessionStateIdleTimers.set(sessionId, disposableTimeout(() => {
+			this._agentMergeSessionStateIdleTimers.deleteAndDispose(sessionId);
+			this._agentMergeSessionStateSubscriptions.deleteAndDispose(sessionId);
+		}, BaseAgentHostSessionsProvider.SESSION_STATE_SUBSCRIPTION_IDLE_MS));
+	}
+
 	/**
 	 * Pin the state subscription of every currently-visible session (so
 	 * host-driven catalog changes flow into `cached.chats` while it is on
@@ -4914,8 +5103,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!this._sessionStateSubscriptions.has(sessionId)) {
 			return;
 		}
-		// A visible session's subscription is pinned open; never arm the idle
-		// release while it is on screen.
+		// A visible session's subscription is pinned open.
 		if (this._pinnedSessionStates.has(sessionId)) {
 			this._sessionStateIdleTimers.deleteAndDispose(sessionId);
 			return;
@@ -4930,6 +5118,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				BaseAgentHostSessionsProvider.SESSION_STATE_SUBSCRIPTION_IDLE_MS,
 			),
 		);
+	}
+
+	private _keepChatSessionStateAlive(chatChannel: string): void {
+		const parsedChat = parseChatUri(chatChannel);
+		if (!parsedChat) {
+			return;
+		}
+		const cached = this._sessionCache.get(AgentSession.id(parsedChat.session));
+		if (cached) {
+			this._keepSessionStateAlive(cached.sessionId);
+		}
 	}
 
 	/**
@@ -5083,6 +5282,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _applySessionStateUpdate(sessionId: string, state: SessionState): void {
 		const previous = this._lastSessionStates.get(sessionId);
 		this._lastSessionStates.set(sessionId, state);
+		const previousAgentMerge = readAgentMergeSessionState(previous?.config?.values);
+		const currentAgentMerge = readAgentMergeSessionState(state.config?.values);
+		if (previousAgentMerge?.enabled !== currentAgentMerge?.enabled || !structuralEquals(previousAgentMerge?.overrides, currentAgentMerge?.overrides)) {
+			this._onDidChangeAgentMergeSessionState.fire(sessionId);
+		}
 		// Only fire when the inputs to `getCustomAgents` actually change.
 		// `SessionState` updates fire for every turn-status / activity / meta
 		// change too — firing on all of them caused excessive picker
@@ -5465,6 +5669,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					removed.push(cached);
 				}
 			}
+			this._onHostReconciledSessions(new Set(this._sessionCache.keys()));
 
 			if (added.length > 0 || removed.length > 0 || changed.length > 0) {
 				this._onDidChangeSessions.fire({ added, removed, changed });
@@ -5498,6 +5703,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/** Raw ids the host listed, reported before eviction runs so subclasses can retire protections. */
 	protected _onHostListedSessions(_rawIds: ReadonlySet<string>): void { }
+
+	/** Raw ids retained after authoritative-list eviction and partial-provider guards have applied. */
+	protected _onHostReconciledSessions(_rawIds: ReadonlySet<string>): void { }
 
 	/**
 	 * Arm a backoff retry of {@link _refreshSessions}. Used after a failed
@@ -5623,6 +5831,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				return;
 			}
 			if (e.action.type === ActionType.ChatTurnComplete && isChatAction(e.action)) {
+				this._keepChatSessionStateAlive(e.channel);
 				this._refreshSessions();
 			} else if (e.action.type === ActionType.SessionTitleChanged && isSessionAction(e.action)) {
 				this._handleTitleChanged(e.channel, e.action.title);
@@ -5684,6 +5893,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	private _handleSessionRemoved(session: URI | string): void {
 		const rawId = AgentSession.id(session);
+		this._onBackendSessionRemoved(rawId);
 		const cached = this._removeCachedSession(rawId);
 		if (cached) {
 			this._onDidChangeSessionsFromNotifications.fire({ added: [], removed: [cached], changed: [] });
@@ -5691,6 +5901,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		this._syncActiveClient();
 	}
+
+	protected _onBackendSessionRemoved(_rawId: string): void { }
 
 	private _removeCachedSession(rawId: string, expected?: AgentHostSessionAdapter): AgentHostSessionAdapter | undefined {
 		const cached = this._sessionCache.get(rawId);
@@ -5709,6 +5921,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._runningSessionConfigResolveSeq.delete(stateOwner.sessionId);
 		this._sessionStateIdleTimers.deleteAndDispose(stateOwner.sessionId);
 		this._sessionStateSubscriptions.deleteAndDispose(stateOwner.sessionId);
+		this._agentMergeSessionStateIdleTimers.deleteAndDispose(stateOwner.sessionId);
+		this._agentMergeSessionStateSubscriptions.deleteAndDispose(stateOwner.sessionId);
+		this._agentMergeSessionStateObservables.delete(stateOwner.sessionId);
+		this._observedAgentMergeSessionStates.delete(stateOwner.sessionId);
 		this._lastSessionStates.delete(stateOwner.sessionId);
 		return cached;
 	}

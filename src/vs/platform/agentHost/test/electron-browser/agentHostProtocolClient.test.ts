@@ -11,6 +11,7 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
+import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -279,6 +280,7 @@ suite('AgentHostProtocolClient', () => {
 		onGrantImplicitRead?: (identity: AgentHostResourceIdentity, uri: URI) => void;
 		/** Test hook that observes disposal of the implicit-read grant. */
 		onRevokeImplicitRead?: (identity: AgentHostResourceIdentity, uri: URI) => void;
+		onRead?: (identity: AgentHostResourceIdentity, uri: URI) => Promise<{ bytes: VSBuffer }>;
 		readBytes?: VSBuffer;
 	}
 
@@ -306,6 +308,9 @@ suite('AgentHostProtocolClient', () => {
 			async list(addr, uri) { await gateRead(addr, uri); return { entries: [] }; },
 			async read(addr, uri) {
 				await gateRead(addr, uri);
+				if (opts.onRead) {
+					return await opts.onRead(addr, uri);
+				}
 				if (opts.readBytes) {
 					return { bytes: opts.readBytes };
 				}
@@ -555,6 +560,58 @@ suite('AgentHostProtocolClient', () => {
 
 		const sessions = await resultPromise;
 		assert.deepStrictEqual(sessions.map(s => readSessionExternal(s._meta)), [true]);
+	});
+
+	test('listSessions preserves client-addressed remote working directories across reload', async () => {
+		const { client, transport } = createClient();
+		const remoteDirectory = URI.parse('vscode-remote://ssh-remote+host/workspace');
+		const hostDirectory = URI.file('/workspace');
+		const summary = {
+			resource: 'agent-session://copilotcli/remote-1',
+			provider: 'copilotcli',
+			title: 'Remote Chat',
+			status: SessionStatus.Idle,
+			createdAt: new Date(1000).toISOString(),
+			modifiedAt: new Date(2000).toISOString(),
+			workingDirectories: [remoteDirectory.toString(), hostDirectory.toString()],
+		};
+		let liveWorkingDirectories: readonly string[] | undefined;
+		disposables.add(client.onDidNotification(notification => {
+			if (notification.type === 'root/sessionAdded') {
+				liveWorkingDirectories = notification.summary.workingDirectories;
+			}
+		}));
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			method: 'root/sessionAdded',
+			params: { channel: ROOT_STATE_URI, summary },
+		});
+
+		const resultPromise = client.listSessions();
+		const sent = transport.sentMessages[0] as JsonRpcRequest;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: sent.id,
+			result: {
+				items: [summary],
+			},
+		});
+
+		const [session] = await resultPromise;
+		assert.deepStrictEqual({
+			liveWorkingDirectories,
+			liveVisibleInWorkspace: liveWorkingDirectories?.some(directory => extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(directory), remoteDirectory)),
+			workingDirectories: session.workingDirectories?.map(uri => uri.toString()),
+			restoredVisibleInWorkspace: session.workingDirectories?.some(directory => extUriBiasedIgnorePathCase.isEqualOrParent(directory, remoteDirectory)),
+		}, {
+			liveWorkingDirectories: summary.workingDirectories,
+			liveVisibleInWorkspace: true,
+			workingDirectories: [
+				remoteDirectory.toString(),
+				client.resourceUris.fromAgentHost(hostDirectory).toString(),
+			],
+			restoredVisibleInWorkspace: true,
+		});
 	});
 
 	test('queues requests and notifications until a client transport initializes', async () => {
@@ -2219,7 +2276,7 @@ suite('AgentHostProtocolClient', () => {
 		 * client plus a `transports` array recording each transport handed
 		 * out, so tests can drive handshake/reconnect interactions.
 		 */
-		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
+		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
 			const transports: TestClientProtocolTransport[] = [];
 			const factory = () => {
 				const t = disposables.add(new TestClientProtocolTransport());
@@ -2227,7 +2284,7 @@ suite('AgentHostProtocolClient', () => {
 				return t;
 			};
 			const client = disposables.add(new AgentHostProtocolClient(
-				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined ? { clientInfo, reconnectPolicy } : undefined, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService,
+				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined ? { clientInfo, reconnectPolicy, loadEstimator } : undefined, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService,
 			));
 			return { client, transports };
 		}
@@ -3253,7 +3310,9 @@ suite('AgentHostProtocolClient', () => {
 		test('watchdog dead-transport detection triggers soft reconnect', async function () {
 			this.timeout(60_000);
 			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
-				const { client, transports } = createFactoryClient();
+				// Inject a no-load estimator: the shared LoadEstimator singleton
+				// installs a 1s interval that never drains under fake timers.
+				const { client, transports } = createFactoryClient(createPermissionService(), undefined, NullTelemetryService, undefined, { hasHighLoad: () => false });
 				const connectPromise = client.connect();
 				await completeHandshake(transports[0], connectPromise);
 
@@ -3270,6 +3329,185 @@ suite('AgentHostProtocolClient', () => {
 				const err = await pending;
 				assert.ok(err instanceof ProtocolError);
 				assert.match((err as ProtocolError).message, /Connection appears dead/);
+			});
+		});
+
+		test('watchdog grants a full liveness window after a pending reverse request is answered', async function () {
+			this.timeout(60_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const readDeferred = new DeferredPromise<{ bytes: VSBuffer }>();
+				const { client, transports } = createFactoryClient(createResourceServiceStub({
+					onRead: () => readDeferred.p,
+				}), undefined, NullTelemetryService, undefined, { hasHighLoad: () => false });
+				try {
+					const connectPromise = client.connect();
+					await completeHandshake(transports[0], connectPromise);
+
+					transports[0].fireMessage({
+						jsonrpc: '2.0',
+						id: 1,
+						method: 'resourceRead',
+						params: { channel: 'ahp-root://', uri: URI.file('/workspace/customization.json').toString() },
+					});
+
+					await timeout(25_000);
+					assert.strictEqual(client.connectionState, AgentHostClientState.Connected,
+						'watchdog must not close while the host awaits a reverse-request response');
+
+					readDeferred.complete({ bytes: VSBuffer.fromString('{}') });
+					await flushMicrotasks();
+
+					// The window now runs from the moment the response was handed
+					// to the transport, so it expires at ~t+25s rather than at the
+					// next 5s poll plus 25s.
+					await timeout(20_000);
+					assert.strictEqual(client.connectionState, AgentHostClientState.Connected,
+						'watchdog must grant a full liveness window once the pending reverse request is answered');
+
+					await timeout(10_000);
+					assert.strictEqual(client.connectionState, AgentHostClientState.Reconnecting,
+						'watchdog must close after the fresh liveness window expires without inbound traffic');
+				} finally {
+					client.dispose();
+				}
+			});
+		});
+
+		test('watchdog grants a full liveness window when a reverse request is answered before the first close tick', async function () {
+			this.timeout(60_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const readDeferred = new DeferredPromise<{ bytes: VSBuffer }>();
+				const { client, transports } = createFactoryClient(createResourceServiceStub({
+					onRead: () => readDeferred.p,
+				}), undefined, NullTelemetryService, undefined, { hasHighLoad: () => false });
+				try {
+					const connectPromise = client.connect();
+					await completeHandshake(transports[0], connectPromise);
+
+					transports[0].fireMessage({
+						jsonrpc: '2.0',
+						id: 1,
+						method: 'resourceRead',
+						params: { channel: 'ahp-root://', uri: URI.file('/workspace/customization.json').toString() },
+					});
+
+					// Answer just before the close timer armed by the inbound
+					// request fires, so no deferral is ever observed. The peer is
+					// still owed the drain plus its own post-response work, so the
+					// close must not fire moments later.
+					await timeout(24_000);
+					readDeferred.complete({ bytes: VSBuffer.fromString('{}') });
+					await flushMicrotasks();
+
+					await timeout(5_000);
+					assert.strictEqual(client.connectionState, AgentHostClientState.Connected,
+						'watchdog must not close right after a response it never observed as deferred');
+
+					await timeout(15_000);
+					assert.strictEqual(client.connectionState, AgentHostClientState.Connected,
+						'the granted window must run from the response, not from the last inbound message');
+
+					await timeout(10_000);
+					assert.strictEqual(client.connectionState, AgentHostClientState.Reconnecting,
+						'watchdog must still close once the granted window expires');
+				} finally {
+					client.dispose();
+				}
+			});
+		});
+
+		test('watchdog retains deferral until all concurrent reverse requests are answered', async function () {
+			this.timeout(60_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const firstRead = new DeferredPromise<{ bytes: VSBuffer }>();
+				const secondRead = new DeferredPromise<{ bytes: VSBuffer }>();
+				const { client, transports } = createFactoryClient(createResourceServiceStub({
+					onRead: (_identity, uri) => uri.path === '/workspace/one.json' ? firstRead.p : secondRead.p,
+				}), undefined, NullTelemetryService, undefined, { hasHighLoad: () => false });
+				try {
+					const connectPromise = client.connect();
+					await completeHandshake(transports[0], connectPromise);
+
+					transports[0].fireMessage({ jsonrpc: '2.0', id: 1, method: 'resourceRead', params: { channel: 'ahp-root://', uri: URI.file('/workspace/one.json').toString() } });
+					transports[0].fireMessage({ jsonrpc: '2.0', id: 2, method: 'resourceRead', params: { channel: 'ahp-root://', uri: URI.file('/workspace/two.json').toString() } });
+
+					await timeout(25_000);
+					firstRead.complete({ bytes: VSBuffer.fromString('{}') });
+					await flushMicrotasks();
+					await timeout(5_000);
+
+					assert.strictEqual(client.connectionState, AgentHostClientState.Connected,
+						'watchdog must remain deferred while another reverse request is outstanding');
+
+					secondRead.complete({ bytes: VSBuffer.fromString('{}') });
+					await flushMicrotasks();
+
+					// The window runs from the final response, so it expires ~25s
+					// after this point rather than after the next poll.
+					await timeout(20_000);
+					assert.strictEqual(client.connectionState, AgentHostClientState.Connected,
+						'watchdog must grant a fresh liveness window after the final reverse request completes');
+
+					await timeout(10_000);
+					assert.strictEqual(client.connectionState, AgentHostClientState.Reconnecting,
+						'watchdog must close once every concurrent reverse request has completed and the fresh window expires');
+				} finally {
+					client.dispose();
+				}
+			});
+		});
+
+		test('watchdog clears reverse-request deferral after an error response', async function () {
+			this.timeout(60_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient(createResourceServiceStub({
+					onRead: async () => { throw new Error('resource read failed'); },
+				}), undefined, NullTelemetryService, undefined, { hasHighLoad: () => false });
+				try {
+					const connectPromise = client.connect();
+					await completeHandshake(transports[0], connectPromise);
+
+					transports[0].fireMessage({ jsonrpc: '2.0', id: 1, method: 'resourceRead', params: { channel: 'ahp-root://', uri: URI.file('/workspace/error.json').toString() } });
+					await flushMicrotasks();
+
+					assert.deepStrictEqual(transports[0].sentMessages.at(-1), {
+						jsonrpc: '2.0',
+						id: 1,
+						error: { code: -32000, message: 'resource read failed' },
+					});
+
+					await timeout(25_000);
+					assert.strictEqual(client.connectionState, AgentHostClientState.Reconnecting,
+						'watchdog must close when a reverse request has completed with an error');
+				} finally {
+					client.dispose();
+				}
+			});
+		});
+
+		test('watchdog grants a full liveness window after high load clears', async function () {
+			this.timeout(60_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				let hasHighLoad = true;
+				const { client, transports } = createFactoryClient(createPermissionService(), undefined, NullTelemetryService, undefined, { hasHighLoad: () => hasHighLoad });
+				try {
+					const connectPromise = client.connect();
+					await completeHandshake(transports[0], connectPromise);
+
+					await timeout(25_000);
+					hasHighLoad = false;
+					await timeout(5_000);
+					await timeout(20_000);
+
+					assert.strictEqual(client.connectionState, AgentHostClientState.Connected,
+						'watchdog must grant a fresh liveness window once high load clears');
+
+					await timeout(5_000);
+					assert.strictEqual(client.connectionState, AgentHostClientState.Reconnecting,
+						'watchdog must close after the fresh liveness window expires without inbound traffic');
+				} finally {
+					client.dispose();
+				}
 			});
 		});
 	});

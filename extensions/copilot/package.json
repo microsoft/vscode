@@ -2708,6 +2708,12 @@
         "category": "Developer"
       },
       {
+        "command": "github.copilot.debug.logTypeScriptContainers",
+        "title": "%github.copilot.command.logTypeScriptContainers%",
+        "enablement": "editorLangId == typescript || editorLangId == javascript",
+        "category": "Developer"
+      },
+      {
         "command": "github.copilot.debug.validateNesRename",
         "title": "%github.copilot.command.validateNesRename%",
         "category": "Developer"
@@ -4951,16 +4957,6 @@
               "onExp"
             ]
           },
-          "github.copilot.chat.inlineEdits.nextCursorPrediction.displayLine": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.inlineEdits.nextCursorPrediction.displayLine%",
-            "tags": [
-              "advanced",
-              "experimental",
-              "onExp"
-            ]
-          },
           "github.copilot.chat.inlineEdits.nextCursorPrediction.currentFileMaxTokens": {
             "type": "number",
             "default": 3000,
@@ -5246,14 +5242,14 @@
               "onExp"
             ]
           },
-          "github.copilot.chat.agentDebugLog.enabled": {
+          "github.copilot.chat.searchSubagent.subagentSemanticSearchEnabled": {
             "type": "boolean",
-            "default": false,
-            "markdownDescription": "%github.copilot.config.chat.agentDebugLog.enabled%",
-            "deprecationMessage": "%github.copilot.config.chat.agentDebugLog.enabled.deprecated%",
+            "default": true,
+            "markdownDescription": "%github.copilot.config.searchSubagent.subagentSemanticSearchEnabled%",
             "tags": [
               "advanced",
-              "experimental"
+              "experimental",
+              "onExp"
             ]
           },
           "github.copilot.chat.agentDebugLog.fileLogging.enabled": {

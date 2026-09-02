@@ -6,6 +6,7 @@
 import { URI } from '../../../../../base/common/uri.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Event } from '../../../../../base/common/event.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IObservable, constObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -16,6 +17,8 @@ import { IGitHubInfo, IGitHubPullRequestRef, ISessionFolder, ISessionGitReposito
 import { IActiveSession } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionContext, SessionContext } from '../../../../../sessions/services/sessions/browser/sessionContext.js';
+// eslint-disable-next-line local/code-import-patterns
+import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { computePullRequestIcon, IGitHubPullRequest, GitHubPullRequestState } from '../../../../../sessions/contrib/github/common/types.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -96,6 +99,10 @@ function renderPullRequestPill(ctx: ComponentFixtureContext, pullRequest: IGitHu
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
 			reg.defineInstance(ISessionContext, new SessionContext(session));
+			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+				override readonly onDidChangeProviders = Event.None;
+				override getProvider() { return undefined; }
+			}());
 			reg.defineInstance(IGitHubService, createFixtureGitHubService(pullRequestDetails.map(details => ({ owner: 'microsoft', repo: 'vscode', pullRequest: details }))));
 			reg.defineInstance(IPullRequestIconCache, createFixturePullRequestIconCache());
 		},
