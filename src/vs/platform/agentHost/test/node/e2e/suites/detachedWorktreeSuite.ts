@@ -41,7 +41,6 @@ import { isAgentDevContainerWorktreeHandle } from '../../../../common/meta/agent
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ROOT_STATE_URI, SessionLifecycle, type SessionState } from '../../../../common/state/sessionState.js';
-import { isWorktreeUnderRepository } from '../../../../common/worktreePaths.js';
 import { initTestGitRepo, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { vscodeAgentHostTarget } from '../harness/agentHostTarget.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
@@ -182,7 +181,6 @@ export function defineDetachedWorktreeTests(context: IAgentHostE2ETestContext): 
 		assert.deepStrictEqual({
 			sessionLifecycle: sessionState.lifecycle,
 			handleIsOpaqueId: isAgentDevContainerWorktreeHandle(created.handle),
-			inWorktreesContainer: isWorktreeUnderRepository(URI.file(worktreePath), URI.file(workspace)),
 			existsOnDisk: existsSync(worktreePath),
 			registeredWithGit: isRegisteredWorktree(workspace, worktreePath),
 			checkedOutRepositoryContent: existsSync(join(worktreePath, 'seed.txt')),
@@ -191,7 +189,6 @@ export function defineDetachedWorktreeTests(context: IAgentHostE2ETestContext): 
 		}, {
 			sessionLifecycle: SessionLifecycle.Creating,
 			handleIsOpaqueId: true,
-			inWorktreesContainer: true,
 			existsOnDisk: true,
 			registeredWithGit: true,
 			checkedOutRepositoryContent: true,
