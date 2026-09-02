@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, createEditorPart, registerTestFileEditor, TestServiceAccessor, TestTextFileEditor, workbenchTeardown, registerTestSideBySideEditor } from '../../../../test/browser/workbenchTestServices.js';
@@ -14,7 +15,7 @@ import { EditorNavigationStack, HistoryService } from '../../browser/historyServ
 import { IEditorService, SIDE_GROUP } from '../../../editor/common/editorService.js';
 import { EditorService } from '../../../editor/browser/editorService.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { GoFilter, GoScope, IHistoryService } from '../../common/history.js';
+import { GoFilter, GoScope, IHistoryService, MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../../common/history.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { EditorPaneSelectionChangeReason, isResourceEditorInput, IUntypedEditorInput } from '../../../../common/editor.js';
@@ -35,7 +36,7 @@ suite('HistoryService', function () {
 	const TEST_EDITOR_ID = 'MyTestEditorForEditorHistory';
 	const TEST_EDITOR_INPUT_ID = 'testEditorInputForHistoyService';
 
-	async function createServices(scope = GoScope.DEFAULT, configureSearchExclude = false): Promise<[EditorPart, HistoryService, EditorService, ITextFileService, IInstantiationService, TestConfigurationService]> {
+	async function createServices(scope = GoScope.DEFAULT, configureSearchExclude = false, mouseBackForwardToNavigate = false): Promise<[EditorPart, HistoryService, EditorService, ITextFileService, IInstantiationService, TestConfigurationService]> {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		const part = await createEditorPart(instantiationService, disposables);
@@ -52,6 +53,9 @@ suite('HistoryService', function () {
 		}
 		if (configureSearchExclude) {
 			configurationService.setUserConfiguration('search', { exclude: { '**/node_modules/**': true } });
+		}
+		if (mouseBackForwardToNavigate) {
+			configurationService.setUserConfiguration(MOUSE_BACK_FORWARD_NAVIGATION_SETTING, true);
 		}
 		instantiationService.stub(IConfigurationService, configurationService);
 
@@ -91,6 +95,33 @@ suite('HistoryService', function () {
 
 		await historyService.goForward();
 		assert.strictEqual(part.activeGroup.activeEditor, input2);
+	});
+
+	test('back / forward: mouse buttons 4 and 5', async () => {
+		const [part, , editorService] = await createServices(GoScope.DEFAULT, false, true);
+
+		const input1 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID));
+		await part.activeGroup.openEditor(input1, { pinned: true });
+
+		const input2 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID));
+		await part.activeGroup.openEditor(input2, { pinned: true });
+
+		async function navigateWithMouseButton(button: number): Promise<boolean> {
+			const onDidActiveEditorChange = Event.toPromise(editorService.onDidActiveEditorChange);
+			const event = new MouseEvent('mousedown', { bubbles: true, cancelable: true, button });
+			mainWindow.document.body.dispatchEvent(event);
+			await onDidActiveEditorChange;
+
+			return event.defaultPrevented;
+		}
+
+		const backHandled = await navigateWithMouseButton(3);
+		assert.strictEqual(part.activeGroup.activeEditor, input1);
+		assert.strictEqual(backHandled, true);
+
+		const forwardHandled = await navigateWithMouseButton(4);
+		assert.strictEqual(part.activeGroup.activeEditor, input2);
+		assert.strictEqual(forwardHandled, true);
 	});
 
 	test('back / forward: is editor group aware', async function () {

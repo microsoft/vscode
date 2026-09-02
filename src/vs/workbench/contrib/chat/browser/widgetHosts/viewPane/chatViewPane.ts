@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatViewPane.css';
-import { $, addDisposableListener, append, EventHelper, EventType, getWindow, setVisibility } from '../../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventHelper, EventType, getWindow, isAncestor, setVisibility } from '../../../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { Orientation, Sash } from '../../../../../../base/browser/ui/sash/sash.js';
@@ -415,6 +415,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			!this.configurationService.getValue<boolean>(MOUSE_BACK_FORWARD_NAVIGATION_SETTING) ||
 			!this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled)
 		) {
+			return;
+		}
+
+		// The listener is registered on the workbench container so that it runs before anything
+		// inside the chat view can consume the event. Ignore events that originate elsewhere so
+		// that mouse back/forward keeps navigating editor history
+		// (https://github.com/microsoft/vscode/issues/333522).
+		if (!isAncestor(event.target as HTMLElement, this._widget.domNode)) {
 			return;
 		}
 
