@@ -19,7 +19,8 @@
 
 .remote-host-unavailable-empty-state.hidden,
 .remote-host-unavailable-empty-state-progress.hidden,
-.remote-host-unavailable-empty-state-action.hidden {
+.remote-host-unavailable-empty-state-action.hidden,
+.remote-host-unavailable-empty-state-auto-connect.hidden {
 	display: none;
 }
 
@@ -54,6 +55,23 @@
 
 .remote-host-unavailable-empty-state-action {
 	margin-top: var(--vscode-spacing-size80);
+}
+
+.remote-host-unavailable-empty-state-auto-connect {
+	margin-top: var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.remote-host-unavailable-empty-state-auto-connect-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	cursor: pointer;
+}
+
+.remote-host-unavailable-empty-state-auto-connect-label {
+	cursor: pointer;
 }
 
 .chat-group-view-content.remote-host-unavailable > .chat-view {

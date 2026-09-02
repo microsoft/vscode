@@ -587,6 +587,13 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				reconnectTransfersTransportOwnership: false,
 			});
 			this._rejectPendingConnectionWait(address, err);
+			// Clear the in-flight marker before notifying. A consumer may dial again
+			// from this notification — an automatic start does — and `reconnect`
+			// joins a pending dial rather than racing it. Leaving the marker set
+			// would join *this* dial, which has already failed, so the new request
+			// would never connect and its `waitForConnection` would never settle.
+			// `_connectTo` clears by identity, so a fresh dial started here survives.
+			this._pendingConnects.delete(address);
 			// Nothing else reports this failure: no entry was created, so consumers
 			// only learn the address became unavailable from this notification.
 			this._onDidChangeConnections.fire();

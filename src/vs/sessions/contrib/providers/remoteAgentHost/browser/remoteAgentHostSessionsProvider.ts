@@ -34,7 +34,7 @@ import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browse
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { IAgentHostConnectProgress, IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostAutoConnect, IAgentHostConnectProgress, IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { IGitHubInfo, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -73,6 +73,8 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly disconnectOnDemand?: () => Promise<void>;
 	/** Optional progress messages during on-demand connect. */
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
+	/** Optional kind-scoped policy for automatically starting the host. */
+	readonly autoConnect?: IAgentHostAutoConnect;
 	/**
 	 * Set when the host addresses sessions under a scheme that differs from its agent provider, as
 	 * the cloud sandbox host does (sessions are `ahp-session:/<id>` while the agent is `copilot`).
@@ -138,6 +140,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly canConnectOnDemand: boolean;
 	readonly onDidReportConnectProgress: Event<IAgentHostConnectProgress> | undefined;
+	readonly autoConnect?: IAgentHostAutoConnect;
 	readonly automations: ISessionsProviderAutomations;
 	private readonly _automationStore: ReconnectableAgentHostAutomationStore;
 
@@ -236,6 +239,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._defaultChangesetKind = config.defaultChangesetKind;
 		this._devContainerWorktreeScope = config.devContainerWorktreeScope;
 		this.onDidReportConnectProgress = config.onDidReportConnectProgress;
+		this.autoConnect = config.autoConnect;
 		this.canConnectOnDemand = !!config.connectOnDemand;
 		this._register(this._onDidChangeResourceLabelHomes(() => this.updateResourceLabelHomes()));
 		this.updateResourceLabelHomes();

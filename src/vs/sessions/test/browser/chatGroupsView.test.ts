@@ -18,7 +18,7 @@ import { TestInstantiationService } from '../../../platform/instantiation/test/c
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { AbstractChatView, ChatViewKind } from '../../browser/parts/chatView.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
-import { type IAgentHostConnectProgress, IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
+import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
@@ -172,6 +172,12 @@ class TestAgentHostProvider extends mock<IAgentHostSessionsProvider>() {
 	override readonly id = 'agenthost-test';
 	override readonly label = 'WSL: Ubuntu';
 	override readonly remoteAddress = 'wsl:Ubuntu';
+	private readonly _autoConnectEnabled = observableValue(this, false);
+	override readonly autoConnect: IAgentHostAutoConnect = {
+		label: 'Automatically Start WSL: Ubuntu',
+		enabled: this._autoConnectEnabled,
+		setEnabled: enabled => this._autoConnectEnabled.set(enabled, undefined),
+	};
 	private readonly _onDidReportConnectProgress = new Emitter<IAgentHostConnectProgress>();
 	override readonly onDidReportConnectProgress = this._onDidReportConnectProgress.event;
 	connectCalls = 0;
@@ -229,17 +235,22 @@ function readBanner(view: ChatGroupsView): { readonly visible: boolean; readonly
 	};
 }
 
-function readRemoteHostUnavailableState(view: ChatGroupsView): { readonly visible: boolean; readonly title: string | undefined; readonly description: string | undefined; readonly progress: string | undefined; readonly action: string | undefined } {
+function readRemoteHostUnavailableState(view: ChatGroupsView): { readonly visible: boolean; readonly title: string | undefined; readonly description: string | undefined; readonly progress: string | undefined; readonly action: string | undefined; readonly actionHidden: boolean; readonly autoConnect: string | undefined; readonly autoConnectChecked: boolean; readonly autoConnectHidden: boolean } {
 	const state = view.element.querySelector<HTMLElement>('.remote-host-unavailable-empty-state');
 	// The action container is always present and hidden when there is no action,
 	// so report the label only while it is actually offered.
 	const action = state?.querySelector<HTMLElement>('.remote-host-unavailable-empty-state-action');
+	const autoConnect = state?.querySelector<HTMLElement>('.remote-host-unavailable-empty-state-auto-connect');
 	return {
 		visible: !state?.classList.contains('hidden'),
 		title: state?.querySelector('.remote-host-unavailable-empty-state-title')?.textContent ?? undefined,
 		description: state?.querySelector('.remote-host-unavailable-empty-state-description')?.textContent ?? undefined,
 		progress: state?.querySelector('.remote-host-unavailable-empty-state-progress:not(.hidden)')?.textContent ?? undefined,
 		action: action && !action.classList.contains('hidden') ? action.textContent ?? undefined : undefined,
+		actionHidden: action?.classList.contains('hidden') ?? true,
+		autoConnect: autoConnect && !autoConnect.classList.contains('hidden') ? autoConnect.querySelector('.remote-host-unavailable-empty-state-auto-connect-label')?.textContent ?? undefined : undefined,
+		autoConnectChecked: autoConnect?.querySelector('.monaco-checkbox')?.getAttribute('aria-checked') === 'true',
+		autoConnectHidden: autoConnect?.classList.contains('hidden') ?? true,
 	};
 }
 
@@ -719,6 +730,10 @@ suite('Sessions - ChatGroupsView', () => {
 					description: 'WSL: Ubuntu is not running.',
 					progress: undefined,
 					action: 'Start WSL: Ubuntu',
+					actionHidden: false,
+					autoConnect: 'Automatically Start WSL: Ubuntu',
+					autoConnectChecked: false,
+					autoConnectHidden: false,
 				},
 				banner: false,
 			},
@@ -729,6 +744,10 @@ suite('Sessions - ChatGroupsView', () => {
 					description: 'Cannot reach WSL: Ubuntu.',
 					progress: undefined,
 					action: undefined,
+					actionHidden: true,
+					autoConnect: undefined,
+					autoConnectChecked: false,
+					autoConnectHidden: true,
 				},
 				banner: false,
 			},
@@ -741,6 +760,195 @@ suite('Sessions - ChatGroupsView', () => {
 				},
 			},
 			connectCalls: 1,
+		});
+	});
+
+	test('automatically starts the host again when it drops after an earlier automatic start', async () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		provider.autoConnect.setEnabled(true);
+		sessionsProvidersService.provider = provider;
+		const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.HostNotRunning });
+		const status = session.remoteConnectionStatus;
+		assert.ok(status);
+		view.setSession(session, options);
+		await Promise.resolve();
+		await Promise.resolve();
+
+		// The host comes up and the transcript renders, so a later outage is shown
+		// as a banner rather than the centered state. Each outage gets its own
+		// automatic attempt: latching for the whole session would leave a dropped
+		// host sitting behind a manual button.
+		status.set({ kind: 'connected' }, undefined);
+		chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
+		const connectsWhileConnected = provider.connectCalls;
+
+		provider.connectGate = new DeferredPromise<void>().p;
+		status.set({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.HostNotRunning }, undefined);
+
+		assert.deepStrictEqual({
+			connectsWhileConnected,
+			connectCalls: provider.connectCalls,
+			banner: readBanner(view),
+		}, {
+			connectsWhileConnected: 1,
+			connectCalls: 2,
+			banner: { visible: true, message: 'Waiting for agent host connection...', action: undefined },
+		});
+	});
+
+	test('automatically starts a stopped host without exposing the recovery action', () => {
+		const { sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		const connect = new DeferredPromise<void>();
+		provider.connectGate = connect.p;
+		provider.autoConnect.setEnabled(true);
+		sessionsProvidersService.provider = provider;
+		view.setSession(new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.HostNotRunning }), options);
+
+		assert.deepStrictEqual({
+			connectCalls: provider.connectCalls,
+			state: readRemoteHostUnavailableState(view),
+		}, {
+			connectCalls: 1,
+			state: {
+				visible: true,
+				title: 'Connecting to WSL: Ubuntu',
+				description: 'Starting WSL: Ubuntu.',
+				progress: 'Waiting for agent host connection...',
+				action: undefined,
+				actionHidden: true,
+				autoConnect: 'Automatically Start WSL: Ubuntu',
+				autoConnectChecked: true,
+				autoConnectHidden: false,
+			},
+		});
+	});
+
+	test('shows the recovery action without starting a stopped host when auto-connect is disabled', () => {
+		const { sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		sessionsProvidersService.provider = provider;
+		view.setSession(new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.HostNotRunning }), options);
+
+		assert.deepStrictEqual({
+			connectCalls: provider.connectCalls,
+			state: readRemoteHostUnavailableState(view),
+		}, {
+			connectCalls: 0,
+			state: {
+				visible: true,
+				title: 'Unable to Connect to WSL: Ubuntu',
+				description: 'WSL: Ubuntu is not running.',
+				progress: undefined,
+				action: 'Start WSL: Ubuntu',
+				actionHidden: false,
+				autoConnect: 'Automatically Start WSL: Ubuntu',
+				autoConnectChecked: false,
+				autoConnectHidden: false,
+			},
+		});
+	});
+
+	test('toggles auto-connect exactly once when its checkbox is clicked', () => {
+		const { sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		const connect = new DeferredPromise<void>();
+		provider.connectGate = connect.p;
+		sessionsProvidersService.provider = provider;
+		view.setSession(new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.HostNotRunning }), options);
+
+		const checkbox = view.element.querySelector<HTMLElement>('.remote-host-unavailable-empty-state-auto-connect .monaco-checkbox');
+		assert.ok(checkbox);
+		checkbox.click();
+
+		assert.deepStrictEqual({
+			autoConnectEnabled: provider.autoConnect.enabled.get(),
+			connectCalls: provider.connectCalls,
+			state: readRemoteHostUnavailableState(view),
+		}, {
+			autoConnectEnabled: true,
+			connectCalls: 1,
+			state: {
+				visible: true,
+				title: 'Connecting to WSL: Ubuntu',
+				description: 'Starting WSL: Ubuntu.',
+				progress: 'Waiting for agent host connection...',
+				action: undefined,
+				actionHidden: true,
+				autoConnect: 'Automatically Start WSL: Ubuntu',
+				autoConnectChecked: true,
+				autoConnectHidden: false,
+			},
+		});
+	});
+
+	test('does not retrigger an automatic start when the connect resolves without reaching the host', async () => {
+		const { sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		provider.autoConnect.setEnabled(true);
+		sessionsProvidersService.provider = provider;
+		// The provider resolves without the host coming up, so the status stays
+		// stopped. The automatic start is latched per session rather than on the
+		// attempt, which a resolved attempt clears — otherwise this would spin.
+		view.setSession(new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.HostNotRunning }), options);
+		await Promise.resolve();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			connectCalls: provider.connectCalls,
+			state: readRemoteHostUnavailableState(view),
+		}, {
+			connectCalls: 1,
+			state: {
+				visible: true,
+				title: 'Unable to Connect to WSL: Ubuntu',
+				description: 'WSL: Ubuntu is not running.',
+				progress: undefined,
+				action: 'Start WSL: Ubuntu',
+				actionHidden: false,
+				autoConnect: 'Automatically Start WSL: Ubuntu',
+				autoConnectChecked: true,
+				autoConnectHidden: false,
+			},
+		});
+	});
+
+	test('offers the recovery action after an automatic connection attempt fails', async () => {
+		const { sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		const connect = new DeferredPromise<void>();
+		provider.connectGate = connect.p;
+		provider.autoConnect.setEnabled(true);
+		sessionsProvidersService.provider = provider;
+		view.setSession(new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.HostNotRunning }), options);
+
+		const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(() => { });
+		try {
+			connect.error(new Error('Expected automatic connect failure'));
+			await Promise.resolve();
+			await Promise.resolve();
+		} finally {
+			setUnexpectedErrorHandler(originalErrorHandler);
+		}
+
+		assert.deepStrictEqual({
+			connectCalls: provider.connectCalls,
+			state: readRemoteHostUnavailableState(view),
+		}, {
+			connectCalls: 1,
+			state: {
+				visible: true,
+				title: 'Unable to Connect to WSL: Ubuntu',
+				description: 'WSL: Ubuntu is not running.',
+				progress: undefined,
+				action: 'Start WSL: Ubuntu',
+				actionHidden: false,
+				autoConnect: 'Automatically Start WSL: Ubuntu',
+				autoConnectChecked: true,
+				autoConnectHidden: false,
+			},
 		});
 	});
 
@@ -786,12 +994,20 @@ suite('Sessions - ChatGroupsView', () => {
 			listenerBeforeDispose,
 			listenerAfterDispose,
 		}, {
+			// Another host's progress is ignored, so the attempt still shows only
+			// its own placeholder. It stays on the connecting presentation rather
+			// than falling back to the action: an in-flight attempt must not flash
+			// the recovery button while the host has yet to report `connecting`.
 			otherHostProgress: {
 				visible: true,
-				title: 'Unable to Connect to WSL: Ubuntu',
-				description: 'WSL: Ubuntu is not running.',
-				progress: undefined,
-				action: 'Start WSL: Ubuntu',
+				title: 'Connecting to WSL: Ubuntu',
+				description: 'Starting WSL: Ubuntu.',
+				progress: 'Waiting for agent host connection...',
+				action: undefined,
+				actionHidden: true,
+				autoConnect: 'Automatically Start WSL: Ubuntu',
+				autoConnectChecked: false,
+				autoConnectHidden: false,
 			},
 			ownHostProgress: {
 				visible: true,
@@ -799,6 +1015,10 @@ suite('Sessions - ChatGroupsView', () => {
 				description: 'Starting WSL: Ubuntu.',
 				progress: 'Downloading server (80%)',
 				action: undefined,
+				actionHidden: true,
+				autoConnect: 'Automatically Start WSL: Ubuntu',
+				autoConnectChecked: false,
+				autoConnectHidden: false,
 			},
 			completedAttempt: {
 				visible: true,
@@ -806,6 +1026,10 @@ suite('Sessions - ChatGroupsView', () => {
 				description: 'WSL: Ubuntu is not running.',
 				progress: undefined,
 				action: 'Start WSL: Ubuntu',
+				actionHidden: false,
+				autoConnect: 'Automatically Start WSL: Ubuntu',
+				autoConnectChecked: false,
+				autoConnectHidden: false,
 			},
 			listenerAfterAttempt: false,
 			listenerAfterSessionChange: false,

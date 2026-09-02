@@ -13,6 +13,17 @@ export default defineThemedFixtureGroup({ path: 'sessions/remoteHostUnavailable/
 			title: 'Unable to Connect to WSL: Ubuntu',
 			description: 'WSL: Ubuntu is not running.',
 			action: { label: 'Start WSL: Ubuntu', run: () => { } },
+			autoConnect: { label: 'Automatically Start WSL: Ubuntu', checked: false, onChange: () => { } },
+		}),
+	}),
+
+	HostNotRunningAutoStart: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderUnavailableState(context, {
+			title: 'Unable to Connect to WSL: Ubuntu',
+			description: 'WSL: Ubuntu is not running.',
+			action: { label: 'Start WSL: Ubuntu', run: () => { } },
+			autoConnect: { label: 'Automatically Start WSL: Ubuntu', checked: true, onChange: () => { } },
 		}),
 	}),
 

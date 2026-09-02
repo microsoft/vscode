@@ -878,6 +878,44 @@ suite('RemoteAgentHostService', () => {
 			});
 		});
 
+		test('starts a fresh dial when a reconnect is requested from the failure notification', async () => {
+			const factory = createFactory(RemoteAgentHostEntryType.WSL);
+			const entry: IRemoteAgentHostEntry = {
+				name: 'Ubuntu',
+				connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' },
+			};
+			const address = getEntryAddress(entry);
+			const client = new MockProtocolClient(address);
+
+			// An automatic start reacts to this notification synchronously, while
+			// the failing dial is still on the stack. If its in-flight marker were
+			// still set, `reconnect` would join that dead dial instead of opening a
+			// new one, so the host would never come up and the wait never settle.
+			const listener = disposables.add(service.onDidChangeConnections(() => {
+				if (service.connections.find(connection => connection.address === address)?.status.kind !== 'disconnected') {
+					return;
+				}
+				listener.dispose();
+				factory.stage(entry, client);
+				service.reconnect(address, true);
+			}));
+
+			factory.stageFailure(entry, new NonReconnectableTransportError(`WSL distro 'Ubuntu' is not running.`, AgentHostTransportFailureReason.HostNotRunning));
+			// Waiting only once the fresh dial exists: waiters registered earlier are
+			// rejected by the failure itself, which is not what this pins.
+			await waitForFactoryConnection(factory, 1);
+			client.connectDeferred.complete();
+			const info = await service.waitForConnection(address);
+
+			assert.deepStrictEqual({
+				createdConnectionCount: factory.createdConnectionCount,
+				status: info.status,
+			}, {
+				createdConnectionCount: 1,
+				status: RemoteAgentHostConnectionStatus.connected,
+			});
+		});
+
 		test('surfaces a stopped WSL distro as a host-not-running disconnect and clears the reason once it reconnects', async () => {
 			const factory = createFactory(RemoteAgentHostEntryType.WSL);
 			const entry: IRemoteAgentHostEntry = {

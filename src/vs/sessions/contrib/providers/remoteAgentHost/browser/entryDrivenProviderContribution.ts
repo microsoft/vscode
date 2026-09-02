@@ -9,7 +9,7 @@ import { type IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostCon
 import { type IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { type IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { type INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { type IAgentHostConnectProgress } from '../../../../common/agentHostSessionsProvider.js';
+import { type IAgentHostAutoConnect, type IAgentHostConnectProgress } from '../../../../common/agentHostSessionsProvider.js';
 import { type ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
@@ -19,6 +19,7 @@ export interface IEntryDrivenProviderOptions {
 	readonly connectOnDemand?: () => Promise<void>;
 	readonly disconnectOnDemand?: () => Promise<void>;
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
+	readonly autoConnect?: IAgentHostAutoConnect;
 	readonly initialStatus?: RemoteAgentHostConnectionStatus;
 	readonly preferenceKey?: string;
 }
@@ -99,6 +100,7 @@ export abstract class EntryDrivenProviderContribution extends Disposable {
 			connectOnDemand: options.connectOnDemand,
 			disconnectOnDemand: options.disconnectOnDemand,
 			onDidReportConnectProgress: options.onDidReportConnectProgress,
+			autoConnect: options.autoConnect,
 			preferenceKey: options.preferenceKey,
 		});
 		if (options.initialStatus !== undefined) {

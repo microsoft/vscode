@@ -13,6 +13,7 @@ import { type AgentProvider, type AuthenticateParams, type AuthenticateResult } 
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, getEntryAddress } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TunnelAgentHostsSettingId } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { WslAutoStartSettingId } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { CloudSandboxEnabledSettingId } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { AgentHostLocalFilePermissionsSettingId } from '../../../../../platform/agentHost/common/agentHostResourceService.js';
 import { type ProtectedResourceMetadata } from '../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -618,6 +619,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'chat.agentHost.forwardSSHAgent': {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.forwardSSHAgent', "When enabled, forwards the local SSH agent to the remote machine during SSH agent host connections to hosts whose SSH config has `ForwardAgent yes`. Only enable this for trusted hosts. The remote agent host process must be restarted for this setting to take effect."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+		},
+		[WslAutoStartSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.wsl.autoStart', "Automatically start a WSL distribution when opening a chat whose distribution is not running. When disabled, the chat shows a Start button instead."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
