@@ -27,7 +27,7 @@ Unrecognized GPT families newer than the latest approved version and opaque endp
 - Existing specialized GPT/Codex resolvers and the explicitly retained legacy families in `defaultOpenAIPrompt.tsx` take precedence. Version matchers must distinguish `gpt-5.1` and its hyphenated variants from `gpt-5.10`.
 - Apply the latest fallback to `gpt-*` families only when their parsed major/minor version is newer than the approved prompt version. Opaque OpenAI model families remain eligible without a version check.
 - OpenAI provider metadata can identify opaque preview names; an OpenAI-compatible API alone does not establish OpenAI model identity. Explicit family routing takes precedence over the provider fallback.
-- Prompt inheritance must not alias the endpoint family. Agent tool capability checks use the resolved fallback prompt family so opaque provider models receive the tools expected by that prompt.
+- Prompt inheritance must not alias the endpoint family. Agent tool capability checks and system-prompt rendering use the resolved fallback prompt family so opaque provider models receive the tools and instructions expected by that prompt.
 - To promote a new default, update the resolver import in `latestOpenAIPrompt.ts` and the expected default in `test/openAIPrompts.spec.ts`. Run its routing/rendering tests and the existing agent prompt snapshots. Keep older specialized resolvers unchanged.
 
 ### Resolver Interface

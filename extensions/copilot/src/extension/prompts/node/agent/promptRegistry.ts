@@ -48,6 +48,7 @@ export interface AgentPromptCustomizations {
 	readonly CopilotIdentityRulesClass: CopilotIdentityRulesConstructor;
 	readonly SafetyRulesClass: SafetyRulesConstructor;
 	readonly userQueryTagName?: string;
+	readonly fallbackModelFamily?: string;
 }
 
 export class AgentPromptRegistry {
@@ -113,7 +114,8 @@ export class AgentPromptRegistry {
 		instantiationService: IInstantiationService,
 		endpoint: IChatEndpoint,
 	): Promise<AgentPromptCustomizations> {
-		const promptResolverCtor = (await this.getPromptResolver(endpoint))?.prompt;
+		const promptResolver = await this.getPromptResolver(endpoint);
+		const promptResolverCtor = promptResolver?.prompt;
 		const agentPrompt = promptResolverCtor ? instantiationService.createInstance(promptResolverCtor) : undefined;
 
 		return {
@@ -123,6 +125,7 @@ export class AgentPromptRegistry {
 			CopilotIdentityRulesClass: agentPrompt?.resolveCopilotIdentityRules?.(endpoint) ?? CopilotIdentityRules,
 			SafetyRulesClass: agentPrompt?.resolveSafetyRules?.(endpoint) ?? SafetyRules,
 			userQueryTagName: agentPrompt?.resolveUserQueryTagName?.(endpoint) ?? 'userRequest',
+			fallbackModelFamily: promptResolver?.modelFamily,
 		};
 	}
 }

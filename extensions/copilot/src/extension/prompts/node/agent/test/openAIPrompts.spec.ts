@@ -4,14 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterAll, beforeAll, expect, suite, test } from 'vitest';
+import { ChatLocation } from '../../../../../platform/chat/common/commonTypes';
 import { isOpenAIModel, modelSupportCacheBreakPoints } from '../../../../../platform/endpoint/common/chatModelCapabilities';
 import { MockEndpoint } from '../../../../../platform/endpoint/test/node/mockEndpoint';
+import { messageToMarkdown } from '../../../../../platform/log/common/messageStringify';
 import { IChatEndpoint } from '../../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../../platform/test/node/services';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
+import { ChatVariablesCollection } from '../../../../prompt/common/chatVariablesCollection';
+import { Conversation, Turn } from '../../../../prompt/common/conversation';
 import { IToolsService } from '../../../../tools/common/toolsService';
 import { PromptRenderer } from '../../base/promptRenderer';
+import { AgentPrompt, AgentPromptProps } from '../agentPrompt';
 import '../allAgentPrompts';
 import { DefaultAgentPrompt } from '../defaultAgentInstructions';
 import { Gpt56PromptResolver } from '../openai/gpt56Prompt';
@@ -54,8 +59,9 @@ suite('OpenAI prompt fallback', () => {
 		['preview-model', 'openai'],
 	])('%s from %s inherits the entire latest prompt bundle', async (family, provider) => {
 		const endpoint = createEndpoint(family, provider);
+		const customizations = await resolve(endpoint);
 		expect({
-			prompt: await resolve(endpoint),
+			prompt: { ...customizations, fallbackModelFamily: undefined },
 			fallbackModelFamily: await PromptRegistry.resolveFallbackModelFamily(endpoint),
 		}).toEqual({
 			prompt: await resolve(createEndpoint('gpt-5.6')),
@@ -179,5 +185,39 @@ suite('OpenAI prompt fallback', () => {
 		const expected = await render('gpt-5.6');
 		expect(expected.length).toBeGreaterThan(0);
 		expect(await render('gpt-6')).toEqual(expected);
+	});
+
+	test('renders fallback system-prompt instructions with the effective model family', async () => {
+		const endpoint = createEndpoint('preview-model', 'OpenAI');
+		const customizations = await resolve(endpoint);
+		const conversation = new Conversation('sessionId', [new Turn('turnId', { type: 'user', message: 'hello' })]);
+		const props: AgentPromptProps = {
+			endpoint,
+			location: ChatLocation.Panel,
+			promptContext: {
+				chatVariables: new ChatVariablesCollection(),
+				history: [],
+				query: 'hello',
+				conversation,
+				tools: {
+					availableTools: accessor.get(IToolsService).tools,
+					toolInvocationToken: null as never,
+					toolReferences: [],
+				},
+			},
+			customizations,
+		};
+		const renderer = PromptRenderer.create(instantiationService, endpoint, AgentPrompt, props);
+		const rendered = (await renderer.render()).messages.map(messageToMarkdown).join('\n\n');
+
+		expect({
+			endpointFamily: endpoint.family,
+			fallbackModelFamily: customizations.fallbackModelFamily,
+			hasGpt5ApplyPatchInstructions: rendered.includes('Prefer the smallest set of changes needed to satisfy the task.'),
+		}).toEqual({
+			endpointFamily: 'preview-model',
+			fallbackModelFamily: 'gpt-5.6',
+			hasGpt5ApplyPatchInstructions: true,
+		});
 	});
 });
