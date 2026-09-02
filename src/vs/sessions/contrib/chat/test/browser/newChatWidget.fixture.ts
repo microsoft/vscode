@@ -108,6 +108,11 @@ class AutoModelFixtureMenuService extends FixtureMenuService {
 			group: 'navigation',
 			order: 3,
 		});
+		this.addItem(MenuId.ChatInputStatus, {
+			command: { id: 'fixture.textStatus', title: 'Status' },
+			group: 'navigation',
+			order: 4,
+		});
 	}
 }
 
@@ -368,7 +373,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionAutoModel: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The new-session input toolbar shows an Auto model picker whose background fits closely around the Copilot icon and Auto label without excessive empty horizontal space. The bottom row shows rocket, warning, and connection status icons centered in matching compact control boxes.'],
+		expectedVisualDescriptions: ['The new-session input toolbar shows an Auto model picker whose background fits closely around the Copilot icon and Auto label without excessive empty horizontal space. The bottom row shows optically tuned compact rocket, warning, and connection status icons centered in matching controls, followed by the full Status text action without clipping.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withAutoModel: true }),
 	}),
 	NewSessionCompactAutoModel: defineComponentFixture({

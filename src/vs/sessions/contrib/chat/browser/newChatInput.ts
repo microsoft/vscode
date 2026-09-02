@@ -103,6 +103,7 @@ import { ISessionContext, SessionContext } from '../../../services/sessions/brow
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { IChatStatusItemService } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusItemService.js';
 import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../../../workbench/contrib/chat/browser/chatTerminalCommandPaste.js';
+import { compactCodiconsIn } from '../../../../workbench/contrib/chat/browser/chatIcons.js';
 import { IChatPasteTargetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { NewChatInputPasteTarget } from './newChatInputPasteTarget.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
@@ -243,6 +244,8 @@ function getInputGitHubContextAttachments(input: string): readonly IChatRequestV
 
 class NewChatInputStatusActionViewItem extends MenuEntryActionViewItem {
 	private readonly hoverContentDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private _container: HTMLElement | undefined;
+	private _compactCodiconClass: string | undefined;
 
 	constructor(
 		action: MenuItemAction,
@@ -261,7 +264,9 @@ class NewChatInputStatusActionViewItem extends MenuEntryActionViewItem {
 	}
 
 	override render(container: HTMLElement): void {
+		this._container = container;
 		super.render(container);
+		this._updateIconPresentation();
 
 		if (this._commandAction.id !== OTEL_STATUS_COMMAND) {
 			return;
@@ -272,6 +277,34 @@ class NewChatInputStatusActionViewItem extends MenuEntryActionViewItem {
 				this.updateTooltip();
 			}
 		}));
+	}
+
+	protected override updateClass(): void {
+		if (this._compactCodiconClass) {
+			this.element?.classList.remove(this._compactCodiconClass);
+			this._compactCodiconClass = undefined;
+		}
+		super.updateClass();
+		this._updateIconPresentation();
+	}
+
+	private _updateIconPresentation(): void {
+		const rendersIcon = !!this.element && (this.element.classList.contains('codicon') || this.element.classList.contains('icon'));
+		this._container?.classList.toggle('new-chat-status-icon-action', rendersIcon);
+		if (rendersIcon && this._container && this.element?.classList.contains('codicon')) {
+			const originalCodiconClass = this._getCodiconClass();
+			compactCodiconsIn(this._container);
+			const compactCodiconClass = this._getCodiconClass();
+			if (compactCodiconClass !== originalCodiconClass) {
+				this._compactCodiconClass = compactCodiconClass;
+			}
+		}
+	}
+
+	private _getCodiconClass(): string | undefined {
+		return this.element
+			? [...this.element.classList].find(className => className.startsWith('codicon-') && !className.startsWith('codicon-modifier-'))
+			: undefined;
 	}
 
 	override async onClick(event: MouseEvent): Promise<void> {
@@ -766,7 +799,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: { primaryGroup: () => true },
 			actionViewItemProvider: (action, options) => {
-				if (action.id === OTEL_STATUS_COMMAND && action instanceof MenuItemAction) {
+				if (action instanceof MenuItemAction) {
 					return this.instantiationService.createInstance(NewChatInputStatusActionViewItem, action, options);
 				}
 				return undefined;

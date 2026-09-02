@@ -224,13 +224,13 @@
 	display: none;
 }
 
-/* Status actions are icon-only, so use the same centered control box as compact pickers. */
-.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .monaco-action-bar .action-item {
+/* Icon status actions use the compact control box; text actions remain intrinsic. */
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .monaco-action-bar .action-item.new-chat-status-icon-action {
 	width: 22px;
 	min-width: 22px;
 }
 
-.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .action-label {
+.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .new-chat-status-icon-action .action-label {
 	box-sizing: border-box;
 	display: flex;
 	align-items: center;
@@ -241,7 +241,7 @@
 	padding: 0;
 }
 
-.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .action-label.codicon {
+.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .new-chat-status-icon-action .action-label.codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 

@@ -42,6 +42,7 @@ import { IBrowserViewWorkbenchService } from '../../../../contrib/browserView/co
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { RootState, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
@@ -66,6 +67,7 @@ import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../con
 import { IDictationOnboardingService } from '../../../../contrib/chat/browser/speechToText/dictationOnboarding.js';
 import { IChatInputNoticeHubService } from '../../../../contrib/chat/browser/widget/input/chatInputNoticeHub.js';
 import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from '../../../../contrib/chat/browser/chatSubmitRequestHandlerService.js';
+import { IChatStatusItemService } from '../../../../contrib/chat/browser/chatStatus/chatStatusItemService.js';
 import { IChatMarkdownAnchorService } from '../../../../contrib/chat/browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatWidgetHistoryService } from '../../../../contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IChatModeService } from '../../../../contrib/chat/common/chatModes.js';
@@ -128,6 +130,8 @@ export interface IChatFixtureServicesOptions {
 	readonly todos?: readonly IChatTodo[];
 	/** Active notification returned from IChatInputNotificationService. */
 	readonly notification?: IChatInputNotification;
+	/** Resolved Agent Host session configuration used by real chat input picker fixtures. */
+	readonly agentHostSessionConfig?: ResolveSessionConfigResult;
 }
 
 /**
@@ -327,6 +331,12 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override announceRendered() { }
 	}());
 	reg.defineInstance(IChatSubmitRequestHandlerService, new ChatSubmitRequestHandlerService());
+	reg.defineInstance(IChatStatusItemService, new class extends mock<IChatStatusItemService>() {
+		override readonly onDidChange = Event.None;
+		override setOrUpdateEntry() { }
+		override deleteEntry() { }
+		override getEntries() { return []; }
+	}());
 	reg.defineInstance(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
 		override readonly model = new class extends mock<IAgentSessionsService['model']>() { override readonly onDidChangeSessions = Event.None; }();
 		override getSession() { return undefined; }
@@ -359,10 +369,14 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override getSubscriptionUnmanaged<T>(_kind: StateComponents, _resource: URI): IAgentSubscription<T> | undefined {
 			return undefined;
 		}
+		override async resolveSessionConfig(): Promise<ResolveSessionConfigResult> {
+			return options.agentHostSessionConfig ?? { schema: { type: 'object', properties: {} }, values: {} };
+		}
 	}());
 	reg.defineInstance(IAgentHostUntitledProvisionalSessionService, new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
 		override readonly onDidChange = Event.None;
 		override get() { return undefined; }
+		override getOrCreate() { return Promise.resolve(undefined); }
 	}());
 	reg.defineInstance(IAgentHostSessionWorkingDirectoryResolver, new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() {
 		override resolve() { return undefined; }
@@ -370,6 +384,8 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IAgentHostNewSessionFolderService, new class extends mock<IAgentHostNewSessionFolderService>() {
 		override readonly onDidChangeFolder = Event.None;
 		override getFolder() { return undefined; }
+		override getDefaultFolder() { return undefined; }
+		override resolveNewSessionPrimary() { return undefined; }
 	}());
 	reg.defineInstance(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() {
 		override readonly onDidChangeCustomizations = Event.None;

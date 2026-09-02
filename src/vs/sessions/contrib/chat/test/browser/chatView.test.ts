@@ -165,7 +165,7 @@ suite('Sessions - Chat View', () => {
 		const row = dom.append(widget, dom.$('.new-chat-bottom-container'));
 		const statusToolbar = dom.append(row, dom.$('.new-chat-status-toolbar'));
 		const actionBar = dom.append(statusToolbar, dom.$('.monaco-action-bar'));
-		const item = dom.append(actionBar, dom.$('.action-item'));
+		const item = dom.append(actionBar, dom.$('.action-item.new-chat-status-icon-action'));
 		const label = dom.append(item, dom.$('a.action-label.codicon.codicon-warning'));
 
 		const itemBounds = item.getBoundingClientRect();
@@ -178,6 +178,30 @@ suite('Sessions - Chat View', () => {
 			item: { width: 22, height: 22 },
 			label: { width: 22, height: 22 },
 			iconFontSize: '12px',
+		});
+	});
+
+	test('leaves text-only bottom-row status actions at their intrinsic width', () => {
+		const workbench = dom.append(document.body, dom.$('.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		const widget = dom.append(workbench, dom.$('.new-chat-widget-container.revealed'));
+		const row = dom.append(widget, dom.$('.new-chat-bottom-container'));
+		const statusToolbar = dom.append(row, dom.$('.new-chat-status-toolbar'));
+		const actionBar = dom.append(statusToolbar, dom.$('.monaco-action-bar'));
+		const item = dom.append(actionBar, dom.$('.action-item'));
+		const label = dom.append(item, dom.$('a.action-label'));
+		label.textContent = 'Status';
+
+		assert.deepStrictEqual({
+			itemIsSquareIconAction: item.classList.contains('new-chat-status-icon-action'),
+			itemWiderThanCompactControl: item.getBoundingClientRect().width > 22,
+			labelIsNotClipped: label.scrollWidth <= label.clientWidth,
+			text: label.textContent,
+		}, {
+			itemIsSquareIconAction: false,
+			itemWiderThanCompactControl: true,
+			labelIsNotClipped: true,
+			text: 'Status',
 		});
 	});
 
