@@ -5,14 +5,16 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ISessionArtifact, SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
-import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChatOriginKind, SessionState, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ComponentToState, SessionState, StateComponents, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
@@ -21,11 +23,34 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
-import { AgentHostSessionInputPills, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, selectAgentHostSessionChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
+import { AgentHostSessionInputPills, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostSessionChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
 import { ISessionChatPillVisibilityService } from '../../../common/sessionChatPills.js';
-import { ChatWidget } from '../../../browser/widget/chatWidget.js';
+import { chatPersistentContentVisibleClass, ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatViewModel } from '../../../common/model/chatViewModel.js';
+
+class StaticAgentConnection extends mock<IAgentConnection>() {
+	readonly requested: Array<{ kind: StateComponents; resource: URI }> = [];
+
+	constructor(private readonly values: ReadonlyMap<StateComponents, SessionState | ChangesetState>) {
+		super();
+	}
+
+	override getSubscription<T extends StateComponents>(kind: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
+		this.requested.push({ kind, resource });
+		const value = this.values.get(kind) as ComponentToState[T];
+		return {
+			object: {
+				value,
+				verifiedValue: value,
+				onDidChange: Event.None,
+				onWillApplyAction: Event.None,
+				onDidApplyAction: Event.None,
+			},
+			dispose: () => { },
+		};
+	}
+}
 
 suite('AgentHostSessionInputPills', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -64,20 +89,27 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	test('prefers branch changes and ignores templated turn changesets as fallbacks', () => {
+	test('resolves the configured session changeset and ignores templated entries', () => {
+		const backendSession = URI.parse('ahp-session:/session');
 		const changesets: readonly Changeset[] = [
-			{ label: 'Last Turn', uriTemplate: 'copilot:/session/changeset/turn/{turnId}', changeKind: ChangesetKind.Turn },
-			{ label: 'Session Changes', uriTemplate: 'copilot:/session/changeset/session', changeKind: ChangesetKind.Session },
-			{ label: 'Branch Changes', uriTemplate: 'copilot:/session/changeset/branch', changeKind: ChangesetKind.Branch },
+			{ label: 'Last Turn', uriTemplate: 'changeset/turn/{turnId}', changeKind: ChangesetKind.Turn },
+			{ label: 'Session Changes', uriTemplate: 'changeset/session', changeKind: ChangesetKind.Session },
+			{ label: 'Branch Changes', uriTemplate: 'changeset/branch', changeKind: ChangesetKind.Branch },
 		];
 
 		assert.deepStrictEqual({
-			preferred: selectAgentHostSessionChangeset(changesets)?.label,
-			fallback: selectAgentHostSessionChangeset(changesets.slice(0, 2))?.label,
-			turnOnly: selectAgentHostSessionChangeset(changesets.slice(0, 1))?.label,
+			preferred: resolveAgentHostSessionChangeset(backendSession, changesets, ChangesetKind.Session),
+			fallback: resolveAgentHostSessionChangeset(backendSession, changesets.slice(0, 2), ChangesetKind.Branch),
+			turnOnly: resolveAgentHostSessionChangeset(backendSession, changesets.slice(0, 1), ChangesetKind.Session),
 		}, {
-			preferred: 'Branch Changes',
-			fallback: 'Session Changes',
+			preferred: {
+				changeset: changesets[1],
+				resource: URI.parse('ahp-session:/session/changeset/session'),
+			},
+			fallback: {
+				changeset: changesets[1],
+				resource: URI.parse('ahp-session:/session/changeset/session'),
+			},
 			turnOnly: undefined,
 		});
 	});
@@ -148,6 +180,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
 			onDidChangeConnections: Event.None,
+			onDidChangeSessionResolution: Event.None,
 			connections: [],
 			resolveSessionResource: () => undefined,
 		});
@@ -187,11 +220,115 @@ suite('AgentHostSessionInputPills', () => {
 		assert.deepStrictEqual({
 			hidden: row?.classList.contains('hidden'),
 			pillCount: row?.querySelectorAll('.chat-pill-item').length,
+			persistentContentVisible: persistentContent.classList.contains(chatPersistentContentVisibleClass),
 			persistentContentHeight,
 		}, {
 			hidden: true,
 			pillCount: 0,
+			persistentContentVisible: false,
 			persistentContentHeight: undefined,
+		});
+	});
+
+	test('marks floating persistent content visible when Agent Host pills have data', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const sessionResource = URI.parse('agent-host-copilot:/session');
+		const backendSession = URI.parse('copilot:/session');
+		const connection = new StaticAgentConnection(new Map<StateComponents, SessionState | ChangesetState>([
+			[StateComponents.Session, {
+				defaultChat: buildDefaultChatUri(backendSession),
+				chats: [],
+				changesets: [{ label: 'Branch Changes', uriTemplate: 'changeset/branch', changeKind: ChangesetKind.Branch }],
+			} as unknown as SessionState],
+			[StateComponents.Changeset, {
+				status: ChangesetStatus.Ready,
+				files: [{
+					id: 'change',
+					edit: {
+						after: { uri: URI.file('/changed.ts').toString(), content: { uri: 'git-blob://after' } },
+						diff: { added: 3, removed: 1 },
+					},
+				}],
+			} as unknown as ChangesetState],
+		]));
+		const persistentContent = document.createElement('div');
+		document.body.appendChild(persistentContent);
+		store.add(toDisposable(() => persistentContent.remove()));
+		let persistentContentHeight: number | undefined;
+		const widget = upcastPartial<ChatWidget>({
+			inputPart: upcastPartial<ChatInputPart>({
+				persistentContentContainerElement: persistentContent,
+				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
+			}),
+			onDidChangeViewModel: Event.None,
+			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
+			setPersistentContentHeight: height => persistentContentHeight = height,
+		});
+		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
+			onDidChangeConnections: Event.None,
+			onDidChangeSessionResolution: Event.None,
+			connections: [{ authority: 'local', address: undefined, name: 'Local', isAmbient: true, connection }],
+			resolveSessionResource: () => ({
+				connection,
+				connectionAuthority: 'local',
+				backendSession,
+				defaultChangesetKind: ChangesetKind.Branch,
+			}),
+		});
+		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
+			onDidChangeBrowserViews: Event.None,
+			getKnownBrowserViews: () => new Map(),
+		});
+		const visibility = upcastPartial<ISessionChatPillVisibilityService>({
+			readHiddenKinds: () => new Set(),
+			isVisible: () => true,
+			hide: () => { },
+			toggle: () => { },
+		});
+		const [clipboardService, configurationService, contextMenuService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IClipboardService),
+			accessor.get(IConfigurationService),
+			accessor.get(IContextMenuService),
+			accessor.get(IEditorService),
+			accessor.get(IOpenerService),
+		] as const);
+
+		store.add(new AgentHostSessionInputPills(
+			widget,
+			false,
+			connectionsService,
+			browserViewService,
+			clipboardService,
+			configurationService,
+			contextMenuService,
+			editorService,
+			instantiationService,
+			openerService,
+			visibility,
+		));
+		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
+
+		assert.deepStrictEqual({
+			hidden: row?.classList.contains('hidden'),
+			label: row?.querySelector('.chat-pill-label')?.textContent,
+			persistentContentVisible: persistentContent.classList.contains(chatPersistentContentVisibleClass),
+			persistentContentHeight,
+			subscriptions: connection.requested.map(request => ({
+				kind: request.kind,
+				resource: request.resource.toString(),
+			})),
+		}, {
+			hidden: false,
+			label: '1 File',
+			persistentContentVisible: true,
+			persistentContentHeight: 28,
+			subscriptions: [{
+				kind: StateComponents.Session,
+				resource: 'copilot:/session',
+			}, {
+				kind: StateComponents.Changeset,
+				resource: 'copilot:/session/changeset/branch',
+			}],
 		});
 	});
 });

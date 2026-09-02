@@ -18,7 +18,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { resolveChangesetUriTemplate, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifacts, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { Changeset, ChangesetState, ChatOriginKind, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, parseChatUri, readSessionGitHubState, SessionState, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -37,7 +37,7 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { getSessionChatPillMenu, ISessionChatPillMenuEntry, ISessionChatPillVisibilityService, SessionChatPillKind } from '../../../common/sessionChatPills.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
-import type { ChatWidget } from '../../widget/chatWidget.js';
+import { chatPersistentContentVisibleClass, type ChatWidget } from '../../widget/chatWidget.js';
 import { chatArtifactPillOptions, observeTurnStatusPillsEnabled, openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
 import { openChatFileChanges } from '../../editorChatResponseFileChangesService.js';
 import { agentHostChangesetFileToEntryDiff } from './agentHostResponseFileChanges.js';
@@ -131,8 +131,6 @@ export interface IAgentHostSessionPillMetadata {
 	readonly references: readonly ISessionArtifact[];
 }
 
-type ResolvedAgentHostSession = IAgentHostSessionResolution & { readonly connectionAuthority: string };
-
 function linkKey(link: string): string {
 	return link.replace(/\/+$/, '').toLowerCase();
 }
@@ -178,13 +176,16 @@ export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undef
 	};
 }
 
-/** Selects the session-wide changeset represented by the workbench Changes pill. */
-export function selectAgentHostSessionChangeset(changesets: readonly Changeset[] | undefined): Changeset | undefined {
+/** Resolves the session-wide changeset represented by the workbench Changes pill. */
+export function resolveAgentHostSessionChangeset(
+	backendSession: URI,
+	changesets: readonly Changeset[] | undefined,
+	defaultKind?: DefaultChangesetKind,
+): { readonly changeset: Changeset; readonly resource: URI } | undefined {
 	const staticChangesets = changesets?.filter(changeset => !changeset.uriTemplate.includes('{')) ?? [];
-	return staticChangesets.find(changeset => changeset.changeKind === ChangesetKind.Branch)
-		?? staticChangesets.find(changeset => changeset.changeKind === ChangesetKind.Session)
-		?? staticChangesets.find(changeset => changeset.changeKind === ChangesetKind.Uncommitted)
-		?? staticChangesets.at(0);
+	const changeset = selectDefaultChangeset(staticChangesets, defaultKind);
+	const resource = changeset ? parseUri(resolveChangesetUriTemplate(backendSession.toString(), changeset.uriTemplate)) : undefined;
+	return changeset && resource ? { changeset, resource } : undefined;
 }
 
 /** Returns the workbench chat resources whose browsers belong in the current chat's pill. */
@@ -215,10 +216,11 @@ export function getAgentHostSessionBrowserOwnerIds(sessionResource: URI, state: 
 	return ownerIds;
 }
 
-function resolutionEquals(first: ResolvedAgentHostSession | undefined, second: ResolvedAgentHostSession | undefined): boolean {
+function resolutionEquals(first: IAgentHostSessionResolution | undefined, second: IAgentHostSessionResolution | undefined): boolean {
 	return first === second || (!!first && !!second
 		&& first.connection === second.connection
 		&& first.connectionAuthority === second.connectionAuthority
+		&& first.defaultChangesetKind === second.defaultChangesetKind
 		&& isEqual(first.backendSession, second.backendSession));
 }
 
@@ -298,15 +300,11 @@ export class AgentHostSessionInputPills extends Disposable {
 
 		const pillsEnabled = observeTurnStatusPillsEnabled(this._configurationService);
 		const sessionResource = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.sessionResource);
-		const connectionsChanged = observableSignalFromEvent(this, connectionsService.onDidChangeConnections);
-		const resolution = derivedOpts<ResolvedAgentHostSession | undefined>({ owner: this, equalsFn: resolutionEquals }, reader => {
-			connectionsChanged.read(reader);
+		const sessionResolutionChanged = observableSignalFromEvent(this, connectionsService.onDidChangeSessionResolution);
+		const resolution = derivedOpts<IAgentHostSessionResolution | undefined>({ owner: this, equalsFn: resolutionEquals }, reader => {
+			sessionResolutionChanged.read(reader);
 			const resource = sessionResource.read(reader);
-			const resolved = resource ? connectionsService.resolveSessionResource(resource) : undefined;
-			const connectionAuthority = resolved
-				? connectionsService.connections.find(info => info.connection === resolved.connection)?.authority
-				: undefined;
-			return resolved && connectionAuthority ? { ...resolved, connectionAuthority } : undefined;
+			return resource ? connectionsService.resolveSessionResource(resource) : undefined;
 		});
 		const sessionStateSource = derived(this, reader => {
 			const current = resolution.read(reader);
@@ -317,11 +315,15 @@ export class AgentHostSessionInputPills extends Disposable {
 			return observableFromSubscription(this, subscription.object);
 		});
 		const sessionState = derived(this, reader => sessionStateSource.read(reader).read(reader));
-		const changeset = derived(this, reader => selectAgentHostSessionChangeset(sessionState.read(reader)?.changesets));
-		const changesetUri = derivedOpts<URI | undefined>({ owner: this, equalsFn: isEqual }, reader => parseUri(changeset.read(reader)?.uriTemplate));
+		const changesetTarget = derived(this, reader => {
+			const currentResolution = resolution.read(reader);
+			return currentResolution
+				? resolveAgentHostSessionChangeset(currentResolution.backendSession, sessionState.read(reader)?.changesets, currentResolution.defaultChangesetKind)
+				: undefined;
+		});
 		const changesetStateSource = derived(this, reader => {
 			const currentResolution = resolution.read(reader);
-			const resource = changesetUri.read(reader);
+			const resource = changesetTarget.read(reader)?.resource;
 			if (!currentResolution || !resource) {
 				return constObservable<ChangesetState | undefined>(undefined);
 			}
@@ -402,10 +404,10 @@ export class AgentHostSessionInputPills extends Disposable {
 			localize('agentHostSessionPills.changes', "Changes"),
 			undefined,
 			true,
-			() => this._openChanges(changeset.get()?.label ?? localize('agentHostSessionPills.changesEditor', "Session Changes"), changes.get()),
+			() => this._openChanges(changesetTarget.get()?.changeset.label ?? localize('agentHostSessionPills.changesEditor', "Session Changes"), changes.get()),
 		));
 		this._register(autorun(reader => {
-			const label = changeset.read(reader)?.label ?? localize('agentHostSessionPills.changes', "Changes");
+			const label = changesetTarget.read(reader)?.changeset.label ?? localize('agentHostSessionPills.changes', "Changes");
 			changesAction.label = label;
 			changesAction.tooltip = localize('agentHostSessionPills.viewChanges', "View {0}", label);
 		}));
@@ -534,6 +536,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			const anyVisible = pills.isVisible.read(reader);
 			row.element.classList.toggle('hidden', !hasData);
 			row.setEmpty(hasData && !anyVisible, localize('agentHostSessionPills.configure', "Configure Session Status Pills"));
+			this._widget.inputPart.persistentContentContainerElement.classList.toggle(chatPersistentContentVisibleClass, hasData);
 			this._widget.setPersistentContentHeight(hasData ? CHAT_INPUT_PILLS_ROW_HEIGHT : undefined);
 			row.scanDomNode();
 		}));
@@ -560,7 +563,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		return entries.length > 0 ? [{ title, entries }] : [];
 	}
 
-	private _buildArtifactSections(entries: readonly ISessionArtifact[], browserUrls: ReadonlySet<string>, resolution: ResolvedAgentHostSession): readonly IChatPillSection[] {
+	private _buildArtifactSections(entries: readonly ISessionArtifact[], browserUrls: ReadonlySet<string>, resolution: IAgentHostSessionResolution): readonly IChatPillSection[] {
 		const browserKeys = new Set([...browserUrls].map(websiteKey).filter(isDefined));
 		const entriesByType = new Map<SessionArtifactType, IChatPillEntry[]>();
 		for (const artifact of entries) {
@@ -583,7 +586,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		});
 	}
 
-	private _artifactEntry(artifact: ISessionArtifact, resolution: ResolvedAgentHostSession): IChatPillEntry | undefined {
+	private _artifactEntry(artifact: ISessionArtifact, resolution: IAgentHostSessionResolution): IChatPillEntry | undefined {
 		if (artifact.type === SessionArtifactType.File || artifact.type === SessionArtifactType.Resource) {
 			const artifactResource = parseUri(artifact.uri);
 			if (!artifactResource) {
