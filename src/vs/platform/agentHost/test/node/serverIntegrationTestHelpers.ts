@@ -12,8 +12,8 @@ import { mkdirSync } from 'fs';
 import { userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
-import { CapiReplayProxy, type CapiReplayMode } from './e2e/harness/capiReplayProxy.js';
-import { dirname, join, resolve as resolvePath } from '../../../../base/common/path.js';
+import { CapiReplayProxy, type CapiReplayMode, type ICapiReplayResponse } from './e2e/harness/capiReplayProxy.js';
+import { dirname, resolve as resolvePath } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import {
 	ContentEncoding,
@@ -46,11 +46,13 @@ import { ActionType, type ActionEnvelope } from '../../common/state/sessionActio
 import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
 import { MessageKind, buildDefaultChatUri, mergeSessionWithDefaultChat, parseDefaultChatUri, type ChatState, type ISessionWithDefaultChat, type SessionState } from '../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentEnabledEnvVar } from '../../common/agentService.js';
+import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar } from '../../common/agentService.js';
 import {
+	AhpErrorCodes,
 	isJsonRpcNotification,
 	isJsonRpcRequest,
 	isJsonRpcResponse,
+	JsonRpcErrorCodes,
 	ProtocolError,
 	type AhpNotification,
 	type JsonRpcNotification,
@@ -61,7 +63,11 @@ import {
 } from '../../common/state/sessionProtocol.js';
 import { AhpSnapshotRecorder, type IAhpSnapshotNormalization, type IAhpSnapshotOptions } from './e2e/harness/ahpSnapshot.js';
 import { recordAhpSurface } from './ahpSurfaceCoverage.js';
-import { isWindows } from '../../../../base/common/platform.js';
+import { isCI, isWindows } from '../../../../base/common/platform.js';
+import { killTree } from '../../../../base/node/processes.js';
+import { createIsolatedProviderEnvironment } from './providerTestEnvironment.js';
+
+const AGENT_HOST_E2E_COVERAGE = process.env['AGENT_HOST_E2E_COVERAGE'] === '1';
 
 // ---- JSON-RPC test client ---------------------------------------------------
 
@@ -71,7 +77,7 @@ interface IPendingCall {
 }
 
 function getProtocolOperationTimeout(): number {
-	if (process.env['AGENT_HOST_E2E_COVERAGE'] === '1') {
+	if (AGENT_HOST_E2E_COVERAGE) {
 		return 30_000;
 	}
 	return isWindows ? 8_000 : 5_000;
@@ -202,16 +208,41 @@ export class TestProtocolClient {
 			this._ahpSnapshot.record('c2s', response);
 			this._ws.send(JSON.stringify(response));
 		} catch (error) {
+			const protocolError = this._toReverseRequestProtocolError(error);
 			const response: JsonRpcErrorResponse = {
 				jsonrpc: '2.0',
 				id: msg.id,
 				error: {
-					code: -32603,
-					message: error instanceof Error ? error.message : String(error),
+					code: protocolError.code,
+					message: protocolError.message,
+					data: protocolError.data,
 				},
 			};
 			this._ahpSnapshot.record('c2s', response);
 			this._ws.send(JSON.stringify(response));
+		}
+	}
+
+	private _toReverseRequestProtocolError(error: unknown): ProtocolError {
+		if (error instanceof ProtocolError) {
+			return error;
+		}
+		const errorCodeValue: unknown = error instanceof Error ? Object.getOwnPropertyDescriptor(error, 'code')?.value : undefined;
+		const errorCode = typeof errorCodeValue === 'string' ? errorCodeValue : undefined;
+		const message = error instanceof Error ? error.message : String(error);
+		switch (errorCode) {
+			case 'ENOENT':
+			case 'ENOTDIR':
+				return new ProtocolError(AhpErrorCodes.NotFound, message);
+			case 'EACCES':
+			case 'EPERM':
+				return new ProtocolError(AhpErrorCodes.PermissionDenied, message);
+			case 'EEXIST':
+				return new ProtocolError(AhpErrorCodes.AlreadyExists, message);
+			case 'ENOTEMPTY':
+				return new ProtocolError(AhpErrorCodes.Conflict, message);
+			default:
+				return new ProtocolError(JsonRpcErrorCodes.InternalError, message);
 		}
 	}
 
@@ -357,11 +388,7 @@ export class TestProtocolClient {
 		const createOnly = params.createOnly ?? false;
 
 		await mkdir(dirname(filePath), { recursive: true });
-		const exists = await this._pathExists(filePath);
-		if (createOnly && exists) {
-			throw new Error(`File already exists: ${filePath}`);
-		}
-		const existing = exists ? await readFile(filePath) : Buffer.alloc(0);
+		const existing = !createOnly && await this._pathExists(filePath) ? await readFile(filePath) : Buffer.alloc(0);
 		const clampedStart = Math.min(position, existing.length);
 		let next: Buffer;
 		switch (mode) {
@@ -378,7 +405,7 @@ export class TestProtocolClient {
 				next = Buffer.concat([existing.subarray(0, clampedStart), incoming]);
 				break;
 		}
-		await writeFile(filePath, next);
+		await writeFile(filePath, next, createOnly ? { flag: 'wx' } : undefined);
 		return {};
 	}
 
@@ -401,7 +428,7 @@ export class TestProtocolClient {
 		const destination = this._assertFileUri(this._coerceUri(params.destination));
 		const failIfExists = params.failIfExists ?? false;
 		if (failIfExists && await this._pathExists(destination)) {
-			throw new Error(`Destination already exists: ${destination}`);
+			throw new ProtocolError(AhpErrorCodes.AlreadyExists, `Destination already exists: ${destination}`);
 		}
 		await mkdir(dirname(destination), { recursive: true });
 		await rename(source, destination);
@@ -413,7 +440,7 @@ export class TestProtocolClient {
 		const destination = this._assertFileUri(this._coerceUri(params.destination));
 		const failIfExists = params.failIfExists ?? false;
 		if (failIfExists && await this._pathExists(destination)) {
-			throw new Error(`Destination already exists: ${destination}`);
+			throw new ProtocolError(AhpErrorCodes.AlreadyExists, `Destination already exists: ${destination}`);
 		}
 		await mkdir(dirname(destination), { recursive: true });
 		await cp(source, destination, { recursive: true, force: !failIfExists, errorOnExist: failIfExists });
@@ -625,7 +652,7 @@ export interface IServerHandle {
 	capiReplay?: CapiReplayProxy;
 }
 
-const SERVER_SHUTDOWN_TIMEOUT_MS = isWindows || process.env['AGENT_HOST_E2E_COVERAGE'] === '1' ? 30_000 : 5_000;
+const SERVER_SHUTDOWN_TIMEOUT_MS = isCI || isWindows || AGENT_HOST_E2E_COVERAGE ? 30_000 : 5_000;
 
 /** Gracefully stop an Agent Host test server, killing it if shutdown stalls. */
 export async function stopServer(server: IServerHandle | undefined): Promise<void> {
@@ -646,10 +673,11 @@ export async function stopServer(server: IServerHandle | undefined): Promise<voi
 	if (!await raceTimeout(serverExit.then(() => true), SERVER_SHUTDOWN_TIMEOUT_MS)) {
 		try {
 			if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
-				const killed = serverProcess.kill('SIGKILL');
-				if (!killed && serverProcess.exitCode === null && serverProcess.signalCode === null) {
-					throw new Error('Failed to terminate Agent Host test server');
+				const pid = serverProcess.pid;
+				if (pid === undefined) {
+					throw new Error('Agent Host test server has no process id');
 				}
+				await killTree(pid, true);
 			}
 		} catch (error) {
 			if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
@@ -658,6 +686,35 @@ export async function stopServer(server: IServerHandle | undefined): Promise<voi
 		}
 		await serverExit;
 	}
+}
+
+/** Forcefully kill an Agent Host test server and its child processes without graceful shutdown. */
+export async function killServer(server: IServerHandle | undefined): Promise<void> {
+	const serverProcess = server?.process;
+	if (!serverProcess || serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
+		return;
+	}
+	const pid = serverProcess.pid;
+	if (pid === undefined) {
+		throw new Error('Agent Host test server has no process id');
+	}
+
+	const serverExit = new Promise<void>(resolve => {
+		const onExit = () => resolve();
+		serverProcess.once('exit', onExit);
+		if (serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
+			serverProcess.removeListener('exit', onExit);
+			resolve();
+		}
+	});
+	try {
+		await killTree(pid, true);
+	} catch (error) {
+		if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
+			throw error;
+		}
+	}
+	await serverExit;
 }
 
 interface IMockLlmServerHandle {
@@ -682,10 +739,8 @@ export interface IMockScenario {
 	readonly definition: unknown;
 }
 
-const AGENT_HOST_E2E_COVERAGE = process.env['AGENT_HOST_E2E_COVERAGE'] === '1';
-
 export function getAgentHostE2ETestTimeout(normalTimeoutMs: number, extendedTimeoutMs: number): number {
-	return AGENT_HOST_E2E_COVERAGE || isWindows ? extendedTimeoutMs : normalTimeoutMs;
+	return AGENT_HOST_E2E_COVERAGE || isCI || isWindows ? extendedTimeoutMs : normalTimeoutMs;
 }
 
 function withAgentHostCoverage(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -779,20 +834,24 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
  * Start the agent host server with the Copilot SDK agent with either a real or mocked LLM.
  * The server is started with logging enabled so the CopilotAgent is registered.
  */
-export async function startRealServer(options?: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly mockLlm?: boolean; readonly homeDir?: string; readonly userDataDir?: string; readonly logLevel?: string; readonly env?: NodeJS.ProcessEnv; readonly capiReplay?: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly workDir?: string; readonly real?: boolean; readonly allowPosixCommands?: boolean; readonly allowStaleRecordedRequest?: boolean }; readonly mockScenarios?: readonly IMockScenario[] }): Promise<IServerHandle> {
+export async function startRealServer(options: { readonly homeDir: string; readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly codexHomeDir?: string; readonly codexAgentEnabled?: boolean; readonly mockLlm?: boolean; readonly userDataDir?: string; readonly logLevel?: string; readonly env?: NodeJS.ProcessEnv; readonly capiReplay?: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly workDir?: string; readonly real?: boolean; readonly allowPosixCommands?: boolean; readonly allowStaleRecordedRequest?: boolean; readonly recordingModelResponse?: ICapiReplayResponse }; readonly existingCapiReplay?: CapiReplayProxy; readonly mockScenarios?: readonly IMockScenario[] }): Promise<IServerHandle> {
 	// `capiReplay` records/replays in front of the mock LLM server, so it implies
 	// a mock upstream even when `mockLlm` was not explicitly requested — unless
 	// `real` is set, in which case the proxy forwards to real CAPI/GitHub.
-	const realCapture = options?.capiReplay?.real === true;
-	const mockLlmServer = (options?.mockLlm || (options?.capiReplay && !realCapture)) ? await startMockLlmServer(options?.mockScenarios) : undefined;
-	let capiReplayProxy: CapiReplayProxy | undefined;
-	if (options?.capiReplay) {
+	const realCapture = options.capiReplay?.real === true;
+	const mockLlmServer = (options.mockLlm || (options.capiReplay && !realCapture)) ? await startMockLlmServer(options.mockScenarios) : undefined;
+	let capiReplayProxy = options.existingCapiReplay;
+	if (capiReplayProxy && !options.capiReplay) {
+		throw new Error('Reusing a CAPI replay proxy requires its replay configuration');
+	}
+	if (options.capiReplay && !capiReplayProxy) {
 		capiReplayProxy = new CapiReplayProxy(realCapture ? {
 			fixturePath: options.capiReplay.fixturePath,
 			mode: options.capiReplay.mode,
 			workDir: options.capiReplay.workDir,
 			allowPosixCommands: options.capiReplay.allowPosixCommands,
 			allowStaleRecordedRequest: options.capiReplay.allowStaleRecordedRequest,
+			recordingModelResponse: options.capiReplay.recordingModelResponse,
 			homeDir: options.homeDir,
 			userName: userInfo().username,
 			// Real hosts (consumer defaults); override for Enterprise/Business accounts.
@@ -815,41 +874,26 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../node/agentHostServerMain.js', import.meta.url));
 		const args = ['--port', '0', '--without-connection-token'];
-		if (options?.claudeSdkRoot) {
+		if (options.claudeSdkRoot) {
 			args.push('--claude-sdk-root', options.claudeSdkRoot);
 		}
-		if (options?.codexSdkRoot) {
+		if (options.codexSdkRoot) {
 			args.push('--codex-sdk-root', options.codexSdkRoot);
 		}
-		if (options?.userDataDir) {
+		if (options.userDataDir) {
 			args.push('--user-data-dir', options.userDataDir);
 		}
-		if (options?.logLevel) {
+		if (options.logLevel) {
 			args.push('--log', options.logLevel);
 		}
 		const childEnv = withAgentHostCoverage({
-			...process.env,
-			...(options?.env ?? {}),
-			...(options?.homeDir ? {
-				HOME: options.homeDir,
-				USERPROFILE: options.homeDir,
-				APPDATA: join(options.homeDir, 'AppData', 'Roaming'),
-				LOCALAPPDATA: join(options.homeDir, 'AppData', 'Local'),
-				XDG_CONFIG_HOME: join(options.homeDir, '.config'),
-				COPILOT_HOME: join(options.homeDir, '.copilot'),
-				COPILOT_SKILLS_DIRS: undefined,
-				CLAUDE_CONFIG_DIR: undefined,
-				CODEX_HOME: undefined,
-				...(isWindows && options.homeDir.match(/^[A-Za-z]:[\\/]/) ? {
-					HOMEDRIVE: options.homeDir.slice(0, 2),
-					HOMEPATH: options.homeDir.slice(2).replace(/\//g, '\\'),
-				} : {}),
-			} : {}),
-			// Codex defaults to disabled; opt it in for the agent host e2e suite when a
+			...createIsolatedProviderEnvironment(options.homeDir, { ...process.env, ...(options.env ?? {}) }),
+			...(options.codexHomeDir ? { [AgentHostCodexAgentCodexHomeEnvVar]: options.codexHomeDir } : {}),
+			// Codex defaults to disabled; opt it in for the agent host E2E suite when a
 			// codex SDK root is supplied so the provider actually registers.
-			...(options?.codexSdkRoot ? { [AgentHostCodexAgentEnabledEnvVar]: 'true' } : {}),
+			...(options.codexSdkRoot ? { [AgentHostCodexAgentEnabledEnvVar]: String(options.codexAgentEnabled ?? true) } : {}),
 			// Fixtures use Codex's unified exec tool, so keep record and replay on the same shell protocol.
-			...(options?.codexSdkRoot && options.capiReplay ? { [AgentHostCodexAgentBinaryArgsEnvVar]: JSON.stringify(['-c', 'features.unified_exec=true']) } : {}),
+			...(options.codexSdkRoot && options.capiReplay ? { [AgentHostCodexAgentBinaryArgsEnvVar]: JSON.stringify(['-c', 'features.unified_exec=true']) } : {}),
 			...(realCapture ? {
 				// Real-CAPI capture/replay: route all CAPI + GitHub-API traffic through
 				// the proxy. The real GitHub token flows via the `authenticate`
@@ -997,7 +1041,10 @@ export function dispatchTurnStarted(c: TestProtocolClient, session: string, turn
 		action: {
 			type: ActionType.ChatTurnStarted,
 			turnId,
-			startedAt: '2025-01-01T00:00:00.000Z',
+			// A real timestamp, because the chat reducer derives `modifiedAt`
+			// from the turn: a fixed past `startedAt` would make a completed
+			// turn look older than the session it belongs to.
+			startedAt: new Date().toISOString(),
 			message: { text, origin: { kind: MessageKind.User } },
 		},
 	});

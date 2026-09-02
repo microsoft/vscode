@@ -20,7 +20,7 @@ import { PluginFormat, type IMcpServerDefinition, type INamedPluginResource, typ
 import { CustomizationType, McpServerStatus, type HookCustomization, type McpServerCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
 
 function stubMcpCustomization(name = 'test'): McpServerCustomization {
-	return { type: CustomizationType.McpServer, id: `mcp:${name}`, uri: 'file:///plugin', name, enabled: true, state: { kind: McpServerStatus.Starting } };
+	return { type: CustomizationType.McpServer, id: `mcp:${name}`, uri: 'file:///plugin', name, state: { kind: McpServerStatus.Starting } };
 }
 function stubHookCustomization(type: string): HookCustomization {
 	return { type: CustomizationType.Hook, id: `hook:${type}`, uri: 'file:///plugin/hooks.json', name: 'hooks.json' };
@@ -97,6 +97,27 @@ suite('copilotPluginConverters', () => {
 
 		});
 
+		test('converts remote/SSE server definitions', () => {
+			const defs: IMcpServerDefinition[] = [{
+				name: 'sse-server',
+				uri: URI.file('/plugin'),
+				configuration: {
+					type: McpServerType.REMOTE,
+					transport: 'sse',
+					url: 'https://example.com/sse',
+				},
+				customization: stubMcpCustomization('sse-server'),
+			}];
+
+			assert.deepStrictEqual(toSdkMcpServers(defs), {
+				'sse-server': {
+					type: 'sse',
+					url: 'https://example.com/sse',
+					tools: ['*'],
+				},
+			});
+		});
+
 		test('handles empty definitions', () => {
 			const result = toSdkMcpServers([]);
 			assert.deepStrictEqual(result, {});
@@ -118,6 +139,33 @@ suite('copilotPluginConverters', () => {
 			assert.deepStrictEqual((result['minimal'] as { args?: string[] }).args, []);
 			assert.strictEqual(Object.hasOwn(result['minimal'], 'env'), false);
 			assert.strictEqual(Object.hasOwn(result['minimal'], 'cwd'), false);
+		});
+
+		test('uses a URI default cwd without overriding explicit cwd', () => {
+			const defs: IMcpServerDefinition[] = [{
+				name: 'defaulted',
+				uri: URI.file('/plugin/.mcp.json'),
+				defaultCwd: URI.file('/workspace'),
+				configuration: { type: McpServerType.LOCAL, command: 'defaulted' },
+				customization: stubMcpCustomization('defaulted'),
+			}, {
+				name: 'explicit',
+				uri: URI.file('/plugin/.mcp.json'),
+				defaultCwd: URI.file('/workspace'),
+				configuration: { type: McpServerType.LOCAL, command: 'explicit', cwd: '/explicit' },
+				customization: stubMcpCustomization('explicit'),
+			}, {
+				name: 'relative',
+				uri: URI.file('/plugin/.mcp.json'),
+				defaultCwd: URI.file('/workspace'),
+				configuration: { type: McpServerType.LOCAL, command: 'relative', cwd: './relative' },
+				customization: stubMcpCustomization('relative'),
+			}];
+
+			const result = toSdkMcpServers(defs);
+			assert.strictEqual((result['defaulted'] as { cwd?: string }).cwd, URI.file('/workspace').fsPath);
+			assert.strictEqual((result['explicit'] as { cwd?: string }).cwd, '/explicit');
+			assert.strictEqual((result['relative'] as { cwd?: string }).cwd, URI.file('/workspace/relative').fsPath);
 		});
 
 		test('filters null values from env', () => {
@@ -200,6 +248,59 @@ suite('copilotPluginConverters', () => {
 				tools: ['read_file', 'grep_search'],
 				prompt: 'You are a meticulous code reviewer.\n',
 			}]);
+		});
+
+		test('parses supported reasoning-effort values from frontmatter', async () => {
+			const reasoningEfforts = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+			const agents: INamedPluginResource[] = [];
+			for (const reasoningEffort of reasoningEfforts) {
+				const agentUri = URI.from({ scheme: Schemas.inMemory, path: `/agents/${reasoningEffort}.md` });
+				await fileService.writeFile(agentUri, VSBuffer.fromString([
+					'---',
+					`name: ${reasoningEffort}`,
+					`reasoning-effort: ${reasoningEffort}`,
+					'---',
+					'Body.',
+				].join('\n')));
+				agents.push({ uri: agentUri, name: reasoningEffort });
+			}
+
+			const result = await toSdkCustomAgents(agents, fileService);
+
+			assert.deepStrictEqual(result, reasoningEfforts.map(reasoningEffort => ({
+				name: reasoningEffort,
+				reasoningEffort,
+				tools: null,
+				prompt: 'Body.',
+			})));
+		});
+
+		test('omits missing or unsupported reasoning-effort values', async () => {
+			const missingUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/missing-effort.md' });
+			const unsupportedUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/unsupported-effort.md' });
+			await fileService.writeFile(missingUri, VSBuffer.fromString([
+				'---',
+				'name: missing-effort',
+				'---',
+				'Body.',
+			].join('\n')));
+			await fileService.writeFile(unsupportedUri, VSBuffer.fromString([
+				'---',
+				'name: unsupported-effort',
+				'reasoning-effort: extreme',
+				'---',
+				'Body.',
+			].join('\n')));
+
+			const result = await toSdkCustomAgents([
+				{ uri: missingUri, name: 'missing-effort' },
+				{ uri: unsupportedUri, name: 'unsupported-effort' },
+			], fileService);
+
+			assert.deepStrictEqual(result, [
+				{ name: 'missing-effort', tools: null, prompt: 'Body.' },
+				{ name: 'unsupported-effort', tools: null, prompt: 'Body.' },
+			]);
 		});
 
 		test('parses skills and infer from frontmatter', async () => {
@@ -532,6 +633,20 @@ suite('copilotPluginConverters', () => {
 				cleanup();
 			}
 		});
+
+		test('onUserPromptSubmitted returns host context without rewriting the prompt', async () => {
+			const hooks = toSdkHooks([], {
+				onPreToolUse: async () => { },
+				onPostToolUse: async () => { },
+				onUserPromptSubmitted: () => ({ additionalContext: 'Rename with exact casing' }),
+			});
+			const input = { prompt: 'Keep GitHub casing', timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
+
+			const result = await hooks.onUserPromptSubmitted!(input, { sessionId: 'test' });
+
+			assert.strictEqual(input.prompt, 'Keep GitHub casing');
+			assert.deepStrictEqual(result, { additionalContext: 'Rename with exact casing' });
+		});
 	});
 
 	// ---- parsedPluginsEqual ---------------------------------------------
@@ -580,6 +695,35 @@ suite('copilotPluginConverters', () => {
 			const a = makePlugin({ skills: [{ uri: URI.file('/a/SKILL.md'), name: 'a', customization: stubSkillCustomization('a') } satisfies IParsedSkill] });
 			const b = makePlugin({ skills: [{ uri: URI.file('/b/SKILL.md'), name: 'b', customization: stubSkillCustomization('b') } satisfies IParsedSkill] });
 			assert.strictEqual(parsedPluginsEqual([a], [b]), false);
+		});
+
+		test('returns false for different skill invocation metadata', () => {
+			const makeSkill = (flags: Pick<IParsedSkill, 'disableModelInvocation' | 'disableUserInvocation'>): IParsedSkill => ({
+				uri: URI.file('/a/SKILL.md'),
+				name: 'a',
+				...flags,
+				customization: { ...stubSkillCustomization('a'), ...flags },
+			});
+			const defaults = makePlugin({ skills: [makeSkill({})] });
+
+			assert.deepStrictEqual([
+				parsedPluginsEqual([defaults], [makePlugin({ skills: [makeSkill({ disableModelInvocation: true })] })]),
+				parsedPluginsEqual([defaults], [makePlugin({ skills: [makeSkill({ disableUserInvocation: true })] })]),
+			], [false, false]);
+		});
+
+		test('returns false for different MCP default cwd URIs', () => {
+			const definition = (defaultCwd: URI): IMcpServerDefinition => ({
+				name: 'server',
+				uri: URI.file('/mcp'),
+				defaultCwd,
+				configuration: { type: McpServerType.LOCAL, command: 'node' },
+				customization: stubMcpCustomization('server'),
+			});
+			assert.strictEqual(parsedPluginsEqual(
+				[makePlugin({ mcpServers: [definition(URI.file('/a'))] })],
+				[makePlugin({ mcpServers: [definition(URI.file('/b'))] })],
+			), false);
 		});
 
 		test('returns false for different plugin formats', () => {

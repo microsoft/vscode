@@ -16,10 +16,11 @@ import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiff
 import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IMultiDiffEditorOptions } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { ChatWidget } from '../widget/chatWidget.js';
+import { getChatRequestText } from '../chatRequestText.js';
 import { ChatTreeItem } from '../chat.js';
 import { IChatResponseFileChangesService } from '../chatResponseFileChangesService.js';
 import { IChatEditingService, IEditSessionEntryDiff } from '../../common/editing/chatEditingService.js';
-import { isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import { IChatRequestViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { budgetBucketPrompts, MAX_TICKS, PromptItem } from './promptBucketing.js';
 
 /** Aggregated diff stats for the edits a prompt (or bucket) produced. */
@@ -89,6 +90,10 @@ function itemKind(item: ChatTreeItem): PromptItemKind {
 	return 'other';
 }
 
+function isPromptTimelineRequest(item: ChatTreeItem): item is IChatRequestViewModel {
+	return isRequestVM(item) && !item.isSystemInitiated;
+}
+
 // Content "signal" = a cheap, unit-less size proxy (roughly the rendered line
 // count) for an un-measured row. Absolute pixels come from a factor learned from
 // measured rows (see `_computeAdaptiveLayout`), so these constants only need to
@@ -138,7 +143,8 @@ export class PromptTimelineModel extends Disposable {
 		if (!resource) {
 			return undefined;
 		}
-		return this.chatEditingService.editingSessionsObs.read(reader).find(s => isEqual(s.chatSessionResource, resource));
+		this.chatEditingService.editingSessionsObs.read(reader);
+		return this.chatEditingService.getEditingSession(resource);
 	});
 
 	/** Recency-bucketed ticks, capped to a fixed maximum so each keeps a >=24px slot. */
@@ -168,7 +174,7 @@ export class PromptTimelineModel extends Disposable {
 
 	/**
 	 * One tick per user prompt — unbucketed and uncapped, decorated with per-prompt diff stats. The
-	 * dock rail lists every prompt as its own entry (no recency bucketing/sampling), so it needs the
+	 * gutter rail lists every prompt as its own entry (no recency bucketing/sampling), so it needs the
 	 * raw prompt list rather than the capped {@link ticks} the overview ruler uses.
 	 */
 	private readonly _promptTicks = derived<readonly PromptTick[]>(this, reader => {
@@ -191,7 +197,7 @@ export class PromptTimelineModel extends Disposable {
 	private readonly _activeRequestId: ISettableObservable<string | undefined> = observableValue<string | undefined>(this, undefined);
 	get activeRequestId(): IObservable<string | undefined> { return this._activeRequestId; }
 
-	/** The exact request currently scrolled to the top, unbucketed — drives the sticky header's label/position and the dock rail's active row. */
+	/** The exact request currently scrolled to the top, unbucketed — drives the sticky header's label/position and the gutter rail's active row. */
 	private readonly _activePromptId: ISettableObservable<string | undefined> = observableValue<string | undefined>(this, undefined);
 	get activePromptId(): IObservable<string | undefined> { return this._activePromptId; }
 
@@ -219,6 +225,9 @@ export class PromptTimelineModel extends Disposable {
 
 	/** Per-item content-signal cache (id -> {version, signal}) for height estimation; version invalidates on content growth. */
 	private readonly _signalCache = new Map<string, { version: number; signal: number }>();
+
+	/** Per-request preview cache (id -> {messageText, preview}); recognizing an Agent Merge turn parses its whole state block, and `_recompute` runs on every streamed token. */
+	private readonly _previewCache = new Map<string, { messageText: string; preview: string }>();
 
 	constructor(
 		private readonly widget: ChatWidget,
@@ -275,7 +284,7 @@ export class PromptTimelineModel extends Disposable {
 		const marks: { requestId: string; top: number }[] = [];
 		for (let i = 0; i < items.length; i++) {
 			const item = items[i];
-			if (isRequestVM(item)) {
+			if (isPromptTimelineRequest(item)) {
 				marks.push({ requestId: item.id, top: tops[i] });
 			}
 		}
@@ -355,9 +364,25 @@ export class PromptTimelineModel extends Disposable {
 		return 1;
 	}
 
+	/**
+	 * Preview of a prompt, which for a request rendered as something other than
+	 * its own text (an Agent Merge turn) previews that stand-in label instead.
+	 */
+	private _requestPreview(item: IChatRequestViewModel): string {
+		const messageText = item.messageText;
+		const cached = this._previewCache.get(item.id);
+		if (cached && cached.messageText === messageText) {
+			return cached.preview;
+		}
+		const preview = getPromptPreview(getChatRequestText(item));
+		this._previewCache.set(item.id, { messageText, preview });
+		return preview;
+	}
+
 	private _bindViewModel(): void {
-		// Different session's items have unrelated ids; drop stale signal estimates.
+		// Different session's items have unrelated ids; drop stale per-item caches.
 		this._signalCache.clear();
+		this._previewCache.clear();
 		this._viewModelListener.value = this.widget.viewModel?.onDidChange(() => this._recompute());
 		this._recompute();
 	}
@@ -365,8 +390,8 @@ export class PromptTimelineModel extends Disposable {
 	private _recompute(): void {
 		const prompts: PromptItem[] = [];
 		for (const item of this.widget.viewModel?.getItems() ?? []) {
-			if (isRequestVM(item)) {
-				prompts.push({ requestId: item.id, text: getPromptPreview(item.messageText), timestamp: item.timestamp });
+			if (isPromptTimelineRequest(item)) {
+				prompts.push({ requestId: item.id, text: this._requestPreview(item), timestamp: item.timestamp });
 			}
 		}
 
@@ -393,28 +418,41 @@ export class PromptTimelineModel extends Disposable {
 			return;
 		}
 
-		// The active prompt is the last request whose top edge is at or above the
-		// viewport top. Positions come from the list's layout height model, so
-		// off-screen prompts resolve correctly (not just rendered ones). Rows are
-		// ordered, so the search stops at the first request below the viewport top
-		// instead of walking the whole (potentially long) transcript on every scroll.
+		// The active prompt is the last request whose top edge is at or above the viewport top.
 		const scrollTop = this.widget.scrollTop;
-		const threshold = 24;
+		const isScrolledToBottom = scrollTop + this.widget.viewportHeight >= this.widget.scrollHeight - 2;
 		let activeRequestId: string | undefined;
 		let activeTimestamp = 0;
 		let activeTop = -1;
-		for (const item of items) {
-			if (isRequestVM(item)) {
-				const top = this.widget.getElementTop(item);
-				if (top === undefined) {
+		if (isScrolledToBottom) {
+			for (let i = items.length - 1; i >= 0; i--) {
+				const item = items[i];
+				if (!isPromptTimelineRequest(item)) {
 					continue;
 				}
-				if (top > scrollTop + threshold) {
-					break;
+				const top = this.widget.getElementTop(item);
+				if (top === undefined || top > scrollTop) {
+					continue;
 				}
 				activeRequestId = item.id;
 				activeTimestamp = item.timestamp;
 				activeTop = top;
+				break;
+			}
+		} else {
+			for (const item of items) {
+				if (isPromptTimelineRequest(item)) {
+					const top = this.widget.getElementTop(item);
+					if (top === undefined) {
+						continue;
+					}
+					if (top > scrollTop) {
+						break;
+					}
+					activeRequestId = item.id;
+					activeTimestamp = item.timestamp;
+					activeTop = top;
+				}
 			}
 		}
 
@@ -474,26 +512,6 @@ export class PromptTimelineModel extends Disposable {
 		if (id !== undefined) {
 			this.reveal(id);
 		}
-	}
-
-	/**
-	 * Reveals the prompt `delta` positions away from the one the header names, aligned to the top of the
-	 * transcript like the rail and the label activation. The header then follows scroll tracking, hiding
-	 * once the target prompt is at the top.
-	 */
-	navigate(delta: number): void {
-		const prompts = this._prompts.get();
-		if (prompts.length === 0) {
-			return;
-		}
-		const id = this._activePromptId.get();
-		const current = id ? prompts.findIndex(p => p.requestId === id) : 0;
-		const base = current < 0 ? 0 : current;
-		const target = Math.max(0, Math.min(prompts.length - 1, base + delta));
-		if (target === base) {
-			return;
-		}
-		this.reveal(prompts[target].requestId);
 	}
 
 	/** The changed files for a tick's prompts, aggregated per file (for the hover card / drill-down). */

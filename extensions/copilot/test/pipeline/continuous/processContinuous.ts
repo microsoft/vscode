@@ -65,15 +65,15 @@ function synthesizeRow(record: IContinuousRecord, entries: LogEntry[], pivotTime
  * (e.g. a malformed recorded edit) is caught and returned as an error `Result`,
  * so one bad record can't abort a whole batch (see {@link processContinuousRecords}).
  */
-export function processContinuousRecord(record: IContinuousRecord, pivotTime: number): Result<IProcessedRow, Error> {
+export function processContinuousRecord(record: IContinuousRecord, pivotTime: number, maxOracleEdits?: number): Result<IProcessedRow, Error> {
 	try {
-		return _processContinuousRecord(record, pivotTime);
+		return _processContinuousRecord(record, pivotTime, maxOracleEdits);
 	} catch (e: unknown) {
 		return Result.error(ErrorUtils.fromUnknown(e));
 	}
 }
 
-function _processContinuousRecord(record: IContinuousRecord, pivotTime: number): Result<IProcessedRow, Error> {
+function _processContinuousRecord(record: IContinuousRecord, pivotTime: number, maxOracleEdits: number | undefined): Result<IProcessedRow, Error> {
 	const entries = record.value.entries;
 	if (!entries || entries.length === 0) {
 		return Result.fromString('Continuous recording has no entries');
@@ -85,6 +85,7 @@ function _processContinuousRecord(record: IContinuousRecord, pivotTime: number):
 		requestTime: pivotTime,
 		proposedEdits: [],
 		isAccepted: false,
+		maxOracleEdits,
 	});
 	if (result.isError()) {
 		return result;
@@ -118,6 +119,7 @@ export function processContinuousRecords(
 	strategy: PivotStrategy,
 	baseSeed: number,
 	rowOffset: number,
+	maxOracleEdits?: number,
 ): {
 	processed: IProcessedRow[];
 	errors: WithRowIndex<Error>[];
@@ -149,7 +151,7 @@ export function processContinuousRecords(
 		// threaded through those maps, otherwise rows sharing a record index
 		// would overwrite each other.
 		for (const pivotTime of pivots) {
-			const result = processContinuousRecord(record, pivotTime);
+			const result = processContinuousRecord(record, pivotTime, maxOracleEdits);
 			if (result.isError()) {
 				errors.push({ originalRowIndex: record.originalRowIndex, value: result.err });
 			} else {

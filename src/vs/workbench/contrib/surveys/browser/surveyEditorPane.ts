@@ -6,6 +6,7 @@
 import './media/surveyEditorPane.css';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { shuffle } from '../../../../base/common/arrays.js';
 import { $, addDisposableListener, append, clearNode } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -22,7 +23,7 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { ISurveyDefinition, ISurveyQuestion, ISurveyRadioQuestion, ISurveySegmentQuestion, SurveyQuestionType } from './surveyQuestions.js';
+import { ISurveyDefinition, ISurveyOption, ISurveyQuestion, ISurveyRadioQuestion, ISurveySegmentQuestion, SurveyQuestionType } from './surveyQuestions.js';
 import { SurveyEditorInput } from './surveyEditorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 
@@ -200,8 +201,9 @@ export class SurveyEditorPane extends EditorPane {
 			group.classList.add('columns-2');
 		}
 
-		for (let i = 0; i < question.options.length; i++) {
-			const option = question.options[i];
+		const options = question.shuffleOptions ? shuffleOptionsExceptLast(question.options) : question.options;
+		for (let i = 0; i < options.length; i++) {
+			const option = options[i];
 			const optionLabel = append(group, $('label.survey-list-option')) as HTMLLabelElement;
 
 			const radio = append(optionLabel, $('input.survey-list-input')) as HTMLInputElement;
@@ -269,7 +271,7 @@ export class SurveyEditorPane extends EditorPane {
 		};
 		type SurveySubmitClassification = {
 			surveyId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The survey identifier.' };
-			source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The feature source that triggered the survey (e.g. completions, panel.agent, nps).' };
+			source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The feature or attribution category associated with the survey (e.g. completions, agents, churn).' };
 			score: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Primary score as option index (e.g. PMF disappointment 0-4, NPS 0-10). -1 if not answered.' };
 			primaryBenefit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The primary value driver option ID selected by the user, empty if not applicable.' };
 			primaryFriction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The primary friction point option ID selected by the user, empty if not applicable.' };
@@ -331,4 +333,14 @@ export class SurveyEditorPane extends EditorPane {
 	override layout(): void {
 		// no-op: CSS handles sizing
 	}
+}
+
+function shuffleOptionsExceptLast(options: readonly ISurveyOption[]): readonly ISurveyOption[] {
+	if (options.length < 2) {
+		return options;
+	}
+
+	const shuffledOptions = options.slice(0, -1);
+	shuffle(shuffledOptions);
+	return [...shuffledOptions, options[options.length - 1]];
 }

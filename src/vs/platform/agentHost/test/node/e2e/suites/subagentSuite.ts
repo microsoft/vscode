@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
+import { retry } from '../../../../../../base/common/async.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
@@ -75,7 +76,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 
 		dispatchTurn(context.client, sessionUri, 'turn-sa',
 			`Use the \`${config.subagentToolNames[0]}\` tool to spawn a subagent to list the files in the current working directory. ` +
-			'The subagent should call a single read-only tool (e.g. `view` or shell with `ls`) to enumerate the directory. ' +
+			'The subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to enumerate the directory; do not run a shell command. ' +
 			'Do not enumerate the directory yourself — delegate to the subagent.',
 			1);
 
@@ -102,8 +103,9 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		const subagentSnap = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChatUri });
 		const subagentState = subagentSnap.snapshot?.state as ChatState | undefined;
 		const subagentFirstTurn = subagentState?.turns?.[0] ?? subagentState?.activeTurn;
-		assert.ok(
-			subagentFirstTurn?.message.text && subagentFirstTurn.message.text.includes('List the files'),
+		assert.match(
+			subagentFirstTurn?.message.text ?? '',
+			/\blist (?:the |its )?files\b/i,
 			`subagent chat's opening request should render the task prompt, got: ${JSON.stringify(subagentFirstTurn?.message.text)}`,
 		);
 
@@ -152,6 +154,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		// per-run uuid) so the recorded subagent reply still contains the
 		// phrase the freshly-issued prompt asks for on replay.
 		const sentinel = 'subagent replay note sentinel-7f3a';
+		const parentResponse = 'SUBAGENT_DONE';
 
 		let approvalsActive = true;
 		let approvalSeq = 2000;
@@ -192,7 +195,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 			`Use the \`${config.subagentToolNames[0]}\` tool to spawn a subagent to list the files in the current working directory. ` +
 			`Instruct the subagent to begin its response with this sentence on its own line: ${sentinel}. ` +
 			'Then the subagent should list the files. ' +
-			'After the subagent completes, you, the main agent, must reply exactly "SUBAGENT_DONE" and must not repeat that sentence.',
+			`After the subagent completes, you, the main agent, must reply exactly "${parentResponse}" and must not repeat that sentence.`,
 			1);
 
 		const subagentContentNotif = await context.client.waitForNotification(n => {
@@ -223,31 +226,66 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		approvalsActive = false;
 		await approvalLoop;
 
-		// Force a reopen: drop the subagent chat and parent-session
-		// subscriptions so the agent host evicts the cached, live-built state,
-		// then re-fetch — which rebuilds the turns from the persisted SDK event
-		// log through `mapSessionEvents` (the path the regression lived in).
-		// The parent-session unsubscribe is sent last so it triggers eviction.
-		for (const channel of [subagentChatUri, buildDefaultChatUri(sessionUri), sessionUri]) {
-			context.client.notify('unsubscribe', { channel });
-		}
-
-		const reopenedParent = await fetchSessionWithChat(context.client, sessionUri);
-		// Persisted SDK replay still restores subagents through their derived
-		// session resource, while the live path exposes the dedicated chat
-		// resource above.
-		const reopenedSubagent = await fetchSessionWithChat(context.client, replaySubagentSessionUri);
-
 		const assistantText = (turns: ISessionWithDefaultChat['turns']): string =>
 			turns.map(t => t.responseParts.map(p => p.kind === ResponsePartKind.Markdown ? p.content : '').join('')).join('\n');
 
-		const subagentText = assistantText(reopenedSubagent.turns);
-		const parentText = assistantText(reopenedParent.turns);
+		const responsePartIds = (turns: ISessionWithDefaultChat['turns']): string[] =>
+			turns.flatMap(turn => turn.responseParts.flatMap(part => {
+				const id = Reflect.get(part, 'id');
+				return typeof id === 'string' ? [id] : [];
+			}));
 
-		// Precondition: the sub-agent emitted the phrase and it is routed to the
-		// sub-agent transcript on the replay path.
-		assert.ok(subagentText.includes(sentinel),
-			`sub-agent transcript should contain the phrase after reopen; got: ${JSON.stringify(subagentText).slice(0, 500)}`);
+		const liveParent = await fetchSessionWithChat(context.client, sessionUri);
+		const liveParentResponsePartIds = responsePartIds(liveParent.turns);
+		assert.ok(liveParentResponsePartIds.length > 0);
+
+		const unsubscribeSessionTree = () => {
+			// The parent-session unsubscribe is sent last so it triggers eviction.
+			for (const channel of [
+				subagentChatUri,
+				buildDefaultChatUri(replaySubagentSessionUri),
+				replaySubagentSessionUri,
+				buildDefaultChatUri(sessionUri),
+				sessionUri,
+			]) {
+				context.client.notify('unsubscribe', { channel });
+			}
+		};
+
+		// Force a reopen: drop the subagent chat and parent-session
+		// subscriptions so the agent host evicts the cached, live-built state,
+		// then re-fetch — which rebuilds the turns from persisted SDK events.
+		unsubscribeSessionTree();
+
+		const { parentText } = await retry(async () => {
+			try {
+				const reopenedParent = await fetchSessionWithChat(context.client, sessionUri);
+				// Persisted SDK replay restores subagents through their derived
+				// session resource, while the live path exposes the chat resource.
+				const reopenedSubagent = await fetchSessionWithChat(context.client, replaySubagentSessionUri);
+				const reopenedParentResponsePartIds = responsePartIds(reopenedParent.turns);
+				const subagentText = assistantText(reopenedSubagent.turns);
+				const parentText = assistantText(reopenedParent.turns);
+
+				if (reopenedParentResponsePartIds.length === 0
+					|| (reopenedParentResponsePartIds.length === liveParentResponsePartIds.length
+						&& reopenedParentResponsePartIds.every((id, index) => id === liveParentResponsePartIds[index]))) {
+					throw new Error('parent session has not been reconstructed from persisted provider state');
+				}
+				if (!parentText.includes(parentResponse)) {
+					throw new Error(`parent transcript should contain the final response after reopen; got: ${JSON.stringify(parentText).slice(0, 500)}`);
+				}
+				if (!subagentText.includes(sentinel)) {
+					throw new Error(`sub-agent transcript should contain the phrase after reopen; got: ${JSON.stringify(subagentText).slice(0, 500)}`);
+				}
+
+				return { parentText };
+			} catch (error) {
+				// The retry delay must follow unsubscribe so deferred eviction can run.
+				unsubscribeSessionTree();
+				throw error;
+			}
+		}, 50, 100);
 
 		// The regression: the sub-agent's assistant.message must NOT leak into
 		// the parent transcript when the session is reopened.

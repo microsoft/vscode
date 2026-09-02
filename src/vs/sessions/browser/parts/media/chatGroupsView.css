@@ -1,0 +1,60 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The grid of chat groups that fills the session view's content area. */
+.chat-groups-view {
+	position: relative;
+	width: 100%;
+	height: 100%;
+}
+
+/* A single chat group: a tab strip on top of a chat view. Sized imperatively
+ * by the grid; children stack in normal flow (bar has an explicit height, the
+ * content takes the remaining height the chat view is laid out to). */
+.chat-group-view {
+	position: relative;
+	overflow: hidden;
+	background-color: var(--session-view-background);
+	color: var(--session-view-foreground);
+}
+
+.chat-group-view-bar {
+	position: relative;
+	overflow: hidden;
+}
+
+.chat-group-view-content {
+	position: relative;
+}
+
+/* When the session shows a grid of chats (more than one group), each chat fills
+ * its full leaf width instead of being capped to the centered band, so the grid
+ * spans the entire session view. A lone group keeps the centered cap. */
+.agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .interactive-session .interactive-item-container,
+.agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .interactive-session > .chat-suggest-next-widget,
+.agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .interactive-session .interactive-input-part,
+.agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .chat-view > .monaco-progress-container {
+	max-width: none;
+}
+
+/* With a lone group, the tab strip aligns with the centered header/content band
+ * rather than spanning the full leaf width. With more than one group it spans
+ * the full leaf (the default) so the grid reads edge-to-edge. */
+.session-view .chat-groups-view.single-group .session-chat-tabs-bar {
+	max-width: var(--session-view-centered-content-max-width);
+	width: 100%;
+	margin: 0 auto;
+}
+
+/* Keep the read-only banner aligned with the tab strip: with a lone group cap it
+ * to the centered band and center it too (overriding only the banner's own
+ * horizontal margins, so its negative top offset is preserved). With more than
+ * one group it spans the full leaf like the tab strip. */
+.session-view .chat-groups-view.single-group .session-readonly-banner {
+	max-width: var(--session-view-centered-content-max-width);
+	width: 100%;
+	margin-left: auto;
+	margin-right: auto;
+}

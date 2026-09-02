@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, IReference } from '../../../base/common/lifecycle.js';
+import { extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Event } from '../../../base/common/event.js';
@@ -16,12 +17,18 @@ export const SESSION_DB_FILENAME = 'session.db';
 
 /**
  * Subdirectory under a session's data directory that holds snapshotted
- * user-message attachments (e.g. pasted images, fetched file references).
+ * user-message attachments (e.g. pasted content, fetched file references).
  * The agent host writes these on dispatch so large blobs stay out of the
  * in-memory state tree, and reads of files under this directory are
  * auto-approved by the agent's permission flow.
  */
 export const SESSION_ATTACHMENTS_DIRNAME = 'attachments';
+
+export function isSessionAttachmentPath(sessionDataService: ISessionDataService, session: URI, filePath: string): boolean {
+	const attachmentsDir = normalizePath(URI.joinPath(sessionDataService.getSessionDataDir(session), SESSION_ATTACHMENTS_DIRNAME));
+	const fileUri = normalizePath(URI.file(filePath));
+	return extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, attachmentsDir);
+}
 
 // ---- File-edit types ----------------------------------------------------
 
@@ -162,6 +169,18 @@ export interface ISessionDatabase extends IDisposable {
 	getTurnUsages(): Promise<Map<string, string>>;
 
 	/**
+	 * Persists the JSON-serialized delegation metadata for an agent-authored turn.
+	 * Idempotent — last writer wins per turn.
+	 */
+	setTurnDelegation(turnId: string, delegation: string): Promise<void>;
+
+	/**
+	 * Returns every persisted turn delegation, keyed by both the turn's own id
+	 * and its provider event id when one has been recorded.
+	 */
+	getTurnDelegations(): Promise<Map<string, string>>;
+
+	/**
 	 * Associates a git checkpoint ref (e.g. `refs/agents/<sid>/checkpoints/turn/N`)
 	 * with a turn. Idempotent — last writer wins per turn.
 	 */
@@ -279,6 +298,17 @@ export interface ISessionDatabase extends IDisposable {
 	setMetadata(key: string, value: string): Promise<void>;
 
 	/**
+	 * Atomically store multiple metadata key-value pairs.
+	 */
+	setMetadataValues(values: Readonly<Record<string, string>>): Promise<void>;
+
+	/**
+	 * Atomically stores metadata values only when `key` is absent. Values named
+	 * by `copies` are read from their source keys and copied when present.
+	 */
+	setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies?: Readonly<Record<string, string>>): Promise<boolean>;
+
+	/**
 	 * Store or clear the draft for a chat in this session.
 	 */
 	setChatDraft(chat: URI, draft: Message | undefined): Promise<void>;
@@ -291,8 +321,10 @@ export interface ISessionDatabase extends IDisposable {
 	/**
 	 * Bulk-remaps turn IDs using the provided old→new mapping.
 	 * Used after copying a database file for a forked session.
+	 * When provided, `eventIds` replaces the SDK event ID for each remapped
+	 * turn, keyed by the new turn ID.
 	 */
-	remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void>;
+	remapTurnIds(mapping: ReadonlyMap<string, string>, eventIds?: ReadonlyMap<string, string>): Promise<void>;
 
 	// ---- Reviewed files --------------------------------------------------
 
@@ -369,6 +401,7 @@ export interface ISessionDataService {
 	 * Equivalent to {@link getSessionDataDir} but without requiring a full URI.
 	 */
 	getSessionDataDirById(sessionId: string): URI;
+	listSessionDataIds?(prefix: string): Promise<readonly string[]>;
 
 	/**
 	 * Opens (or creates) a per-session SQLite database. The database file is
@@ -407,7 +440,7 @@ export interface ISessionDataService {
 	 * Subscribers can register asynchronous cleanup work via
 	 * {@link IWillDeleteSessionDataEvent.waitUntil}; the deletion is
 	 * blocked until all registered promises settle. Used by
-	 * `IAgentHostCheckpointService.disposeSessionData` to read the exact
+	 * `IAgentHostCheckpointService.deleteCheckpoints` to read the exact
 	 * list of checkpoint refs from the (still-readable) database and
 	 * delete them before the directory is removed.
 	 *

@@ -101,6 +101,11 @@ class FixtureAgentFeedbackMenuService implements IMenuService {
 
 class AgentsDiffUIElementFactory implements IWorkbenchUIElementFactory {
 
+	readonly headerClickToCollapse = true;
+	readonly diffEditorItemHorizontalInsets = { left: 0, right: 0 };
+	readonly diffEditorItemHeaderHeight = 32;
+	readonly diffEditorItemContentBottomPadding = 8;
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
@@ -131,8 +136,13 @@ function createAgentFeedbackService(feedback: readonly IAgentFeedback[] = [], fe
 	const session = createFixtureSession();
 	return new class extends mock<IAgentFeedbackService>() {
 		override readonly onDidChangeFeedback = Event.None;
+		override readonly onDidChangeFeedbackVisibility = Event.None;
 		override readonly onDidChangeNavigation = Event.None;
 		override readonly onDidChangeFeedbackScope = Event.None;
+		override readonly onDidRevealSessionComment = Event.None;
+		override getVisibleResolvedFeedbackIds(): ReadonlySet<string> {
+			return new Set();
+		}
 		override getSessionForFile(resource: URI): ISession | undefined {
 			return resource.toString() === MODIFIED_FIRST_RESOURCE.toString() ? session : undefined;
 		}

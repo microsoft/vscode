@@ -6,7 +6,11 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -18,8 +22,9 @@ import { resolveCommandsContext } from '../../../browser/parts/editor/editorComm
 import { MultiDiffEditor } from './multiDiffEditor.js';
 import { MultiDiffEditorInput } from './multiDiffEditorInput.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { ActiveEditorContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
+import { createMultiDiffEditorLayoutDebugModel, isMultiDiffEditorLayoutDebugStateProvider } from './multiDiffEditorLayoutDebug.js';
 
 export class GoToFileAction extends Action2 {
 	constructor() {
@@ -65,6 +70,44 @@ export class GoToFileAction extends Action2 {
 				selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport,
 			} satisfies ITextEditorOptions,
 		});
+	}
+}
+
+export class OpenMultiDiffEditorLayoutDebugAction extends Action2 {
+	constructor() {
+		super({
+			id: 'multiDiffEditor.openLayoutDebug',
+			title: localize2('openMultiDiffEditorLayoutDebug', 'Open Multi Diff Editor Layout Debug State'),
+			category: Categories.Developer,
+			precondition: ContextKeyExpr.or(ActiveEditorContext.isEqualTo(MultiDiffEditor.ID), EditorContextKeys.inMultiDiffEditor),
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const activeEditorPane = editorService.activeEditorPane;
+		if (!isMultiDiffEditorLayoutDebugStateProvider(activeEditorPane)) {
+			return;
+		}
+
+		const model = createMultiDiffEditorLayoutDebugModel(
+			activeEditorPane.getLayoutDebugState(),
+			accessor.get(IModelService),
+			accessor.get(ILanguageService),
+		);
+		try {
+			const editor = await editorService.openEditor(
+				{ resource: model.uri, options: { pinned: true } },
+				SIDE_GROUP,
+			);
+			if (!editor) {
+				model.dispose();
+			}
+		} catch (error) {
+			model.dispose();
+			throw error;
+		}
 	}
 }
 

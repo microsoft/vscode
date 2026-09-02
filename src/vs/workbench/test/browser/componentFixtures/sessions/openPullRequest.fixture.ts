@@ -4,30 +4,39 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { themeColorFromId } from '../../../../../base/common/themables.js';
+import { Event } from '../../../../../base/common/event.js';
+import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IObservable, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IGitHubInfo, ISessionFolder, ISessionGitRepository, ISessionWorkspace } from '../../../../../sessions/services/sessions/common/session.js';
+import { IGitHubInfo, IGitHubPullRequestRef, ISessionFolder, ISessionGitRepository, ISessionWorkspace } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionContext, SessionContext } from '../../../../../sessions/services/sessions/browser/sessionContext.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IGitHubPullRequest, GitHubPullRequestState } from '../../../../../sessions/contrib/github/common/types.js';
+import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
+// eslint-disable-next-line local/code-import-patterns
+import { computePullRequestIcon, IGitHubPullRequest, GitHubPullRequestState } from '../../../../../sessions/contrib/github/common/types.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IGitHubService } from '../../../../../sessions/contrib/github/browser/githubService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { createPullRequestHoverElement } from '../../../../../sessions/contrib/github/browser/pullRequestHover.js';
 // eslint-disable-next-line local/code-import-patterns
 import { OpenPullRequestActionViewItem } from '../../../../../sessions/contrib/github/browser/pullRequestActions.js';
+// eslint-disable-next-line local/code-import-patterns
+import { IPullRequestIconCache } from '../../../../../sessions/contrib/github/browser/pullRequestIconCache.js';
+// eslint-disable-next-line local/code-import-patterns
+import { GitHubReferenceList } from '../../../../../sessions/contrib/github/browser/githubReferenceList.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
-import { createFixtureGitHubService } from './githubFixtureUtils.js';
+import { createFixtureGitHubService, createFixturePullRequestIconCache } from './githubFixtureUtils.js';
 
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../sessions/browser/parts/media/chatCompositeBar.css';
+import '../../../../../base/browser/ui/actionbar/actionbar.css';
 import '../../../../../base/browser/ui/hover/hoverWidget.css';
 import '../../../../../platform/hover/browser/hover.css';
 
@@ -35,9 +44,9 @@ import '../../../../../platform/hover/browser/hover.css';
 // Mock helpers
 // ============================================================================
 
-function createMockWorkspace(pullRequest: IGitHubInfo['pullRequest']): ISessionWorkspace {
+function createMockWorkspace(pullRequest: IGitHubInfo['pullRequest'], pullRequests: readonly IGitHubPullRequestRef[]): ISessionWorkspace {
 	const root = URI.file('/home/user/projects/vscode');
-	const gitHubInfo: IGitHubInfo = { owner: 'microsoft', repo: 'vscode', pullRequest };
+	const gitHubInfo: IGitHubInfo = { owner: 'microsoft', repo: 'vscode', pullRequest, pullRequests };
 
 	const gitRepository: ISessionGitRepository = {
 		uri: root,
@@ -64,10 +73,10 @@ function createMockWorkspace(pullRequest: IGitHubInfo['pullRequest']): ISessionW
 	};
 }
 
-function createMockSession(pullRequest: IGitHubInfo['pullRequest']): IActiveSession {
+function createMockSession(pullRequest: IGitHubInfo['pullRequest'], pullRequests: readonly IGitHubPullRequestRef[]): IActiveSession {
 	return new class extends mock<IActiveSession>() {
 		override readonly resource = URI.parse('session:1');
-		override readonly workspace: IObservable<ISessionWorkspace | undefined> = observableValue('workspace', createMockWorkspace(pullRequest));
+		override readonly workspace: IObservable<ISessionWorkspace | undefined> = observableValue('workspace', createMockWorkspace(pullRequest, pullRequests));
 	}();
 }
 
@@ -75,16 +84,27 @@ function createMockSession(pullRequest: IGitHubInfo['pullRequest']): IActiveSess
 // Render helper
 // ============================================================================
 
-function renderPullRequestPill(ctx: ComponentFixtureContext, pullRequest: IGitHubInfo['pullRequest'], pullRequestDetails: IGitHubPullRequest): void {
+function renderPullRequestPill(ctx: ComponentFixtureContext, pullRequest: IGitHubInfo['pullRequest'], pullRequestDetails: readonly IGitHubPullRequest[]): void {
 	const { container, disposableStore } = ctx;
 
-	const session = observableValue<IActiveSession | undefined>('session', createMockSession(pullRequest));
+	const pullRequests = pullRequestDetails.map(details => ({
+		owner: 'microsoft',
+		repo: 'vscode',
+		number: details.number,
+		uri: URI.parse(`https://github.com/microsoft/vscode/pull/${details.number}`),
+	}));
+	const session = observableValue<IActiveSession | undefined>('session', createMockSession(pullRequest, pullRequests));
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
 			reg.defineInstance(ISessionContext, new SessionContext(session));
-			reg.defineInstance(IGitHubService, createFixtureGitHubService([{ owner: 'microsoft', repo: 'vscode', pullRequest: pullRequestDetails }]));
+			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+				override readonly onDidChangeProviders = Event.None;
+				override getProvider() { return undefined; }
+			}());
+			reg.defineInstance(IGitHubService, createFixtureGitHubService(pullRequestDetails.map(details => ({ owner: 'microsoft', repo: 'vscode', pullRequest: details }))));
+			reg.defineInstance(IPullRequestIconCache, createFixturePullRequestIconCache());
 		},
 	});
 
@@ -101,10 +121,9 @@ function renderPullRequestPill(ctx: ComponentFixtureContext, pullRequest: IGitHu
 
 	const item = disposableStore.add(instantiationService.createInstance(OpenPullRequestActionViewItem, action, {}));
 
-	// Recreate the session header meta toolbar host so the inline-label styling
-	// (.chat-composite-bar-meta-toolbar) applies as in production.
+	// Host the metadata action with its inline-label styling.
 	const toolbar = document.createElement('div');
-	toolbar.classList.add('chat-composite-bar-meta-toolbar');
+	toolbar.classList.add('session-metadata-pill-toolbar');
 	container.appendChild(toolbar);
 	item.render(toolbar);
 
@@ -112,13 +131,37 @@ function renderPullRequestPill(ctx: ComponentFixtureContext, pullRequest: IGitHu
 	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
 }
 
+function renderPullRequestList(ctx: ComponentFixtureContext, pullRequests: readonly IGitHubPullRequest[]): void {
+	const list = ctx.disposableStore.add(new GitHubReferenceList(pullRequests.map(pullRequest => ({
+		number: pullRequest.number,
+		title: pullRequest.title,
+		icon: computePullRequestIcon(pullRequest.isDraft ? 'draft' : pullRequest.state),
+		toolbarActions: [toAction({
+			id: 'fixture.copyPullRequestLink',
+			label: 'Copy Pull Request Link',
+			class: ThemeIcon.asClassName(Codicon.copy),
+			run: () => { },
+		})],
+	})), () => { }));
+	renderInHoverWidget(ctx, list.element, '480px');
+}
+
 function renderPullRequestHover(ctx: ComponentFixtureContext, pullRequest: IGitHubPullRequest): void {
+	renderInHoverWidget(ctx, createPullRequestHoverElement({
+		owner: 'microsoft',
+		repo: 'vscode',
+		number: pullRequest.number,
+		repositoryHref: 'https://github.com/microsoft/vscode',
+		pullRequest,
+	}), '580px');
+}
+
+function renderInHoverWidget(ctx: ComponentFixtureContext, content: HTMLElement, width: string): void {
 	const { container } = ctx;
 
 	container.style.padding = '24px';
-	container.style.width = '580px';
+	container.style.width = width;
 	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
-
 	const hover = document.createElement('div');
 	hover.classList.add('monaco-hover', 'workbench-hover');
 	hover.style.position = 'static';
@@ -130,13 +173,7 @@ function renderPullRequestHover(ctx: ComponentFixtureContext, pullRequest: IGitH
 
 	const contents = document.createElement('div');
 	contents.classList.add('hover-contents', 'html-hover-contents');
-	contents.appendChild(createPullRequestHoverElement({
-		owner: 'microsoft',
-		repo: 'vscode',
-		number: pullRequest.number,
-		repositoryHref: 'https://github.com/microsoft/vscode',
-		pullRequest,
-	}));
+	contents.appendChild(content);
 	row.appendChild(contents);
 
 	container.appendChild(hover);
@@ -171,6 +208,16 @@ const openPullRequestDetails: IGitHubPullRequest = {
 	mergeableState: 'clean',
 };
 
+const shortDescriptionPullRequest: IGitHubPullRequest = {
+	...openPullRequestDetails,
+	body: 'Suppresses the expected EPIPE error on graceful disconnect.',
+};
+
+const longDescriptionPullRequest: IGitHubPullRequest = {
+	...openPullRequestDetails,
+	body: 'Every graceful client disconnect currently logs an unexpected EPIPE error. This makes a routine shutdown look like a server failure and adds noise for anyone scanning logs while investigating connection issues. The change recognizes the expected disconnect path and avoids reporting it as an error while preserving diagnostics for unexpected failures. This description is intentionally long enough to exceed three lines and verify that the pull request hover clamps the text without revealing any part of a fourth line.',
+};
+
 const draftPullRequestDetails: IGitHubPullRequest = {
 	...openPullRequestDetails,
 	number: draftPr.number,
@@ -182,6 +229,16 @@ const draftPullRequestDetails: IGitHubPullRequest = {
 	createdAt: '2026-06-05T10:00:00Z',
 };
 
+const mergedPullRequestDetails: IGitHubPullRequest = {
+	...openPullRequestDetails,
+	number: 42,
+	title: 'refactor: share the GitHub reference picker row',
+	state: GitHubPullRequestState.Merged,
+	headRef: 'refactor/github-reference-list',
+	createdAt: '2026-05-15T10:00:00Z',
+	mergedAt: '2026-05-18T09:30:00Z',
+};
+
 // ============================================================================
 // Fixtures
 // ============================================================================
@@ -189,14 +246,26 @@ const draftPullRequestDetails: IGitHubPullRequest = {
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	OpenPullRequest_Open: defineComponentFixture({
-		render: (ctx) => renderPullRequestPill(ctx, openPr, openPullRequestDetails),
+		render: (ctx) => renderPullRequestPill(ctx, openPr, [openPullRequestDetails]),
 	}),
 
 	OpenPullRequest_Draft: defineComponentFixture({
-		render: (ctx) => renderPullRequestPill(ctx, draftPr, draftPullRequestDetails),
+		render: (ctx) => renderPullRequestPill(ctx, draftPr, [draftPullRequestDetails]),
+	}),
+
+	OpenPullRequest_Multiple: defineComponentFixture({
+		render: (ctx) => renderPullRequestPill(ctx, openPr, [openPullRequestDetails, draftPullRequestDetails, mergedPullRequestDetails]),
 	}),
 
 	OpenPullRequest_Hover: defineComponentFixture({
-		render: (ctx) => renderPullRequestHover(ctx, openPullRequestDetails),
+		render: (ctx) => renderPullRequestHover(ctx, shortDescriptionPullRequest),
+	}),
+
+	OpenPullRequest_Hover_LongDescription: defineComponentFixture({
+		render: (ctx) => renderPullRequestHover(ctx, longDescriptionPullRequest),
+	}),
+
+	OpenPullRequest_List: defineComponentFixture({
+		render: (ctx) => renderPullRequestList(ctx, [openPullRequestDetails, draftPullRequestDetails, mergedPullRequestDetails]),
 	}),
 });
