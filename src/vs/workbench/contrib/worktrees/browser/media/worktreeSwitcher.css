@@ -1,0 +1,92 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Hide the real flex separator so it doesn't take 1px of horizontal space; we
+ * draw an overlay separator on our switcher's right edge via `::after` below.
+ * Matches the chat toggle's `::before` pattern in agenttitlebarstatuswidget.css. */
+.agent-status-command-center-toolbar:has(.worktree-switcher-host) + .agent-status-line-separator {
+	display: none;
+}
+
+/* The action-item wrapper handed to us by the toolbar. No chrome of its own. */
+.worktree-switcher-host {
+	display: flex;
+	align-items: center;
+	height: 100%;
+}
+
+.worktree-switcher {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	height: 100%;
+	padding: 0 8px;
+	cursor: pointer;
+	user-select: none;
+	color: var(--vscode-titleBar-activeForeground);
+	-webkit-app-region: no-drag;
+	max-width: 260px;
+	min-width: 0;
+	border-radius: 5px 0 0 5px;
+}
+
+/* Overlay 1px divider on our right edge — mirrors the chat toggle's
+ * badge-section divider in dimensions and color. Does not take flex space. */
+.worktree-switcher::after {
+	content: '';
+	position: absolute;
+	right: 0;
+	top: 4px;
+	bottom: 4px;
+	width: 1px;
+	background-color: var(--vscode-commandCenter-border, rgba(128, 128, 128, 0.35));
+	pointer-events: none;
+}
+
+.worktree-switcher:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.worktree-switcher:focus,
+.worktree-switcher:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.worktree-switcher > .icon {
+	flex-shrink: 0;
+	font-size: 14px;
+	opacity: 0.85;
+}
+
+.worktree-switcher > .worktree-name,
+.worktree-switcher > .branch-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+	font-size: 12px;
+}
+
+.worktree-switcher > .worktree-name {
+	max-width: 120px;
+}
+
+.worktree-switcher > .branch-name {
+	max-width: 120px;
+	opacity: 0.85;
+}
+
+.worktree-switcher > .separator {
+	flex-shrink: 0;
+	opacity: 0.5;
+	margin: 0 2px;
+}
+
+.worktree-switcher.empty > .worktree-name {
+	max-width: none;
+	opacity: 0.8;
+}
