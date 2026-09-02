@@ -39,10 +39,10 @@ export class SideChatContribution extends Disposable implements IAgentHostChatCo
 
 		const sourceState = this._stateManager.getChatState(origin.chat);
 		const activeTurn = sourceState?.activeTurn?.id === origin.turnId ? sourceState.activeTurn : undefined;
-		const forkAnchorTurnId = activeTurn
+		const sourceIsToolChat = this._stateManager.getChatOrigin(origin.chat)?.kind === ChatOriginKind.Tool;
+		const forkAnchorTurnId = activeTurn && !sourceIsToolChat
 			? resolveLastNonLocalTurnId(sourceState?.turns ?? [], turnId => this._localTurns.isLocal(origin.chat, turnId))
 			: undefined;
-		const sourceIsToolChat = this._stateManager.getChatOrigin(origin.chat)?.kind === ChatOriginKind.Tool;
 		const sourceContext = sourceIsToolChat || activeTurn || this._localTurns.isLocal(origin.chat, origin.turnId)
 			? buildBoundedSideChatSourceContext(sourceState?.turns ?? [], origin.turnId, activeTurn, forkAnchorTurnId)
 			: undefined;
