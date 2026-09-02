@@ -251,59 +251,29 @@ suite('CodeEditorWidget', () => {
 			assert.strictEqual(container.classList.contains(HIDDEN_CLASS_NAME), false);
 		});
 
-		test('IME composition keeps the mouse pointer visible', () => {
-			const { editor, isHidden, type, typeAndAssertHidden } = createEditor();
-			typeAndAssertHidden();
+		test('IME composition follows ordinary keyboard input cursor behavior', () => {
+			const { container, editor, isHidden, type } = createEditor();
 
 			editor.trigger('keyboard', Handler.CompositionStart, {});
-			assert.strictEqual(isHidden(), false, 'composition start should reveal the mouse pointer');
+			assert.strictEqual(isHidden(), false, 'composition start alone should not hide the mouse pointer');
 
 			editor.trigger('keyboard', Handler.CompositionType, { text: 'ｎ', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 });
-			assert.strictEqual(isHidden(), false, 'a composition update should keep the mouse pointer visible');
+			assert.strictEqual(isHidden(), true, 'a composition update should hide the mouse pointer');
+
+			container.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+			assert.strictEqual(isHidden(), false);
 
 			editor.trigger('keyboard', Handler.ReplacePreviousChar, { text: 'に', replaceCharCnt: 1 });
-			assert.strictEqual(isHidden(), false, 'a legacy composition update should keep the mouse pointer visible');
+			assert.strictEqual(isHidden(), true, 'a legacy composition update should hide the mouse pointer');
+
+			container.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+			assert.strictEqual(isHidden(), false);
 
 			type('日');
-			assert.strictEqual(isHidden(), false, 'text committed while composing should keep the mouse pointer visible');
+			assert.strictEqual(isHidden(), true, 'text committed while composing should hide the mouse pointer');
 
 			editor.trigger('keyboard', Handler.CompositionEnd, {});
-			assert.strictEqual(isHidden(), false, 'composition end should keep the mouse pointer visible');
-
-			typeAndAssertHidden();
-		});
-
-		test('a cancelled IME composition keeps the mouse pointer visible', () => {
-			const { editor, isHidden, typeAndAssertHidden } = createEditor();
-			typeAndAssertHidden();
-
-			editor.trigger('keyboard', Handler.CompositionStart, {});
-			editor.trigger('keyboard', Handler.CompositionEnd, {});
-
-			assert.strictEqual(isHidden(), false);
-			typeAndAssertHidden();
-		});
-
-		test('a composition interrupted by a model change does not block hiding', () => {
-			const { instantiationService, editor, typeAndAssertHidden } = createEditor();
-
-			editor.trigger('keyboard', Handler.CompositionStart, {});
-			editor.setModel(disposables.add(instantiateTextModel(instantiationService, 'other')));
-
-			assert.strictEqual(editor.inComposition, false);
-			editor.focus();
-			typeAndAssertHidden();
-		});
-
-		test('a composition interrupted by editor blur does not block hiding', () => {
-			const { blurTextInput, editor, typeAndAssertHidden } = createEditor();
-
-			editor.trigger('keyboard', Handler.CompositionStart, {});
-			blurTextInput();
-			assert.strictEqual(editor.inComposition, false);
-
-			editor.focus();
-			typeAndAssertHidden();
+			assert.strictEqual(isHidden(), true, 'composition end should not reveal the mouse pointer');
 		});
 
 		test('the editor and its descendants compute to `cursor: none` while hidden', () => {

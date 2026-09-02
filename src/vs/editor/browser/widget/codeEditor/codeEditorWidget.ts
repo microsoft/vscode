@@ -323,11 +323,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				this._showMouseCursor();
 			}
 		}));
-		this._register(this.onDidBlurEditorText(() => {
-			// Composition end is routed through the focused editor, so blur must clear stale state.
-			this.inComposition = false;
-			this._showMouseCursor();
-		}));
+		this._register(this.onDidBlurEditorText(() => this._showMouseCursor()));
 		this._register(toDisposable(() => this._showMouseCursor()));
 
 		this._contextKeyService = this._register(contextKeyService.createScoped(this._domElement));
@@ -430,7 +426,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private _hideMouseCursor(): void {
 		if (
 			this._mouseCursorHidden
-			|| this.inComposition
 			|| !this.hasTextFocus()
 			|| this._configuration.options.get(EditorOption.readOnly)
 			|| !this._configuration.options.get(EditorOption.hideMouseCursorOnTyping)
@@ -1225,8 +1220,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	private _startComposition(): void {
-		// An IME candidate window can be operated with the pointer, so never hide it while composing.
-		this._showMouseCursor();
 		if (!this._modelData) {
 			return;
 		}
@@ -1259,12 +1252,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	private _compositionType(source: string | null | undefined, text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): void {
-		// Composition updates can arrive here instead of `_type`, depending on the replacement metadata.
-		this._showMouseCursor();
 		if (!this._modelData) {
 			return;
 		}
 		this._modelData.viewModel.compositionType(text, replacePrevCharCnt, replaceNextCharCnt, positionDelta, source);
+		if (source === 'keyboard') {
+			this._hideMouseCursor();
+		}
 	}
 
 	private _paste(source: string | null | undefined, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null, clipboardEvent?: ClipboardEvent): void {
@@ -2073,7 +2067,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	private _detachModel(): ITextModel | null {
-		this.inComposition = false;
 		this._showMouseCursor();
 		this._contributionsDisposable?.dispose();
 		this._contributionsDisposable = undefined;
