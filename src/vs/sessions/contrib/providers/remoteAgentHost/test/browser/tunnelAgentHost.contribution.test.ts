@@ -20,7 +20,6 @@ import {
 	ICachedTunnel,
 	ITunnelAgentHostService,
 	TUNNEL_ADDRESS_PREFIX,
-	type ITunnelHostInfo,
 	type ITunnelInfo,
 	type TunnelAutoConnectMode,
 } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
@@ -29,10 +28,10 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { ActiveTunnelMode, INACTIVE_TUNNEL_MODE, IRemoteTunnelService, TunnelMode, TunnelStatus } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
 import { IHostService } from '../../../../../../workbench/services/host/browser/host.js';
-import { ITunnelHostService } from '../../../../../../workbench/contrib/chat/common/tunnelHost.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
@@ -171,34 +170,42 @@ class StubHostService extends mock<IHostService>() {
 	}
 }
 
-class StubTunnelHostService extends Disposable implements ITunnelHostService {
+class StubRemoteTunnelService extends Disposable implements IRemoteTunnelService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidChangeStatus = this._register(new Emitter<void>());
-	readonly onDidChangeStatus = this._onDidChangeStatus.event;
+	private readonly _onDidChangeStatus = this._register(new Emitter<TunnelStatus>());
+	readonly onDidChangeTunnelStatus = this._onDidChangeStatus.event;
+	readonly onDidChangeMode = Event.None;
+	readonly onDidTokenFailed = Event.None;
 
-	private _sharingInfo: ITunnelHostInfo | undefined;
+	private _status: TunnelStatus = { type: 'uninitialized' };
 
-	get isSharing(): boolean {
-		return this._sharingInfo !== undefined;
+	getTunnelStatus(): Promise<TunnelStatus> {
+		return Promise.resolve(this._status);
 	}
 
-	get isConnecting(): boolean {
-		return false;
+	getMode(): Promise<TunnelMode> {
+		return Promise.resolve(INACTIVE_TUNNEL_MODE);
 	}
 
-	get sharingInfo(): ITunnelHostInfo | undefined {
-		return this._sharingInfo;
+	initialize(_mode: TunnelMode): Promise<TunnelStatus> {
+		return this.getTunnelStatus();
 	}
 
-	setSharingInfo(tunnelName: string | undefined): void {
-		this._sharingInfo = tunnelName ? { tunnelName } : undefined;
-		this._onDidChangeStatus.fire();
+	startTunnel(_mode: ActiveTunnelMode): Promise<TunnelStatus> {
+		return this.getTunnelStatus();
 	}
 
-	async startSharing(): Promise<void> { throw new Error('Not implemented'); }
-	async stopSharing(): Promise<void> { this.setSharingInfo(undefined); }
-	async restartSharing(): Promise<void> { throw new Error('Not implemented'); }
+	async stopTunnel(): Promise<void> { }
+
+	async getTunnelName(): Promise<string | undefined> {
+		return this._status.type === 'connected' ? this._status.info.tunnelName : undefined;
+	}
+
+	setStatus(status: TunnelStatus): void {
+		this._status = status;
+		this._onDidChangeStatus.fire(status);
+	}
 }
 
 class StubSessionsProvidersService extends Disposable {
@@ -265,7 +272,7 @@ suite('TunnelAgentHostContribution', () => {
 		instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None } as unknown as IAuthenticationService);
 		instantiationService.stub(ITelemetryService, { publicLog2: () => { } } as unknown as ITelemetryService);
 		instantiationService.stub(IHostService, hostService);
-		instantiationService.stub(ITunnelHostService, store.add(new StubTunnelHostService()));
+		instantiationService.stub(IRemoteTunnelService, store.add(new StubRemoteTunnelService()));
 		instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
 
 		const contribution = store.add(instantiationService.createInstance(TestTunnelContribution));
@@ -318,7 +325,7 @@ suite('TunnelAgentHostContribution', () => {
 		instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None } as unknown as IAuthenticationService);
 		instantiationService.stub(ITelemetryService, { publicLog2: () => { } } as unknown as ITelemetryService);
 		instantiationService.stub(IHostService, hostService);
-		instantiationService.stub(ITunnelHostService, store.add(new StubTunnelHostService()));
+		instantiationService.stub(IRemoteTunnelService, store.add(new StubRemoteTunnelService()));
 		instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
 
 		const contribution = store.add(instantiationService.createInstance(TestTunnelContribution));
@@ -350,7 +357,7 @@ suite('TunnelAgentHostContribution', () => {
 		const remoteService = store.add(new StubRemoteAgentHostService());
 		const providersService = store.add(new StubSessionsProvidersService());
 		const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
-		const tunnelHostService = store.add(new StubTunnelHostService());
+		const remoteTunnelService = store.add(new StubRemoteTunnelService());
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ITunnelAgentHostService, tunnelService);
 		instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
@@ -361,13 +368,13 @@ suite('TunnelAgentHostContribution', () => {
 		instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None } as unknown as IAuthenticationService);
 		instantiationService.stub(ITelemetryService, { publicLog2: () => { } } as unknown as ITelemetryService);
 		instantiationService.stub(IHostService, new StubHostService());
-		instantiationService.stub(ITunnelHostService, tunnelHostService);
+		instantiationService.stub(IRemoteTunnelService, remoteTunnelService);
 		instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
 		const contribution = store.add(instantiationService.createInstance(TestTunnelContribution));
 		const tunnelId = 'tunnel-hosted';
 		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`;
 
-		tunnelHostService.setSharingInfo('Hosted Tunnel');
+		remoteTunnelService.setStatus({ type: 'connected', info: { tunnelName: 'Hosted Tunnel', tunnelId, isAttached: false }, serviceInstallFailed: false });
 		tunnelService.setCached([{ tunnelId, clusterId: 'use', name: 'Hosted Tunnel' }]);
 
 		assert.deepStrictEqual({
@@ -380,7 +387,7 @@ suite('TunnelAgentHostContribution', () => {
 			hasProvider: true,
 		});
 
-		tunnelHostService.setSharingInfo(undefined);
+		remoteTunnelService.setStatus({ type: 'disconnected' });
 		assert.strictEqual(tunnelService.isAutoConnectSuppressed(tunnelId), false);
 	});
 
@@ -399,7 +406,7 @@ suite('TunnelAgentHostContribution', () => {
 		instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None } as unknown as IAuthenticationService);
 		instantiationService.stub(ITelemetryService, { publicLog2: () => { } } as unknown as ITelemetryService);
 		instantiationService.stub(IHostService, new StubHostService());
-		instantiationService.stub(ITunnelHostService, store.add(new StubTunnelHostService()));
+		instantiationService.stub(IRemoteTunnelService, store.add(new StubRemoteTunnelService()));
 		instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
 		const contribution = store.add(instantiationService.createInstance(TestTunnelContribution));
 		const tunnel: ITunnelInfo = {
@@ -478,7 +485,7 @@ suite('TunnelAgentHostContribution', () => {
 		instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None } as unknown as IAuthenticationService);
 		instantiationService.stub(ITelemetryService, { publicLog2: () => { } } as unknown as ITelemetryService);
 		instantiationService.stub(IHostService, hostService);
-		instantiationService.stub(ITunnelHostService, store.add(new StubTunnelHostService()));
+		instantiationService.stub(IRemoteTunnelService, store.add(new StubRemoteTunnelService()));
 		instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
 		const contribution = store.add(instantiationService.createInstance(TestTunnelContribution));
 		const tunnelId = 'tunnel-disconnect';

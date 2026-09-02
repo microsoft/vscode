@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Event, Emitter } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
@@ -17,7 +18,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { ActiveTunnelMode, TunnelMode, TunnelStatus } from '../../common/remoteTunnel.js';
 import { TunnelMachineStatus } from '../../common/tunnelMachineStatus.js';
 import { RemoteTunnelService } from '../../node/remoteTunnelService.js';
-import { IAgentHostSharingRequest, ITunnelProcessCoordinator, ITunnelProcessMachineStatus, ITunnelProcessOutput, ITunnelProcessStatus, TunnelProcessConnectionState, TunnelProcessMode } from '../../node/tunnelProcessCoordinator.js';
+import { ITunnelProcessCoordinator, ITunnelProcessMachineStatus, ITunnelProcessOutput, ITunnelProcessStatus, TunnelProcessConnectionState, TunnelProcessMode } from '../../node/tunnelProcessCoordinator.js';
 import sinon from 'sinon';
 
 class TestTunnelProcessCoordinator implements ITunnelProcessCoordinator {
@@ -45,10 +46,6 @@ class TestTunnelProcessCoordinator implements ITunnelProcessCoordinator {
 	}
 
 	setRemoteAccess(_mode: TunnelMode, _logLevel: LogLevel): Promise<void> {
-		return Promise.resolve();
-	}
-
-	setAgentHostSharing(_request: IAgentHostSharingRequest | undefined): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -101,10 +98,13 @@ suite('Remote tunnel', () => {
 		};
 		const tokenFailures: (typeof mode.session | undefined)[] = [];
 		const tokenFailureListener = service.onDidTokenFailed(session => tokenFailures.push(session));
+		const statusChanges: TunnelStatus[] = [];
+		let statusChangeListener: IDisposable | undefined;
 		try {
 			await service.initialize(mode);
+			statusChangeListener = service.onDidChangeTunnelStatus(status => statusChanges.push(status));
 			let didCancel = false;
-			coordinator.fireMachineStatus('remoteAccess', { type: 'connected', tunnelName: 'test_host', isAttached: true, link: 'https://vscode.dev/tunnel/test_host', domain: 'vscode.dev' });
+			coordinator.fireMachineStatus('remoteAccess', { type: 'connected', tunnelName: 'test_host', tunnelId: 'tunnel-id', isAttached: true, link: 'https://vscode.dev/tunnel/test_host', domain: 'vscode.dev' });
 			const linkedStatus = await service.getTunnelStatus();
 			coordinator.fireMachineStatus('remoteAccess', { type: 'connected', tunnelName: 'test_host', isAttached: false });
 			const noLinkStatus = await service.getTunnelStatus();
@@ -115,6 +115,7 @@ suite('Remote tunnel', () => {
 				linkedStatus,
 				noLinkStatus,
 				disconnectedStatus,
+				statusChanges,
 				tokenFailures,
 				didCancel,
 				telemetryCallCount: publicLog2.callCount,
@@ -125,6 +126,7 @@ suite('Remote tunnel', () => {
 						link: 'https://vscode.dev/tunnel/test_host',
 						domain: 'vscode.dev',
 						tunnelName: 'test_host',
+						tunnelId: 'tunnel-id',
 						isAttached: true,
 					},
 					serviceInstallFailed: false,
@@ -141,11 +143,37 @@ suite('Remote tunnel', () => {
 					type: 'disconnected',
 					onTokenFailed: mode.session,
 				},
+				statusChanges: [
+					{
+						type: 'connected',
+						info: {
+							link: 'https://vscode.dev/tunnel/test_host',
+							domain: 'vscode.dev',
+							tunnelName: 'test_host',
+							tunnelId: 'tunnel-id',
+							isAttached: true,
+						},
+						serviceInstallFailed: false,
+					},
+					{
+						type: 'connected',
+						info: {
+							tunnelName: 'test_host',
+							isAttached: false,
+						},
+						serviceInstallFailed: false,
+					},
+					{
+						type: 'disconnected',
+						onTokenFailed: mode.session,
+					},
+				],
 				tokenFailures: [mode.session],
 				didCancel: true,
 				telemetryCallCount: 3,
 			});
 		} finally {
+			statusChangeListener?.dispose();
 			tokenFailureListener.dispose();
 			publicLog2.restore();
 			service.dispose();

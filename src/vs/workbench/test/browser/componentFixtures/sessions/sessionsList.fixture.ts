@@ -15,6 +15,7 @@ import { IListService, ListService } from '../../../../../platform/list/browser/
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IMenu, IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -170,9 +171,10 @@ interface IRenderOptions {
 	readonly width?: number;
 	readonly phone?: boolean;
 	readonly revealHierarchyGuides?: boolean;
+	readonly showFocusedToolbar?: boolean;
 }
 
-function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOptions): void {
+function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOptions): void | Promise<void> {
 	const { container, disposableStore } = ctx;
 	const approvals = new Map<string, IAgentSessionApprovalInfo>();
 	const sessions = options.sessions.map(spec => createSession(spec, approvals));
@@ -189,6 +191,25 @@ function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOption
 		colorTheme: ctx.theme,
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
+			if (options.showFocusedToolbar) {
+				const archiveAction = new class extends mock<MenuItemAction>() {
+					override readonly id = 'sessions.fixture.archive';
+					override readonly label = 'Archive';
+					override readonly tooltip = 'Archive';
+					override readonly class = ThemeIcon.asClassName(Codicon.archive);
+					override readonly enabled = true;
+					override async run(): Promise<void> { }
+				}();
+				reg.defineInstance(IMenuService, new class extends mock<IMenuService>() {
+					override createMenu(): IMenu {
+						return {
+							onDidChange: Event.None,
+							getActions: () => [['navigation', [archiveAction]]],
+							dispose: () => { },
+						};
+					}
+				}());
+			}
 			reg.define(IListService, ListService);
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.defineInstance(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() { }());
@@ -300,6 +321,19 @@ function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOption
 	}));
 	list.layout(options.phone ? 260 : 220, width);
 
+	if (options.showFocusedToolbar) {
+		return Promise.resolve().then(() => {
+			const sessionRow = listHost.querySelector<HTMLElement>('.session-item')?.closest('.monaco-list-row');
+			const toolbar = sessionRow?.querySelector<HTMLElement>('.session-title-toolbar');
+			const actions = toolbar?.querySelector<HTMLElement>('.actions-container');
+			if (!sessionRow || !toolbar || !actions) {
+				throw new Error('Expected a session row toolbar.');
+			}
+			sessionRow.classList.add('focused');
+			toolbar.style.display = 'block';
+		});
+	}
+
 	if (options.revealHierarchyGuides) {
 		const sessionItem = listHost.querySelector<HTMLElement>('.session-item');
 		if (!sessionItem) {
@@ -327,6 +361,18 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 				...GROUPED_SESSIONS.slice(1),
 			],
 			groups: [GROUP],
+			width: 260,
+		}),
+	}),
+	SessionsList_NarrowHoverToolbar: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['A narrow session row truncates its long title and shows the Archive toolbar action fully inside the rounded row boundary.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [
+				{ id: 'a', title: 'Review PR 333429: sessions fix normalize Windows workspace path casing', workspace: 'vscode', minutesAgo: 12, group: GROUP.id, changesSummary: { files: 4, additions: 104, deletions: 4 } },
+			],
+			groups: [GROUP],
+			showFocusedToolbar: true,
 			width: 260,
 		}),
 	}),

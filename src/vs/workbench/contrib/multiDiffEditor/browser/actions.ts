@@ -187,7 +187,7 @@ export class CollapseAllAction extends Action2 {
 			icon: Codicon.collapseAll,
 			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed')),
 			menu: [
-				// In the agents window this action lives in the editor title overflow (...) menu instead of as a primary toolbar icon.
+				// In the agents window this action lives in the editor header overflow (...) menu instead of as a primary toolbar icon.
 				{
 					id: MenuId.EditorTitle,
 					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed'), IsSessionsWindowContext.toNegated()),
@@ -236,7 +236,7 @@ export class ExpandAllAction extends Action2 {
 			icon: Codicon.expandAll,
 			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed')),
 			menu: [
-				// In the agents window this action lives in the editor title overflow (...) menu instead of as a primary toolbar icon.
+				// In the agents window this action lives in the editor header overflow (...) menu instead of as a primary toolbar icon.
 				{
 					id: MenuId.EditorTitle,
 					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed'), IsSessionsWindowContext.toNegated()),

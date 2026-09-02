@@ -354,6 +354,7 @@ class TestCopilotApiService implements ICopilotApiService {
 	userLogin: string | undefined;
 	readonly restrictedTelemetryContexts = new Map<string, IRestrictedTelemetryContext>();
 	readonly restrictedTelemetryContextCalls: string[] = [];
+	resolveCopilotSkuHandler: (githubToken: string) => Promise<string | undefined> = async () => undefined;
 
 	messages(_githubToken: string, _request: Anthropic.MessageCreateParamsStreaming, _options?: ICopilotApiServiceRequestOptions): AsyncGenerator<Anthropic.MessageStreamEvent>;
 	messages(_githubToken: string, _request: Anthropic.MessageCreateParamsNonStreaming, _options?: ICopilotApiServiceRequestOptions): Promise<Anthropic.Message>;
@@ -376,6 +377,7 @@ class TestCopilotApiService implements ICopilotApiService {
 	}
 	async resolveApiEndpoint() { return this.apiEndpoint; }
 	async resolveUserLogin() { return this.userLogin; }
+	async resolveCopilotSku(githubToken: string): Promise<string | undefined> { return this.resolveCopilotSkuHandler(githubToken); }
 	async utilityChatCompletion(githubToken: string, request: ICopilotUtilityChatCompletionRequest, options?: ICopilotApiServiceRequestOptions): Promise<string> {
 		this.utilityCalls.push({ token: githubToken, request, options });
 		if (this.error) {
@@ -574,9 +576,16 @@ class RecordingTelemetryService extends NullTelemetryServiceShape {
 	readonly events: Array<{ eventName: string; data: unknown }> = [];
 	readonly errorEvents: Array<{ eventName: string; data: unknown }> = [];
 	readonly experimentProperties: Record<string, string> = {};
+	readonly commonPropertyUpdates: Array<{ name: string; value: string | boolean | undefined }> = [];
 
 	override setExperimentProperty(name?: string, value?: string): void {
 		this.experimentProperties[name ?? ''] = value ?? '';
+	}
+
+	override setCommonProperty(name?: string, value?: string | boolean): void {
+		if (name) {
+			this.commonPropertyUpdates.push({ name, value });
+		}
 	}
 
 	override publicLog2(eventName?: string, data?: unknown): void {
@@ -944,6 +953,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 			_serviceBrand: undefined,
 			userHome: options?.userHome ?? URI.from({ scheme: Schemas.inMemory, path: '/mock-home' }),
 			tmpDir: URI.from({ scheme: Schemas.inMemory, path: '/mock-tmp' }),
+			userDataPath: '/mock-userdata',
 		} as INativeEnvironmentService;
 		services.set(INativeEnvironmentService, environmentService);
 	}
@@ -2084,6 +2094,35 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('updates Copilot SKU telemetry across authentication changes and ignores stale resolution', async () => {
+		const client = new TestCopilotClient([]);
+		const copilotApiService = new TestCopilotApiService();
+		const telemetryService = new RecordingTelemetryService();
+		copilotApiService.resolveCopilotSkuHandler = async token => token === 'token-a' ? 'sku-a' : 'sku-b';
+		const agent = createTestAgent(disposables, { copilotClient: client, copilotApiService, telemetryService });
+		try {
+			await agent.authenticate('https://api.github.com', 'token-a');
+			const staleResolution = new DeferredPromise<string | undefined>();
+			copilotApiService.resolveCopilotSkuHandler = token => token === 'token-a' ? staleResolution.p : Promise.resolve('sku-b');
+			const staleResolutionCall = agent['_resolveCopilotSku']('token-a');
+
+			await agent.authenticate('https://api.github.com', 'token-b');
+			staleResolution.complete('stale-sku-a');
+			await staleResolutionCall;
+			await agent.authenticate('https://api.github.com', '');
+
+			assert.deepStrictEqual(telemetryService.commonPropertyUpdates.filter(update => update.name === 'copilotSku'), [
+				{ name: 'copilotSku', value: undefined },
+				{ name: 'copilotSku', value: 'sku-a' },
+				{ name: 'copilotSku', value: undefined },
+				{ name: 'copilotSku', value: 'sku-b' },
+				{ name: 'copilotSku', value: undefined },
+			]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('updates every live session after a changed auth token without restarting an unchanged proxy', async () => {
 		const client = new TestCopilotClient([], [{
 			id: 'gpt-4o',
@@ -2360,6 +2399,60 @@ suite('CopilotAgent', () => {
 				{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE, reason: 'expired' },
 				{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE, reason: 'expired' },
 			]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('requests reauthentication when the credential is cleared', async () => {
+		const client = new TestCopilotClient([], [{
+			id: 'gpt-4o',
+			name: 'GPT-4o',
+		}]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const authRequests: Array<{ readonly resource: ProtectedResourceMetadata; readonly reason?: string }> = [];
+		disposables.add(autorun(reader => {
+			const requirement = agent.authenticationRequired.read(reader);
+			if (requirement) {
+				authRequests.push(requirement);
+			}
+		}));
+		try {
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+			await waitForState(agent.models, models => models.length > 0);
+			// Another client revoked the shared credential; the resulting SDK failure
+			// is a local InvalidArg rather than a 401, so the cleared token itself has
+			// to advertise the requirement or no client is ever asked to re-supply one.
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, '');
+			await waitForState(agent.models, models => models.length === 0);
+
+			assert.deepStrictEqual(authRequests, [{
+				resource: GITHUB_COPILOT_PROTECTED_RESOURCE,
+				reason: 'expired',
+			}]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('keeps the requirement raised when a second revocation arrives while tokenless', async () => {
+		const client = new TestCopilotClient([], [{
+			id: 'gpt-4o',
+			name: 'GPT-4o',
+		}]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+			await waitForState(agent.models, models => models.length > 0);
+			// The host forwards every revocation to every provider, so a second
+			// client revoking must not retract the outstanding requirement.
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, '');
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, '');
+
+			assert.deepStrictEqual(agent.authenticationRequired.get(), {
+				resource: GITHUB_COPILOT_PROTECTED_RESOURCE,
+				reason: 'expired',
+			});
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -3272,6 +3365,42 @@ suite('CopilotAgent', () => {
 				list: [repoA.toString()],
 				meta: [repoA.toString()],
 			});
+		});
+	});
+
+	suite('prewarmSessionMetadata cache', () => {
+		test('serves getChatMetadata from one bulk list, falls back on miss, and reverts after disposal', async () => {
+			const sessionA = AgentSession.uri('copilotcli', 'prewarm-a');
+			const sessionB = AgentSession.uri('copilotcli', 'prewarm-b');
+			const sessionMissing = AgentSession.uri('copilotcli', 'prewarm-missing');
+			const client = new TestCopilotClient([sdkSession('prewarm-a'), sdkSession('prewarm-b')]);
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				const read = (session: URI) => agent.getChatMetadata(defaultChatUri(session), exactChatContext(session, defaultChatUri(session), session));
+
+				const warm = await agent.prewarmSessionMetadata();
+				// One bulk list warmed the cache; a hit is served without a per-session RPC.
+				await read(sessionA);
+				const afterHit = { listCalls: client.listSessionCallCount, rpcCalls: [...client.getSessionMetadataCalls] };
+
+				// A session absent from the bulk list falls back to a per-session RPC.
+				await read(sessionMissing);
+				const afterMiss = [...client.getSessionMetadataCalls];
+
+				// After disposal the cache is cleared and normal per-session reads resume.
+				warm.dispose();
+				await read(sessionB);
+				const afterDisposal = [...client.getSessionMetadataCalls];
+
+				assert.deepStrictEqual({ afterHit, afterMiss, afterDisposal }, {
+					afterHit: { listCalls: 1, rpcCalls: [] },
+					afterMiss: ['prewarm-missing'],
+					afterDisposal: ['prewarm-missing', 'prewarm-b'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
 		});
 	});
 
@@ -8255,6 +8384,61 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('materialization passes prompt and tool description overrides to the SDK', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
+			client.createSession = async config => {
+				capturedConfig = config;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+
+			const { agent, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
+			try {
+				configurationService.updateRootConfig({
+					[CopilotCliConfigKey.ModelCapabilityOverrides]: {
+						'*': {
+							promptOverrideString: [
+								'systemPrompt: You are an evaluation agent.',
+								'toolDescriptions:',
+								'  test_tool:',
+								'    description: Overridden tool description.',
+							].join('\n'),
+						},
+					},
+				});
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const result = await provisionSession(agent, {
+					session: AgentSession.uri('copilotcli', 'system-message-override-session'),
+					workingDirectories: [URI.file('/workspace')],
+					activeClient: {
+						clientId: 'client-1',
+						tools: [{ name: 'test_tool', description: 'Original tool description.', inputSchema: { type: 'object' } }],
+						customizations: [],
+					},
+				});
+				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, defaultChatUri(result.session), result.session));
+
+				const testTool = capturedConfig?.tools?.find(tool => tool.name === 'test_tool');
+				assert.deepStrictEqual({
+					systemMessage: capturedConfig?.systemMessage,
+					tool: testTool && { name: testTool.name, description: testTool.description },
+				}, {
+					systemMessage: {
+						mode: 'replace',
+						content: 'You are an evaluation agent.',
+					},
+					tool: {
+						name: 'test_tool',
+						description: 'Overridden tool description.',
+					},
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('materialization applies the per-model capability overrides without changing the wire model', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
@@ -11545,6 +11729,40 @@ suite('CopilotAgent', () => {
 		type AgentInternals = {
 			_resumeSession: (id: string) => Promise<CopilotAgentSession>;
 		};
+
+		test('resume replaces the complete SDK system message when configured', async () => {
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/resume-system-message-`);
+			const promptOverrideFile = '/prompt.yaml';
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession('s1', workingDirectory)]);
+			let capturedSystemMessage: Parameters<ITestCopilotClient['resumeSession']>[1]['systemMessage'];
+			client.resumeSession = async (_sessionId, options) => {
+				capturedSystemMessage = options.systemMessage;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			const { agent, configurationService, fileService } = createTestAgentContext(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService });
+			const provider = disposables.add(new InMemoryFileSystemProvider());
+			disposables.add(fileService.registerProvider(Schemas.file, provider));
+			await fileService.writeFile(URI.file(promptOverrideFile), VSBuffer.fromString('systemPrompt: |-\n  You are an evaluation agent.\n'));
+			const internals = agent as unknown as AgentInternals;
+			try {
+				configurationService.updateRootConfig({
+					[CopilotCliConfigKey.ModelCapabilityOverrides]: {
+						'*': { promptOverrideFile },
+					},
+				});
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				await internals._resumeSession('s1');
+
+				assert.deepStrictEqual(capturedSystemMessage, {
+					mode: 'replace',
+					content: 'You are an evaluation agent.',
+				});
+			} finally {
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
 
 		test('does not restore a persisted custom agent that is absent from the current plugin snapshot', async () => {
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/resume-agent-`);

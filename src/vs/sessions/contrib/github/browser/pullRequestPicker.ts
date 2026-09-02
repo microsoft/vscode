@@ -185,6 +185,7 @@ export function createPullRequestContextAttachment(context: IGitHubPullRequestCo
 		icon: Codicon.gitPullRequest,
 		uri: URI.parse(context.url),
 		tooltip: localize('pullRequest.context.tooltip', "Pull request #{0} by @{1}", context.number, context.author),
+		readyMessage: localize('pullRequest.sessionReady', "Session ready. Pull request #{0} is checked out and attached.", context.number),
 	};
 }
 

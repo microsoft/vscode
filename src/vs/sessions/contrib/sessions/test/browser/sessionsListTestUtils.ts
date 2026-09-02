@@ -8,6 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -192,8 +193,8 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override getSortKey(session: ISession, mode: SessionSortMode): number {
 			return mode === 'created' ? session.createdAt.getTime() : session.updatedAt.get().getTime();
 		}
-		override getStatusIcon(status: SessionStatus) {
-			return status === SessionStatus.Error ? Codicon.error : Codicon.circleSmallFilled;
+		override getStatusIcon(status: SessionStatus, _isRead: boolean, _isArchived: boolean, completedStateIcon?: ThemeIcon) {
+			return status === SessionStatus.Error ? Codicon.error : completedStateIcon ?? Codicon.circleSmallFilled;
 		}
 	});
 	instantiationService.stub(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
@@ -223,6 +224,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 		override readonly onDidChangeProviders = Event.None;
 		override getProviders() { return []; }
+		override getProvider() { return undefined; }
 	});
 	instantiationService.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
 		override readonly pendingResponseVersion = constObservable(0);

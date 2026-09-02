@@ -13,9 +13,10 @@ import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/con
 import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
+import { ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
-import { findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { findInitialTranscriptContextEntry, findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
@@ -627,6 +628,24 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('shows transcript preparation completion until visible content appears', () => {
+		assert.deepStrictEqual({
+			hiddenComplete: shouldShowTranscriptPreparationCompletion(1, 0, ResponseModelState.Complete, 'Session ready'),
+			hiddenPending: shouldShowTranscriptPreparationCompletion(1, 0, ResponseModelState.Pending, 'Session ready'),
+			hiddenFailed: shouldShowTranscriptPreparationCompletion(1, 0, ResponseModelState.Failed, 'Session ready'),
+			hiddenCancelled: shouldShowTranscriptPreparationCompletion(1, 0, ResponseModelState.Cancelled, 'Session ready'),
+			visibleRequest: shouldShowTranscriptPreparationCompletion(2, 1, ResponseModelState.Complete, 'Session ready'),
+			noReadyMessage: shouldShowTranscriptPreparationCompletion(1, 0, ResponseModelState.Complete, undefined),
+		}, {
+			hiddenComplete: true,
+			hiddenPending: false,
+			hiddenFailed: false,
+			hiddenCancelled: false,
+			visibleRequest: false,
+			noReadyMessage: false,
+		});
+	});
+
 	test('shows the session-list status message in the pre-request progress surface', () => {
 		assert.deepStrictEqual({
 			fallback: getTranscriptProgress(true, 'Working...'),
@@ -670,6 +689,27 @@ suite('Sessions - Chat View', () => {
 			variableData: { variables: [] },
 			attachedContext: [attachment],
 		}]), attachment);
+
+		const bootstrap = {
+			isRequestHiddenFromTranscript: true,
+			variableData: { variables: [] },
+			attachedContext: [attachment],
+		};
+		const requestOnlyHiddenNotice = {
+			isRequestHiddenFromTranscript: true,
+			variableData: { variables: [] },
+		};
+		const visibleRequest = {
+			isRequestHiddenFromTranscript: false,
+			variableData: { variables: [] },
+		};
+		assert.deepStrictEqual({
+			afterNotice: findInitialTranscriptContextEntry([bootstrap, requestOnlyHiddenNotice]),
+			afterVisibleRequest: findInitialTranscriptContextEntry([bootstrap, visibleRequest]),
+		}, {
+			afterNotice: attachment,
+			afterVisibleRequest: undefined,
+		});
 	});
 
 	test('the sub-session tip yields the space to a notification and comes back', () => {
