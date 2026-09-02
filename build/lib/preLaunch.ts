@@ -58,7 +58,7 @@ async function isExpectedElectronInstalled(): Promise<boolean> {
 }
 
 async function ensureCompiled() {
-	if (!(await exists('out'))) {
+	if (!(await exists('out/main.js'))) {
 		await runProcess(npm, ['run', 'compile']);
 	}
 }

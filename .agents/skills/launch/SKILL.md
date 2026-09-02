@@ -1,6 +1,6 @@
 ---
 name: launch
-description: "Launch Code OSS (VS Code from sources) into an isolated throwaway profile with unique debug ports so you can drive it with @playwright/cli AND attach a Node debugger via dap-cli in the same session. Use when working on VS Code itself and you want to interact with the running workbench, automate chat or UI flows, test UI features, take screenshots, set breakpoints in the renderer / extension host / main process, or combine UI driving with debugging."
+description: "Launch Code OSS (VS Code from sources) into an isolated throwaway profile with unique debug ports so you can drive it with the repo's own UI automation library or @playwright/cli AND attach a Node debugger via dap-cli in the same session. Use when working on VS Code itself and you want to interact with the running workbench, automate chat or UI flows, test UI features, take screenshots, set breakpoints in the renderer / extension host / main process, or combine UI driving with debugging."
 ---
 
 # Code OSS Dev - Launch + Debug
@@ -8,7 +8,7 @@ description: "Launch Code OSS (VS Code from sources) into an isolated throwaway 
 You're working on VS Code itself and you want to:
 
 1. Launch a Code OSS build from sources that is **already signed in** (Copilot, GitHub, etc.) so chat / agent flows work end-to-end.
-2. Drive it with `@playwright/cli` over CDP (UI automation).
+2. Drive it over CDP with the repo's own automation page objects (`test/automation`) or with `@playwright/cli`.
 3. Optionally attach a debugger via **dap-cli** to set breakpoints in the renderer, extension host, or main process.
 4. Run multiple instances at once without port conflicts.
 
@@ -35,7 +35,9 @@ The clone is **slim**: workspace storage, browser caches, file history, cached V
 
 > The launcher **copies** the source profile to a temp dir and never mutates the original. Each launch gets its own isolated `--user-data-dir` and `--extensions-dir`.
 
-> The launcher always sets `files.simpleDialog.enable: true` in the launched profile's `User/settings.json`. This is required for automation: VS Code's native OS file dialogs cannot be driven via `@playwright/cli` over CDP and are completely unreachable over SSH on headless macOS. The simple (quick-input) dialog can be navigated with `press` and clipboard paste. The override is per-launch and only affects throwaway profiles.
+> The launcher normalizes two settings in the launched profile's `User/settings.json`. `files.simpleDialog.enable: true` is required because VS Code's native OS file dialogs cannot be driven via `@playwright/cli` over CDP and are unreachable over SSH on headless macOS; the simple (quick-input) dialog can be navigated with `press` and clipboard paste. `editor.editContext: true` is required because `test/automation`'s page objects choose between `.native-edit-context` and `textarea` from `Code.editContextEnabled`, which is unconditionally true for a dev build — a profile that disabled the setting renders a `textarea` and every text-input helper waits on the wrong selector and times out. Language-specific overrides (a `"[typescript]"` block) are normalized too, since `editor.*` settings are `LANGUAGE_OVERRIDABLE` and would otherwise outrank the root value. Both overrides are per-launch and only affect throwaway profiles, and the launcher passes `--sync=off` so they can never reach the user's synced settings. The rewrite is user-scope only, so a workspace that sets `editor.editContext: false` in its own `.vscode/settings.json` still wins. `attach()` checks the editors the window restored and says so when it finds the mismatch, which turns the usual case into an actionable error instead of a 20s timeout - but a window that restores no editor has nothing to inspect, so if a text-input helper still times out, check the workspace and folder settings for that key.
+> A forwarded folder or `.code-workspace` that overrides `files.simpleDialog.enable` is rejected before launch; workspace scope wins over the throwaway profile and would otherwise reopen an undriveable native dialog. Forwarded `--profile`, `--profile-temp`, `--transient`, launcher-owned path/debug options, and a second `--` delimiter are also rejected because they would run outside the prepared profile or hide its safety flags.
+> A launch with no workspace path opens an empty window instead of restoring the source profile's last workspace, whose settings could override the automation profile.
 
 > For unattended automation, pass `--disable-workspace-trust` so a trust dialog cannot block the flow or extension-host startup. The override is process-scoped and does not modify the source profile. Only use it with content you trust.
 
@@ -112,15 +114,15 @@ The persistent integrated-browser partition keeps website state such as cookies,
 
 > If the launched window says "language model unavailable" or otherwise looks unauthed, ask the user to sign in.
 
-The script runs pre-launch (electron download, compile-if-missing, built-in extensions) **in the foreground**, then starts Code OSS detached and **blocks until the renderer's CDP endpoint is responding** (up to ~90s) before printing the JSON line on stdout. If anything fails — preLaunch errors, code.sh exits early, CDP never opens — the script exits non-zero and dumps the relevant log tail to stderr.
+The script runs pre-launch (electron download, compile-if-missing, built-in extensions, and `test/automation`) **in the foreground**, starts Code OSS detached, then starts a persistent automation driver attached to the renderer. It prints its JSON only after both CDP and the automation driver are ready. If anything fails — preLaunch errors, code.sh exits early, CDP never opens, or the driver cannot attach — the script exits non-zero and dumps the relevant log tail to stderr.
 
 For repeated launches of the same prepared build, pass `--skip-prelaunch` after one successful normal launch. Only use it while a watch task keeps all output current or neither sources nor build outputs have changed; otherwise the new instance may run stale or incomplete code.
 
 ```json
-{"pid":12345,"cdpPort":53111,"extHostPort":53112,"mainPort":53113,"agentHostPort":53114,"userDataDir":".../user-data","extensionsDir":".../extensions","sharedDataDir":".../shared-data","runDir":"...","logFile":".../code.log","repo":"...","agents":false,"timings":{"profileMs":231,"preLaunchMs":251,"cdpReadyMs":459,"totalMs":941}}
+{"pid":12345,"cdpPort":53111,"extHostPort":53112,"mainPort":53113,"agentHostPort":53114,"automation":{"pid":12346,"port":53115,"tokenFile":".../automation-token","logFile":".../automation-driver.log","script":".../automationDriver.ts"},"userDataDir":".../user-data","extensionsDir":".../extensions","sharedDataDir":".../shared-data","runDir":"...","logFile":".../code.log","repo":"...","agents":false,"timings":{"profileMs":231,"preLaunchMs":251,"cdpReadyMs":459,"automationReadyMs":412,"totalMs":1353}}
 ```
 
-The additive `timings` object uses monotonic elapsed time to identify time spent preparing the isolated profile, running pre-launch, and starting Code OSS through CDP readiness. `totalMs` covers the complete launcher operation through readiness.
+The additive `timings` object uses monotonic elapsed time to identify time spent preparing the isolated profile, running pre-launch, starting Code OSS through CDP readiness, and attaching the persistent driver. `totalMs` covers the complete launcher operation through automation readiness.
 
 Capture it with `jq` — no retry loop needed, CDP is already up when the JSON is printed:
 
@@ -130,6 +132,9 @@ CDP=$(jq -r .cdpPort        <<<"$INFO")
 EXT=$(jq -r .extHostPort    <<<"$INFO")
 MAIN=$(jq -r .mainPort      <<<"$INFO")
 AGENT=$(jq -r .agentHostPort <<<"$INFO")
+AUTO=$(jq -r .automation.port <<<"$INFO")
+AUTO_TOKEN=$(jq -r .automation.tokenFile <<<"$INFO")
+AUTO_SCRIPT=$(jq -r .automation.script <<<"$INFO")
 LOG=$(jq -r .logFile        <<<"$INFO")
 PID=$(jq -r .pid            <<<"$INFO")
 ```
@@ -142,8 +147,11 @@ $cdp = $info.cdpPort
 $ext = $info.extHostPort
 $main = $info.mainPort
 $agent = $info.agentHostPort
+$automation = $info.automation.port
+$automationToken = $info.automation.tokenFile
+$automationScript = $info.automation.script
 $log = $info.logFile
-$pid = $info.pid
+$codePid = $info.pid   # not `$pid`: that is PowerShell's own read-only PID
 ```
 
 ### What each port is for
@@ -154,8 +162,119 @@ $pid = $info.pid
 | `extHostPort` (`--inspect-extensions`) | Extension host (Node) | `dap-cli` (Node inspector protocol) |
 | `mainPort` (`--inspect`) | Electron main process (Node) | `dap-cli` (Node inspector protocol) |
 | `agentHostPort` (`--inspect-agenthost`) | Agent host process (Node) | `dap-cli` (Node inspector protocol) |
+| `automation.port` | Persistent Playwright/CDP driver | Arbitrary JavaScript through `automationDriver.ts exec` |
 
-## Drive the UI with @playwright/cli
+## Drive the UI
+
+The launcher has already attached a persistent driver. Give it an arbitrary
+function expression; the function receives the full Playwright and VS Code
+automation context:
+
+- `page`, `browser`, and `session` for unrestricted Playwright/CDP access
+- `workbench` and `code` for the smoke-test page objects and low-level retries
+- `snapshot()` for hierarchical workbench state
+- `settle()` for subtree-scoped DOM/focus/animation quiescence
+- `collectVirtualized()` for bounded traversal of virtualized or custom-scrolled lists
+
+There is no action vocabulary to learn and no fixed set of supported
+interactions. The agent writes ordinary async JavaScript:
+
+```bash
+node "$AUTO_SCRIPT" exec \
+  --port "$AUTO" \
+  --token-file "$AUTO_TOKEN" \
+  --code 'async ({ page, workbench }) => {
+    await workbench.quickaccess.runCommand("workbench.action.chat.open");
+    await workbench.chat.waitForChatView();
+    return { title: await page.title() };
+  }'
+```
+
+For longer code, put only the function expression (no `export`) in a `.js` file
+and pass `--file`. The driver stays attached between invocations, serializes
+concurrent requests, and reconnects after a renderer reload or timed-out action.
+Every response includes `action`, optional `verification`, per-phase timings,
+and a bounded application snapshot. A failed action, verification, or automatic
+snapshot makes the client exit non-zero; success-shaped output is never printed
+for a failed step.
+
+Use `--verify-code` or `--verify-file` to keep the requested interaction
+separate from its postcondition. This distinguishes “the click failed” from
+“the click succeeded but opened a different surface”:
+
+```bash
+node "$AUTO_SCRIPT" exec \
+  --port "$AUTO" \
+  --token-file "$AUTO_TOKEN" \
+  --code 'async ({ page }) => {
+    await page.getByRole("menuitem", { name: "Edit Settings..." }).click();
+    return { clicked: true };
+  }' \
+  --verify-code 'async ({ page, settle }) => {
+    await settle();
+    if (!await page.locator(".settings-editor:visible").isVisible()) {
+      throw new Error("Settings did not open.");
+    }
+  }'
+```
+
+Prefer semantic page-object completion methods when available. For raw
+interactions, use `settle()` on the smallest affected subtree and then assert
+the postcondition immediately instead of polling an incorrect selector until
+the request timeout:
+
+```bash
+node "$AUTO_SCRIPT" exec \
+  --port "$AUTO" \
+  --token-file "$AUTO_TOKEN" \
+  --code 'async ({ page, settle }) => {
+    const welcome = page.locator(".gettingStartedContainer");
+    await welcome.getByText("Learn the Fundamentals", { exact: true }).click();
+    await settle({ root: welcome });
+    if (!await welcome.getByText("Get an overview of the most essential features", { exact: true }).isVisible()) {
+      throw new Error("The fundamentals walkthrough did not open.");
+    }
+  }'
+```
+
+`settle()` is event/quiescence based: it observes DOM and focus changes, waits
+for finite animations, and requires a quiet period across animation frames.
+Its default 5-second timeout is only a deadlock ceiling. Scope `root` narrowly
+to avoid unrelated workbench activity; see
+[automation-library.md](./automation-library.md) for options and details.
+
+The automatic state snapshot is hierarchical by title bar, Activity Bar,
+sidebar, editor, panel, auxiliary bar, and Status Bar. It includes overlays and
+modals, focus, visible controls, icons, state (`selected`, `expanded`,
+`checked`, `disabled`), editor groups/panes, and scroll containers with
+`hasMoreBefore` / `hasMoreAfter`. Controls are bounded to the viewport and the
+response says when a section was truncated. Call `snapshot()` explicitly for a
+larger limit, or pass `--no-state` when the result alone is sufficient.
+
+**Check for a page object before hand-rolling selectors.** `workbench.*` covers
+`chat`, `agentsWindow`, `quickaccess`, `quickinput`, `editors`, `explorer`,
+`search`, `terminal`, `notebook`, `settingsEditor`, `debug`, `scm`, `extensions`,
+`statusbar`, `problems`, `task`, `localization`, `activitybar`, `editor`,
+`keybindingsEditor` — each with the retries that surface needs. If your task
+names one of those surfaces, `ls test/automation/out/*.d.ts` and read its API
+first, then reach it through the persistent context — **not** `new Application(...)`,
+which spawns a second Electron and will not talk to your running window, and not
+`ts-node`, since `node` runs these `.ts` files directly. Skipping this step is
+the single most expensive mistake with this skill:
+in a user study, finding an extension's publisher took **7m40s and 40 raw CLI
+calls** hand-rolling DOM queries, when
+`workbench.extensions.searchForExtension('ms-toolsai.datawrangler')` already did
+it. Read the signature before deciding a page object does not fit: that one
+takes an extension **id**, and passing the display name fails with
+`Extension ... is not found`, which reads like the surface is unsupported.
+
+**Then read [automation-library.md](./automation-library.md)** — state
+inspection, virtualized lists, window choice, controls with no page object, the
+integrated browser, and the gotchas. Fall back to raw `@playwright/cli` below
+for screenshots or independent exploration; the persistent context already
+provides a normal Playwright `Page` and CDP `Browser`.
+
+### Raw `@playwright/cli`
 
 Use the dynamic `cdpPort` from the launch JSON. The normal loop is: attach, confirm the target, snapshot, interact, then re-snapshot after meaningful UI changes.
 
@@ -201,7 +320,8 @@ Playwright call:
 The script detects the platform from the browser page, prefers the active
 Agents session, and excludes inline chat inputs. If the cloned profile has
 customized the default chord, it falls back to the surface-specific command
-through the Command Palette.
+through the Command Palette and verifies the focused row's
+`data-quick-input-id` before accepting it.
 
 ```bash
 LAUNCH_DIR=<dir-of-this-SKILL.md>
@@ -225,7 +345,10 @@ before retrying.
 
 ### Typing into Monaco (chat input, editors)
 
-`fill` and `type` **silently fail** on Code OSS — Monaco's `native-edit-context` element doesn't react to Playwright's default input pipeline. Use one of these alternatives:
+`fill` **silently fails** on Code OSS — it sets a value directly, and Monaco's
+`native-edit-context` element only reacts to real input events. `page.keyboard.type()`
+*does* work (it dispatches genuine per-key events), but it is one round-trip per
+character, so prefer it only for short strings. For anything longer use:
 
 - **`scripts/monaco-paste.sh` helper** (recommended — fast, no system clipboard, parallel-safe). Reads text from a positional arg or stdin and dispatches a `ClipboardEvent('paste')` with a `DataTransfer` payload into the focused chat-input Monaco editor. Honors `--session NAME` or `$PW_SESSION` env so it stays inside the same `-s=` session as everything else.
 
@@ -257,7 +380,7 @@ before retrying.
   The helper prints a single JSON line on stdout: `{ok, actualLength, expectedLength, viewLineCount, firstViewLine, error?}`. Exit 0 on success, 1 on verify failure, 2 on argument errors. Tested reliable across 20+ sequential pastes including unicode (中文), emoji (🎉), backticks, ampersands, embedded quotes, and newlines.
 
   **Why a helper script and not just docs:** the inline recipe involves a multi-line `node -e` heredoc with embedded JS template literals, which is exactly the kind of code that gets miscopied. There are also three non-obvious correctness traps the helper handles internally:
-  1. Monaco's `native-edit-context` doesn't react to `fill` or `type`, only to actual paste events (or per-key `press`).
+  1. Monaco's `native-edit-context` ignores `fill` entirely; it only reacts to real input — paste events, per-key `press`, or `keyboard.type`.
   2. Monaco renders ASCII spaces as U+00A0 (NBSP) in the view-line DOM, so verification has to normalize before comparing.
   3. Monaco updates its DOM **asynchronously** after a paste event — a synchronous read-back inside the same `eval` returns stale state. The helper polls rendered view lines across paint cycles until the pasted prefix appears or verification times out.
 
@@ -423,20 +546,174 @@ npx @playwright/cli -s=$PW_SESSION close
 kill "$PID" 2>/dev/null || true
 # Or by port if you've lost the pid:
 pids=$(lsof -t -i :$CDP); [ -n "$pids" ] && kill $pids
-
-# Remove the throwaway profile
-rm -rf "$(dirname "$LOG")"
 ```
 
-Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up.
+Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up — but
+**do not delete the profile yet**: removing it before the check below throws away
+the logs of anything that survived the kill. The next section is the sequence to
+actually finish with.
+
+### Verify the cleanup actually worked
+
+**Do not treat a completed `kill` as proof the instance is gone.** `$PID` is the
+`code.sh` wrapper, and killing it does not reliably reap the Electron process
+group it spawned; helper processes are frequently re-parented and survive. In a
+run of seven subagent sessions, every one reported that it had cleaned up, yet
+nine instances (13.7 GB RSS) and 341 MB of temp profiles were still alive
+afterwards.
+
+Always finish with an explicit check, and only then remove the profile:
+
+```bash
+kill "$PID" 2>/dev/null || true
+sleep 3
+
+# Anything still alive for THIS run? (match on the runDir, so other agents'
+# concurrent instances are left untouched)
+RUN_DIR=$(jq -r '.runDir // empty' <<<"$INFO")
+
+# pgrep is what makes this check meaningful. Without it the lookups below fail
+# with status 127, which is indistinguishable from "nothing matched", and the
+# profile would be deleted without ever verifying the processes exited.
+command -v pgrep >/dev/null || { echo "pgrep not found; cannot verify cleanup" >&2; return 2>/dev/null || exit 1; }
+
+# Fail closed: an empty or malformed RUN_DIR would turn the pgrep below into a
+# match-everything pattern (`pgrep -f ""` matches every process on Linux), and
+# the kill that follows would hit unrelated processes. Canonicalize first -
+# a glob matches `/` too, so `/tmp/code-oss-dev-x/../../home/you` would sail
+# through a pattern check and then reach `rm -rf`. Compare the resolved
+# basename instead, so only a real launcher run directory qualifies.
+RUN_DIR=$(cd "$RUN_DIR" 2>/dev/null && pwd -P) || {
+  echo "refusing to clean up: runDir does not exist" >&2; return 2>/dev/null || exit 1
+}
+# The basename alone does not prove ownership - a real directory such as
+# ~/code-oss-dev-important would pass it and then be handed to `rm -rf`. Also
+# require the canonical parent to be the launcher's own temp root: `$TMPDIR`,
+# or `/tmp` when launch.sh fell back to it because `$TMPDIR` was too long.
+run_parent=$(cd "$RUN_DIR/.." && pwd -P)
+tmp_root=$(cd "${TMPDIR:-/tmp}" 2>/dev/null && pwd -P)
+plain_tmp=$(cd /tmp 2>/dev/null && pwd -P)
+case "$(basename "$RUN_DIR")" in
+  code-oss-dev-*) ;;
+  *) echo "refusing to clean up: bad runDir '$RUN_DIR'" >&2; return 2>/dev/null || exit 1 ;;
+esac
+if [ "$run_parent" != "$tmp_root" ] && [ "$run_parent" != "$plain_tmp" ]; then
+  echo "refusing to clean up: '$RUN_DIR' is not under the launcher temp root" >&2
+  return 2>/dev/null || exit 1
+fi
+
+# pgrep -f takes a regex, not a literal: an unescaped '+' or '[' from a custom
+# TMPDIR can miss this run (deleting a profile whose processes are still alive)
+# or broaden the match before the kill. Escape once, reuse everywhere.
+RUN_RE=$(printf '%s' "$RUN_DIR" | sed 's/[][\.^$*+?(){}|\\]/\\&/g')
+
+leftover=''
+if leftover=$(pgrep -f "$RUN_RE"); then
+  echo "$leftover" | xargs kill 2>/dev/null || true
+  sleep 2
+else
+  pgrep_status=$?
+  if [ "$pgrep_status" -gt 1 ]; then
+    echo "pgrep failed with status $pgrep_status; keeping $RUN_DIR for diagnosis" >&2
+    return 2>/dev/null || exit 1
+  fi
+fi
+
+# Only discard the profile once nothing is left: a survivor still has the run's
+# logs open, and deleting them removes the evidence you need to diagnose it.
+if leftover=$(pgrep -f "$RUN_RE"); then
+  echo "STILL RUNNING: $(printf '%s' "$leftover" | tr '\n' ' ')"
+  echo "keeping $RUN_DIR for diagnosis"
+else
+  pgrep_status=$?
+  if [ "$pgrep_status" -eq 1 ]; then
+    rm -rf "$RUN_DIR"
+  else
+    echo "pgrep failed with status $pgrep_status; keeping $RUN_DIR for diagnosis" >&2
+    return 2>/dev/null || exit 1
+  fi
+fi
+```
+
+On Windows, where neither Bash nor `pgrep` is available:
+
+```powershell
+Stop-Process -Id $codePid -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 3
+
+# Resolve first: only a real launcher run directory may be removed. The Windows
+# launcher names it `<temp>\code-oss-dev\<timestamp-pid>`, so the check is that
+# it is a direct child of that base - the leaf is a timestamp, not a prefix.
+$resolved = Resolve-Path -LiteralPath $info.runDir -ErrorAction SilentlyContinue
+$runDir = if ($resolved) { $resolved.ProviderPath } else { $null }
+$base = (Resolve-Path -LiteralPath (Join-Path $env:TEMP 'code-oss-dev') -ErrorAction SilentlyContinue)
+$leaf = if ($runDir) { Split-Path -Leaf $runDir } else { '' }
+if (-not $runDir -or -not $base -or (Split-Path -Parent $runDir) -ne $base.ProviderPath -or $leaf -notmatch '^\d{8}-\d{6}-\d+$') {
+	throw "refusing to clean up: bad runDir '$($info.runDir)'"
+}
+
+# Match on the command line, so other agents' concurrent instances are left
+# alone. Compare literally rather than with `-like`: a temp path containing
+# `[` or `]` would be read as a wildcard character class, which can miss this
+# instance (deleting a live profile) or match unrelated processes.
+$needle = $runDir.ToLowerInvariant()
+$survivors = { Get-CimInstance Win32_Process -ErrorAction Stop |
+	Where-Object { $_.CommandLine -and $_.CommandLine.ToLowerInvariant().Contains($needle) } }
+
+try {
+	$running = @(& $survivors)
+} catch {
+	throw "process enumeration failed; keeping $runDir for diagnosis: $($_.Exception.Message)"
+}
+$running | ForEach-Object { Stop-Process -Id $_.ProcessId -ErrorAction SilentlyContinue }
+Start-Sleep -Seconds 2
+
+# Only discard the profile once nothing is left: a survivor still holds the
+# run's logs open, and deleting them removes the evidence you need.
+try {
+	$left = @(& $survivors)
+} catch {
+	throw "process enumeration failed; keeping $runDir for diagnosis: $($_.Exception.Message)"
+}
+if ($left) {
+	Write-Host "STILL RUNNING: $($left.ProcessId -join ' ')"
+	Write-Host "keeping $runDir for diagnosis"
+} else {
+	Remove-Item -LiteralPath $runDir -Recurse -Force -ErrorAction SilentlyContinue
+}
+```
+
+To audit the whole machine after a batch of runs — total resident memory and
+leaked profiles across every launch:
+
+```bash
+# Match the launcher's run-dir argument, so this works on Linux too rather than
+# only matching the macOS app-bundle path.
+ps aux | grep "[c]ode-oss-dev-" | awk '{s+=$6} END {printf "Code OSS RSS: %.1f GB\n", s/1024/1024}'
+# Profiles live under the launcher's temp base, or /tmp when that base was too
+# long for unix sockets. Canonicalize first so an unset TMPDIR (or one resolving
+# to /tmp) does not count every profile twice.
+tmp_root=$(cd "${TMPDIR:-/tmp}" 2>/dev/null && pwd -P)
+plain_tmp=$(cd /tmp 2>/dev/null && pwd -P)
+if [ "$tmp_root" = "$plain_tmp" ]; then
+  du -shc "$tmp_root"/code-oss-dev-* 2>/dev/null
+else
+  du -shc "$tmp_root"/code-oss-dev-* "$plain_tmp"/code-oss-dev-* 2>/dev/null
+fi | tail -1
+```
+
+Both should be empty/zero once every instance you own has exited. If you are
+running concurrently with other agents, scope by `runDir` rather than killing
+every `Code - OSS` process, and prune only your own `/tmp/code-oss-dev-*` dirs.
 
 ## Troubleshooting
 
 - **`Daemon pid=...: listen EINVAL` from `@playwright/cli`** - the daemon's socket path (`TMPDIR` + a fixed ~33-char prefix + the `-s=` session name) exceeded the ~103-byte unix socket limit. macOS's default `TMPDIR` leaves only ~16 characters for the session name, so shorten `-s=` first. If you need a longer name, scope the override to the single command (`TMPDIR=/tmp npx @playwright/cli ...`) rather than `export`ing it, so the launcher keeps using your private per-user temp dir.
 - **"Sent env to running instance. Terminating..."** - The dynamic `--user-data-dir` should prevent this. If you see it, another Code OSS is using the same profile path; pass `--source-user-data-dir` to a different source or check that the temp copy actually happened (`ls "$(jq -r .userDataDir <<<"$INFO")"`).
 - **Renderer ESM errors / `import { Menu } from 'electron'`** - `ELECTRON_RUN_AS_NODE` is set in your env. The launcher unsets it for the child, but if you spawn `code.sh` yourself, do the same.
-- **Built-in extension fails to load (`Cannot find module .../extensions/.../out/extension.js`)** - extensions weren't compiled. Run `npm run compile` (one-shot, also rebuilds all built-in extensions) or `npm run watch` (incremental). A common cause: you ran `npm run transpile-client` to satisfy unit tests, which populated `out/` but not `extensions/*/out/`, so preLaunch's "is `out/` missing?" check skipped the compile.
+- **Built-in extension fails to load (`Cannot find module .../extensions/.../out/extension.js`)** - extensions weren't compiled. Run `npm run compile` (one-shot, also rebuilds all built-in extensions) or `npm run watch` (incremental). A common cause: you ran `npm run transpile-client` to satisfy unit tests, which produced `out/main.js` but not `extensions/*/out/`, so the client readiness check passes even though built-in extension output is incomplete.
 - **`launch.sh` exits non-zero with a log tail** - either pre-launch failed, `code.sh` died before CDP came up, or CDP never opened within 90s. The tail printed to stderr is from `runDir/code.log` - read it to diagnose.
+- **`compiled client entry point is missing`** - `out/` exists but is incomplete and does not contain `out/main.js`. Run `npm run compile` successfully before launching. This validation also runs with `--skip-prelaunch`, preventing Electron from opening an error dialog while the launcher waits for CDP.
 - **Snapshot shows the wrong page or no expected controls** - use `tab-list`, switch with `tab-select <index>` if needed, then re-snapshot before interacting.
 - **CLI typing commands complete but the input stays empty** - run `playwrightScripts/focus-chat-input.ts`, use `press` or clipboard paste rather than `fill` / `type`, and verify the input state before sending.
 - **Auth missing in the launched window** - confirm the source profile is actually authed (`ls "$SOURCE_UDD"` should contain `User/`, and `ls "$SOURCE_UDD/User/globalStorage"` should show persisted extension state). **On Windows, check the shared-data-dir first**: the GitHub session blob lives in `%USERPROFILE%\.vscode-oss-shared\sharedStorage\state.vscdb`, not in the profile. The launcher logs `copying shared data: <src> -> <dst>` on stderr when it finds it, and warns `no shared-data-dir at <path>` when it doesn't. A missing or empty source shared-data-dir means signing in again against the source profile is what you need - see [Windows authentication](#windows-authentication).

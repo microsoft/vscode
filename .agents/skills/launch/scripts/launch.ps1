@@ -114,7 +114,7 @@ function Get-FreePort {
 
 function Get-FreePorts {
 	$ports = [System.Collections.Generic.List[int]]::new()
-	while ($ports.Count -lt 4) {
+	while ($ports.Count -lt 5) {
 		$port = Get-FreePort
 		if (-not $ports.Contains($port)) {
 			$ports.Add($port)
@@ -279,101 +279,18 @@ function Test-SourceHasGitHubAuthenticationSecret([string]$node, [string]$source
 	return $false
 }
 
-function Get-JsoncCodeMask([string]$text) {
-	# Returns a same-length copy of $text with every comment span blanked out.
-	# Offsets are preserved so a match found in the mask can be applied to the
-	# original. String contents are respected, so a `//` inside a value (a URL,
-	# say) is not mistaken for a comment.
-	$chars = $text.ToCharArray()
-	$masked = [char[]]::new($chars.Length)
-	[Array]::Copy($chars, $masked, $chars.Length)
+function Ensure-AutomationSettings([string]$node, [string]$userDataDir) {
+	# Both the JSONC merge and the discovery of *which* settings files matter live
+	# in `normalize-automation-settings.ts`, so `launch.sh` and `launch.ps1` share
+	# a single implementation and cannot drift.
+	New-Item -ItemType Directory -Force -Path (Join-Path $userDataDir 'User') | Out-Null
 
-	$inString = $false
-	$inLineComment = $false
-	$inBlockComment = $false
-	$escaped = $false
-
-	for ($i = 0; $i -lt $chars.Length; $i++) {
-		$current = $chars[$i]
-		$next = if ($i + 1 -lt $chars.Length) { $chars[$i + 1] } else { [char]0 }
-
-		if ($inLineComment) {
-			if ($current -eq "`n") { $inLineComment = $false } else { $masked[$i] = ' ' }
-			continue
-		}
-		if ($inBlockComment) {
-			if ($current -eq '*' -and $next -eq '/') {
-				$masked[$i] = ' '
-				$masked[$i + 1] = ' '
-				$i++
-				$inBlockComment = $false
-			} elseif ($current -ne "`n") {
-				$masked[$i] = ' '
-			}
-			continue
-		}
-		if ($inString) {
-			if ($escaped) { $escaped = $false }
-			elseif ($current -eq '\') { $escaped = $true }
-			elseif ($current -eq '"') { $inString = $false }
-			continue
-		}
-
-		if ($current -eq '"') { $inString = $true }
-		elseif ($current -eq '/' -and $next -eq '/') { $masked[$i] = ' '; $inLineComment = $true }
-		elseif ($current -eq '/' -and $next -eq '*') { $masked[$i] = ' '; $masked[$i + 1] = ' '; $i++; $inBlockComment = $true }
+	$normalize = Join-Path $PSScriptRoot 'normalize-automation-settings.ts'
+	$count = & $node $normalize '--user-data-dir' $userDataDir
+	if ($LASTEXITCODE -ne 0) {
+		throw "failed to normalize automation settings under $userDataDir"
 	}
-
-	return (-join $masked)
-}
-
-function Ensure-SimpleDialogSetting([string]$settingsFile) {
-	$key = 'files.simpleDialog.enable'
-	$settingsDirectory = Split-Path -Parent $settingsFile
-	New-Item -ItemType Directory -Force -Path $settingsDirectory | Out-Null
-
-	if (Test-Path -LiteralPath $settingsFile -PathType Leaf) {
-		$text = [IO.File]::ReadAllText($settingsFile)
-	} else {
-		$text = ''
-	}
-
-	if ([string]::IsNullOrWhiteSpace($text)) {
-		[IO.File]::WriteAllText($settingsFile, "{`n  `"$key`": true`n}`n", [Text.UTF8Encoding]::new($false))
-		return
-	}
-
-	# Match against a comment-masked copy so a commented-out occurrence such as
-	# `// "files.simpleDialog.enable": false` is not mistaken for the real
-	# setting. Offsets line up with the original, so the value is rewritten in
-	# place without disturbing comments.
-	$maskedText = Get-JsoncCodeMask $text
-	$keyPattern = [regex]::Escape($key)
-	$keyValueRegex = [regex]::new("(`"$keyPattern`"\s*:\s*)(true|false|null|`"[^`"`r`n]*`"|-?\d+(?:\.\d+)?)")
-	$keyMatch = $keyValueRegex.Match($maskedText)
-	if ($keyMatch.Success) {
-		$valueGroup = $keyMatch.Groups[2]
-		$updated = $text.Substring(0, $valueGroup.Index) + 'true' + $text.Substring($valueGroup.Index + $valueGroup.Length)
-		[IO.File]::WriteAllText($settingsFile, $updated, [Text.UTF8Encoding]::new($false))
-		return
-	}
-
-	$lastBrace = $maskedText.LastIndexOf('}')
-	if ($lastBrace -eq -1) {
-		throw "settings.json has no closing brace - refusing to clobber it: $settingsFile"
-	}
-	$firstBrace = $maskedText.IndexOf('{')
-	if ($firstBrace -eq -1 -or $firstBrace -ge $lastBrace) {
-		throw "settings.json has no opening brace - refusing to clobber it: $settingsFile"
-	}
-
-	# Whether a leading comma is needed depends only on real content, so decide
-	# it from the masked copy too.
-	$between = $maskedText.Substring($firstBrace + 1, $lastBrace - $firstBrace - 1).Trim()
-	$separator = if ($between.Length -eq 0 -or $between.EndsWith(',')) { '' } else { ',' }
-	$insertion = "$separator`n  `"$key`": true`n"
-	$updated = $text.Substring(0, $lastBrace) + $insertion + $text.Substring($lastBrace)
-	[IO.File]::WriteAllText($settingsFile, $updated, [Text.UTF8Encoding]::new($false))
+	return $count
 }
 
 function Write-LogTail([string]$logFile) {
@@ -431,6 +348,28 @@ function Start-Code([string]$codeBat, [string[]]$arguments, [string]$logFile) {
 		throw "Failed to start $codeBat."
 	}
 
+	return $process
+}
+
+function Start-LoggedProcess([string]$executable, [string[]]$arguments, [string]$logFile) {
+	$quotedExecutable = Quote-CmdArgument $executable
+	if (-not $quotedExecutable.StartsWith('"')) {
+		$quotedExecutable = "`"$quotedExecutable`""
+	}
+	$commandLine = ((@($quotedExecutable) + @($arguments | ForEach-Object { Quote-CmdArgument $_ })) -join ' ') + " >> $(Quote-CmdArgument $logFile) 2>&1"
+	$processInfo = [Diagnostics.ProcessStartInfo]::new()
+	$processInfo.FileName = $env:ComSpec
+	$processInfo.UseShellExecute = $false
+	$processInfo.CreateNoWindow = $true
+	$processInfo.WindowStyle = [Diagnostics.ProcessWindowStyle]::Hidden
+	$processInfo.Arguments = '/d /s /c "' + $commandLine + '"'
+	[void]$processInfo.EnvironmentVariables.Remove('ELECTRON_RUN_AS_NODE')
+
+	$process = [Diagnostics.Process]::new()
+	$process.StartInfo = $processInfo
+	if (-not $process.Start()) {
+		throw "Failed to start $executable."
+	}
 	return $process
 }
 
@@ -519,12 +458,22 @@ try {
 	$sourceUserDataDir = [IO.Path]::GetFullPath($sourceUserDataDir)
 
 	$node = Get-UsableNode $repo
+	# Workspace settings override the cloned profile. Reject a forwarded folder or
+	# .code-workspace that would make Open Folder use an undriveable native dialog.
+	$normalize = Join-Path $PSScriptRoot 'normalize-automation-settings.ts'
+	$workspaceArgs = @($extraArgs)
+	& $node $normalize '--check-workspace-args' @workspaceArgs
+	if ($LASTEXITCODE -ne 0) {
+		throw 'forwarded workspace settings disable files.simpleDialog.enable'
+	}
+
 	Write-LaunchError "[launch.ps1] using Node: $node"
 	$ports = Get-FreePorts
 	$cdpPort = $ports[0]
 	$extHostPort = $ports[1]
 	$mainPort = $ports[2]
 	$agentHostPort = $ports[3]
+	$automationPort = $ports[4]
 
 	$stamp = '{0:yyyyMMdd-HHmmss}-{1}' -f (Get-Date), $PID
 	$runDir = Join-Path (Join-Path $env:TEMP 'code-oss-dev') $stamp
@@ -532,8 +481,21 @@ try {
 	$extensionsDir = Join-Path $destinationUdd 'extensions'
 	$sharedDataDir = Join-Path $runDir 'shared-data'
 	$logFile = Join-Path $runDir 'code.log'
+	$automationLogFile = Join-Path $runDir 'automation-driver.log'
+	$automationLogsPath = Join-Path $runDir 'automation-logs'
+	$automationTokenFile = Join-Path $runDir 'automation-token'
 	New-Item -ItemType Directory -Force -Path $runDir, $sharedDataDir | Out-Null
+	New-Item -ItemType Directory -Force -Path $automationLogsPath | Out-Null
 	[IO.File]::WriteAllText($logFile, '', [Text.UTF8Encoding]::new($false))
+	$tokenBytes = New-Object byte[] 32
+	$tokenGenerator = [Security.Cryptography.RandomNumberGenerator]::Create()
+	try {
+		$tokenGenerator.GetBytes($tokenBytes)
+	} finally {
+		$tokenGenerator.Dispose()
+	}
+	$automationToken = ([BitConverter]::ToString($tokenBytes)).Replace('-', '').ToLowerInvariant()
+	[IO.File]::WriteAllText($automationTokenFile, $automationToken, [Text.UTF8Encoding]::new($false))
 	$sourceSharedDataDir = Get-SourceSharedDataDir $repo
 	if (Test-Path -LiteralPath $sourceSharedDataDir -PathType Container) {
 		# On Windows the GitHub session is APPLICATION_SHARED scoped, so it lives here
@@ -573,9 +535,8 @@ try {
 		Copy-ProfileDirectory $sourceExtensions $extensionsDir $false
 	}
 
-	$settingsFile = Join-Path $destinationUdd 'User\settings.json'
-	Ensure-SimpleDialogSetting $settingsFile
-	Write-LaunchError "[launch.ps1] ensured files.simpleDialog.enable=true in $settingsFile"
+	$settingsCount = Ensure-AutomationSettings $node $destinationUdd
+	Write-LaunchError "[launch.ps1] ensured files.simpleDialog.enable=true and editor.editContext=true in $settingsCount profile settings file(s)"
 	$profileReadyMs = $launchStopwatch.ElapsedMilliseconds
 
 	$launchArgs = [System.Collections.Generic.List[string]]::new()
@@ -589,23 +550,49 @@ try {
 	$launchArgs.Add("--inspect-extensions=$extHostPort")
 	$launchArgs.Add("--inspect=$mainPort")
 	$launchArgs.Add("--inspect-agenthost=$agentHostPort")
+	$launchArgs.Add('--enable-smoke-test-driver')
 	if ($disableWorkspaceTrust) {
 		$launchArgs.Add('--disable-workspace-trust')
 	}
 	foreach ($argument in $extraArgs) {
 		$launchArgs.Add($argument)
 	}
+	# --new-window: without an explicit path VS Code otherwise restores the previous
+	# workspace from cloned application state, which can override the simple dialog.
+	#
+	# --sync=off: the cloned profile keeps application storage, which is where
+	# settings-sync enablement lives, so a source profile with sync on would
+	# treat this run's automation-only overrides as local edits and upload them
+	# to the user's real synced settings. Forcing it off keeps it throwaway.
+	#
+	# Added *after* $extraArgs deliberately: for string options VS Code keeps
+	# the last occurrence, so a forwarded `--sync=on` would otherwise win.
+	$launchArgs.Add('--new-window')
+	$launchArgs.Add('--sync=off')
 
 	Write-LaunchError "[launch.ps1] launching: $codeBat $($launchArgs -join ' ')"
 	Write-LaunchError "[launch.ps1] logs: $logFile"
 	if ($skipPreLaunch) {
 		Write-LaunchError '[launch.ps1] skipping pre-launch by request'
 	} else {
-		Write-LaunchError '[launch.ps1] running pre-launch (ensures electron + compiled output + built-ins)...'
+		Write-LaunchError '[launch.ps1] running pre-launch (ensures electron + compiled output + built-ins + automation)...'
 		Push-Location -LiteralPath $repo
 		try {
 			& $node 'build/lib/preLaunch.ts' *>> $logFile
 			$preLaunchExitCode = $LASTEXITCODE
+			if ($preLaunchExitCode -eq 0) {
+				Push-Location -LiteralPath (Join-Path $repo 'test\automation')
+				try {
+					& $node 'tools/copy-driver-definition.js' *>> $logFile
+					$preLaunchExitCode = $LASTEXITCODE
+					if ($preLaunchExitCode -eq 0) {
+						& $node '..\..\node_modules\typescript\bin\tsc6' *>> $logFile
+						$preLaunchExitCode = $LASTEXITCODE
+					}
+				} finally {
+					Pop-Location
+				}
+			}
 		} finally {
 			Pop-Location
 		}
@@ -614,6 +601,12 @@ try {
 			Write-LogTail $logFile
 			exit 1
 		}
+	}
+	$clientEntryPoint = Join-Path $repo 'out\main.js'
+	if (-not (Test-Path -LiteralPath $clientEntryPoint -PathType Leaf)) {
+		Write-LaunchError "[launch.ps1] compiled client entry point is missing: $clientEntryPoint"
+		Write-LaunchError "[launch.ps1] run 'npm run compile' successfully before launching."
+		exit 1
 	}
 	$preLaunchReadyMs = $launchStopwatch.ElapsedMilliseconds
 
@@ -634,6 +627,37 @@ try {
 		exit 1
 	}
 	$launchReadyMs = $launchStopwatch.ElapsedMilliseconds
+	$automationDriver = Join-Path $PSScriptRoot 'automationDriver.ts'
+	$automationWindow = if ($agents) { 'agents' } else { 'workbench' }
+	$automationArguments = @(
+		$automationDriver,
+		'serve',
+		'--cdp-port', [string]$cdpPort,
+		'--port', [string]$automationPort,
+		'--token-file', $automationTokenFile,
+		'--repo', $repo,
+		'--window', $automationWindow,
+		'--logs-path', $automationLogsPath
+	)
+	Write-LaunchError "[launch.ps1] starting persistent automation driver on port $automationPort..."
+	$automationProcess = Start-LoggedProcess $node $automationArguments $automationLogFile
+	$waitForHttp = Join-Path $PSScriptRoot 'waitForHttp.ts'
+	$automationReadyMs = & $node $waitForHttp $automationProcess.Id $automationPort '/health' 30000
+	$automationReadyStatus = $LASTEXITCODE
+	if ($automationReadyStatus -eq 0) {
+		Write-LaunchError "[launch.ps1] automation driver ready after ${automationReadyMs}ms"
+	} else {
+		switch ($automationReadyStatus) {
+			1 { Write-LaunchError '[launch.ps1] timed out waiting for automation driver. Log tail:' }
+			2 { Write-LaunchError '[launch.ps1] automation driver exited before becoming ready. Log tail:' }
+			default { Write-LaunchError '[launch.ps1] failed while waiting for automation driver. Log tail:' }
+		}
+		Write-LogTail $automationLogFile
+		& taskkill.exe /PID $automationProcess.Id /T /F 2>$null | Out-Null
+		& taskkill.exe /PID $process.Id /T /F 2>$null | Out-Null
+		exit 1
+	}
+	$automationLaunchReadyMs = $launchStopwatch.ElapsedMilliseconds
 
 	[PSCustomObject]@{
 		pid = $process.Id
@@ -641,6 +665,13 @@ try {
 		extHostPort = $extHostPort
 		mainPort = $mainPort
 		agentHostPort = $agentHostPort
+		automation = [PSCustomObject]@{
+			pid = $automationProcess.Id
+			port = $automationPort
+			tokenFile = $automationTokenFile
+			logFile = $automationLogFile
+			script = $automationDriver
+		}
 		userDataDir = $destinationUdd
 		extensionsDir = $extensionsDir
 		sharedDataDir = $sharedDataDir
@@ -652,7 +683,8 @@ try {
 			profileMs = $profileReadyMs
 			preLaunchMs = $preLaunchReadyMs - $profileReadyMs
 			cdpReadyMs = $launchReadyMs - $preLaunchReadyMs
-			totalMs = $launchReadyMs
+			automationReadyMs = $automationLaunchReadyMs - $launchReadyMs
+			totalMs = $automationLaunchReadyMs
 		}
 	} | ConvertTo-Json -Compress
 } catch {
