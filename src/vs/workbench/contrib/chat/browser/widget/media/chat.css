@@ -3248,11 +3248,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.monaco-icon-label {
 		padding: 0 var(--vscode-spacing-size40);
-		gap: 2px;
 
 		&::before {
 			width: var(--vscode-codiconFontSize);
-			padding-right: 0;
 		}
 	}
 }
