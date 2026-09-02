@@ -2513,7 +2513,6 @@ per-word capitalization does not survive translation. */
 	gap: 0;
 	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	border-radius: var(--vscode-cornerRadius-medium);
-	background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-agentsPanel-background));
 	overflow: hidden;
 }
 
@@ -2933,7 +2932,6 @@ per-word capitalization does not survive translation. */
 	padding: var(--vscode-spacing-size120);
 	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	border-radius: var(--vscode-cornerRadius-large);
-	background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-agentsPanel-background));
 	color: var(--vscode-foreground);
 	box-sizing: border-box;
 	cursor: pointer;
