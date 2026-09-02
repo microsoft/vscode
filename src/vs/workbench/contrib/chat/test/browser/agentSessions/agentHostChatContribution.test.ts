@@ -766,11 +766,13 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IDefaultAccountService, { onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
 	const commandService = new MockCommandService();
 	instantiationService.stub(ICommandService, commandService);
-	instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None, ...authServiceOverride });
+	instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None, onDidRegisterAuthenticationProvider: Event.None, ...authServiceOverride });
 	instantiationService.stub(ILanguageModelsService, {
 		deltaLanguageModelChatProviderDescriptors: () => { },
 		registerLanguageModelProvider: () => toDisposable(() => { }),
 		lookupLanguageModel: (modelId: string) => languageModels?.get(modelId),
+		getLanguageModelIds: () => [...(languageModels?.keys() ?? [])],
+		onDidChangeLanguageModels: Event.None,
 		getVendors: () => [],
 		getLanguageModelGroups: () => [],
 		...languageModelsServiceOverride,
@@ -13651,6 +13653,10 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('re-authenticates with the same token when authentication is required', async () => {
+			// This is the cross-window repair path. When another client revokes the
+			// shared credential, the host advertises `auth/required`; recovery must
+			// clear the token cache and resend the unchanged token, since the cache
+			// mirrors what this client last sent rather than actual host state.
 			const tokenRef = { current: 'tok-1' };
 			const { agentHostService } = createContribution(disposables, { authServiceOverride: tokenAuthService(tokenRef) });
 
@@ -13906,7 +13912,7 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
-		test('forwards missing-token state once when no token is resolvable', async () => {
+		test('does not forward missing-token state when no token is resolvable', async () => {
 			const noTokenService: Partial<IAuthenticationService> = {
 				onDidChangeSessions: Event.None,
 				getOrActivateProviderIdForServer: async () => undefined,
@@ -13919,9 +13925,7 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
 			await timeout(0);
 
-			assert.deepStrictEqual(agentHostService.authenticateCalls, [
-				{ resource: 'https://api.github.com', scopes: ['read:user'], token: '' },
-			]);
+			assert.deepStrictEqual(agentHostService.authenticateCalls, []);
 		});
 
 		test('propagates interactive authentication errors for eager-created sessions', async () => {

@@ -90,6 +90,7 @@ import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../c
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
+import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
@@ -124,7 +125,7 @@ interface ISessionListComputation {
 	trailing?: Promise<readonly IAgentSessionMetadata[]>;
 }
 
-type AgentHostLegacyMigrationEvent = {
+type AgentHostLegacyMigrationEvent = IAgentHostCopilotSkuTelemetry & {
 	provider: string;
 	outcome: 'migrated' | 'skipped' | 'failed';
 	success: boolean;
@@ -137,7 +138,7 @@ type AgentHostLegacyMigrationEvent = {
 	reason: string;
 };
 
-type AgentHostLegacyMigrationClassification = {
+type AgentHostLegacyMigrationClassification = IAgentHostCopilotSkuClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent provider id whose legacy session was migrated (e.g. copilotcli).' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Migration outcome: migrated (adoption + restore completed), skipped (eligible legacy session not adopted this pass, e.g. migrate flag not yet applied), or failed (adoption or restore threw).' };
 	success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the migration completed with at least one restored turn.' };
@@ -1780,9 +1781,13 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 
 	private async _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> {
-		// Keys only: discovery arrives in batches, and the full listing re-runs the
-		// per-row provenance migration for every registered session each time.
-		const registeredKeys = new Set(await this._sessionRegistry.listSessionKeys());
+		// Keys and durable recency only: discovery arrives in batches, and the
+		// full listing re-runs the per-row provenance migration for every
+		// registered session each time. The recency snapshot lets the
+		// already-registered branch skip a per-session write when the provider
+		// re-reports an unchanged modified time (the common case on startup).
+		const registeredRecency = await this._sessionRegistry.listSessionModifiedTimes();
+		const registeredKeys = new Set(registeredRecency.keys());
 		const discoveryLimiter = new Limiter<boolean>(4);
 		let suppressed = 0;
 		let skippedAsStale = 0;
@@ -1790,15 +1795,21 @@ export class AgentService extends Disposable implements IAgentService {
 		let alreadyRegistered = 0;
 		let registryChanged = false;
 		const untitledExternal: IAgentSessionMetadata[] = [];
+		const modifiedTimeAdvances: { readonly session: URI; readonly modifiedTime: number }[] = [];
 		const results = await Promise.all(chats.map(({ external, ...metadata }) => discoveryLimiter.queue(async () => {
 			const sessionMetadata = this._toSessionMetadata(metadata);
 			const session = sessionMetadata.session;
 			try {
 				// Matching registry entries still advance their durable recency from
-				// the provider catalog, but need no per-session metadata I/O.
+				// the provider catalog, but need no per-session metadata I/O. Only a
+				// genuine forward move is queued for the batched write below, so a
+				// steady-state startup issues no recency writes at all.
 				if (registeredKeys.has(session.toString())) {
 					alreadyRegistered++;
-					await this._advanceSessionModifiedTime(session, sessionMetadata.modifiedTime);
+					const stored = registeredRecency.get(session.toString());
+					if (Number.isFinite(sessionMetadata.modifiedTime) && (stored === undefined || sessionMetadata.modifiedTime > stored)) {
+						modifiedTimeAdvances.push({ session, modifiedTime: sessionMetadata.modifiedTime });
+					}
 					return false;
 				}
 				if (isSubagentSession(session.toString()) || await this._isChatBacking(session)) {
@@ -1840,6 +1851,13 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		})));
 		const registered = results.filter(changed => changed).length;
+		if (modifiedTimeAdvances.length > 0) {
+			await this._retryRegistryMutation(
+				() => this._sessionRegistry.updateModifiedTimes(modifiedTimeAdvances),
+				`batched modified-time update for ${modifiedTimeAdvances.length} session(s)`,
+			);
+			this._invalidateSessionList();
+		}
 		if (registryChanged) {
 			this._invalidateSessionList();
 		}
@@ -2126,31 +2144,61 @@ export class AgentService extends Disposable implements IAgentService {
 		const registered = hiddenExternal.size > 0
 			? allRegistered.filter(entry => !hiddenExternal.has(entry.session.toString()))
 			: allRegistered;
-		const metadataLimiter = new Limiter<IAgentSessionMetadata | undefined>(4);
-		const results = await Promise.all(registered.map(registeredSession => metadataLimiter.queue(async (): Promise<IAgentSessionMetadata | undefined> => {
-			const { session, provider, external } = registeredSession;
-			// Idle provisional sessions stay hidden until they materialize or gain
-			// turn activity (#321269). The state-manager overlay below re-surfaces
-			// them then.
-			if (this._stateManager.isIdleProvisionalSession(session.toString())) {
-				return undefined;
+		// Warm each involved provider's bulk metadata cache once, so the
+		// per-session metadata reads below are served from memory instead of one
+		// provider round-trip per session (the dominant cost on a large
+		// catalogue). Best-effort and provider-optional; disposed once the
+		// metadata phase completes.
+		const prewarmStore = new DisposableStore();
+		const involvedProviders = new Map<AgentProvider, IAgent>();
+		for (const entry of registered) {
+			if (!involvedProviders.has(entry.provider)) {
+				const agent = this._providerService.getProvider(entry.provider);
+				if (agent?.prewarmSessionMetadata) {
+					involvedProviders.set(entry.provider, agent);
+				}
 			}
-
-			const agent = this._providerService.getProvider(provider);
-			if (!agent) {
-				return undefined;
-			}
+		}
+		await Promise.all([...involvedProviders.values()].map(async agent => {
 			try {
-				return await this._registeredSessionMetadata(agent, session, external, registeredSession);
+				prewarmStore.add(await agent.prewarmSessionMetadata!());
 			} catch (err) {
-				this._logService.warn(`[AgentService] listSessions: failed to read metadata for ${session}`, err);
-				return undefined;
+				this._logService.warn(`[AgentService] listSessions: failed to prewarm metadata for provider ${agent.id}`, err);
 			}
-		})));
+		}));
+		const metadataLimiter = new Limiter<IAgentSessionMetadata | undefined>(4);
+		const metadataPhaseStartedAt = Date.now();
+		let results: readonly (IAgentSessionMetadata | undefined)[];
+		try {
+			results = await Promise.all(registered.map(registeredSession => metadataLimiter.queue(async (): Promise<IAgentSessionMetadata | undefined> => {
+				const { session, provider, external } = registeredSession;
+				// Idle provisional sessions stay hidden until they materialize or gain
+				// turn activity (#321269). The state-manager overlay below re-surfaces
+				// them then.
+				if (this._stateManager.isIdleProvisionalSession(session.toString())) {
+					return undefined;
+				}
+
+				const agent = this._providerService.getProvider(provider);
+				if (!agent) {
+					return undefined;
+				}
+				try {
+					return await this._registeredSessionMetadata(agent, session, external, registeredSession);
+				} catch (err) {
+					this._logService.warn(`[AgentService] listSessions: failed to read metadata for ${session}`, err);
+					return undefined;
+				}
+			})));
+		} finally {
+			prewarmStore.dispose();
+		}
 		const flat = results.filter((s): s is IAgentSessionMetadata => s !== undefined);
+		const metadataPhaseMs = Date.now() - metadataPhaseStartedAt;
 
 		// Overlay persisted custom titles from per-session databases.
 		const overlayLimiter = new Limiter<IAgentSessionMetadata | undefined>(4);
+		const overlayPhaseStartedAt = Date.now();
 		const overlaid = await Promise.all(flat.map(s => overlayLimiter.queue(async (): Promise<IAgentSessionMetadata | undefined> => {
 			const sanitized = { ...s, _meta: withSessionMultiRootMetadata(s._meta, undefined) };
 			// A backing session whose durable marker write kept failing is
@@ -2277,6 +2325,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return sanitized;
 		})));
 		const result = overlaid.filter((s): s is IAgentSessionMetadata => s !== undefined);
+		const overlayPhaseMs = Date.now() - overlayPhaseStartedAt;
 
 		// Overlay live session state from the state manager.
 		// For the title, prefer the state manager's value when it is
@@ -2363,7 +2412,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		// A catalog pass opens every registered session's database, so it can be slow.
 		const duration = Date.now() - startedAt;
-		const message = `[AgentService] listSessions computed ${visible.length} of ${total} session(s) for mode '${mode}' in ${duration}ms (${additions.length} state-manager fallback)`;
+		const message = `[AgentService] listSessions computed ${visible.length} of ${total} session(s) for mode '${mode}' in ${duration}ms (metadata ${metadataPhaseMs}ms, overlay ${overlayPhaseMs}ms, ${additions.length} state-manager fallback)`;
 		if (duration >= SLOW_LIST_SESSIONS_THRESHOLD_MS) {
 			this._logService.info(message);
 		} else {

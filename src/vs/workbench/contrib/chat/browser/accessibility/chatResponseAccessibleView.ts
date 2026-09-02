@@ -158,6 +158,8 @@ export function getToolSpecificDataDescription(toolSpecificData: ToolSpecificDat
 			return toolSpecificData.operation === 'created'
 				? localize('automationConfigured.created', "Created an automation: {0}", toolSpecificData.automationName)
 				: localize('automationConfigured.updated', "Edited an automation: {0}", toolSpecificData.automationName);
+		case 'sessionCreated':
+			return toolSpecificData.fullTitle ?? toolSpecificData.label;
 		default:
 			return '';
 	}

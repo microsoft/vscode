@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience } from '../../common/browserView.js';
+import { BrowserViewStorageScope, getAgentBrowserViewCreationDefaults, isBrowserViewAssociatedResourceNavigation, isInMemoryStorageScope, matchesBrowserViewAudience } from '../../common/browserView.js';
 
 suite('BrowserView', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -52,6 +52,41 @@ suite('BrowserView', () => {
 			generic: true,
 			session: true,
 			otherSession: false
+		});
+	});
+
+	test('configures agent storage affinity independently from ownership', () => {
+		assert.deepStrictEqual({
+			editorWindow: getAgentBrowserViewCreationDefaults('chat-session'),
+			agentsWindow: getAgentBrowserViewCreationDefaults('chat-session', 'chat-session'),
+		}, {
+			editorWindow: {
+				owner: { type: 'agent', sessionId: 'chat-session' },
+				initialAudiences: [{ type: 'agent' }],
+				session: { scope: BrowserViewStorageScope.Agent }
+			},
+			agentsWindow: {
+				owner: { type: 'agent', sessionId: 'chat-session' },
+				initialAudiences: [{ type: 'agent' }],
+				session: {
+					scope: BrowserViewStorageScope.Agent,
+					affinity: 'chat-session'
+				}
+			}
+		});
+	});
+
+	test('identifies in-memory storage scopes', () => {
+		assert.deepStrictEqual({
+			global: isInMemoryStorageScope(BrowserViewStorageScope.Global),
+			workspace: isInMemoryStorageScope(BrowserViewStorageScope.Workspace),
+			ephemeral: isInMemoryStorageScope(BrowserViewStorageScope.Ephemeral),
+			agent: isInMemoryStorageScope(BrowserViewStorageScope.Agent),
+		}, {
+			global: false,
+			workspace: false,
+			ephemeral: true,
+			agent: true,
 		});
 	});
 });

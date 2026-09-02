@@ -274,9 +274,13 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
 
 		const currentState = readSessionGitHubState(currentMeta);
-		const nextState = { ...(currentState ?? {}), ...state } satisfies ISessionGitHubState;
+		let nextState = { ...(currentState ?? {}), ...state } satisfies ISessionGitHubState;
 		const currentPullRequest = getSessionRelatedPullRequestUrls(currentState)[0];
 		const nextPullRequest = getSessionRelatedPullRequestUrls(nextState)[0];
+		if (currentPullRequest !== nextPullRequest && state.pullRequestStateUrl === undefined) {
+			const { pullRequestState: _ignoredState, pullRequestStateUrl: _ignoredStateUrl, ...stateWithoutPullRequestStatus } = nextState;
+			nextState = stateWithoutPullRequestStatus;
+		}
 		const currentSourceControlState = readSessionSourceControlState(currentMeta);
 		const nextSourceControlState = nextPullRequest && nextPullRequest !== currentPullRequest
 			? { ...currentSourceControlState, latestOutcome: SessionSourceControlOutcome.PullRequest } satisfies ISessionSourceControlState

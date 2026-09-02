@@ -37,6 +37,7 @@ import {
 	IBrowserViewDevToolsStateEvent,
 	IBrowserViewService,
 	BrowserViewStorageScope,
+	isInMemoryStorageScope,
 	IBrowserViewCaptureScreenshotOptions,
 	IBrowserViewFindInPageOptions,
 	IBrowserViewFindInPageResult,
@@ -56,6 +57,7 @@ import {
 	IBrowserDeviceProfile,
 	IBrowserViewPermissionRequestEvent,
 	IBrowserElementSelectionState,
+	IBrowserViewHost,
 } from '../../../../platform/browserView/common/browserView.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
@@ -361,6 +363,7 @@ export interface IBrowserViewCDPService {
  */
 export interface IBrowserViewModel extends IDisposable {
 	readonly id: string;
+	readonly host: IBrowserViewHost;
 	readonly owner: IBrowserViewOwner;
 	readonly associatedResource: URI | undefined;
 	readonly url: string;
@@ -397,6 +400,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onDidKeyCommand: Event<IBrowserViewKeyDownEvent>;
 	readonly onDidChangeTitle: Event<IBrowserViewTitleChangeEvent>;
 	readonly onDidChangeFavicon: Event<IBrowserViewFaviconChangeEvent>;
+	readonly onDidChangeOwner: Event<IBrowserViewOwner>;
 	readonly onDidFindInPage: Event<IBrowserViewFindInPageResult>;
 	readonly onDidChangeVisibility: Event<IBrowserViewVisibilityEvent>;
 	readonly onDidClose: Event<void>;
@@ -423,6 +427,7 @@ export interface IBrowserViewModel extends IDisposable {
 	stopFindInPage(keepSelection?: boolean): Promise<void>;
 	getSelectedText(): Promise<string>;
 	clearStorage(): Promise<void>;
+	setOwner(owner: IBrowserViewOwner): Promise<void>;
 	setSharedWithAgent(shared: boolean): Promise<boolean>;
 	trustCertificate(host: string, fingerprint: string): Promise<void>;
 	untrustCertificate(host: string, fingerprint: string): Promise<void>;
@@ -441,6 +446,7 @@ export interface IBrowserViewModel extends IDisposable {
 
 export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _url: string = '';
+	private _owner: IBrowserViewOwner;
 	private _title: string = '';
 	private _favicon: string | undefined = undefined;
 	private _screenshot: VSBuffer | undefined = undefined;
@@ -454,7 +460,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _certificateError: IBrowserViewCertificateError | undefined = undefined;
 	private _storageScope: BrowserViewStorageScope = BrowserViewStorageScope.Ephemeral;
 	private _isRemoteSession: boolean = false;
-	private _isEphemeral: boolean = false;
+	private _isInMemory: boolean = false;
 	private _zoomHost: string | undefined = undefined;
 	private _sharedWithAgent: boolean = false;
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
@@ -482,7 +488,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	constructor(
 		readonly id: string,
-		readonly owner: IBrowserViewOwner,
+		readonly host: IBrowserViewHost,
+		owner: IBrowserViewOwner,
 		readonly associatedResource: URI | undefined,
 		initialState: IBrowserViewState,
 		private readonly browserViewService: IBrowserViewService,
@@ -495,6 +502,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
+		this._owner = owner;
 
 		// Initialize state
 		this._url = initialState.url;
@@ -516,7 +524,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._isAreaSelectionActive = initialState.isAreaSelectionActive;
 		this._device = initialState.device;
 		this._sharedWithAgent = initialState.audiences.some(audience => audience.type === 'agent');
-		this._isEphemeral = this._storageScope === BrowserViewStorageScope.Ephemeral;
+		this._isInMemory = isInMemoryStorageScope(this._storageScope);
 		this._zoomHost = parseZoomHost(this._url);
 
 		const { history: entriesKey, favicons: faviconsKey } = initialState.storageKeys;
@@ -540,7 +548,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			snapshot => this.permissions.hydrate(snapshot)));
 
 		// Sync initial zoom
-		const effectiveZoomIndex = this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isEphemeral);
+		const effectiveZoomIndex = this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isInMemory);
 		if (effectiveZoomIndex !== this._browserZoomIndex) {
 			void this.setBrowserZoomIndex(effectiveZoomIndex).catch(e => {
 				this.logService.warn(`[BrowserViewModel] Failed to set initial zoom:`, e);
@@ -548,13 +556,13 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		}
 		// Set up state synchronization
 
-		this._register(this.zoomService.onDidChangeZoom(({ host, isEphemeralChange }) => {
-			if (isEphemeralChange && !this._isEphemeral) {
+		this._register(this.zoomService.onDidChangeZoom(({ host, isInMemoryChange }) => {
+			if (isInMemoryChange && !this._isInMemory) {
 				return;
 			}
 			if (host === undefined || host === this._zoomHost) {
 				void this.setBrowserZoomIndex(
-					this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isEphemeral)
+					this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isInMemory)
 				).catch(() => { });
 			}
 		}));
@@ -575,7 +583,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			// Always forceApply because Chromium resets zoom on cross-origin navigation,
 			// and an origin change may not correspond to a host change (e.g. http→https).
 			void this.setBrowserZoomIndex(
-				this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isEphemeral),
+				this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isInMemory),
 				true
 			);
 		}));
@@ -595,6 +603,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 		this._register(this.onDidChangeFavicon(e => {
 			this._favicon = e.favicon;
+		}));
+
+		this._register(this.onDidChangeOwner(owner => {
+			this._owner = owner;
 		}));
 
 		this._register(this.onDidChangeFocus(({ focused }) => {
@@ -637,6 +649,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	}
 
 	get url(): string { return this._url; }
+	get owner(): IBrowserViewOwner { return this._owner; }
 	get title(): string { return this._title; }
 	get favicon(): string | undefined { return this._favicon; }
 	get loading(): boolean { return this._loading; }
@@ -689,6 +702,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	get onDidChangeFavicon(): Event<IBrowserViewFaviconChangeEvent> {
 		return this.browserViewService.onDynamicDidChangeFavicon(this.id);
+	}
+
+	get onDidChangeOwner(): Event<IBrowserViewOwner> {
+		return this.browserViewService.onDynamicDidChangeOwner(this.id);
 	}
 
 	get onDidFindInPage(): Event<IBrowserViewFindInPageResult> {
@@ -783,6 +800,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.clearStorage(this.id);
 	}
 
+	async setOwner(owner: IBrowserViewOwner): Promise<void> {
+		return this.browserViewService.setOwner(this.id, owner);
+	}
+
 	async trustCertificate(host: string, fingerprint: string): Promise<void> {
 		return this.browserViewService.trustCertificate(this.id, host, fingerprint);
 	}
@@ -836,7 +857,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		}
 		await this.setBrowserZoomIndex(this._browserZoomIndex + 1);
 		if (this._zoomHost) {
-			this.zoomService.setHostZoomIndex(this._zoomHost, this._browserZoomIndex, this._isEphemeral);
+			this.zoomService.setHostZoomIndex(this._zoomHost, this._browserZoomIndex, this._isInMemory);
 		}
 	}
 
@@ -846,7 +867,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		}
 		await this.setBrowserZoomIndex(this._browserZoomIndex - 1);
 		if (this._zoomHost) {
-			this.zoomService.setHostZoomIndex(this._zoomHost, this._browserZoomIndex, this._isEphemeral);
+			this.zoomService.setHostZoomIndex(this._zoomHost, this._browserZoomIndex, this._isInMemory);
 		}
 	}
 
@@ -854,7 +875,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		const defaultIndex = this.zoomService.getEffectiveZoomIndex(undefined, false);
 		await this.setBrowserZoomIndex(defaultIndex);
 		if (this._zoomHost) {
-			this.zoomService.setHostZoomIndex(this._zoomHost, defaultIndex, this._isEphemeral);
+			this.zoomService.setHostZoomIndex(this._zoomHost, defaultIndex, this._isInMemory);
 		}
 	}
 

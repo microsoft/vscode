@@ -37,7 +37,8 @@ import { isAutoModel, isGpt56Model } from './modelIdentifiers.js';
 import { EPHEMERAL_DISABLED_COPILOT_TOOLS } from './copilotToolDisplay.js';
 import './prompts/allPrompts.js';
 import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts/promptRegistry.js';
-import { describeSystemMessageConfig } from './prompts/systemMessage.js';
+import { applyConfiguredPromptOverrides } from './prompts/promptOverride.js';
+import { describeSystemMessageConfig, fullSystemPrompt } from './prompts/systemMessage.js';
 import { buildSandboxConfigForSdk, type SandboxConfig } from './sandboxConfigForSdk.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, agentHostModelSupportsToolSearch } from './toolSearchDeferral.js';
 
@@ -272,6 +273,11 @@ export interface ICopilotCreateSessionLaunchPlan extends ICopilotSessionLaunchBa
 	readonly model: ModelSelection | undefined;
 	readonly longContextWindow?: number;
 	readonly freeLongContext?: boolean;
+	/**
+	 * The Auto routing profile to send, already resolved against the gate. Frozen here so the profile
+	 * the runtime receives always matches the one the caller persists.
+	 */
+	readonly autoTier?: AutoModeTier;
 }
 
 export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBase {
@@ -281,6 +287,7 @@ export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBa
 		readonly model: ModelSelection | undefined;
 		readonly longContextWindow?: number;
 		readonly freeLongContext?: boolean;
+		readonly autoTier?: AutoModeTier;
 	};
 }
 
@@ -647,6 +654,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				model: fallbackPlan.fallback.model,
 				longContextWindow: fallbackPlan.fallback.longContextWindow,
 				freeLongContext: fallbackPlan.fallback.freeLongContext,
+				autoTier: fallbackPlan.fallback.autoTier,
 			}, fallbackConfig, sandboxConfig);
 			this._sessionOpenTelemetry.sdkResumeFallbackCreated(session);
 			this._logService.info(`[Copilot:${plan.sessionId}] Fallback createSession succeeded`);
@@ -674,9 +682,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			model: plan.model?.id,
 			reasoningEffort: resolveCopilotReasoningEffort(plan.model, this._configurationService, this._logService, plan.sessionId),
 			contextTier: getCopilotContextTier(plan.model, plan.longContextWindow, plan.freeLongContext),
-			// Create-time only: the runtime then owns the profile, keeping it fixed while the session is
-			// resident and restoring it on cold resume.
-			...toSdkCapiSessionOptions(resolveCopilotAutoTier(plan.model, this._configurationService, this._logService, plan.sessionId)),
+			// Create-time only. Taken from the plan rather than resolved again, so the profile sent
+			// always matches the one the caller persists.
+			...toSdkCapiSessionOptions(plan.autoTier),
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		}));
@@ -914,6 +922,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			this._logService.warn(`[Copilot:${plan.sessionId}] Ignoring invalid 'modelCapabilities' capability override for '${modelId}'; expected an object`);
 		});
 		const modelCapabilities = getModelCapabilitiesOverride(modelCapabilitiesOverride, modelId, this._logService, plan.sessionId);
+		const promptOverrideString = resolveModelCapabilityOverrideField(capabilityOverrides, model?.id, 'promptOverrideString', (value): value is string => typeof value === 'string', () => {
+			this._logService.warn(`[Copilot:${plan.sessionId}] Ignoring invalid 'promptOverrideString' capability override for '${modelId}'; expected a string`);
+		});
+		const promptOverrideFile = resolveModelCapabilityOverrideField(capabilityOverrides, model?.id, 'promptOverrideFile', (value): value is string => typeof value === 'string', () => {
+			this._logService.warn(`[Copilot:${plan.sessionId}] Ignoring invalid 'promptOverrideFile' capability override for '${modelId}'; expected a string`);
+		});
 		// Host-side routing only — the prompt contributor and the tool-search gate
 		// below. The wire model stays the selected one, so the session still runs
 		// on the real model with the aliased family's prompt and tool profile.
@@ -925,6 +939,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			&& agentHostModelSupportsToolSearch(effectiveModel?.id)
 			&& clientToolNames.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME);
 		const toolSearchDeferThreshold = normalizeToolSearchDeferThreshold(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchDeferThreshold));
+		const tools = [...shellTools, ...runtime.createClientSdkTools(toolSearchActive), ...runtime.createServerSdkTools()];
+		const promptOverrides = await applyConfiguredPromptOverrides(promptOverrideString, promptOverrideFile, tools, this._fileService, this._logService);
 		const managedSettingsPermissions = this._managedSettingsService.permissions;
 		const promptContext: IAgentHostPromptContext = {
 			getSetting: key => this._configurationService.getRootValue(copilotCliConfigSchema, key),
@@ -936,7 +952,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// Resolved once per (re)launch — the SDK has no mid-session system-message
 		// update, so this reflects the model/tools/settings at launch time. Log a
 		// summary at info for prompt observability; the full config at trace.
-		const systemMessage = agentHostPromptRegistry.resolveSystemMessageConfig(effectiveModel, promptContext);
+		const systemMessage = promptOverrides.systemPrompt !== undefined
+			? fullSystemPrompt(promptOverrides.systemPrompt)
+			: agentHostPromptRegistry.resolveSystemMessageConfig(effectiveModel, promptContext);
 		this._logService.info(`[Copilot:${plan.sessionId}] Resolved system message: ${describeSystemMessageConfig(systemMessage)}`);
 		const additionalDisabledMcpServers = plan.isEphemeral ? [
 			...plugins.flatMap(plugin => plugin.mcpServers.map(server => server.name)),
@@ -1001,7 +1019,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			excludedTools: sdkExcludedTools,
 			pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
 				.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),
-			tools: [...shellTools, ...runtime.createClientSdkTools(toolSearchActive), ...runtime.createServerSdkTools()],
+			tools: promptOverrides.tools,
 			// Pass the GitHub token at the session level. The SDK's
 			// client-level `gitHubToken` authenticates the CLI process,
 			// but each session also needs its own token resolved into a

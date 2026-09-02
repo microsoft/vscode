@@ -17,8 +17,8 @@ import { IAccessibilityService } from '../../../../../../platform/accessibility/
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService as BaseTestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotification, INotificationHandle, INotificationService, IPromptChoice, NoOpNotification, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
@@ -46,6 +46,12 @@ import { ChatQuestionCarouselData } from '../../../common/model/chatProgressType
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { AskQuestionsToolId } from '../../../common/tools/builtinTools/askQuestionsTool.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
+
+class TestConfigurationService extends BaseTestConfigurationService {
+	constructor(configuration: Record<string, unknown> = {}) {
+		super({ 'agents.voice.enabled': true, ...configuration });
+	}
+}
 
 class TestVoiceClientService extends mock<IVoiceClientService>() {
 	private narrationCounter = 0;
@@ -827,32 +833,104 @@ suite('VoiceSessionController', () => {
 		assert.deepStrictEqual(notificationService.notifications.map(notification => notification.message), ['Voice Mode requires a paid GitHub Copilot plan.']);
 	});
 
-	test('disconnects when the paid Copilot entitlement is lost', async () => {
-		const voiceClientService = new TestVoiceClientService();
-		const chatEntitlementService = new MutableTestChatEntitlementService();
-		chatEntitlementService.entitlement = ChatEntitlement.Pro;
+	test('does not connect when Voice Mode is disabled', async () => {
+		const notificationService = new VoiceTestNotificationService();
 		const controller = createController(
-			voiceClientService,
+			new TestVoiceClientService(),
 			undefined,
 			undefined,
 			undefined,
 			undefined,
+			new TestConfigurationService({ 'agents.voice.enabled': false }),
 			undefined,
 			undefined,
 			undefined,
-			undefined,
-			undefined,
-			chatEntitlementService,
+			notificationService,
 		);
-		controller['_isConnected'].set(true, undefined);
 
-		chatEntitlementService.setEntitlement(ChatEntitlement.Free);
-		await new Promise<void>(resolve => queueMicrotask(resolve));
+		await controller.connect(mainWindow);
 
-		assert.strictEqual(controller.isConnected.get(), false);
+		assert.deepStrictEqual({
+			connecting: controller.isConnecting.get(),
+			connected: controller.isConnected.get(),
+			notifications: notificationService.notifications.map(notification => notification.message),
+		}, {
+			connecting: false,
+			connected: false,
+			notifications: ['Voice Mode is disabled.'],
+		});
 	});
 
-	test('stays connected across a paid-to-paid entitlement transition', async () => {
+	test('disconnects active and in-flight connections when Voice Mode becomes disabled', async () => {
+		const results = [];
+		for (const state of ['connecting', 'connected'] as const) {
+			const configurationService = new TestConfigurationService({ 'agents.voice.enabled': true });
+			const controller = createController(
+				new TestVoiceClientService(),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				configurationService,
+			);
+			if (state === 'connecting') {
+				controller['_isConnecting'].set(true, undefined);
+			} else {
+				controller['_isConnected'].set(true, undefined);
+			}
+
+			await configurationService.setUserConfiguration('agents.voice.enabled', false);
+			configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string): boolean {
+					return section === 'agents.voice.enabled';
+				}
+			});
+			results.push({
+				state,
+				connecting: controller.isConnecting.get(),
+				connected: controller.isConnected.get(),
+			});
+		}
+
+		assert.deepStrictEqual(results, [
+			{ state: 'connecting', connecting: false, connected: false },
+			{ state: 'connected', connecting: false, connected: false },
+		]);
+	});
+
+	test('disconnects when the Copilot entitlement becomes ineligible', async () => {
+		const results = [];
+		for (const entitlement of [ChatEntitlement.Free, ChatEntitlement.Business, ChatEntitlement.Enterprise]) {
+			const chatEntitlementService = new MutableTestChatEntitlementService();
+			chatEntitlementService.entitlement = ChatEntitlement.Pro;
+			const controller = createController(
+				new TestVoiceClientService(),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				chatEntitlementService,
+			);
+			controller['_isConnected'].set(true, undefined);
+
+			chatEntitlementService.setEntitlement(entitlement);
+			await new Promise<void>(resolve => queueMicrotask(resolve));
+			results.push({ entitlement, connected: controller.isConnected.get() });
+		}
+
+		assert.deepStrictEqual(results, [
+			{ entitlement: ChatEntitlement.Free, connected: false },
+			{ entitlement: ChatEntitlement.Business, connected: false },
+			{ entitlement: ChatEntitlement.Enterprise, connected: false },
+		]);
+	});
+
+	test('stays connected across an eligible paid-to-paid entitlement transition', async () => {
 		const chatEntitlementService = new MutableTestChatEntitlementService();
 		chatEntitlementService.entitlement = ChatEntitlement.Pro;
 		const controller = createController(
@@ -870,29 +948,38 @@ suite('VoiceSessionController', () => {
 		);
 		controller['_isConnected'].set(true, undefined);
 
-		chatEntitlementService.transitionEntitlement(ChatEntitlement.Unresolved, ChatEntitlement.Business);
+		chatEntitlementService.transitionEntitlement(ChatEntitlement.Unresolved, ChatEntitlement.ProPlus);
 		await new Promise<void>(resolve => queueMicrotask(resolve));
 
 		assert.strictEqual(controller.isConnected.get(), true);
 	});
 
-	test('restricts Voice Mode for external Enterprise users but allows internal staff', async () => {
-		const externalNotifications = new VoiceTestNotificationService();
-		const externalEntitlement = new MutableTestChatEntitlementService();
-		externalEntitlement.entitlement = ChatEntitlement.Enterprise;
-		const externalController = createController(
-			new TestVoiceClientService(),
-			undefined,
-			undefined,
-			undefined,
-			undefined,
-			undefined,
-			undefined,
-			undefined,
-			undefined,
-			externalNotifications,
-			externalEntitlement,
-		);
+	test('restricts Voice Mode for external Business and Enterprise users but allows internal staff', async () => {
+		const externalResults = [];
+		for (const entitlement of [ChatEntitlement.Business, ChatEntitlement.Enterprise]) {
+			const notifications = new VoiceTestNotificationService();
+			const entitlementService = new MutableTestChatEntitlementService();
+			entitlementService.entitlement = entitlement;
+			const controller = createController(
+				new TestVoiceClientService(),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				notifications,
+				entitlementService,
+			);
+			await controller.connect(mainWindow);
+			externalResults.push({
+				entitlement,
+				connecting: controller.isConnecting.get(),
+				notifications: notifications.notifications.map(notification => notification.message),
+			});
+		}
 
 		const internalNotifications = new VoiceTestNotificationService();
 		const internalEntitlement = new InternalTestChatEntitlementService();
@@ -911,17 +998,25 @@ suite('VoiceSessionController', () => {
 			internalEntitlement,
 		);
 
-		await externalController.connect(mainWindow);
 		await internalController.connect(mainWindow);
 
 		assert.deepStrictEqual({
-			externalConnecting: externalController.isConnecting.get(),
-			externalNotifications: externalNotifications.notifications.map(notification => notification.message),
+			externalResults,
 			internalConnecting: internalController.isConnecting.get(),
 			internalNotifications: internalNotifications.notifications.map(notification => notification.message),
 		}, {
-			externalConnecting: false,
-			externalNotifications: ['Voice Mode is not available for GitHub Copilot Enterprise accounts.'],
+			externalResults: [
+				{
+					entitlement: ChatEntitlement.Business,
+					connecting: false,
+					notifications: ['Voice Mode is not available for GitHub Copilot Business or Enterprise accounts.'],
+				},
+				{
+					entitlement: ChatEntitlement.Enterprise,
+					connecting: false,
+					notifications: ['Voice Mode is not available for GitHub Copilot Business or Enterprise accounts.'],
+				},
+			],
 			internalConnecting: true,
 			internalNotifications: [],
 		});

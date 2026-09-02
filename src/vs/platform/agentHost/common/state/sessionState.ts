@@ -1609,6 +1609,10 @@ export interface ISessionGitHubState {
 	readonly initialPullRequestUrls?: readonly string[];
 	/** Pull requests explicitly associated through user intent, most recent first. */
 	readonly associatedPullRequestUrls?: readonly string[];
+	/** Last host-observed state of {@link pullRequestStateUrl}. */
+	readonly pullRequestState?: 'open' | 'closed' | 'merged';
+	/** Pull request URL to which {@link pullRequestState} applies. */
+	readonly pullRequestStateUrl?: string;
 	/**
 	 * The name of the branch the most recent {@link pullRequestUrls} entry was found (or created) for.
 	 * A pull request always relates to a branch: when the working copy switches
@@ -1663,10 +1667,15 @@ export function withMostRecentSessionPullRequest(gitHubState: ISessionGitHubStat
 		pullRequestUrl,
 		...(gitHubState?.pullRequestUrls ?? [])
 	]);
+	const normalizedPullRequestUrl = pullRequestUrls[0]?.toLowerCase();
+	const stateApplies = gitHubState?.pullRequestStateUrl?.toLowerCase() === normalizedPullRequestUrl;
 
 	return {
 		pullRequestUrls,
 		pullRequestBranchName: branchName,
+		...(stateApplies && gitHubState?.pullRequestState && gitHubState.pullRequestStateUrl
+			? { pullRequestState: gitHubState.pullRequestState, pullRequestStateUrl: gitHubState.pullRequestStateUrl }
+			: {}),
 	};
 }
 
@@ -1799,6 +1808,8 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 		pullRequestUrls?: readonly string[];
 		initialPullRequestUrls?: readonly string[];
 		associatedPullRequestUrls?: readonly string[];
+		pullRequestState?: 'open' | 'closed' | 'merged';
+		pullRequestStateUrl?: string;
 		pullRequestBranchName?: string;
 	} = {};
 
@@ -1821,6 +1832,10 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 			result.associatedPullRequestUrls = associatedPullRequestUrls;
 		}
 	}
+	if (raw['pullRequestState'] === 'open' || raw['pullRequestState'] === 'closed' || raw['pullRequestState'] === 'merged') {
+		result.pullRequestState = raw['pullRequestState'];
+	}
+	if (typeof raw['pullRequestStateUrl'] === 'string') { result.pullRequestStateUrl = raw['pullRequestStateUrl']; }
 	if (typeof raw['pullRequestBranchName'] === 'string') { result.pullRequestBranchName = raw['pullRequestBranchName']; }
 	return result;
 }
