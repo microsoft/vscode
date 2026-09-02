@@ -173,7 +173,7 @@ suite('URI Label', () => {
 			differentCase: labelService.getUriLabel(URI.parse('test://current/sessions/session-id/file.md')),
 		}, {
 			matching: 'Session/file.md',
-			differentCase: '/sessions/session-id/file.md',
+			differentCase: `${sep}sessions${sep}session-id${sep}file.md`,
 		});
 
 		registration.dispose();
@@ -206,7 +206,7 @@ suite('URI Label', () => {
 		}, {
 			home: 'test://current/sessions/session-id',
 			label: 'Session ${path}/files/result.md',
-			unrelated: '/unrelated/file.md',
+			unrelated: `${sep}unrelated${sep}file.md`,
 			resolverCalls: 2,
 		});
 		registration.dispose();
@@ -267,9 +267,9 @@ suite('URI Label', () => {
 			resolverCalls,
 		}, {
 			currentHome: undefined,
-			current: '/sessions/file.md',
+			current: `${sep}sessions${sep}file.md`,
 			parentHome: undefined,
-			parent: '/file.md',
+			parent: `${sep}file.md`,
 			dotPrefixed: 'Session/file.md',
 			resolverCalls: 1,
 		});
@@ -323,7 +323,7 @@ suite('URI Label', () => {
 			formatterChanges: 1,
 			home: 'test://current/sessions/session-42',
 			label: 'Session 42/file.md',
-			unrelated: '/unrelated/file.md',
+			unrelated: `${sep}unrelated${sep}file.md`,
 			resolverCalls: 2,
 		});
 
