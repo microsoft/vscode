@@ -378,7 +378,7 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 			? getGitHubIssueOrPullRequestLink(textdata)
 			: undefined;
 		if (githubLink) {
-			if (model.uri.scheme === Schemas.sessionsChatInput || ranges.length !== 1) {
+			if (ranges.length !== 1) {
 				return;
 			}
 			const pasteRange = ranges[0];
@@ -408,6 +408,9 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 				this.pasteTargetService,
 			);
 			return edit ? createEditSession(edit) : undefined;
+		}
+		if (model.uri.scheme === Schemas.sessionsChatInput) {
+			return;
 		}
 
 		let copiedContext: IChatRequestPasteVariableEntry | undefined;

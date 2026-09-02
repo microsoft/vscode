@@ -204,6 +204,13 @@ suite('Chat Paste Providers', () => {
 			{ triggerKind: DocumentPasteTriggerKind.Automatic },
 			CancellationToken.None
 		);
+		const sessionsLongTextSession = await provider.provideDocumentPasteEdits(
+			sessionsModel,
+			[new Range(1, 1, 1, 1)],
+			transferOf({ [Mimes.text]: longText }),
+			{ triggerKind: DocumentPasteTriggerKind.Automatic },
+			CancellationToken.None
+		);
 		await (githubIssueSession?.edits[0]?.additionalEdit?.edits[0] as ICustomEdit | undefined)?.redo();
 		await (githubPullRequestSession?.edits[0]?.additionalEdit?.edits[0] as ICustomEdit | undefined)?.redo();
 		const pasteInsideReferenceSession = await pasteInto(transferOf({
@@ -256,7 +263,8 @@ suite('Chat Paste Providers', () => {
 			leavesInvalidGitHubUrlsToDefaultPaste: invalidGithubIssueSession,
 			leavesPaddedGitHubUrlsToDefaultPaste: paddedGithubIssueSession,
 			leavesGitHubUrlsToDefaultPasteWhenDisabled: disabledGithubIssueSession,
-			leavesSessionsComposerUrlUnchanged: sessionsGithubIssueSession,
+			formatsSessionsComposerGitHubUrls: sessionsGithubIssueSession?.edits[0]?.insertText,
+			leavesSessionsComposerLongTextInline: sessionsLongTextSession,
 			leavesPasteInsideReferenceToDefaultPaste: pasteInsideReferenceSession,
 			leavesPasteAcrossReferencesToDefaultPaste: pasteAcrossReferencesSession,
 			referencesAfterReplacement,
@@ -310,7 +318,8 @@ suite('Chat Paste Providers', () => {
 			leavesInvalidGitHubUrlsToDefaultPaste: undefined,
 			leavesPaddedGitHubUrlsToDefaultPaste: undefined,
 			leavesGitHubUrlsToDefaultPasteWhenDisabled: undefined,
-			leavesSessionsComposerUrlUnchanged: undefined,
+			formatsSessionsComposerGitHubUrls: 'microsoft/vscode#334061 ',
+			leavesSessionsComposerLongTextInline: undefined,
 			leavesPasteInsideReferenceToDefaultPaste: undefined,
 			leavesPasteAcrossReferencesToDefaultPaste: undefined,
 			referencesAfterReplacement: [

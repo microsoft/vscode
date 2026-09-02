@@ -330,6 +330,25 @@ suite('ChatDynamicVariableModel', () => {
 		});
 	});
 
+	test('uses reference prompt text without adding attached context', () => {
+		const label = 'microsoft/vscode#334061';
+		const url = 'https://github.com/microsoft/vscode/issues/334061#issuecomment-1';
+		const { editor, model } = createDynamicVariableModel(`before ${label} after`);
+		model.addReference(createMockVariable({
+			id: url,
+			range: new Range(1, 8, 1, 8 + label.length),
+			promptText: url,
+		}));
+
+		assert.deepStrictEqual({
+			displayText: editor.getValue(),
+			promptText: model.getPromptText(editor.getValue()),
+		}, {
+			displayText: `before ${label} after`,
+			promptText: `before ${url} after`,
+		});
+	});
+
 	test('removes the whole reference when editing inside it', () => {
 		const { editor, model } = createDynamicVariableModel('explain #sym:example ');
 		model.addReference(createMockVariable({
