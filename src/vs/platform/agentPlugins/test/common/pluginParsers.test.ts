@@ -412,17 +412,21 @@ suite('pluginParsers', () => {
 			});
 		});
 
-		test('toParsedSkill pairs the resource with a SkillCustomization and omits an absent description', () => {
+		test('toParsedSkill pairs invocation metadata with a SkillCustomization', () => {
 			const uri = URI.file('/home/.claude/skills/mapper/SKILL.md');
-			const parsed = toParsedSkill({ uri, name: 'mapper' });
+			const parsed = toParsedSkill({ uri, name: 'mapper', disableModelInvocation: true, disableUserInvocation: true });
 			assert.deepStrictEqual(parsed, {
 				uri,
 				name: 'mapper',
+				disableModelInvocation: true,
+				disableUserInvocation: true,
 				customization: {
 					type: CustomizationType.Skill,
 					id: customizationId(uri.toString()),
 					uri: uri.toString(),
 					name: 'mapper',
+					disableModelInvocation: true,
+					disableUserInvocation: true,
 				},
 			});
 		});
@@ -611,6 +615,57 @@ suite('pluginParsers', () => {
 				await write('/plugins/example/skills/nested/deeper/SKILL.md', '---\nname: deeper\ndescription: Too deep\n---');
 
 				assert.deepStrictEqual((await parse()).skills.map(skill => skill.name), ['other', 'valid']);
+			});
+
+			test('projects skill invocation frontmatter', async () => {
+				await write('/plugins/example/plugin.json', JSON.stringify({ $schema: AGENT_PLUGIN_SCHEMA, name: 'example' }));
+				await write('/plugins/example/skills/both/SKILL.md', '---\nname: both\nuser-invocable: false\ndisable-model-invocation: true\n---');
+				await write('/plugins/example/skills/default/SKILL.md', '---\nname: default\n---');
+				await write('/plugins/example/skills/explicit-defaults/SKILL.md', '---\nname: explicit-defaults\nuser-invocable: true\ndisable-model-invocation: false\n---');
+				await write('/plugins/example/skills/model-disabled/SKILL.md', '---\nname: model-disabled\ndisable-model-invocation: true\n---');
+				await write('/plugins/example/skills/user-disabled/SKILL.md', '---\nname: user-disabled\nuser-invocable: false\n---');
+
+				const plugin = await parse();
+				assert.deepStrictEqual(plugin.skills.map(skill => ({
+					name: skill.name,
+					disableModelInvocation: skill.disableModelInvocation,
+					disableUserInvocation: skill.disableUserInvocation,
+					customization: {
+						disableModelInvocation: skill.customization.disableModelInvocation,
+						disableUserInvocation: skill.customization.disableUserInvocation,
+					},
+				})), [
+					{
+						name: 'both',
+						disableModelInvocation: true,
+						disableUserInvocation: true,
+						customization: { disableModelInvocation: true, disableUserInvocation: true },
+					},
+					{
+						name: 'default',
+						disableModelInvocation: undefined,
+						disableUserInvocation: undefined,
+						customization: { disableModelInvocation: undefined, disableUserInvocation: undefined },
+					},
+					{
+						name: 'explicit-defaults',
+						disableModelInvocation: undefined,
+						disableUserInvocation: undefined,
+						customization: { disableModelInvocation: undefined, disableUserInvocation: undefined },
+					},
+					{
+						name: 'model-disabled',
+						disableModelInvocation: true,
+						disableUserInvocation: undefined,
+						customization: { disableModelInvocation: true, disableUserInvocation: undefined },
+					},
+					{
+						name: 'user-disabled',
+						disableModelInvocation: undefined,
+						disableUserInvocation: true,
+						customization: { disableModelInvocation: undefined, disableUserInvocation: true },
+					},
+				]);
 			});
 
 			test('reads known MCP fields and leaves harness placeholders unresolved', async () => {

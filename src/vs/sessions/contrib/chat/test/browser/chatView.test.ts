@@ -15,7 +15,7 @@ import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workben
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
-import { findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { findInitialTranscriptContextEntry, findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
@@ -670,6 +670,27 @@ suite('Sessions - Chat View', () => {
 			variableData: { variables: [] },
 			attachedContext: [attachment],
 		}]), attachment);
+
+		const bootstrap = {
+			isRequestHiddenFromTranscript: true,
+			variableData: { variables: [] },
+			attachedContext: [attachment],
+		};
+		const requestOnlyHiddenNotice = {
+			isRequestHiddenFromTranscript: true,
+			variableData: { variables: [] },
+		};
+		const visibleRequest = {
+			isRequestHiddenFromTranscript: false,
+			variableData: { variables: [] },
+		};
+		assert.deepStrictEqual({
+			afterNotice: findInitialTranscriptContextEntry([bootstrap, requestOnlyHiddenNotice]),
+			afterVisibleRequest: findInitialTranscriptContextEntry([bootstrap, visibleRequest]),
+		}, {
+			afterNotice: attachment,
+			afterVisibleRequest: undefined,
+		});
 	});
 
 	test('the sub-session tip yields the space to a notification and comes back', () => {
