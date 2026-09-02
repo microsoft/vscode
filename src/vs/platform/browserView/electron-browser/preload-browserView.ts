@@ -195,6 +195,9 @@ function init() {
 	ipcRenderer.on('vscode:browserView:startElementPicker', (_event: unknown, options: IBrowserElementSelectionOptions) => {
 		elementPicker.start(options);
 	});
+	ipcRenderer.on('vscode:browserView:setElementPickerPageMouseEventsSuppressed', (_event: unknown, suppressed: boolean) => {
+		elementPicker.setPageMouseEventsSuppressed(suppressed);
+	});
 	ipcRenderer.on('vscode:browserView:stopElementPicker', (_event: unknown) => {
 		elementPicker.stop();
 	});
@@ -379,7 +382,6 @@ class ElementPicker {
 	private static readonly _COMMENT_SURFACE_ANIMATION_DURATION = 140;
 	private static readonly _COMMENT_SUPPORTING_FADE_DURATION = 120;
 	private static readonly _CURSOR_DEFAULT = '/* VS Code injected style */ * { cursor: default !important; }';
-	private static readonly _CURSOR_NONE = '/* VS Code injected style */ * { cursor: none !important; }';
 	private static readonly _CURSOR_CROSSHAIR = '/* VS Code injected style */ * { cursor: crosshair !important; }';
 
 	private _selectionActive = false;
@@ -394,7 +396,6 @@ class ElementPicker {
 	private readonly _highlight: HTMLDivElement;
 	private readonly _commentPreviewRemoveButton: HTMLButtonElement;
 	private readonly _overlay: HTMLDivElement;
-	private readonly _touchCursor: HTMLDivElement;
 	private readonly _label: HTMLDivElement;
 	private readonly _labelSelector: HTMLSpanElement;
 	private readonly _labelClasses: HTMLSpanElement;
@@ -418,9 +419,7 @@ class ElementPicker {
 	private _externalHighlightTarget: Element | undefined;
 	private _focusedTarget: Element | undefined;
 	private _cursorStylesheet: HTMLStyleElement | undefined;
-	private readonly _coarsePointerQuery = window.matchMedia('(pointer: coarse)');
-	private _restingCursor = ElementPicker._CURSOR_DEFAULT;
-	private _showTouchCursor = false;
+	private _pageMouseEventsSuppressed = false;
 	private _dismissedCommentOnPointerDown = false;
 	private _commentTarget: Element | undefined;
 	private _commentAnchor: { x: number; y: number } | undefined;
@@ -512,12 +511,6 @@ class ElementPicker {
 		overlay.className = 'overlay';
 		root.appendChild(overlay);
 		this._overlay = overlay;
-
-		const touchCursor = document.createElement('div');
-		touchCursor.className = 'touch-cursor';
-		touchCursor.setAttribute('aria-hidden', 'true');
-		root.appendChild(touchCursor);
-		this._touchCursor = touchCursor;
 
 		const label = document.createElement('div');
 		label.className = 'label';
@@ -637,6 +630,9 @@ class ElementPicker {
 
 		window.addEventListener('scroll', () => this._onScrollOrResize(), { passive: true, capture: true });
 		window.addEventListener('resize', () => this._onScrollOrResize());
+		for (const type of ['pointerover', 'pointerout', 'pointerenter', 'pointerleave', 'mousemove', 'mouseover', 'mouseout', 'mouseenter', 'mouseleave']) {
+			window.addEventListener(type, this._onEmulationHoverEvent, true);
+		}
 	}
 
 	start(options: IBrowserElementSelectionOptions): boolean {
@@ -654,11 +650,9 @@ class ElementPicker {
 		// so the cursor always appears as a normal pointer even when over e.g. links.
 		// Updated to crosshair in _onPointerDown, reset in _onPointerUp.
 		const cursorStyle = document.createElement('style');
-		this._updateTouchCursor();
-		cursorStyle.textContent = this._restingCursor;
+		cursorStyle.textContent = ElementPicker._CURSOR_DEFAULT;
 		document.head.appendChild(cursorStyle);
 		this._cursorStylesheet = cursorStyle;
-		this._coarsePointerQuery.addEventListener('change', this._updateTouchCursor);
 
 		// Register high-frequency listeners only while selection is active.
 		window.addEventListener('pointermove', this._onPointerMove, true);
@@ -684,7 +678,6 @@ class ElementPicker {
 		const wasCommentMode = this._commentMode;
 		this._commentMode = options.mode === commentElementSelectionMode;
 		this._continuous = options.continuous ?? false;
-		this._updateTouchCursor();
 		if (wasCommentMode && !this._commentMode && this._commentTarget) {
 			this._closeCommentComposer();
 		}
@@ -694,16 +687,9 @@ class ElementPicker {
 		}
 	}
 
-	private readonly _updateTouchCursor = (): void => {
-		this._showTouchCursor = this._coarsePointerQuery.matches;
-		this._restingCursor = this._showTouchCursor ? ElementPicker._CURSOR_NONE : ElementPicker._CURSOR_DEFAULT;
-		if (this._cursorStylesheet && !this._dragStart) {
-			this._cursorStylesheet.textContent = this._restingCursor;
-		}
-		if (!this._showTouchCursor) {
-			this._touchCursor.style.display = 'none';
-		}
-	};
+	setPageMouseEventsSuppressed(suppressed: boolean): void {
+		this._pageMouseEventsSuppressed = suppressed;
+	}
 
 	stop(): void {
 		if (!this._selectionActive) {
@@ -716,10 +702,6 @@ class ElementPicker {
 
 		this._cursorStylesheet?.remove();
 		this._cursorStylesheet = undefined;
-		this._restingCursor = ElementPicker._CURSOR_DEFAULT;
-		this._showTouchCursor = false;
-		this._touchCursor.style.display = 'none';
-		this._coarsePointerQuery.removeEventListener('change', this._updateTouchCursor);
 
 		// Remove high-frequency listeners.
 		window.removeEventListener('pointermove', this._onPointerMove, true);
@@ -850,16 +832,22 @@ class ElementPicker {
 
 	// --- Event handlers ---
 
+	private _onEmulationHoverEvent = (event: Event): void => {
+		if (!this._pageMouseEventsSuppressed || (event instanceof PointerEvent && event.pointerType !== 'mouse')) {
+			return;
+		}
+		if (this._selectionActive && event.type === 'pointerleave') {
+			this._onPointerLeave();
+		}
+		event.preventDefault();
+		event.stopImmediatePropagation();
+	};
+
 	private _onPointerMove = (e: PointerEvent): void => {
 		if (!this._selectionActive) {
 			return;
 		}
 		const isOverPicker = e.composedPath().includes(this._shadowHost);
-		if (this._showTouchCursor) {
-			this._touchCursor.style.left = `${e.clientX}px`;
-			this._touchCursor.style.top = `${e.clientY}px`;
-			this._touchCursor.style.display = !this._dragStart && !isOverPicker ? 'block' : 'none';
-		}
 		if (this._commentTarget) {
 			if (!isOverPicker) {
 				this._commentPointerInteraction = true;
@@ -904,7 +892,6 @@ class ElementPicker {
 		if (!this._selectionActive) {
 			return;
 		}
-		this._touchCursor.style.display = 'none';
 		if (this._commentTarget) {
 			this._commentPointerInteraction = true;
 			return;
@@ -946,7 +933,6 @@ class ElementPicker {
 		if (this._cursorStylesheet) {
 			this._cursorStylesheet.textContent = ElementPicker._CURSOR_CROSSHAIR;
 		}
-		this._touchCursor.style.display = 'none';
 		e.preventDefault();
 		e.stopPropagation();
 	};
@@ -979,12 +965,7 @@ class ElementPicker {
 		const start = this._dragStart;
 		this._dragStart = undefined;
 		if (this._cursorStylesheet) {
-			this._cursorStylesheet.textContent = this._restingCursor;
-		}
-		if (this._showTouchCursor) {
-			this._touchCursor.style.left = `${e.clientX}px`;
-			this._touchCursor.style.top = `${e.clientY}px`;
-			this._touchCursor.style.display = 'block';
+			this._cursorStylesheet.textContent = ElementPicker._CURSOR_DEFAULT;
 		}
 
 		if (dx < ElementPicker._DRAG_THRESHOLD_PX && dy < ElementPicker._DRAG_THRESHOLD_PX) {
@@ -1351,7 +1332,6 @@ class ElementPicker {
 	private _showCommentComposer(target: Element, anchor: { x: number; y: number }, pointerInteraction = false): void {
 		this._externalHighlightTarget = undefined;
 		this._hideActiveCommentPreview();
-		this._touchCursor.style.display = 'none';
 		this._commentTarget = target;
 		this._commentPointerInteraction = pointerInteraction;
 		this._commentAnchor = {
@@ -1863,19 +1843,6 @@ class ElementPicker {
 				position: fixed; inset: 0;
 				background: transparent; box-sizing: border-box;
 				z-index: 2;
-			}
-			.touch-cursor {
-				display: none;
-				position: fixed;
-				width: 20px;
-				height: 20px;
-				box-sizing: border-box;
-				border: var(--vscode-strokeThickness, 1px) solid var(--vscode-contrastBorder, var(--vscode-editorWidget-foreground, currentColor));
-				border-radius: var(--vscode-cornerRadius-circle, 50%);
-				background: color-mix(in srgb, var(--vscode-editorWidget-foreground, currentColor) 35%, transparent);
-				transform: translate(-50%, -50%);
-				pointer-events: none;
-				z-index: 5;
 			}
 			.comment-layer {
 				position: absolute; inset: 0; pointer-events: none;
