@@ -1330,6 +1330,11 @@ export const openFilePreserveFocusHandler = async (accessor: ServicesAccessor) =
 	})));
 };
 
+export const copyPasteFileSameLocation = async (accessor: ServicesAccessor) => {
+	copyFileHandler(accessor);
+	pasteFileHandler(accessor);
+};
+
 class BaseSetActiveEditorReadonlyInSession extends Action2 {
 
 	constructor(
