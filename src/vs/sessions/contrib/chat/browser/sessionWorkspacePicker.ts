@@ -1193,8 +1193,9 @@ export class WorkspacePicker extends Disposable {
 				const selection = await this._browseForLocalFolder();
 				return selection ? { ...selection, action } : undefined;
 			}
-			const currentWorkspace = action.attachesContext
-				? this._selectedResolved?.workspace
+			const actionProvider = this.sessionsProvidersService.getProvider(action.providerId);
+			const currentWorkspace = action.attachesContext && this._selectedFolderUri
+				? (actionProvider?.resolveWorkspace(this._selectedFolderUri) ?? this._selectedResolved?.workspace)
 				: (this._getSelectedRepositoryWorkspace() ?? this._selectedResolved?.workspace);
 			const workspace = await action.run(currentWorkspace);
 			return workspace ? { workspace, providerId: action.providerId, action } : undefined;

@@ -3187,6 +3187,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 	});
 
 	test('exposes GitHub context actions through Add Context', async () => {
+		const localProvider = createMockProvider('local');
 		const provider = createMockProvider('github');
 		const issueUri = URI.parse('https://github.com/microsoft/vscode/issues/1');
 		const issueWorkspace = {
@@ -3195,11 +3196,11 @@ suite('WorkspacePicker - Tab discovery', () => {
 			group: SESSION_WORKSPACE_GROUP_GITHUB,
 		};
 		let contextActionWorkspace: ISessionWorkspace | undefined;
-		providersService.setProviders([{
+		providersService.setProviders([localProvider, {
 			...provider,
 			resolveWorkspace: uri => {
 				const workspace = provider.resolveWorkspace(uri);
-				return workspace ? { ...workspace, group: SESSION_WORKSPACE_GROUP_GITHUB } : undefined;
+				return workspace ? { ...workspace, label: 'GitHub-resolved selection', group: SESSION_WORKSPACE_GROUP_GITHUB } : undefined;
 			},
 			browseActions: [{
 				...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Issue...'),
@@ -3222,12 +3223,18 @@ suite('WorkspacePicker - Tab discovery', () => {
 		assert.deepStrictEqual({
 			actionsWithoutRepository: actionsWithoutRepository.map(action => action.label),
 			actions: actions.map(action => action.label),
-			contextActionWorkspace: contextActionWorkspace?.uri.toString(),
+			contextActionWorkspace: contextActionWorkspace && {
+				uri: contextActionWorkspace.uri.toString(),
+				label: contextActionWorkspace.label,
+			},
 			selectedContexts,
 		}, {
 			actionsWithoutRepository: ['Issue...'],
 			actions: ['Issue...'],
-			contextActionWorkspace: URI.file('/microsoft/vscode').toString(),
+			contextActionWorkspace: {
+				uri: URI.file('/microsoft/vscode').toString(),
+				label: 'GitHub-resolved selection',
+			},
 			selectedContexts: [issueUri.toString()],
 		});
 	});
