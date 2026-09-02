@@ -154,41 +154,44 @@ are unchanged.
 
 That the SDK inlines its peers is an implementation detail Anthropic never
 promised; the `peerDependencies` block says the opposite. And `--omit=peer`
-applies to every SDK, including any added later — so the check that justifies
-it can't be special-cased to one.
+applies to every SDK, including any added later, so the check that justifies it
+can't be special-cased to one.
 
 `verifyStagedTree` in `package.ts` runs against the finished tree, just before
-it is tarred, and **every SDK must have a case in it**. `Sdk` is an open string
-type, so adding an SDK is one folder under `agents/`; without the mandatory
-case, that folder would inherit `--omit=peer` and the rest of this pipeline
-with nothing checking it. The `default` branch is a build failure, not a skip.
+it is tarred, and nothing in it is conditioned on which SDK is being built:
 
-What gets checked is per-SDK, because the two are shaped differently and a
-check copied from one to the other would assert something we don't depend on:
+1. **It imports the package's entry point** in a child process, under a
+   timeout, with the peers absent. The entry is `<package>/<manifest.main>`,
+   which is the literal path `claudeAgentSdkService.ts` loads at runtime.
+   Packages that declare no `main` are skipped, which is how codex opts out
+   without a special case: it ships only a `bin`, and the agent host never
+   loads JS from that tarball. If a future SDK starts importing a peer for
+   real, the build fails with ERR_MODULE_NOT_FOUND instead of failing on a
+   user's machine months later, against a tarball already immutable on the CDN.
+2. **It stats every native binary** and requires each to be present, non-empty
+   and executable.
 
-- **claude.** The agent host dynamic-imports `sdk.mjs` out of the tarball, so
-  the build imports it too, in a child process and under a timeout. It then
-  repeats the production call shape from `buildClientToolMcpServer`: a zod raw
-  shape into `sdk.tool()`, the result into `sdk.createSdkMcpServer()`. The
-  import alone would only catch a *static* peer import. Every static import in
-  `sdk.mjs` today is a node builtin, and the one thing it does resolve from
-  disk, its native binary, it resolves lazily via `createRequire` at query
-  time. `createSdkMcpServer()` is the call that does real work: it validates
-  and converts the zod shape, so that is where a de-inlined zod would be
-  resolved. If a future SDK stops inlining a peer, the build fails here instead
-  of on a user's machine months later, against a tarball that is already
-  immutable on the CDN. The native binary at
-  `claude-agent-sdk-<target>/claude[.exe]` is then asserted present and
-  executable.
-- **codex.** The agent host never loads JS from that tarball; it spawns
-  `codex-<target>/vendor/<rust-triple>/bin/codex[.exe]` directly. So the check
-  is that the platform package vendors exactly one triple and that triple holds
-  a runnable binary. The `sdkTarget → triple` table is deliberately *not*
-  copied out of `codexAgent.ts`. A second copy could drift and then validate a
-  path nothing uses, so a renamed triple stays the runtime's to catch.
+Step 2 needs the one piece of per-SDK knowledge in the file, since no manifest
+field describes it: claude ships a single binary at the root of its platform
+package, codex fills a `vendor/<rust-triple>/bin/` directory.
+`listPlatformBinaries` is the only place that encodes those layouts, and
+`chmodPlatformBinaries` reads from the same function, so the chmod and the
+assertion cannot disagree about where the binaries are.
 
-The file checks are cross-target safe, and so is the claude probe: `sdk.mjs` is
-platform-independent JS and none of the probed calls spawn the native binary.
+An SDK added under `agents/` with no entry in `listPlatformBinaries` yields no
+binaries, and step 2 fails the build naming the function to edit. That is the
+mandatory-per-SDK guard: a new folder cannot inherit `--omit=peer` unchecked.
+
+The import probe deliberately does not exercise SDK-specific APIs. An earlier
+version called `tool()` and `createSdkMcpServer()` with a zod shape to catch a
+peer resolved lazily inside those calls, but that meant hardcoding one SDK's
+call shape into the build, and the packaging step is the wrong place for it.
+A peer that comes back will almost certainly come back as a static import,
+which the plain import catches. The lazy resolution that does exist in
+`sdk.mjs` today is for the native binary, and step 2 covers that.
+
+Both steps are cross-target safe: `sdk.mjs` is platform-independent JS and
+importing it does not spawn the native binary.
 
 ## Bumping an SDK version
 

@@ -134,86 +134,94 @@ function parseTargetTriple(sdkTarget: string): { os: string; cpu: string; libc?:
 }
 
 
-/** Both SDKs suffix their native binary with `.exe` on win32 targets. */
-function exeName(base: string, sdkTarget: string): string {
-	return sdkTarget.startsWith('win32') ? `${base}.exe` : base;
+/** Subdirectories of `dir` whose name starts with `prefix`, as full paths. */
+function subdirectories(dir: string, prefix = ''): string[] {
+	if (!fs.existsSync(dir)) {
+		return [];
+	}
+	return fs.readdirSync(dir, { withFileTypes: true })
+		.filter(e => e.isDirectory() && e.name.startsWith(prefix))
+		.map(e => path.join(dir, e.name));
 }
 
 /**
- * Chmod the executable binaries in an extracted node_modules tree. The layout
- * differs per SDK: claude ships one binary at the root of its platform
- * package, codex nests it under `vendor/<rust-triple>/bin/`.
+ * Every native binary in a staged tree.
+ *
+ * The one place that knows the per-SDK layout, since nothing in the package
+ * manifests describes it: claude ships a single binary at the root of its
+ * platform package, codex fills a `vendor/<rust-triple>/bin/` directory.
+ * `chmodPlatformBinaries` and `verifyStagedTree` both read from here, so the
+ * two can't drift.
+ *
+ * Returns nothing for an SDK with no entry above, which `verifyStagedTree`
+ * turns into a build failure.
  */
-function chmodPlatformBinaries(nodeModulesDir: string, sdk: Sdk, sdkTarget: string): void {
+function listPlatformBinaries(nodeModulesDir: string, sdk: Sdk, sdkTarget: string): string[] {
+	const exe = sdkTarget.startsWith('win32') ? '.exe' : '';
 	if (sdk === 'claude') {
-		const scopeDir = path.join(nodeModulesDir, '@anthropic-ai');
-		if (!fs.existsSync(scopeDir)) {
-			return;
-		}
-		for (const child of fs.readdirSync(scopeDir)) {
-			if (!child.startsWith('claude-agent-sdk-')) {
-				continue;
-			}
-			const binary = path.join(scopeDir, child, exeName('claude', sdkTarget));
-			if (fs.existsSync(binary)) {
-				fs.chmodSync(binary, 0o755);
-			}
-		}
-		return;
+		return subdirectories(path.join(nodeModulesDir, '@anthropic-ai'), 'claude-agent-sdk-')
+			.map(pkgDir => path.join(pkgDir, `claude${exe}`))
+			.filter(binary => fs.existsSync(binary));
 	}
+	if (sdk === 'codex') {
+		return subdirectories(path.join(nodeModulesDir, '@openai'), 'codex-')
+			.flatMap(pkgDir => subdirectories(path.join(pkgDir, 'vendor')))
+			.map(tripleDir => path.join(tripleDir, 'bin'))
+			.flatMap(binDir => fs.existsSync(binDir) ? fs.readdirSync(binDir).map(f => path.join(binDir, f)) : []);
+	}
+	return [];
+}
 
-	// codex
-	const scopeDir = path.join(nodeModulesDir, '@openai');
-	if (!fs.existsSync(scopeDir)) {
-		return;
-	}
-	for (const child of fs.readdirSync(scopeDir)) {
-		if (!child.startsWith('codex-')) {
-			continue;
-		}
-		const vendorDir = path.join(scopeDir, child, 'vendor');
-		if (!fs.existsSync(vendorDir)) {
-			continue;
-		}
-		for (const triple of fs.readdirSync(vendorDir)) {
-			const binDir = path.join(vendorDir, triple, 'bin');
-			if (!fs.existsSync(binDir)) {
-				continue;
-			}
-			for (const f of fs.readdirSync(binDir)) {
-				fs.chmodSync(path.join(binDir, f), 0o755);
-			}
-		}
+function chmodPlatformBinaries(nodeModulesDir: string, sdk: Sdk, sdkTarget: string): void {
+	for (const binary of listPlatformBinaries(nodeModulesDir, sdk, sdkTarget)) {
+		fs.chmodSync(binary, 0o755);
 	}
 }
 
 /**
  * Checks the staged tree the way the agent host will consume it, before the
- * bytes become immutable on the CDN.
- *
- * Every SDK needs a case: `Sdk` is an open string type, so a new folder under
- * `agents/` would otherwise inherit `--omit=peer` unchecked. What gets checked
- * is per-SDK, since claude's tarball is imported as JS and codex's is only ever
- * spawned. See "Keeping the assumption honest" in README.md.
+ * bytes become immutable on the CDN. Applies to every SDK: nothing here is
+ * conditioned on which one, so a new folder under `agents/` can't inherit
+ * `--omit=peer` unchecked. See "Keeping the assumption honest" in README.md.
  */
 function verifyStagedTree(sdk: Sdk, stagingDir: string, sdkTarget: string, sdkVersion: string): void {
 	const nodeModulesDir = path.join(stagingDir, 'node_modules');
-	switch (sdk) {
-		case 'claude':
-			verifyClaudeSdkLoads(stagingDir, sdkVersion);
-			// `sdk.mjs` resolves this lazily, at query time, so the load probe
-			// above never touches it.
-			assertStagedBinary(
-				path.join(nodeModulesDir, '@anthropic-ai', `claude-agent-sdk-${sdkTarget}`, exeName('claude', sdkTarget)),
-				`claude-agent-sdk@${sdkVersion} (${sdkTarget})`,
-			);
-			return;
-		case 'codex':
-			verifyCodexBinaryLayout(nodeModulesDir, sdkTarget, sdkVersion);
-			return;
-		default:
-			throw new Error(`[${SCRIPT}] No staged-tree verification defined for SDK '${sdk}'. Add a case to verifyStagedTree() describing how the agent host consumes its tarball; see build/agent-sdk/README.md.`);
+	const { name: packageName } = getAgentMeta(sdk);
+	const context = `${packageName}@${sdkVersion} (${sdkTarget})`;
+
+	const entry = resolvePackageEntry(nodeModulesDir, packageName);
+	if (entry) {
+		verifySdkLoads(stagingDir, entry, context);
 	}
+
+	const binaries = listPlatformBinaries(nodeModulesDir, sdk, sdkTarget);
+	if (binaries.length === 0) {
+		throw new Error(`[${SCRIPT}] ${context}: found no native binaries in the staged tree. Either the package layout changed, or '${sdk}' is new and needs an entry in listPlatformBinaries(); see build/agent-sdk/README.md.`);
+	}
+	for (const binary of binaries) {
+		assertStagedBinary(binary, context);
+	}
+}
+
+/**
+ * The package's own importable entry, or undefined when it declares none.
+ * codex ships only a `bin`, so there is nothing to import.
+ *
+ * Reads `main` rather than resolving `exports`, because `<package>/<main>` is
+ * the literal path `claudeAgentSdkService.ts` imports at runtime.
+ */
+function resolvePackageEntry(nodeModulesDir: string, packageName: string): string | undefined {
+	const packageDir = path.join(nodeModulesDir, ...packageName.split('/'));
+	const manifestPath = path.join(packageDir, 'package.json');
+	if (!fs.existsSync(manifestPath)) {
+		return undefined;
+	}
+	const manifest: { main?: string } = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+	if (!manifest.main) {
+		return undefined;
+	}
+	const entry = path.join(packageDir, manifest.main);
+	return fs.existsSync(entry) ? entry : undefined;
 }
 
 /**
@@ -236,83 +244,35 @@ function assertStagedBinary(binaryPath: string, context: string): void {
 	}
 }
 
-/**
- * codex is spawned from `codex-<target>/vendor/<rust-triple>/bin/codex[.exe]`.
- *
- * Asserts the structure `codexAgent.ts`'s `sdkTarget → triple` table rests on
- * rather than copying the table, which could drift and then validate a path
- * nothing uses. A renamed triple stays the runtime's to catch.
- */
-function verifyCodexBinaryLayout(nodeModulesDir: string, sdkTarget: string, sdkVersion: string): void {
-	const context = `codex@${sdkVersion} (${sdkTarget})`;
-	const vendorDir = path.join(nodeModulesDir, '@openai', `codex-${sdkTarget}`, 'vendor');
-	if (!fs.existsSync(vendorDir)) {
-		throw new Error(`[${SCRIPT}] ${context}: no 'vendor' directory at '${vendorDir}'.`);
-	}
-	const triples = fs.readdirSync(vendorDir, { withFileTypes: true }).filter(e => e.isDirectory()).map(e => e.name);
-	if (triples.length !== 1) {
-		throw new Error(`[${SCRIPT}] ${context}: expected one rust-triple directory under '${vendorDir}', found ${triples.length}${triples.length ? ` (${triples.join(', ')})` : ''}. codexAgent.ts picks the triple from a fixed table, so anything else means that table needs revisiting.`);
-	}
-	assertStagedBinary(path.join(vendorDir, triples[0], 'bin', exeName('codex', sdkTarget)), context);
-}
-
 const PROBE_TIMEOUT_MS = 2 * 60 * 1000;
 
 /**
- * Imports the packaged SDK and repeats `buildClientToolMcpServer`'s call shape
- * against it, with the peers absent (see `npmCi`).
+ * Imports the packaged entry point with the peers absent (see `npmCi`).
  *
  * The SDK inlines MCP, zod and ajv today but never promised to, and its
- * `peerDependencies` block says otherwise. If that changes, this fails the
- * build with ERR_MODULE_NOT_FOUND instead of failing on a user's machine
- * against a tarball that is already immutable.
- *
- * Importing `sdk.mjs` alone would catch a static peer import (every static
- * import it has today is a node builtin), but not a lazily-resolved one, and
- * the SDK already resolves its native binary that way. So the probe calls
- * through: `createSdkMcpServer()` validates and converts the zod raw shape at
- * call time, which is where a de-inlined zod would be resolved. `tool()` is
- * only there to build its argument.
+ * `peerDependencies` block says otherwise. If a future version static-imports
+ * one for real, this fails the build with ERR_MODULE_NOT_FOUND instead of
+ * failing on a user's machine against a tarball that is already immutable.
  *
  * Child process to keep the module out of this process's cache; timeout so a
  * stray handle fails the build instead of hanging the release job.
  */
-function verifyClaudeSdkLoads(stagingDir: string, sdkVersion: string): void {
-	const entry = path.join(stagingDir, 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'sdk.mjs');
-	// Resolves from this file, so it lands on the repo's own zod. The staged
-	// tree has none. This matches what the agent host passes in at runtime.
-	const zodUrl = import.meta.resolve('zod');
+function verifySdkLoads(stagingDir: string, entry: string, context: string): void {
 	// At the staging root, so it is outside what `buildTarball` collects.
 	const probePath = path.join(stagingDir, 'sdk-load-probe.mjs');
-	fs.writeFileSync(probePath, [
-		// File-URL dynamic import, as in `claudeAgentSdkService.ts`.
-		`const sdk = await import(${JSON.stringify(pathToFileURL(entry).href)});`,
-		`const { z } = await import(${JSON.stringify(zodUrl)});`,
-		// Only the exports that would reach for a peer. Drift across the full
-		// binding set is `_assertBindingsMatchSdk`'s job, at compile time.
-		`for (const name of ['query', 'tool', 'createSdkMcpServer']) {`,
-		`	if (typeof sdk[name] !== 'function') { throw new Error('SDK export missing or not callable: ' + name); }`,
-		`}`,
-		`const probeTool = sdk.tool(`,
-		`	'agent_sdk_package_probe',`,
-		`	'Exercises tool() during packaging; never bound to a real session.',`,
-		`	{ query: z.string(), limit: z.number().optional() },`,
-		`	async () => ({ content: [{ type: 'text', text: 'ok' }] }),`,
-		`);`,
-		`sdk.createSdkMcpServer({ name: 'agent-sdk-package-probe', tools: [probeTool] });`,
-		'',
-	].join('\n'));
+	// File-URL dynamic import, as in `claudeAgentSdkService.ts`.
+	fs.writeFileSync(probePath, `await import(${JSON.stringify(pathToFileURL(entry).href)});\n`);
 
-	console.log(`[${SCRIPT}] Verifying the SDK loads without its peerDependencies…`);
+	console.log(`[${SCRIPT}] Verifying ${context} loads without its peerDependencies…`);
 	const result = spawnSync(process.execPath, [probePath], { cwd: stagingDir, stdio: 'inherit', timeout: PROBE_TIMEOUT_MS });
 	if (result.signal) {
-		throw new Error(`[${SCRIPT}] SDK load probe was killed by ${result.signal}. For SIGTERM that means it hit the ${PROBE_TIMEOUT_MS}ms timeout, so claude-agent-sdk@${sdkVersion} left a timer or handle open instead of exiting.`);
+		throw new Error(`[${SCRIPT}] ${context}: load probe was killed by ${result.signal}. For SIGTERM that means it hit the ${PROBE_TIMEOUT_MS}ms timeout, so importing '${entry}' left a timer or handle open instead of exiting.`);
 	}
 	if (result.error) {
-		throw new Error(`[${SCRIPT}] SDK load probe failed to spawn: ${result.error.message}`);
+		throw new Error(`[${SCRIPT}] ${context}: load probe failed to spawn: ${result.error.message}`);
 	}
 	if (result.status !== 0) {
-		throw new Error(`[${SCRIPT}] claude-agent-sdk@${sdkVersion} does not load with its peerDependencies omitted (probe exited ${result.status}; see output above). It likely stopped inlining a peer such as '@modelcontextprotocol/sdk' or 'zod'. Either drop '--omit=peer' from npmCi or add that package as a real dependency in build/agent-sdk/agents/claude/package.json.`);
+		throw new Error(`[${SCRIPT}] ${context}: does not load with its peerDependencies omitted (probe exited ${result.status}; see output above). It likely started importing a peer such as '@modelcontextprotocol/sdk' or 'zod'. Either drop '--omit=peer' from npmCi or add that package as a real dependency in build/agent-sdk/agents/<sdk>/package.json.`);
 	}
 }
 
