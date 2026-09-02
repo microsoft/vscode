@@ -458,17 +458,17 @@ suite('ChatSpeechToTextService', () => {
 		});
 	});
 
-	test('uses an explicit MAI final transcript even when it replaces a shorter partial', () => {
-		const partial = 'write a short test.';
-		const final = 'write a focused test for MAI final result selection today.';
+	test('uses an explicit MAI final transcript even when it is shorter than the partial', () => {
+		const partial = 'write a focused test for MAI final result selection today.';
+		const final = 'write a short test.';
 
 		assert.deepStrictEqual({
 			partialLength: partial.length,
 			finalLength: final.length,
 			selection: selectAuthoritativeDictationTranscript(partial, final),
 		}, {
-			partialLength: 19,
-			finalLength: 58,
+			partialLength: 58,
+			finalLength: 19,
 			selection: final,
 		});
 	});
