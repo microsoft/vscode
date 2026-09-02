@@ -530,13 +530,13 @@ try {
 			exit 1
 		}
 	}
-	$preLaunchReadyMs = $launchStopwatch.ElapsedMilliseconds
 
 	& $node $updateUserSettings $settingsFile $windowTitleDescription $repo
 	if ($LASTEXITCODE -ne 0) {
 		throw "Failed to update launch settings in $settingsFile."
 	}
 	Write-LaunchError "[launch.ps1] updated files.simpleDialog.enable and window.title in $settingsFile"
+	$preLaunchReadyMs = $launchStopwatch.ElapsedMilliseconds
 
 	$process = Start-Code $codeBat $launchArgs.ToArray() $logFile
 	Write-LaunchError "[launch.ps1] waiting for CDP on port $cdpPort (timeout 90s)..."

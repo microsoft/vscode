@@ -230,13 +230,13 @@ else
 		exit 1
 	fi
 fi
-PRELAUNCH_READY_MS=$(monotonic_ms)
 
 if ! node "$UPDATE_USER_SETTINGS" "$SETTINGS_FILE" "$WINDOW_TITLE_DESCRIPTION" "$REPO"; then
 	echo "[launch.sh] failed to update launch settings in $SETTINGS_FILE" >&2
 	exit 1
 fi
 echo "[launch.sh] updated files.simpleDialog.enable and window.title in $SETTINGS_FILE" >&2
+PRELAUNCH_READY_MS=$(monotonic_ms)
 
 # Launch code.sh in the background. Detaching with `nohup ... & disown` is
 # sufficient: by the time we return below, CDP is up and Electron is fully

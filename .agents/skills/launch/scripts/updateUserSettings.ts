@@ -62,7 +62,10 @@ if (configuredWindowTitle !== undefined && typeof configuredWindowTitle !== 'str
 	throw new Error('window.title must be a string');
 }
 
-const suffix = `\${separator}[${windowTitleDescription.trim().replace(/\s+/g, ' ')}]`;
+// The window title template has no escape sequence for '$', so use its fullwidth
+// equivalent to keep session titles literal instead of interpreting variables.
+const literalWindowTitleDescription = windowTitleDescription.trim().replace(/\s+/g, ' ').replaceAll('$', '\uFF04');
+const suffix = `\${separator}[${literalWindowTitleDescription}]`;
 const windowTitle = configuredWindowTitle ?? defaultWindowTitle;
 updateSetting('window.title', windowTitle.endsWith(suffix) ? windowTitle : windowTitle + suffix);
 
