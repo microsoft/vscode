@@ -1055,6 +1055,9 @@ export class ChatService extends Disposable implements IChatService {
 
 					// Ensure cancellation tracking is active
 					ensureCancellationTracking();
+
+					// A consumed message arrives under the id it was queued with, so settle it as sent, not cancelled.
+					this.settleConsumedPendingRequest(id, lastRequest, agent, disposables);
 				}));
 			}
 
@@ -2347,6 +2350,54 @@ export class ChatService extends Disposable implements IChatService {
 		}
 	}
 
+	/**
+	 * Settle a queued message's `sendRequest` promise once the provider has
+	 * consumed it. Unlike {@link removePendingRequest}, which reports the
+	 * cancellation of a withdrawn message, this one was delivered.
+	 */
+	private settleConsumedPendingRequest(requestId: string, request: ChatRequestModel, agent: IChatAgentData | undefined, store: DisposableStore): void {
+		const deferred = this._queuedRequestDeferreds.get(requestId);
+		if (!deferred) {
+			return;
+		}
+		this._queuedRequestDeferreds.delete(requestId);
+
+		const response = request.response;
+		if (!agent || !response) {
+			// Nothing else settles a consumed message, so report the failure rather than leave the caller waiting.
+			deferred.complete({ kind: 'rejected', reason: 'The provider started the request but the session could not describe it' });
+			return;
+		}
+
+		const completed = new DeferredPromise<void>();
+		if (response.isComplete) {
+			completed.complete();
+		} else {
+			// Owned by the session store so a response that never completes leaves no listener behind.
+			const listener = store.add(response.onDidChange(() => {
+				if (response.isComplete) {
+					listener.dispose();
+					completed.complete();
+				}
+			}));
+			// The ordinary send path always settles its promise, so this one must too.
+			store.add(toDisposable(() => {
+				if (!completed.isSettled) {
+					completed.complete();
+				}
+			}));
+		}
+
+		deferred.complete({
+			kind: 'sent',
+			data: {
+				agent,
+				responseCreatedPromise: Promise.resolve(response),
+				responseCompletePromise: completed.p,
+			},
+		});
+	}
+
 	setPendingRequests(sessionResource: URI, requests: readonly { requestId: string; kind: ChatRequestQueueKind }[]): void {
 		const model = this._sessionModels.get(sessionResource) as ChatModel | undefined;
 		if (model) {
@@ -2354,13 +2405,14 @@ export class ChatService extends Disposable implements IChatService {
 		}
 	}
 
-	syncPendingRequestsFromRemote(sessionResource: URI, requests: readonly IRemotePendingRequest[]): void {
+	syncPendingRequestsFromRemote(sessionResource: URI, requests: readonly IRemotePendingRequest[], consumedRequestId?: string): void {
 		const model = this._sessionModels.get(sessionResource) as ChatModel | undefined;
 		if (!model) {
 			return;
 		}
 
-		const existing = model.getPendingRequests();
+		// A copy: `replacePendingRequests` empties the live array before the loop below reads it.
+		const existing = [...model.getPendingRequests()];
 		const existingById = new Map(existing.map(request => [request.request.id, request]));
 		const reconciled: IChatPendingRequest[] = requests.map(remote => {
 			const variableData = remote.variableData ?? { variables: [] };
@@ -2389,6 +2441,10 @@ export class ChatService extends Disposable implements IChatService {
 
 		for (const local of existing) {
 			if (reconciledIds.has(local.request.id)) {
+				continue;
+			}
+			if (local.request.id === consumedRequestId) {
+				// The request created for it settles the caller as sent; rejecting here would race that.
 				continue;
 			}
 			const deferred = this._queuedRequestDeferreds.get(local.request.id);
