@@ -20,7 +20,7 @@ import { TerminalTelemetryContribution } from '../../browser/terminalTelemetry.j
 suite('TerminalTelemetryContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('cancels the shell integration timeout when the terminal is disposed', async () => {
+	test('cancels the shell integration timeout when the terminal or contribution is disposed', async () => {
 		const onDidCreateInstance = store.add(new Emitter<ITerminalInstance>());
 		const onAnyInstanceShellTypeChanged = store.add(new Emitter<ITerminalInstance>());
 		const onDisposed = store.add(new Emitter<ITerminalInstance>());
@@ -51,7 +51,7 @@ suite('TerminalTelemetryContribution', () => {
 		const telemetryService = upcastPartial<ITelemetryService>({
 			publicLog2: () => { telemetryEvents++; },
 		});
-		store.add(new TerminalTelemetryContribution(lifecycleService, terminalService, terminalEditorService, telemetryService));
+		const contribution = store.add(new TerminalTelemetryContribution(lifecycleService, terminalService, terminalEditorService, telemetryService));
 
 		const instance = upcastPartial<ITerminalInstance>({
 			resource: URI.parse('terminal:test'),
@@ -71,8 +71,24 @@ suite('TerminalTelemetryContribution', () => {
 		await Promise.resolve();
 		await Promise.resolve();
 
-		assert.strictEqual(scheduledTimeout, 10_000);
-		assert.strictEqual(clearedTimeout, timeoutHandle);
-		assert.strictEqual(telemetryEvents, 1);
+		assert.deepStrictEqual({ scheduledTimeout, clearedTimeout, telemetryEvents }, {
+			scheduledTimeout: 10_000,
+			clearedTimeout: timeoutHandle,
+			telemetryEvents: 1,
+		});
+
+		scheduledTimeout = undefined;
+		clearedTimeout = undefined;
+		onDidCreateInstance.fire(instance);
+		await Promise.resolve();
+		contribution.dispose();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({ scheduledTimeout, clearedTimeout, telemetryEvents }, {
+			scheduledTimeout: 10_000,
+			clearedTimeout: timeoutHandle,
+			telemetryEvents: 1,
+		});
 	});
 });
