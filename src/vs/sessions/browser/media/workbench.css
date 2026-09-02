@@ -21,14 +21,16 @@
 	background: var(--vscode-agents-background);
 }
 
+/* This margin must stay independent of sidebar visibility: the titlebar row
+ * shares this same grid root with the sidebar/content row (they are siblings
+ * under one vertical split), so a sidebar-conditional margin-left here would
+ * resize and reposition the titlebar - and the sidebar-toggle icon within it -
+ * every time the sidebar is shown or hidden. Keep in sync with the gutter
+ * math in workbench.ts's `_layoutGrid()`. */
 .monaco-workbench.agent-sessions-workbench > .monaco-grid-view {
 	margin: 0 var(--vscode-agents-layout-floatingPanelGap) var(--vscode-agents-layout-floatingPanelGap) 0;
 	width: auto;
 	height: calc(100% - var(--vscode-agents-layout-floatingPanelGap));
-}
-
-.monaco-workbench.agent-sessions-workbench.nosidebar > .monaco-grid-view {
-	margin-left: var(--vscode-agents-layout-floatingPanelGap);
 }
 
 .monaco-workbench.agent-sessions-workbench.shell-gradient-background {

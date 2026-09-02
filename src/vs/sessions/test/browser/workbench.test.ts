@@ -70,6 +70,7 @@ suite('Sessions - Workbench', () => {
 	const toggleSecondarySideBar = Workbench.prototype.toggleSecondarySideBar as (this: ITestWorkbench) => void;
 	const restoreSessionsPartOnActivation = Reflect.get(Workbench.prototype, '_restoreSessionsPartOnActivation') as (this: ITestWorkbench) => void;
 	const restoreEditorPartOnActivation = Reflect.get(Workbench.prototype, '_restoreEditorPartOnActivation') as (this: ITestWorkbench) => void;
+	const layoutGrid = Reflect.get(Workbench.prototype, '_layoutGrid') as (this: IContainerResizeTestHarness) => void;
 	const layoutSinglePaneGrid = Reflect.get(SinglePaneWorkbench.prototype, '_layoutGrid') as (this: IContainerResizeTestHarness) => void;
 	const preserveSessionsEditorRatio = Reflect.get(SinglePaneWorkbench.prototype, '_preserveSessionsEditorRatio') as (this: IProportionalResizeTestHarness, previousSessionsWidth: number, previousEditorWidth: number) => void;
 	const registerNotificationRowHeight = Reflect.get(Workbench.prototype, 'registerNotificationRowHeight') as (this: {
@@ -647,6 +648,40 @@ suite('Sessions - Workbench', () => {
 			visibilityChanges: [false],
 			resizes: [],
 		});
+	});
+
+	test('sidebar visibility does not change the grid width passed to layout', () => {
+		// The titlebar row and the sidebar/content row are siblings under the
+		// same vertical grid split, so they must always receive the same
+		// width. If the gutter reserved for the sidebar's floating-panel gap
+		// varied with sidebar visibility, the titlebar - and the sidebar
+		// toggle icon within it - would resize and shift on every toggle.
+		const layoutCalls: IViewSize[] = [];
+		const host: IContainerResizeTestHarness = {
+			partVisibility: { sidebar: true, editor: false, auxiliaryBar: false },
+			mobileTopBarElement: undefined,
+			layoutPolicy: { viewportClass: { get: () => 'desktop' } },
+			_mainContainerDimension: { width: 1200, height: 800 },
+			sessionsPartView: { minimumWidth: 300 },
+			editorPartView: { minimumWidth: 300 },
+			workbenchGrid: {
+				getViewSize: () => ({ width: 0, height: 0 }),
+				resizeView: () => { },
+				isViewVisible: () => true,
+				layout: (width, height) => { layoutCalls.push({ width, height }); },
+			},
+			_runWithEditorResizeSyncSuspended: fn => fn(),
+		};
+		Object.setPrototypeOf(host, Workbench.prototype);
+
+		layoutGrid.call(host);
+		host.partVisibility.sidebar = false;
+		layoutGrid.call(host);
+
+		assert.deepStrictEqual(layoutCalls, [
+			{ width: 1196, height: 796 },
+			{ width: 1196, height: 796 },
+		]);
 	});
 
 	test('single-pane sidebar visibility leaves a detail-only pane width unchanged', () => {

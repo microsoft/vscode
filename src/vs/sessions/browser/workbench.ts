@@ -1876,9 +1876,14 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	protected _layoutGrid(): void {
 		const mobileTopBarHeight = this.mobileTopBarElement?.offsetHeight ?? 0;
-		// Keep in sync with the desktop grid margin in workbench.css.
+		// Keep in sync with the desktop grid margin in workbench.css. This must
+		// NOT vary with sidebar visibility: the titlebar row shares this same
+		// grid root with the sidebar/content row (they are siblings under one
+		// vertical split), so a sidebar-conditional gutter here would resize
+		// and reposition the titlebar - and the sidebar-toggle icon within it -
+		// every time the sidebar is shown or hidden.
 		const isPhone = this.layoutPolicy.viewportClass.get() === 'phone';
-		const gridGutterW = isPhone ? 0 : AGENTS_FLOATING_PANEL_GAP + (this.partVisibility.sidebar ? 0 : AGENTS_FLOATING_PANEL_GAP);
+		const gridGutterW = isPhone ? 0 : AGENTS_FLOATING_PANEL_GAP;
 		const gridGutterH = isPhone ? 0 : AGENTS_FLOATING_PANEL_GAP;
 		this.workbenchGrid.layout(
 			this._mainContainerDimension.width - gridGutterW,
