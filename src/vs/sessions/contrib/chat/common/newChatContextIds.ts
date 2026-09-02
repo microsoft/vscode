@@ -7,11 +7,6 @@ import { URI } from '../../../../base/common/uri.js';
 
 export const ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX = 'sessions-additional-folder:';
 export const ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX = 'sessions-additional-repository:';
-const INPUT_GITHUB_CONTEXT_METADATA_KEY = 'sessionsInputGitHubContext';
-
-interface IHasInputGitHubContextMetadata {
-	readonly _meta?: Record<string, unknown>;
-}
 
 export function getAdditionalFolderContextId(uri: URI): string {
 	return `${ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX}${uri.toString()}`;
@@ -23,13 +18,4 @@ export function getAdditionalRepositoryContextId(uri: URI): string {
 
 export function isAdditionalWorkspaceContextId(id: string): boolean {
 	return id.startsWith(ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX) || id.startsWith(ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX);
-}
-
-export function isInputGitHubContext(source: IHasInputGitHubContextMetadata): boolean {
-	// eslint-disable-next-line local/code-no-untyped-meta-access -- sanctioned first hop into the input GitHub context slot.
-	return source._meta?.[INPUT_GITHUB_CONTEXT_METADATA_KEY] === true;
-}
-
-export function toInputGitHubContextMetadata(): Record<string, unknown> {
-	return { [INPUT_GITHUB_CONTEXT_METADATA_KEY]: true };
 }
