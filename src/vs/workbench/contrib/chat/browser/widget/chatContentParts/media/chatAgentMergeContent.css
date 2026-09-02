@@ -112,6 +112,7 @@
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
+.chat-agent-merge.direct-pointer-input:not(.collapsed) > .chat-agent-merge-card > .chat-agent-merge-header .chat-agent-merge-message-toggle,
 .chat-agent-merge:not(.collapsed) > .chat-agent-merge-card > .chat-agent-merge-header:hover .chat-agent-merge-message-toggle,
 .chat-agent-merge:not(.collapsed) > .chat-agent-merge-card > .chat-agent-merge-header:focus-within .chat-agent-merge-message-toggle {
 	opacity: 1;

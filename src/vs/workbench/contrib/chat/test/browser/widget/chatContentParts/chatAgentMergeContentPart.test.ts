@@ -141,6 +141,42 @@ suite('ChatAgentMergeContentPart file labels', () => {
 		]);
 	});
 
+	test('reveals secondary actions for touch input while suppressing mouse focus', () => {
+		const part = store.add(createPart(summary()));
+		const button = part.domNode.querySelector<HTMLElement>('.chat-agent-merge-header-disclosure');
+		assert.ok(button);
+		dom.getWindow(button).document.body.append(part.domNode);
+		store.add(toDisposable(() => part.domNode.remove()));
+
+		const pointerDown = (pointerType: string) => {
+			const event = new PointerEvent(dom.EventType.POINTER_DOWN, { bubbles: true, cancelable: true, pointerType });
+			button.dispatchEvent(event);
+			return event.defaultPrevented;
+		};
+
+		button.focus();
+		const touchPrevented = pointerDown('touch');
+		const touchInput = part.domNode.classList.contains('direct-pointer-input');
+		button.focus();
+		const mousePrevented = pointerDown('mouse');
+		const mouseInput = part.domNode.classList.contains('direct-pointer-input');
+		const mouseRetainedFocus = dom.getWindow(button).document.activeElement === button;
+
+		assert.deepStrictEqual({
+			touchPrevented,
+			touchInput,
+			mousePrevented,
+			mouseInput,
+			mouseRetainedFocus,
+		}, {
+			touchPrevented: false,
+			touchInput: true,
+			mousePrevented: true,
+			mouseInput: false,
+			mouseRetainedFocus: false,
+		});
+	});
+
 	test('attaches the status hover to the interactive disclosure', () => {
 		let hoverTarget: HTMLElement | undefined;
 		const part = store.add(createPart(summary(), {

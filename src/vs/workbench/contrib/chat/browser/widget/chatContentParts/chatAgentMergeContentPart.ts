@@ -166,8 +166,13 @@ export class ChatAgentMergeContentPart extends Disposable {
 
 	private _createHeader(parent: HTMLElement): void {
 		const header = dom.append(parent, dom.$('.chat-agent-merge-header'));
-		const preventPointerFocus = (button: Button) => {
-			this._register(dom.addDisposableGenericMouseDownListener(button.element, event => {
+		const handlePointerFocus = (button: Button) => {
+			this._register(dom.addDisposableListener(button.element, dom.EventType.POINTER_DOWN, event => {
+				if (event.pointerType !== 'mouse') {
+					this.domNode.classList.add('direct-pointer-input');
+					return;
+				}
+				this.domNode.classList.remove('direct-pointer-input');
 				event.preventDefault();
 				button.element.blur();
 			}));
@@ -190,7 +195,7 @@ export class ChatAgentMergeContentPart extends Disposable {
 			}
 		};
 		setExpanded(false);
-		preventPointerFocus(disclosureButton);
+		handlePointerFocus(disclosureButton);
 		this._register(disclosureButton.onDidClick(() => setExpanded(this.domNode.classList.contains('collapsed'))));
 
 		if (this._summary.agentMessage) {
@@ -203,7 +208,7 @@ export class ChatAgentMergeContentPart extends Disposable {
 			agentMessageButton.icon = Codicon.eye;
 			agentMessageButton.setAriaLabel(agentMessageLabel);
 			agentMessageButton.element.tabIndex = -1;
-			preventPointerFocus(agentMessageButton);
+			handlePointerFocus(agentMessageButton);
 			let showingAgentMessage = false;
 			const updateMessageVisibility = (visible: boolean) => {
 				showingAgentMessage = visible;
