@@ -5,6 +5,7 @@
 
 import { generateUuid } from '../../../base/common/uuid.js';
 import { URI } from '../../../base/common/uri.js';
+import { SequencerByKey } from '../../../base/common/async.js';
 import { ILogService } from '../../log/common/log.js';
 import type { ISessionCatalogSyncAcknowledgement, ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDataService } from '../common/sessionDataService.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, encodeAgentHostCatalogPayload, IAgentHostCatalogEncodedPayload } from './agentHostCatalogProjection.js';
@@ -21,10 +22,6 @@ export interface IAgentHostCatalogSyncRequest {
 export type AgentHostCatalogSyncResult =
 	| { readonly status: 'acknowledged'; readonly sourceRevision: number }
 	| { readonly status: 'pending'; readonly sourceRevision: number; readonly reason: AgentHostDatabaseSessionV2UpsertResult | 'upsertFailed' | 'acknowledgementSuperseded' };
-
-interface IQueuedOperation {
-	readonly run: () => Promise<void>;
-}
 
 /**
  * Whether the stored catalog row is exactly the one an acknowledged local
@@ -54,14 +51,9 @@ export async function catalogLegacyMetadataMatches(
 	return Object.entries(legacyMetadata).every(([key, value]) => persistedMetadata[key] === value);
 }
 
-interface ISessionSyncQueue {
-	running: boolean;
-	readonly pending: IQueuedOperation[];
-}
-
 export class AgentHostCatalogSyncService {
 
-	private readonly _queues = new Map<string, ISessionSyncQueue>();
+	private readonly _sequencer = new SequencerByKey<string>();
 
 	constructor(
 		private readonly _sessionDataService: ISessionDataService,
@@ -88,37 +80,10 @@ export class AgentHostCatalogSyncService {
 	}
 
 	runExclusive<T>(session: URI, operation: (synchronize: (request: IAgentHostCatalogSyncRequest) => Promise<AgentHostCatalogSyncResult>) => Promise<T>): Promise<T> {
-		const sessionKey = session.toString();
-		return new Promise((resolve, reject) => {
-			let queue = this._queues.get(sessionKey);
-			if (!queue) {
-				queue = { running: false, pending: [] };
-				this._queues.set(sessionKey, queue);
-			}
-
-			queue.pending.push({
-				run: async () => {
-					try {
-						resolve(await operation(request => this._synchronizeNow(session, request)));
-					} catch (error) {
-						reject(error instanceof Error ? error : new Error(String(error)));
-					}
-				},
-			});
-
-			if (!queue.running) {
-				queue.running = true;
-				void this._drain(sessionKey, queue);
-			}
-		});
-	}
-
-	private async _drain(sessionKey: string, queue: ISessionSyncQueue): Promise<void> {
-		while (queue.pending.length > 0) {
-			await queue.pending.shift()!.run();
-		}
-		queue.running = false;
-		this._queues.delete(sessionKey);
+		return this._sequencer.queue(
+			session.toString(),
+			() => operation(request => this._synchronizeNow(session, request)),
+		);
 	}
 
 	private async _synchronizeNow(session: URI, request: IAgentHostCatalogSyncRequest): Promise<AgentHostCatalogSyncResult> {
