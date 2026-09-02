@@ -36,7 +36,11 @@ export type RemoteAgentHostConnectionStatus =
 	 * preserving session state. Distinct from `connecting` (initial dial) and
 	 * `disconnected` (no connection, nothing in flight).
 	 */
-	| { readonly kind: 'reconnecting' }
+	| {
+		readonly kind: 'reconnecting';
+		/** When the next automatic attempt fires, if one is scheduled. Absent while an attempt is in flight. */
+		readonly nextAttemptAt?: number;
+	}
 	| { readonly kind: 'disconnected'; readonly reason: AgentHostTransportFailureReason }
 	| {
 		readonly kind: 'incompatible';
@@ -62,6 +66,12 @@ export namespace RemoteAgentHostConnectionStatus {
 	export const connecting: RemoteAgentHostConnectionStatus = Object.freeze({ kind: 'connecting' });
 	/** Singleton "reconnecting" status. */
 	export const reconnecting: RemoteAgentHostConnectionStatus = Object.freeze({ kind: 'reconnecting' });
+	/** Build a reconnecting status carrying its backoff deadline. */
+	export function reconnectingUntil(nextAttemptAt: number | undefined): RemoteAgentHostConnectionStatus {
+		return nextAttemptAt === undefined
+			? reconnecting
+			: Object.freeze({ kind: 'reconnecting', nextAttemptAt });
+	}
 	/** Singleton "disconnected" status. */
 	export const disconnected: RemoteAgentHostConnectionStatus = Object.freeze({ kind: 'disconnected', reason: AgentHostTransportFailureReason.Unknown });
 	/** Build a disconnected status with a machine-readable reason. */
@@ -250,9 +260,20 @@ export type RemoteAgentHostProtocolClientState = 'connecting' | 'incompatible' |
  */
 export interface IRemoteAgentHostProtocolClient extends IAgentConnection, IDisposable {
 	readonly defaultDirectory: string | undefined;
+	/** Deadline for the next scheduled reconnect attempt, if one is pending. */
+	readonly nextReconnectAt: number | undefined;
 	readonly onDidClose: Event<AgentHostTransportFailureReason | undefined>;
 	readonly onDidChangeConnectionState: Event<RemoteAgentHostProtocolClientState>;
+	/**
+	 * Fires whenever the pending reconnect schedule changes — a backoff being
+	 * armed, or cleared by an immediate retry. Separate from
+	 * {@link onDidChangeConnectionState} because the client state is still
+	 * `reconnecting` throughout, and consumers of that event do real work on
+	 * each transition that must not be repeated per backoff round.
+	 */
+	readonly onDidScheduleReconnect: Event<void>;
 	connect(): Promise<void>;
+	reconnectNow(): boolean;
 	notifyTransportClosed(): void;
 	triggerVscodeUpgrade(method: string): Promise<IVscodeUpgradeResult>;
 }
@@ -711,6 +732,12 @@ export interface IRemoteAgentHostService {
 	 * with reset backoff.
 	 */
 	reconnect(address: string, userInitiated?: boolean): void;
+	/**
+	 * Skips a pending reconnect backoff for this address and retries at once.
+	 * Prefers the protocol client's in-place retry, which preserves session
+	 * state, and falls back to a fresh dial when there is no client to accelerate.
+	 */
+	reconnectNow(address: string): void;
 
 	/**
 	 * Force the protocol client at `address` (if any) to treat its
@@ -775,6 +802,7 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	}
 	async removeRemoteAgentHost(_address: string): Promise<void> { }
 	reconnect(_address: string, _userInitiated?: boolean): void { }
+	reconnectNow(_address: string): void { }
 	notifyConnectionClosed(_address: string): void { }
 	getEntryByAddress(): IRemoteAgentHostEntry | undefined { return undefined; }
 	async triggerServerUpgrade(): Promise<IVscodeUpgradeResult> {

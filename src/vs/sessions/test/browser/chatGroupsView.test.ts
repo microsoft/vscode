@@ -181,11 +181,16 @@ class TestAgentHostProvider extends mock<IAgentHostSessionsProvider>() {
 	private readonly _onDidReportConnectProgress = new Emitter<IAgentHostConnectProgress>();
 	override readonly onDidReportConnectProgress = this._onDidReportConnectProgress.event;
 	connectCalls = 0;
+	reconnectNowCalls = 0;
 	connectGate: Promise<void> | undefined;
 
 	override async connect(): Promise<void> {
 		this.connectCalls++;
 		await this.connectGate;
+	}
+
+	override reconnectNow(): void {
+		this.reconnectNowCalls++;
 	}
 
 	reportConnectProgress(connectionKey: string, message: string): void {
@@ -676,7 +681,7 @@ suite('Sessions - ChatGroupsView', () => {
 			connectCalls: provider.connectCalls,
 		}, {
 			hostNotRunning: { visible: true, message: 'WSL: Ubuntu is not running.', action: 'Start WSL: Ubuntu' },
-			unknownDisconnected: { visible: true, message: 'Cannot reach WSL: Ubuntu.', action: undefined },
+			unknownDisconnected: { visible: true, message: 'Cannot reach WSL: Ubuntu.', action: 'Retry' },
 			connectCalls: 1,
 		});
 	});
@@ -743,8 +748,8 @@ suite('Sessions - ChatGroupsView', () => {
 					title: 'Cannot Connect to WSL: Ubuntu',
 					description: 'Cannot reach WSL: Ubuntu.',
 					progress: undefined,
-					action: undefined,
-					actionHidden: true,
+					action: 'Retry',
+					actionHidden: false,
 					autoConnect: undefined,
 					autoConnectChecked: false,
 					autoConnectHidden: true,
@@ -1086,6 +1091,65 @@ suite('Sessions - ChatGroupsView', () => {
 			await timeout(500);
 			chat.status.set(SessionStatus.Error, undefined);
 			await timeout(500);
+
+			assert.deepStrictEqual(readBanner(view), {
+				visible: true,
+				message: 'Reconnecting to WSL: Ubuntu...',
+				action: undefined,
+			});
+		});
+	});
+
+	test('shows a reconnect countdown and retries immediately on demand', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+			const provider = new TestAgentHostProvider();
+			sessionsProvidersService.provider = provider;
+			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'reconnecting', nextAttemptAt: Date.now() + 6_000 });
+			view.setSession(session, options);
+			chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
+
+			await timeout(1_000);
+			const banner = readBanner(view);
+			view.element.querySelector<HTMLElement>('.session-readonly-banner-action-link')?.click();
+
+			assert.deepStrictEqual({ banner, reconnectNowCalls: provider.reconnectNowCalls }, {
+				banner: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 5s', action: 'Try Now' },
+				reconnectNowCalls: 1,
+			});
+		});
+	});
+
+	test('updates the reconnect countdown every second', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+			const provider = new TestAgentHostProvider();
+			sessionsProvidersService.provider = provider;
+			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'reconnecting', nextAttemptAt: Date.now() + 7_000 });
+			view.setSession(session, options);
+			chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
+
+			await timeout(1_000);
+			const beforeTick = readBanner(view);
+			await timeout(1_000);
+
+			assert.deepStrictEqual({ beforeTick, afterTick: readBanner(view) }, {
+				beforeTick: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 6s', action: 'Try Now' },
+				afterTick: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 5s', action: 'Try Now' },
+			});
+		});
+	});
+
+	test('shows a plain reconnecting banner while a reconnect attempt is in flight', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+			const provider = new TestAgentHostProvider();
+			sessionsProvidersService.provider = provider;
+			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'reconnecting' });
+			view.setSession(session, options);
+			chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
+
+			await timeout(1_000);
 
 			assert.deepStrictEqual(readBanner(view), {
 				visible: true,

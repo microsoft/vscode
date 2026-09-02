@@ -365,6 +365,17 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		void this._connectTo(entryToReconnect, { userInitiated });
 	}
 
+	/**
+	 * Skips a protocol client's pending backoff, or starts a fresh user-initiated dial.
+	 */
+	reconnectNow(address: string): void {
+		const normalized = normalizeRemoteAgentHostAddress(address);
+		if (this._entries.get(normalized)?.client?.reconnectNow()) {
+			return;
+		}
+		this.reconnect(normalized, true);
+	}
+
 	async waitForConnection(address: string): Promise<IRemoteAgentHostConnectionInfo> {
 		if (this._store.isDisposed) {
 			throw new Error('Remote agent host service is disposed.');
@@ -650,6 +661,15 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 		// Surface self-healing transport drops separately so outer reconnect
 		// loops do not replace the protocol client while it restores itself.
+		store.add(client.onDidScheduleReconnect(() => {
+			// The client stays `reconnecting` across backoff rounds, so only this
+			// event reports that the deadline moved.
+			if (!isCurrentEntry() || entry.status.kind !== 'reconnecting') {
+				return;
+			}
+			entry.status = RemoteAgentHostConnectionStatus.reconnectingUntil(client.nextReconnectAt);
+			this._onDidChangeConnections.fire();
+		}));
 		store.add(client.onDidChangeConnectionState(state => {
 			if (!isCurrentEntry()) {
 				return;
@@ -657,7 +677,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			switch (state) {
 				case 'reconnecting':
 					entry.connected = false;
-					entry.status = RemoteAgentHostConnectionStatus.reconnecting;
+					entry.status = RemoteAgentHostConnectionStatus.reconnectingUntil(client.nextReconnectAt);
 					this._onDidChangeConnections.fire();
 					break;
 				case 'connected':

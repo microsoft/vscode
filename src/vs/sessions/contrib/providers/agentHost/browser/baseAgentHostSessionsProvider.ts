@@ -593,9 +593,14 @@ function toSessionRemoteConnectionStatus(owner: object, connectionStatus: IObser
 		switch (status.kind) {
 			case 'connected':
 			case 'connecting':
-			case 'reconnecting':
 			case 'incompatible':
 				return { kind: status.kind };
+			case 'reconnecting':
+				// Omit the key rather than carrying an explicit `undefined`, so a
+				// plain reconnect stays structurally equal to the no-deadline case.
+				return status.nextAttemptAt === undefined
+					? { kind: status.kind }
+					: { kind: status.kind, nextAttemptAt: status.nextAttemptAt };
 			case 'disconnected':
 				switch (status.reason) {
 					case AgentHostTransportFailureReason.Unknown:

@@ -87,7 +87,7 @@ export const enum SessionStatus {
 export type SessionRemoteConnectionStatus =
 	| { readonly kind: 'connected' }
 	| { readonly kind: 'connecting' }
-	| { readonly kind: 'reconnecting' }
+	| { readonly kind: 'reconnecting'; readonly nextAttemptAt?: number }
 	| { readonly kind: 'disconnected'; readonly reason: SessionRemoteConnectionFailureReason }
 	| { readonly kind: 'incompatible' };
 

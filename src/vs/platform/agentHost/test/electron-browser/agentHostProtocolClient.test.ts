@@ -2443,6 +2443,74 @@ suite('AgentHostProtocolClient', () => {
 			});
 		});
 
+		test('reports the deadline for each scheduled reconnect backoff', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const reconnectPolicy: IRemoteAgentHostReconnectPolicy = {
+					autoRestore: true,
+					initialDelayMs: 60_000,
+					maxDelayMs: 60_000,
+					maxAttempts: 3,
+				};
+				const { client, transports } = createFactoryClient(createPermissionService(), undefined, NullTelemetryService, reconnectPolicy);
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+				const reconnectDeadlines: (number | undefined)[] = [];
+				const stateListener = client.onDidChangeConnectionState(state => {
+					if (state === AgentHostClientState.Reconnecting) {
+						reconnectDeadlines.push(client.nextReconnectAt);
+					}
+				});
+
+				transports[0].fireClose();
+				const firstDeadline = client.nextReconnectAt;
+				assert.ok(firstDeadline !== undefined);
+				await timeout(reconnectPolicy.initialDelayMs);
+				transports[1].connectDeferred.error(new Error('reconnect failed'));
+				await flushMicrotasks();
+				const secondDeadline = client.nextReconnectAt;
+				assert.ok(secondDeadline !== undefined);
+
+				assert.deepStrictEqual(reconnectDeadlines, [undefined, firstDeadline, secondDeadline]);
+				stateListener.dispose();
+				client.dispose();
+			});
+		});
+
+		test('reconnectNow clears a pending backoff and retries immediately', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const reconnectPolicy: IRemoteAgentHostReconnectPolicy = {
+					autoRestore: true,
+					initialDelayMs: 60_000,
+					maxDelayMs: 60_000,
+					maxAttempts: 3,
+				};
+				const { client, transports } = createFactoryClient(createPermissionService(), undefined, NullTelemetryService, reconnectPolicy);
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				transports[0].fireClose();
+				assert.strictEqual(client.reconnectNow(), true);
+				await timeout(reconnectPolicy.initialDelayMs - 1);
+
+				assert.deepStrictEqual({
+					nextReconnectAt: client.nextReconnectAt,
+					transportCount: transports.length,
+				}, {
+					nextReconnectAt: undefined,
+					transportCount: 2,
+				});
+				client.dispose();
+			});
+		});
+
+		test('reconnectNow returns false when no reconnect backoff is pending', () => {
+			const { client } = createFactoryClient();
+
+			assert.strictEqual(client.reconnectNow(), false);
+		});
+
 		test('does not automatically reconnect when the policy disables automatic restore', async () => {
 			const reconnectPolicy: IRemoteAgentHostReconnectPolicy = {
 				autoRestore: false,

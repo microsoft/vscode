@@ -156,6 +156,8 @@ interface IReconnectState {
 	attempt: number;
 	/** Timer for the next scheduled attempt, if any. */
 	timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+	/** Deadline for the next scheduled attempt, if any. */
+	nextAttemptAt: number | undefined;
 }
 
 /**
@@ -256,6 +258,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private readonly _onDidChangeConnectionState = this._register(new Emitter<AgentHostClientState>());
 	readonly onDidChangeConnectionState = this._onDidChangeConnectionState.event;
+	private readonly _onDidScheduleReconnect = this._register(new Emitter<void>());
+	readonly onDidScheduleReconnect = this._onDidScheduleReconnect.event;
 
 	/**
 	 * Discriminated state union. Read via narrowing (`_state.kind === ...`);
@@ -344,6 +348,13 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	get connectionState(): AgentHostClientState {
 		return this._state.kind;
+	}
+
+	/** Deadline for the next scheduled reconnect attempt, if one is pending. */
+	get nextReconnectAt(): number | undefined {
+		return this._state.kind === AgentHostClientState.Reconnecting
+			? this._state.reconnect.nextAttemptAt
+			: undefined;
 	}
 
 	/**
@@ -473,6 +484,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (this._state.kind === next.kind) {
 			return;
 		}
+		if (this._state.kind === AgentHostClientState.Reconnecting) {
+			const reconnect = this._state.reconnect;
+			if (reconnect.timeoutHandle !== undefined) {
+				clearTimeout(reconnect.timeoutHandle);
+				reconnect.timeoutHandle = undefined;
+			}
+			reconnect.nextAttemptAt = undefined;
+		}
 		this._state = next;
 		this._onDidChangeConnectionState.fire(next.kind);
 	}
@@ -487,7 +506,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private _newReconnectState(): IReconnectState {
-		return { gate: this._newReconnectGate(), outbox: [], attempt: 0, timeoutHandle: undefined };
+		return { gate: this._newReconnectGate(), outbox: [], attempt: 0, timeoutHandle: undefined, nextAttemptAt: undefined };
 	}
 
 	override dispose(): void {
@@ -680,6 +699,24 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return true;
 	}
 
+	/**
+	 * Skips the remaining backoff and retries immediately. Returns `false` when
+	 * there is no pending retry to accelerate.
+	 */
+	reconnectNow(): boolean {
+		if (this._state.kind !== AgentHostClientState.Reconnecting || this._state.reconnect.timeoutHandle === undefined) {
+			return false;
+		}
+		const reconnect = this._state.reconnect;
+		clearTimeout(reconnect.timeoutHandle);
+		reconnect.timeoutHandle = undefined;
+		reconnect.nextAttemptAt = undefined;
+		reconnect.attempt = 0;
+		this._onDidScheduleReconnect.fire();
+		void this._attemptReconnect();
+		return true;
+	}
+
 	private _scheduleReconnect(userInitiated = false): void {
 		if (this._state.kind !== AgentHostClientState.Reconnecting || !this._transportFactory) {
 			return;
@@ -703,12 +740,15 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		const attempt = reconnect.attempt + 1;
 		const delay = computeReconnectDelay(this._reconnectPolicy, attempt);
 		this._logService.info(`[RemoteAgentHostProtocol] Reconnecting to ${this._address} in ${delay}ms (attempt ${attempt}).`);
+		reconnect.nextAttemptAt = Date.now() + delay;
 		reconnect.timeoutHandle = setTimeout(() => {
 			if (this._state.kind === AgentHostClientState.Reconnecting) {
 				this._state.reconnect.timeoutHandle = undefined;
+				this._state.reconnect.nextAttemptAt = undefined;
 			}
 			void this._attemptReconnect();
 		}, delay);
+		this._onDidScheduleReconnect.fire();
 	}
 
 	private async _attemptReconnect(): Promise<void> {

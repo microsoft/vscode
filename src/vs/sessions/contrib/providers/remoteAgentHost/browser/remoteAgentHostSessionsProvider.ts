@@ -474,6 +474,10 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._remoteAgentHostService.reconnect(this.remoteAddress);
 	}
 
+	reconnectNow(): void {
+		this._remoteAgentHostService.reconnectNow(this.remoteAddress);
+	}
+
 	/**
 	 * Tear down the active connection for this host. Tunnel-backed providers
 	 * use their relay hook; other providers fall back to the generic remote

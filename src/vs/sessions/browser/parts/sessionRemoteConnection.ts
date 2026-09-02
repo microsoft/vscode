@@ -42,6 +42,8 @@ export class SessionRemoteConnection extends Disposable {
 	private readonly _attempt = observableValue<ConnectAttempt | undefined>(this, undefined);
 	private readonly _progressListener = this._register(new MutableDisposable());
 	private readonly _deadlineSignal = observableSignal(this);
+	// Kept separate so countdown ticks cannot restart the reconnecting-banner delay.
+	private readonly _reconnectCountdownSignal = observableSignal(this);
 	/**
 	 * The session an automatic start has already been triggered for, cleared
 	 * once the host is reachable again so each outage gets its own attempt.
@@ -96,6 +98,23 @@ export class SessionRemoteConnection extends Disposable {
 		// The fixed deadline prevents unrelated observable updates from restarting the delay.
 		reader.store.add(new TimeoutTimer(() => this._deadlineSignal.trigger(undefined), remaining));
 		return false;
+	});
+
+	private readonly _reconnectCountdownSeconds = derived(this, reader => {
+		const status = this._getEffectiveStatus(reader);
+		if (status?.kind !== 'reconnecting' || status.nextAttemptAt === undefined) {
+			return undefined;
+		}
+
+		this._reconnectCountdownSignal.read(reader);
+		const now = Date.now();
+		const remaining = status.nextAttemptAt - now;
+		if (remaining <= 0) {
+			return undefined;
+		}
+
+		reader.store.add(new TimeoutTimer(() => this._reconnectCountdownSignal.trigger(undefined), 1_000 - now % 1_000));
+		return Math.ceil(remaining / 1_000);
 	});
 
 	readonly bannerContent: IObservable<ISessionReadOnlyBannerContent | undefined> = derived(this, reader => this._getRemoteConnectionBannerContent(reader));
@@ -293,6 +312,15 @@ export class SessionRemoteConnection extends Disposable {
 		return {
 			title: localize('sessionRemoteHost.disconnectedTitle', "Cannot Connect to {0}", hostLabel),
 			description: localize('sessionRemoteHost.disconnected', "Cannot reach {0}.", hostLabel),
+			// An unreachable host is often transient — a dropped tunnel, a sleeping
+			// machine — so offer a manual retry even though there is nothing local
+			// to start and so nothing to do automatically.
+			action: canStartHost
+				? {
+					label: localize('sessionRemoteHost.retry', "Retry"),
+					run: () => this.connect(),
+				}
+				: undefined,
 		};
 	}
 
@@ -320,10 +348,19 @@ export class SessionRemoteConnection extends Disposable {
 		}
 
 		if (status.kind === 'reconnecting') {
+			const seconds = this._reconnectCountdownSeconds.read(reader);
 			return this._reconnectingBannerVisible.read(reader)
 				? {
 					icon: Codicon.sync,
-					message: localize('sessionRemoteHost.reconnecting', "Reconnecting to {0}...", hostLabel),
+					message: seconds === undefined
+						? localize('sessionRemoteHost.reconnecting', "Reconnecting to {0}...", hostLabel)
+						: localize('sessionRemoteHost.reconnectingIn', "Reconnecting to {0} in {1}s", hostLabel, seconds),
+					action: seconds !== undefined && provider && isAgentHostProvider(provider) && provider.reconnectNow
+						? {
+							label: localize('sessionRemoteHost.tryNow', "Try Now"),
+							run: () => provider.reconnectNow?.(),
+						}
+						: undefined,
 				}
 				: undefined;
 		}
@@ -342,6 +379,14 @@ export class SessionRemoteConnection extends Disposable {
 		return {
 			icon: Codicon.debugDisconnect,
 			message: localize('sessionRemoteHost.disconnected', "Cannot reach {0}.", hostLabel),
+			// A dropped tunnel or a sleeping machine is usually transient, so a
+			// manual retry is worth offering even with nothing local to start.
+			action: provider && isAgentHostProvider(provider) && provider.connect
+				? {
+					label: localize('sessionRemoteHost.retry', "Retry"),
+					run: () => this.connect(),
+				}
+				: undefined,
 		};
 	}
 }

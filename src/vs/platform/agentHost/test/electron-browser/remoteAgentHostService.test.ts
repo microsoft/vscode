@@ -58,11 +58,16 @@ class MockProtocolClient extends Disposable {
 	readonly onDidNotification = Event.None;
 	private readonly _onDidChangeConnectionState = this._register(new Emitter<string>());
 	readonly onDidChangeConnectionState = this._onDidChangeConnectionState.event;
+	private readonly _onDidScheduleReconnect = this._register(new Emitter<void>());
+	readonly onDidScheduleReconnect = this._onDidScheduleReconnect.event;
 	readonly onDidReceiveOtlpLogs = Event.None;
 	readonly connectionState = 'connecting' as const;
 	readonly initializeResult = undefined;
 	readonly telemetryCapabilities = undefined;
 	readonly triggerVscodeUpgradeCalls: string[] = [];
+	nextReconnectAt: number | undefined;
+	reconnectNowCalls = 0;
+	reconnectNowResult = false;
 
 	public connectDeferred = new DeferredPromise<void>();
 
@@ -72,6 +77,11 @@ class MockProtocolClient extends Disposable {
 
 	async connect(): Promise<void> {
 		return this.connectDeferred.p;
+	}
+
+	reconnectNow(): boolean {
+		this.reconnectNowCalls++;
+		return this.reconnectNowResult;
 	}
 
 	async triggerVscodeUpgrade(method: string) {
@@ -85,6 +95,10 @@ class MockProtocolClient extends Disposable {
 
 	fireConnectionState(state: 'connecting' | 'reconnecting' | 'connected' | 'incompatible' | 'closed'): void {
 		this._onDidChangeConnectionState.fire(state);
+	}
+
+	fireScheduleReconnect(): void {
+		this._onDidScheduleReconnect.fire();
 	}
 }
 
@@ -819,6 +833,85 @@ suite('RemoteAgentHostService', () => {
 			await waitForFactoryConnection(factory, 2);
 			userClient.connectDeferred.complete();
 			await userWait;
+		});
+
+		test('surfaces a protocol reconnect backoff deadline', async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Cloud Sandbox', 'cloud:backoff');
+			const client = new MockProtocolClient('cloud:backoff');
+			await reconnectStagedConnection(factory, entry, client);
+
+			client.nextReconnectAt = 123_456;
+			client.fireConnectionState('reconnecting');
+
+			assert.deepStrictEqual(
+				service.connections.find(connection => connection.address === 'cloud:backoff')?.status,
+				RemoteAgentHostConnectionStatus.reconnectingUntil(123_456),
+			);
+		});
+
+		test('refreshes the backoff deadline as the client reschedules', async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Cloud Sandbox', 'cloud:backoff-refresh');
+			const client = new MockProtocolClient('cloud:backoff-refresh');
+			await reconnectStagedConnection(factory, entry, client);
+
+			client.nextReconnectAt = 1_000;
+			client.fireConnectionState('reconnecting');
+			const armed = service.connections.find(connection => connection.address === 'cloud:backoff-refresh')?.status;
+
+			// The client stays `reconnecting` across rounds, so only the schedule
+			// event reports the new deadline.
+			client.nextReconnectAt = 5_000;
+			client.fireScheduleReconnect();
+
+			assert.deepStrictEqual({
+				armed,
+				rescheduled: service.connections.find(connection => connection.address === 'cloud:backoff-refresh')?.status,
+			}, {
+				armed: RemoteAgentHostConnectionStatus.reconnectingUntil(1_000),
+				rescheduled: RemoteAgentHostConnectionStatus.reconnectingUntil(5_000),
+			});
+		});
+
+		test('prefers a protocol client reconnect over a fresh dial', async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Cloud Sandbox', 'cloud:in-place-reconnect');
+			const client = new MockProtocolClient('cloud:in-place-reconnect');
+			await reconnectStagedConnection(factory, entry, client);
+			client.reconnectNowResult = true;
+
+			service.reconnectNow('cloud:in-place-reconnect');
+
+			assert.deepStrictEqual({
+				createdConnectionCount: factory.createdConnectionCount,
+				reconnectNowCalls: client.reconnectNowCalls,
+			}, {
+				createdConnectionCount: 1,
+				reconnectNowCalls: 1,
+			});
+		});
+
+		test('falls back to a fresh dial when a retained entry has no client', async () => {
+			const factory = createFactory(RemoteAgentHostEntryType.WSL);
+			const entry: IRemoteAgentHostEntry = {
+				name: 'Ubuntu',
+				connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' },
+			};
+			const address = getEntryAddress(entry);
+			factory.stageFailure(entry, new NonReconnectableTransportError('WSL distro is not running.', AgentHostTransportFailureReason.HostNotRunning));
+			while (service.connections.find(connection => connection.address === address)?.status.kind !== 'disconnected') {
+				await Event.toPromise(service.onDidChangeConnections);
+			}
+
+			const client = new MockProtocolClient(address);
+			factory.stage(entry, client);
+			service.reconnectNow(address);
+			await waitForFactoryConnection(factory, 1);
+			client.connectDeferred.complete();
+			await waitForConnected();
+
+			assert.strictEqual(factory.createdConnectionCount, 1);
 		});
 
 		test('keeps an incompatible factory connection addressable for server upgrade', async () => {
