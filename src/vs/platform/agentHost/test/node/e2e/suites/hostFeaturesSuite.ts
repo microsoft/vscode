@@ -14,7 +14,6 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentHostCopilotMultiRootEnabledConfigKey } from '../../../../common/agentHostSchema.js';
 import { CompletionItemKind, type CompletionsResult, type InitializeResult, type ResolveSessionConfigResult, type SessionConfigCompletionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { ActionType } from '../../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, MessageAttachmentKind, ROOT_STATE_URI, ToolCallConfirmationReason, type TerminalState, type ToolResultContent } from '../../../../common/state/sessionState.js';
 import {
 	createRealSession,

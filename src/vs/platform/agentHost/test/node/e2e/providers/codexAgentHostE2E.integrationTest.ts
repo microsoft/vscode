@@ -20,7 +20,7 @@ import { ActionType } from '../../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, ROOT_STATE_URI } from '../../../../common/state/sessionState.js';
 import { AgentHostE2EServerLease, dispatchTurn, removeTempDirs, resolveGitHubToken, setRootConfigValues, startBackgroundApprovalLoop } from '../harness/agentHostE2ETestHarness.js';
 import { defineAgentHostE2ETests } from '../suites/agentHostE2ESuites.js';
-import { getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
+import { isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { CODEX_CONFIG } from './codexTestConfiguration.js';
 
 const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
