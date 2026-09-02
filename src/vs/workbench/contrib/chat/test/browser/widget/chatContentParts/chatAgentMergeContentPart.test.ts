@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as dom from '../../../../../../../base/browser/dom.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
@@ -36,14 +37,17 @@ function summary(overrides: Partial<IAgentMergePromptSummary> = {}): IAgentMerge
 
 function createPart(
 	data: IAgentMergePromptSummary,
-	hoverService: IHoverService = upcastPartial<IHoverService>({ setupDelayedHover: () => toDisposable(() => { }) }),
+	options: {
+		readonly hoverService?: IHoverService;
+		readonly markdownRenderer?: IMarkdownRenderer;
+	} = {},
 ): ChatAgentMergeContentPart {
 	return new ChatAgentMergeContentPart(
 		data,
 		URI.parse('test://session'),
-		upcastPartial<IMarkdownRenderer>({}),
+		options.markdownRenderer ?? upcastPartial<IMarkdownRenderer>({}),
 		upcastPartial<IOpenerService>({}),
-		hoverService,
+		options.hoverService ?? upcastPartial<IHoverService>({ setupDelayedHover: () => toDisposable(() => { }) }),
 		upcastPartial<ICommandService>({}),
 	);
 }
@@ -150,13 +154,37 @@ suite('ChatAgentMergeContentPart file labels', () => {
 
 	test('attaches the status hover to the interactive disclosure', () => {
 		let hoverTarget: HTMLElement | undefined;
-		const part = store.add(createPart(summary(), upcastPartial<IHoverService>({
-			setupDelayedHover: target => {
-				hoverTarget = target;
-				return toDisposable(() => { });
-			},
-		})));
+		const part = store.add(createPart(summary(), {
+			hoverService: upcastPartial<IHoverService>({
+				setupDelayedHover: target => {
+					hoverTarget = target;
+					return toDisposable(() => { });
+				},
+			}),
+		}));
 
 		assert.strictEqual(hoverTarget, part.domNode.querySelector('.chat-agent-merge-header-disclosure'));
+	});
+
+	test('shows section headings only when comments and checks are both present', () => {
+		const markdownRenderer = upcastPartial<IMarkdownRenderer>({
+			render: () => ({ element: dom.$('div'), dispose: () => { } }),
+		});
+		const reviewSummaries = [{ author: 'octocat', body: 'Please fix this.' }];
+		const commentsOnly = store.add(createPart(summary({ reviewSummaries }), { markdownRenderer }));
+		const checksOnly = store.add(createPart(summary({ failedChecks: ['Compile'] }), { markdownRenderer }));
+		const mixed = store.add(createPart(summary({ reviewSummaries, failedChecks: ['Compile'] }), { markdownRenderer }));
+		const sectionTitles = (part: ChatAgentMergeContentPart) =>
+			Array.from(part.domNode.querySelectorAll('.chat-agent-merge-section-title'), element => element.textContent);
+
+		assert.deepStrictEqual([
+			sectionTitles(commentsOnly),
+			sectionTitles(checksOnly),
+			sectionTitles(mixed),
+		], [
+			[],
+			[],
+			['Review Feedback', 'Checks'],
+		]);
 	});
 });
