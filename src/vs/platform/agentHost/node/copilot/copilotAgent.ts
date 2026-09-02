@@ -69,6 +69,7 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../shared/persistSessionMetadata.js';
+import { IAgentHostMcpConnectorsService, toMcpServerConfigurationMap } from '../agentHostMcpConnectorsService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { applyMcpServerEnablement, applyMcpServerRuntimeStates, buildMcpTopLevelCustomizationId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
@@ -7151,6 +7152,7 @@ class ActiveClient extends Disposable {
 		pluginController: SessionPluginController,
 		onDidSessionProgress: Emitter<AgentSignal>,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostMcpConnectorsService private readonly _mcpConnectorsService: IAgentHostMcpConnectorsService,
 	) {
 		super();
 		this.pluginController = this._register(pluginController);
@@ -7262,14 +7264,15 @@ class ActiveClient extends Disposable {
 		return {
 			tools: chatKey === undefined ? this.toolSet.merged() : this.toolsForChat(chatKey),
 			plugins: await this.pluginController.getAppliedPlugins(),
-			mcpServers: this._getMcpServers(),
+			mcpServers: await this._getMcpServers(),
 		};
 	}
 
-	private _getMcpServers(): AgentHostMcpServers {
+	private async _getMcpServers(): Promise<AgentHostMcpServers> {
+		const connectorServers = toMcpServerConfigurationMap(await this._mcpConnectorsService.refresh());
 		const servers = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey) ?? {};
 
-		return structuredClone(servers);
+		return structuredClone({ ...connectorServers, ...servers });
 	}
 
 	/** Reports the first changed structural contribution without including its contents. */

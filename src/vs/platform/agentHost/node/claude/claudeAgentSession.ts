@@ -61,6 +61,7 @@ import { GITHUB_MCP_SERVER_NAME, resolveGitHubMcpServerConfiguration } from '../
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { IAgentHostAuthenticationService } from '../agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
+import { IAgentHostMcpConnectorsService } from '../agentHostMcpConnectorsService.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction } from '../shared/agentMergeToolRestrictions.js';
 
 // Re-export for callers that import IRematerializer from the session.
@@ -457,6 +458,7 @@ export class ClaudeAgentSession extends Disposable {
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
+		@IAgentHostMcpConnectorsService private readonly _mcpConnectorsService: IAgentHostMcpConnectorsService,
 	) {
 		super();
 		this._chatChannelUri = chatChannelUri;
@@ -466,6 +468,10 @@ export class ClaudeAgentSession extends Disposable {
 			if (event.resource === this._gitHubEndpointService.getCopilotResource().resource) {
 				this.markMcpConfigurationDirty();
 			}
+		}));
+		this._register(this._mcpConnectorsService.onDidChange(() => {
+			this.markMcpConfigurationDirty();
+			this._onDidCustomizationsChange.fire();
 		}));
 		this._provisionalModel = model;
 		this._provisionalAgent = agent;
@@ -887,6 +893,22 @@ export class ClaudeAgentSession extends Disposable {
 			return { servers: {}, deniedServers: [] };
 		}
 		const definitions = new Map<string, IMcpServerDefinition>();
+		const connectors = await this._mcpConnectorsService.refresh();
+		const connectorCustomizations = connectors.map(connector => createClaudeInternalMcpServerCustomization(connector.serverName));
+		const connectorResolution = resolveCustomizationEnablement(this._customizationEnablementService, this._configurationResource, connectorCustomizations);
+		const connectorEnablement = getSdkMcpServerEnablement(connectorResolution);
+		for (let index = 0; index < connectors.length; index++) {
+			const connector = connectors[index];
+			const customization = connectorCustomizations[index];
+			if (connectorEnablement.get(customization.id) === true && !definitions.has(connector.serverName)) {
+				definitions.set(connector.serverName, {
+					name: connector.serverName,
+					configuration: connector.configuration,
+					uri: URI.parse(customization.uri),
+					customization,
+				});
+			}
+		}
 		const discoveredDefinitions = await this._mcpDiscovery?.refresh() ?? [];
 		let hasGitHubMcpServer = gitHubMcpServerConfiguration
 			? discoveredDefinitions.some(definition => isGitHubMcpServerDefinition(definition, gitHubMcpServerConfiguration))
@@ -896,6 +918,8 @@ export class ClaudeAgentSession extends Disposable {
 		const discoveredEnablement = getSdkMcpServerEnablement(discoveredResolution);
 		const deniedServers: ClaudeDeniedMcpServerSpec[] = [];
 		for (const definition of discoveredDefinitions) {
+			// Primary-workspace definitions loaded natively by Claude must still reserve their names here.
+			definitions.delete(definition.name);
 			if (discoveredEnablement.get(definition.customization.id) !== true) {
 				if (definition.defaultCwd && isEqual(definition.defaultCwd, primaryCwd)) {
 					deniedServers.push(toClaudeDeniedMcpServer(definition));

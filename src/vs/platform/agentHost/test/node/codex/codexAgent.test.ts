@@ -10,6 +10,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { AgentChatMigrationDeferred, AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgentChatContext, type IAgentDiscoveredChat } from '../../../common/agent.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { ActionType, type ChatAction } from '../../../common/state/sessionActions.js';
@@ -252,6 +253,7 @@ suite('CodexAgent', () => {
 	test('GitHub MCP injection respects unowned server enablement', () => {
 		const createHarness = (enabled: boolean, customizationEnabled: boolean, token: string | undefined): ICodexGitHubMcpHarness => Object.assign(Object.create(CodexAgent.prototype), {
 			_configurationService: { getRootValue: () => undefined },
+			_mcpConnectorsService: { getCachedConnectors: () => [] },
 			_sessionMcpDiscoveries: new Map(),
 			_enabledClientPlugins: () => [],
 			_mcpAuthTokens: new Map(),
@@ -286,6 +288,7 @@ suite('CodexAgent', () => {
 
 		const aliasedServers = Object.assign(Object.create(CodexAgent.prototype), {
 			_configurationService: { getRootValue: () => ({ alias: { type: 'http', url: 'https://api.githubcopilot.com/mcp/' } }) },
+			_mcpConnectorsService: { getCachedConnectors: () => [] },
 			_sessionMcpDiscoveries: new Map(),
 			_enabledClientPlugins: () => [],
 			_mcpAuthTokens: new Map(),
@@ -296,6 +299,43 @@ suite('CodexAgent', () => {
 		}) as ICodexGitHubMcpHarness;
 		assert.deepStrictEqual(aliasedServers._buildSessionMcpServers({ sessionId: 'alias', workingDirectory: URI.file('/work') }), {
 			alias: { url: 'https://api.githubcopilot.com/mcp/' },
+		});
+	});
+
+	test('connector MCP servers carry authentication below user root configuration', () => {
+		const harness = Object.assign(Object.create(CodexAgent.prototype), {
+			_configurationService: {
+				getRootValue: () => ({
+					collision: { type: McpServerType.REMOTE, url: 'https://user.example.test/mcp', headers: { 'X-Source': 'user' } },
+				}),
+			},
+			_mcpConnectorsService: {
+				getCachedConnectors: () => [{
+					pluginName: 'mail-plugin',
+					displayName: 'Mail',
+					serverName: 'mail',
+					configuration: { type: McpServerType.REMOTE, url: 'https://connectors.example.test/mail', headers: { Authorization: 'Bearer connector-token' } },
+					scopes: [],
+				}, {
+					pluginName: 'collision-plugin',
+					displayName: 'Collision',
+					serverName: 'collision',
+					configuration: { type: McpServerType.REMOTE, url: 'https://connectors.example.test/collision', headers: { Authorization: 'Bearer connector-token' } },
+					scopes: [],
+				}],
+			},
+			_sessionMcpDiscoveries: new Map(),
+			_enabledClientPlugins: () => [],
+			_mcpAuthTokens: new Map(),
+			_githubMcpServerEnabled: false,
+			_githubToken: undefined,
+			_gitHubMcpServerConfiguration: undefined,
+			_isMcpServerEnabledForSdk: () => true,
+		}) as ICodexGitHubMcpHarness;
+
+		assert.deepStrictEqual(harness._buildSessionMcpServers({ sessionId: 'connectors', workingDirectory: URI.file('/work') }), {
+			mail: { url: 'https://connectors.example.test/mail', http_headers: { Authorization: 'Bearer connector-token' } },
+			collision: { url: 'https://user.example.test/mcp', http_headers: { 'X-Source': 'user' } },
 		});
 	});
 
