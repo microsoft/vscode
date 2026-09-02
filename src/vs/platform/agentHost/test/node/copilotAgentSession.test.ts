@@ -4073,6 +4073,7 @@ suite('CopilotAgentSession', () => {
 				{ kind: 'read', path: '/plugins/inactive/rules/typescript.instructions.md', toolCallId: 'tc-plugin-outside' },
 				{ kind: 'read', path: '/plugins/active-evil/rules/typescript.instructions.md', toolCallId: 'tc-plugin-prefix-sibling' },
 				{ kind: 'read', path: logicallyOutsidePath, toolCallId: 'tc-plugin-logically-outside' },
+				{ kind: 'read', path: `${pluginDir.fsPath}${sep}link${sep}..${sep}secret`, toolCallId: 'tc-plugin-parent-traversal' },
 				{ kind: 'write', fileName: URI.joinPath(pluginDir, 'rules/typescript.instructions.md').fsPath, toolCallId: 'tc-plugin-write' },
 				{ kind: 'read', path: URI.joinPath(pluginDir, 'rules/typescript.instructions.md').fsPath, toolCallId: 'tc-plugin-managed', managedApprovalRequired: true },
 				{ kind: 'read', path: URI.joinPath(pluginDir, 'rules/typescript.instructions.md').fsPath, toolCallId: 'tc-plugin-bypass', requestSandboxBypass: true },

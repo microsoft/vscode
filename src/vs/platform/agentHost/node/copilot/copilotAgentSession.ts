@@ -395,8 +395,12 @@ function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boole
 
 const realpath = promisify(fsRealpath);
 
+function hasParentPathSegment(filePath: string): boolean {
+	return filePath.split(/[\\/]/).includes('..');
+}
+
 async function isPathWithinDirectory(filePath: string, directory: URI, resolveRealPath: (path: string) => Promise<string>): Promise<boolean> {
-	if (!isAbsolute(filePath) || directory.scheme !== Schemas.file) {
+	if (!isAbsolute(filePath) || hasParentPathSegment(filePath) || directory.scheme !== Schemas.file) {
 		return false;
 	}
 
@@ -407,8 +411,8 @@ async function isPathWithinDirectory(filePath: string, directory: URI, resolveRe
 	}
 
 	const [resolvedPath, resolvedDirectory] = await Promise.all([
-		resolveRealPath(resource.fsPath),
-		resolveRealPath(normalizedDirectory.fsPath),
+		resolveRealPath(filePath),
+		resolveRealPath(directory.fsPath),
 	]);
 	return extUriBiasedIgnorePathCase.isEqualOrParent(
 		normalizePath(URI.file(resolvedPath)),
