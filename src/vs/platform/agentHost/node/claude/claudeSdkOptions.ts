@@ -226,7 +226,17 @@ export async function buildClientMcpServers(
 	if (tools.length === 0) {
 		return undefined;
 	}
-	const server = await buildClientToolMcpServer(tools, (id, toolName) => registry.register(id, toolDiff.model.ownerOf(toolName)), sdkService);
+	const server = await buildClientToolMcpServer(tools, (id, toolName) => {
+		const owner = toolDiff.model.ownerOf(toolName);
+		// Removal only marks the diff for the next send, so this tool can still be called.
+		if (owner === undefined && !registry.hasBufferedResult(id)) {
+			return Promise.resolve({
+				content: [{ type: 'text', text: `Client tool "${toolName}" is unavailable: no connected client provides it.` }],
+				isError: true,
+			});
+		}
+		return registry.register(id, owner);
+	}, sdkService);
 	return { client: server };
 }
 

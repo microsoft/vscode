@@ -969,14 +969,19 @@ export class AgentSideEffects extends Disposable {
 		}
 		const sessionUri = isAhpChatChannel(channel) ? parseRequiredSessionUriFromChatUri(channel) : channel;
 		const clientContext = this._turnTracker.getClientTelemetryContext(channel, turnId);
+		// Ending a turn force-cancels its running tool calls, so read the spawns first.
+		const endingSubagents = this._resolvedSubagentSpawns(channel, turnId);
 		this._stateManager.dispatchServerAction(channel, action);
 		const reason = turnEndReasonFor(action);
 		const failure = reason.kind === 'error' ? { stage: 'provider' as const, error: reason.error } : undefined;
 		const ended = this._completeTurn(channel, turnId, turnResultFor(action), failure);
 		this._toolCallTracker.clearSession(channel);
+		this._resumedTurnExecutions.delete(this._resumedTurnExecutionKey(channel, turnId));
 		if (ended) {
 			this._chatContributions.turnEnd({ session: sessionUri, channel, turnId, reason, clientContext });
 		}
+		// A host-closed parent must clear its children, or the reaper strands them.
+		this._endSubagentTurns(endingSubagents, action);
 		return ended;
 	}
 
@@ -1821,6 +1826,10 @@ export class AgentSideEffects extends Disposable {
 			await agent.chats.sendMessage(chatUri, contribution.message.text, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientContext.clientType, sendContext);
 			this._closeAbandonedTurn(agent, turnChannel, chatUri, turnId, sendContext, this._turnDuration(turnStopWatch));
 		} catch (err) {
+			if (this._closeNeverStartedTurn(agent, turnChannel, chatUri, turnId, this._chatContext(sessionChannel, chat), this._turnDuration(turnStopWatch))) {
+				this._failSessionCreationIfStillCreating(sessionChannel, abandonedTurnError());
+				return;
+			}
 			const failure = buildTurnFailure(failureStage, err);
 			const error = failure.error;
 			this._logService.error(`[AgentSideEffects] ${failureStage} failed for session=${turnChannel}: code=${failure.errorCode}, message=${error.message}, type=${failure.errorName}`, err);
@@ -1869,8 +1878,28 @@ export class AgentSideEffects extends Disposable {
 			this._endTurnFromHost(channel, { type: ActionType.ChatTurnComplete, turnId, duration });
 			return;
 		}
-		const error: ErrorInfo = { errorType: TURN_ABANDONED_ERROR_TYPE, message: 'The agent stopped without finishing this turn.' };
-		this._endTurnFromHost(channel, { type: ActionType.ChatError, turnId, duration, part: createErrorResponsePart(error) });
+		this._endTurnFromHost(channel, { type: ActionType.ChatError, turnId, duration, part: createErrorResponsePart(abandonedTurnError()) });
+	}
+
+	/**
+	 * Closes a turn whose send rejected before the provider ever took it, so a
+	 * control-plane rejection is not reported as a provider send failure. A call
+	 * the provider did take keeps its own error, which is more specific than
+	 * anything the host can synthesize.
+	 */
+	private _closeNeverStartedTurn(agent: IAgent, channel: ProtocolURI, chat: URI, turnId: string, context: IAgentChatContext, duration: number): boolean {
+		if (this._stateManager.getActiveTurnId(channel) !== turnId) {
+			return false;
+		}
+		const snapshot = this._providerTurnDiagnostics(agent, chat, turnId, context);
+		if (snapshot?.state !== 'available' || !snapshot.callSettlesWithTurn || snapshot.providerCallState !== 'notStarted') {
+			return false;
+		}
+		if (snapshot.pendingHostRequests?.length || this._hasVisiblePendingRequest(channel)) {
+			return false;
+		}
+		this._logService.warn(`[AgentSideEffects] Closing turn ${turnId} on ${channel} that the provider never started`);
+		return this._endTurnFromHost(channel, { type: ActionType.ChatError, turnId, duration, part: createErrorResponsePart(abandonedTurnError()) });
 	}
 
 	private _providerTurnDiagnostics(agent: IAgent, chat: URI, turnId: string, context: IAgentChatContext): IAgentTurnDiagnosticSnapshot | undefined {
@@ -2030,6 +2059,10 @@ function turnEndReasonFor(action: IHostTerminalTurnAction): TurnEndReason {
 
 /** `ErrorInfo.errorType` for a turn the host closed because its producer went away. */
 const TURN_ABANDONED_ERROR_TYPE = 'executionAbandoned';
+
+function abandonedTurnError(): ErrorInfo {
+	return { errorType: TURN_ABANDONED_ERROR_TYPE, message: 'The agent stopped without finishing this turn.' };
+}
 
 /**
  * Builds the {@link ErrorInfo} for a failed `sendMessage` rejection. When the
