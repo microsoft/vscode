@@ -540,6 +540,25 @@
 		{
 			"type": "extensionHost",
 			"request": "launch",
+			"name": "Markdown Code Block Editor Demo",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"${workspaceFolder}/extensions/markdown-language-features/test-workspace",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/markdown-language-features",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/markdown-language-features/test-workspace/checkbox-count-extension"
+			],
+			"outFiles": [
+				"${workspaceFolder}/extensions/markdown-language-features/out/**/*.js"
+			],
+			"preLaunchTask": "Build Markdown Code Block Editor Demo",
+			"presentation": {
+				"group": "4_demo",
+				"order": 1
+			}
+		},
+		{
+			"type": "extensionHost",
+			"request": "launch",
 			"name": "Markdown Extension Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [

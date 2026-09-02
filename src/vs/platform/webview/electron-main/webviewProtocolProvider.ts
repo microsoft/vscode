@@ -14,7 +14,7 @@ export class WebviewProtocolProvider implements IDisposable {
 
 	private static validWebviewFilePaths = new Map<string, { readonly mime: string }>([
 		['/index.html', { mime: 'text/html' }],
-		['/fake.html', { mime: 'text/html' }],
+		['/iframe-bootstrap.html', { mime: 'text/html' }],
 		['/service-worker.js', { mime: 'application/javascript' }],
 	]);
 
