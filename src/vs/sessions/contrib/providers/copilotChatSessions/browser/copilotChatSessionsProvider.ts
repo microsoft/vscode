@@ -909,11 +909,11 @@ async function resolveGitHubRepositoryId(folder: ISessionFolder, gitService: Pic
 	}
 
 	const remoteRepositoryId = githubRemoteRepoLabel(folder.root);
-	if (remoteRepositoryId || !folder.gitRepository) {
+	if (remoteRepositoryId || folder.root.scheme !== Schemas.file) {
 		return remoteRepositoryId;
 	}
 
-	const repository = await gitService.openRepository(folder.gitRepository.uri);
+	const repository = await gitService.openRepository(folder.gitRepository?.uri ?? folder.root);
 	const repositoryInfo = repository && getGitHubRemoteInfo(repository.state.get());
 	return repositoryInfo ? `${repositoryInfo.owner}/${repositoryInfo.repo}` : undefined;
 }

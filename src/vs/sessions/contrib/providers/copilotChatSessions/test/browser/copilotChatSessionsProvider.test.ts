@@ -594,12 +594,7 @@ suite('CopilotChatSessionsProvider', () => {
 				workingDirectory: root,
 				name: 'vscode',
 				description: undefined,
-				gitRepository: {
-					uri: root,
-					workTreeUri: root,
-					baseBranchName: undefined,
-					gitHubInfo: constObservable(undefined),
-				},
+				gitRepository: undefined,
 			}],
 			requiresWorkspaceTrust: true,
 			isVirtualWorkspace: false,
