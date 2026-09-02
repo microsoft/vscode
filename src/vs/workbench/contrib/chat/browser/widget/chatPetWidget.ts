@@ -2245,6 +2245,9 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _onKeyDown(event: KeyboardEvent): void {
+		if (!this._isDragging.get()) {
+			this._dragMonitor.stopMonitoring(false);
+		}
 		const hasPointerInteraction = this._isDragging.get() || this._dragMonitor.isMonitoring();
 		if (!isChatPetKeyboardInteractionEnabled(this._enabled, this._isDead.get(), hasPointerInteraction, this._isAirborne(), this.chatPetService.onTheRun.get())) {
 			return;

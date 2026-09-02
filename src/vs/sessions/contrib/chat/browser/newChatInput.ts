@@ -709,7 +709,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				if (petCenterX !== undefined) {
 					const pillTop = getChatPetPillPlatformTop(
 						petCenterX,
-						this.options.getChatPetPlatformElements?.().map(element => element.getBoundingClientRect()) ?? [],
+						[
+							...(this.options.getChatPetPlatformElements?.() ?? []),
+							...this.sessionTypePicker.getChatPetPlatformElements(),
+						].map(element => element.getBoundingClientRect()),
 					);
 					if (pillTop !== undefined) {
 						return pillTop;
@@ -718,7 +721,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				// Stand on the notice docked above the input, not on the input itself.
 				return getChatPetStackPlatformTop(chatInputContainer, inputArea);
 			},
-			onDidChangePlatform: this.options.onDidChangeChatPetPlatform ?? Event.None,
+			onDidChangePlatform: Event.any(
+				this.options.onDidChangeChatPetPlatform ?? Event.None,
+				this.sessionTypePicker.onDidChangeChatPetPlatform,
+			),
 		}, this.options.petHostPreferred, this.onDidFocus));
 		this._createInputToolbar(inputArea);
 

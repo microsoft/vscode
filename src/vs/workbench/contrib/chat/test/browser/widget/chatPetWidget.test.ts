@@ -211,7 +211,6 @@ suite('ChatPetWidget', () => {
 			buttons: 1,
 			bubbles: true,
 		}));
-		button.click();
 		const arrowEvent = new mainWindow.KeyboardEvent('keydown', { code: 'ArrowLeft', key: 'ArrowLeft', bubbles: true, cancelable: true });
 		Object.defineProperty(arrowEvent, 'keyCode', { value: 37 });
 		button.dispatchEvent(arrowEvent);
