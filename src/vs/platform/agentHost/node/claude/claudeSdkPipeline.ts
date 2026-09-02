@@ -201,6 +201,13 @@ export class ClaudeSdkPipeline extends Disposable {
 
 	private readonly _queue: ClaudePromptQueue;
 
+	/**
+	 * Steering ids accepted into the queue and not yet consumed. The drain
+	 * contribution re-delivers the current steering message on every
+	 * pending-message action, so the same id arrives until it is consumed.
+	 */
+	private readonly _steeringInFlight = new Set<string>();
+
 	/** Flips to `true` on the first `system:init` SDK message. Drives `Options.resume` decisions for downstream phases. */
 	private _isResumed = false;
 
@@ -265,11 +272,14 @@ export class ClaudeSdkPipeline extends Disposable {
 			ClaudePromptQueue,
 			sessionId,
 			() => this._abortController.signal,
-			(pendingId: string) => this._onDidProduceSignal.fire({
-				kind: 'steering_consumed',
-				chat: this.chatChannelUri,
-				id: pendingId,
-			}),
+			(pendingId: string) => {
+				this._steeringInFlight.delete(pendingId);
+				this._onDidProduceSignal.fire({
+					kind: 'steering_consumed',
+					chat: this.chatChannelUri,
+					id: pendingId,
+				});
+			},
 		));
 		this._router = this._register(instantiationService.createInstance(
 			ClaudeSdkMessageRouter, chatChannelUri, resource, dbRef, subagents, clientToolOwner,
@@ -460,6 +470,10 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * into the in-progress protocol Turn).
 	 */
 	injectSteering(prompt: SDKUserMessage, pendingMessageId: string): void {
+		if (this._steeringInFlight.has(pendingMessageId)) {
+			this._logService.trace(`[Claude:${this.sessionId}] injectSteering: already in flight id=${pendingMessageId}`);
+			return;
+		}
 		if (this._abortController.signal.aborted) {
 			this._logService.warn(`[Claude:${this.sessionId}] injectSteering: dropped (controller aborted) id=${pendingMessageId}`);
 			return;
@@ -474,6 +488,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		// promise is the original entry's deferred); attach a no-op catch
 		// so a `failAll` rejection on abort/crash doesn't surface as an
 		// unhandled rejection.
+		this._steeringInFlight.add(pendingMessageId);
 		this._queue.push({
 			sdkMessage: prompt,
 			sdkUuid,
@@ -523,6 +538,7 @@ export class ClaudeSdkPipeline extends Disposable {
 
 	private _wireAbortHandler(controller: AbortController): void {
 		controller.signal.addEventListener('abort', () => {
+			this._steeringInFlight.clear();
 			this._queue.notifyAborted();
 		}, { once: true });
 	}
