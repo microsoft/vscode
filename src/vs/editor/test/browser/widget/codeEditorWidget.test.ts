@@ -130,6 +130,21 @@ suite('CodeEditorWidget', () => {
 			assert.strictEqual(isHidden(), false);
 		});
 
+		test('unfocused text input does not hide the mouse pointer', () => {
+			const { blurTextInput, editor, isHidden, type } = createEditor();
+			blurTextInput();
+
+			type();
+
+			assert.deepStrictEqual({
+				hasTextFocus: editor.hasTextFocus(),
+				isHidden: isHidden()
+			}, {
+				hasTextFocus: false,
+				isHidden: false
+			});
+		});
+
 		for (const [name, event] of [
 			['pointer move', () => new MouseEvent('pointermove', { bubbles: true, movementX: 4 })],
 			['pointer leave', () => new MouseEvent('pointerleave')],
@@ -169,9 +184,7 @@ suite('CodeEditorWidget', () => {
 			assert.ok(descendant, 'the editor should render its root node');
 			typeAndAssertHidden();
 
-			// Re-rendering the lines below a resting pointer replaces the element it points at, so
-			// the browser fires a boundary event without the pointer having moved. `pointerleave`
-			// does not bubble, but it does travel the capture phase down to its target.
+			// Ignore descendant boundary events caused by re-rendering beneath a stationary pointer.
 			descendant.dispatchEvent(new MouseEvent('pointerleave'));
 			assert.strictEqual(isHidden(), true);
 

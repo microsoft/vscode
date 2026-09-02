@@ -27,7 +27,9 @@
 	overflow-wrap: initial;
 }
 
-.monaco-editor-hide-mouse-cursor {
+/* Explicitly style editor descendants because their own cursor rules override inherited cursor state. */
+.monaco-editor-hide-mouse-cursor,
+.monaco-editor-hide-mouse-cursor .monaco-editor * {
 	cursor: none;
 }
 

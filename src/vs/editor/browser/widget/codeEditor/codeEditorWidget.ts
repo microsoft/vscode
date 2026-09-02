@@ -426,17 +426,36 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (this._mouseCursorHidden || !this._configuration.options.get(EditorOption.hideMouseCursorOnTyping)) {
 			return;
 		}
+		// Read-only input is rejected, so it must not activate the hidden cursor state.
+		if (this._configuration.options.get(EditorOption.readOnly)) {
+			return;
+		}
+		// Real keyboard input requires text focus, but public trigger calls can simulate typing in an unfocused editor.
+		if (!this.hasTextFocus()) {
+			return;
+		}
 		this._mouseCursorHidden = true;
 		this._domElement.classList.add(MOUSE_CURSOR_HIDDEN_CSS_CLASS_NAME);
 
 		const store = new DisposableStore();
-		// Listen in the capture phase: descendants such as the scrollbars and the minimap stop
-		// propagation of these events, so a bubbling listener would miss them and leave the cursor hidden.
+		// Capture pointer input because editor descendants such as scrollbars and the minimap stop propagation.
 		store.add(dom.addDisposableListener(this._domElement, 'wheel', () => this._showMouseCursor(), { capture: true }));
 		store.add(dom.addDisposableListener(this._domElement, 'pointerdown', () => this._showMouseCursor(), { capture: true }));
 		store.add(dom.addDisposableListener(this._domElement, 'contextmenu', () => this._showMouseCursor(), { capture: true }));
-		store.add(dom.addDisposableListener(this._domElement, 'pointermove', () => this._showMouseCursor(), { capture: true }));
-		store.add(dom.addDisposableListener(this._domElement, 'pointerleave', () => this._showMouseCursor(), { capture: true }));
+
+		let lastPointerPosition: { readonly screenX: number; readonly screenY: number } | undefined;
+		// Editor rendering can fire `pointermove` without actual mouse movement, so keep the cursor hidden for those events.
+		store.add(dom.addDisposableListener(this._domElement, 'pointermove', event => {
+			const hasMoved = event.movementX !== 0 || event.movementY !== 0 || (lastPointerPosition !== undefined && (event.screenX !== lastPointerPosition.screenX || event.screenY !== lastPointerPosition.screenY));
+			lastPointerPosition = { screenX: event.screenX, screenY: event.screenY };
+			if (hasMoved) {
+				this._showMouseCursor();
+			}
+		}, { capture: true }));
+		// Reveal only when the mouse leaves the entire editor; re-rendered child elements can fire their own `pointerleave` events.
+		store.add(dom.addDisposableListener(this._domElement, 'pointerleave', () => this._showMouseCursor()));
+		// Show the mouse cursor when the editor's window loses focus, even if the editor's text input still appears focused.
+		store.add(dom.addDisposableListener(dom.getWindow(this._domElement), 'blur', () => this._showMouseCursor()));
 		this._mouseCursorRevealListeners.value = store;
 	}
 
