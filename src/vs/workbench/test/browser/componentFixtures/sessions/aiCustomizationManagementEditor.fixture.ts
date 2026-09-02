@@ -1393,6 +1393,10 @@ async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean
 		makeInstalledPlugin('Sentry', URI.file('/home/dev/.vscode/agent-plugins/example/sentry-plugin'), true),
 		makeInstalledPlugin('Datadog', URI.file('/home/dev/.vscode/agent-plugins/example/datadog-plugin'), false, true),
 	];
+	const marketplaceInstalledPlugins = noInstalledPlugins ? [] : marketplacePlugins.slice(0, 3).map((plugin, index) => ({
+		pluginUri: browseInstalledPlugins[index].uri,
+		plugin,
+	}));
 
 	// Map plugin source descriptors to install URIs, matching installed URIs above
 	const pluginInstallUris = new Map<string, URI>([
@@ -1422,7 +1426,7 @@ async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean
 				override readonly enablementModel = undefined!;
 			}());
 			reg.defineInstance(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
-				override readonly installedPlugins = constObservable([]);
+				override readonly installedPlugins = constObservable(marketplaceInstalledPlugins);
 				override readonly recommendedPlugins = constObservable(new Set(['Figma@copilot', 'Stripe@copilot']));
 				override readonly onDidChangeMarketplaces = Event.None;
 				override async fetchMarketplacePlugins() { return marketplacePlugins; }
