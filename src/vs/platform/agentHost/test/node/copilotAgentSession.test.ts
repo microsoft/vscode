@@ -7261,6 +7261,44 @@ Use the attached image as context.
 			});
 		});
 
+		test('progress paused by MCP authentication is re-emitted once the call resumes', async () => {
+			const { session, mockSession, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-progress-auth');
+			const progressMessages = () => getActions(signals)
+				.filter(action => action.type === ActionType.ChatToolCallContentChanged)
+				.map(action => readToolCallMeta(action).progressMessage);
+			const fireProgress = () => mockSession.fire('tool.execution_progress', {
+				toolCallId: 'tc-auth-progress',
+				progressMessage: 'Searching',
+			} as SessionEventPayload<'tool.execution_progress'>['data']);
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-auth-progress',
+				toolName: 'mcp_tool',
+				mcpServerName: 'github',
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			const authPromise = runtime.handleMcpAuthRequest({
+				requestId: 'auth-progress',
+				serverName: 'github',
+				serverUrl: 'https://api.githubcopilot.com/mcp/',
+				reason: 'upscope',
+				wwwAuthenticateParams: { scope: 'repo', error: 'insufficient_scope' },
+			}, { sessionId: 'test-session-1' });
+			await timeout(0);
+			fireProgress();
+			const whilePaused = progressMessages();
+
+			await session.resolveMcpAuthentication({ resource: 'https://api.githubcopilot.com/mcp/', scopes: ['repo'], token: 'token' });
+			await authPromise;
+			fireProgress();
+
+			// The repeat is only emitted because the paused one was never recorded as last sent.
+			assert.deepStrictEqual({ whilePaused, afterResume: progressMessages() }, {
+				whilePaused: [],
+				afterResume: ['Searching'],
+			});
+		});
+
 		test('truncated shell output streams through marker, rolling-tail, and completion transitions', async () => {
 			const { session, mockSession, signals, waitForSignal, terminalManager } = await createAgentSession(disposables);
 			session.resetTurnState('turn-truncated-stream');
