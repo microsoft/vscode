@@ -6996,7 +6996,8 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 	});
 
 	test('a client tool never reaches the pending_confirmation channel', async () => {
-		const { ctx, canUseTool } = await materialize();
+		const { ctx, canUseTool, sessionUri } = await materialize();
+		getOrCreateActiveClient(ctx.agent, defaultChatUri(sessionUri), 'client-1').tools = [{ name: 'editFile', inputSchema: { type: 'object' } }];
 		const signals: AgentSignal[] = [];
 		disposables.add(ctx.agent.onDidChatProgress(signal => signals.push(signal)));
 		const input = { path: '/work/a.ts' };
@@ -7011,6 +7012,23 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		assert.deepStrictEqual({ result, pendingConfirmations }, {
 			result: { behavior: 'allow', updatedInput: input },
 			pendingConfirmations: 0,
+		});
+	});
+
+	test('an mcp__client__ tool no window owns still prompts', async () => {
+		const { ctx, canUseTool } = await materialize();
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidChatProgress(signal => signals.push(signal)));
+
+		const promise = canUseTool('mcp__client__orphan', {}, makeOptions('tu_orphan_tool'));
+		await tick();
+		const pendingConfirmations = signals.filter(signal => signal.kind === 'pending_confirmation').length;
+		ctx.agent.respondToPermissionRequest('tu_orphan_tool', false);
+		const result = await promise;
+
+		assert.deepStrictEqual({ result, pendingConfirmations }, {
+			result: { behavior: 'deny', message: 'User declined' },
+			pendingConfirmations: 1,
 		});
 	});
 
