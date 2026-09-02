@@ -30,7 +30,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/theme.js';
 import { chatPersistentContentVisibleClass, ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { IChatModelReference, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatModelReference, IChatService, ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { isChatTranscriptContextVariableEntry, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -341,6 +341,7 @@ export class ChatView extends AbstractChatView {
 			let requestCount = 0;
 			let visibleRequestCount = 0;
 			let hiddenRequestIncomplete: boolean | undefined;
+			let hiddenRequestState: ResponseModelState | undefined;
 			let readyMessage: string | undefined;
 			if (!resource) {
 				showProgress = false;
@@ -351,13 +352,13 @@ export class ChatView extends AbstractChatView {
 				const lastRequest = model.lastRequestObs.read(reader);
 				requestCount = requests.length;
 				visibleRequestCount = requests.filter(request => !request.isRequestHiddenFromTranscript).length;
-				hiddenRequestIncomplete = lastRequest?.isRequestHiddenFromTranscript
-					? lastRequest.response?.isIncomplete.read(reader)
-					: undefined;
+				const hiddenResponse = lastRequest?.isRequestHiddenFromTranscript ? lastRequest.response : undefined;
+				hiddenRequestIncomplete = hiddenResponse?.isIncomplete.read(reader);
+				hiddenRequestState = hiddenResponse?.state;
 				readyMessage = findTranscriptContextEntry(requests.filter(request => request.isHiddenFromTranscript))?.readyMessage?.trim();
 				showProgress = shouldShowTranscriptPreparationProgress(requestCount, visibleRequestCount, hiddenRequestIncomplete);
 			}
-			const showCompletion = shouldShowTranscriptPreparationCompletion(requestCount, visibleRequestCount, hiddenRequestIncomplete, readyMessage);
+			const showCompletion = shouldShowTranscriptPreparationCompletion(requestCount, visibleRequestCount, hiddenRequestState, readyMessage);
 			const progress = showCompletion ? readyMessage : getTranscriptProgress(showProgress, activity);
 			this._widget.setTranscriptProgress(progress, progress, showCompletion ? { complete: true } : undefined);
 		}));
@@ -659,8 +660,8 @@ export function shouldShowTranscriptPreparationProgress(requestCount: number, vi
 	return requestCount === 0 || (visibleRequestCount === 0 && hiddenRequestIncomplete !== false);
 }
 
-export function shouldShowTranscriptPreparationCompletion(requestCount: number, visibleRequestCount: number, hiddenRequestIncomplete: boolean | undefined, readyMessage: string | undefined): boolean {
-	return requestCount > 0 && visibleRequestCount === 0 && hiddenRequestIncomplete === false && !!readyMessage;
+export function shouldShowTranscriptPreparationCompletion(requestCount: number, visibleRequestCount: number, hiddenRequestState: ResponseModelState | undefined, readyMessage: string | undefined): boolean {
+	return requestCount > 0 && visibleRequestCount === 0 && hiddenRequestState === ResponseModelState.Complete && !!readyMessage;
 }
 
 export function getTranscriptProgress(showProgress: boolean, activity: string | undefined): string | undefined {
