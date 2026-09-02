@@ -65,6 +65,10 @@ function canonicalPath(candidate: string): string {
 	}
 }
 
+function pathComparisonKey(candidate: string): string {
+	return getComparisonKey(URI.file(canonicalPath(candidate)));
+}
+
 export function defineDetachedWorktreeTests(context: IAgentHostE2ETestContext): void {
 	// The detached-worktree family is an AHP *extension* method set rather than
 	// part of the core protocol, so only the VS Code agent host answers it.
@@ -100,11 +104,11 @@ export function defineDetachedWorktreeTests(context: IAgentHostE2ETestContext): 
 		return git(repository, 'worktree', 'list', '--porcelain')
 			.split('\n')
 			.filter(line => line.startsWith('worktree '))
-			.map(line => canonicalPath(line.slice('worktree '.length).trim()));
+			.map(line => pathComparisonKey(line.slice('worktree '.length).trim()));
 	}
 
 	function isRegisteredWorktree(repository: string, worktreePath: string): boolean {
-		return registeredWorktrees(repository).includes(canonicalPath(worktreePath));
+		return registeredWorktrees(repository).includes(pathComparisonKey(worktreePath));
 	}
 
 	function branchExists(repository: string, branchName: string): boolean {
@@ -177,12 +181,12 @@ export function defineDetachedWorktreeTests(context: IAgentHostE2ETestContext): 
 		assert.deepStrictEqual({
 			sessionLifecycle: sessionState.lifecycle,
 			handleIsOpaqueId: isAgentDevContainerWorktreeHandle(created.handle),
-			inWorktreesContainer: canonicalPath(dirname(worktreePath)) === canonicalPath(`${workspace}.worktrees`),
+			inWorktreesContainer: pathComparisonKey(dirname(worktreePath)) === pathComparisonKey(`${workspace}.worktrees`),
 			existsOnDisk: existsSync(worktreePath),
 			registeredWithGit: isRegisteredWorktree(workspace, worktreePath),
 			checkedOutRepositoryContent: existsSync(join(worktreePath, 'seed.txt')),
 			onGeneratedAgentBranch: git(worktreePath, 'rev-parse', '--abbrev-ref', 'HEAD').startsWith(AGENT_BRANCH_PREFIX),
-			isSeparateFromWorkspace: canonicalPath(worktreePath) !== canonicalPath(workspace),
+			isSeparateFromWorkspace: pathComparisonKey(worktreePath) !== pathComparisonKey(workspace),
 		}, {
 			sessionLifecycle: SessionLifecycle.Creating,
 			handleIsOpaqueId: true,
@@ -226,7 +230,7 @@ export function defineDetachedWorktreeTests(context: IAgentHostE2ETestContext): 
 			droppedExists: existsSync(droppedPath),
 			heldRegistered: isRegisteredWorktree(workspace, heldPath),
 			droppedRegistered: isRegisteredWorktree(workspace, droppedPath),
-			areDistinctCheckouts: canonicalPath(heldPath) !== canonicalPath(droppedPath),
+			areDistinctCheckouts: pathComparisonKey(heldPath) !== pathComparisonKey(droppedPath),
 		}, {
 			heldExists: true,
 			droppedExists: true,
