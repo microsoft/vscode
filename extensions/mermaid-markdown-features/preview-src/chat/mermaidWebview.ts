@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import mermaid, { MermaidConfig } from 'mermaid';
-import { buildMermaidConfig, createMermaidErrorElement, loadExtensionConfig, markVsCodeContextAsError } from '../shared';
+import { buildMermaidConfig, createMermaidErrorElement, loadExtensionConfig, markVsCodeContextAsError, stripDiffMarkers } from '../shared';
 import { VsCodeMermaidThemeTracker } from '../shared/vsCodeTheme';
 import { VsCodeApi } from './vscodeApi';
 
@@ -417,7 +417,8 @@ export async function initializeMermaidWebview(vscode: VsCodeApi, options?: PanZ
 	}
 
 	// Capture diagram state
-	const diagramText = diagram.textContent ?? '';
+	const diagramText = stripDiffMarkers(diagram.textContent ?? '');
+	diagram.textContent = diagramText;
 	const themeTracker = new VsCodeMermaidThemeTracker();
 	const state: LocalState = {
 		mermaidSource: diagramText,
