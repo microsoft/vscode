@@ -69,11 +69,11 @@ import { IUserInteractionService } from '../../../../platform/userInteraction/br
 const MOUSE_CURSOR_HIDDEN_CSS_CLASS_NAME = 'monaco-editor-hide-mouse-cursor';
 
 /**
- * DOM events which reveal the mouse pointer again after it was hidden by keyboard typing.
- * These are only observed while the pointer is actually hidden. Pointer moves are handled
- * separately because they also occur without the pointer actually moving.
+ * Bubbling DOM events which reveal the mouse pointer again after it was hidden by keyboard typing.
+ * These are only observed while the pointer is actually hidden. Pointer moves and pointer leaves
+ * are handled separately because they also occur without the pointer actually moving.
  */
-const MOUSE_CURSOR_REVEAL_EVENT_TYPES = ['pointerleave', 'pointerdown', 'wheel', 'contextmenu'] as const;
+const MOUSE_CURSOR_REVEAL_EVENT_TYPES = ['pointerdown', 'wheel', 'contextmenu'] as const;
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -461,6 +461,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				reveal();
 			}
 		}, { capture: true, passive: true }));
+		// Leaving the editor must reveal the pointer, because the CSS stops applying outside of it
+		// and the class would otherwise hide it again on re-entry. This listener deliberately does
+		// not capture: `pointerleave` does not bubble, but it still travels the capture phase, and
+		// re-rendering the lines below a resting pointer makes descendants fire it without the
+		// pointer having moved. Only leaving the editor container itself may reveal the pointer.
+		store.add(dom.addDisposableListener(this._domElement, 'pointerleave', reveal, { passive: true }));
 		// Element focus alone is not enough: switching windows or applications can leave the
 		// active element untouched.
 		store.add(dom.addDisposableListener(dom.getWindow(this._domElement), 'blur', reveal));

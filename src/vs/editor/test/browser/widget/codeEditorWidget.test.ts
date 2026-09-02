@@ -186,6 +186,23 @@ suite('CodeEditorWidget', () => {
 			assert.strictEqual(isHidden(), false);
 		});
 
+		test('a pointer leave of a descendant does not reveal the mouse pointer', () => {
+			const { container, isHidden, typeAndAssertHidden } = createEditor();
+			const descendant = container.querySelector('.monaco-editor');
+			assert.ok(descendant, 'the editor should render its root node');
+			typeAndAssertHidden();
+
+			// Re-rendering the lines below a resting pointer replaces the element it points at, so
+			// the browser fires a boundary event without the pointer having moved. `pointerleave`
+			// does not bubble, but it does travel the capture phase down to its target.
+			descendant.dispatchEvent(new MouseEvent('pointerleave'));
+			assert.strictEqual(isHidden(), true);
+
+			// Leaving the editor itself still reveals the mouse pointer.
+			container.dispatchEvent(new MouseEvent('pointerleave'));
+			assert.strictEqual(isHidden(), false);
+		});
+
 		test('pointer events on a descendant reveal the mouse pointer', () => {
 			const { container, isHidden, typeAndAssertHidden } = createEditor();
 			const descendant = container.querySelector('.monaco-editor');
