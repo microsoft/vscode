@@ -3230,22 +3230,41 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		this._resourceLabelHomeLabels.clear();
+		const registrationKeys = new Set<string>();
 		for (const [key, group] of groups) {
 			this._resourceLabelHomeLabels.set(key, group.labels);
-			if (!this._resourceLabelHomeRegistrations.has(key)) {
-				const separator = labelService.getSeparator(group.parent.scheme, group.parent.authority);
-				this._resourceLabelHomeRegistrations.set(key, labelService.registerFormatter({
-					home: joinPath(group.parent, '${sessionId}'),
-					onDidChangeFormatting: onDidChange,
-					formatting: context => {
-						const label = this._resourceLabelHomeLabels.get(key)?.get(context.parameters.get('sessionId') ?? '');
-						return label === undefined ? undefined : { label, separator };
-					},
-				}));
+			const separator = labelService.getSeparator(group.parent.scheme, group.parent.authority);
+			const templateKey = `template:${key}`;
+			if (group.labels.size > (group.labels.has('') ? 1 : 0)) {
+				registrationKeys.add(templateKey);
+				if (!this._resourceLabelHomeRegistrations.has(templateKey)) {
+					this._resourceLabelHomeRegistrations.set(templateKey, labelService.registerFormatter({
+						home: joinPath(group.parent, '${sessionId}'),
+						onDidChangeFormatting: onDidChange,
+						formatting: context => {
+							const label = this._resourceLabelHomeLabels.get(key)?.get(context.parameters.get('sessionId') ?? '');
+							return label === undefined ? undefined : { label, separator };
+						},
+					}));
+				}
+			}
+			const rootKey = `root:${key}`;
+			if (group.labels.has('')) {
+				registrationKeys.add(rootKey);
+				if (!this._resourceLabelHomeRegistrations.has(rootKey)) {
+					this._resourceLabelHomeRegistrations.set(rootKey, labelService.registerFormatter({
+						home: group.parent,
+						onDidChangeFormatting: onDidChange,
+						formatting: () => {
+							const label = this._resourceLabelHomeLabels.get(key)?.get('');
+							return label === undefined ? undefined : { label, separator };
+						},
+					}));
+				}
 			}
 		}
 		for (const [key] of this._resourceLabelHomeRegistrations) {
-			if (!groups.has(key)) {
+			if (!registrationKeys.has(key)) {
 				this._resourceLabelHomeRegistrations.deleteAndDispose(key);
 			}
 		}

@@ -15,6 +15,8 @@ function isTemplateFormatter(formatter: ResourceLabelFormatter | ResourceLabelTe
 	return URI.isUri(formatter.home);
 }
 
+const homeTemplateParameterRegex = /^\$\{(?<name>[a-zA-Z_][\w]*)\}$/;
+
 export class MockLabelService implements ILabelService {
 	_serviceBrand: undefined;
 	private formatters: (ResourceLabelFormatter | ResourceLabelTemplateFormatter)[] = [];
@@ -72,32 +74,48 @@ export class MockLabelService implements ILabelService {
 			}
 			let candidate: { readonly home: URI; readonly formatting: ResourceLabelFormatting } | undefined;
 			if (isTemplateFormatter(formatter)) {
-				if (formatter.home.scheme !== resource.scheme || formatter.home.authority !== resource.authority) {
+				if (formatter.home.scheme !== resource.scheme ||
+					(formatter.home.authority && formatter.home.authority.toLowerCase() !== resource.authority.toLowerCase())) {
 					continue;
 				}
 				const templateSegments = formatter.home.path.split('/');
 				const resourceSegments = resource.path.split('/');
-				if (resourceSegments.length < templateSegments.length) {
-					continue;
-				}
-				const parameters = new Map<string, string>();
-				let matches = true;
-				for (let index = 0; index < templateSegments.length; index++) {
-					const parameter = /^\$\{(?<name>[a-zA-Z_][\w]*)\}$/.exec(templateSegments[index]);
-					if (parameter?.groups?.name) {
-						parameters.set(parameter.groups.name, resourceSegments[index]);
-					} else if (templateSegments[index] !== resourceSegments[index]) {
-						matches = false;
-						break;
+				if (!templateSegments.some(segment => homeTemplateParameterRegex.test(segment))) {
+					if (!isEqualOrParent(resource, resource.with({ path: formatter.home.path }))) {
+						continue;
 					}
-				}
-				if (!matches) {
-					continue;
-				}
-				const home = formatter.home.with({ path: resourceSegments.slice(0, templateSegments.length).join('/'), query: null, fragment: null });
-				const formatting = formatter.formatting({ resource, home, parameters });
-				if (formatting) {
-					candidate = { home, formatting };
+					const home = resource.with({ path: formatter.home.path, query: null, fragment: null });
+					const formatting = formatter.formatting({ resource, home, parameters: new Map() });
+					if (formatting) {
+						candidate = { home, formatting };
+					}
+				} else {
+					if (resourceSegments.length < templateSegments.length) {
+						continue;
+					}
+					const parameters = new Map<string, string>();
+					let matches = true;
+					for (let index = 0; index < templateSegments.length; index++) {
+						const parameter = homeTemplateParameterRegex.exec(templateSegments[index]);
+						if (parameter?.groups?.name) {
+							if (resourceSegments[index] === '.' || resourceSegments[index] === '..') {
+								matches = false;
+								break;
+							}
+							parameters.set(parameter.groups.name, resourceSegments[index]);
+						} else if (templateSegments[index] !== resourceSegments[index]) {
+							matches = false;
+							break;
+						}
+					}
+					if (!matches) {
+						continue;
+					}
+					const home = formatter.home.with({ path: resourceSegments.slice(0, templateSegments.length).join('/'), query: null, fragment: null });
+					const formatting = formatter.formatting({ resource, home, parameters });
+					if (formatting) {
+						candidate = { home, formatting };
+					}
 				}
 			} else if (formatter.scheme === resource.scheme && (!formatter.authority || formatter.authority === resource.authority) &&
 				isEqualOrParent(resource, resource.with({ path: formatter.home }))) {

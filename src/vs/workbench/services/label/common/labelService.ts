@@ -139,6 +139,7 @@ interface IHomeFormatterRegistration {
 interface IResolvedHomeFormatter {
 	readonly home: URI;
 	readonly formatting: ResourceLabelFormatting;
+	readonly literalLabel: boolean;
 	readonly homeLength: number;
 	readonly authorityLength: number;
 }
@@ -206,6 +207,7 @@ export class LabelService extends Disposable implements ILabelService {
 
 	private findHomeFormatter(resource: URI): IResolvedHomeFormatter | undefined {
 		let bestResult = this.findStaticHomeFormatter(resource);
+		let bestResultIsTemplate = false;
 		for (const registration of this.homeFormatters) {
 			const formatter = registration.formatter;
 			if (formatter.home.scheme !== resource.scheme ||
@@ -229,14 +231,17 @@ export class LabelService extends Disposable implements ILabelService {
 			const result: IResolvedHomeFormatter = {
 				home,
 				formatting,
+				literalLabel: true,
 				homeLength: home.path.length,
 				authorityLength: formatter.home.authority.length,
 			};
 			if (!bestResult ||
 				result.homeLength > bestResult.homeLength ||
-				(result.homeLength === bestResult.homeLength && result.authorityLength > bestResult.authorityLength)
+				(result.homeLength === bestResult.homeLength && result.authorityLength > bestResult.authorityLength) ||
+				(result.homeLength === bestResult.homeLength && result.authorityLength === bestResult.authorityLength && !bestResultIsTemplate)
 			) {
 				bestResult = result;
+				bestResultIsTemplate = true;
 			}
 		}
 		return bestResult;
@@ -254,6 +259,7 @@ export class LabelService extends Disposable implements ILabelService {
 			const result: IResolvedHomeFormatter = {
 				home: resource.with({ path: formatter.home, query: null, fragment: null }),
 				formatting: formatter.formatting,
+				literalLabel: false,
 				homeLength: formatter.home.length,
 				authorityLength: formatter.authority?.length ?? 0,
 			};
@@ -299,7 +305,7 @@ export class LabelService extends Disposable implements ILabelService {
 		if (homeFormatter) {
 			const separator = options.separator ?? homeFormatter.formatting.separator;
 			const path = relativePath(homeFormatter.home, resource);
-			const label = this.formatUri(homeFormatter.home, homeFormatter.formatting);
+			const label = homeFormatter.literalLabel ? homeFormatter.formatting.label : this.formatUri(homeFormatter.home, homeFormatter.formatting);
 			return path ? `${label}${separator}${this.adjustPathSeparators(path, separator)}` : label;
 		}
 
@@ -575,13 +581,9 @@ export class LabelService extends Disposable implements ILabelService {
 			}
 			return escapeRegExpCharacters(segment);
 		});
-		if (parameterNames.length === 0) {
-			throw new Error('Resource label home template must contain at least one path parameter.');
-		}
-
 		return {
 			formatter,
-			templateMatcher: new RegExp(`^${matcherSegments.join('/')}(?=/|$)`),
+			templateMatcher: new RegExp(`^${matcherSegments.join('/')}${home.path === '' || home.path === '/' ? '' : '(?=/|$)'}`),
 			templateParameterNames: parameterNames,
 		};
 	}

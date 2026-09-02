@@ -181,13 +181,19 @@ suite('URI Label', () => {
 
 	test('resolves URI home templates to concrete formatting', () => {
 		let resolverCalls = 0;
+		const staticRegistration = labelService.registerFormatter({
+			scheme: 'test',
+			authority: 'current',
+			home: '/sessions/session-id',
+			formatting: { label: 'Static Session', separator: '/' },
+		});
 		const registration = labelService.registerFormatter({
 			home: URI.from({ scheme: 'test', authority: 'current', path: '/sessions/${sessionId}' }),
 			onDidChangeFormatting: Event.None,
 			formatting: context => {
 				resolverCalls++;
 				const sessionId = context.parameters.get('sessionId');
-				return sessionId === 'session-id' ? { label: 'Session Title', separator: '/' } : undefined;
+				return sessionId === 'session-id' ? { label: 'Session ${path}', separator: '/' } : undefined;
 			},
 		});
 		const resource = URI.parse('test://current/sessions/session-id/files/result.md');
@@ -199,13 +205,13 @@ suite('URI Label', () => {
 			resolverCalls,
 		}, {
 			home: 'test://current/sessions/session-id',
-			label: 'Session Title/files/result.md',
+			label: 'Session ${path}/files/result.md',
 			unrelated: '/unrelated/file.md',
 			resolverCalls: 2,
 		});
 		registration.dispose();
-		registration.dispose();
-		assert.strictEqual(labelService.getUriLabel(resource), '/sessions/session-id/files/result.md');
+		assert.strictEqual(labelService.getUriLabel(resource), 'Static Session/files/result.md');
+		staticRegistration.dispose();
 	});
 
 	test('URI home templates without an authority match any authority', () => {
@@ -216,6 +222,25 @@ suite('URI Label', () => {
 		});
 
 		assert.strictEqual(labelService.getUriLabel(URI.parse('test://remote/sessions/session-id/file.md')), 'session-id/file.md');
+
+		registration.dispose();
+	});
+
+	test('URI home formatters support authority roots', () => {
+		const registration = labelService.registerFormatter({
+			home: URI.from({ scheme: 'test', authority: 'current' }),
+			onDidChangeFormatting: Event.None,
+			formatting: () => ({ label: 'Root', separator: '/' }),
+		});
+		const resource = URI.parse('test://current/file.md');
+
+		assert.deepStrictEqual({
+			home: labelService.getUriHome(resource)?.toString(),
+			label: labelService.getUriLabel(resource),
+		}, {
+			home: 'test://current',
+			label: 'Root/file.md',
+		});
 
 		registration.dispose();
 	});

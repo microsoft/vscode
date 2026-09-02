@@ -62,10 +62,11 @@ export interface ResourceLabelFormatter {
 }
 
 export interface ResourceLabelTemplateFormatter {
-	/** URI template whose path parameters occupy an entire segment, such as `/sessions/${sessionId}`. */
+	/** URI home whose optional template parameters occupy an entire path segment, such as `/sessions/${sessionId}`. */
 	home: URI;
 	/** Fires when state used by `formatting` changes and existing labels must be recomputed. */
 	onDidChangeFormatting: Event<void>;
+	/** Resolves formatting whose label is treated as literal text. */
 	formatting(context: ResourceLabelFormattingContext): ResourceLabelFormatting | undefined;
 }
 
