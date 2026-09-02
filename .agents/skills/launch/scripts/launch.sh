@@ -14,7 +14,8 @@
 # Usage:
 #   launch.sh [--agents] [--source-user-data-dir <path>] [--repo <vscode-repo-root>]
 #             [--clone-extensions] [--full] [--skip-prelaunch]
-#             [--disable-workspace-trust] [-- <extra code.sh args>]
+#             [--disable-workspace-trust]
+#             [-- <extra code.sh args>]
 #
 # Flags:
 #   --clone-extensions  Copy the source extensions/ into the new profile (~10s).
@@ -72,10 +73,24 @@ if [[ -z "$REPO" ]]; then
 		exit 2
 	fi
 fi
+if [[ ! -d "$REPO" ]]; then
+	echo "VS Code checkout does not exist: $REPO" >&2
+	exit 2
+fi
+REPO=$(cd "$REPO" && pwd -P)
 
+SOURCE_UDD=$(node -e 'process.stdout.write(require("path").resolve(process.argv[1]))' "$SOURCE_UDD")
+SOURCE_PROFILE_EXISTS=1
 if [[ ! -d "$SOURCE_UDD" ]]; then
-	echo "Source user-data-dir does not exist: $SOURCE_UDD" >&2
-	echo "Pass --source-user-data-dir <path> or set CODE_OSS_DEV_AUTHED_USER_DATA_DIR." >&2
+	SOURCE_PROFILE_EXISTS=0
+	echo "[launch.sh] no source profile at $SOURCE_UDD; launching with an empty isolated profile so the user can sign in." >&2
+else
+	SOURCE_UDD=$(cd "$SOURCE_UDD" && pwd -P)
+fi
+
+CODE_SH="$REPO/scripts/code.sh"
+if [[ ! -x "$CODE_SH" ]]; then
+	echo "Could not find an executable Code OSS launcher at $CODE_SH. Pass --repo <vscode-repo-root>." >&2
 	exit 2
 fi
 
@@ -138,7 +153,9 @@ EXCLUDES=(
 	'*.lock' '*.sock'
 )
 
-if [[ "$FULL" == "1" ]]; then
+if [[ "$SOURCE_PROFILE_EXISTS" == "0" ]]; then
+	echo "[launch.sh] source profile is unavailable; using empty isolated profile $DEST_UDD" >&2
+elif [[ "$FULL" == "1" ]]; then
 	echo "[launch.sh] full copy: $SOURCE_UDD -> $DEST_UDD" >&2
 	rsync -a "$SOURCE_UDD/" "$DEST_UDD/"
 else
@@ -154,7 +171,7 @@ fi
 #   default             -> fresh empty dir
 EXT_DIR="$DEST_UDD/extensions"
 mkdir -p "$EXT_DIR"
-if [[ "$FULL" != "1" && "$CLONE_EXTENSIONS" == "1" ]]; then
+if [[ "$FULL" != "1" && "$CLONE_EXTENSIONS" == "1" && "$SOURCE_PROFILE_EXISTS" == "1" ]]; then
 	echo "[launch.sh] copying extensions: $SOURCE_UDD/extensions -> $EXT_DIR" >&2
 	rsync -a "$SOURCE_UDD/extensions/" "$EXT_DIR/"
 fi
@@ -235,12 +252,6 @@ PROFILE_READY_MS=$(monotonic_ms)
 # Strip ELECTRON_RUN_AS_NODE, commonly inherited from VS Code's integrated
 # terminal / agent runtimes; it breaks ./scripts/code.sh.
 unset ELECTRON_RUN_AS_NODE
-
-CODE_SH="$REPO/scripts/code.sh"
-if [[ ! -x "$CODE_SH" ]]; then
-	echo "Could not find an executable Code OSS launcher at $CODE_SH. Pass --repo <vscode-repo-root>." >&2
-	exit 2
-fi
 
 ARGS=(
 	"--user-data-dir=$DEST_UDD"

@@ -499,7 +499,7 @@ try {
 			Exit-Usage "Could not find a vscode checkout in $candidateRepo. Pass --repo <vscode-repo-root>."
 		}
 	}
-	$repo = [IO.Path]::GetFullPath($repo)
+	$repo = (Resolve-Path -LiteralPath $repo).Path
 
 	$codeBat = Join-Path $repo 'scripts\code.bat'
 	if (-not (Test-Path -LiteralPath $codeBat -PathType Leaf)) {
@@ -513,10 +513,11 @@ try {
 			Join-Path $env:USERPROFILE '.vscode-oss-dev'
 		}
 	}
-	if (-not (Test-Path -LiteralPath $sourceUserDataDir -PathType Container)) {
-		Exit-Usage "Source user-data-dir does not exist: $sourceUserDataDir`nPass --source-user-data-dir <path> or set CODE_OSS_DEV_AUTHED_USER_DATA_DIR."
+	$sourceUserDataDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($sourceUserDataDir)
+	$sourceProfileExists = Test-Path -LiteralPath $sourceUserDataDir -PathType Container
+	if (-not $sourceProfileExists) {
+		Write-LaunchError "[launch.ps1] no source profile at $sourceUserDataDir; launching with an empty isolated profile so the user can sign in."
 	}
-	$sourceUserDataDir = [IO.Path]::GetFullPath($sourceUserDataDir)
 
 	$node = Get-UsableNode $repo
 	Write-LaunchError "[launch.ps1] using Node: $node"
@@ -549,25 +550,32 @@ try {
 		# below decide whether a sign-in is actually coming.
 		Write-LaunchError "[launch.ps1] no shared-data-dir at $sourceSharedDataDir; nothing to seed"
 	}
-	$hasGitHubAuthenticationSecret = Test-SourceHasGitHubAuthenticationSecret $node $sourceUserDataDir $sourceSharedDataDir (Join-Path $runDir 'auth-preflight.vscdb')
+	$hasGitHubAuthenticationSecret = if ($sourceProfileExists) {
+		Test-SourceHasGitHubAuthenticationSecret $node $sourceUserDataDir $sourceSharedDataDir (Join-Path $runDir 'auth-preflight.vscdb')
+	} else {
+		$false
+	}
 	if ($hasGitHubAuthenticationSecret -eq $false) {
 		Write-LaunchError "[launch.ps1] WARNING: source profile $sourceUserDataDir has no stored GitHub session; the launched instance will prompt you to sign in."
-		Write-LaunchError 'To fix once and for all, launch Code OSS directly against the source profile (no copy), sign in, then close it:'
-		Write-LaunchError "  .\scripts\code.bat --user-data-dir=$sourceUserDataDir"
+		Write-LaunchError 'To pre-authenticate future launches, use .agents\skills\launch\scripts\bootstrap-profile.ps1 after the user chooses the bootstrap option.'
 		Write-LaunchError 'Every future launch copies that profile and inherits the session.'
 	}
 
-	if ($full) {
+	if (-not $sourceProfileExists) {
+		New-Item -ItemType Directory -Force -Path $destinationUdd | Out-Null
+	} elseif ($full) {
 		Write-LaunchError "[launch.ps1] full copy: $sourceUserDataDir -> $destinationUdd"
 		Copy-ProfileDirectory $sourceUserDataDir $destinationUdd $false
 	} else {
 		Write-LaunchError "[launch.ps1] slim copy: $sourceUserDataDir -> $destinationUdd"
 		Copy-ProfileDirectory $sourceUserDataDir $destinationUdd $true
 	}
-	Assert-AuthCriticalProfileFiles $destinationUdd
+	if ($sourceProfileExists -and $hasGitHubAuthenticationSecret -ne $false) {
+		Assert-AuthCriticalProfileFiles $destinationUdd
+	}
 
 	New-Item -ItemType Directory -Force -Path $extensionsDir | Out-Null
-	if (-not $full -and $cloneExtensions) {
+	if (-not $full -and $cloneExtensions -and $sourceProfileExists) {
 		$sourceExtensions = Join-Path $sourceUserDataDir 'extensions'
 		Write-LaunchError "[launch.ps1] copying extensions: $sourceExtensions -> $extensionsDir"
 		Copy-ProfileDirectory $sourceExtensions $extensionsDir $false
