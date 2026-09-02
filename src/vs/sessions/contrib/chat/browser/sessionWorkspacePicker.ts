@@ -1193,7 +1193,10 @@ export class WorkspacePicker extends Disposable {
 				const selection = await this._browseForLocalFolder();
 				return selection ? { ...selection, action } : undefined;
 			}
-			const workspace = await action.run(this._getSelectedRepositoryWorkspace() ?? this._selectedResolved?.workspace);
+			const currentWorkspace = action.attachesContext
+				? this._selectedResolved?.workspace
+				: (this._getSelectedRepositoryWorkspace() ?? this._selectedResolved?.workspace);
+			const workspace = await action.run(currentWorkspace);
 			return workspace ? { workspace, providerId: action.providerId, action } : undefined;
 		} catch {
 			// browse action was cancelled or failed

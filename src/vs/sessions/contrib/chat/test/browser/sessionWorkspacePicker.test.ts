@@ -3194,6 +3194,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 			uri: issueUri,
 			group: SESSION_WORKSPACE_GROUP_GITHUB,
 		};
+		let contextActionWorkspace: ISessionWorkspace | undefined;
 		providersService.setProviders([{
 			...provider,
 			resolveWorkspace: uri => {
@@ -3203,7 +3204,10 @@ suite('WorkspacePicker - Tab discovery', () => {
 			browseActions: [{
 				...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Issue...'),
 				attachesContext: true,
-				run: async () => issueWorkspace,
+				run: async workspace => {
+					contextActionWorkspace = workspace;
+					return issueWorkspace;
+				},
 			}],
 		}]);
 		const picker = createTestablePicker(disposables, providersService);
@@ -3218,10 +3222,12 @@ suite('WorkspacePicker - Tab discovery', () => {
 		assert.deepStrictEqual({
 			actionsWithoutRepository: actionsWithoutRepository.map(action => action.label),
 			actions: actions.map(action => action.label),
+			contextActionWorkspace: contextActionWorkspace?.uri.toString(),
 			selectedContexts,
 		}, {
 			actionsWithoutRepository: ['Issue...'],
 			actions: ['Issue...'],
+			contextActionWorkspace: URI.file('/microsoft/vscode').toString(),
 			selectedContexts: [issueUri.toString()],
 		});
 	});
