@@ -57,6 +57,7 @@ import {
 	IBrowserDeviceProfile,
 	IBrowserViewPermissionRequestEvent,
 	IBrowserElementSelectionState,
+	isBrowserViewStorageScopeShareableWithAgent,
 	IBrowserViewHost,
 } from '../../../../platform/browserView/common/browserView.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -70,7 +71,9 @@ export const enum BrowserViewSharingState {
 	/** Tools are available and the page is shared with the agent. */
 	Shared = 'shared',
 	/** Tools are available but the page is not shared. */
-	NotShared = 'notShared',
+	Available = 'available',
+	/** The current page cannot be shared because its URL is blocked by network policy. */
+	BlockedByNetworkPolicy = 'blockedByNetworkPolicy',
 	/** Browser tools are disabled — sharing is not possible. */
 	Unavailable = 'unavailable',
 }
@@ -382,6 +385,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly history: BrowserHistoryStore;
 	readonly permissions: BrowserPermissionStore;
 	readonly sharingState: BrowserViewSharingState;
+	readonly isDirectlyShareable: boolean;
 	readonly isRemoteSession: boolean;
 	readonly zoomFactor: number;
 	readonly canZoomIn: boolean;
@@ -428,7 +432,7 @@ export interface IBrowserViewModel extends IDisposable {
 	getSelectedText(): Promise<string>;
 	clearStorage(): Promise<void>;
 	setOwner(owner: IBrowserViewOwner): Promise<void>;
-	setSharedWithAgent(shared: boolean): Promise<boolean>;
+	setSharedWithAgent(shared: boolean): Promise<IBrowserViewModel | undefined>;
 	trustCertificate(host: string, fingerprint: string): Promise<void>;
 	untrustCertificate(host: string, fingerprint: string): Promise<void>;
 	deleteHistory(entryIds?: readonly number[]): Promise<void>;
@@ -462,7 +466,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _isRemoteSession: boolean = false;
 	private _isInMemory: boolean = false;
 	private _zoomHost: string | undefined = undefined;
-	private _sharedWithAgent: boolean = false;
+	private _audiences: readonly IBrowserViewAudience[] = [];
+	private _lastSharingState: BrowserViewSharingState;
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
 	private _elementSelectionState: IBrowserElementSelectionState = { active: false, options: {} };
 	private _isAreaSelectionActive: boolean = false;
@@ -523,9 +528,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._elementSelectionState = initialState.elementSelectionState;
 		this._isAreaSelectionActive = initialState.isAreaSelectionActive;
 		this._device = initialState.device;
-		this._sharedWithAgent = initialState.audiences.some(audience => audience.type === 'agent');
+		this._audiences = initialState.audiences;
 		this._isInMemory = isInMemoryStorageScope(this._storageScope);
 		this._zoomHost = parseZoomHost(this._url);
+		this._lastSharingState = this.sharingState;
 
 		const { history: entriesKey, favicons: faviconsKey } = initialState.storageKeys;
 		if (entriesKey) {
@@ -579,6 +585,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			this._canGoBack = e.canGoBack;
 			this._canGoForward = e.canGoForward;
 			this._certificateError = e.certificateError;
+			this._updateSharingState();
 
 			// Always forceApply because Chromium resets zoom on cross-origin navigation,
 			// and an origin change may not correspond to a host change (e.g. http→https).
@@ -636,12 +643,15 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		}));
 
 		this._register(this.browserViewService.onDynamicDidChangeAudiences(this.id)(audiences => {
-			this._setSharedWithAgent(audiences.some(audience => audience.type === 'agent'));
+			this._audiences = audiences;
+			this._updateSharingState();
 		}));
 
 		this._register(this.browserViewWorkbenchService.onDidChangeSharingAvailable(() => {
-			this._onDidChangeSharingState.fire(this.sharingState);
+			this._updateSharingState();
 		}));
+
+		this._register(this.agentNetworkFilterService.onDidChange(() => this._updateSharingState()));
 
 		this._register(this.onDidChangeRemoteStatus(isRemoteSession => {
 			this._isRemoteSession = isRemoteSession;
@@ -667,7 +677,16 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		if (!this.browserViewWorkbenchService.isSharingAvailable) {
 			return BrowserViewSharingState.Unavailable;
 		}
-		return this._sharedWithAgent ? BrowserViewSharingState.Shared : BrowserViewSharingState.NotShared;
+		if (this._audiences.some(audience => audience.type === 'agent')) {
+			return BrowserViewSharingState.Shared;
+		}
+		if (!this.isDirectlyShareable && this._url && !this.agentNetworkFilterService.isUriAllowed(URI.parse(this._url))) {
+			return BrowserViewSharingState.BlockedByNetworkPolicy;
+		}
+		return BrowserViewSharingState.Available;
+	}
+	get isDirectlyShareable(): boolean {
+		return isBrowserViewStorageScopeShareableWithAgent(this.storageScope, this.agentNetworkFilterService.isEnabled());
 	}
 	get zoomFactor(): number { return browserZoomFactors[this._browserZoomIndex]; }
 	get canZoomIn(): boolean { return this._browserZoomIndex < browserZoomFactors.length - 1; }
@@ -927,77 +946,101 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	private static readonly SHARE_DONT_ASK_KEY = 'browserView.shareWithAgent.dontAskAgain';
 
-	async setSharedWithAgent(shared: boolean): Promise<boolean> {
-		if (shared) {
-			// Block sharing when the current page URL is denied by network policy.
-			if (this._url) {
-				try {
-					const uri = URI.parse(this._url);
-					if (!this.agentNetworkFilterService.isUriAllowed(uri)) {
-						await this.dialogService.info(
-							localize('browserView.shareBlocked.title', "Cannot Share with Agent"),
-							this.agentNetworkFilterService.formatError(uri),
-						);
-						return false;
-					}
-				} catch { }
-			}
-
-			const storedChoice = this.storageService.getBoolean(BrowserViewModel.SHARE_DONT_ASK_KEY, StorageScope.PROFILE);
-
-			if (!storedChoice) {
-				// First time (or no stored preference) -- ask.
-				const result = await this.dialogService.confirm({
-					type: 'question',
-					title: localize('browserView.shareWithAgent.title', 'Share with Agent?'),
-					message: localize('browserView.shareWithAgent.message', 'Share this browser page with the agent?'),
-					detail: localize(
-						'browserView.shareWithAgent.detail',
-						'The agent will be able to read and modify browser content and saved data, including cookies.'
-					),
-					primaryButton: localize('browserView.shareWithAgent.allow', '&&Allow'),
-					cancelButton: localize('browserView.shareWithAgent.deny', 'Deny'),
-					checkbox: { label: localize('browserView.shareWithAgent.dontAskAgain', "Don't ask again"), checked: false },
-				});
-
-				// Only persist "don't ask again" if user accepted sharing, so the button doesn't just do nothing.
-				if (result.confirmed && result.checkboxChecked) {
-					this.storageService.store(BrowserViewModel.SHARE_DONT_ASK_KEY, result.confirmed, StorageScope.PROFILE, StorageTarget.USER);
-				}
-
-				this.telemetryService.publicLog2<IntegratedBrowserShareWithAgentEvent, IntegratedBrowserShareWithAgentClassification>(
-					'integratedBrowser.shareWithAgent',
-					{
-						shared: result.confirmed,
-						dontAskAgain: result.checkboxChecked ?? false
-					}
-				);
-
-				if (!result.confirmed) {
-					return false;
-				}
-			} else {
-				this.telemetryService.publicLog2<IntegratedBrowserShareWithAgentEvent, IntegratedBrowserShareWithAgentClassification>(
-					'integratedBrowser.shareWithAgent',
-					{
-						shared: true,
-						dontAskAgain: true
-					}
-				);
-			}
-
-			await this.browserViewService.setAudience(this.id, { type: 'agent' }, true);
-		} else {
+	async setSharedWithAgent(shared: boolean): Promise<IBrowserViewModel | undefined> {
+		if (!shared) {
 			await this.browserViewService.setAudience(this.id, { type: 'agent' }, false);
+			return this;
+		}
+		if (this.sharingState === BrowserViewSharingState.Shared) {
+			return this;
+		}
+		if (this.sharingState === BrowserViewSharingState.BlockedByNetworkPolicy) {
+			const uri = URI.parse(this._url);
+			await this.dialogService.info(
+				localize('browserView.shareBlocked.title', "Cannot Share with Agent"),
+				this.agentNetworkFilterService.formatError(uri),
+			);
+			return undefined;
+		}
+		if (!this.isDirectlyShareable) {
+			const result = await this.dialogService.confirm({
+				type: 'question',
+				message: localize('browserView.openShareableCopy.message', "Open a New Tab for Sharing?"),
+				detail: localize('browserView.openShareableCopy.detail', "This tab does not enforce the configured policy restrictions required for agent sharing.\n\nOpen the page in a new tab to share it with agents."),
+				primaryButton: localize('browserView.openShareableCopy.confirm', "&&Open and Share"),
+				cancelButton: localize('browserView.openShareableCopy.cancel', "Cancel"),
+			});
+			this.telemetryService.publicLog2<IntegratedBrowserShareWithAgentEvent, IntegratedBrowserShareWithAgentClassification>(
+				'integratedBrowser.shareWithAgent',
+				{ shared: result.confirmed, dontAskAgain: false }
+			);
+			if (!result.confirmed) {
+				return undefined;
+			}
+
+			const input = await this.browserViewWorkbenchService.createBrowserView({
+				owner: { type: 'user' },
+				session: {
+					scope: BrowserViewStorageScope.Agent,
+				},
+				initialAudiences: [{ type: 'agent' }],
+				initialUrl: this.url,
+			}, { preserveFocus: false, parentViewId: this.id });
+			return input.resolve();
 		}
 
-		return true;
+		const storedChoice = this.storageService.getBoolean(BrowserViewModel.SHARE_DONT_ASK_KEY, StorageScope.PROFILE);
+
+		if (!storedChoice) {
+			// First time (or no stored preference) -- ask.
+			const result = await this.dialogService.confirm({
+				type: 'question',
+				title: localize('browserView.shareWithAgent.title', 'Share with Agent?'),
+				message: localize('browserView.shareWithAgent.message', 'Share this browser page with the agent?'),
+				detail: localize(
+					'browserView.shareWithAgent.detail',
+					'The agent will be able to read and modify browser content and saved data, including cookies.'
+				),
+				primaryButton: localize('browserView.shareWithAgent.allow', '&&Allow'),
+				cancelButton: localize('browserView.shareWithAgent.deny', 'Deny'),
+				checkbox: { label: localize('browserView.shareWithAgent.dontAskAgain', "Don't ask again"), checked: false },
+			});
+
+			// Only persist "don't ask again" if user accepted sharing, so the button doesn't just do nothing.
+			if (result.confirmed && result.checkboxChecked) {
+				this.storageService.store(BrowserViewModel.SHARE_DONT_ASK_KEY, result.confirmed, StorageScope.PROFILE, StorageTarget.USER);
+			}
+
+			this.telemetryService.publicLog2<IntegratedBrowserShareWithAgentEvent, IntegratedBrowserShareWithAgentClassification>(
+				'integratedBrowser.shareWithAgent',
+				{
+					shared: result.confirmed,
+					dontAskAgain: result.checkboxChecked ?? false
+				}
+			);
+
+			if (!result.confirmed) {
+				return undefined;
+			}
+		} else {
+			this.telemetryService.publicLog2<IntegratedBrowserShareWithAgentEvent, IntegratedBrowserShareWithAgentClassification>(
+				'integratedBrowser.shareWithAgent',
+				{
+					shared: true,
+					dontAskAgain: true
+				}
+			);
+		}
+
+		await this.browserViewService.setAudience(this.id, { type: 'agent' }, true);
+		return this;
 	}
 
-	private _setSharedWithAgent(isShared: boolean): void {
-		if (isShared !== this._sharedWithAgent) {
-			this._sharedWithAgent = isShared;
-			this._onDidChangeSharingState.fire(this.sharingState);
+	private _updateSharingState(): void {
+		const sharingState = this.sharingState;
+		if (sharingState !== this._lastSharingState) {
+			this._lastSharingState = sharingState;
+			this._onDidChangeSharingState.fire(sharingState);
 		}
 	}
 

@@ -18,7 +18,7 @@ import { readImageDimensions } from '../../../../../base/common/image.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { GroupsOrder, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
-import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { BrowserViewSharingState, IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { errorResult, getSessionId, playwrightInvokeRaw } from './browserToolHelpers.js';
 import { BrowserChatToolReferenceName } from '../../../../../platform/browserView/common/browserChatToolReferenceNames.js';
@@ -174,7 +174,7 @@ export class ScreenshotBrowserTool implements IToolImpl {
 		// Note that we don't use Playwright's screenshot methods because they cause brief flashing on the page,
 		// and also doesn't handle zooming well.
 		const browserViewModel = await this.browserViewWorkbenchService.getKnownBrowserViews().get(params.pageId)?.resolve();
-		if (!browserViewModel) {
+		if (!browserViewModel || browserViewModel.sharingState !== BrowserViewSharingState.Shared) {
 			return errorResult(`No browser page found with ID ${params.pageId}`);
 		}
 
