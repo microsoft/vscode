@@ -685,6 +685,22 @@ function toPermissionRequest(request: TestPermissionRequest): PermissionRequest 
 	}
 }
 
+function createPluginSnapshot(...pluginDirectories: URI[]): IActiveClientSnapshot {
+	return {
+		tools: [],
+		plugins: pluginDirectories.map(pluginDir => ({
+			format: PluginFormat.Copilot,
+			hooks: [],
+			mcpServers: [],
+			agents: [],
+			skills: [],
+			instructions: [],
+			pluginDir,
+		})),
+		mcpServers: {},
+	};
+}
+
 type TestCopilotSessionRuntime = Omit<ICopilotSessionRuntime, 'handlePermissionRequest' | 'createClientSdkTools'> & {
 	handlePermissionRequest(request: TestPermissionRequest): ReturnType<ICopilotSessionRuntime['handlePermissionRequest']>;
 	createClientSdkTools(toolSearchActive?: boolean): ReturnType<ICopilotSessionRuntime['createClientSdkTools']>;
@@ -735,6 +751,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	resume?: boolean;
 	initializeEnablementSession?: (session: string) => Promise<void>;
 	beforeLaunch?: () => void;
+	realpath?: (path: string) => Promise<string>;
 }): Promise<{
 	session: CopilotAgentSession;
 	runtime: TestCopilotSessionRuntime;
@@ -990,6 +1007,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			isLaunchTokenCurrent: options?.isLaunchTokenCurrent,
 			onTurnEnded: options?.onTurnEnded,
 			enableDevelopmentErrorInjection: options?.enableDevelopmentErrorInjection ?? true,
+			realpath: options?.realpath,
 		},
 	));
 
@@ -4013,6 +4031,174 @@ suite('CopilotAgentSession', () => {
 	// ---- permission handling ----
 
 	suite('permission handling', () => {
+
+		test('auto-approves reads within applied plugin directories', async () => {
+			const pluginDir = URI.file('/plugins/active');
+			const { runtime, signals } = await createAgentSession(disposables, {
+				clientSnapshot: createPluginSnapshot(pluginDir),
+				realpath: path => Promise.resolve(path),
+			});
+			const pluginResources = [
+				'rules/typescript.instructions.md',
+				'agents/reviewer.agent.md',
+				'skills/review/SKILL.md',
+				'skills/review/scripts/check.js',
+				'hooks/hooks.json',
+				'.mcp.json',
+			];
+
+			const results = await Promise.all(pluginResources.map((path, index) => runtime.handlePermissionRequest({
+				kind: 'read',
+				path: URI.joinPath(pluginDir, path).fsPath,
+				toolCallId: `tc-plugin-read-${index}`,
+			})));
+
+			assert.deepStrictEqual({
+				results: results.map(result => result.kind),
+				signalCount: signals.length,
+			}, {
+				results: pluginResources.map(() => 'approve-once'),
+				signalCount: 0,
+			});
+		});
+
+		test('does not auto-approve non-read or elevated access within applied plugin directories', async () => {
+			const pluginDir = URI.file('/plugins/active');
+			const logicallyOutsidePath = URI.file('/outside/mapped-inside.md').fsPath;
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables, {
+				clientSnapshot: createPluginSnapshot(pluginDir),
+				realpath: path => Promise.resolve(path === logicallyOutsidePath ? URI.joinPath(pluginDir, 'mapped-inside.md').fsPath : path),
+			});
+			const requests: TestPermissionRequest[] = [
+				{ kind: 'read', path: '/plugins/inactive/rules/typescript.instructions.md', toolCallId: 'tc-plugin-outside' },
+				{ kind: 'read', path: '/plugins/active-evil/rules/typescript.instructions.md', toolCallId: 'tc-plugin-prefix-sibling' },
+				{ kind: 'read', path: logicallyOutsidePath, toolCallId: 'tc-plugin-logically-outside' },
+				{ kind: 'read', path: `${pluginDir.fsPath}${sep}link${sep}..${sep}secret`, toolCallId: 'tc-plugin-parent-traversal' },
+				{ kind: 'write', fileName: URI.joinPath(pluginDir, 'rules/typescript.instructions.md').fsPath, toolCallId: 'tc-plugin-write' },
+				{ kind: 'read', path: URI.joinPath(pluginDir, 'rules/typescript.instructions.md').fsPath, toolCallId: 'tc-plugin-managed', managedApprovalRequired: true },
+				{ kind: 'read', path: URI.joinPath(pluginDir, 'rules/typescript.instructions.md').fsPath, toolCallId: 'tc-plugin-bypass', requestSandboxBypass: true },
+			];
+
+			for (const request of requests) {
+				const resultPromise = runtime.handlePermissionRequest(request);
+				await waitForSignal(signal => signal.kind === 'pending_confirmation' && signal.state.toolCallId === request.toolCallId);
+				assert.ok(request.toolCallId && session.respondToPermissionRequest(request.toolCallId, true));
+				assert.strictEqual((await resultPromise).kind, 'approve-once');
+			}
+
+			assert.deepStrictEqual(
+				signals.filter((signal): signal is IAgentToolPendingConfirmationSignal => signal.kind === 'pending_confirmation').map(signal => signal.state.toolCallId),
+				requests.map(request => request.toolCallId),
+			);
+		});
+
+		test('does not auto-approve applied plugin reads that cannot be canonically contained', async () => {
+			const pluginDir = URI.file('/plugins/active');
+			const logService = new CapturingLogService();
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables, {
+				clientSnapshot: createPluginSnapshot(pluginDir),
+				logService,
+				realpath: path => {
+					if (path.endsWith('escape.md')) {
+						return Promise.resolve(URI.file('/plugins/active-evil/secret.md').fsPath);
+					}
+					if (path.endsWith('unresolvable.md')) {
+						return Promise.reject(new Error('realpath failed'));
+					}
+					return Promise.resolve(path);
+				},
+			});
+			const paths = [
+				URI.joinPath(pluginDir, 'skills/review/escape.md').fsPath,
+				URI.joinPath(pluginDir, 'skills/review/unresolvable.md').fsPath,
+			];
+
+			for (const [index, path] of paths.entries()) {
+				const toolCallId = `tc-plugin-canonical-${index}`;
+				const resultPromise = runtime.handlePermissionRequest({ kind: 'read', path, toolCallId });
+				await waitForSignal(signal => signal.kind === 'pending_confirmation' && signal.state.toolCallId === toolCallId);
+				assert.ok(session.respondToPermissionRequest(toolCallId, true));
+				assert.strictEqual((await resultPromise).kind, 'approve-once');
+			}
+
+			assert.deepStrictEqual({
+				pendingToolCallIds: signals.filter((signal): signal is IAgentToolPendingConfirmationSignal => signal.kind === 'pending_confirmation').map(signal => signal.state.toolCallId),
+				warnings: logService.warnings.map(warning => warning.message).filter(message => message.includes('Could not verify plugin resource containment')),
+			}, {
+				pendingToolCallIds: ['tc-plugin-canonical-0', 'tc-plugin-canonical-1'],
+				warnings: [`[Copilot:test-session-1] Could not verify plugin resource containment: ${paths[1]}`],
+			});
+		});
+
+		test('auto-approves reads when an applied plugin root is a symlink', async () => {
+			const pluginDir = URI.file('/plugins/active-link');
+			const canonicalPluginDir = URI.file('/canonical/active');
+			const pluginResource = URI.joinPath(pluginDir, 'skills/review/SKILL.md');
+			const canonicalPluginResource = URI.joinPath(canonicalPluginDir, 'skills/review/SKILL.md');
+			const { runtime, signals } = await createAgentSession(disposables, {
+				clientSnapshot: createPluginSnapshot(pluginDir),
+				realpath: path => Promise.resolve(path === pluginDir.fsPath ? canonicalPluginDir.fsPath : path === pluginResource.fsPath ? canonicalPluginResource.fsPath : path),
+			});
+
+			const result = await runtime.handlePermissionRequest({
+				kind: 'read',
+				path: pluginResource.fsPath,
+				toolCallId: 'tc-plugin-symlink-root',
+			});
+
+			assert.deepStrictEqual({
+				result: result.kind,
+				signalCount: signals.length,
+			}, {
+				result: 'approve-once',
+				signalCount: 0,
+			});
+		});
+
+		test('checks applied plugin directories in parallel and stops after the first match', async () => {
+			const nonMatchingPluginDir = URI.file('/plugins/inactive');
+			const outerPluginDir = URI.file('/plugins');
+			const nestedPluginDir = URI.file('/plugins/active');
+			const unresolvedOuterRealpath = new DeferredPromise<string>();
+			const matchingNestedRealpath = new DeferredPromise<string>();
+			const realpathCalls: string[] = [];
+			const { runtime, signals } = await createAgentSession(disposables, {
+				clientSnapshot: createPluginSnapshot(nonMatchingPluginDir, outerPluginDir, nestedPluginDir),
+				realpath: path => {
+					realpathCalls.push(path);
+					if (path === outerPluginDir.fsPath) {
+						return unresolvedOuterRealpath.p;
+					}
+					if (path === nestedPluginDir.fsPath) {
+						return matchingNestedRealpath.p;
+					}
+					return Promise.resolve(path);
+				},
+			});
+
+			const resultPromise = runtime.handlePermissionRequest({
+				kind: 'read',
+				path: URI.joinPath(nestedPluginDir, 'skills/review/SKILL.md').fsPath,
+				toolCallId: 'tc-plugin-parallel',
+			});
+			await timeout(0);
+			matchingNestedRealpath.complete(nestedPluginDir.fsPath);
+			const result = await resultPromise;
+
+			assert.deepStrictEqual({
+				result: result.kind,
+				startedNonMatchingProbe: !realpathCalls.includes(nonMatchingPluginDir.fsPath),
+				startedOuterProbe: realpathCalls.includes(outerPluginDir.fsPath),
+				startedNestedProbe: realpathCalls.includes(nestedPluginDir.fsPath),
+				signalCount: signals.length,
+			}, {
+				result: 'approve-once',
+				startedNonMatchingProbe: true,
+				startedOuterProbe: true,
+				startedNestedProbe: true,
+				signalCount: 0,
+			});
+		});
 
 		test('read permission fires tool_ready (deferred to side effects)', async () => {
 			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);

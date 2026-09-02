@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, McpServersLoadedServer, MessageOptions, PermissionMode, PermissionAssistedApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import { realpath as fsRealpath } from 'fs';
 import { cp, rm } from 'fs/promises';
-import { DeferredPromise, raceCancellation, RunOnceScheduler, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
+import { promisify } from 'util';
+import { DeferredPromise, firstParallel, raceCancellation, RunOnceScheduler, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -391,6 +393,33 @@ function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boole
 	return isCopilotSdkToolOutputFile(filePath);
 }
 
+const realpath = promisify(fsRealpath);
+
+function hasParentPathSegment(filePath: string): boolean {
+	return filePath.split(/[\\/]/).includes('..');
+}
+
+async function isPathWithinDirectory(filePath: string, directory: URI, resolveRealPath: (path: string) => Promise<string>): Promise<boolean> {
+	if (!isAbsolute(filePath) || hasParentPathSegment(filePath) || directory.scheme !== Schemas.file) {
+		return false;
+	}
+
+	const resource = normalizePath(URI.file(filePath));
+	const normalizedDirectory = normalizePath(directory);
+	if (!extUriBiasedIgnorePathCase.isEqualOrParent(resource, normalizedDirectory)) {
+		return false;
+	}
+
+	const [resolvedPath, resolvedDirectory] = await Promise.all([
+		resolveRealPath(filePath),
+		resolveRealPath(directory.fsPath),
+	]);
+	return extUriBiasedIgnorePathCase.isEqualOrParent(
+		normalizePath(URI.file(resolvedPath)),
+		normalizePath(URI.file(resolvedDirectory)),
+	);
+}
+
 /**
  * Options for constructing a {@link CopilotAgentSession}.
  */
@@ -451,6 +480,8 @@ export interface ICopilotAgentSessionOptions {
 	 * (notably that the sandbox is ignored on Windows) deterministically.
 	 */
 	readonly platform?: NodeJS.Platform;
+	/** Resolves symlinks for plugin resource permission checks. */
+	readonly realpath?: (path: string) => Promise<string>;
 }
 
 /**
@@ -965,6 +996,7 @@ export class CopilotAgentSession extends Disposable {
 	/** Snapshot captured at session creation for refresh detection. */
 	private readonly _appliedSnapshot: IActiveClientSnapshot;
 	private readonly _appliedPluginSources: ReadonlySet<string>;
+	private readonly _appliedPluginDirectories: readonly URI[];
 	private readonly _projectedMcpServerLaunchEnablement: ReadonlyMap<string, boolean>;
 	private _mcpLaunchConfigurationDirty = false;
 	/** Secondary filesystem roots successfully applied by the launch transaction. */
@@ -1040,6 +1072,7 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Platform used to compute the SDK sandbox policy (injectable for tests). */
 	private readonly _platform: NodeJS.Platform;
+	private readonly _realpath: (path: string) => Promise<string>;
 
 	get mcpServerStates() {
 		return this._mcpCustomizations.runtimeStates;
@@ -1090,11 +1123,13 @@ export class CopilotAgentSession extends Disposable {
 		this._serverToolHost = options.serverToolHost;
 		this._hostCustomizations = options.hostCustomizations ?? (() => []);
 		this._platform = options.platform ?? process.platform;
+		this._realpath = options.realpath ?? realpath;
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
 		this._repoInfoTelemetry = this._register(this._instantiationService.createInstance(AgentHostRepoInfoTelemetry, this._telemetryReporter));
 
 		this._appliedSnapshot = options.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} };
 		this._appliedPluginSources = new Set(this._appliedSnapshot.plugins.flatMap(plugin => plugin.sourceUri ? [plugin.sourceUri.toString()] : []));
+		this._appliedPluginDirectories = this._appliedSnapshot.plugins.flatMap(plugin => plugin.pluginDir?.scheme === Schemas.file ? [plugin.pluginDir] : []);
 		const disabledMcpServers = new Set([
 			...this._appliedSnapshot.plugins.flatMap(plugin => plugin.disabledMcpServers ?? []),
 			...(this._launchPlan.disabledRootMcpServers ?? []),
@@ -3452,6 +3487,14 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 
+			// SDK plugin directories are discovery inputs, so the runtime does not otherwise trust their contents.
+			if (!managedApprovalRequired && !requestSandboxBypass && request.kind === 'read' && typeof request.path === 'string') {
+				if (await this._isReadWithinAppliedPluginDirectory(request.path)) {
+					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving read within an applied plugin directory: ${request.path}`);
+					return { kind: 'approve-once' };
+				}
+			}
+
 			const serverToolHost = this._serverToolHost;
 			const serverToolName = request.kind === 'custom-tool' && typeof request.toolName === 'string'
 				&& serverToolHost?.toolNames.includes(request.toolName)
@@ -3602,6 +3645,22 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to handle permission request: kind=${request.kind}, toolCallId=${request.toolCallId ?? 'missing'}`);
 			throw error;
 		}
+	}
+
+	private async _isReadWithinAppliedPluginDirectory(filePath: string): Promise<boolean> {
+		const match = await firstParallel(
+			this._appliedPluginDirectories.map(async pluginDirectory => {
+				try {
+					return await isPathWithinDirectory(filePath, pluginDirectory, this._realpath);
+				} catch (error) {
+					this._logService.warn(`[Copilot:${this.sessionId}] Could not verify plugin resource containment: ${filePath}`, error);
+					return false;
+				}
+			}),
+			isMatch => isMatch,
+			false,
+		);
+		return match === true;
 	}
 
 	private _getInternalSessionResourcePath(request: PermissionRequest): string | undefined {
