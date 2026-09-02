@@ -6,6 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { Dimension } from '../../../../base/browser/dom.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Event, ValueWithChangeEvent } from '../../../../base/common/event.js';
 import { autorun, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -21,7 +22,7 @@ import { InMemoryStorageService, IStorageService } from '../../../../platform/st
 import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/diffProviderFactoryService.js';
 import { DiffEditorWidget } from '../../../browser/widget/diffEditor/diffEditorWidget.js';
 import { RefCounted } from '../../../browser/widget/diffEditor/utils.js';
-import { IDocumentDiffItem, IMultiDiffEditorModel } from '../../../browser/widget/multiDiffEditor/model.js';
+import { DiffItemSource, IDocumentDiffItem, IMultiDiffEditorModel } from '../../../browser/widget/multiDiffEditor/model.js';
 import { MultiDiffEditorWidget } from '../../../browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { IWorkbenchUIElementFactory } from '../../../browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
@@ -82,6 +83,97 @@ suite('MultiDiffEditorWidget', () => {
 		}
 	});
 
+	test('renders binary files as a placeholder', async () => {
+		const services = new ServiceCollection();
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IActionViewItemService, new NullActionViewItemService());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() { }());
+		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		services.set(IStorageService, disposables.add(new InMemoryStorageService()));
+		services.set(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(): IMenu {
+				return new class extends mock<IMenu>() {
+					override readonly onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose(): void { }
+				}();
+			}
+		}());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const originalUri = URI.parse('inmemory://original/image.png');
+		const modifiedUri = URI.parse('inmemory://modified/image.png');
+		const documentItem = RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+			original: new DiffItemSource(originalUri, undefined),
+			modified: new DiffItemSource(modifiedUri, undefined),
+		}, { dispose() { } });
+		const model: IMultiDiffEditorModel = {
+			documents: ValueWithChangeEvent.const([documentItem]),
+		};
+		let openedDiff: { original: URI; modified: URI } | undefined;
+		const container = document.createElement('div');
+		const widget = instantiationService.createInstance(
+			MultiDiffEditorWidget,
+			container,
+			{
+				openDiffEditor: (original, modified) => openedDiff = { original, modified },
+			} satisfies IWorkbenchUIElementFactory,
+			undefined,
+		);
+		widget.layout(new Dimension(800, 600));
+		const viewModel = widget.createViewModel(model);
+		await waitForState(viewModel.items, items => items.length === 1);
+		widget.setViewModel(viewModel);
+		widget.reveal({ original: originalUri, modified: modifiedUri }, { highlight: false });
+		await waitForState(widget.getLayoutDebugState(), state => state.items[0]?.hasTemplate === true);
+
+		try {
+			const placeholder = widget.getRootElement().querySelector<HTMLElement>('.binary-file-placeholder');
+			const editor = widget.getRootElement().querySelector<HTMLElement>('.editorContainer');
+			const openDiffButton = placeholder?.querySelector<HTMLElement>('.monaco-button');
+			const focusSpy = sinon.spy(Button.prototype, 'focus');
+			const canFocusActiveItem = widget.focus();
+			openDiffButton?.click();
+			assert.deepStrictEqual({
+				text: placeholder?.textContent,
+				display: placeholder?.style.display,
+				tabIndex: placeholder?.tabIndex,
+				role: placeholder?.getAttribute('role'),
+				ariaLabel: placeholder?.getAttribute('aria-label'),
+				openDiffButtonText: openDiffButton?.textContent,
+				openDiffButtonSecondary: openDiffButton?.classList.contains('secondary'),
+				openDiffButtonFocused: focusSpy.calledOnce,
+				openedOriginalUri: openedDiff?.original.toString(),
+				openedModifiedUri: openedDiff?.modified.toString(),
+				editorDisplay: editor?.style.display,
+				itemHeight: widget.getLayoutDebugState().get().items[0].verticalState.contentHeight,
+				canFocusActiveItem,
+				findsDocumentItem: widget.findDocumentDiffItem(modifiedUri) === documentItem.object,
+				hasCodeEditorForBinaryResource: widget.tryGetCodeEditor(modifiedUri) !== undefined,
+			}, {
+				text: 'Binary file changedOpen Diff',
+				display: 'grid',
+				tabIndex: -1,
+				role: 'group',
+				ariaLabel: 'Binary file changed',
+				openDiffButtonText: 'Open Diff',
+				openDiffButtonSecondary: true,
+				openDiffButtonFocused: true,
+				openedOriginalUri: originalUri.toString(),
+				openedModifiedUri: modifiedUri.toString(),
+				editorDisplay: 'none',
+				itemHeight: 140,
+				canFocusActiveItem: true,
+				findsDocumentItem: true,
+				hasCodeEditorForBinaryResource: false,
+			});
+		} finally {
+			widget.setViewModel(undefined);
+			viewModel.dispose();
+			widget.dispose();
+			documentItem.dispose();
+		}
+	});
+
 	test('applies document and responsive layout options before attaching the diff model', async () => {
 		const services = new ServiceCollection();
 		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
@@ -105,8 +197,8 @@ suite('MultiDiffEditorWidget', () => {
 		const original = disposables.add(instantiateTextModel(instantiationService, 'const value = 1;', undefined, undefined, originalUri));
 		const modified = disposables.add(instantiateTextModel(instantiationService, 'const value = 2;', undefined, undefined, modifiedUri));
 		const documentItem = RefCounted.createOfNonDisposable<IDocumentDiffItem>({
-			original,
-			modified,
+			original: new DiffItemSource(originalUri, original),
+			modified: new DiffItemSource(modifiedUri, modified),
 			options: { accessibilitySupport: 'off' },
 		}, { dispose() { } });
 		const model: IMultiDiffEditorModel = {
@@ -181,7 +273,7 @@ suite('MultiDiffEditorWidget', () => {
 		const originalContent = Array.from({ length: 64 }, (_, index) => `line ${index}`).join('\n');
 		const original = disposables.add(instantiateTextModel(instantiationService, originalContent, undefined, undefined, originalUri));
 		const documentItem = RefCounted.createOfNonDisposable<IDocumentDiffItem>({
-			original,
+			original: new DiffItemSource(originalUri, original),
 			modified: undefined,
 			options: { accessibilitySupport: 'off' },
 		}, { dispose() { } });
@@ -259,8 +351,8 @@ suite('MultiDiffEditorWidget', () => {
 			const original = disposables.add(instantiateTextModel(instantiationService, '', undefined, undefined, originalUri));
 			const modified = disposables.add(instantiateTextModel(instantiationService, 'const value = 1;', undefined, undefined, modifiedUri));
 			documentItems.push(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
-				original,
-				modified,
+				original: new DiffItemSource(originalUri, original),
+				modified: new DiffItemSource(modifiedUri, modified),
 				options: { accessibilitySupport: 'off' },
 			}, { dispose() { } }));
 			originalUris.push(originalUri);
