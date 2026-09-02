@@ -435,6 +435,15 @@
 .chat-rich-link:is(
 	[data-chat-rich-link-kind='session'],
 	[data-chat-rich-link-kind='chat']
+) .chat-rich-link-primary-status .chat-rich-link-status-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
 ) .chat-rich-link-primary-status :is(
 	.chat-rich-link-status-icon,
 	.monaco-pixel-spinner
