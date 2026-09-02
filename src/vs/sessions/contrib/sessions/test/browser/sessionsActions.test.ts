@@ -108,6 +108,12 @@ suite('Sessions - Actions', () => {
 		assert.strictEqual(pin && (typeof pin.command.title === 'string' ? pin.command.title : pin.command.title.value), 'Pin');
 	});
 
+	test('keeps the Command Palette delete action explicit', () => {
+		const deleteChat = MenuRegistry.getCommand('sessions.chatCompositeBar.deleteChat');
+
+		assert.strictEqual(deleteChat && (typeof deleteChat.title === 'string' ? deleteChat.title : deleteChat.title.value), 'Delete Chat');
+	});
+
 	test('groups session toolbar actions with concise titles', () => {
 		const actions = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
 			.filter(isIMenuItem)

@@ -120,13 +120,14 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { DictationDownloadRing, getDictationDownloadHoverMarkdown, getDictationPreparingLabel } from '../../../../workbench/contrib/chat/browser/speechToText/dictationDownloadRing.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { IChatPetWidgetService } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidgetService.js';
-import { getChatPetStackPlatformTop } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidget.js';
+import { getChatPetPillPlatformTop, getChatPetStackPlatformTop } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidget.js';
 import { IVoiceModeOnboardingService } from '../../../../workbench/contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { AGENTS_VOICE_ENABLED } from '../../../../workbench/contrib/agentsVoice/common/agentsVoice.js';
 import { animatePromptTyping, IPromptTypingAnimation } from './promptTypingAnimation.js';
 import { PromptTemplatePlaceholderController } from './promptTemplatePlaceholder.js';
 import { INewSessionComposer, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsState, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { NewSessionPromptOptionsWidget } from './newSessionPromptOptions.js';
+import { isInputGitHubContext, toInputGitHubContextMetadata } from '../common/newChatContextIds.js';
 
 
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
@@ -134,6 +135,7 @@ const OTEL_STATUS_COMMAND = 'github.copilot.chat.otel.statusActive';
 const OTEL_STATUS_ENTRY_ID = 'copilot.otelStatus';
 const OTEL_DOCS_URL = 'https://code.visualstudio.com/docs/agents/guides/monitoring-agents';
 const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
+const GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN = /\bhttps?:\/\/(?:www\.)?github\.com\/(?<owner>[\w.-]+)\/(?<repo>[\w.-]+)\/(?<kind>issues|pull)\/(?<number>\d+)\b/gi;
 const MIN_EDITOR_HEIGHT = 50;
 const MAX_EDITOR_HEIGHT = 200;
 const NEW_CHAT_INPUT_FONT_FAMILY = 'system-ui, -apple-system, sans-serif';
@@ -210,6 +212,33 @@ interface IDraftState {
 
 export function hasSendableNewChatContent(query: string, attachments: readonly IChatRequestVariableEntry[], hasAdditionalSendContent = false): boolean {
 	return !!query.trim() || attachments.some(isExplicitFileOrImageVariableEntry) || hasAdditionalSendContent;
+}
+
+function getInputGitHubContextAttachments(input: string): readonly IChatRequestVariableEntry[] {
+	const attachments: IChatRequestVariableEntry[] = [];
+	const ids = new Set<string>();
+	for (const match of input.matchAll(GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN)) {
+		const groups = match.groups;
+		const number = Number(groups?.['number']);
+		if (!groups || !Number.isSafeInteger(number) || number <= 0) {
+			continue;
+		}
+		const owner = groups['owner'];
+		const repo = groups['repo'];
+		const kind = groups['kind'].toLowerCase();
+		const uri = `https://github.com/${owner}/${repo}/${kind}/${number}`;
+		const id = `github-context:${uri}`;
+		if (ids.has(id)) {
+			continue;
+		}
+		ids.add(id);
+		attachments.push(toPasteVariableEntry(`${owner}/${repo}#${number}`, `GitHub context: ${uri}`, {
+			id,
+			icon: kind === 'issues' ? Codicon.issues : Codicon.gitPullRequest,
+			_meta: toInputGitHubContextMetadata(),
+		}));
+	}
+	return attachments;
 }
 
 class NewChatInputStatusActionViewItem extends MenuEntryActionViewItem {
@@ -467,6 +496,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			supportsBackground?: boolean;
 			deferredNotificationsEnabled?: IObservable<boolean>;
 			petHostPreferred?: IObservable<boolean>;
+			getChatPetPlatformElements?: () => readonly HTMLElement[];
+			onDidChangeChatPetPlatform?: Event<void>;
 			/**
 			 * Keep this composer a valid voice target even while a created session
 			 * is active. Used by the in-session "new chat" composer so dictation
@@ -674,9 +705,26 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			model: constObservable(undefined),
 			hasInput: inputHasContent,
 			inputChanged: this._editor.onDidChangeModelContent,
-			// Stand on the notice docked above the input, not on the input itself.
-			getPlatformTop: () => getChatPetStackPlatformTop(chatInputContainer, inputArea),
-			onDidChangePlatform: Event.None,
+			getPlatformTop: petCenterX => {
+				if (petCenterX !== undefined) {
+					const pillTop = getChatPetPillPlatformTop(
+						petCenterX,
+						[
+							...(this.options.getChatPetPlatformElements?.() ?? []),
+							...this.sessionTypePicker.getChatPetPlatformElements(),
+						].map(element => element.getBoundingClientRect()),
+					);
+					if (pillTop !== undefined) {
+						return pillTop;
+					}
+				}
+				// Stand on the notice docked above the input, not on the input itself.
+				return getChatPetStackPlatformTop(chatInputContainer, inputArea);
+			},
+			onDidChangePlatform: Event.any(
+				this.options.onDidChangeChatPetPlatform ?? Event.None,
+				this.sessionTypePicker.onDidChangeChatPetPlatform,
+			),
 		}, this.options.petHostPreferred, this.onDidFocus));
 		this._createInputToolbar(inputArea);
 
@@ -996,6 +1044,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		)));
 
 		this._register(this._editor.onDidChangeModelContent(() => {
+			this._syncInputGitHubContext();
 			this._updateDraftState();
 			this._updateSendButtonState();
 			this._updateEditorFontFamily();
@@ -1397,6 +1446,25 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this.saveState();
 	}
 
+	private _syncInputGitHubContext(): void {
+		const inputAttachments = getInputGitHubContextAttachments(this._editor?.getValue() ?? '');
+		const inputAttachmentIds = new Set(inputAttachments.map(attachment => attachment.id));
+		const attachments = this._contextAttachments.attachments.filter(attachment =>
+			!isInputGitHubContext(attachment) || inputAttachmentIds.has(attachment.id)
+		);
+		const attachmentIds = new Set(attachments.map(attachment => attachment.id));
+		for (const attachment of inputAttachments) {
+			if (!attachmentIds.has(attachment.id)) {
+				attachments.push(attachment);
+				attachmentIds.add(attachment.id);
+			}
+		}
+		if (attachments.length !== this._contextAttachments.attachments.length
+			|| attachments.some((attachment, index) => attachment !== this._contextAttachments.attachments[index])) {
+			this._contextAttachments.setAttachments(attachments);
+		}
+	}
+
 	private _toHistoryEntry(draft: IDraftState): IChatModelInputState {
 		return {
 			...draft,
@@ -1534,6 +1602,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			if (draft.attachments?.length) {
 				this._contextAttachments.setAttachments(draft.attachments.map(IChatRequestVariableEntry.fromExport));
 			}
+			this._syncInputGitHubContext();
 		}
 		this._updateSendButtonState();
 	}
@@ -1768,10 +1837,18 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	attachTextContext(name: string, content: string, icon: ThemeIcon, id = `context:${content}`): void {
-		this._contextAttachments.addAttachments(toPasteVariableEntry(name, content, {
+		const attachment = toPasteVariableEntry(name, content, {
 			id,
 			icon,
-		}));
+		});
+		const index = this._contextAttachments.attachments.findIndex(entry => entry.id === id);
+		if (index < 0) {
+			this._contextAttachments.addAttachments(attachment);
+		} else {
+			const attachments = [...this._contextAttachments.attachments];
+			attachments[index] = attachment;
+			this._contextAttachments.setAttachments(attachments);
+		}
 	}
 
 	addAttachments(...attachments: IChatRequestVariableEntry[]): void {

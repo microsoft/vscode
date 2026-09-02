@@ -2708,6 +2708,12 @@
         "category": "Developer"
       },
       {
+        "command": "github.copilot.debug.logTypeScriptContainers",
+        "title": "%github.copilot.command.logTypeScriptContainers%",
+        "enablement": "editorLangId == typescript || editorLangId == javascript",
+        "category": "Developer"
+      },
+      {
         "command": "github.copilot.debug.validateNesRename",
         "title": "%github.copilot.command.validateNesRename%",
         "category": "Developer"
@@ -5234,16 +5240,6 @@
               "advanced",
               "experimental",
               "onExp"
-            ]
-          },
-          "github.copilot.chat.agentDebugLog.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%github.copilot.config.chat.agentDebugLog.enabled%",
-            "deprecationMessage": "%github.copilot.config.chat.agentDebugLog.enabled.deprecated%",
-            "tags": [
-              "advanced",
-              "experimental"
             ]
           },
           "github.copilot.chat.agentDebugLog.fileLogging.enabled": {

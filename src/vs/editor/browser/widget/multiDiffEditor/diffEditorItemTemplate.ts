@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { addDisposableListener, EventHelper, EventType, getWindow, h, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventHelper, EventType, getWindow, h, scheduleAtNextAnimationFrame, trackFocus } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
@@ -36,6 +36,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 	private readonly _modifiedWidth;
 	private readonly _originalContentWidth;
 	private readonly _originalWidth;
+	private readonly _itemHorizontalInsets: Readonly<{ left: number; right: number }>;
 
 	public readonly maxScroll;
 
@@ -70,9 +71,12 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 		this._viewModel = observableValue<DocumentDiffItemViewModel | undefined>(this, undefined);
 		this._collapsed = derived(this, reader => this._viewModel.read(reader)?.collapsed.read(reader));
 		this._editorContentHeight = observableValue<number>(this, 500);
+		this._itemHorizontalInsets = this._workbenchUIElementFactory.diffEditorItemHorizontalInsets ?? { left: 9, right: 9 };
 		this.size = derived(this, reader => {
-			const collapsed = this._collapsed.read(reader);
-			return (collapsed ? 0 : this._editorContentHeight.read(reader)) + this._outerEditorHeight;
+			if (this._collapsed.read(reader)) {
+				return this._headerHeight;
+			}
+			return this._editorContentHeight.read(reader) + this._outerEditorHeight;
 		});
 		this._modifiedContentWidth = observableValue<number>(this, 0);
 		this._modifiedWidth = observableValue<number>(this, 0);
@@ -129,15 +133,17 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 			? this._register(this._workbenchUIElementFactory.createResourceLabel(this._elements.secondaryPath, MultiDiffEditorItemLabelKind.Secondary))
 			: undefined;
 		this._dataStore = this._register(new DisposableStore());
-		this._headerHeight = 40;
+		this._headerHeight = this._workbenchUIElementFactory.diffEditorItemHeaderHeight ?? 40;
 
 		const btn = this._register(new Button(this._elements.collapseButton, {}));
+		const activateItem = () => this._viewModel.get()?.setActive(undefined);
 
 		this._register(autorun(reader => {
 			btn.element.className = '';
 			btn.icon = this._collapsed.read(reader) ? Codicon.chevronRight : Codicon.chevronDown;
 		}));
 		this._register(btn.onDidClick(() => {
+			activateItem();
 			this._viewModel.get()?.collapsed.set(!this._collapsed.get(), undefined);
 		}));
 
@@ -159,8 +165,17 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 			// Make the header clickable to toggle collapse/expand
 			this._elements.header.tabIndex = 0;
 			this._elements.header.setAttribute('role', 'button');
+			this._register(addDisposableListener(this._elements.header, EventType.MOUSE_ENTER, () => this._elements.root.classList.add('header-hovered')));
+			this._register(addDisposableListener(this._elements.header, EventType.MOUSE_LEAVE, () => this._elements.root.classList.remove('header-hovered')));
+			const headerFocus = this._register(trackFocus(this._elements.header));
+			this._register(headerFocus.onDidFocus(() => {
+				this._elements.root.classList.add('header-focused');
+				activateItem();
+			}));
+			this._register(headerFocus.onDidBlur(() => this._elements.root.classList.remove('header-focused')));
 
 			this._register(addDisposableListener(this._elements.header, EventType.CLICK, (e) => {
+				activateItem();
 				// Don't toggle if clicking on actions or the collapse button itself (already handled)
 				const target = e.target;
 				if (!(target instanceof Element)) {
@@ -174,6 +189,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 
 			this._register(addDisposableListener(this._elements.header, EventType.KEY_DOWN, (e) => {
 				if (e.key === 'Enter' || e.key === ' ') {
+					activateItem();
 					const target = e.target;
 					if (target instanceof Element && (target.closest('.actions') || target.closest('.collapse-button'))) {
 						return;
@@ -218,10 +234,12 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 		this._register(autorun(reader => {
 			const isActive = this._viewModel.read(reader)?.isActive.read(reader);
 			this._elements.root.classList.toggle('active', isActive);
+			const isFirst = this._viewModel.read(reader)?.isFirst.read(reader);
+			this._elements.root.classList.toggle('first-diff-entry', isFirst);
 		}));
 
 		this._container.appendChild(this._elements.root);
-		this._outerEditorHeight = this._headerHeight;
+		this._outerEditorHeight = this._headerHeight + (this._workbenchUIElementFactory.diffEditorItemContentBottomPadding ?? 0);
 
 		this._contextKeyService = this._register(_parentContextKeyService.createScoped(this._elements.actions));
 		const ctxAllUnchangedRegionsShown = EditorContextKeys.multiDiffEditorItemAllUnchangedRegionsShown.bindTo(this._contextKeyService);
@@ -259,7 +277,11 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 		try {
 			this.setItem(item, context.initialSize);
 		} catch (error) {
-			this._bindingContext = undefined;
+			try {
+				this.setItem(undefined);
+			} finally {
+				this._bindingContext = undefined;
+			}
 			throw error;
 		}
 		return new DiffEditorItemBinding(item, this);
@@ -417,7 +439,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 
 		globalTransaction(tx => {
 			this.editor.layout({
-				width: width - 2 * 8 - 2 * 1,
+				width: width - this._itemHorizontalInsets.left - this._itemHorizontalInsets.right,
 				height: verticalRange.length - this._outerEditorHeight,
 			});
 		});
@@ -443,6 +465,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 	}
 
 	public hide(): void {
+		this._elements.root.classList.remove('header-hovered');
 		this._elements.root.style.top = `-100000px`;
 		this._elements.root.style.visibility = 'hidden'; // Some editor parts are still visible
 	}

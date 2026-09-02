@@ -9,6 +9,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
 import { buildDefaultChatUri, getInlineToolInput, ROOT_STATE_URI, ToolCallCancellationReason, ToolResultContentType, type ToolResultFileEditContent } from '../../../../common/state/sessionState.js';
 import type { StringOrMarkdown } from '../../../../common/state/protocol/state.js';
@@ -57,7 +58,8 @@ function fileOperationTest(context: IAgentHostE2ETestContext, title: string, run
 
 export function defineFileOperationsTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs, portableShellToolReplayEnabled, isWindows } = context;
-	const shellOutputOracleAvailable = !(isWindows && config.provider === 'copilotcli');
+	const shellResultTextAvailable = !config.shellToolResultTextUnreliable;
+	const shellOutputOracleAvailable = shellResultTextAvailable && !(isWindows && config.provider === 'copilotcli');
 	const BEHAVIOR_SNAPSHOT = {
 		profile: 'behavior',
 		// Codex occasionally omits command completion; direct filesystem and response assertions are the success oracle.
@@ -254,6 +256,61 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 				responseEndsWithCreated: true,
 			});
 		});
+
+		(portableShellToolReplayEnabled && shellOutputOracleAvailable ? test : test.skip)('shell init script runs before the shell command', async function () {
+			this.timeout(180_000);
+			const workspace = mkdtempSync(join(tmpdir(), 'ahp-shell-init-'));
+			tempDirs.push(workspace);
+			const sessionUri = await createRealSession(context.client, config, 'shell-init-script', createdSessions, URI.file(workspace));
+			// The host applies a published script only while the client's setting
+			// is forwarded as root config. Set it before the recorded round so the
+			// snapshot stays limited to the session config and the turn.
+			await context.client.call('subscribe', { channel: ROOT_STATE_URI });
+			context.client.dispatch({
+				channel: ROOT_STATE_URI,
+				clientSeq: 1,
+				action: { type: ActionType.RootConfigChanged, config: { [CopilotCliConfigKey.EnableShellInitScript]: true } },
+			});
+			await context.client.waitForNotification(n =>
+				isActionNotification(n, ActionType.RootConfigChanged)
+				&& getActionEnvelope(n).channel === ROOT_STATE_URI
+				&& (getActionEnvelope(n).action as { readonly config?: Record<string, unknown> }).config?.[CopilotCliConfigKey.EnableShellInitScript] === true,
+				30_000,
+			);
+			// Leave the root channel so its later notifications stay out of the
+			// recorded round, then drop the root exchange from the recorder.
+			context.client.notify('unsubscribe', { channel: ROOT_STATE_URI });
+			context.client.clearAhpSnapshot();
+			// Session config carries script text; the host materializes the file
+			// and registers it through the SDK's `shell.initScripts`. The first
+			// turn is dispatched immediately afterward: dispatch is ordered per
+			// connection and the host applies config before starting the turn,
+			// so no server echo is awaited.
+			context.client.beginAhpSnapshotRound();
+			context.client.dispatch({
+				channel: sessionUri,
+				clientSeq: 1,
+				action: {
+					type: ActionType.SessionConfigChanged,
+					config: { [SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'export AHP_E2E_INIT_MARKER=init_marker_91\nbuiltin true\n' }] },
+				},
+			});
+
+			// `node -e` keeps the recorded command platform-neutral; the marker can
+			// only be present if the registered init script ran first.
+			const markerCommand = `node -e "console.log('marker=' + process.env.AHP_E2E_INIT_MARKER)"`;
+			const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-shell-init', `Run exactly this shell command, with no modifications: \`${markerCommand}\`. Then reply with its exact output only.`, 2);
+			assert.match(result.responseText, /marker=init_marker_91/);
+			assertToolCallCompleteText(context.client, {
+				channel: buildDefaultChatUri(sessionUri),
+				turnId: 'turn-shell-init',
+				toolNames: [config.shellToolName],
+				workspace,
+				expected: [/marker=init_marker_91/],
+				success: true,
+			});
+			await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
+		});
 	}
 
 	fileOperationTest(context, 'reads an existing text file', async function () {
@@ -281,7 +338,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	});
+	}, shellResultTextAvailable);
 
 	fileOperationTest(context, 'reads a file from a nested directory', async function () {
 		this.timeout(180_000);
@@ -309,7 +366,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	});
+	}, shellResultTextAvailable);
 
 	(portableShellToolReplayEnabled && shellOutputOracleAvailable ? test : test.skip)('lists workspace entries', async function () {
 		this.timeout(180_000);
@@ -412,7 +469,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	});
+	}, shellResultTextAvailable);
 
 	fileOperationTest(context, 'counts lines in a file', async function () {
 		this.timeout(180_000);
@@ -443,7 +500,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	});
+	}, shellResultTextAvailable);
 
 	fileOperationTest(context, 'handles a missing file without a session error', async function () {
 		this.timeout(180_000);
@@ -469,7 +526,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 			success: config.fileOperationStrategy === 'shell',
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	});
+	}, shellResultTextAvailable);
 
 	fileOperationTest(context, 'creates a new text file', async function () {
 		this.timeout(180_000);

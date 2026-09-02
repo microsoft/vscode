@@ -19,8 +19,11 @@ import { localize } from '../../../../../nls.js';
 import { type AgentHostUriMapper, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { affectsAgentHostProviderPreference, IAgentConnection, IAgentHostService, shouldSurfaceLocalAgentHostProvider } from '../../../../../platform/agentHost/common/agentService.js';
+import { supportsAgentHostDetachedWorktrees } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { withAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
+import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { workspacelessScratchDir } from '../../../../../platform/agentHost/common/workspacelessScratchDir.js';
-import type { AgentCustomization, ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { type AgentCustomization, type ISessionGitState, readSessionEhcliAdoptable } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -145,14 +148,25 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		if (!isLegacyMigrationEnabledAtStartup(this._configurationService)) {
 			return undefined;
 		}
-		const rawId = getCopilotCliSessionRawId(migratedCopilotCliResource(resource));
-		if (rawId && this._sessionCache.has(rawId)) {
-			return migratedCopilotCliResource(resource); // already adopted; no round-trip
+		const twin = migratedCopilotCliResource(resource);
+		const rawId = getCopilotCliSessionRawId(twin);
+		// An un-adopted legacy chat still carries the adoptable marker and must take
+		// the migration probe; only a surfaced external / already-adopted session
+		// short-circuits, since opening its twin is a plain (non-migrating) open.
+		const adoptable = rawId ? readSessionEhcliAdoptable(this._getSessionMetadataByRawId(rawId)) : false;
+		if (rawId && this._sessionCache.has(rawId) && !adoptable) {
+			return twin; // already surfaced and not an un-adopted legacy chat; no round-trip
 		}
 		// Startup restore reopens persisted slots against a cold host, where the
 		// first catalog pass is far slower than an interactive open.
 		const timeoutMs = reason === 'restore' ? LEGACY_MIGRATION_RESTORE_TIMEOUT_MS : LEGACY_MIGRATION_TIMEOUT_MS;
-		return adoptLegacyCopilotCliResource(this.connection, resource, this._logService, this._configurationService, this._telemetryService, reason ?? 'open', timeoutMs);
+		const adopted = await adoptLegacyCopilotCliResource(this.connection, resource, this._logService, this._configurationService, this._telemetryService, reason ?? 'open', timeoutMs);
+		// On decline or timeout, redirect only a non-adoptable (external /
+		// already-adopted) session to its surfaced twin so it opens as-is instead
+		// of the extension-host resource. An adoptable session that failed to adopt
+		// keeps the original `undefined` behavior and opens unmigrated. Mirrors the
+		// chat-editor open path.
+		return adopted ?? (adoptable ? undefined : twin);
 	}
 
 	constructor(
@@ -338,7 +352,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		);
 	}
 
-	async prepareNewSession(sessionId: string, token: CancellationToken): Promise<IPreparedNewSession> {
+	async prepareNewSession(sessionId: string, token: CancellationToken, query: string): Promise<IPreparedNewSession> {
 		const draft = this._getNewSession(sessionId);
 		if (!draft) {
 			throw new Error(`Cannot prepare unknown new session '${sessionId}'.`);
@@ -362,7 +376,37 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 			throw new CancellationError();
 		}
 		await this._waitForSessionConfigResolution(this, sessionId, token);
-		const target = await this._devContainerAgentHostService.connect(sourceWorkspace, token);
+		const sourceConfig = this.getSessionConfig(sessionId);
+		let devContainerWorkspace = sourceWorkspace;
+		let detachedWorktree: { readonly handle: string; readonly worktree: URI } | undefined;
+		if (sourceConfig?.values[SessionConfigKey.Isolation] === 'worktree') {
+			await draft.waitForEagerCreate();
+			const connection = this.connection;
+			if (!supportsAgentHostDetachedWorktrees(connection.initializeResult.get()) || !connection.createDetachedWorktree || !connection.claimDetachedWorktree || !connection.deleteDetachedWorktree) {
+				throw new Error(localize('devContainerAgentHost.worktreePreparationUnsupported', "The local Agent Host does not support preparing a worktree for a Dev Container."));
+			}
+			detachedWorktree = await connection.createDetachedWorktree(draft.backendUri, query);
+			try {
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				devContainerWorkspace = detachedWorktree.worktree;
+				await this._workspaceTrustManagementService.setUrisTrust([detachedWorktree.worktree], true);
+			} catch (error) {
+				await this._deleteDetachedWorktreeOnRollback(detachedWorktree.handle);
+				throw error;
+			}
+		}
+
+		let target: Awaited<ReturnType<IDevContainerAgentHostService['connect']>>;
+		try {
+			target = await this._devContainerAgentHostService.connect(devContainerWorkspace, token);
+		} catch (error) {
+			if (detachedWorktree) {
+				await this._deleteDetachedWorktreeOnRollback(detachedWorktree.handle);
+			}
+			throw error;
+		}
 		let deleteReplacement: (() => void) | undefined;
 		try {
 			await this._workspaceTrustManagementService.setUrisTrust([target.workspaceUri], true);
@@ -377,14 +421,30 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 				throw new Error(localize('devContainerAgentHost.noAgents', "The Dev Container Agent Host did not advertise any agents."));
 			}
 
-			const replacement = targetProvider.createNewSession(target.workspaceUri, targetSessionType.id);
+			const replacement = targetProvider.createNewSession(target.workspaceUri, targetSessionType.id, {
+				metadata: detachedWorktree
+					? withAgentDevContainerWorktreeMetadata(undefined, detachedWorktree.handle)
+					: undefined,
+			});
 			const discardReplacement = () => targetProvider.deleteNewSession(replacement.sessionId);
 			deleteReplacement = discardReplacement;
+			if (detachedWorktree) {
+				if (!this.connection.claimDetachedWorktree) {
+					throw new Error(localize('devContainerAgentHost.worktreeClaimUnsupported', "The local Agent Host does not support claiming a prepared Dev Container worktree."));
+				}
+				await this.connection.claimDetachedWorktree(detachedWorktree.handle);
+			}
 			await this._waitForSessionConfigResolution(targetProvider, replacement.sessionId, token);
-			const sourceConfig = this.getSessionConfig(sessionId);
+			if (detachedWorktree) {
+				await targetProvider.setSessionConfigValue(replacement.sessionId, SessionConfigKey.Isolation, 'folder');
+				await this._waitForSessionConfigResolution(targetProvider, replacement.sessionId, token);
+			}
 			const targetConfig = targetProvider.getSessionConfig(replacement.sessionId);
 			if (sourceConfig) {
 				for (const [property, value] of Object.entries(sourceConfig.values)) {
+					if (detachedWorktree && property === SessionConfigKey.Isolation) {
+						continue;
+					}
 					const targetProperty = targetConfig?.schema.properties[property];
 					if (!targetProperty || targetProperty.readOnly) {
 						continue;
@@ -422,6 +482,9 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 				discard: async () => {
 					try {
 						discardReplacement();
+						if (detachedWorktree) {
+							await this._deleteDetachedWorktreeOnRollback(detachedWorktree.handle);
+						}
 					} finally {
 						await target.release();
 					}
@@ -429,11 +492,26 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 			};
 		} catch (error) {
 			try {
-				deleteReplacement?.();
+				if (deleteReplacement) {
+					deleteReplacement();
+					if (detachedWorktree) {
+						await this._deleteDetachedWorktreeOnRollback(detachedWorktree.handle);
+					}
+				} else if (detachedWorktree) {
+					await this._deleteDetachedWorktreeOnRollback(detachedWorktree.handle);
+				}
 			} finally {
 				await target.release();
 			}
 			throw error;
+		}
+	}
+
+	private async _deleteDetachedWorktreeOnRollback(handle: string): Promise<void> {
+		try {
+			await this.connection.deleteDetachedWorktree?.(handle);
+		} catch (error) {
+			this._logService.error(`[${this.id}] Failed to delete detached Dev Container worktree '${handle}' during rollback.`, error);
 		}
 	}
 

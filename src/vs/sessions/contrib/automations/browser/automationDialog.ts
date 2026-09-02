@@ -21,6 +21,9 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
+import { Context as SuggestContext } from '../../../../editor/contrib/suggest/browser/suggest.js';
+import { State as SuggestState } from '../../../../editor/contrib/suggest/browser/suggestModel.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
@@ -72,8 +75,9 @@ export function isAutomationDialogPopupTarget(relatedTarget: HTMLElement): boole
 	);
 }
 
-export function isAutomationDialogEditCommand(commandId: string, target: HTMLElement): boolean {
-	return (commandId === 'undo' || commandId === 'redo') && DOM.isEditableElement(target);
+export function shouldPassThroughAutomationDialogCommand(commandId: string, target: HTMLElement): boolean {
+	return commandId === 'acceptSelectedSuggestion'
+		|| ((commandId === 'undo' || commandId === 'redo') && DOM.isEditableElement(target));
 }
 
 export async function canSelectAutomationWorkspace(
@@ -104,6 +108,7 @@ export function registerAutomationDialogKeyboardNavigation(
 	targetWindow: Window & typeof globalThis,
 	getFocusableElements: () => readonly HTMLElement[],
 	isPopupTarget: (target: HTMLElement) => boolean,
+	acceptPromptSuggestion: () => boolean = () => false,
 ): IAutomationDialogKeyboardNavigation {
 	const store = new DisposableStore();
 	let suppressPopupEscapeKeyUp = false;
@@ -132,6 +137,11 @@ export function registerAutomationDialogKeyboardNavigation(
 		}
 		suppressPopupEscapeKeyUp = false;
 		if (event.key !== 'Tab') {
+			return;
+		}
+		if (!event.shiftKey && acceptPromptSuggestion()) {
+			event.preventDefault();
+			event.stopImmediatePropagation();
 			return;
 		}
 
@@ -201,6 +211,7 @@ interface IRenderFormHandle {
 	readonly getBranch: () => string | undefined;
 	readonly waitForAutomationSessionSync: () => Promise<void>;
 	readonly getFocusableElements: () => readonly HTMLElement[];
+	readonly acceptPromptSuggestion: () => boolean;
 }
 
 export type AutomationSessionDraftTarget =
@@ -1249,6 +1260,14 @@ export function renderForm(
 			// eslint-disable-next-line no-restricted-syntax -- the dialog owns this form subtree and supplies its dynamic focus order.
 			return Array.from(form.querySelectorAll<HTMLElement>('input, select, textarea, button, a[href], [tabindex]'));
 		},
+		acceptPromptSuggestion: () => {
+			const suggestController = SuggestController.get(chatInput.inputEditor);
+			if (!suggestController || suggestController.model.state === SuggestState.Idle || !suggestController.widget.value.getFocusedItem()) {
+				return false;
+			}
+			suggestController.acceptSelectedSuggestion(true, false);
+			return true;
+		},
 	};
 }
 
@@ -1422,6 +1441,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(
 		EditorContextKeys.textInputFocus,
 		ChatContextKeys.inAutomationsDialog,
+		SuggestContext.Visible.toNegated(),
 	),
 	primary: KeyCode.Enter,
 	handler: (accessor) => {

@@ -208,6 +208,30 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
+	test('does not lay out chat views while the session is hidden', () => {
+		const { view, chatViewFactory } = createHarness(disposables);
+		view.setSession(new TestActiveSession([createChat('main')]), options);
+		const chatView = chatViewFactory.views.find(candidate => candidate.kind === 'chat')!;
+
+		view.layout(800, 600, 0, 0);
+		const initialLayoutCount = chatView.layoutCount;
+		view.setSessionVisible(false);
+		view.layout(640, 480, 0, 0);
+		const hiddenLayoutCount = chatView.layoutCount;
+		view.setSessionVisible(true);
+		view.layout(640, 480, 0, 0);
+
+		assert.deepStrictEqual({
+			initialLayoutCount,
+			hiddenLayoutCount,
+			shownLayoutCount: chatView.layoutCount,
+		}, {
+			initialLayoutCount: 1,
+			hiddenLayoutCount: 1,
+			shownLayoutCount: 2,
+		});
+	});
+
 	test('focusing another group updates the session active chat', () => {
 		const { sessionsService, view } = createHarness(disposables);
 		const main = createChat('main');

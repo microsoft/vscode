@@ -350,8 +350,8 @@ export class ChatView extends AbstractChatView {
 				const requests = model.getRequests();
 				const lastRequest = model.lastRequestObs.read(reader);
 				requestCount = requests.length;
-				visibleRequestCount = requests.filter(request => !request.isHiddenFromTranscript).length;
-				hiddenRequestIncomplete = lastRequest?.isHiddenFromTranscript
+				visibleRequestCount = requests.filter(request => !request.isRequestHiddenFromTranscript).length;
+				hiddenRequestIncomplete = lastRequest?.isRequestHiddenFromTranscript
 					? lastRequest.response?.isIncomplete.read(reader)
 					: undefined;
 				readyMessage = findTranscriptContextEntry(requests.filter(request => request.isHiddenFromTranscript))?.readyMessage?.trim();
@@ -369,8 +369,7 @@ export class ChatView extends AbstractChatView {
 			const model = chatModel.read(reader);
 			model?.lastRequestObs.read(reader);
 			const requests = model?.getRequests() ?? [];
-			const hasVisibleRequest = requests.some(request => !request.isHiddenFromTranscript);
-			const entry = hasVisibleRequest ? undefined : findTranscriptContextEntry(requests.filter(request => request.isHiddenFromTranscript));
+			const entry = findInitialTranscriptContextEntry(requests);
 			if (entry?.id === currentEntryId) {
 				return;
 			}
@@ -679,6 +678,13 @@ export function findTranscriptContextEntry(requests: readonly { readonly variabl
 		}
 	}
 	return undefined;
+}
+
+/** Returns initial transcript context until a request row becomes visible. */
+export function findInitialTranscriptContextEntry(requests: readonly { readonly isRequestHiddenFromTranscript: boolean; readonly variableData: { readonly variables: readonly IChatRequestVariableEntry[] }; readonly attachedContext?: readonly IChatRequestVariableEntry[] }[]): IChatRequestTranscriptContextVariableEntry | undefined {
+	return requests.some(request => !request.isRequestHiddenFromTranscript)
+		? undefined
+		: findTranscriptContextEntry(requests);
 }
 
 /**

@@ -302,6 +302,24 @@ export const chatPersistentContentVisibleClass = 'chat-persistent-content-visibl
 /** Carries {@link IChatWidgetViewOptions.persistentContentHeight} to `chat.css`. */
 export const chatPersistentContentHeightVariable = '--vscode-chat-persistent-content-height';
 
+/** Computes the visual session state and whether its latest completion remains unvisited. */
+export function computeChatSessionStateIndicatorState(input: {
+	readonly requestNeedsInput: boolean;
+	readonly requestInProgress: boolean;
+	readonly containsFocus: boolean;
+	readonly requestWasActive: boolean;
+	readonly hasUnvisitedCompletion: boolean;
+}) {
+	const state = input.requestNeedsInput ? 'needsInput' : input.requestInProgress ? 'inProgress' : 'idle';
+	const requestActive = state !== 'idle';
+	let hasUnvisitedCompletion = input.containsFocus ? false : input.hasUnvisitedCompletion;
+	if (!requestActive && input.requestWasActive) {
+		hasUnvisitedCompletion = !input.containsFocus;
+	}
+
+	return { state, requestActive, hasUnvisitedCompletion };
+}
+
 export class ChatWidget extends Disposable implements IChatWidget {
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -468,6 +486,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private readonly viewModelDisposables = this._register(new DisposableStore());
 	private _viewModel: ChatViewModel | undefined;
+	private _requestActiveForStateIndicator = false;
+	private _hasUnvisitedCompletion = false;
 
 	private set viewModel(viewModel: ChatViewModel | undefined) {
 		if (this._viewModel === viewModel) {
@@ -478,6 +498,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModelDisposables.clear();
 
 		this._viewModel = viewModel;
+		this._requestActiveForStateIndicator = false;
+		this._hasUnvisitedCompletion = false;
 		if (viewModel) {
 			this.viewModelDisposables.add(viewModel);
 			this.logService.debug(`ChatWidget#setViewModel: have viewModel session=${viewModel.sessionResource.toString()} requests=${viewModel.model.getRequests().length}`);
@@ -491,6 +513,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this._onDidChangeViewModel.fire({ previousSessionResource, currentSessionResource: this._viewModel?.sessionResource });
+		this.updateSessionStateIndicator();
 	}
 
 	get viewModel() {
@@ -671,6 +694,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			if (e.affectsConfiguration(ChatConfiguration.ProgressBorder)) {
 				this.updateWorkingProgressBorder();
+			}
+			if (e.affectsConfiguration(ChatConfiguration.SessionStateIndicatorEnabled)) {
+				this.updateWorkingProgressBorder();
+				this.updateSessionStateIndicator();
 			}
 		}));
 
@@ -947,11 +974,50 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		const enabled = this.configurationService.getValue<boolean>(ChatConfiguration.ProgressBorder) === true
 			&& !this.accessibilityService.isMotionReduced()
-			&& !isInlineChat(this);
+			&& !isInlineChat(this)
+			&& !this.isSessionStateIndicatorEnabled();
 		const inProgress = !!this.viewModel?.model.requestInProgress.get();
 		const working = enabled && inProgress;
 		inputContainer.classList.toggle('working', working);
 		setChatInputStackInputWorking(inputContainer, working);
+	}
+
+	private isSessionStateIndicatorEnabled(): boolean {
+		if (isInlineChat(this) || isQuickChat(this) || this.viewOptions.enableSessionStateIndicator !== true) {
+			return false;
+		}
+
+		return this.configurationService.getValue<boolean>(ChatConfiguration.SessionStateIndicatorEnabled) === true;
+	}
+
+	/** Updates the whole-widget session state indicator. */
+	private updateSessionStateIndicator(): void {
+		if (!this.container) {
+			return;
+		}
+
+		const enabled = this.isSessionStateIndicatorEnabled();
+		const modelNeedsInput = !!this.viewModel?.model.requestNeedsInput.get();
+		const indicatorState = computeChatSessionStateIndicatorState({
+			requestNeedsInput: modelNeedsInput,
+			requestInProgress: !!this.viewModel?.model.requestInProgress.get(),
+			containsFocus: dom.isAncestorOfActiveElement(this.container),
+			requestWasActive: this._requestActiveForStateIndicator,
+			hasUnvisitedCompletion: this._hasUnvisitedCompletion,
+		});
+		this._requestActiveForStateIndicator = indicatorState.requestActive;
+		this._hasUnvisitedCompletion = indicatorState.hasUnvisitedCompletion;
+
+		const needsInput = enabled && indicatorState.state === 'needsInput';
+		const inProgress = enabled && indicatorState.state === 'inProgress';
+		const idle = enabled && !needsInput && !inProgress;
+		const idleUnvisited = idle && this._hasUnvisitedCompletion;
+
+		this.container.classList.toggle('chat-session-state-indicator', enabled);
+		this.container.classList.toggle('chat-state-needs-input', needsInput);
+		this.container.classList.toggle('chat-state-in-progress', inProgress);
+		this.container.classList.toggle('chat-state-idle', idle);
+		this.container.classList.toggle('chat-state-idle-unvisited', idleUnvisited);
 	}
 
 	get inputEditor(): ICodeEditor {
@@ -1013,6 +1079,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const renderInputToolbarBelowInput = this.viewOptions.renderInputToolbarBelowInput ?? false;
 
 		this.container = dom.append(parent, $('.interactive-session'));
+		const focusTracker = this._register(dom.trackFocus(this.container));
+		this._register(focusTracker.onDidFocus(() => {
+			if (this._hasUnvisitedCompletion) {
+				this.updateSessionStateIndicator();
+			}
+		}));
+		this.updateSessionStateIndicator();
 		if (this.viewOptions.persistentContentHeight) {
 			// The class floats the persistent content; the variable tells the
 			// surfaces the list now extends behind how far to keep clear.
@@ -2707,6 +2780,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.requestInProgress.set(this.viewModel.model.requestInProgress.get());
 			this.hasActiveRequest.set(this.viewModel.model.hasActiveRequest.get());
 			this.updateWorkingProgressBorder();
+			this.updateSessionStateIndicator();
 
 			// Update the editor's placeholder text when it changes in the view model
 			if (events?.some(e => e?.kind === 'changePlaceholder')) {

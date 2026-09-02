@@ -7,15 +7,16 @@ import { ProgressBar } from '../../../../../../../base/browser/ui/progressbar/pr
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../../base/common/lazy.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { getExtensionForMimeType } from '../../../../../../../base/common/mime.js';
+import { getExtensionForMimeType, Mimes, normalizeMimeType } from '../../../../../../../base/common/mime.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
 import { basename } from '../../../../../../../base/common/resources.js';
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../../../../editor/common/languages/modesRegistry.js';
 import { IModelService } from '../../../../../../../editor/common/services/model.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ChatResponseResource } from '../../../../common/model/chatModel.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
-import { IToolResultInputOutputDetails } from '../../../../common/tools/languageModelToolsService.js';
+import { IToolResultInputOutputDetails, ToolInputOutputEmbedded } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatCodeBlockInfo } from '../../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatCollapsibleInputOutputContentPart, ChatCollapsibleIOPart, IChatCollapsibleIOCodePart } from '../chatToolInputOutputContentPart.js';
@@ -69,6 +70,27 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			}
 		});
 
+		const getOutputLanguageId = (part: ToolInputOutputEmbedded): string => {
+			if (part.mimeType) {
+				const mimeType = normalizeMimeType(part.mimeType).split(';', 1)[0].trim();
+				if (mimeType === Mimes.markdown) {
+					return 'markdown';
+				}
+				if (mimeType === Mimes.text) {
+					return PLAINTEXT_LANGUAGE_ID;
+				}
+				if (mimeType === 'application/json' || mimeType.endsWith('+json')) {
+					return 'json';
+				}
+				const languageId = languageService.getLanguageIdByMimeType(mimeType);
+				if (languageId) {
+					return languageId;
+				}
+			}
+
+			return PLAINTEXT_LANGUAGE_ID;
+		};
+
 		let processedOutput = output;
 		if (typeof output === 'string') { // back compat with older stored versions
 			processedOutput = [{ type: 'embed', value: output, isText: true }];
@@ -93,7 +115,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 					if (o.type === 'ref') {
 						return { kind: 'data', uri: o.uri, mimeType: o.mimeType };
 					} else if (o.isText && !o.asResource) {
-						return createCodePart(o.value);
+						return createCodePart(o.value, getOutputLanguageId(o));
 					} else {
 						// Defer base64 decoding to avoid expensive decode during scroll.
 						// The value will be decoded lazily in ChatToolOutputContentSubPart.

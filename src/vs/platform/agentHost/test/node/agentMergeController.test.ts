@@ -9,7 +9,7 @@ import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
-import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeSessionState } from '../../common/agentMerge.js';
+import { AgentMergeConfigKey, agentMergeEnabledNotice, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
@@ -524,12 +524,87 @@ suite('AgentMergeController', () => {
 			notices,
 			enabled: readAgentMergeSessionState(configurationService.getSessionConfigValues(session))?.enabled,
 		}, {
-			afterEnable: [{ kind: AgentSystemNotificationKind.AgentMergeEnabled, content: 'Agent Merge is on and watching `feature`.' }],
+			afterEnable: [{
+				kind: AgentSystemNotificationKind.AgentMergeEnabled,
+				content: agentMergeEnabledNotice({ branchName: 'feature' }, defaultAgentMergeConfiguration),
+			}],
 			notices: [
-				{ kind: AgentSystemNotificationKind.AgentMergeEnabled, content: 'Agent Merge is on and watching `feature`.' },
+				{
+					kind: AgentSystemNotificationKind.AgentMergeEnabled,
+					content: agentMergeEnabledNotice({ branchName: 'feature' }, defaultAgentMergeConfiguration),
+				},
 				{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was turned off because the checked-out branch changed from `feature` to `main`.' },
 			],
 			enabled: false,
+		});
+	});
+
+	test('announces effective session and global configuration changes while monitoring', () => {
+		const { stateManager, configurationService, session, notices } = createControllerHarness(disposables);
+		const target = {
+			branchName: 'feature',
+			enabledAt: '2026-09-01T00:00:00.000Z',
+			commentWatermark: '2026-09-01T00:00:00.000Z',
+		};
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+			[SessionConfigKey.AgentMergeController]: { target },
+		});
+		stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'feature', baseBranchName: 'main' }));
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.AgentMerge]: {
+				enabled: true,
+				overrides: { fixCI: false, mergePullRequest: 'always' },
+			},
+		});
+		configurationService.updateRootConfig({ [AgentMergeConfigKey.AddressReviews]: false });
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.AgentMergeController]: { target, totalPromptCount: 1 },
+		});
+		configurationService.updateRootConfig({ [AgentMergeConfigKey.Enabled]: false });
+		configurationService.updateRootConfig({ [AgentMergeConfigKey.ResolveConflicts]: false });
+		const whilePaused = [...notices];
+		configurationService.updateRootConfig({ [AgentMergeConfigKey.Enabled]: true });
+
+		assert.deepStrictEqual({
+			whilePaused,
+			notices,
+		}, {
+			whilePaused: [{
+				kind: AgentSystemNotificationKind.AgentMergeConfigurationChanged,
+				content: [
+					'Agent Merge settings changed.',
+					'It will no longer fix failing CI checks.',
+					'It will now merge the pull request automatically when it is ready.',
+					'It will now choose an available merge method automatically.',
+				].map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n'),
+			}, {
+				kind: AgentSystemNotificationKind.AgentMergeConfigurationChanged,
+				content: [
+					'Agent Merge settings changed.',
+					'It will no longer address new pull request review comments or wait for them before merging.',
+				].map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n'),
+			}],
+			notices: [{
+				kind: AgentSystemNotificationKind.AgentMergeConfigurationChanged,
+				content: [
+					'Agent Merge settings changed.',
+					'It will no longer fix failing CI checks.',
+					'It will now merge the pull request automatically when it is ready.',
+					'It will now choose an available merge method automatically.',
+				].map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n'),
+			}, {
+				kind: AgentSystemNotificationKind.AgentMergeConfigurationChanged,
+				content: [
+					'Agent Merge settings changed.',
+					'It will no longer address new pull request review comments or wait for them before merging.',
+				].map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n'),
+			}, {
+				kind: AgentSystemNotificationKind.AgentMergeConfigurationChanged,
+				content: 'Agent Merge settings changed.\n\n- It will no longer resolve merge conflicts or update a behind branch.',
+			}],
 		});
 	});
 
@@ -553,6 +628,40 @@ suite('AgentMergeController', () => {
 				{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was turned off for this session.' },
 			],
 		});
+	});
+
+	test('re-enabling a session explains what Agent Merge will do again', async () => {
+		const { stateManager, configurationService, session, notices } = createControllerHarness(disposables);
+		const target = {
+			branchName: 'feature',
+			enabledAt: '2026-09-01T00:00:00.000Z',
+			commentWatermark: '2026-09-01T00:00:00.000Z',
+		};
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+			[SessionConfigKey.AgentMergeController]: { target },
+		});
+		stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'feature', baseBranchName: 'main' }));
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: false } });
+		const recaptured = new Promise<void>(resolve => {
+			disposables.add(stateManager.onDidChangeSessionConfig(event => {
+				if (event.session.toString() === session && readAgentMergeSessionState(event.current?.values)?.target) {
+					resolve();
+				}
+			}));
+		});
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: true } });
+		await recaptured;
+
+		assert.deepStrictEqual(notices, [{
+			kind: AgentSystemNotificationKind.AgentMergeDisabled,
+			content: 'Agent Merge was turned off for this session.',
+		}, {
+			kind: AgentSystemNotificationKind.AgentMergeEnabled,
+			content: agentMergeEnabledNotice({ branchName: 'feature' }, defaultAgentMergeConfiguration),
+		}]);
 	});
 
 	test('resolves the API host a credential must match for every GitHub deployment', () => {
