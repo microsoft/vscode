@@ -485,7 +485,7 @@ suite('ChatWidget - setVisible', () => {
 		assert.deepStrictEqual(onDidHideEvents, [3]);
 
 		// 4. Simulate render completing by attaching child widgets and listContainer
-		mockWidgetState.listContainer = document.createElement('div');
+		mockWidgetState.listContainer = mainWindow.document.createElement('div');
 		mockWidgetState.listWidget = {
 			setVisible: (v: boolean) => listWidgetVisibilities.push(v),
 		};
