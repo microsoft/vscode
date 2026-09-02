@@ -144,6 +144,16 @@ export class ProtocolError extends Error {
 }
 
 /**
+ * A subscription that was released before its snapshot resolved. Reuses the session-not-found
+ * code because the protocol has no cancellation code yet.
+ */
+export class SubscriptionCancelledError extends ProtocolError {
+	constructor(resource: string) {
+		super(AHP_SESSION_NOT_FOUND, `Subscription cancelled: ${resource}`);
+	}
+}
+
+/**
  * VS Code-specific extension: set the auth token on the server.
  * Not yet part of the official protocol.
  */

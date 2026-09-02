@@ -22,7 +22,7 @@ import type { AutomationCapabilities, Implementation } from '../../common/state/
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
+import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, SubscriptionCancelledError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
 import { AUTOMATION_CATALOG_URI, MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
 import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
@@ -88,9 +88,14 @@ class MockProtocolServer implements IProtocolServer {
 
 class CountingLogService extends NullLogService {
 	errorCount = 0;
+	readonly infoMessages: string[] = [];
 
 	override error(_message: string, ..._args: unknown[]): void {
 		this.errorCount++;
+	}
+
+	override info(message: string, ..._args: unknown[]): void {
+		this.infoMessages.push(message);
 	}
 }
 
@@ -239,7 +244,7 @@ class MockAgentService implements IAgentService {
 		this.subscribeCalls.push({ resource: resource.toString(), clientId });
 		await (this.subscribeBarriers.get(resource.toString())?.p ?? this.subscribeBarrier?.p);
 		if (isActive && !isActive()) {
-			throw new Error(`Subscription cancelled: ${resource.toString()}`);
+			throw new SubscriptionCancelledError(resource.toString());
 		}
 		const snapshot = this._stateManager.getSnapshot(resource.toString());
 		if (!snapshot) {
@@ -1141,6 +1146,56 @@ suite('ProtocolServerHandler', () => {
 		await responsePromise;
 
 		assert.strictEqual(actionsWhilePending.length, 1);
+	});
+
+	test('cancelled subscribe reports cancellation, not a missing resource', async () => {
+		stateManager.createSession(makeSessionSummary());
+		agentService.subscribeBarrier = new DeferredPromise<void>();
+		const transport = connectClient('client-cancelled-subscribe');
+		transport.sent.length = 0;
+		logService.infoMessages.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+
+		transport.simulateMessage(request(2, 'subscribe', { channel: sessionUri }));
+		await Promise.resolve();
+		transport.simulateMessage(notification('unsubscribe', { channel: sessionUri }));
+		await agentService.subscribeBarrier.complete();
+		const resp = await responsePromise as { error?: { code: number; message: string } };
+
+		assert.deepStrictEqual({
+			code: resp.error?.code,
+			message: resp.error?.message,
+			errorCount: logService.errorCount,
+			infoMessages: logService.infoMessages,
+		}, {
+			code: AHP_SESSION_NOT_FOUND,
+			message: `Subscription cancelled: ${sessionUri}`,
+			errorCount: 0,
+			infoMessages: [`[ProtocolServer] Subscribe cancelled by client: ${sessionUri}`],
+		});
+	});
+
+	test('subscribe to an unknown resource still fails as a missing resource', async () => {
+		const missingUri = 'copilot:/missing-session';
+		const transport = connectClient('client-unknown-subscribe');
+		transport.sent.length = 0;
+		logService.infoMessages.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+
+		transport.simulateMessage(request(2, 'subscribe', { channel: missingUri }));
+		const resp = await responsePromise as { error?: { code: number; message: string } };
+
+		assert.deepStrictEqual({
+			code: resp.error?.code,
+			message: resp.error?.message,
+			errorCount: logService.errorCount,
+			infoMessages: logService.infoMessages,
+		}, {
+			code: AHP_SESSION_NOT_FOUND,
+			message: `Resource not found: ${missingUri}`,
+			errorCount: 1,
+			infoMessages: [],
+		});
 	});
 
 	test('cancelled subscribe does not clean up a newer subscribe from the same client', async () => {
