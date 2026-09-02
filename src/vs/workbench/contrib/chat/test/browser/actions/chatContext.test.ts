@@ -49,9 +49,9 @@ class TestGitService extends mock<IGitService>() {
 
 class TestCommandService extends mock<ICommandService>() {
 	result: object | undefined;
-	command: { id: string; repoId: string } | undefined;
+	command: { id: string; repoId: string | undefined } | undefined;
 
-	override async executeCommand<T>(id: string, repoId: string): Promise<T> {
+	override async executeCommand<T>(id: string, repoId?: string): Promise<T> {
 		this.command = { id, repoId };
 		return this.result as T;
 	}
@@ -99,15 +99,26 @@ suite('ChatContext', () => {
 		);
 	});
 
-	test('hides GitHub context picks without a GitHub repository', () => {
+	test('opens global GitHub context search without a GitHub repository', async () => {
+		const commandService = new TestCommandService();
 		const pick = new GitHubContextValuePick(
 			'issue',
 			new TestGitService([repository('https://example.com/owner/repository.git')]),
 			new class extends mock<IQuickInputService>() { }(),
-			new TestCommandService(),
+			commandService,
 		);
 
-		assert.strictEqual(pick.isEnabled(), false);
+		await pick.asAttachment();
+		assert.deepStrictEqual({
+			enabled: pick.isEnabled(),
+			command: commandService.command,
+		}, {
+			enabled: true,
+			command: {
+				id: 'github.copilot.chat.cloudSessions.openIssue',
+				repoId: undefined,
+			},
+		});
 	});
 
 	test('opens GitHub context picker directly for one repository', async () => {

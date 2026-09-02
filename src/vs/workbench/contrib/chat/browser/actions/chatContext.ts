@@ -135,7 +135,7 @@ export class GitHubContextValuePick implements IChatContextValueItem {
 	}
 
 	isEnabled(): boolean {
-		return this.getRepositories().length > 0;
+		return true;
 	}
 
 	async asAttachment(): Promise<IChatRequestVariableEntry | undefined> {
@@ -148,7 +148,7 @@ export class GitHubContextValuePick implements IChatContextValueItem {
 			repoId = await this.pickRepository(repositories);
 		}
 
-		if (!repoId) {
+		if (repositories.length > 1 && !repoId) {
 			return undefined;
 		}
 
