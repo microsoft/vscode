@@ -50,6 +50,11 @@ export class SessionRemoteConnection extends Disposable {
 	 * Latched separately from {@link _attempt} because a completed attempt
 	 * clears that back to `undefined`; keying the gate on it would let a connect
 	 * that resolves without reaching the host retrigger forever.
+	 *
+	 * Scoped to this view. A split session has one instance per chat group, so
+	 * an outage can produce one attempt per group. That stays bounded — each
+	 * instance latches independently — and providers collapse the duplicates:
+	 * `connect()` joins an in-flight dial rather than starting a second one.
 	 */
 	private readonly _autoConnected = observableValue<IActiveSession | undefined>(this, undefined);
 	/**
