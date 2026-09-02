@@ -67,6 +67,7 @@ interface ISessionSpec {
 	readonly title: string;
 	readonly workspace?: string;
 	readonly status?: SessionStatus;
+	readonly mainChatStatus?: SessionStatus;
 	readonly description?: string;
 	readonly minutesAgo: number;
 	readonly changesSummary?: ISessionChangesSummary;
@@ -127,7 +128,7 @@ function createSession(spec: ISessionSpec, approvals: Map<string, IAgentSessionA
 	}
 	const mainChat = new class extends mock<IChat>() {
 		override readonly resource = mainChatResource;
-		override readonly status: IObservable<SessionStatus> = constObservable(spec.status ?? SessionStatus.Completed);
+		override readonly status: IObservable<SessionStatus> = constObservable(spec.mainChatStatus ?? spec.status ?? SessionStatus.Completed);
 		override readonly interactivity: IObservable<ChatInteractivity> = constObservable(ChatInteractivity.Full);
 	}();
 	const nestedChats = (spec.chats ?? []).map(chatSpec => createChat(spec.id, chatSpec, updatedAt, approvals));
@@ -338,6 +339,27 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			],
 			groups: [GROUP],
 			width: 260,
+		}),
+	}),
+	SessionsList_PeerChatInProgress: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['An expanded session has a completed main chat and two nested peer chat rows. The session row and the active "Fix empty files restore" peer chat row both show blue in-progress icons, while the completed "Fix single-pane details layout" peer chat shows an inactive dot. The session details say "Working...".'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [
+				{
+					id: 'a',
+					title: 'Single-pane details behavior',
+					workspace: 'vscode',
+					minutesAgo: 0,
+					status: SessionStatus.InProgress,
+					mainChatStatus: SessionStatus.Completed,
+					chats: [
+						{ id: 'layout', title: 'Fix single-pane details layout' },
+						{ id: 'restore', title: 'Fix empty files restore', status: SessionStatus.InProgress },
+					],
+				},
+			],
+			width: 620,
 		}),
 	}),
 	SessionsList_WorkspaceSection: defineComponentFixture({

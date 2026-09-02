@@ -214,9 +214,13 @@ function getSessionListChats(session: ISession, reader?: IReader): readonly ICha
 	);
 }
 
-/** Returns the main-chat status for trees with chat rows, otherwise the aggregate session status. */
+/** Returns the aggregate in-progress state, then the main-chat status for trees with chat rows. */
 function getSessionRowStatus(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean): SessionStatus {
-	return deriveFromMainChat ? session.mainChat.read(reader).status.read(reader) : session.status.read(reader);
+	const sessionStatus = session.status.read(reader);
+	if (!deriveFromMainChat || sessionStatus === SessionStatus.InProgress) {
+		return sessionStatus;
+	}
+	return session.mainChat.read(reader).status.read(reader);
 }
 
 function isSessionGroupItem(item: SessionListItem): item is ISessionGroupItem {
