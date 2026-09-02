@@ -56,12 +56,16 @@ suite('Artifact Server Tools', () => {
 
 	test('classifies worked-on issues and pull requests as artifacts', () => {
 		const addDefinition = artifactServerToolDefinitions.find(definition => definition.name === ArtifactServerToolName.AddArtifactOrReference);
+		const isArtifactProperty = addDefinition?.inputSchema?.properties?.isArtifact;
+		const inputDescription = isArtifactProperty && 'description' in isArtifactProperty && typeof isArtifactProperty.description === 'string'
+			? isArtifactProperty.description
+			: undefined;
 		const sessionClassification = 'An issue or pull request this session works on is an artifact even if the session did not create it';
 		const instructionClassification = 'An issue or pull request you work on is an artifact even if you did not create it';
 
 		assert.deepStrictEqual({
 			definition: addDefinition?.description?.includes(sessionClassification),
-			input: addDefinition?.inputSchema?.properties?.isArtifact.description?.includes(sessionClassification),
+			input: inputDescription?.includes(sessionClassification),
 			instruction: ARTIFACT_TOOLS_INSTRUCTION.includes(instructionClassification),
 			reference: ARTIFACT_TOOLS_INSTRUCTION.includes('something you did not produce but the user should look at because of this task'),
 		}, {
