@@ -39,7 +39,6 @@ suite('OpenAI prompt fallback', () => {
 	}
 
 	test.each([
-		['gpt-4.2', 'copilot'],
 		['gpt-5.7', 'copilot'],
 		['gpt-5.7-mini', 'copilot'],
 		['gpt-5.7-codex', 'copilot'],
@@ -54,7 +53,25 @@ suite('OpenAI prompt fallback', () => {
 		['preview-model', 'OpenAI'],
 		['preview-model', 'openai'],
 	])('%s from %s inherits the entire latest prompt bundle', async (family, provider) => {
-		expect(await resolve(createEndpoint(family, provider))).toEqual(await resolve(createEndpoint('gpt-5.6')));
+		const endpoint = createEndpoint(family, provider);
+		expect({
+			prompt: await resolve(endpoint),
+			fallbackModelFamily: await PromptRegistry.resolveFallbackModelFamily(endpoint),
+		}).toEqual({
+			prompt: await resolve(createEndpoint('gpt-5.6')),
+			fallbackModelFamily: 'gpt-5.6',
+		});
+	});
+
+	test('does not apply the latest fallback to an older unrecognized GPT version', async () => {
+		const endpoint = createEndpoint('gpt-4.2', 'OpenAI');
+		expect({
+			prompt: await resolve(endpoint),
+			fallbackModelFamily: await PromptRegistry.resolveFallbackModelFamily(endpoint),
+		}).toEqual({
+			prompt: await new AgentPromptRegistry().resolveAllCustomizations(instantiationService, endpoint),
+			fallbackModelFamily: undefined,
+		});
 	});
 
 	test.each([
@@ -80,7 +97,11 @@ suite('OpenAI prompt fallback', () => {
 		['gpt-5.6', 'Gpt56Prompt'],
 		['vscModelE-preview', 'VSCModelPromptE'],
 	])('preserves the explicit prompt for %s', async (family, expected) => {
-		expect((await resolve(createEndpoint(family, 'OpenAI'))).SystemPrompt.name).toBe(expected);
+		const endpoint = createEndpoint(family, 'OpenAI');
+		expect({
+			systemPrompt: (await resolve(endpoint)).SystemPrompt.name,
+			fallbackModelFamily: await PromptRegistry.resolveFallbackModelFamily(endpoint),
+		}).toEqual({ systemPrompt: expected, fallbackModelFamily: undefined });
 	});
 
 	test.each(['claude-sonnet-4.6', 'gemini-2.0-flash', 'grok-code-fast-1', 'kimi-k3'])('keeps %s family routing ahead of provider metadata', async family => {
@@ -134,7 +155,7 @@ suite('OpenAI prompt fallback', () => {
 		}
 
 		const registry = new AgentPromptRegistry();
-		registry.registerFallbackPrompt(Gpt56PromptResolver, isOpenAIModel);
+		registry.registerFallbackPrompt(Gpt56PromptResolver, isOpenAIModel, 'gpt-5.6');
 		registry.registerPrompt(SpecializedPromptResolver);
 		const result = await registry.resolveAllCustomizations(instantiationService, createEndpoint('gpt-6'));
 		expect({ systemPrompt: result.SystemPrompt, userQueryTagName: result.userQueryTagName }).toEqual({

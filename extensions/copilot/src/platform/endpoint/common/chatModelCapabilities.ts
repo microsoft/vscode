@@ -158,9 +158,10 @@ export function isGpt55(model: LanguageModelChat | IChatEndpoint | string) {
 	return matchesGptModelFamily(family, 'gpt-5.5') || HIDDEN_MODEL_B_HASHES.includes(h);
 }
 
-export function isGpt56(model: LanguageModelChat | IChatEndpoint | string) {
+export function isGpt56(model: LanguageModelChat | IChatEndpoint | string, fallbackFamily?: string) {
 	const family = typeof model === 'string' ? model : model.family;
-	return matchesGptModelFamily(family, 'gpt-5.6');
+	return matchesGptModelFamily(family, 'gpt-5.6')
+		|| (fallbackFamily !== undefined && matchesGptModelFamily(fallbackFamily, 'gpt-5.6'));
 }
 
 export function isGpt53Codex(model: LanguageModelChat | IChatEndpoint | string) {
@@ -248,7 +249,7 @@ export function modelPrefersInstructionsAfterHistory(modelFamily: string) {
 /**
  * Model supports apply_patch as an edit tool.
  */
-export function modelSupportsApplyPatch(model: LanguageModelChat | IChatEndpoint): boolean {
+export function modelSupportsApplyPatch(model: LanguageModelChat | IChatEndpoint, fallbackFamily?: string): boolean {
 	// only using replace string as edit tool, disable apply_patch for VSC Models
 	if (isVSCModelReplaceStringSet(model)) {
 		return false;
@@ -262,7 +263,7 @@ export function modelSupportsApplyPatch(model: LanguageModelChat | IChatEndpoint
 		|| isGpt52Family(model.family)
 		|| isGpt54(model)
 		|| isHiddenModelB(model)
-		|| isGpt56(model);
+		|| isGpt56(model, fallbackFamily);
 }
 
 /**
@@ -343,12 +344,12 @@ export function modelSupportCacheBreakPoints(model: LanguageModelChat | IChatEnd
  * The model is capable of using apply_patch as an edit tool exclusively,
  * without needing insert_edit_into_file.
  */
-export function modelCanUseApplyPatchExclusively(model: LanguageModelChat | IChatEndpoint): boolean {
+export function modelCanUseApplyPatchExclusively(model: LanguageModelChat | IChatEndpoint, fallbackFamily?: string): boolean {
 	// only using replace string as edit tool, disable apply_patch for VSC Models
 	if (isVSCModelReplaceStringSet(model)) {
 		return false;
 	}
-	return isGpt5PlusFamily(model) || isVSCModelA(model) || isVSCModelB(model);
+	return isGpt5PlusFamily(model) || isGpt5PlusFamily(fallbackFamily) || isVSCModelA(model) || isVSCModelB(model);
 }
 
 /**
@@ -363,8 +364,8 @@ export function modelNeedsStrongReplaceStringHint(model: LanguageModelChat | ICh
 /**
  * Model can take the simple, modern apply_patch instructions.
  */
-export function modelSupportsSimplifiedApplyPatchInstructions(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isGpt5PlusFamily(model) || isVSCModelA(model) || isVSCModelB(model);
+export function modelSupportsSimplifiedApplyPatchInstructions(model: LanguageModelChat | IChatEndpoint, fallbackFamily?: string): boolean {
+	return isGpt5PlusFamily(model) || isGpt5PlusFamily(fallbackFamily) || isVSCModelA(model) || isVSCModelB(model);
 }
 
 export function isAnthropicFamily(model: LanguageModelChat | IChatEndpoint): boolean {
