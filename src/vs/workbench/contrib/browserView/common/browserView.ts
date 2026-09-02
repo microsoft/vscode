@@ -677,11 +677,11 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		if (!this.browserViewWorkbenchService.isSharingAvailable) {
 			return BrowserViewSharingState.Unavailable;
 		}
-		if (this._url && !this.agentNetworkFilterService.isUriAllowed(URI.parse(this._url))) {
-			return BrowserViewSharingState.BlockedByNetworkPolicy;
-		}
 		if (this._audiences.some(audience => audience.type === 'agent')) {
 			return BrowserViewSharingState.Shared;
+		}
+		if (!this.isDirectlyShareable && this._url && !this.agentNetworkFilterService.isUriAllowed(URI.parse(this._url))) {
+			return BrowserViewSharingState.BlockedByNetworkPolicy;
 		}
 		return BrowserViewSharingState.Available;
 	}
