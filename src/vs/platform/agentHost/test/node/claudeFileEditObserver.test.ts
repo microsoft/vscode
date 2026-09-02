@@ -6,6 +6,7 @@
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 
 import assert from 'assert';
+import { timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -112,6 +113,51 @@ suite('ClaudeFileEditObserver', () => {
 			cachedType: ToolResultContentType.FileEdit,
 			arcMode: 'plan',
 			clientContext,
+		});
+	});
+
+	test('tracks overlapping edits to the same file by tool use id', async () => {
+		const { observer, db, fileService, mapperState } = createObserver(disposables);
+		const resource = URI.file('/work/shared.txt');
+		await fileService.writeFile(resource, VSBuffer.fromString('original'));
+
+		observer.observeAssistant(assistantMessage([
+			{ type: 'tool_use', id: 'tu-first', name: 'Write', input: { file_path: resource.fsPath, content: 'after-first' } },
+		]));
+		await timeout(0);
+		await fileService.writeFile(resource, VSBuffer.fromString('intermediate'));
+		observer.observeAssistant(assistantMessage([
+			{ type: 'tool_use', id: 'tu-second', name: 'Write', input: { file_path: resource.fsPath, content: 'after-second' } },
+		]));
+		await timeout(0);
+
+		await fileService.writeFile(resource, VSBuffer.fromString('after-first'));
+		await observer.observeUser(userMessage([
+			{ type: 'tool_result', tool_use_id: 'tu-first', content: 'ok' },
+		]), 'turn-1', mapperState);
+		await fileService.writeFile(resource, VSBuffer.fromString('after-second'));
+		await observer.observeUser(userMessage([
+			{ type: 'tool_result', tool_use_id: 'tu-second', content: 'ok' },
+		]), 'turn-1', mapperState);
+
+		const [first, second] = await Promise.all([
+			db.readFileEditContent('tu-first', resource.fsPath),
+			db.readFileEditContent('tu-second', resource.fsPath),
+		]);
+		assert.deepStrictEqual({
+			cached: [mapperState.takeFileEdit('tu-first')?.type, mapperState.takeFileEdit('tu-second')?.type],
+			first: first && {
+				before: new TextDecoder().decode(first.beforeContent),
+				after: new TextDecoder().decode(first.afterContent),
+			},
+			second: second && {
+				before: new TextDecoder().decode(second.beforeContent),
+				after: new TextDecoder().decode(second.afterContent),
+			},
+		}, {
+			cached: [ToolResultContentType.FileEdit, ToolResultContentType.FileEdit],
+			first: { before: 'original', after: 'after-first' },
+			second: { before: 'intermediate', after: 'after-second' },
 		});
 	});
 

@@ -93,6 +93,47 @@ suite('FileEditTracker', () => {
 		assert.strictEqual(new TextDecoder().decode(content.afterContent), 'modified content\nline 2\nline 3');
 	});
 
+	test('scopes same-file snapshots by operation id', async () => {
+		await fileService.writeFile(URI.file('/workspace/scoped.txt'), VSBuffer.fromString('original'));
+
+		await tracker.trackEditStart('/workspace/scoped.txt', undefined, 'tc-first');
+		await fileService.writeFile(URI.file('/workspace/scoped.txt'), VSBuffer.fromString('intermediate'));
+		await tracker.trackEditStart('/workspace/scoped.txt', undefined, 'tc-second');
+		tracker.discardEdit('/workspace/scoped.txt', 'tc-first');
+		await fileService.writeFile(URI.file('/workspace/scoped.txt'), VSBuffer.fromString('final'));
+		await tracker.completeEdit('/workspace/scoped.txt', 'tc-second');
+		await tracker.takeCompletedEdit('turn-1', 'tc-second', '/workspace/scoped.txt', '', undefined, undefined, undefined, 'tc-second');
+
+		const content = await db.readFileEditContent('tc-second', '/workspace/scoped.txt');
+		assert.deepStrictEqual(content && {
+			before: new TextDecoder().decode(content.beforeContent),
+			after: new TextDecoder().decode(content.afterContent),
+		}, {
+			before: 'intermediate',
+			after: 'final',
+		});
+	});
+
+	test('replaces an orphaned pending snapshot by default', async () => {
+		await fileService.writeFile(URI.file('/workspace/replaced.txt'), VSBuffer.fromString('original'));
+
+		await tracker.trackEditStart('/workspace/replaced.txt');
+		await fileService.writeFile(URI.file('/workspace/replaced.txt'), VSBuffer.fromString('intermediate'));
+		await tracker.trackEditStart('/workspace/replaced.txt');
+		await fileService.writeFile(URI.file('/workspace/replaced.txt'), VSBuffer.fromString('final'));
+		await tracker.completeEdit('/workspace/replaced.txt');
+		await tracker.takeCompletedEdit('turn-1', 'tc-replaced', '/workspace/replaced.txt', '', undefined, undefined);
+
+		const content = await db.readFileEditContent('tc-replaced', '/workspace/replaced.txt');
+		assert.deepStrictEqual(content && {
+			before: new TextDecoder().decode(content.beforeContent),
+			after: new TextDecoder().decode(content.afterContent),
+		}, {
+			before: 'intermediate',
+			after: 'final',
+		});
+	});
+
 	test('tracks edit for newly created file (no before content)', async () => {
 		await tracker.trackEditStart('/workspace/new-file.txt');
 		await fileService.writeFile(URI.file('/workspace/new-file.txt'), VSBuffer.fromString('new file\ncontent'));

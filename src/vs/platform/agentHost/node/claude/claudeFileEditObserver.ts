@@ -98,7 +98,7 @@ export class ClaudeFileEditObserver extends Disposable {
 				continue;
 			}
 			this._editToolPaths.set(block.id, { filePath, toolName: block.name, toolInput: block.input, modelId, clientContext });
-			void this._editTracker.trackEditStart(filePath, mode).catch(err =>
+			void this._editTracker.trackEditStart(filePath, mode, block.id).catch(err =>
 				this._logService.warn(`[ClaudeFileEditObserver] trackEditStart failed for ${filePath}: ${err}`));
 		}
 	}
@@ -130,18 +130,23 @@ export class ClaudeFileEditObserver extends Disposable {
 			}
 			this._editToolPaths.delete(block.tool_use_id);
 			try {
-				await this._editTracker.completeEdit(tracked.filePath);
-				const fileEdit = await this._editTracker.takeCompletedEdit(turnId, block.tool_use_id, tracked.filePath, tracked.toolName, tracked.toolInput, tracked.modelId, tracked.clientContext);
+				await this._editTracker.completeEdit(tracked.filePath, block.tool_use_id);
+				const fileEdit = await this._editTracker.takeCompletedEdit(turnId, block.tool_use_id, tracked.filePath, tracked.toolName, tracked.toolInput, tracked.modelId, tracked.clientContext, block.tool_use_id);
 				if (fileEdit) {
 					mapperState.cacheFileEdit(block.tool_use_id, fileEdit);
 				}
 			} catch (err) {
+				this._editTracker.discardEdit(tracked.filePath, block.tool_use_id);
 				this._logService.warn(`[ClaudeFileEditObserver] file edit tracking failed for ${tracked.filePath}: ${err}`);
 			}
 		}
 	}
 
 	override dispose(): void {
+		for (const [toolUseId, tracked] of this._editToolPaths) {
+			this._editTracker.discardEdit(tracked.filePath, toolUseId);
+		}
+		this._editToolPaths.clear();
 		void this._editTracker.flushAttribution().catch(error => {
 			this._logService.warn(`[ClaudeFileEditObserver] Failed to flush edit attribution: ${error}`);
 		});
