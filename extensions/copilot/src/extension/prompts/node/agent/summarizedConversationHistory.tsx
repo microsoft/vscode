@@ -264,9 +264,7 @@ class ConversationHistory extends PromptElement<SummarizedAgentHistoryProps> {
 			// Reverse the tool call rounds so they are in chronological order
 			toolCallRounds.reverse();
 
-			// For Anthropic models with thinking enabled, set the thinking on the first round
-			// so it gets rendered as the first thinking block after summarization
-			if (isAnthropicFamily(this.props.endpoint) && thinkingForFirstRoundAfterSummarization && toolCallRounds.length > 0 && !toolCallRounds[0].thinking) {
+			if (requiresLeadingThinkingBlock(this.props.endpoint) && thinkingForFirstRoundAfterSummarization && toolCallRounds.length > 0 && !toolCallRounds[0].thinking) {
 				toolCallRounds[0].thinking = thinkingForFirstRoundAfterSummarization;
 			}
 
@@ -539,7 +537,10 @@ export class SummarizedConversationHistory extends PromptElement<SummarizedAgent
 		const round = this.props.promptContext.toolCallRounds?.find(round => round.id === toolCallRoundId);
 		if (round) {
 			round.summary = summary;
-			round.thinking = thinking;
+			// Only ever overwrite: clearing would drop a signed block the round is still replayed with.
+			if (thinking) {
+				round.thinking = thinking;
+			}
 			return;
 		}
 
@@ -549,11 +550,22 @@ export class SummarizedConversationHistory extends PromptElement<SummarizedAgent
 			const round = turn.rounds.find(round => round.id === toolCallRoundId);
 			if (round) {
 				round.summary = summary;
-				round.thinking = thinking;
+				if (thinking) {
+					round.thinking = thinking;
+				}
 				break;
 			}
 		}
 	}
+}
+
+/**
+ * Only Anthropic's manual thinking mode (`type: "enabled"`) requires an assistant message to open
+ * with a thinking block. Adaptive thinking accepts history as-is, so carrying a signed block onto
+ * a round that never produced one is a pointless edit of a message the API returned.
+ */
+function requiresLeadingThinkingBlock(endpoint: IChatEndpoint): boolean {
+	return isAnthropicFamily(endpoint) && !endpoint.supportsAdaptiveThinking;
 }
 
 enum SummaryMode {
@@ -1069,10 +1081,7 @@ export class SummarizedConversationHistoryPropsBuilder {
 			return undefined;
 		}
 
-		// For Anthropic models with thinking enabled, find the last assistant message with thinking
-		// from all rounds being summarized (both current toolCallRounds and history).
-		// This thinking will be used as the first thinking block after summarization.
-		const summarizedThinking = isAnthropicFamily(props.endpoint) ? this.findLastThinking(props) : undefined;
+		const summarizedThinking = requiresLeadingThinkingBlock(props.endpoint) ? this.findLastThinking(props) : undefined;
 		const promptContext = {
 			...props.promptContext,
 			toolCallRounds,

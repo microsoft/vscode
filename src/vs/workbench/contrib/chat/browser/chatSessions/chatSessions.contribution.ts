@@ -32,7 +32,7 @@ import { ExtensionsRegistry } from '../../../../services/extensions/common/exten
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, IChatInputCompletionsParams, IChatInputCompletionsResult, isSessionInProgressStatus, localChatSessionType, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint, SessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, IChatInputCompletionsParams, IChatInputCompletionsResult, isSessionInProgressStatus, localChatSessionType, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint, SessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
@@ -307,6 +307,12 @@ class ContributedChatSessionData extends Disposable {
 	}
 }
 
+interface IPendingSessionResolution {
+	readonly promise: Promise<IChatSession>;
+	readonly cancellationTokenSource: CancellationTokenSource;
+	waiterCount: number;
+}
+
 
 export class ChatSessionsService extends Disposable implements IChatSessionsService {
 	readonly _serviceBrand: undefined;
@@ -349,6 +355,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _sessions = new ResourceMap<ContributedChatSessionData>();
 	private readonly _resourceAliases = new ResourceMap<URI>(); // real resource -> untitled resource (kept for the workbench lifetime so option lookups for the real session resolve to the untitled entry)
 	private readonly _realResources = new ResourceMap<URI>(); // untitled resource -> real resource (cleared when the session is disposed)
+	private readonly _pendingSessionResolutions = new Map<string, IPendingSessionResolution>();
 
 	private readonly _customizationsProviders = new Map<string, IChatSessionCustomizationsProvider>();
 	private readonly _onDidChangeCustomizations = this._register(new Emitter<{ readonly chatSessionType: string }>());
@@ -464,11 +471,31 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		controller.setChatSessionItemArchived(sessionResource, archived);
 	}
 
+	canSetChatSessionItemRead(sessionResource: URI): boolean {
+		return typeof this._getChatSessionItemController(sessionResource)?.controller.setChatSessionItemRead === 'function';
+	}
+
+	setChatSessionItemRead(sessionResource: URI, isRead: boolean): void {
+		const controller = this._getChatSessionItemController(sessionResource)?.controller;
+		if (!controller?.setChatSessionItemRead) {
+			throw new Error(`Session ${sessionResource.toString()} does not own read state`);
+		}
+		controller.setChatSessionItemRead(sessionResource, isRead);
+	}
+
 	private async updateInProgressStatus(chatSessionType: string): Promise<void> {
+		const controller = this._itemControllers.get(chatSessionType)?.controller;
+		if (!controller) {
+			return;
+		}
+
 		try {
 			const items: IChatSessionItem[] = [];
 			for await (const result of this.getChatSessionItems([chatSessionType], CancellationToken.None)) {
 				items.push(...result.items);
+			}
+			if (this._itemControllers.get(chatSessionType)?.controller !== controller) {
+				return;
 			}
 			const inProgress = items.filter(item => !item.archived && item.status && isSessionInProgressStatus(item.status));
 			this.reportInProgress(chatSessionType, inProgress.length);
@@ -827,7 +854,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			isCore: false,
 			isDynamic: true,
 			slashCommands: contribution.commands ?? [],
-			locations: [ChatAgentLocation.Chat],
+			locations: contribution.locations ?? [ChatAgentLocation.Chat],
 			modes: [ChatModeKind.Agent, ChatModeKind.Ask],
 			disambiguation: [],
 			metadata: {
@@ -913,17 +940,37 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		this._contributions.set(contribution.type, { contribution, extension: undefined });
+		if (contribution.alternativeIds) {
+			for (const alternativeId of contribution.alternativeIds) {
+				this._alternativeIdMap.set(alternativeId, contribution.type);
+			}
+		}
 		// Programmatically-registered contributions are always considered
 		// available; mark them as such so the autorun in the constructor
 		// registers the in-place "New {0} Session" action for them. Without
 		// this, types like `agent-host-copilotcli` (registered by the local
 		// agent host) have no `openNewChatSessionInPlace.<type>` command.
-		this._contributionDisposables.set(contribution.type, new DisposableStore());
+		const disposables = new DisposableStore();
+		this._contributionDisposables.set(contribution.type, disposables);
+		// A programmatic contribution can derive its availability (e.g. a functional
+		// `requiresCopilotSignIn`) and signal when it changes; re-fire the aggregate
+		// availability event so consumers re-evaluate. Generic — no per-provider
+		// knowledge lives here.
+		if (contribution.onDidChangeRequiresCopilotSignIn) {
+			disposables.add(contribution.onDidChangeRequiresCopilotSignIn(() => this._onDidChangeAvailability.fire()));
+		}
 		this._updateHasCanDelegateProvidersContextKey();
 		this._onDidChangeAvailability.fire();
 
 		return toDisposable(() => {
 			this._contributions.delete(contribution.type);
+			if (contribution.alternativeIds) {
+				for (const alternativeId of contribution.alternativeIds) {
+					if (this._alternativeIdMap.get(alternativeId) === contribution.type) {
+						this._alternativeIdMap.delete(alternativeId);
+					}
+				}
+			}
 			this._contributionDisposables.deleteAndDispose(contribution.type);
 			this._updateHasCanDelegateProvidersContextKey();
 			this._onDidChangeAvailability.fire();
@@ -1004,6 +1051,17 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const sessionType = getChatSessionType(sessionResource);
 		const resolvedType = this._resolveToPrimaryType(sessionType) || sessionType;
 		return this._contentProviders.get(resolvedType)?.resolveChatResponseUri?.(sessionResource, href, kind) ?? href;
+	}
+
+	public updateChatSessionMetadata(sessionResource: URI, metadata: Record<string, unknown>): boolean {
+		const sessionType = getChatSessionType(sessionResource);
+		const resolvedType = this._resolveToPrimaryType(sessionType) || sessionType;
+		const provider = this._contentProviders.get(resolvedType);
+		if (!provider?.updateChatSessionMetadata) {
+			return false;
+		}
+		provider.updateChatSessionMetadata(sessionResource, metadata);
+		return true;
 	}
 
 	async getChatInputCompletionTriggerCharacters(sessionType: string): Promise<readonly string[] | undefined> {
@@ -1104,6 +1162,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		this._onDidChangeItemsProviders.fire({ chatSessionType });
 
 		disposables.add(controller.onDidChangeChatSessionItems(e => {
+			for (const sessionResource of e.removed ?? []) {
+				this._disposeSession(sessionResource);
+			}
 			this._onDidChangeSessionItems.fire(e);
 			this.updateInProgressStatus(chatSessionType);
 		}));
@@ -1113,14 +1174,15 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				initialRefreshCts.cancel();
 				disposables.dispose();
 
-				const controller = this._itemControllers.get(chatSessionType);
-				if (controller) {
+				const registeredController = this._itemControllers.get(chatSessionType)?.controller;
+				if (registeredController === controller) {
 					this._itemControllers.delete(chatSessionType);
 					this._onDidChangeItemsProviders.fire({ chatSessionType });
-				}
 
-				// Remove any in-progress tracking for this provider since it's no longer available
-				this.updateInProgressStatus(chatSessionType);
+					if (this.inProgressMap.delete(chatSessionType)) {
+						this._onDidChangeInProgress.fire();
+					}
+				}
 			}
 		};
 	}
@@ -1185,6 +1247,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return controllerData.controller.newChatSessionItem?.(request, token);
 	}
 
+	notifySessionMaterialized(sessionResource: URI): void {
+		this._getChatSessionItemController(sessionResource)?.controller.notifySessionMaterialized?.(sessionResource);
+	}
+
 	async deleteChatSessionItem(sessionResource: URI, token: CancellationToken): Promise<void> {
 		const controllerData = this._getChatSessionItemController(sessionResource);
 		if (!controllerData?.controller.deleteChatSessionItem) {
@@ -1192,7 +1258,27 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		await controllerData.initialRefresh;
-		return controllerData.controller.deleteChatSessionItem(sessionResource, token);
+		await controllerData.controller.deleteChatSessionItem(sessionResource, token);
+		this._disposeSession(sessionResource);
+	}
+
+	private _disposeSession(sessionResource: URI): void {
+		const resolvedResource = this._resolveResource(sessionResource);
+		for (const resource of [sessionResource, resolvedResource]) {
+			const resourceKey = resource.toString();
+			const pendingSession = this._pendingSessionResolutions.get(resourceKey);
+			if (pendingSession) {
+				this._pendingSessionResolutions.delete(resourceKey);
+				pendingSession.cancellationTokenSource.cancel();
+			}
+		}
+
+		const sessionData = this._sessions.get(sessionResource) ?? this._sessions.get(resolvedResource);
+		if (sessionData) {
+			this._sessions.delete(sessionData.resource);
+			sessionData.dispose();
+			sessionData.session.dispose();
+		}
 	}
 
 	private _getChatSessionItemController(sessionResource: URI) {
@@ -1205,10 +1291,52 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		{
 			const existingSessionData = this._sessions.get(sessionResource);
 			if (existingSessionData) {
+				this._logService.trace(`[ChatSessionsService] getOrCreateChatSession: cache hit for ${sessionResource.toString()}`);
 				return existingSessionData.session;
 			}
 		}
 
+		const resourceKey = sessionResource.toString();
+		let pendingSession = this._pendingSessionResolutions.get(resourceKey);
+		if (!pendingSession) {
+			const cancellationTokenSource = new CancellationTokenSource();
+			const promise = this._getOrCreateChatSession(sessionResource, cancellationTokenSource.token);
+			pendingSession = { promise, cancellationTokenSource, waiterCount: 0 };
+			this._pendingSessionResolutions.set(resourceKey, pendingSession);
+			const clearPendingSession = () => {
+				if (this._pendingSessionResolutions.get(resourceKey) === pendingSession) {
+					this._pendingSessionResolutions.delete(resourceKey);
+				}
+				cancellationTokenSource.dispose();
+			};
+			void promise.then(clearPendingSession, clearPendingSession);
+		}
+
+		return this._waitForPendingSessionResolution(resourceKey, pendingSession, token);
+	}
+
+	private _waitForPendingSessionResolution(resourceKey: string, pendingSession: IPendingSessionResolution, token: CancellationToken): Promise<IChatSession> {
+		pendingSession.waiterCount++;
+		let released = false;
+		const release = () => {
+			if (released) {
+				return;
+			}
+			released = true;
+			pendingSession.waiterCount--;
+			if (pendingSession.waiterCount === 0 && this._pendingSessionResolutions.get(resourceKey) === pendingSession) {
+				this._pendingSessionResolutions.delete(resourceKey);
+				pendingSession.cancellationTokenSource.cancel();
+			}
+		};
+		const cancellationListener = token.onCancellationRequested(release);
+		return raceCancellationError(pendingSession.promise, token).finally(() => {
+			cancellationListener.dispose();
+			release();
+		});
+	}
+
+	private async _getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
 		const sessionType = getChatSessionType(sessionResource);
 		if (!(await raceCancellationError(this.canResolveChatSession(sessionType), token))) {
 			throw Error(`Cannot find provider '${sessionType}'`);
@@ -1246,7 +1374,16 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				dispose: () => { }
 			};
 		} else {
-			session = await raceCancellationError(provider.provideChatSessionContent(sessionResource, token), token);
+			this._logService.trace(`[ChatSessionsService] getOrCreateChatSession: resolving content from provider '${resolvedType}' for ${sessionResource.toString()}`);
+			const contentPromise = provider.provideChatSessionContent(sessionResource, token);
+			// Dispose sessions returned by providers that do not honor cancellation.
+			void contentPromise.then(session => {
+				if (token.isCancellationRequested) {
+					session.dispose();
+				}
+			}, () => { });
+			session = await raceCancellationError(contentPromise, token);
+			this._logService.trace(`[ChatSessionsService] getOrCreateChatSession: provider returned ${session.history.length} history item(s) for ${sessionResource.toString()}`);
 		}
 
 		if (session.options) {
@@ -1259,6 +1396,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		{
 			const existingSessionData = this._sessions.get(sessionResource);
 			if (existingSessionData) {
+				session.dispose();
 				return existingSessionData.session;
 			}
 		}
@@ -1276,6 +1414,34 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		return session;
+	}
+
+	public async getChatSessionHistory(sessionResource: URI, token: CancellationToken): Promise<readonly IChatSessionHistoryItem[]> {
+		const existing = this._sessions.get(this._resolveResource(sessionResource));
+		if (existing) {
+			return [...existing.session.history];
+		}
+
+		if (isUntitledChatSession(sessionResource)) {
+			return [];
+		}
+
+		const sessionType = getChatSessionType(sessionResource);
+		const resolvedType = this._resolveToPrimaryType(sessionType) || sessionType;
+		if (!(await raceCancellationError(this.canResolveChatSession(resolvedType), token))) {
+			throw Error(`Cannot find provider '${resolvedType}'`);
+		}
+		const provider = this._contentProviders.get(resolvedType);
+		if (!provider) {
+			throw Error(`Cannot find provider '${resolvedType}'`);
+		}
+
+		const session = await raceCancellationError(provider.provideChatSessionContent(sessionResource, token), token);
+		try {
+			return [...session.history];
+		} finally {
+			session.dispose();
+		}
 	}
 
 	public hasAnySessionOptions(sessionResource: URI): boolean {
@@ -1438,7 +1604,17 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	public requiresCopilotSignInForSessionType(chatSessionType: string): boolean {
 		const contribution = this._contributions.get(chatSessionType)?.contribution;
-		return !!contribution?.requiresCopilotSignIn;
+		if (!contribution) {
+			return false;
+		}
+		// The requirement may be a static boolean or, for programmatically-registered
+		// types (e.g. agent host), a function the contribution owns that derives it
+		// dynamically — for instance from the agent's currently-advertised protected
+		// resources, so a session type usable without GitHub (Claude native, Codex on
+		// OpenAI) reports `false` while it is. Re-evaluated whenever the contribution's
+		// availability notifier fires.
+		const requires = contribution.requiresCopilotSignIn;
+		return typeof requires === 'function' ? requires() : !!requires;
 	}
 
 	public sessionSupportsFork(sessionResource: URI): boolean {
@@ -1612,7 +1788,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 				if (openOptions.type === AgentSessionProviders.Local) {
 					await view.startNewLocalSession();
 				} else {
-					await view.loadSession(sessionResource);
+					await view.loadSession(sessionResource, 'explicitOverride');
 				}
 				view.focus();
 				break;
@@ -1621,6 +1797,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 				const options: IChatEditorOptions = {
 					override: ChatEditorInput.EditorID,
 					pinned: true,
+					sessionTypeSelectionReason: 'explicitOverride',
 					...(openOptions.type === AgentSessionProviders.Local ? { explicitSessionType: localChatSessionType } : {}),
 					title: {
 						fallback: localize('chatEditorContributionName', "{0}", openOptions.displayName),

@@ -20,7 +20,7 @@ import { getShellIntegrationInjection } from '../../terminal/node/terminalEnviro
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../common/agentHostCustomizationConfig.js';
 import { ActionType } from '../common/state/protocol/actions.js';
 import type { CreateTerminalParams } from '../common/state/protocol/commands.js';
-import { TerminalClaim, TerminalContentPart, TerminalInfo, TerminalState, TerminalClaimKind } from '../common/state/protocol/state.js';
+import { TerminalClaim, TerminalContentPart, TerminalInfo, TerminalState, TerminalClaimKind, TerminalLifecycleStatus } from '../common/state/protocol/state.js';
 import { isTerminalAction } from '../common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -33,7 +33,26 @@ const WAIT_FOR_PROMPT_TIMEOUT = 10_000;
 const HEADLESS_TERMINAL_SCROLLBACK = 0;
 const DSR_CURSOR_POSITION_QUERY = '\x1b[6n';
 const DEC_DSR_CURSOR_POSITION_QUERY = '\x1b[?6n';
-const SERVER_HANDLED_QUERY_PREFIXES = ['\x1b[?6', '\x1b[?', '\x1b[6', '\x1b[', '\x1b'];
+const OSC_FOREGROUND_COLOR_QUERY_ST = '\x1b]10;?\x1b\\';
+const OSC_FOREGROUND_COLOR_QUERY_BEL = '\x1b]10;?\x07';
+const OSC_BACKGROUND_COLOR_QUERY_ST = '\x1b]11;?\x1b\\';
+const OSC_BACKGROUND_COLOR_QUERY_BEL = '\x1b]11;?\x07';
+const TERMINAL_QUERIES_SUPPRESSED_FROM_CLIENT = [
+	DEC_DSR_CURSOR_POSITION_QUERY,
+	DSR_CURSOR_POSITION_QUERY,
+	OSC_FOREGROUND_COLOR_QUERY_ST,
+	OSC_FOREGROUND_COLOR_QUERY_BEL,
+	OSC_BACKGROUND_COLOR_QUERY_ST,
+	OSC_BACKGROUND_COLOR_QUERY_BEL,
+];
+const TERMINAL_QUERY_SUPPRESSION_REGEX = /\x1b(?:\[\??6n|\]1[01];\?(?:\x07|\x1b\\))/g;
+const TERMINAL_QUERY_PREFIXES_SUPPRESSED_FROM_CLIENT = [...new Set(TERMINAL_QUERIES_SUPPRESSED_FROM_CLIENT.flatMap(query => {
+	const prefixes: string[] = [];
+	for (let i = 1; i < query.length; i++) {
+		prefixes.push(query.substring(0, i));
+	}
+	return prefixes;
+}))].sort((a, b) => b.length - a.length);
 
 export const IAgentHostTerminalManager = createDecorator<IAgentHostTerminalManager>('agentHostTerminalManager');
 
@@ -62,30 +81,21 @@ export interface IFormatTerminalTextOptions {
 	forceBracketedPasteMode?: boolean;
 }
 
-export function removeServerHandledTerminalQueries(data: string, state: ITerminalQueryFilterState): string {
-	if (
-		!state.pendingData
-		&& !data.includes(DSR_CURSOR_POSITION_QUERY)
-		&& !data.includes(DEC_DSR_CURSOR_POSITION_QUERY)
-		&& !getServerHandledTerminalQueryPrefix(data)
-	) {
+// Return immediately when no partial query is buffered and this chunk contains no escape character.
+export function removeTerminalQueriesSuppressedFromClient(data: string, state: ITerminalQueryFilterState): string {
+	if (!state.pendingData && !data.includes('\x1b')) {
 		return data;
 	}
 
 	const combinedData = state.pendingData + data;
-	const pendingData = getServerHandledTerminalQueryPrefix(combinedData);
+	const pendingData = getTerminalQueryPrefixSuppressedFromClient(combinedData);
 	const dataToFilter = pendingData ? combinedData.substring(0, combinedData.length - pendingData.length) : combinedData;
 	state.pendingData = pendingData;
-	if (!dataToFilter.includes(DSR_CURSOR_POSITION_QUERY) && !dataToFilter.includes(DEC_DSR_CURSOR_POSITION_QUERY)) {
-		return dataToFilter;
-	}
-	return dataToFilter
-		.replaceAll(DEC_DSR_CURSOR_POSITION_QUERY, '')
-		.replaceAll(DSR_CURSOR_POSITION_QUERY, '');
+	return dataToFilter.replace(TERMINAL_QUERY_SUPPRESSION_REGEX, '');
 }
 
-function getServerHandledTerminalQueryPrefix(data: string): string {
-	for (const prefix of SERVER_HANDLED_QUERY_PREFIXES) {
+function getTerminalQueryPrefixSuppressedFromClient(data: string): string {
+	for (const prefix of TERMINAL_QUERY_PREFIXES_SUPPRESSED_FROM_CLIENT) {
 		if (data.endsWith(prefix)) {
 			return prefix;
 		}
@@ -120,7 +130,6 @@ export interface IAgentHostTerminalManager {
 	getContent(uri: string): string | undefined;
 	getClaim(uri: string): TerminalClaim | undefined;
 	hasTerminal(uri: string): boolean;
-	getExitCode(uri: string): number | undefined;
 	supportsCommandDetection(uri: string): boolean;
 	disposeTerminal(uri: string): void;
 	getTerminalInfos(): TerminalInfo[];
@@ -168,7 +177,7 @@ interface IManagedTerminal {
 	content: TerminalContentPart[];
 	contentSize: number;
 	claim: TerminalClaim;
-	exitCode?: number;
+	lifecycle: TerminalState['lifecycle'];
 	commandTracker?: ICommandTracker;
 	headlessTerminal?: AgentHostHeadlessTerminal;
 	terminalQueryFilterState: ITerminalQueryFilterState;
@@ -184,7 +193,7 @@ interface IOutputTerminal {
 	content: TerminalContentPart[];
 	contentSize: number;
 	claim: TerminalClaim;
-	exitCode?: number;
+	lifecycle: TerminalState['lifecycle'];
 }
 
 /**
@@ -242,7 +251,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			resource: t.uri,
 			title: t.title,
 			claim: t.claim,
-			exitCode: t.exitCode,
+			lifecycle: t.lifecycle,
 		}));
 	}
 
@@ -253,7 +262,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			return {
 				title: outputTerminal.title,
 				content: outputTerminal.content,
-				exitCode: outputTerminal.exitCode,
+				lifecycle: outputTerminal.lifecycle,
 				claim: outputTerminal.claim,
 				isPty: false,
 			};
@@ -268,7 +277,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			cols: terminal.cols,
 			rows: terminal.rows,
 			content: terminal.content,
-			exitCode: terminal.exitCode,
+			lifecycle: terminal.lifecycle,
 			claim: terminal.claim,
 			supportsCommandDetection: terminal.commandTracker?.detectionAvailableEmitted,
 			isPty: true,
@@ -417,6 +426,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			content: [],
 			contentSize: 0,
 			claim,
+			lifecycle: { status: TerminalLifecycleStatus.Running },
 			commandTracker,
 			headlessTerminal,
 			terminalQueryFilterState: { pendingData: '' },
@@ -446,7 +456,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		store.add(toDisposable(() => dataListener.dispose()));
 
 		const exitListener = ptyProcess.onExit(e => {
-			managed.exitCode = e.exitCode;
+			managed.lifecycle = { status: TerminalLifecycleStatus.Exited, exitCode: e.exitCode };
 			managed.onExitEmitter.fire(e.exitCode);
 			onFirstData.complete();
 			this._stateManager.dispatchServerAction(uri, {
@@ -491,7 +501,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	/** Send input data to a terminal's PTY process. */
 	writeInput(uri: string, data: string): void {
 		const terminal = this._terminals.get(uri);
-		if (terminal && terminal.exitCode === undefined) {
+		if (terminal?.lifecycle.status === TerminalLifecycleStatus.Running) {
 			terminal.pty.write(data);
 		}
 	}
@@ -576,15 +586,10 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		return terminal?.commandTracker?.detectionAvailableEmitted ?? false;
 	}
 
-	/** Get the exit code for a terminal, or undefined if still running. */
-	getExitCode(uri: string): number | undefined {
-		return this._terminals.get(uri)?.exitCode;
-	}
-
 	/** Resize a terminal. */
 	private _resize(uri: string, cols: number, rows: number): void {
 		const terminal = this._terminals.get(uri);
-		if (terminal && terminal.exitCode === undefined) {
+		if (terminal?.lifecycle.status === TerminalLifecycleStatus.Running) {
 			terminal.cols = cols;
 			terminal.rows = rows;
 			terminal.pty.resize(cols, rows);
@@ -658,10 +663,10 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 				continue;
 			}
 
-			// Agent Host's server-side headless terminal answers CPR so terminals
-			// work without an attached client. Hide those queries from client xterms
-			// to avoid a second CPR response flowing back through AgentHostPty.input.
-			const cleanedData = removeServerHandledTerminalQueries(segment.data, managed.terminalQueryFilterState);
+			// Agent Host's server-side headless terminal answers CPR but cannot answer
+			// OSC color queries. Hide both from client xterms so terminal responses
+			// cannot flow back out of order through AgentHostPty.input.
+			const cleanedData = removeTerminalQueriesSuppressedFromClient(segment.data, managed.terminalQueryFilterState);
 			if (cleanedData.length > 0) {
 				this._appendToContent(managed, cleanedData);
 				pendingClientData += cleanedData;
@@ -839,6 +844,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			content: [],
 			contentSize: 0,
 			claim: options.claim,
+			lifecycle: { status: TerminalLifecycleStatus.Running },
 		});
 	}
 
@@ -872,16 +878,15 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	/** Record the command's exit on an output-only terminal and notify subscribers. */
 	finalizeOutputTerminal(uri: string, exitCode: number | undefined): void {
 		const terminal = this._outputTerminals.get(uri);
-		if (!terminal || terminal.exitCode !== undefined) {
+		if (!terminal || terminal.lifecycle.status === TerminalLifecycleStatus.Exited) {
 			return;
 		}
-		if (exitCode !== undefined) {
-			terminal.exitCode = exitCode;
-			this._stateManager.dispatchServerAction(uri, {
-				type: ActionType.TerminalExited,
-				exitCode,
-			});
-		}
+		terminal.lifecycle = exitCode === undefined
+			? { status: TerminalLifecycleStatus.Exited }
+			: { status: TerminalLifecycleStatus.Exited, exitCode };
+		this._stateManager.dispatchServerAction(uri, exitCode === undefined
+			? { type: ActionType.TerminalExited }
+			: { type: ActionType.TerminalExited, exitCode });
 	}
 
 	/** Dispose a terminal: kill the process and remove it. */

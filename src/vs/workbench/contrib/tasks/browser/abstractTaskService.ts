@@ -310,12 +310,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._providerTypes = new Map<number, string>();
 		this._taskSystemInfos = new Map<string, ITaskSystemInfo[]>();
 		this._register(this._contextService.onDidChangeWorkspaceFolders(() => {
+			const taskServiceInitialized = !!this._taskSystem || !!this._workspaceTasksPromise;
 			const folderSetup = this._computeWorkspaceFolderSetup();
 			if (this.executionEngine !== folderSetup[2]) {
 				this._disposeTaskSystemListeners();
 				this._taskSystem = undefined;
 			}
 			this._updateSetup(folderSetup);
+			if (!taskServiceInitialized) {
+				return;
+			}
 			return this._updateWorkspaceTasks(TaskRunSource.FolderOpen);
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(async (e) => {

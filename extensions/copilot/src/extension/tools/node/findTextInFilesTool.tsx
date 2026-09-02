@@ -31,6 +31,7 @@ import { ToolName } from '../common/toolNames';
 import { CopilotToolMode, ICopilotTool, ToolRegistry } from '../common/toolsRegistry';
 import { checkCancellation, InputGlobResult, inputGlobToPattern, patternContainsWorkspaceFolderPath } from './toolUtils';
 import { IExperimentationService } from '../../../lib/node/chatLibMain';
+import { IGrepResultService } from './grepResultService';
 
 interface IFindTextInFilesToolParams {
 	query: string;
@@ -44,6 +45,7 @@ interface IFindTextInFilesToolParams {
 
 interface FileMatch {
 	path: string;
+	uri: vscode.Uri;
 	matches: vscode.TextSearchMatch2[];
 	elidedMatches?: number;
 }
@@ -70,6 +72,7 @@ export class FindTextInFilesTool implements ICopilotTool<IFindTextInFilesToolPar
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IPromptPathRepresentationService private readonly promptPathRepresentationService: IPromptPathRepresentationService,
 		@IExperimentationService private readonly experimentationService: IExperimentationService,
+		@IGrepResultService private readonly grepResultService: IGrepResultService,
 	) { }
 
 	async invoke(options: vscode.LanguageModelToolInvocationOptions<IFindTextInFilesToolParams>, token: CancellationToken) {
@@ -186,6 +189,9 @@ Then if you want to include those files you can call the tool again by setting "
 		if (!groupedMatches) {
 			return this.errorResult(noMatchInstructions ? `No matches found. ${noMatchInstructions}` : 'No matches found.');
 		}
+		if (options.chatRequestId !== undefined) {
+			this.grepResultService.addGrepResult(options.chatRequestId, groupedMatches);
+		}
 		const prompt = await renderPromptElementJSON(this.instantiationService,
 			FindTextInFilesGrepResult,
 			{ grouped: groupedMatches, query: options.input.query },
@@ -207,7 +213,7 @@ Then if you want to include those files you can call the tool again by setting "
 			const path = this.promptPathRepresentationService.getFilePath(textMatch.uri, true);
 			let fileMatch = groupedByFile.get(path);
 			if (fileMatch === undefined) {
-				fileMatch = { path, matches: [] };
+				fileMatch = { path, uri: textMatch.uri, matches: [] };
 				groupedByFile.set(path, fileMatch);
 			}
 			fileMatch.matches.push(textMatch);

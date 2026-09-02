@@ -269,6 +269,7 @@ suite('TerminalSandboxService - network domains', () => {
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IEnvironmentService, <IEnvironmentService & { tmpDir?: URI; execPath?: string; window?: { id: number }; userHome?: URI; userDataPath?: string; workspaceStorageHome?: URI }>{
 			_serviceBrand: undefined,
+			cacheHome: URI.file('/cache'),
 			tmpDir: URI.file('/tmp'),
 			execPath: '/usr/bin/node',
 			userHome: URI.file('/home/local-user'),
@@ -294,7 +295,7 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should report enabled when configured to allow network', async () => {
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.AllowNetwork);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowNetwork, true);
 
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 
@@ -325,6 +326,7 @@ suite('TerminalSandboxService - network domains', () => {
 			bubblewrapUsable: false,
 			bubblewrapError: 'No permissions to create namespace',
 			socatInstalled: true,
+			apparmorRestrictsUnprivilegedUserNamespaces: true,
 		};
 
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
@@ -504,7 +506,7 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should disable runtime network config when configured to allow network', async () => {
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.AllowNetwork);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowNetwork, true);
 		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com']);
 		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['blocked.example.com']);
 		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime, {
@@ -1301,7 +1303,7 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should skip domain checks when configured to allow network', async () => {
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.AllowNetwork);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowNetwork, true);
 		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com']);
 		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['api.github.com']);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
@@ -1432,43 +1434,6 @@ suite('TerminalSandboxService - network domains', () => {
 			strictEqual(wrapResult.isSandboxWrapped, true, `Command ${command} should remain sandboxed`);
 			strictEqual(wrapResult.blockedDomains, undefined, `Command ${command} should not report a blocked domain`);
 		}
-	});
-
-	test('should not fall back to deprecated settings outside user scope', async () => {
-		const originalInspect = configurationService.inspect.bind(configurationService);
-		configurationService.inspect = <T>(key: string) => {
-			if (key === AgentSandboxSettingId.AgentSandboxEnabled) {
-				return {
-					value: undefined,
-					defaultValue: AgentSandboxEnabledValue.Off,
-					userValue: undefined,
-					userLocalValue: undefined,
-					userRemoteValue: undefined,
-					workspaceValue: undefined,
-					workspaceFolderValue: undefined,
-					memoryValue: undefined,
-					policyValue: undefined,
-				} as ReturnType<typeof originalInspect<T>>;
-			}
-			if (key === AgentSandboxSettingId.DeprecatedAgentSandboxEnabled) {
-				return {
-					value: true,
-					defaultValue: false,
-					userValue: undefined,
-					userLocalValue: undefined,
-					userRemoteValue: undefined,
-					workspaceValue: true,
-					workspaceFolderValue: undefined,
-					memoryValue: undefined,
-					policyValue: undefined,
-				} as ReturnType<typeof originalInspect<T>>;
-			}
-			return originalInspect<T>(key);
-		};
-
-		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-
-		strictEqual(await sandboxService.isEnabled(), false, 'Deprecated settings should not be used when only non-user scopes are set');
 	});
 
 	test('should detect ssh style remotes as domains', async () => {

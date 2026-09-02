@@ -10,12 +10,14 @@ import { ChatLocation } from '../../../../../platform/chat/common/commonTypes';
 import { ISessionTranscriptService, NullSessionTranscriptService } from '../../../../../platform/chat/common/sessionTranscriptService';
 import { StaticChatMLFetcher } from '../../../../../platform/chat/test/common/staticChatMLFetcher';
 import { CodeGenerationTextInstruction, ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
+import { rawPartAsThinkingData } from '../../../../../platform/endpoint/common/thinkingDataContainer';
 import { MockEndpoint } from '../../../../../platform/endpoint/test/node/mockEndpoint';
 import { messageToMarkdown } from '../../../../../platform/log/common/messageStringify';
 import { IResponseDelta } from '../../../../../platform/networking/common/fetch';
 import { IMakeChatRequestOptions } from '../../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../../platform/test/node/services';
 import { TestWorkspaceService } from '../../../../../platform/test/node/testWorkspaceService';
+import { ThinkingData } from '../../../../../platform/thinking/common/thinking';
 import { ITokenizerProvider } from '../../../../../platform/tokenizer/node/tokenizer';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
 import { createTextDocumentData } from '../../../../../util/common/test/shims/textDocument';
@@ -138,7 +140,7 @@ suite('Agent Summarization', () => {
 				}
 			}
 		}
-		addCacheBreakpoints(r.messages);
+		addCacheBreakpoints(r.messages, 'chatCompletions');
 		return r.messages
 			.filter(message => message.role !== Raw.ChatRole.System)
 			.map(m => messageToMarkdown(m))
@@ -602,6 +604,71 @@ suite('Agent Summarization', () => {
 		for (const round of toolCallRounds) {
 			expect(round.summary).toBeUndefined();
 		}
+	});
+
+	async function renderThinkingAfterSummarization(supportsAdaptiveThinking: boolean) {
+		chatResponse[0] = 'summarized successfully!';
+		const instaService = accessor.get(IInstantiationService);
+		const endpoint = instaService.createInstance(MockEndpoint, undefined);
+		(endpoint as { model: string }).model = 'claude-opus-5';
+		(endpoint as { family: string }).family = 'claude-opus-5';
+		(endpoint as { supportsAdaptiveThinking?: boolean }).supportsAdaptiveThinking = supportsAdaptiveThinking;
+
+		const makeRound = (response: string, idx: number, thinking?: ThinkingData) => ToolCallRound.create({
+			response,
+			toolCalls: [createEditFileToolCall(idx)],
+			toolInputRetry: 0,
+			modelId: 'claude-opus-5',
+			thinking,
+		});
+		const toolCallRounds = [
+			makeRound('ok', 1, { id: 'th1', text: 'thoughts 1', encrypted: 'sig-1' }),
+			makeRound('ok 2', 2, { id: 'th2', text: 'thoughts 2', encrypted: 'sig-2' }),
+			makeRound('ok 3', 3),
+		];
+
+		const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, {
+			priority: 1,
+			endpoint,
+			location: ChatLocation.Panel,
+			promptContext: {
+				chatVariables: new ChatVariablesCollection([{ id: 'vscode.file', name: 'file', value: fileTsUri }]),
+				history: [],
+				query: 'edit this file',
+				toolCallRounds,
+				toolCallResults: createEditFileToolResult(1, 2, 3),
+				tools,
+				conversation: new Conversation('sessionId', [new Turn('turnId', { type: 'user', message: 'hello' })]),
+			},
+			maxToolResultLength: Infinity,
+			enableCacheBreakpoints: true,
+			triggerSummarize: true,
+		});
+		const result = await renderer.render();
+
+		return {
+			thinkingParts: result.messages
+				.flatMap(m => Array.isArray(m.content) ? m.content : [])
+				.map(c => c.type === Raw.ChatCompletionContentPartKind.Opaque ? rawPartAsThinkingData(c) : undefined)
+				.filter(t => !!t),
+			toolCallRounds,
+		};
+	}
+
+	test('manual-mode thinking carries onto the first round after the summary', async () => {
+		const { thinkingParts } = await renderThinkingAfterSummarization(false);
+		expect(thinkingParts).toEqual([{ id: 'th2', text: 'thoughts 2', encrypted: 'sig-2' }]);
+	});
+
+	test('adaptive-mode thinking is not replayed on a round that never had it (#327646)', async () => {
+		const { thinkingParts, toolCallRounds } = await renderThinkingAfterSummarization(true);
+		expect(thinkingParts).toEqual([]);
+		expect(toolCallRounds[2].thinking).toBeUndefined();
+	});
+
+	test('summarization does not clear the summarized round\'s own thinking', async () => {
+		const { toolCallRounds } = await renderThinkingAfterSummarization(true);
+		expect(toolCallRounds[1].thinking).toEqual({ id: 'th2', text: 'thoughts 2', encrypted: 'sig-2' });
 	});
 
 	test('simple mode summarization with small token budget renders zero messages (repro for No messages provided)', async () => {

@@ -13,6 +13,7 @@ import type { CreateChatParams, DisposeChatParams } from '../channels-chat/comma
 import type { CreateTerminalParams, DisposeTerminalParams } from '../channels-terminal/commands.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult } from '../channels-resource-watch/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../channels-changeset/commands.js';
+import type { ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult, FetchAutomationRunsParams, FetchAutomationRunsResult } from '../channels-automation/commands.js';
 
 import type { ActionEnvelope } from './actions.js';
 import type { SessionAddedParams, SessionRemovedParams, SessionSummaryChangedParams, ProgressParams } from '../channels-root/notifications.js';
@@ -48,13 +49,6 @@ export interface JsonRpcErrorResponse {
 	};
 }
 
-/** A JSON-RPC parse error cannot identify the request that failed to parse. */
-export interface JsonRpcParseErrorResponse {
-	readonly jsonrpc: '2.0';
-	readonly id: null;
-	readonly error: JsonRpcErrorResponse['error'];
-}
-
 /**
  * A typed JSON-RPC error response whose error object is a fully typed
  * {@link AhpError}. Useful when the caller knows the response is an AHP
@@ -67,7 +61,7 @@ export interface AhpErrorResponse {
 }
 
 /** A JSON-RPC response (success or error). */
-export type JsonRpcResponse = JsonRpcSuccessResponse | JsonRpcErrorResponse | JsonRpcParseErrorResponse;
+export type JsonRpcResponse = JsonRpcSuccessResponse | JsonRpcErrorResponse;
 
 /** A JSON-RPC notification: has `method` but no `id`. */
 export interface JsonRpcNotification {
@@ -115,6 +109,9 @@ export interface CommandMap {
 	'sessionConfigCompletions': { params: SessionConfigCompletionsParams; result: SessionConfigCompletionsResult };
 	'completions': { params: CompletionsParams; result: CompletionsResult };
 	'invokeChangesetOperation': { params: InvokeChangesetOperationParams; result: InvokeChangesetOperationResult };
+	'listAutomationTriggerDefinitions': { params: ListAutomationTriggerDefinitionsParams; result: ListAutomationTriggerDefinitionsResult };
+	'runAutomation': { params: RunAutomationParams; result: RunAutomationResult };
+	'fetchAutomationRuns': { params: FetchAutomationRunsParams; result: FetchAutomationRunsResult };
 }
 
 /**

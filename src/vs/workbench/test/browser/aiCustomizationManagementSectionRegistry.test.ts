@@ -17,7 +17,7 @@ suite('AI Customization Management Section Registry', () => {
 		const registrations = store.add(new DisposableStore());
 		const codex = {
 			id: AICustomizationManagementSection.HarnessSettings,
-			label: 'Codex Settings',
+			label: 'Codex',
 			icon: Codicon.openai,
 			description: 'Codex settings',
 			supportsHarness: (harnessId: string) => harnessId === 'codex',
@@ -36,5 +36,9 @@ suite('AI Customization Management Section Registry', () => {
 		assert.strictEqual(aiCustomizationManagementSectionRegistry.get(AICustomizationManagementSection.HarnessSettings, 'other'), undefined);
 
 		registrations.dispose();
+	});
+
+	test('keeps pet achievements outside AI Customizations', () => {
+		assert.strictEqual(new Set<string>(Object.values(AICustomizationManagementSection)).has('achievements'), false);
 	});
 });

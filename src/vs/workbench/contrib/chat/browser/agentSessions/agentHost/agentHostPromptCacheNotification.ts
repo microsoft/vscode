@@ -6,6 +6,7 @@
 import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -17,7 +18,6 @@ import { IWorkbenchAssignmentService } from '../../../../../services/assignment/
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
 
 const PROMPT_CACHE_EXPIRATION_NOTIFICATION_EXPERIMENT = 'copilotchat.promptCacheExpirationNotification';
-const PROMPT_CACHE_EXPIRATION_GRACE_PERIOD_MS = 10 * 60 * 1000;
 const PROMPT_CACHE_EXPIRATION_DISABLED_STORAGE_KEY = 'chat.promptCacheExpirationNotification.disabled';
 const DISABLE_PROMPT_CACHE_EXPIRATION_NOTIFICATION_COMMAND = 'workbench.action.chat.disablePromptCacheExpirationNotification';
 const PROMPT_CACHE_EXPIRATION_LEARN_MORE_URL = 'https://code.visualstudio.com/docs/agents/agent-troubleshooting/cache-explorer#_why-prompt-caching-matters';
@@ -74,9 +74,9 @@ export class AgentHostPromptCacheNotification extends Disposable {
 				this._cacheExpirations.set(sessionResource, promptCache.cacheExpiresAt);
 				const expirationTime = Date.parse(promptCache.cacheExpiresAt);
 				if (Number.isFinite(expirationTime)) {
-					const remainingTime = expirationTime + PROMPT_CACHE_EXPIRATION_GRACE_PERIOD_MS - Date.now();
-					if (remainingTime >= 0) {
-						expirationScheduler.schedule(remainingTime + 1);
+					const remainingTime = expirationTime - Date.now();
+					if (remainingTime > 0) {
+						expirationScheduler.schedule(remainingTime);
 					}
 				}
 			} else {
@@ -99,7 +99,7 @@ export class AgentHostPromptCacheNotification extends Disposable {
 		const cacheExpiresAt = this._cacheExpirations.get(sessionResource);
 		const expirationTime = cacheExpiresAt ? Date.parse(cacheExpiresAt) : Number.NaN;
 		const disabled = this._storageService.getBoolean(PROMPT_CACHE_EXPIRATION_DISABLED_STORAGE_KEY, StorageScope.PROFILE, false);
-		if (!this._experimentEnabled || disabled || !Number.isFinite(expirationTime) || Date.now() <= expirationTime + PROMPT_CACHE_EXPIRATION_GRACE_PERIOD_MS) {
+		if (!this._experimentEnabled || disabled || !Number.isFinite(expirationTime) || Date.now() < expirationTime) {
 			this._notificationService.deleteNotification(this._notificationId(sessionResource));
 			return;
 		}
@@ -112,19 +112,8 @@ export class AgentHostPromptCacheNotification extends Disposable {
 			telemetryId: 'copilot.promptCacheExpired',
 			severity: ChatInputNotificationSeverity.Info,
 			message: localize('promptCacheExpiration.title', "This chat's prompt cache is stale"),
-			description: localize('promptCacheExpiration.description', "The next prompt will incur increased cost. Consider starting a new chat."),
+			description: new MarkdownString(localize('promptCacheExpiration.description', "The next prompt will incur increased cost. Consider starting a new chat. [Learn more]({0})", PROMPT_CACHE_EXPIRATION_LEARN_MORE_URL)),
 			actions: [
-				{
-					kind: ChatInputNotificationActionKind.Command,
-					label: localize('promptCacheExpiration.dontShowAgain', "Don't Show Again"),
-					commandId: DISABLE_PROMPT_CACHE_EXPIRATION_NOTIFICATION_COMMAND,
-				},
-				{
-					kind: ChatInputNotificationActionKind.Command,
-					label: localize('promptCacheExpiration.learnMore', "Learn More"),
-					commandId: 'vscode.open',
-					commandArgs: [URI.parse(PROMPT_CACHE_EXPIRATION_LEARN_MORE_URL)],
-				},
 				{
 					kind: ChatInputNotificationActionKind.Command,
 					label: localize('promptCacheExpiration.startNewChat', "Start New Chat"),
@@ -132,7 +121,11 @@ export class AgentHostPromptCacheNotification extends Disposable {
 				},
 			],
 			dismissible: true,
-			autoDismissOnMessage: false,
+			autoDismissOnMessage: true,
+			mute: {
+				commandId: DISABLE_PROMPT_CACHE_EXPIRATION_NOTIFICATION_COMMAND,
+				tooltip: localize('promptCacheExpiration.dontShowAgain', "Don't Show Again"),
+			},
 			sessionResources: [sessionResource],
 		});
 	}

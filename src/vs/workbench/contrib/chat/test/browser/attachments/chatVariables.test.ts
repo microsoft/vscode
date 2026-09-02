@@ -7,12 +7,19 @@ import assert from 'assert';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { TrackedRangeStickiness } from '../../../../../../editor/common/model.js';
+import { TestCodeEditorService } from '../../../../../../editor/test/browser/editorTestServices.js';
+import { createTestCodeEditor } from '../../../../../../editor/test/browser/testCodeEditor.js';
+import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
+import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
 import { IDynamicVariable, toAttachedContextDynamicVariable } from '../../../common/attachments/chatVariables.js';
 import { IChatWidget } from '../../../browser/chat.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../../browser/attachments/chatVariables.js';
-import { ChatDynamicVariableModel } from '../../../browser/attachments/chatDynamicVariables.js';
+import { ChatDynamicVariableModel, dynamicVariableDecorationType } from '../../../browser/attachments/chatDynamicVariables.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IToolData, ToolDataSource, ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
@@ -83,9 +90,13 @@ suite('getDynamicVariablesForWidget', () => {
 		assert.deepStrictEqual(getDynamicVariablesForWidget(widget), []);
 	});
 
-	test('returns empty when file references not supported', () => {
-		const widget = createMockWidget({ supportsFileReferences: false });
-		assert.deepStrictEqual(getDynamicVariablesForWidget(widget), []);
+	test('returns only attachment references when file references are not supported', () => {
+		const attachmentReference = createMockVariable({ id: 'attachment', isAttachmentReference: true });
+		const widget = createMockWidget({
+			supportsFileReferences: false,
+			contribVariables: [createMockVariable(), attachmentReference],
+		});
+		assert.deepStrictEqual(getDynamicVariablesForWidget(widget), [attachmentReference]);
 	});
 
 	test('returns contrib model variables when not editing', () => {
@@ -220,6 +231,144 @@ suite('inline attachment references', () => {
 suite('ChatDynamicVariableModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	function createDynamicVariableModel(text: string): { editor: ReturnType<typeof createTestCodeEditor>; model: ChatDynamicVariableModel } {
+		const textModel = store.add(createTextModel(text));
+		const codeEditorService = store.add(new TestCodeEditorService(new TestThemeService()));
+		store.add(codeEditorService.registerDecorationType('test', dynamicVariableDecorationType, {
+			rangeBehavior: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		}));
+		const editor = store.add(createTestCodeEditor(textModel, {
+			serviceCollection: new ServiceCollection([ICodeEditorService, codeEditorService]),
+		}));
+		const onDidChangeActiveInputEditor = store.add(new Emitter<void>());
+		const onDidChangeAttachments = store.add(new Emitter<{ deleted: readonly string[]; added: readonly IChatRequestVariableEntry[]; updated: readonly IChatRequestVariableEntry[] }>());
+		const widget = {
+			input: {
+				attachmentModel: {
+					attachments: [],
+					onDidChange: onDidChangeAttachments.event,
+				},
+			},
+			inputEditor: editor,
+			onDidChangeActiveInputEditor: onDidChangeActiveInputEditor.event,
+			refreshParsedInput: () => { },
+		} as unknown as IChatWidget;
+		const model = store.add(new ChatDynamicVariableModel(widget, {
+			getUriLabel: () => '',
+		} as unknown as ILabelService));
+		return { editor, model };
+	}
+
+	test('keeps a reference when editing text before it', () => {
+		const { editor, model } = createDynamicVariableModel('explain #sym:example ');
+		model.addReference(createMockVariable({
+			range: new Range(1, 9, 1, 21),
+		}));
+
+		editor.executeEdits('test', [{
+			range: new Range(1, 1, 1, 21),
+			text: 'describe #sym:example',
+		}]);
+
+		assert.deepStrictEqual({
+			text: editor.getValue(),
+			variables: model.variables.map(variable => variable.range),
+		}, {
+			text: 'describe #sym:example ',
+			variables: [new Range(1, 10, 1, 22)],
+		});
+	});
+
+	test('removes a reference without deleting replacement text', () => {
+		const { editor, model } = createDynamicVariableModel('explain #sym:example ');
+		model.addReference(createMockVariable({
+			range: new Range(1, 9, 1, 21),
+		}));
+
+		editor.executeEdits('test', [{
+			range: new Range(1, 1, 1, 21),
+			text: 'describe',
+		}]);
+
+		assert.deepStrictEqual({
+			text: editor.getValue(),
+			variables: model.variables,
+		}, {
+			text: 'describe ',
+			variables: [],
+		});
+	});
+
+	test('restores a reference before its original text is restored', () => {
+		const oldText = 'microsoft/very-long-repository#12345';
+		const newText = 'm/v#1';
+		const prefix = 'before ';
+		const suffix = ' trailing text';
+		const { editor, model } = createDynamicVariableModel(newText + suffix);
+		model.addReference(createMockVariable({
+			id: 'old',
+			range: new Range(1, 1, 1, newText.length + 1),
+		}), oldText, prefix.length);
+
+		editor.executeEdits('test', [{
+			range: new Range(1, 1, 1, newText.length + 1),
+			text: prefix + oldText,
+		}]);
+
+		assert.deepStrictEqual({
+			text: editor.getValue(),
+			variables: model.variables.map(variable => ({
+				id: variable.id,
+				range: variable.range,
+			})),
+		}, {
+			text: prefix + oldText + suffix,
+			variables: [{
+				id: 'old',
+				range: new Range(1, prefix.length + 1, 1, prefix.length + oldText.length + 1),
+			}],
+		});
+	});
+
+	test('uses reference prompt text without adding attached context', () => {
+		const label = 'microsoft/vscode#334061';
+		const url = 'https://github.com/microsoft/vscode/issues/334061#issuecomment-1';
+		const { editor, model } = createDynamicVariableModel(`before ${label} after`);
+		model.addReference(createMockVariable({
+			id: url,
+			range: new Range(1, 8, 1, 8 + label.length),
+			promptText: url,
+		}));
+
+		assert.deepStrictEqual({
+			displayText: editor.getValue(),
+			promptText: model.getPromptText(editor.getValue()),
+		}, {
+			displayText: `before ${label} after`,
+			promptText: `before ${url} after`,
+		});
+	});
+
+	test('removes the whole reference when editing inside it', () => {
+		const { editor, model } = createDynamicVariableModel('explain #sym:example ');
+		model.addReference(createMockVariable({
+			range: new Range(1, 9, 1, 21),
+		}));
+
+		editor.executeEdits('test', [{
+			range: new Range(1, 14, 1, 15),
+			text: 'X',
+		}]);
+
+		assert.deepStrictEqual({
+			text: editor.getValue(),
+			variables: model.variables,
+		}, {
+			text: 'explain  ',
+			variables: [],
+		});
+	});
+
 	test('does not retain attachment payload after the backing attachment is removed', () => {
 		const attachment = createMockAttachment({
 			kind: 'image',
@@ -303,6 +452,7 @@ suite('ChatDynamicVariableModel', () => {
 				getModel: () => ({
 					getValueInRange: () => '#attachment',
 					getDecorationRange: () => new Range(1, 1, 1, 20),
+					getOffsetAt: (position: { column: number }) => position.column - 1,
 				}),
 				setDecorationsByType: (_owner: string, _type: string, decorations: Array<{ hoverMessage?: { value: string } }>) => {
 					for (const decoration of decorations) {

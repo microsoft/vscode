@@ -1,6 +1,6 @@
 ---
 name: agent-host-e2e-tests
-description: Use when writing, recording, updating, or troubleshooting the agent host end-to-end tests under src/vs/platform/agentHost/test/node/e2e (black-box tests that drive the whole agent host over the AHP protocol, using a CapiReplayProxy record/replay system for Claude/Copilot/Codex). Covers adding a cross-provider test, re-recording fixtures after an SDK bump, gating non-deterministic or platform-specific tests, and diagnosing replay cache misses.
+description: Use when writing, recording, updating, validating, or troubleshooting the agent host end-to-end tests under src/vs/platform/agentHost/test/node/e2e (black-box tests that drive the whole agent host over the AHP protocol, using a CapiReplayProxy record/replay system for Claude/Copilot/Codex). Covers adding a cross-provider test, re-recording fixtures after an SDK bump, cross-platform Azure validation, gating non-deterministic or platform-specific tests, and diagnosing replay cache misses.
 ---
 
 # Agent host end-to-end tests
@@ -19,7 +19,7 @@ It documents the mental model, the fixture format, every config flag, and a symp
 3. **Recording needs a real token** (`GITHUB_TOKEN` or `gh auth token`) and talks to real CAPI. Only run it intentionally, with trivial/read-only prompts in temp dirs.
 4. **Never hand-write or hand-edit fixture contents** (especially not secrets/paths). Fixtures are always produced by recording; normalization/redaction is the proxy's job.
 5. **Gate, don't fight.** If a behavior can't replay deterministically, gate the test (see Workflow C) instead of loosening timeouts or the strict check.
-6. **Track every disabled variant.** Keep `e2e/KNOWN_ISSUES.md` current with the test title, scope, expected and observed behavior, and a focused reproduction command. Record symptoms, not speculative root causes.
+6. **Track every disabled variant.** Keep `e2e/KNOWN_ISSUES.md` current with the test title, scope, expected and observed behavior, and a focused reproduction command. For suspected product bugs, begin with a self-contained explanation in complete sentences of what the user is trying to do, what fails, and the likely user impact; define feature-specific terms instead of relying on test names or implementation details. Record symptoms, not speculative root causes.
 
 ## Workflow A — Add a cross-provider test
 
@@ -27,6 +27,8 @@ It documents the mental model, the fixture format, every config flag, and a symp
 2. Keep the prompt minimal and deterministic (fewer model turns → smaller, more robust fixtures).
 3. Record fixtures for every enabled provider (Workflow B). Host-only tests need no per-test recording: the shared empty fixture remains strict and fails on any model request.
 4. **Review the diff** (Workflow B step 3), then run the test in plain replay mode to confirm it's green, then commit the test + fixtures together.
+5. Run the full deterministic suite and coverage workflow described in the E2E README.
+6. Open or update a draft PR, then complete the cross-platform Azure validation in Workflow D before considering the tests ready to merge.
 
 Provider-specific assertions go in that provider's `*.integrationTest.ts` after the `defineAgentHostE2ETests(config)` call.
 
@@ -57,8 +59,22 @@ Real-time streaming, mid-turn aborts, and POSIX-specific local execution (shell 
 
 Always add a comment explaining *why* the gate exists. Also add or update the corresponding entry in `e2e/KNOWN_ISSUES.md`. When the variant is enabled again, remove or update the entry in the same change.
 
+## Workflow D — Cross-platform Azure validation
+
+New Agent Host E2E tests are not ready to merge after local replay alone. Push the branch, open or update a draft PR, then use the `azure-pipelines` skill to validate the real packaged Electron integration-test path.
+
+1. Queue VS Code pipeline definition `111` with `VSCODE_BUILD_TYPE=CI`; enable Windows, Linux, and macOS x64 while disabling publishing, release, Web, ARM, Alpine, and Snap artifacts. The `azure-pipelines` skill contains the canonical command.
+2. Monitor jobs as they finish. Inspect a failed platform's Electron integration-test task immediately rather than waiting for unrelated stages to complete.
+3. Treat the Agent Host E2E result as accepted only when the Electron integration tests succeed on Windows, Linux, and macOS.
+4. Rerun an apparently unrelated or pre-existing failure in isolation before attributing it to the PR.
+5. After a platform-specific fix, rerun at least that platform. Rerun all three platforms when the fix can affect shared behavior, provider fixtures, process lifecycle, or cross-platform paths.
+6. Cancel obsolete builds after pushing a replacement commit.
+
+For additions involving timing, filesystem watching, process lifecycle, worktrees, reconnect/restart, or other known flake surfaces, require **two clean executions of every new test on each supported platform** before merge. A full three-platform build plus a targeted second build is sufficient when the second build runs the relevant tests on all affected platforms.
+
 ## Verifying & troubleshooting
 
 - Run a single provider in replay: `./scripts/test-integration.sh --run <path>` (no env var).
 - Filter to one test: add `--grep "<test title fragment>"`.
+- **On a hang / timeout, read the runtime log first.** For the **Copilot** provider, a failed test tails the most recent Copilot runtime (`@github/copilot` CLI) `process-*.log` into the test output (`[agent-host-e2e] # …` lines) — the SDK/CLI's own account of startup, auth, the model request, and the turn lifecycle. It runs at `--log trace`. A turn that never produced a model response, a panic, or an out-of-order/protocol error points at the SDK/CLI (re-record if a bump left the fixture stale; otherwise it's a real regression). Claude/Codex use their own runtimes and are not captured here. See the README's "A turn hangs or times out with no OS pattern".
 - For any failure (`cache miss`, missing fixture, per-OS timeout, leaked PII, subagent staleness, accidental real-CAPI contact), go to the **Troubleshooting** section of the README — it maps each symptom to its cause and fix.

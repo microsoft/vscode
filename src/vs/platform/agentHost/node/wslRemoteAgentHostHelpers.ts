@@ -5,6 +5,8 @@
 
 import * as cp from 'child_process';
 import { join } from '../../../base/common/path.js';
+import { TelemetryConfiguration } from '../../telemetry/common/telemetry.js';
+import { AgentHostTelemetryLevelEnvKey } from '../common/agentHostTelemetryEnv.js';
 import type { IWSLDistro } from '../common/wslRemoteAgentHost.js';
 import {
 	buildAgentHostBaseCommand,
@@ -15,6 +17,7 @@ import {
 	getRemoteCLIDataDir,
 	getRemoteCLIInstallRoot,
 	shellEscape,
+	validateAgentHostTelemetryLevel,
 	validateShellToken,
 } from './sshRemoteAgentHostHelpers.js';
 
@@ -250,7 +253,8 @@ export interface IComposeAgentHostBootstrapScriptArgs {
 	readonly commit: string | undefined;
 	readonly os: string;
 	readonly arch: string;
-	/** Dev override; when set, returned verbatim and all CLI bootstrap is skipped. */
+	readonly telemetryLevel?: TelemetryConfiguration;
+	/** Dev override; executed verbatim with no appended arguments. All CLI bootstrap is skipped. */
 	readonly remoteAgentHostCommand?: string;
 }
 
@@ -270,14 +274,17 @@ export interface IComposeAgentHostBootstrapScriptArgs {
  * lives in the helper functions above, not in the composition itself.
  */
 export function composeAgentHostBootstrapScript(args: IComposeAgentHostBootstrapScriptArgs): string {
+	const telemetryLevel = validateAgentHostTelemetryLevel(args.telemetryLevel ?? TelemetryConfiguration.OFF);
 	if (args.remoteAgentHostCommand) {
-		return args.remoteAgentHostCommand;
+		// The override may not be the VS Code CLI, so pass launch restrictions out-of-band.
+		return `export ${AgentHostTelemetryLevelEnvKey}=${telemetryLevel} && ${args.remoteAgentHostCommand}`;
 	}
 	const installRoot = getRemoteCLIInstallRoot(args.serverDataFolderName);
 	const cliBin = getRemoteCLIBin(args.serverDataFolderName, args.quality, args.commit);
 	const cliDataDir = getRemoteCLIDataDir(args.serverDataFolderName);
 	const url = buildCLIDownloadUrl(args.os, args.arch, args.quality, args.commit);
-	const launch = `exec ${buildAgentHostBaseCommand(cliBin, cliDataDir)}`;
+	const agentHostCommand = buildAgentHostBaseCommand(cliBin, cliDataDir, telemetryLevel);
+	const launch = buildWslAgentHostLaunch(agentHostCommand);
 
 	if (args.commit) {
 		// Pinned-install path. Mirrors SSH's _ensureCLIInstalledPinned: stage
@@ -310,6 +317,16 @@ export function composeAgentHostBootstrapScript(args: IComposeAgentHostBootstrap
 		`if [ ! -x ${cliBin} ]; then ${installLoose}; fi`,
 		launch,
 	].join(' && ');
+}
+
+/**
+ * Build the WSL launch command with the CLI's disconnected-host reaper.
+ */
+function buildWslAgentHostLaunch(command: string, idleTimeoutSec = 300): string {
+	if (!Number.isSafeInteger(idleTimeoutSec) || idleTimeoutSec <= 0) {
+		throw new Error(`Unsafe idle timeout value for shell interpolation: ${JSON.stringify(idleTimeoutSec)}`);
+	}
+	return `exec ${command} --idle-timeout ${idleTimeoutSec}`;
 }
 
 /**

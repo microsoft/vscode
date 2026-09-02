@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
-import { Button } from '../../../../../../../base/browser/ui/button/button.js';
+import { ButtonWithIcon } from '../../../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { localize } from '../../../../../../../nls.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatAutomationConfiguredData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
-import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../aiCustomization/aiCustomizationManagement.js';
 import { IChatCodeBlockInfo } from '../../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
@@ -39,18 +38,17 @@ export class ChatAutomationConfiguredResultSubPart extends BaseChatToolInvocatio
 		const label = data.operation === 'created'
 			? localize('automationConfigured.created', "Created an automation: {0}", data.automationName)
 			: localize('automationConfigured.updated', "Edited an automation: {0}", data.automationName);
-		const button = this._register(new Button(this.domNode, {
+		// `ButtonWithIcon` keeps the `codicon-*` classes off the button root, where they would restyle the label text.
+		const button = this._register(new ButtonWithIcon(this.domNode, {
 			...defaultButtonStyles,
 			secondary: true,
 			title: localize('automationConfigured.open', "Open automation {0}", data.automationName),
 		}));
 		button.element.classList.add('chat-open-session-button');
 		button.label = label;
-		button.icon = Codicon.watch;
+		button.icon = Codicon.calendar;
 		this._register(button.onDidClick(() => this.commandService.executeCommand(
-			AICustomizationManagementCommands.OpenEditor,
-			AICustomizationManagementSection.Automations,
-			data.automationId,
+			'sessionsView.manageAutomations',
 		)));
 	}
 }

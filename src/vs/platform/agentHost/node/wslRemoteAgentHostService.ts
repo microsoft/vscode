@@ -12,6 +12,8 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import type { IRelayMessage } from '../common/relayTransport.js';
 import {
 	IWSLRemoteAgentHostMainService,
@@ -35,8 +37,11 @@ import {
 
 const LOG_PREFIX = '[WSLRemoteAgentHost]';
 
-/** Max time to wait for `code agent host` inside the distro to print its `ws://` URL. */
-const AGENT_HOST_READY_TIMEOUT_MS = 60_000;
+/** Max time `code agent host` may be silent before printing its `ws://` URL. */
+const AGENT_HOST_OUTPUT_IDLE_TIMEOUT_MS = 60_000;
+
+/** Absolute upper bound for bootstrap, including CLI and server downloads. */
+const AGENT_HOST_READY_OVERALL_TIMEOUT_MS = 10 * 60_000;
 
 /** Max time to wait for the host-side WebSocket to complete its handshake. */
 const WEBSOCKET_OPEN_TIMEOUT_MS = 30_000;
@@ -74,12 +79,14 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 
 	private readonly _connections = new Map<string, IWSLConnection>();
 	private readonly _distroToConnectionId = new Map<string, string>();
+	private readonly _pendingConnects = new Map<string, Promise<IWSLConnectResult>>();
 
 	private _nativeRequire: NodeJS.Require | undefined;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -157,7 +164,7 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 		}
 	}
 
-	async connect(config: IWSLAgentHostConfig): Promise<IWSLConnectResult> {
+	connect(config: IWSLAgentHostConfig): Promise<IWSLConnectResult> {
 		const distro = validateDistroName(config.distro);
 
 		// Idempotent: a second `connect` for an already-live distro returns
@@ -168,16 +175,34 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 		if (existingId) {
 			const existing = this._connections.get(existingId);
 			if (existing) {
-				return {
+				return Promise.resolve({
 					connectionId: existing.connectionId,
 					address: existing.address,
 					distro: existing.distro,
 					name: existing.name,
 					connectionToken: existing.connectionToken,
-				};
+				});
 			}
 		}
 
+		const existingPendingConnect = this._pendingConnects.get(distro);
+		if (existingPendingConnect) {
+			return existingPendingConnect;
+		}
+
+		// Reserve synchronously, before _connectUnguarded reaches its first
+		// await, so simultaneous callers cannot start concurrent downloads.
+		const pendingConnect = this._connectUnguarded(config, distro);
+		this._pendingConnects.set(distro, pendingConnect);
+		void pendingConnect.finally(() => {
+			if (this._pendingConnects.get(distro) === pendingConnect) {
+				this._pendingConnects.delete(distro);
+			}
+		}).catch(() => { /* The caller observes the original rejection. */ });
+		return pendingConnect;
+	}
+
+	private async _connectUnguarded(config: IWSLAgentHostConfig, distro: string): Promise<IWSLConnectResult> {
 		const connectionKey = `wsl:${distro}`;
 		const reportProgress = (message: string) => {
 			this._onDidReportConnectProgress.fire({ connectionKey, message });
@@ -193,6 +218,7 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 			commit: this._commit,
 			os: targetOs,
 			arch: targetArch,
+			telemetryLevel: telemetryLevelToAgentHostValue(this._telemetryService.telemetryLevel),
 			remoteAgentHostCommand: config.remoteAgentHostCommand,
 		});
 
@@ -205,10 +231,7 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 		// agent host's stdout/stderr, which is already valid UTF-8 from a
 		// Linux process. Keeping the bytes untouched also avoids surprising
 		// the URL/PID regex.
-		const child = cp.spawn(getWslExePath(), ['-d', distro, '-e', 'bash', '-lc', script], {
-			windowsHide: true,
-			stdio: ['ignore', 'pipe', 'pipe'],
-		});
+		const child = this._spawnAgentHost(distro, script);
 
 		let url: string | undefined;
 		let urlResolve: ((value: { url: string; token: string | undefined }) => void) | undefined;
@@ -228,6 +251,34 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 			}
 		};
 
+		let outputIdleTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
+		let overallTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
+		const clearReadyTimeouts = () => {
+			if (outputIdleTimeoutHandle !== undefined) {
+				clearTimeout(outputIdleTimeoutHandle);
+				outputIdleTimeoutHandle = undefined;
+			}
+			if (overallTimeoutHandle !== undefined) {
+				clearTimeout(overallTimeoutHandle);
+				overallTimeoutHandle = undefined;
+			}
+		};
+		const rejectForTimeout = (message: string) => {
+			clearReadyTimeouts();
+			urlReject?.(new Error(`${LOG_PREFIX} ${message}\nOutput: ${outputLines.join('\n')}`));
+		};
+		const armOutputIdleTimeout = () => {
+			if (url) {
+				return;
+			}
+			if (outputIdleTimeoutHandle !== undefined) {
+				clearTimeout(outputIdleTimeoutHandle);
+			}
+			outputIdleTimeoutHandle = setTimeout(() => {
+				rejectForTimeout(`Timed out waiting for agent host in '${distro}' to print its WebSocket URL: no output for ${AGENT_HOST_OUTPUT_IDLE_TIMEOUT_MS}ms.`);
+			}, AGENT_HOST_OUTPUT_IDLE_TIMEOUT_MS);
+		};
+
 		const onStreamData = (data: Buffer) => {
 			// `decodeWslOutput` handles both UTF-8 (the agent host's own
 			// stdout when running with `WSL_UTF8` unset, which is what we
@@ -240,6 +291,7 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 				if (!line) {
 					continue;
 				}
+				armOutputIdleTimeout();
 				appendLine(line);
 				this._logService.trace(`${LOG_PREFIX} [${distro}] ${redactToken(line)}`);
 				if (!url) {
@@ -255,19 +307,25 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 		child.stdout?.on('data', onStreamData);
 		child.stderr?.on('data', onStreamData);
 
-		const childExited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((res) => {
-			child.once('exit', (code, signal) => res({ code, signal }));
-		});
-
-		// Race the URL parse against the child dying and the global timeout.
+		// Race the URL parse against the child dying, output going idle, and
+		// an overall ceiling. Bootstrap downloads regularly report progress,
+		// so only a period of silence indicates that it has become stuck.
 		// `outputLines` is already redacted in `appendLine` — no extra wrap needed.
-		const readyTimeoutHandle = setTimeout(() => {
-			urlReject?.(new Error(`${LOG_PREFIX} Timed out waiting for agent host in '${distro}' to print its WebSocket URL after ${AGENT_HOST_READY_TIMEOUT_MS}ms.\nOutput: ${outputLines.join('\n')}`));
-		}, AGENT_HOST_READY_TIMEOUT_MS);
+		armOutputIdleTimeout();
+		overallTimeoutHandle = setTimeout(() => {
+			rejectForTimeout(`Timed out waiting for agent host in '${distro}' to print its WebSocket URL: exceeded the overall ${AGENT_HOST_READY_OVERALL_TIMEOUT_MS}ms bootstrap ceiling.`);
+		}, AGENT_HOST_READY_OVERALL_TIMEOUT_MS);
 
-		const earlyExitGuard = childExited.then(({ code, signal }) => {
+		child.once('exit', (code, signal) => {
 			if (!url) {
+				clearReadyTimeouts();
 				urlReject?.(new Error(`${LOG_PREFIX} Agent host in '${distro}' exited (code=${code}, signal=${signal}) before printing its WebSocket URL.\nOutput: ${outputLines.join('\n')}`));
+			}
+		});
+		child.once('error', err => {
+			if (!url) {
+				clearReadyTimeouts();
+				urlReject?.(new Error(`${LOG_PREFIX} Failed to start agent host in '${distro}': ${err.message}\nOutput: ${outputLines.join('\n')}`));
 			}
 		});
 
@@ -275,12 +333,11 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 		try {
 			resolvedUrl = await urlPromise;
 		} catch (err) {
-			clearTimeout(readyTimeoutHandle);
+			clearReadyTimeouts();
 			this._killChild(child);
-			await earlyExitGuard.catch(() => { /* already surfaced */ });
 			throw err;
 		}
-		clearTimeout(readyTimeoutHandle);
+		clearReadyTimeouts();
 
 		reportProgress(localize('wslProgressConnecting', "Connecting to agent host in {0}...", distro));
 		let ws: WebSocket;
@@ -345,12 +402,15 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 		}
 	}
 
-	async reconnect(distro: string, name: string, remoteAgentHostCommand?: string): Promise<IWSLConnectResult> {
+	async reconnect(distro: string, name: string, remoteAgentHostCommand?: string, userInitiated?: boolean): Promise<IWSLConnectResult> {
 		const existingId = this._distroToConnectionId.get(distro);
 		if (existingId) {
 			this._closeConnection(existingId);
 		}
-		return this.connect({ distro, name, remoteAgentHostCommand });
+		// A pending connection is already a fresh bootstrap. Joining it avoids
+		// starting a competing downloader; callers that reconnect after it
+		// fails receive that failure and a subsequent reconnect starts anew.
+		return this.connect({ distro, name, remoteAgentHostCommand, userInitiated });
 	}
 
 	async relaySend(connectionId: string, message: string): Promise<void> {
@@ -388,12 +448,15 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 		if (child.exitCode !== null || child.signalCode !== null) {
 			return;
 		}
+		// A detached distro-side host relies on the bootstrap's --idle-timeout to exit.
 		try {
 			child.kill();
 		} catch { /* ignore */ }
 		// Escalate to SIGKILL if the process is still alive after 2s. The
 		// `unref` cast avoids the dom/node `setTimeout` typing collision in
-		// strict mode — we only care that escalation never blocks process exit.
+		// strict mode — we only care that escalation never blocks process exit,
+		// so it is optional: outside Node (the unit-test renderer) there is no
+		// `unref` and keeping the timer referenced is harmless.
 		const escalate = setTimeout(() => {
 			if (child.exitCode === null && child.signalCode === null) {
 				try {
@@ -401,11 +464,18 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 				} catch { /* ignore */ }
 			}
 		}, 2_000) as unknown as NodeJS.Timeout;
-		escalate.unref();
+		escalate.unref?.();
 		child.once('exit', () => clearTimeout(escalate));
 	}
 
-	private async _resolvePlatform(distro: string): Promise<{ os: string; arch: string }> {
+	protected _spawnAgentHost(distro: string, script: string): cp.ChildProcess {
+		return cp.spawn(getWslExePath(), ['-d', distro, '-e', 'bash', '-lc', script], {
+			windowsHide: true,
+			stdio: ['ignore', 'pipe', 'pipe'],
+		});
+	}
+
+	protected async _resolvePlatform(distro: string): Promise<{ os: string; arch: string }> {
 		const result = await runWslCommand(['-e', 'uname', '-s', '-m'], { distro, timeout: 10_000 });
 		if (result.exitCode !== 0) {
 			throw new Error(`${LOG_PREFIX} Failed to detect platform in '${distro}' (exit ${result.exitCode}): ${result.stderr.trim() || result.stdout.trim()}`);
@@ -421,7 +491,7 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 		return resolved;
 	}
 
-	private async _openWebSocket(url: string): Promise<WebSocket> {
+	protected async _openWebSocket(url: string): Promise<WebSocket> {
 		const nativeRequire = await this._getNativeRequire();
 		const WS = nativeRequire('ws') as typeof WebSocket;
 		const deadline = Date.now() + WEBSOCKET_OPEN_TIMEOUT_MS;

@@ -2,11 +2,11 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
-          content: Use the `Task` tool to spawn a subagent to list the files in the current working directory. The subagent should call a single read-only tool (e.g. `view` or shell with `ls`) to enumerate the directory. Do not enumerate the directory yourself — delegate to the subagent.
+          content: Use the `Task` tool to spawn a subagent to list the files in the current working directory. The subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to enumerate the directory; do not run a shell command. Do not enumerate the directory yourself — delegate to the subagent.
     response:
       content:
         - type: text
@@ -16,126 +16,112 @@ exchanges:
           name: Agent
           input:
             description: List files in working directory
-            prompt: 'List the files in the current working directory by calling a single read-only tool: run the shell command `ls -la` (one Bash tool call). Then report back the exact list of files and directories you found. Do not run any other tools or make any modifications.'
-            subagent_type: general-purpose
+            prompt: |-
+              List the files in the current working directory: ${workdir}
+
+              Use a single read-only file-listing tool call — the Glob tool with pattern "*" and path set to that directory. Do NOT run any shell/Bash commands.
+
+              Report back the exact list of file and directory names you found (or state that the directory is empty).
+            subagent_type: Explore
             run_in_background: false
       stopReason: tool_use
-      usage:
-        inputTokens: 6837
-        outputTokens: 342
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
-          content: 'List the files in the current working directory by calling a single read-only tool: run the shell command `ls -la` (one Bash tool call). Then report back the exact list of files and directories you found. Do not run any other tools or make any modifications.'
+          content: |-
+            List the files in the current working directory: ${workdir}
+
+            Use a single read-only file-listing tool call — the Glob tool with pattern "*" and path set to that directory. Do NOT run any shell/Bash commands.
+
+            Report back the exact list of file and directory names you found (or state that the directory is empty).
     response:
       content:
         - type: text
-          text: I'll run the command.
+          text: I'll list the directory contents with a single Glob call.
         - type: tool_use
           id: toolcall_1
-          name: Bash
+          name: Glob
           input:
-            command: ls -la
-            description: List files in current working directory
+            pattern: '*'
+            path: ${workdir}
       stopReason: tool_use
-      usage:
-        inputTokens: 2675
-        outputTokens: 85
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
-          content: 'List the files in the current working directory by calling a single read-only tool: run the shell command `ls -la` (one Bash tool call). Then report back the exact list of files and directories you found. Do not run any other tools or make any modifications.'
+          content: |-
+            List the files in the current working directory: ${workdir}
+
+            Use a single read-only file-listing tool call — the Glob tool with pattern "*" and path set to that directory. Do NOT run any shell/Bash commands.
+
+            Report back the exact list of file and directory names you found (or state that the directory is empty).
         - role: assistant
           content:
             - type: text
-              text: I'll run the command.
+              text: I'll list the directory contents with a single Glob call.
             - type: tool_use
-              name: Bash
+              name: Glob
               input:
-                command: ls -la
-                description: List files in current working directory
+                pattern: '*'
+                path: ${workdir}
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_1
               content: |-
-                total 16
-                drwx------     4 ${user}  staff    128 Jul  9 16:55 .
-                drwx------@ 1145 ${user}  staff  36640 Jul  9 16:55 ..
-                -rw-r--r--     1 ${user}  staff      5 Jul  9 16:55 file-a.txt
-                -rw-r--r--     1 ${user}  staff      4 Jul  9 16:55 file-b.txt
+                file-a.txt
+                file-b.txt
     response:
       content: |-
-        The `ls -la` command returned the following contents of the current working directory:
+        The directory contains 2 entries, both files (no subdirectories):
 
-        Directories:
-        - `.` (current directory)
-        - `..` (parent directory)
+        - `${workdir}\file-a.txt`
+        - `${workdir}\file-b.txt`
 
-        Files:
-        - `file-a.txt` (5 bytes)
-        - `file-b.txt` (4 bytes)
-
-        The working directory contains two regular files, `file-a.txt` and `file-b.txt`, and no subdirectories other than the standard `.` and `..` entries.
+        Exact names as returned: `file-a.txt`, `file-b.txt`
       stopReason: end_turn
-      usage:
-        inputTokens: 4165
-        outputTokens: 139
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
-          content: Use the `Task` tool to spawn a subagent to list the files in the current working directory. The subagent should call a single read-only tool (e.g. `view` or shell with `ls`) to enumerate the directory. Do not enumerate the directory yourself — delegate to the subagent.
+          content: Use the `Task` tool to spawn a subagent to list the files in the current working directory. The subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to enumerate the directory; do not run a shell command. Do not enumerate the directory yourself — delegate to the subagent.
         - role: assistant
           content:
-            - type: thinking
             - type: text
               text: I'll delegate the directory listing to a subagent.
             - type: tool_use
               name: Agent
               input:
                 description: List files in working directory
-                prompt: 'List the files in the current working directory by calling a single read-only tool: run the shell command `ls -la` (one Bash tool call). Then report back the exact list of files and directories you found. Do not run any other tools or make any modifications.'
-                subagent_type: general-purpose
+                prompt: |-
+                  List the files in the current working directory: ${workdir}
+
+                  Use a single read-only file-listing tool call — the Glob tool with pattern "*" and path set to that directory. Do NOT run any shell/Bash commands.
+
+                  Report back the exact list of file and directory names you found (or state that the directory is empty).
+                subagent_type: Explore
                 run_in_background: false
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content:
-                - type: text
-                  text: |-
-                    The `ls -la` command returned the following contents of the current working directory:
+              content: |-
+                The directory contains 2 entries, both files (no subdirectories):
 
-                    Directories:
-                    - `.` (current directory)
-                    - `..` (parent directory)
+                - `${workdir}\file-a.txt`
+                - `${workdir}\file-b.txt`
 
-                    Files:
-                    - `file-a.txt` (5 bytes)
-                    - `file-b.txt` (4 bytes)
-
-                    The working directory contains two regular files, `file-a.txt` and `file-b.txt`, and no subdirectories other than the standard `.` and `..` entries.
-                - type: text
-                  text: |-
-                    agentId: a80367f6909b49ab9 (use SendMessage with to: 'a80367f6909b49ab9', summary: '<5-10 word recap>' to continue this agent)
-                    <usage>subagent_tokens: 25794
-                    tool_uses: 1
-                    duration_ms: 5122</usage>
+                Exact names as returned: `file-a.txt`, `file-b.txt`
     response:
       content: |-
-        The subagent enumerated the directory with a single `ls -la` call. The working directory contains two files:
+        The subagent enumerated the directory with a single `Glob` call. Contents of `${workdir}`:
 
-        - `file-a.txt` (5 bytes)
-        - `file-b.txt` (4 bytes)
+        - `file-a.txt`
+        - `file-b.txt`
 
-        No subdirectories (other than `.` and `..`).
+        No subdirectories.
       stopReason: end_turn
-      usage:
-        inputTokens: 2
-        outputTokens: 85

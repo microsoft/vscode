@@ -19,7 +19,8 @@ interface IHasToolCallMeta {
 export interface IToolCallMeta {
 	/**
 	 * VS Code rendering hint. `terminal` routes the call to the command/output
-	 * renderer, `subagent` to the subagent UI, `search` to the search renderer;
+	 * renderer, `subagent` to the subagent UI, `search` to the search renderer,
+	 * and `read` keeps incomplete resource arguments out of streaming display;
 	 * everything else falls through to the generic invocation renderer. Set by
 	 * the agent adapter, never matched on raw tool name by the renderer.
 	 */
@@ -32,8 +33,6 @@ export interface IToolCallMeta {
 	readonly subagentAgentName?: string;
 	/** Chat URI of the subagent this tool call spawns, stamped by the host (see {@link buildSubagentChatUri}); the resource may not be registered yet. */
 	readonly subagentChatUri?: string;
-	/** Raw, pre-stringified tool arguments captured for display/debugging. */
-	readonly toolArguments?: unknown;
 	/** Originating MCP server name, when the call came from an MCP server. */
 	readonly mcpServerName?: string;
 	/** Originating MCP tool name, when the call came from an MCP server. */
@@ -46,6 +45,8 @@ export interface IToolCallMeta {
 	 * explicit user action), so the client can render it as setting-driven.
 	 */
 	readonly autoApproveBySetting?: boolean;
+	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this confirmation. */
+	readonly autoApproveRuleResolvable?: boolean;
 	/** Transient runtime corpus for the local client tool-search invocation. */
 	readonly toolSearchCandidates?: readonly IToolSearchCandidate[];
 }
@@ -60,7 +61,7 @@ export interface IToolSearchCandidate {
  * The set of VS Code-recognized tool-call rendering kinds. Add a new value here
  * (and teach the renderer to handle it) rather than matching on tool name.
  */
-export type ToolKind = 'terminal' | 'subagent' | 'search';
+export type ToolKind = 'terminal' | 'subagent' | 'search' | 'read';
 
 /**
  * MCP App render data carried under {@link IToolCallMeta.ui}. Clients gate
@@ -75,7 +76,7 @@ export interface IToolCallUiMeta {
 }
 
 function isToolKind(value: unknown): value is ToolKind {
-	return value === 'terminal' || value === 'subagent' || value === 'search';
+	return value === 'terminal' || value === 'subagent' || value === 'search' || value === 'read';
 }
 
 function readToolCallUiMeta(value: unknown): IToolCallUiMeta | undefined {
@@ -129,10 +130,10 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	if (typeof meta['subagentDescription'] === 'string') { result.subagentDescription = meta['subagentDescription']; }
 	if (typeof meta['subagentAgentName'] === 'string') { result.subagentAgentName = meta['subagentAgentName']; }
 	if (typeof meta['subagentChatUri'] === 'string') { result.subagentChatUri = meta['subagentChatUri']; }
-	if (meta['toolArguments'] !== undefined) { result.toolArguments = meta['toolArguments']; }
 	if (typeof meta['mcpServerName'] === 'string') { result.mcpServerName = meta['mcpServerName']; }
 	if (typeof meta['mcpToolName'] === 'string') { result.mcpToolName = meta['mcpToolName']; }
 	if (typeof meta['autoApproveBySetting'] === 'boolean') { result.autoApproveBySetting = meta['autoApproveBySetting']; }
+	if (typeof meta['autoApproveRuleResolvable'] === 'boolean') { result.autoApproveRuleResolvable = meta['autoApproveRuleResolvable']; }
 	const toolSearchCandidates = readToolSearchCandidates(meta['toolSearchCandidates']);
 	if (toolSearchCandidates) { result.toolSearchCandidates = toolSearchCandidates; }
 	const ui = readToolCallUiMeta(meta['ui']);

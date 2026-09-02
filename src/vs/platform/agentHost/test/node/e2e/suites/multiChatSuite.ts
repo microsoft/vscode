@@ -28,11 +28,23 @@ import {
 	type SessionState,
 } from '../../../../common/state/sessionState.js';
 import { createRealSession } from '../harness/agentHostE2ETestHarness.js';
+import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
+const RECORDING = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
+
 export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
-	const { config, createdSessions, tempDirs, shellToolReplayEnabled } = context;
+	const { config, createdSessions, tempDirs } = context;
+	/** See the same constant in `fileOperationsSuite`. */
+	const PREFER_FILE_TOOLS = ' Use your file tools; do not run a shell command.';
+
+	function peerFileOperationPrompt(fileToolsPrompt: string, shellCommand: string, shellFollowup: string): string {
+		if (config.fileOperationStrategy !== 'shell') {
+			return fileToolsPrompt;
+		}
+		return `Run exactly this shell command, with no modifications: \`${shellCommand}\`. ${shellFollowup}`;
+	}
 
 	async function createSession(prefix: string): Promise<{ sessionUri: string; defaultChatUri: string; workspace: string }> {
 		const workspace = mkdtempSync(join(tmpdir(), `ahp-multichat-${prefix}-`));
@@ -67,6 +79,22 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		return result.snapshot!.state as ChatState;
 	}
 
+	async function chatCompletions(chatUri: string, text: string): Promise<CompletionsResult> {
+		return context.client.call<CompletionsResult>('completions', {
+			channel: chatUri,
+			kind: CompletionItemKind.UserMessage,
+			text,
+			offset: text.length,
+		});
+	}
+
+	async function createCompletedPeer(sessionUri: string, id: string, title: string, turnId = `turn-${id}`): Promise<string> {
+		const peer = await createPeer(sessionUri, id);
+		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
+		await driveTurn(peer, turnId, `/rename ${title}`, 1);
+		return peer;
+	}
+
 	async function rename(channel: string, title: string, clientSeq = 1): Promise<void> {
 		context.client.clearReceived();
 		context.client.dispatch({
@@ -95,10 +123,24 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		if (context.tier !== 'parity') {
 			return;
 		}
-		(enabled ? test : test.skip)(title, function () {
+		const providerReplayEnabled = config.supportsMultipleChats && (config.supportsMultipleChatsE2E !== false || RECORDING);
+		(enabled && providerReplayEnabled ? test : test.skip)(title, function () {
 			this.timeout(180_000);
 			return run.call(this);
 		});
+	}
+
+	function peerFileOperationTest(title: string, run: Mocha.AsyncFunc): void {
+		// Skip unstable Codex packaged-Linux shell replay while retaining recording and unaffected platforms.
+		providerTest(title, run, config.fileOperationStrategy === 'fileTools' || context.portableShellToolReplayEnabled);
+	}
+
+	function assertPeerFileReadResult(turnId: string, expected: RegExp): void {
+		const toolResultTexts = context.observedModelRequestBodies.flatMap(body => {
+			const request = summarizeAnthropicRequest(body) ?? summarizeResponsesRequest(body);
+			return request?.messages.flatMap(message => modelToolResultTexts(message.content)) ?? [];
+		});
+		assert.ok(toolResultTexts.some(text => expected.test(text)), `expected ${turnId} tool output to reach the provider request; observed ${JSON.stringify(toolResultTexts)}`);
 	}
 
 	interface IObservedModelMessage {
@@ -107,16 +149,11 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 	}
 
 	function observedModelMessages(body: string): readonly IObservedModelMessage[] {
-		const request: unknown = JSON.parse(body);
-		if (!isRecord(request) || !Array.isArray(request.messages)) {
+		const request = summarizeAnthropicRequest(body) ?? summarizeResponsesRequest(body);
+		if (!request) {
 			return [];
 		}
-		return request.messages.flatMap(message => {
-			if (!isRecord(message) || typeof message.role !== 'string') {
-				return [];
-			}
-			return [{ role: message.role, content: modelContentText(message.content) }];
-		});
+		return request.messages.map(message => ({ role: message.role, content: modelContentText(message.content) }));
 	}
 
 	function modelContentText(value: unknown): string {
@@ -135,6 +172,16 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		return '';
 	}
 
+	function modelToolResultTexts(value: unknown): readonly string[] {
+		if (Array.isArray(value)) {
+			return value.flatMap(modelToolResultTexts);
+		}
+		if (isRecord(value) && value.type === 'tool_result') {
+			return [modelContentText(value.content)];
+		}
+		return [];
+	}
+
 	function isRecord(value: unknown): value is Record<string, unknown> {
 		return typeof value === 'object' && value !== null;
 	}
@@ -143,7 +190,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		if (context.tier !== 'parity') {
 			return;
 		}
-		(config.supportsChatForkE2E ? test : test.skip)(title, function () {
+		(config.supportsChatFork && (config.supportsChatForkE2E || RECORDING) ? test : test.skip)(title, function () {
 			this.timeout(180_000);
 			return run.call(this);
 		});
@@ -163,7 +210,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 			action: {
 				type: ActionType.ChatTurnStarted,
 				turnId,
-				startedAt: '2025-01-01T00:00:00.000Z',
+				startedAt: new Date().toISOString(),
 				message: { text, origin: { kind: MessageKind.User }, ...(attachments ? { attachments: [...attachments] } : {}) },
 			},
 		});
@@ -178,12 +225,15 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 				) {
 					return false;
 				}
-				return getActionEnvelope(n).channel === chatUri;
+				if (getActionEnvelope(n).channel !== chatUri) {
+					return false;
+				}
+				return (getActionEnvelope(n).action as { turnId: string }).turnId === turnId;
 			}, 90_000);
 			seen.add(notification as object);
 			if (isActionNotification(notification, 'chat/error')) {
 				const action = getActionEnvelope(notification).action as ChatErrorAction;
-				throw new Error(`Peer chat error during ${turnId}: ${JSON.stringify(action.error)}`);
+				throw new Error(`Peer chat error during ${turnId}: ${JSON.stringify(action.part.error)}`);
 			}
 			if (isActionNotification(notification, 'chat/turnComplete')) {
 				break;
@@ -209,6 +259,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		for (const notification of context.client.receivedNotifications(n =>
 			(isActionNotification(n, 'chat/responsePart') || isActionNotification(n, 'chat/delta'))
 			&& getActionEnvelope(n).channel === chatUri
+			&& (getActionEnvelope(n).action as { turnId: string }).turnId === turnId
 		)) {
 			const action = getActionEnvelope(notification).action;
 			if (action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.Markdown) {
@@ -374,6 +425,130 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		assert.deepStrictEqual(completions.items.map(item => item.insertText), ['@peer-target.txt']);
 	}, config.supportsMultipleChats);
 
+	conformanceTest(context, 'chat completion references a peer at its last completed turn', async function () {
+		const { sessionUri, defaultChatUri } = await createSession('chat-completion-basic');
+		const peer = await createCompletedPeer(sessionUri, 'peer', 'Referenced Peer', 'peer-reference-turn');
+
+		const completions = await chatCompletions(defaultChatUri, '#chat:');
+
+		assert.deepStrictEqual(completions.items, [{
+			insertText: '#chat:Referenced Peer ',
+			rangeStart: 0,
+			rangeEnd: 6,
+			attachment: {
+				type: MessageAttachmentKind.Chat,
+				resource: peer,
+				endTurn: 'peer-reference-turn',
+				label: 'Referenced Peer',
+			},
+		}]);
+	}, config.supportsMultipleChats);
+
+	conformanceTest(context, 'chat completion filters peer titles case-insensitively', async function () {
+		const { sessionUri, defaultChatUri } = await createSession('chat-completion-filter');
+		const target = await createCompletedPeer(sessionUri, 'target', 'Alpha Target');
+		await createCompletedPeer(sessionUri, 'other', 'Beta Reference');
+
+		const completions = await chatCompletions(defaultChatUri, '#chat:tArGeT');
+
+		assert.deepStrictEqual(completions.items.map(item => item.attachment), [{
+			type: MessageAttachmentKind.Chat,
+			resource: target,
+			endTurn: 'turn-target',
+			label: 'Alpha Target',
+		}]);
+	}, config.supportsMultipleChats);
+
+	conformanceTest(context, 'partial chat prefix offers completed peer chats', async function () {
+		const { sessionUri, defaultChatUri } = await createSession('chat-completion-partial');
+		await createCompletedPeer(sessionUri, 'peer', 'Partial Peer');
+
+		const completions = await chatCompletions(defaultChatUri, '#ch');
+
+		assert.deepStrictEqual(completions.items.map(item => ({
+			insertText: item.insertText,
+			rangeStart: item.rangeStart,
+			rangeEnd: item.rangeEnd,
+		})), [{
+			insertText: '#chat:Partial Peer ',
+			rangeStart: 0,
+			rangeEnd: 3,
+		}]);
+	}, config.supportsMultipleChats);
+
+	conformanceTest(context, 'chat completion replaces only the whitespace-delimited token', async function () {
+		const { sessionUri, defaultChatUri } = await createSession('chat-completion-range');
+		await createCompletedPeer(sessionUri, 'peer', 'Range Peer');
+		const text = 'Compare with #chat:Range';
+
+		const completions = await chatCompletions(defaultChatUri, text);
+
+		assert.deepStrictEqual(completions.items.map(item => ({
+			insertText: item.insertText,
+			rangeStart: item.rangeStart,
+			rangeEnd: item.rangeEnd,
+		})), [{
+			insertText: '#chat:Range Peer ',
+			rangeStart: 'Compare with '.length,
+			rangeEnd: text.length,
+		}]);
+	}, config.supportsMultipleChats);
+
+	conformanceTest(context, 'chat completion excludes peers without a completed turn', async function () {
+		const { sessionUri, defaultChatUri } = await createSession('chat-completion-empty');
+		await createPeer(sessionUri, 'empty');
+		const completed = await createCompletedPeer(sessionUri, 'completed', 'Completed Peer');
+
+		const completions = await chatCompletions(defaultChatUri, '#chat:');
+
+		assert.deepStrictEqual(completions.items.map(item =>
+			item.attachment?.type === MessageAttachmentKind.Chat ? item.attachment.resource : undefined
+		), [completed]);
+	}, config.supportsMultipleChats);
+
+	conformanceTest(context, 'chat completion excludes the chat being edited', async function () {
+		const { sessionUri } = await createSession('chat-completion-current');
+		const current = await createCompletedPeer(sessionUri, 'current', 'Current Peer');
+		const sibling = await createCompletedPeer(sessionUri, 'sibling', 'Sibling Peer');
+
+		const completions = await chatCompletions(current, '#chat:');
+
+		assert.deepStrictEqual(completions.items.map(item =>
+			item.attachment?.type === MessageAttachmentKind.Chat ? item.attachment.resource : undefined
+		), [sibling]);
+	}, config.supportsMultipleChats);
+
+	conformanceTest(context, 'peer chat completion can reference the completed default chat', async function () {
+		const { sessionUri, defaultChatUri } = await createSession('chat-completion-default');
+		await driveTurn(defaultChatUri, 'default-reference-turn', '/rename Default Reference', 1);
+		const peer = await createPeer(sessionUri, 'peer');
+
+		const completions = await chatCompletions(peer, '#chat:Default');
+
+		assert.deepStrictEqual(completions.items.map(item => item.attachment), [{
+			type: MessageAttachmentKind.Chat,
+			resource: defaultChatUri,
+			endTurn: 'default-reference-turn',
+			label: 'Default Reference',
+		}]);
+	}, config.supportsMultipleChats);
+
+	conformanceTest(context, 'chat completion sanitizes multiline titles', async function () {
+		const { sessionUri, defaultChatUri } = await createSession('chat-completion-title');
+		const peer = await createCompletedPeer(sessionUri, 'peer', 'Initial Title');
+		await rename(peer, 'Line One\n  Line Two', 2);
+
+		const completions = await chatCompletions(defaultChatUri, '#chat:Line');
+
+		assert.deepStrictEqual(completions.items.map(item => ({
+			insertText: item.insertText,
+			label: item.attachment?.label,
+		})), [{
+			insertText: '#chat:Line One Line Two ',
+			label: 'Line One Line Two',
+		}]);
+	}, config.supportsMultipleChats);
+
 	conformanceTest(context, 'first peer chat snapshots the session title onto the default chat', async function () {
 		const { sessionUri, defaultChatUri } = await createSession('default-title');
 		await rename(sessionUri, 'Original Session');
@@ -514,19 +689,25 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		assert.ok(toolCalls.some(toolCall => toolCall.status === 'completed' && !toolCall.success));
 	}, config.supportsMultipleChats);
 
-	providerTest('peer chat reads a file from the parent workspace', async function () {
+	peerFileOperationTest('peer chat reads a file from the parent workspace', async function () {
 		const { sessionUri, workspace } = await createSession('read-file');
 		const file = join(workspace, 'peer-note.txt');
 		writeFileSync(file, 'PEER_FILE_VALUE');
 		const peer = await createPeer(sessionUri, 'peer');
 		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
 
-		const response = await driveTurn(peer, 'peer-read', `Read the file at ${file} and reply with its exact contents only.`, 1);
+		const prompt = peerFileOperationPrompt(
+			`Read the file at ${file} and reply with its exact contents only.`,
+			`node -e "process.stdout.write(require('fs').readFileSync('peer-note.txt','utf8'))"`,
+			'Then reply with its exact output only.',
+		);
+		const response = await driveTurn(peer, 'peer-read', prompt, 1);
 
 		assert.match(response, /PEER_FILE_VALUE/);
+		assertPeerFileReadResult('peer-read', /PEER_FILE_VALUE/);
 	});
 
-	providerTest('peer chat reads a file from a nested directory', async function () {
+	peerFileOperationTest('peer chat reads a file from a nested directory', async function () {
 		const { sessionUri, workspace } = await createSession('read-nested-file');
 		mkdirSync(join(workspace, 'nested'));
 		const file = join(workspace, 'nested', 'peer.txt');
@@ -534,71 +715,103 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const peer = await createPeer(sessionUri, 'peer');
 		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
 
-		const response = await driveTurn(peer, 'peer-read-nested', `Read the file at ${file} and reply with its exact contents only.`, 1);
+		const prompt = peerFileOperationPrompt(
+			`Read the file at ${file} and reply with its exact contents only.`,
+			`node -e "process.stdout.write(require('fs').readFileSync('nested/peer.txt','utf8'))"`,
+			'Then reply with its exact output only.',
+		);
+		const response = await driveTurn(peer, 'peer-read-nested', prompt, 1);
 
 		assert.match(response, /PEER_NESTED_READ/);
+		assertPeerFileReadResult('peer-read-nested', /PEER_NESTED_READ/);
 	});
 
-	providerTest('peer chat creates a file in the parent workspace', async function () {
+	peerFileOperationTest('peer chat creates a file in the parent workspace', async function () {
 		const { sessionUri, workspace } = await createSession('create-file');
 		const file = join(workspace, 'peer-created.txt');
 		const peer = await createPeer(sessionUri, 'peer');
 		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
 
-		await driveTurn(peer, 'peer-create', `Create the file at ${file} containing exactly PEER_CREATED.`, 1);
+		const prompt = peerFileOperationPrompt(
+			`Create the file at ${file} containing exactly PEER_CREATED.`,
+			`node -e "require('fs').writeFileSync('peer-created.txt','PEER_CREATED')"`,
+			'Then reply exactly "created".',
+		);
+		await driveTurn(peer, 'peer-create', prompt, 1);
 
 		assert.strictEqual(readFileSync(file, 'utf8'), 'PEER_CREATED');
 	});
 
-	// Copilot's fixture uses a POSIX shell for this mutation.
-	providerTest('peer chat edits an existing workspace file', async function () {
+	peerFileOperationTest('peer chat edits an existing workspace file', async function () {
 		const { sessionUri, workspace } = await createSession('edit-file');
 		const file = join(workspace, 'peer-edit.txt');
 		writeFileSync(file, 'BEFORE_PEER');
 		const peer = await createPeer(sessionUri, 'peer');
 		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
 
-		await driveTurn(peer, 'peer-edit', `Replace the complete contents of ${file} with AFTER_PEER.`, 1);
+		const prompt = peerFileOperationPrompt(
+			`Replace the complete contents of ${file} with AFTER_PEER.${PREFER_FILE_TOOLS}`,
+			`node -e "require('fs').writeFileSync('peer-edit.txt','AFTER_PEER')"`,
+			'Then reply exactly "edited".',
+		);
+		await driveTurn(peer, 'peer-edit', prompt, 1);
 
 		assert.strictEqual(readFileSync(file, 'utf8').trim(), 'AFTER_PEER');
-	}, config.supportsMultipleChats && (config.provider !== 'copilotcli' || shellToolReplayEnabled));
+	});
 
-	// Copilot's fixture uses a POSIX shell for this mutation.
+	// Directory creation always uses shell, so apply the Codex packaged-Linux replay gate directly.
 	providerTest('peer chat creates a file in a nested directory', async function () {
 		const { sessionUri, workspace } = await createSession('nested-create');
 		const file = join(workspace, 'peer-output', 'report.txt');
 		const peer = await createPeer(sessionUri, 'peer');
 		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
 
-		await driveTurn(peer, 'peer-nested-create', `Create the file at ${file} containing exactly PEER_NESTED.`, 1);
+		// Pinned for the same reason as `creates a file in a new nested directory`
+		// in fileOperationsSuite: directory creation has no file tool. Relative to
+		// the session's working directory so the command carries no absolute path,
+		// which would need escaping on Windows.
+		const peerNestedCommand = `node -e "const fs=require('fs');fs.mkdirSync('peer-output',{recursive:true});fs.writeFileSync('peer-output/report.txt','PEER_NESTED')"`;
+		await driveTurn(peer, 'peer-nested-create', `Run exactly this shell command, with no modifications: \`${peerNestedCommand}\`. Then reply with exactly "created".`, 1);
 
 		assert.strictEqual(readFileSync(file, 'utf8'), 'PEER_NESTED');
-	}, config.supportsMultipleChats && (config.provider !== 'copilotcli' || shellToolReplayEnabled));
+	}, context.portableShellToolReplayEnabled);
 
-	providerTest('peer chat handles a missing workspace file without an error', async function () {
+	peerFileOperationTest('peer chat handles a missing workspace file without an error', async function () {
 		const { sessionUri, workspace } = await createSession('missing-file');
 		const file = join(workspace, 'peer-missing.txt');
 		const peer = await createPeer(sessionUri, 'peer');
 		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
 
-		const response = await driveTurn(peer, 'peer-missing', `Try to read ${file}. If it does not exist, reply exactly "missing".`, 1);
+		const prompt = peerFileOperationPrompt(
+			`Try to read ${file}. If it does not exist, reply exactly "missing".${PREFER_FILE_TOOLS}`,
+			`node -e "console.log(require('fs').existsSync('peer-missing.txt')?'present':'missing')"`,
+			'Then reply with its exact output only.',
+		);
+		const response = await driveTurn(peer, 'peer-missing', prompt, 1);
 
 		assert.match(response, /missing/i);
+		assertPeerFileReadResult('peer-missing', config.fileOperationStrategy === 'shell' ? /missing/ : /does not exist/);
 	});
 
-	providerTest('peer chat reads a filename containing spaces', async function () {
+	peerFileOperationTest('peer chat reads a filename containing spaces', async function () {
 		const { sessionUri, workspace } = await createSession('spaces');
 		const file = join(workspace, 'peer file.txt');
 		writeFileSync(file, 'PEER_SPACED');
 		const peer = await createPeer(sessionUri, 'peer');
 		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
 
-		const response = await driveTurn(peer, 'peer-spaces', `Read the file at ${file} and reply with its exact contents only.`, 1);
+		const prompt = peerFileOperationPrompt(
+			`Read the file at ${file} and reply with its exact contents only.`,
+			`node -e "process.stdout.write(require('fs').readFileSync('peer file.txt','utf8'))"`,
+			'Then reply with its exact output only.',
+		);
+		const response = await driveTurn(peer, 'peer-spaces', prompt, 1);
 
 		assert.match(response, /PEER_SPACED/);
+		assertPeerFileReadResult('peer-spaces', /PEER_SPACED/);
 	});
 
-	providerTest('two peer chats write distinct workspace files', async function () {
+	peerFileOperationTest('two peer chats write distinct workspace files', async function () {
 		const { sessionUri, workspace } = await createSession('two-writers');
 		const firstFile = join(workspace, 'first-peer.txt');
 		const secondFile = join(workspace, 'second-peer.txt');
@@ -607,8 +820,18 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		await context.client.call<SubscribeResult>('subscribe', { channel: first });
 		await context.client.call<SubscribeResult>('subscribe', { channel: second });
 
-		await driveTurn(first, 'first-write', `Create the file at ${firstFile} containing exactly FIRST_PEER.`, 1);
-		await driveTurn(second, 'second-write', `Create the file at ${secondFile} containing exactly SECOND_PEER.`, 10);
+		const firstPrompt = peerFileOperationPrompt(
+			`Create the file at ${firstFile} containing exactly FIRST_PEER with no trailing newline.${PREFER_FILE_TOOLS} Do not verify it with another tool. Then reply exactly "created".`,
+			`node -e "require('fs').writeFileSync('first-peer.txt','FIRST_PEER')"`,
+			'Do not run any other command or tool. Then reply exactly "created".',
+		);
+		const secondPrompt = peerFileOperationPrompt(
+			`Create the file at ${secondFile} containing exactly SECOND_PEER with no trailing newline.${PREFER_FILE_TOOLS} Do not verify it with another tool. Then reply exactly "created".`,
+			`node -e "require('fs').writeFileSync('second-peer.txt','SECOND_PEER')"`,
+			'Do not run any other command or tool. Then reply exactly "created".',
+		);
+		await driveTurn(first, 'first-write', firstPrompt, 1);
+		await driveTurn(second, 'second-write', secondPrompt, 10);
 
 		assert.deepStrictEqual({
 			first: readFileSync(firstFile, 'utf8'),
@@ -669,7 +892,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 			firstMessage: question,
 			firstAttachments: [],
 		});
-	}, config.supportsMultipleChats && !!config.supportsSideChats);
+	}, config.supportsMultipleChats && config.supportsSideChatsE2E === true);
 
 	providerTest('two peer chats keep independent provider contexts', async function () {
 		const { sessionUri } = await createSession('two-contexts');
@@ -832,6 +1055,9 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		await driveTurn(peer, 'peer-resource-selection', 'Reply exactly "selection".', 1, attachments);
 
 		const request = context.observedModelRequestBodies.at(-1) ?? '';
-		assert.ok(request.includes('peer-selection.txt') && (request.includes('peer-selection.txt:2') || request.includes('(line 2)')));
+		assert.ok(
+			request.includes('peer-selection.txt') && (request.includes('peer-selection.txt:2') || request.includes('(line 2)')),
+			`Expected the selected line reference in: ${JSON.stringify(observedModelMessages(request))}`,
+		);
 	});
 }

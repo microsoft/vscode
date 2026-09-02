@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { type ProgressParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IProgress, IProgressNotificationOptions, IProgressService, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatAIDisabledSettingId } from '../../../common/constants.js';
 import { AgentHostDownloadProgress } from '../../../browser/agentSessions/agentHost/agentHostDownloadProgress.js';
 
 interface IRecordedProgress {
@@ -35,7 +35,7 @@ class RecordingProgressService {
 class FakeConfigurationService {
 	constructor(private readonly _aiDisabled: boolean) { }
 	getValue(key: string): unknown {
-		return key === ChatConfiguration.AIDisabled ? this._aiDisabled : undefined;
+		return key === ChatAIDisabledSettingId ? this._aiDisabled : undefined;
 	}
 }
 

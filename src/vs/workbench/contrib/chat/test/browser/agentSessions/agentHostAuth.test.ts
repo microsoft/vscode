@@ -18,19 +18,20 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
-import { IAuthenticationService, type IAuthenticationProvider } from '../../../../../services/authentication/common/authentication.js';
+import { IAuthenticationService, type AuthenticationSession, type IAuthenticationProvider } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
-import { authenticateProtectedResources, resolveAuthenticationInteractively, resolveTokenForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
+import { AgentHostAuthenticationRecovery, authenticateProtectedResources, resolveAuthenticationInteractively, resolveTokenForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, revokeAuthenticationForRemovedSessions, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
+import { createAgentModelByokMeta } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 
 class TestCommandService extends mock<ICommandService>() {
 	readonly calls: { commandId: string; args: unknown[] }[] = [];
 	result: unknown = { success: true, dialogSkipped: false };
-	onExecute: (() => void) | undefined;
+	onExecute: (() => void | Promise<void>) | undefined;
 
 	override async executeCommand<R = unknown>(commandId: string, ...args: unknown[]): Promise<R | undefined> {
 		this.calls.push({ commandId, args });
-		this.onExecute?.();
+		await this.onExecute?.();
 		return this.result as R;
 	}
 }
@@ -50,6 +51,8 @@ function createMockAuthService(overrides: {
 	createDynamicAuthenticationProvider?: (...args: Parameters<IAuthenticationService['createDynamicAuthenticationProvider']>) => Promise<{ readonly id: string } | undefined>;
 	getProvider?: IAuthenticationService['getProvider'];
 	isDynamicAuthenticationProvider?: (providerId: string) => boolean;
+	isAuthenticationProviderRegistered?: (providerId: string) => boolean;
+	declaredProviders?: IAuthenticationService['declaredProviders'];
 	unregisterAuthenticationProvider?: (providerId: string) => void;
 }): IAuthenticationService {
 	return {
@@ -59,6 +62,8 @@ function createMockAuthService(overrides: {
 		createDynamicAuthenticationProvider: overrides.createDynamicAuthenticationProvider ?? (() => Promise.resolve(undefined)),
 		getProvider: overrides.getProvider ?? (() => { throw new Error('Unexpected getProvider call'); }),
 		isDynamicAuthenticationProvider: overrides.isDynamicAuthenticationProvider ?? (() => false),
+		isAuthenticationProviderRegistered: overrides.isAuthenticationProviderRegistered ?? (() => true),
+		declaredProviders: overrides.declaredProviders ?? [],
 		unregisterAuthenticationProvider: overrides.unregisterAuthenticationProvider ?? (() => { }),
 	} as unknown as IAuthenticationService;
 }
@@ -366,6 +371,125 @@ suite('AgentHostAuthTokenCache', () => {
 		await cache.authenticate('https://other.example.com', ['read'], 'tok2', authenticate);
 
 		assert.strictEqual(authenticateCalls, 4);
+	});
+});
+
+suite('AgentHostAuthenticationRecovery', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('cancels recovery when its enablement generation becomes stale', async () => {
+		const sessions = new DeferredPromise<readonly { scopes: string[]; accessToken: string }[]>();
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: () => sessions.p,
+		});
+		const commandService = new TestCommandService();
+		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+		const recovery = new AgentHostAuthenticationRecovery();
+		const authenticateCalls: string[] = [];
+		let current = true;
+		const recoveryPromise = instantiationService.invokeFunction(accessor => recovery.recover(accessor, {
+			resource: 'https://api.example.com',
+			authorization_servers: ['https://auth.example.com'],
+			scopes_supported: ['read'],
+		}, {
+			logPrefix: '[AgentHost]',
+			isCurrent: () => current,
+			authenticate: async request => { authenticateCalls.push(request.token); },
+		}));
+
+		current = false;
+		recovery.clear();
+		sessions.complete([{ scopes: ['read'], accessToken: 'tok-1' }]);
+
+		await assert.rejects(recoveryPromise, /Canceled/);
+		assert.deepStrictEqual({
+			commandCalls: commandService.calls.length,
+			authenticateCalls,
+		}, {
+			commandCalls: 0,
+			authenticateCalls: [],
+		});
+	});
+
+	test('force-forwards the post-sign-in token when session-change handling repopulates the cache', async () => {
+		const token = { value: 'tok-1' };
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: (_providerId, scopes) => Promise.resolve(scopes ? [{ scopes, accessToken: token.value }] : []),
+		});
+		const commandService = new TestCommandService();
+		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+		const cache = new AgentHostAuthTokenCache();
+		const recovery = new AgentHostAuthenticationRecovery();
+		const resource: ProtectedResourceMetadata = {
+			resource: 'https://api.example.com',
+			authorization_servers: ['https://auth.example.com'],
+			scopes_supported: ['read'],
+		};
+		const authenticateCalls: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: cache,
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(request.token); },
+		};
+
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		commandService.onExecute = async () => {
+			token.value = 'tok-2';
+			await cache.authenticate(resource.resource, resource.scopes_supported, token.value, async () => {
+				authenticateCalls.push(token.value);
+			});
+		};
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+
+		assert.deepStrictEqual({
+			commandCalls: commandService.calls.length,
+			authenticateCalls,
+		}, {
+			commandCalls: 1,
+			authenticateCalls: ['tok-1', 'tok-2', 'tok-2'],
+		});
+
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		assert.strictEqual(commandService.calls.length, 2);
+	});
+
+	test('does not forward credential removal and resets escalation when the current token disappears', async () => {
+		const token = { value: 'tok-1' as string | undefined };
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: (_providerId, scopes) => Promise.resolve(token.value && scopes ? [{ scopes, accessToken: token.value }] : []),
+		});
+		const commandService = new TestCommandService();
+		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+		const recovery = new AgentHostAuthenticationRecovery();
+		const resource: ProtectedResourceMetadata = {
+			resource: 'https://api.example.com',
+			authorization_servers: ['https://auth.example.com'],
+			scopes_supported: ['read'],
+		};
+		const authenticateCalls: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(request.token); },
+		};
+
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		token.value = undefined;
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		token.value = 'tok-1';
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+
+		assert.deepStrictEqual({
+			commandCalls: commandService.calls.length,
+			authenticateCalls,
+		}, {
+			commandCalls: 0,
+			authenticateCalls: ['tok-1', 'tok-1'],
+		});
 	});
 });
 
@@ -945,6 +1069,52 @@ suite('resolveMcpServerAuthentication', () => {
 	});
 });
 
+suite('modelRequiresAgentAuthentication', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const requiredResource: ProtectedResourceMetadata = { resource: 'https://api.github.com', required: true };
+	const byokModel = {
+		id: 'gemini/gemini-2.5-pro',
+		_meta: createAgentModelByokMeta('gemini/Gemini/gemini-2.5-pro'),
+	};
+	const copilotModel = { id: 'gpt-5' };
+	const agent = {
+		models: [byokModel, copilotModel],
+		protectedResources: [requiredResource],
+	} as AgentInfo;
+
+	test('bypasses required agent auth only for an advertised BYOK model', () => {
+		const optionalResourceAgent = { ...agent, protectedResources: [{ ...requiredResource, required: false }] };
+		const optionalResourceAgentWithoutByok = { ...optionalResourceAgent, models: [copilotModel] } as AgentInfo;
+		assert.deepStrictEqual({
+			byokEnabled: modelRequiresAgentAuthentication(agent, { id: byokModel.id }, true),
+			byokDisabled: modelRequiresAgentAuthentication(agent, { id: byokModel.id }, false),
+			copilot: modelRequiresAgentAuthentication(agent, { id: copilotModel.id }, true),
+			unknown: modelRequiresAgentAuthentication(agent, { id: 'unknown' }, true),
+			noSelection: modelRequiresAgentAuthentication(agent, undefined, true),
+			optionalResourceByok: modelRequiresAgentAuthentication(optionalResourceAgent, { id: byokModel.id }, true),
+			optionalResourceCopilot: modelRequiresAgentAuthentication(optionalResourceAgent, { id: copilotModel.id }, true),
+			optionalResourceUnknown: modelRequiresAgentAuthentication(optionalResourceAgent, { id: 'unknown' }, true),
+			optionalResourceSignedOutDisabled: modelRequiresAgentAuthentication(optionalResourceAgent, { id: copilotModel.id }, false),
+			optionalResourceWithoutByok: modelRequiresAgentAuthentication(optionalResourceAgentWithoutByok, { id: copilotModel.id }, true),
+			noProtectedResource: modelRequiresAgentAuthentication({ ...agent, protectedResources: [] }, { id: copilotModel.id }, true),
+		}, {
+			byokEnabled: false,
+			byokDisabled: true,
+			copilot: true,
+			unknown: true,
+			noSelection: true,
+			optionalResourceByok: false,
+			optionalResourceCopilot: true,
+			optionalResourceUnknown: true,
+			optionalResourceSignedOutDisabled: false,
+			optionalResourceWithoutByok: false,
+			noProtectedResource: false,
+		});
+	});
+});
+
 suite('authenticateProtectedResources', () => {
 
 	const protectedResource: ProtectedResourceMetadata = {
@@ -952,6 +1122,13 @@ suite('authenticateProtectedResources', () => {
 		authorization_servers: ['https://auth.example.com'],
 		scopes_supported: ['read'],
 	};
+
+	const removedSession = (scopes: readonly string[]): AuthenticationSession => ({
+		id: `session-${scopes.join('-')}`,
+		accessToken: 'removed-token',
+		account: { id: 'account-1', label: 'Account' },
+		scopes,
+	});
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -987,6 +1164,181 @@ suite('authenticateProtectedResources', () => {
 		});
 
 		assert.deepStrictEqual(requests, [{ resource: protectedResource.resource, scopes: ['read'], token: 'cached-token' }]);
+	});
+
+	test('does not infer credential removal when a previously available token disappears', async () => {
+		let token: string | undefined = 'cached-token';
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: (_providerId, scopes) => {
+				if (scopes && token) {
+					return Promise.resolve([{ scopes: ['read'], accessToken: token }]);
+				}
+
+				return Promise.resolve([]);
+			},
+		});
+		const cache = new AgentHostAuthTokenCache();
+		const requests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
+		const agents = [{ protectedResources: [protectedResource] }] as unknown as readonly AgentInfo[];
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: cache,
+			logPrefix: '[AgentHost]',
+			authenticate: async request => {
+				requests.push(request);
+			},
+		};
+
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+		token = undefined;
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+
+		assert.deepStrictEqual(requests, [
+			{ resource: protectedResource.resource, scopes: ['read'], token: 'cached-token' },
+		]);
+	});
+
+	test('does not clear shared authentication while the provider is not ready', async () => {
+		let providerReady = false;
+		let sharedHostToken: string | undefined = 'other-client-token';
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve(providerReady ? 'provider-1' : undefined),
+			isAuthenticationProviderRegistered: () => providerReady,
+			declaredProviders: [{
+				id: 'provider-1',
+				label: 'Provider',
+				authorizationServerGlobs: ['https://auth.example.com/*'],
+			}],
+			getSessions: () => Promise.resolve([{ scopes: ['read'], accessToken: 'healthy-client-token' }]),
+		});
+		const requests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
+		const agents = [{ protectedResources: [protectedResource] }] as unknown as readonly AgentInfo[];
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[AgentHost]',
+			authenticate: async request => {
+				requests.push(request);
+				sharedHostToken = request.token || undefined;
+			},
+		};
+
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+		providerReady = true;
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+
+		assert.deepStrictEqual({ requests, sharedHostToken }, {
+			requests: [{ resource: protectedResource.resource, scopes: ['read'], token: 'healthy-client-token' }],
+			sharedHostToken: 'healthy-client-token',
+		});
+	});
+
+	test('clears shared authentication after an explicit session removal', async () => {
+		let sharedHostToken: string | undefined = 'healthy-client-token';
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+		});
+		const requests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
+		const agents = [{ protectedResources: [protectedResource] }] as unknown as readonly AgentInfo[];
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+
+		await instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, agents, 'provider-1', [removedSession(['read'])], {
+			authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[AgentHost]',
+			authenticate: async request => {
+				requests.push(request);
+				sharedHostToken = request.token || undefined;
+			},
+		});
+
+		assert.deepStrictEqual({ requests, sharedHostToken }, {
+			requests: [{ resource: protectedResource.resource, scopes: ['read'], token: '' }],
+			sharedHostToken: undefined,
+		});
+	});
+
+	test('forwards the surviving token instead of revoking when another account remains', async () => {
+		let sharedHostToken: string | undefined = 'removed-account-token';
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: () => Promise.resolve([{ scopes: ['read'], accessToken: 'surviving-account-token' }]),
+		});
+		const requests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
+		const agents = [{ protectedResources: [protectedResource] }] as unknown as readonly AgentInfo[];
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+
+		await instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, agents, 'provider-1', [removedSession(['read'])], {
+			authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[AgentHost]',
+			authenticate: async request => {
+				requests.push(request);
+				sharedHostToken = request.token || undefined;
+			},
+		});
+
+		assert.deepStrictEqual({ requests, sharedHostToken }, {
+			requests: [{ resource: protectedResource.resource, scopes: ['read'], token: 'surviving-account-token' }],
+			sharedHostToken: 'surviving-account-token',
+		});
+	});
+
+	test('leaves resources the removed session could not satisfy untouched', async () => {
+		// One provider commonly serves several resources with different scope sets.
+		// Signing out of an account that never covered a resource must not make this
+		// client re-evaluate -- and possibly revoke -- a credential another client owns.
+		let sharedHostToken: string | undefined = 'other-client-token';
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+		});
+		const requests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
+		const agents = [{ protectedResources: [protectedResource] }] as unknown as readonly AgentInfo[];
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+
+		await instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, agents, 'provider-1', [removedSession(['repo'])], {
+			authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[AgentHost]',
+			authenticate: async request => {
+				requests.push(request);
+				sharedHostToken = request.token || undefined;
+			},
+		});
+
+		assert.deepStrictEqual({ requests, sharedHostToken }, { requests: [], sharedHostToken: 'other-client-token' });
+	});
+
+	test('repairs host authentication after an external clear without replacing the cache', async () => {
+		let sharedHostToken: string | undefined;
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: () => Promise.resolve([{ scopes: ['read'], accessToken: 'healthy-client-token' }]),
+		});
+		const cache = new AgentHostAuthTokenCache();
+		const requests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
+		const agents = [{ protectedResources: [protectedResource] }] as unknown as readonly AgentInfo[];
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: cache,
+			logPrefix: '[AgentHost]',
+			authenticate: async request => {
+				requests.push(request);
+				sharedHostToken = request.token || undefined;
+			},
+		};
+
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+		sharedHostToken = undefined;
+		cache.clear();
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+
+		assert.deepStrictEqual({ requests, sharedHostToken }, {
+			requests: [
+				{ resource: protectedResource.resource, scopes: ['read'], token: 'healthy-client-token' },
+				{ resource: protectedResource.resource, scopes: ['read'], token: 'healthy-client-token' },
+			],
+			sharedHostToken: 'healthy-client-token',
+		});
 	});
 });
 
@@ -1042,7 +1394,7 @@ suite('resolveAuthenticationInteractively', () => {
 	test('uses the product sign-in flow and forwards its token', async () => {
 		let signedIn = false;
 		const commandService = new TestCommandService();
-		commandService.onExecute = () => signedIn = true;
+		commandService.onExecute = () => { signedIn = true; };
 		const authService = createMockAuthService({
 			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
 			getSessions: () => Promise.resolve(signedIn ? [{ scopes: ['read'], accessToken: 'signed-in-token' }] : []),

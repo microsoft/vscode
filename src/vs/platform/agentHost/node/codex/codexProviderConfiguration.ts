@@ -6,13 +6,13 @@
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { CODEX_AGENT_PROVIDER_ID } from '../../common/agentService.js';
+import { CODEX_AGENT_PROVIDER_ID } from '../../common/agent.js';
 import type { IAgentCustomizationSettingsRegistration } from '../../common/agentCustomizationSettings.js';
 
 export function createCodexProviderConfiguration(userHome: URI): IAgentCustomizationSettingsRegistration {
 	return {
 		provider: CODEX_AGENT_PROVIDER_ID,
-		title: localize('codex.configuration.title', "Codex Settings"),
+		title: localize('codex.configuration.title', "Codex"),
 		description: localize('codex.configuration.description', "Configure Codex defaults stored in config.toml. Project and managed configuration can override these user values."),
 		properties: {
 			'codex.personality': { type: 'string', title: localize('codex.configuration.personality', "Personality"), description: localize('codex.configuration.personality.description', "Controls the default communication style for Codex. Default leaves personality unset in config.toml."), default: 'default', enum: ['default', 'friendly', 'pragmatic'], enumLabels: [localize('codex.configuration.personality.default', "Default"), localize('codex.configuration.personality.friendly', "Friendly"), localize('codex.configuration.personality.pragmatic', "Pragmatic")] },

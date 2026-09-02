@@ -144,7 +144,7 @@ class MessageWidget {
 					this._codeLink.setAttribute('href', `${code.target.toString()}`);
 
 					this._codeLink.onclick = (e) => {
-						this._openerService.open(code.target, { allowCommands: true });
+						this._openerService.open(code.target);
 						e.preventDefault();
 						e.stopPropagation();
 					};

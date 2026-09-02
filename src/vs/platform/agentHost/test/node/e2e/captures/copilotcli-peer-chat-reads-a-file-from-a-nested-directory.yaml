@@ -11,10 +11,9 @@ exchanges:
       content:
         - type: tool_use
           id: toolcall_0
-          name: bash
+          name: view
           input:
-            command: cat "${workdir}/nested/peer.txt"
-            description: Read peer.txt file
+            path: ${workdir}/nested/peer.txt
       stopReason: tool_use
   - request:
       model: claude-sonnet-5
@@ -25,17 +24,14 @@ exchanges:
         - role: assistant
           content:
             - type: tool_use
-              name: bash
+              name: view
               input:
-                command: cat "${workdir}/nested/peer.txt"
-                description: Read peer.txt file
+                path: ${workdir}/nested/peer.txt
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: |-
-                PEER_NESTED_READ
-                <shellId: 0 completed with exit code 0>
+              content: 1. PEER_NESTED_READ
     response:
       content: PEER_NESTED_READ
       stopReason: end_turn

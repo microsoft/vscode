@@ -10,95 +10,23 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType, NotificationType } from '../../../../common/state/sessionActions.js';
 import type { SessionAddedParams } from '../../../../common/state/protocol/notifications.js';
-import { ToolCallConfirmationReason, buildDefaultChatUri } from '../../../../common/state/sessionState.js';
+import { buildDefaultChatUri } from '../../../../common/state/sessionState.js';
 import {
 	createRealSession,
 	dispatchTurn,
 	driveTurnToCompletion,
 } from '../harness/agentHostE2ETestHarness.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineTurnLifecycleTests(context: IAgentHostE2ETestContext): void {
-	const { config, createdSessions, tempDirs, shellToolReplayEnabled, runRecordOnlyTests } = context;
-	(shellToolReplayEnabled ? test : test.skip)('tool call triggers permission request and can be approved', async function () {
-		this.timeout(120_000);
+	const { config, createdSessions, tempDirs, runRecordOnlyTests } = context;
+	const planModeTitle = config.planModeStyle === 'input-request'
+		? 'planning-mode input stays on the same session and retains context after returning to interactive mode'
+		: 'planning-mode session-state writes are auto-approved in default mode';
 
-		const tempDir = mkdtempSync(`${tmpdir()}/ahp-perm-test-`);
-		tempDirs.push(tempDir);
-		const sessionUri = await createRealSession(context.client, config, `real-sdk-permission-${config.provider}`, createdSessions, URI.file(tempDir));
-		dispatchTurn(context.client, sessionUri, 'turn-perm', 'Run the shell command: echo "hello from test"', 1);
-
-		// Validate the permission flow by driving toward the first signal
-		// that the tool call actually ran:
-		//   - Copilot routes shell calls through `canUseTool`, emitting
-		//     `toolCallReady` with `confirmed=undefined`. The test
-		//     dispatches `toolCallConfirmed` and expects `toolCallComplete`.
-		//   - Claude's `default` permission mode auto-approves safe Bash
-		//     commands at the SDK layer and never reaches the host's
-		//     `canUseTool`, so the next observable signal is
-		//     `toolCallComplete` directly.
-		// Either way, `toolCallComplete` is the success indicator. We do
-		// not wait for `turnComplete` because Claude's post-tool
-		// continuation can outlive any reasonable test timeout for trivial
-		// prompts like this one.
-		let nextSeq = 2;
-		// waitForNotification retains matched notifications, so skip ones already handled.
-		const processedSeqs = new Set<number>();
-		while (true) {
-			const next = await context.client.waitForNotification(n => {
-				const isRelevant = (isActionNotification(n, 'chat/toolCallReady')
-					&& (getActionEnvelope(n).action as { confirmed?: string }).confirmed === undefined)
-					|| isActionNotification(n, 'chat/toolCallComplete')
-					|| isActionNotification(n, 'chat/error');
-				if (!isRelevant) {
-					return false;
-				}
-				return !processedSeqs.has(getActionEnvelope(n).serverSeq);
-			}, 90_000);
-			processedSeqs.add(getActionEnvelope(next).serverSeq);
-			if (isActionNotification(next, 'chat/error')) {
-				throw new Error('Session error during permission test');
-			}
-			if (isActionNotification(next, 'chat/toolCallComplete')) {
-				break;
-			}
-			const action = getActionEnvelope(next).action as { toolCallId: string };
-			context.client.dispatch({
-				channel: buildDefaultChatUri(sessionUri),
-				clientSeq: nextSeq++,
-				action: {
-					type: ActionType.ChatToolCallConfirmed,
-					turnId: 'turn-perm',
-					toolCallId: action.toolCallId, approved: true,
-					confirmed: ToolCallConfirmationReason.UserAction,
-				},
-			});
-		}
-
-		const toolStarts = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'));
-		assert.ok(toolStarts.length > 0, 'expected at least one shell tool call');
-
-		// Drain the post-tool continuation to `turnComplete` so the turn ends
-		// within this test's window. This is required for the shared replay
-		// server (all providers now reuse one server across the suite):
-		// returning mid-turn leaves the SDK query in flight, and its
-		// continuation HTTP call fires *after* the fixture is swapped for the
-		// next test — landing in that test's fixture window as an unrecorded
-		// call and failing the strict cache-miss check. Draining keeps every
-		// request/response inside the test that owns it. Replay serves the
-		// continuation from the fixture instantly; while recording it also
-		// lands that model call in the fixture. Bounded + best-effort: some
-		// providers' continuations for a trivial prompt can run long while
-		// recording.
-		try {
-			await context.client.waitForNotification(n =>
-				isActionNotification(n, 'chat/turnComplete') || isActionNotification(n, 'chat/error'),
-				30_000);
-		} catch { /* bounded drain */ }
-	});
-
-	(config.supportsPlanMode ? test : test.skip)('planning-mode session-state writes are auto-approved in default mode', async function () {
+	(config.planModeStyle ? test : test.skip)(planModeTitle, async function () {
 		this.timeout(180_000);
 
 		const tempDir = mkdtempSync(`${tmpdir()}/ahp-plan-test-`);
@@ -112,8 +40,10 @@ export function defineTurnLifecycleTests(context: IAgentHostE2ETestContext): voi
 		});
 		await context.client.waitForNotification(n => isActionNotification(n, 'session/configChanged'));
 
-		const planTurn = await driveTurnToCompletion(context.client, sessionUri, 'turn-plan',
-			`Help me implement a Python script that prints "hello world" to stdout. Write the shortest possible plan to your session plan.md and use the \`${config.exitPlanModeToolName}\` tool to ask me to approve it before writing any code.`, 2);
+		const planPrompt = config.planModeStyle === 'input-request'
+			? 'Use your request_user_input capability to ask exactly one question: "What should the Python script print?" with options "hello world" and "goodbye". Do not call any other tool, run a shell command, or inspect the workspace. After I answer, reply exactly "plan approved".'
+			: `Help me implement a Python script that prints "hello world" to stdout. Write the shortest possible plan to your session plan.md and use the \`${config.exitPlanModeToolName}\` tool to ask me to approve it before writing any code.`;
+		const planTurn = await driveTurnToCompletion(context.client, sessionUri, 'turn-plan', planPrompt, 2);
 		assert.strictEqual(planTurn.sawPendingConfirmation, false, 'should not have received pending-confirmation toolCallReady while writing session-state plan.md');
 		assert.ok(planTurn.sawInputRequest, `should reach the ${config.exitPlanModeToolName} question so the test can continue the same session`);
 
@@ -134,6 +64,14 @@ export function defineTurnLifecycleTests(context: IAgentHostE2ETestContext): voi
 			'What did the plan I just approved say to print? Reply with exactly "hello world".', 100);
 		assert.strictEqual(followupTurn.sawPendingConfirmation, false, 'follow-up turn should not surface new pending confirmations');
 		assert.match(followupTurn.responseText, /hello world/i, 'follow-up turn should retain the original plan context');
+		if (config.planModeStyle === 'session-state') {
+			const requestBody = context.observedModelRequestBodies.at(-1);
+			const request = requestBody ? (summarizeAnthropicRequest(requestBody) ?? summarizeResponsesRequest(requestBody)) : undefined;
+			assert.ok(
+				request?.messages.some(message => typeof message.content === 'string' && message.content.includes(planPrompt)),
+				'follow-up model request should retain the original planning turn',
+			);
+		}
 
 		const extraSessionNotificationsAfterFollowup = context.client.receivedNotifications(n =>
 			n.method === NotificationType.SessionAdded &&
@@ -158,19 +96,40 @@ export function defineTurnLifecycleTests(context: IAgentHostE2ETestContext): voi
 		const sessionUri = await createRealSession(context.client, config, `real-sdk-abort-${config.provider}`, createdSessions, URI.file(tempDir));
 		dispatchTurn(context.client, sessionUri, 'turn-abort', 'Write a very long essay about the history of computing', 1);
 
+		const chatUri = buildDefaultChatUri(sessionUri);
 		await context.client.waitForNotification(
-			n => isActionNotification(n, 'chat/responsePart') || isActionNotification(n, 'chat/toolCallStart'),
+			n => (isActionNotification(n, 'chat/responsePart') || isActionNotification(n, 'chat/toolCallStart'))
+				&& getActionEnvelope(n).channel === chatUri
+				&& (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-abort',
 			60_000,
 		);
 
-		// `session/abortTurn` is not part of the StateAction union, so it
-		// bypasses the typed `dispatch` helper and is sent raw.
-		context.client.notify('dispatchAction', {
-			channel: sessionUri,
+		context.client.dispatch({
+			channel: chatUri,
 			clientSeq: 2,
-			action: { type: 'session/abortTurn' },
+			action: { type: ActionType.ChatTurnCancelled, turnId: 'turn-abort', duration: 0 },
 		});
 
-		await context.client.waitForNotification(n => isActionNotification(n, 'session/abortTurn'), 10_000);
+		await context.client.waitForNotification(n =>
+			isActionNotification(n, 'chat/turnCancelled')
+			&& getActionEnvelope(n).channel === chatUri
+			&& (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-abort',
+			10_000);
+
+		const replacement = await driveTurnToCompletion(context.client, sessionUri, 'turn-after-abort', 'Reply with exactly "after-abort".', 3);
+		const state = await fetchSessionWithChat(context.client, sessionUri);
+		assert.deepStrictEqual({
+			response: replacement.responseText.trim(),
+			activeTurn: state.activeTurn,
+			inputNeeded: state.inputNeeded,
+			cancelledState: state.turns.find(turn => turn.id === 'turn-abort')?.state,
+			replacementState: state.turns.find(turn => turn.id === 'turn-after-abort')?.state,
+		}, {
+			response: 'after-abort',
+			activeTurn: undefined,
+			inputNeeded: undefined,
+			cancelledState: 'cancelled',
+			replacementState: 'complete',
+		});
 	});
 }
