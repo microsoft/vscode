@@ -2114,6 +2114,17 @@
                     "type": "boolean",
                     "description": "Whether the model supports vision capabilities"
                   },
+                  "fileInputMimeTypes": {
+                    "type": "array",
+                    "markdownDescription": "MIME types of files accepted by this model endpoint. File inputs are supported for `responses` and `messages` API types. This setting has no effect for Chat Completions models.",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "application/pdf"
+                      ]
+                    },
+                    "uniqueItems": true
+                  },
                   "maxInputTokens": {
                     "type": "number",
                     "markdownDescription": "Maximum number of input (prompt) tokens supported by the model. Optional when `contextWindow` is set, in which case it is derived as `contextWindow - maxOutputTokens`."

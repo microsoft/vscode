@@ -72,7 +72,10 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 			const modelList: Record<string, BYOKModelCapabilities> = {};
 			for (const model of response.data) {
 				if (this._knownModels && this._knownModels[model.id]) {
-					modelList[model.id] = this._knownModels[model.id];
+					modelList[model.id] = {
+						...this._knownModels[model.id],
+						fileInputMimeTypes: Array.from(new Set([...(this._knownModels[model.id].fileInputMimeTypes ?? []), 'application/pdf']))
+					};
 				} else {
 					// Mix in generic capabilities for models we don't know
 					modelList[model.id] = {
@@ -81,6 +84,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 						name: model.display_name,
 						toolCalling: true,
 						vision: false,
+						fileInputMimeTypes: ['application/pdf'],
 						thinking: false
 					};
 				}

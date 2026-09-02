@@ -42,11 +42,12 @@ function hasDocumentContentPart(messages: Raw.ChatMessage[]): boolean {
 	);
 }
 
-function createMockEndpoint(overrides: { family?: string; supportsVision?: boolean; model?: string } = {}): IChatEndpoint {
+function createMockEndpoint(overrides: { family?: string; supportsVision?: boolean; model?: string; fileInputMimeTypes?: readonly string[] } = {}): IChatEndpoint {
 	return {
 		family: overrides.family ?? 'gpt-4.1',
 		model: overrides.model ?? 'gpt-4.1',
 		supportsVision: overrides.supportsVision ?? true,
+		fileInputMimeTypes: overrides.fileInputMimeTypes,
 		modelMaxPromptTokens: 128000,
 		maxOutputTokens: 4096,
 		name: 'test-model',
@@ -143,11 +144,12 @@ describe('FileVariable PDF support', () => {
 	const VALID_PDF_CONTENT = '%PDF-1.4\n1 0 obj\n<</Type /Catalog>>\nendobj';
 	const INVALID_PDF_CONTENT = 'This is not a PDF file at all';
 
-	function createPdfTestServices(options: { family: string; supportsVision: boolean }) {
+	function createPdfTestServices(options: { family: string; supportsVision: boolean; fileInputMimeTypes?: readonly string[] }) {
 		const testingServiceCollection = createExtensionUnitTestingServices();
 		const mockEndpoint = createMockEndpoint({
 			family: options.family,
 			supportsVision: options.supportsVision,
+			fileInputMimeTypes: options.fileInputMimeTypes,
 			model: `${options.family}-test`,
 		});
 		testingServiceCollection.define(IEndpointProvider, new MockEndpointProvider(mockEndpoint));
@@ -173,6 +175,28 @@ describe('FileVariable PDF support', () => {
 		const { messages } = await renderer.render();
 
 		// Should contain a Document content part in the rendered messages
+		expect(hasDocumentContentPart(messages)).toBe(true);
+	});
+
+	test('renders PDF document for explicitly configured custom model without vision', async () => {
+		const { testingServiceCollection, mockEndpoint } = createPdfTestServices({
+			family: 'custom-model',
+			supportsVision: false,
+			fileInputMimeTypes: ['application/pdf'],
+		});
+		const mockFs = new MockFileSystemService();
+		const pdfUri = Uri.parse('file:///workspace/doc.pdf');
+		mockFs.mockFile(pdfUri, VALID_PDF_CONTENT);
+		testingServiceCollection.define(IFileSystemService, mockFs);
+
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const { messages } = await PromptRenderer.create(
+			accessor.get(IInstantiationService),
+			mockEndpoint,
+			FileVariable,
+			{ variableName: 'doc', variableValue: pdfUri }
+		).render();
+
 		expect(hasDocumentContentPart(messages)).toBe(true);
 	});
 
