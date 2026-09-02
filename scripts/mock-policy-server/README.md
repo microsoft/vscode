@@ -60,7 +60,8 @@ file-based policy.
 
 The Setup dialog tests the system proxy every five seconds by sending an
 unauthenticated request shaped like
-`GET https://api.github.com/copilot_internal/managed_settings?mockPolicySetupProbe=<random UUID>`.
+`GET <configured upstream>/copilot_internal/managed_settings?mockPolicySetupProbe=<random UUID>`
+(`https://api.github.com` is the default upstream).
 The probe must traverse the same mapping as real policy traffic: the page only
 reports a successful connection when the mapped response carries this mock
 server's identifying header. It does not inspect Proxyman or the operating

@@ -139,7 +139,7 @@
 					<aside class="setup-warning" aria-labelledby="setup-probe-title">
 						<h4 id="setup-probe-title"><span aria-hidden="true">&#x26A0;</span> Automatic probe requests are expected</h4>
 						<p>While this page is open, it sends an unauthenticated request every five seconds with this shape:</p>
-						<code class="block">GET https://api.github.com/copilot_internal/managed_settings?mockPolicySetupProbe=&lt;random UUID&gt;</code>
+						<code id="setup-probe-shape" class="block"></code>
 						<p>The probe must pass through the same proxy mapping as real policy traffic. The page only reports the proxy as connected when the mapped response returns this mock server's identifying header.</p>
 						<p>This server excludes probes from Live Requests. To also hide them in Proxyman, use the display-filter regex <code>^(?!.*mockPolicySetupProbe).*managed_settings.*</code>. Use it only as a display filter&mdash;do not exclude probes from the Map Remote rule.</p>
 					</aside>

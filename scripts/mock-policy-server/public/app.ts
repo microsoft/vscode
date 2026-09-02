@@ -31,7 +31,22 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		endpoints: Endpoint[];
 		baseUrl?: string;
 		upstream?: string;
+		stateFile?: string;
 		hasPersistedState?: boolean;
+	}
+
+	interface SynchronizedDraft {
+		stateFile: string;
+		value: string;
+	}
+
+	function isSynchronizedDraft(value: unknown): value is SynchronizedDraft {
+		return typeof value === 'object'
+			&& value !== null
+			&& 'stateFile' in value
+			&& typeof value.stateFile === 'string'
+			&& 'value' in value
+			&& typeof value.value === 'string';
 	}
 
 	interface LogEntry {
@@ -100,6 +115,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	const macOsCacheClearCommand = 'rm -rf -- "${COPILOT_CACHE_HOME:-$HOME/Library/Caches/copilot}/managed-settings"';
 	const windowsCacheClearCommand = '$root = if ($env:COPILOT_CACHE_HOME) { $env:COPILOT_CACHE_HOME } elseif ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA \'copilot\' } else { Join-Path $HOME \'.cache\\copilot\' }; $path = Join-Path $root \'managed-settings\'; if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force }';
 	const draftStoragePrefix = 'mock-policy-server.response-body.';
+	const synchronizedDraftStoragePrefix = 'mock-policy-server.synchronized-response-body.';
 	const disclosureStoragePrefix = 'mock-policy-server.expanded.';
 
 	let endpoints: Endpoint[] = [];
@@ -111,6 +127,8 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	let proxyVerified = false;
 	let proxyBaseUrl = '';
 	let proxyUpstream = '';
+	let serverStateFile = '';
+	let serverHasPersistedState = true;
 	let proxyCheckInFlight = false;
 	let renderedLogSignature = '';
 	let stateUpdateQueue: Promise<void> = Promise.resolve();
@@ -128,6 +146,10 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 
 	function draftStorageKey(endpointId: string): string {
 		return `${draftStoragePrefix}${endpointId}`;
+	}
+
+	function synchronizedDraftStorageKey(endpointId: string): string {
+		return `${synchronizedDraftStoragePrefix}${endpointId}`;
 	}
 
 	function reportBrowserStorageError(error: unknown): void {
@@ -153,6 +175,28 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		}
 		try {
 			localStorage.setItem(draftStorageKey(endpointId), value);
+		} catch (error) {
+			reportBrowserStorageError(error);
+		}
+	}
+
+	function readSynchronizedDraft(endpointId: string): SynchronizedDraft | undefined {
+		try {
+			const stored = localStorage.getItem(synchronizedDraftStorageKey(endpointId));
+			if (stored === null) {
+				return undefined;
+			}
+			const parsed: unknown = JSON.parse(stored);
+			return isSynchronizedDraft(parsed) ? parsed : undefined;
+		} catch (error) {
+			reportBrowserStorageError(error);
+			return undefined;
+		}
+	}
+
+	function persistSynchronizedDraft(endpointId: string, value: string, stateFile = serverStateFile): void {
+		try {
+			localStorage.setItem(synchronizedDraftStorageKey(endpointId), JSON.stringify({ stateFile, value }));
 		} catch (error) {
 			reportBrowserStorageError(error);
 		}
@@ -622,7 +666,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			tooltip.id = tooltipId;
 			tooltip.className = 'tab-toggle-tooltip';
 			tooltip.role = 'tooltip';
-			tooltip.textContent = `On: this server returns the ${endpoint.label} response JSON configured below, or the selected failure behavior. Off: requests pass through to api.github.com.`;
+			tooltip.textContent = `On: this server returns the ${endpoint.label} response JSON configured below, or the selected failure behavior. Off: requests pass through to ${proxyUpstream || 'the configured upstream'}.`;
 			toggle.append(checkbox, track, tooltip);
 
 			item.append(tab, toggle);
@@ -664,11 +708,22 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		const serverText = JSON.stringify(endpoint.body ?? {}, null, '\t');
 		const hasMemoryDraft = Object.prototype.hasOwnProperty.call(drafts, id);
 		const persistedDraft = hasMemoryDraft ? undefined : readPersistedDraft(id);
-		editor.value = hasMemoryDraft ? drafts[id] : persistedDraft ?? serverText;
+		const synchronizedDraft = hasMemoryDraft ? undefined : readSynchronizedDraft(id);
+		const synchronizedWithThisServer = synchronizedDraft?.stateFile === serverStateFile;
+		const shouldRecoverPersistedDraft = persistedDraft !== undefined && (
+			(synchronizedWithThisServer && (!serverHasPersistedState || persistedDraft !== synchronizedDraft.value))
+			|| (synchronizedDraft === undefined && !serverHasPersistedState)
+		);
+		const shouldRecoverDraft = hasMemoryDraft ? dirtyDrafts.has(id) : shouldRecoverPersistedDraft;
+		const recoverableDraft = hasMemoryDraft ? drafts[id] : persistedDraft;
+		editor.value = shouldRecoverDraft && recoverableDraft !== undefined ? recoverableDraft : serverText;
 		drafts[id] = editor.value;
 		persistDraft(id, editor.value);
-		if (persistedDraft !== undefined && persistedDraft !== serverText) {
+		if (shouldRecoverDraft) {
 			dirtyDrafts.add(id);
+		} else {
+			dirtyDrafts.delete(id);
+			persistSynchronizedDraft(id, serverText);
 		}
 		renderTabs();
 		renderPresets();
@@ -679,7 +734,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		parseEditor();
 		renderFileDeploy();
 		renderSaveState();
-		if (persistedDraft !== undefined && persistedDraft !== serverText) {
+		if (shouldRecoverDraft) {
 			debouncedSave();
 		}
 	}
@@ -749,6 +804,9 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		const endpoint = endpoints.find(candidate => candidate.id === 'managedSettings') ?? endpoints[0];
 		$('map-from').textContent = endpoint && proxyUpstream ? `${proxyUpstream}${endpoint.path}` : '';
 		$('map-to').textContent = endpoint && proxyBaseUrl ? `${proxyBaseUrl}${endpoint.path}` : '';
+		$('setup-probe-shape').textContent = endpoint && proxyUpstream
+			? `GET ${proxyUpstream}${endpoint.path}?mockPolicySetupProbe=<random UUID>`
+			: '';
 	}
 
 	function selectSetupMethod(method: SetupMethod): void {
@@ -844,26 +902,51 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		endpoints = state.endpoints;
 		proxyBaseUrl = state.baseUrl ?? '';
 		proxyUpstream = state.upstream ?? '';
+		serverStateFile = state.stateFile ?? '';
+		serverHasPersistedState = state.hasPersistedState !== false;
 		renderProxy();
 		renderTabs();
 		lastServerSignature = stateSignature(state);
 	}
 
-	async function restoreBrowserDrafts(state: ServerState): Promise<ServerState> {
+	async function restoreBrowserDrafts(state: ServerState, allowLegacyDrafts = false): Promise<ServerState> {
 		if (state.hasPersistedState !== false) {
 			return state;
 		}
 		const updates: Array<{ endpoint: string; body: unknown }> = [];
+		const synchronizedUpdates = new Set<string>();
 		for (const endpoint of state.endpoints) {
 			const persistedDraft = readPersistedDraft(endpoint.id);
 			if (persistedDraft === undefined) {
 				continue;
 			}
+			const synchronizedDraft = readSynchronizedDraft(endpoint.id);
+			const synchronizedWithThisServer = synchronizedDraft?.stateFile === (state.stateFile ?? '');
+			if (synchronizedDraft !== undefined && !synchronizedWithThisServer) {
+				delete drafts[endpoint.id];
+				dirtyDrafts.delete(endpoint.id);
+				continue;
+			}
+			if (synchronizedDraft === undefined && !allowLegacyDrafts) {
+				delete drafts[endpoint.id];
+				dirtyDrafts.delete(endpoint.id);
+				continue;
+			}
 			drafts[endpoint.id] = persistedDraft;
 			try {
 				updates.push({ endpoint: endpoint.id, body: JSON.parse(persistedDraft) });
+				synchronizedUpdates.add(endpoint.id);
 			} catch {
 				dirtyDrafts.add(endpoint.id);
+				if (synchronizedWithThisServer) {
+					try {
+						updates.push({ endpoint: endpoint.id, body: JSON.parse(synchronizedDraft.value) });
+					} catch (error) {
+						console.warn(`Ignoring invalid synchronized browser state for ${endpoint.id}.`, error);
+					}
+				} else {
+					persistSynchronizedDraft(endpoint.id, JSON.stringify(endpoint.body ?? {}, null, '\t'), state.stateFile ?? '');
+				}
 			}
 		}
 		if (updates.length === 0) {
@@ -871,7 +954,10 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		}
 		const restoredState = await updateState({ endpoints: updates });
 		for (const update of updates) {
-			dirtyDrafts.delete(update.endpoint);
+			if (synchronizedUpdates.has(update.endpoint)) {
+				persistSynchronizedDraft(update.endpoint, drafts[update.endpoint], state.stateFile ?? '');
+				dirtyDrafts.delete(update.endpoint);
+			}
 		}
 		return restoredState;
 	}
@@ -885,7 +971,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		const endpoints = (state.endpoints ?? []).map(e => ({
 			id: e.id, status: e.status, mode: e.mode, active: e.active, body: e.body
 		}));
-		return JSON.stringify({ endpoints });
+		return JSON.stringify({ stateFile: state.stateFile ?? '', endpoints });
 	}
 
 	function isInteractingWithEditor(): boolean {
@@ -893,14 +979,24 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		return el === editor || el === responseStatusInput || el === responseModeSelect || el === presetSelect;
 	}
 
+	function discardDraftsFromOtherStateFile(state: ServerState): void {
+		const stateFile = state.stateFile ?? '';
+		for (const endpoint of state.endpoints) {
+			if (readSynchronizedDraft(endpoint.id)?.stateFile !== stateFile) {
+				delete drafts[endpoint.id];
+				dirtyDrafts.delete(endpoint.id);
+			}
+		}
+	}
+
 	/**
 	 * Poll the server state and reconcile the UI when it changed underneath us —
-	 * e.g. the control API or another tab edited a response body. Skipped while
-	 * the user is editing or our own writes are settling so we never clobber an
-	 * in-progress edit; the next poll catches up once they finish.
+	 * e.g. the control API or another tab edited a response body. Same-server
+	 * changes wait for editing and writes to settle, while a different state-file
+	 * namespace is applied immediately so an old draft cannot cross into it.
 	 */
 	async function refreshState(): Promise<void> {
-		if (stateWritesInFlight > 0 || pendingSaves.size > 0 || isInteractingWithEditor()) {
+		if (stateWritesInFlight > 0 || pendingSaves.size > 0) {
 			return;
 		}
 		let state: ServerState;
@@ -910,8 +1006,15 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			return; // the next poll will retry
 		}
 		// Re-check after the await: a save may have started meanwhile.
-		if (stateWritesInFlight > 0 || pendingSaves.size > 0 || isInteractingWithEditor()) {
+		if (stateWritesInFlight > 0 || pendingSaves.size > 0) {
 			return;
+		}
+		const stateFileChanged = serverStateFile !== '' && (state.stateFile ?? '') !== serverStateFile;
+		if (isInteractingWithEditor() && !stateFileChanged) {
+			return;
+		}
+		if (stateFileChanged) {
+			discardDraftsFromOtherStateFile(state);
 		}
 		if (state.hasPersistedState === false) {
 			try {
@@ -934,6 +1037,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			if (!dirtyDrafts.has(endpoint.id)) {
 				drafts[endpoint.id] = JSON.stringify(endpoint.body ?? {}, null, '\t');
 				persistDraft(endpoint.id, drafts[endpoint.id]);
+				persistSynchronizedDraft(endpoint.id, drafts[endpoint.id]);
 			}
 		}
 		const endpoint = activeEndpoint();
@@ -1033,6 +1137,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			if (currentDraft === undefined || currentDraft === snapshot.editorText) {
 				drafts[snapshot.endpoint] = snapshot.editorText;
 				persistDraft(snapshot.endpoint, snapshot.editorText);
+				persistSynchronizedDraft(snapshot.endpoint, snapshot.editorText);
 				dirtyDrafts.delete(snapshot.endpoint);
 			}
 			if (snapshot.endpoint === activeId && editor.value === snapshot.editorText && !pendingSaves.has(snapshot.endpoint)) {
@@ -1430,7 +1535,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 
 		try {
 			let state = await api<ServerState>('/api/state');
-			state = await restoreBrowserDrafts(state);
+			state = await restoreBrowserDrafts(state, true);
 			selectSetupMethod('proxy');
 			applyState(state);
 			if (endpoints.length) {
