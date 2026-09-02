@@ -407,6 +407,15 @@ function resolveWorkspace(workspace: string, sessions: readonly IAgentSessionMet
 	return parsed;
 }
 
+function createSessionWorkspaceNeedsCatalog(rawArgs: unknown): boolean {
+	const args = (rawArgs ?? {}) as ICreateSessionArgs;
+	if (getCreateSessionRelationship(args) !== 'independent') {
+		return false;
+	}
+	const workspace = getOptionalString(args.workspace, 'workspace', SessionServerToolName.CreateSession);
+	return workspace !== undefined && parseWorkspaceUri(workspace) === undefined;
+}
+
 function resolveModel(modelName: string | undefined, models: readonly IAgentModelInfo[], provider?: AgentProvider): IAgentModelInfo | undefined {
 	if (modelName === undefined) {
 		return undefined;
@@ -720,7 +729,10 @@ export interface ICreateSessionResult {
  * Creates work with the requested relationship and sends its initial prompt.
  */
 export async function applyCreateSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI, sourceTurnId?: string): Promise<ICreateSessionResult> {
-	const sessions = await accessor.listSessions();
+	// A direct workspace URI/path is self-contained. Only a project display name
+	// needs the aggregate catalog, which may be temporarily unavailable for an
+	// otherwise healthy provider.
+	const sessions = createSessionWorkspaceNeedsCatalog(rawArgs) ? await accessor.listSessions() : [];
 	const currentSession = source ? currentSessionUri(source.toString()) : undefined;
 	const currentProvider = currentSession ? AgentSession.provider(currentSession) : undefined;
 	const args = getCreateSessionArgs(rawArgs, sessions, accessor.getModels(), currentProvider);
@@ -1391,7 +1403,11 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 						return serializeSessions(filterSessions(await accessor.listSessions(), getListSessionsArgs(rawArgs)));
 					}
 				case SessionServerToolName.GetCurrentSession:
-					return serializeCurrentSession(currentSessionUri(currentChannel), await accessor.listSessions());
+					{
+						const currentSession = currentSessionUri(currentChannel);
+						const metadata = await accessor.getSession(currentSession);
+						return serializeCurrentSession(currentSession, metadata ? [metadata] : []);
+					}
 				case SessionServerToolName.CreateSession: {
 					const relationship = getCreateSessionRelationship(rawArgs);
 					if (relationship === 'currentSession' && createdChatCount >= maxCreatedChats) {
