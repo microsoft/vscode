@@ -221,3 +221,9 @@
 
 #### sessions/sessionsList/SessionsList_NestedChatHierarchyGuides/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/c46f523601ae0d57ae2bb306465cac7f1fb127adf02c3047c362f8432bd2c864)
+
+#### sessions/sessionsList/SessionsList_PeerChatInProgress/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/e07a2bd5dbb42d2ab31f8c5a2845a1262d4d10ba78625da7461a232cf4de28d0)
+
+#### sessions/sessionsList/SessionsList_PeerChatInProgress/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/4aceb7c295b1a4b1cb8675fbbfa3376d9951506a0d02e6f34eac1770dd148110)
