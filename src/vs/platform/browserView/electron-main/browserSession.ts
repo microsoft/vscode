@@ -57,7 +57,7 @@ export class BrowserSession {
 	 *  - Global scope         -> `"global"`
 	 *  - Workspace scope      -> `"workspace:${workspaceId}"`
 	 *  - Ephemeral per-view   -> `"ephemeral:${viewId}"`
-	 *  - Ephemeral affinity   -> `"ephemeral-affinity:${affinityHash}"`
+	 *  - Agent scope          -> `"agent:${identityHash}"`
 	 *  - Custom type          -> `"${type}:${viewId}"`
 	 */
 	private static readonly _byId = new Map<string, WeakRef<BrowserSession>>();
@@ -138,7 +138,7 @@ export class BrowserSession {
 	 * Get or create an ephemeral session for the given view or target ID.
 	 */
 	static getOrCreateEphemeral(instantiationService: IInstantiationService, viewId: string, type?: string): BrowserSession {
-		if (type === 'workspace' || type === 'ephemeral') {
+		if (type === 'workspace' || type === 'ephemeral' || type === 'agent') {
 			throw new Error(`Cannot create session with reserved type '${type}'`);
 		}
 
@@ -148,11 +148,22 @@ export class BrowserSession {
 			?? instantiationService.createInstance(BrowserSession, sessionId, electronSession, BrowserViewStorageScope.Ephemeral);
 	}
 
-	private static getOrCreateEphemeralForAffinity(instantiationService: IInstantiationService, affinity: string): BrowserSession {
-		const affinityHash = createHash('sha256').update(affinity).digest('hex');
-		const electronSession = session.fromPartition(`vscode-browser-affinity-${affinityHash}`);
+	/** Get or create an in-memory agent session by affinity, workspace, or window. */
+	static getOrCreateAgent(instantiationService: IInstantiationService, workspaceId: string | undefined, affinity?: string, windowId?: number): BrowserSession {
+		let identity: string;
+		if (affinity !== undefined) {
+			identity = `affinity:${affinity}`;
+		} else if (workspaceId !== undefined) {
+			identity = `workspace:${workspaceId}`;
+		} else if (windowId !== undefined) {
+			identity = `window:${windowId}`;
+		} else {
+			throw new Error('Agent browser sessions require an affinity, workspace, or window');
+		}
+		const identityHash = createHash('sha256').update(identity).digest('hex');
+		const electronSession = session.fromPartition(`vscode-browser-agent-${identityHash}`);
 		return BrowserSession._bySession.get(electronSession)
-			?? instantiationService.createInstance(BrowserSession, `ephemeral-affinity:${affinityHash}`, electronSession, BrowserViewStorageScope.Ephemeral);
+			?? instantiationService.createInstance(BrowserSession, `agent:${identityHash}`, electronSession, BrowserViewStorageScope.Agent);
 	}
 
 	/**
@@ -177,6 +188,7 @@ export class BrowserSession {
 		options: IBrowserViewSessionOptions,
 		workspaceStorageHome: URI,
 		workspaceId?: string,
+		windowId?: number,
 	): BrowserSession {
 		switch (options.scope) {
 			case BrowserViewStorageScope.Global:
@@ -187,9 +199,9 @@ export class BrowserSession {
 				}
 				return BrowserSession.getOrCreateEphemeral(instantiationService, viewId);
 			case BrowserViewStorageScope.Ephemeral:
-				return options.affinity !== undefined
-					? BrowserSession.getOrCreateEphemeralForAffinity(instantiationService, options.affinity)
-					: BrowserSession.getOrCreateEphemeral(instantiationService, viewId);
+				return BrowserSession.getOrCreateEphemeral(instantiationService, viewId);
+			case BrowserViewStorageScope.Agent:
+				return BrowserSession.getOrCreateAgent(instantiationService, workspaceId, options.affinity, windowId);
 		}
 	}
 

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -48,6 +49,19 @@ type ConnectionTestService = {
 	_sessionErrorCode: string;
 	_sessionCloseCode: number;
 	_awaitVoiceConnected: () => Promise<void>;
+};
+
+type FinalizationTestService = {
+	_activeBackend: 'nemo';
+	_localTranscription: {
+		stop: () => Promise<string>;
+		cancel: () => Promise<void>;
+	};
+	_finalizedText: string;
+	_deltaText: string;
+	_logService: Pick<Console, 'warn'>;
+	_pendingLocalTeardown: Promise<void> | undefined;
+	_finishBackend: () => Promise<string | undefined>;
 };
 
 suite('ChatSpeechToTextService', () => {
@@ -125,6 +139,43 @@ suite('ChatSpeechToTextService', () => {
 
 		fatalDisconnect.dispose();
 		sessionDisposables.dispose();
+	});
+
+	test('returns the streamed transcript when on-device finalization times out', async () => {
+		const clock = sinon.useFakeTimers();
+		const warnings: string[] = [];
+		const stop = new DeferredPromise<string>();
+		let cancellations = 0;
+		const service = Object.create(ChatSpeechToTextService.prototype) as FinalizationTestService;
+		service._activeBackend = 'nemo';
+		service._finalizedText = 'streamed transcript';
+		service._deltaText = '';
+		service._logService = { warn: message => warnings.push(message) };
+		service._localTranscription = {
+			stop: () => stop.p,
+			cancel: async () => { cancellations++; },
+		};
+
+		try {
+			const resultPromise = service._finishBackend();
+			await clock.tickAsync(8000);
+
+			assert.deepStrictEqual({
+				result: await resultPromise,
+				cancellations,
+				teardownPending: service._pendingLocalTeardown !== undefined,
+				warnings,
+			}, {
+				result: 'streamed transcript',
+				cancellations: 1,
+				teardownPending: true,
+				warnings: ['[chat-stt] on-device final transcription timed out after 8000ms; using streamed transcript'],
+			});
+			stop.complete('');
+			await service._pendingLocalTeardown;
+		} finally {
+			clock.restore();
+		}
 	});
 
 	test('resolves the dictation language from Voice Mode configuration, display language, and browser locale', () => {

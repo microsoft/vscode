@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { formatTokenCount } from '../../../../../../base/common/numbers.js';
 import { localize } from '../../../../../../nls.js';
+import { readAgentModelNoticesMeta } from '../../../../../../platform/agentHost/common/agentModelNotices.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/agentModelPricing.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
@@ -109,6 +111,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				const multiplierNumeric = pricing.multiplierNumeric;
 				// "Auto" advertises the auto-mode discount (detail) + description (tooltip). microsoft/vscode#321778, #321659.
 				const isAuto = m.id === AUTO_RAW_MODEL_ID;
+				const notices = isAuto ? undefined : readAgentModelNoticesMeta(m);
 				const discountPercent = pricing.discountPercent;
 				// Guard against a non-finite or out-of-range value from the open `_meta` bag so we never render
 				// nonsense like "Infinity% discount"; the documented range is a whole number in (0, 100].
@@ -116,9 +119,9 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				const detail = isAuto && hasDiscount
 					? localize('agentHost.auto.discount', "{0}% discount", discountPercent)
 					: undefined;
-				const tooltip = isAuto
+				const tooltip = notices?.rowWarning ?? (isAuto
 					? ILanguageModelChatMetadata.getAutoModelDescription(hasDiscount ? discountPercent : undefined)
-					: undefined;
+					: undefined);
 				const modelGroup = this._modelGroupFor(m);
 				const byokModelIdentifier = readAgentModelByokIdentifier(m);
 				// A host that derives its list from the Copilot SDK advertises no billing and no
@@ -140,6 +143,9 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						maxOutputTokens: m.maxOutputTokens ?? known?.maxOutputTokens ?? 0,
 						isDefaultForLocation: {},
 						isUserSelectable: true,
+						statusIcon: notices?.rowWarning ? Codicon.warning : undefined,
+						warningText: notices?.warningText,
+						infoText: notices?.infoText,
 						pricing: multiplierNumeric !== undefined ? `${multiplierNumeric}x` : known?.pricing,
 						multiplierNumeric: multiplierNumeric ?? known?.multiplierNumeric,
 						inputCost: pricing.inputCost ?? known?.inputCost,

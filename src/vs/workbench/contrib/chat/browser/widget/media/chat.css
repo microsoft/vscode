@@ -26,6 +26,78 @@
 	--vscode-chat-font-size-body-xxl: 1.538em;
 }
 
+@keyframes chat-session-working-glow {
+	0%,
+	100% {
+		box-shadow: 0 0 var(--vscode-spacing-size20) color-mix(in srgb, var(--vscode-charts-green) 35%, transparent);
+	}
+
+	50% {
+		box-shadow: 0 0 var(--vscode-spacing-size60) color-mix(in srgb, var(--vscode-charts-green) 80%, transparent);
+	}
+}
+
+.monaco-workbench .interactive-session.chat-session-state-indicator:is(.chat-state-idle-unvisited, .chat-state-in-progress, .chat-state-needs-input)::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	/* Paint above the Prompt Timeline sticky header (9) and rail (15). */
+	z-index: 16;
+	pointer-events: none;
+	border: var(--vscode-strokeThickness) solid transparent;
+	border-radius: var(--vscode-cornerRadius-medium);
+	transition: border-color 350ms ease, box-shadow 350ms ease;
+}
+
+.monaco-workbench .interactive-session.chat-session-state-indicator.chat-state-idle-unvisited::before {
+	border-color: hsl(from var(--vscode-foreground) h 0% l / 0.7);
+	border-style: dotted;
+}
+
+.monaco-workbench .interactive-session.chat-session-state-indicator.chat-state-in-progress::before {
+	border-color: var(--vscode-charts-green);
+	border-style: solid;
+	animation: chat-session-working-glow 1.4s ease-in-out infinite;
+}
+
+.monaco-workbench .interactive-session.chat-session-state-indicator.chat-state-needs-input::before {
+	border-color: var(--vscode-errorForeground);
+	border-style: dashed;
+	box-shadow: 0 0 var(--vscode-spacing-size80) color-mix(in srgb, var(--vscode-errorForeground) 60%, transparent);
+}
+
+.monaco-workbench.hc-black .interactive-session.chat-session-state-indicator::before,
+.monaco-workbench.hc-light .interactive-session.chat-session-state-indicator::before {
+	border-color: var(--vscode-contrastActiveBorder);
+	box-shadow: none;
+}
+
+.monaco-workbench.hc-black .interactive-session.chat-session-state-indicator.chat-state-in-progress::before,
+.monaco-workbench.hc-light .interactive-session.chat-session-state-indicator.chat-state-in-progress::before {
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	animation: none;
+}
+
+.monaco-reduce-motion .interactive-session.chat-session-state-indicator::before,
+.monaco-workbench.monaco-reduce-motion .interactive-session.chat-session-state-indicator::before {
+	transition: none;
+}
+
+.monaco-reduce-motion .interactive-session.chat-session-state-indicator.chat-state-in-progress::before,
+.monaco-workbench.monaco-reduce-motion .interactive-session.chat-session-state-indicator.chat-state-in-progress::before {
+	animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.monaco-workbench .interactive-session.chat-session-state-indicator::before {
+		transition: none;
+	}
+
+	.monaco-workbench .interactive-session.chat-session-state-indicator.chat-state-in-progress::before {
+		animation: none;
+	}
+}
+
 .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie,
 .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-tree-sticky-container .monaco-tree-sticky-row > .monaco-tl-row > .monaco-tl-twistie {
 	/* Hide twisties from chat tree rows, but not from nested trees within a chat response */

@@ -25,6 +25,7 @@ import { HasDockedDetailsContext, SinglePaneLayoutEnabledContext } from '../../.
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
+import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { DetailPanelTarget, SinglePaneDetailPanelCoordinator } from './singlePaneDetailPanelCoordinator.js';
 import { SinglePaneDockedTabsCoordinator } from './singlePaneDockedTabsCoordinator.js';
 import { isChangesEditorInput, isEditorWithoutDockedDetails, isFileEditorInput, isMainPartEmpty } from './singlePaneSharedHelpers.js';
@@ -33,7 +34,7 @@ import { SessionVisibilityProfile, SinglePaneVisibilityProfileStore } from './si
 
 /** Command that toggles the single-pane detail panel (auxiliary bar) from the editor header. */
 export const TOGGLE_DETAILS_COMMAND_ID = 'workbench.action.agentSessions.toggleDetails';
-const singlePaneHeaderToggleDetailsOrder = 10;
+const singlePaneHeaderToggleDetailsOrder = 9;
 
 /**
  * Behaviour for the **Existing Session** lifecycle stage — a created, workspace-backed
@@ -269,6 +270,9 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 		let activeSessionKey: string | undefined;
 		let pendingSessionKey: string | undefined;
 		let pendingOutgoingEditor: EditorInput | undefined;
+		let previousActiveEditor: EditorInput | undefined;
+		let previousEditorPartVisible = false;
+		let previousEditorSessionKey: string | undefined;
 
 		const sync = (reader: IReader | undefined) => {
 			const activeSession = this._sessionsService.activeSession.read(reader);
@@ -277,6 +281,9 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 				|| !activeSession.workspace.read(reader)
 				|| !activeSession.isCreated.read(reader)) {
 				wasExistingActive = false;
+				previousActiveEditor = undefined;
+				previousEditorPartVisible = false;
+				previousEditorSessionKey = undefined;
 				return;
 			}
 
@@ -304,9 +311,15 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 				return;
 			}
 
+			const emptyFilesShown = activeEditor instanceof EmptyFileEditorInput
+				&& editorPartVisible
+				&& (activeEditor !== previousActiveEditor || !previousEditorPartVisible || sessionKey !== previousEditorSessionKey);
+			previousActiveEditor = activeEditor;
+			previousEditorPartVisible = editorPartVisible;
+			previousEditorSessionKey = sessionKey;
 			const target = this._computeTarget(activeEditor, mainPartEmpty, editorMaximized, editorPartVisible);
 			const revealOnly = this._ctx.multipleSessionsVisibleObs.read(reader);
-			this._syncDetailVisibility(target, revealOnly);
+			this._syncDetailVisibility(target, revealOnly, emptyFilesShown);
 			this._detailPanel.sync(target);
 		};
 
@@ -328,12 +341,18 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 		}));
 	}
 
-	private _syncDetailVisibility(target: DetailPanelTarget, revealOnly: boolean): void {
+	private _syncDetailVisibility(target: DetailPanelTarget, revealOnly: boolean, emptyFilesShown: boolean): void {
+		const detailVisible = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+		if (emptyFilesShown && !detailVisible) {
+			this._detailHiddenTransiently = false;
+			this._detailHiddenByEditor = false;
+			this._setDetailHiddenTransiently(false);
+			return;
+		}
 		if (this._ctx.isRestoringSessionLayout || target === DetailPanelTarget.Preserve) {
 			return;
 		}
 
-		const detailVisible = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
 		if (target === DetailPanelTarget.Hidden || target === DetailPanelTarget.EditorHidden) {
 			if ((target === DetailPanelTarget.EditorHidden || !revealOnly) && detailVisible) {
 				this._detailHiddenTransiently = true;

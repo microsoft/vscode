@@ -95,6 +95,7 @@ suite('Changes View Actions', () => {
 			'create-pr-auto-merge',
 			'create-pr-auto-squash',
 			'create-pr-auto-rebase',
+			'create-pr-agent-merge',
 			'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR',
 			'workbench.action.agentSessions.runSkill.createPR',
 			'create-draft-pr',
@@ -103,8 +104,8 @@ suite('Changes View Actions', () => {
 		].map(actionId => unlockChatPetCreatePullRequestAchievement(actionId, chatPetService));
 
 		assert.deepStrictEqual({ results, attemptedUnlocks }, {
-			results: [true, true, true, true, true, true, false, false, false],
-			attemptedUnlocks: Array(6).fill(ChatPetAchievementIds.CreatePullRequest),
+			results: [true, true, true, true, true, true, true, false, false, false],
+			attemptedUnlocks: Array(7).fill(ChatPetAchievementIds.CreatePullRequest),
 		});
 	});
 
@@ -292,45 +293,45 @@ suite('Changes View Actions', () => {
 		assert.strictEqual(getChangesAccessibilityHelp(false).includes('Use Inline View in the editor title area\'s More Actions menu'), true);
 	});
 
-	test('view mode toggles are contributed to the editor title bar overflow for non-text single-file diffs', () => {
-		const items = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
+	test('view mode toggles are moved to the editor header layout overflow for non-text single-file diffs', () => {
+		const getItems = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
 			.filter(isIMenuItem)
-			.filter(item => item.command.id === 'workbench.action.agentSessions.setChangesListViewMode' || item.command.id === 'workbench.action.agentSessions.setChangesTreeViewMode');
+			.filter(item => item.command.id === 'workbench.action.agentSessions.setChangesListViewMode' || item.command.id === 'workbench.action.agentSessions.setChangesTreeViewMode')
+			.map(item => {
+				const when = item.when?.serialize() ?? '';
+				const context = new Context(1, null);
+				context.setValue(IsSessionsWindowContext.key, true);
+				context.setValue(SinglePaneDiffEditorInputActiveContext.key, true);
+				context.setValue(SinglePaneLayoutEnabledContext.key, true);
+				context.setValue(IsAuxiliaryWindowContext.key, false);
+				context.setValue(IsTopRightEditorGroupContext.key, true);
+				context.setValue(AuxiliaryBarVisibleContext.key, true);
+				context.setValue(
+					ChangesContextKeys.ViewMode.key,
+					item.command.id === 'workbench.action.agentSessions.setChangesListViewMode' ? ChangesViewMode.Tree : ChangesViewMode.List
+				);
+				return {
+					id: item.command.id,
+					title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+					group: item.group,
+					order: item.order,
+					icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
+					hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
+					hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
+					hasDiffEditorInputGate: when.includes(SinglePaneDiffEditorInputActiveContext.key),
+					hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
+					hasAuxBarVisibleGate: when.includes(AuxiliaryBarVisibleContext.key),
+					hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
+					hasViewModeGate: when.includes(ChangesContextKeys.ViewMode.key),
+					matchesSingleFileDiffContext: item.when?.evaluate(context) ?? false,
+				};
+			})
+			.sort((a, b) => a.id.localeCompare(b.id));
 
-		const actual = items.map(item => {
-			const when = item.when?.serialize() ?? '';
-			const context = new Context(1, null);
-			context.setValue(IsSessionsWindowContext.key, true);
-			context.setValue(SinglePaneDiffEditorInputActiveContext.key, true);
-			context.setValue(SinglePaneLayoutEnabledContext.key, true);
-			context.setValue(IsAuxiliaryWindowContext.key, false);
-			context.setValue(IsTopRightEditorGroupContext.key, true);
-			context.setValue(AuxiliaryBarVisibleContext.key, true);
-			context.setValue(
-				ChangesContextKeys.ViewMode.key,
-				item.command.id === 'workbench.action.agentSessions.setChangesListViewMode' ? ChangesViewMode.Tree : ChangesViewMode.List
-			);
-			return {
-				id: item.command.id,
-				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
-				group: item.group,
-				order: item.order,
-				icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
-				hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
-				hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
-				hasDiffEditorInputGate: when.includes(SinglePaneDiffEditorInputActiveContext.key),
-				hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
-				hasAuxBarVisibleGate: when.includes(AuxiliaryBarVisibleContext.key),
-				hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
-				hasViewModeGate: when.includes(ChangesContextKeys.ViewMode.key),
-				matchesSingleFileDiffContext: item.when?.evaluate(context) ?? false,
-			};
-		}).sort((a, b) => a.id.localeCompare(b.id));
-
-		assert.deepStrictEqual(actual, [{
+		const expectedItems = (group: string) => [{
 			id: 'workbench.action.agentSessions.setChangesListViewMode',
 			title: 'View as List',
-			group: '2_viewMode',
+			group,
 			order: 20,
 			icon: Codicon.listFlat.id,
 			hasSessionsWindowGate: true,
@@ -344,7 +345,7 @@ suite('Changes View Actions', () => {
 		}, {
 			id: 'workbench.action.agentSessions.setChangesTreeViewMode',
 			title: 'View as Tree',
-			group: '2_viewMode',
+			group,
 			order: 20,
 			icon: Codicon.listTree.id,
 			hasSessionsWindowGate: true,
@@ -355,7 +356,15 @@ suite('Changes View Actions', () => {
 			hasEditorAreaVisibleGate: false,
 			hasViewModeGate: true,
 			matchesSingleFileDiffContext: true,
-		}]);
+		}];
+
+		assert.deepStrictEqual({
+			headerLayout: getItems(Menus.SessionsEditorHeaderLayout),
+			editorTitleOverflow: getItems(Menus.SessionsEditorTitle),
+		}, {
+			headerLayout: expectedItems('secondary/2_viewMode'),
+			editorTitleOverflow: [],
+		});
 	});
 
 	test('Create Pull Request anchor is visible for created sessions but hidden for custom views', () => {
