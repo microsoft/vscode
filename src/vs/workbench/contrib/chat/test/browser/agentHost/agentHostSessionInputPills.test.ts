@@ -4,16 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../../../base/common/event.js';
+import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { ISessionArtifact, SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChatOriginKind, SessionState, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
-import { getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, selectAgentHostSessionChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
+import { AgentHostSessionInputPills, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, selectAgentHostSessionChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
+import { ISessionChatPillVisibilityService } from '../../../common/sessionChatPills.js';
+import { ChatWidget } from '../../../browser/widget/chatWidget.js';
+import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
+import { ChatViewModel } from '../../../common/model/chatViewModel.js';
 
 suite('AgentHostSessionInputPills', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('partitions GitHub links, artifacts, and references without duplication', () => {
 		const entries: readonly ISessionArtifact[] = [
@@ -112,6 +127,71 @@ suite('AgentHostSessionInputPills', () => {
 			hasCanonicalChild: true,
 			hasExplicitChild: true,
 			hasUnrelatedChild: false,
+		});
+	});
+
+	test('does not render pills for a Local chat input', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const sessionResource = URI.parse('vscode-chat-session://local/session');
+		const persistentContent = document.createElement('div');
+		document.body.appendChild(persistentContent);
+		store.add(toDisposable(() => persistentContent.remove()));
+		let persistentContentHeight: number | undefined;
+		const widget = upcastPartial<ChatWidget>({
+			inputPart: upcastPartial<ChatInputPart>({
+				persistentContentContainerElement: persistentContent,
+				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
+			}),
+			onDidChangeViewModel: Event.None,
+			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
+			setPersistentContentHeight: height => persistentContentHeight = height,
+		});
+		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
+			onDidChangeConnections: Event.None,
+			connections: [],
+			resolveSessionResource: () => undefined,
+		});
+		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
+			onDidChangeBrowserViews: Event.None,
+			getKnownBrowserViews: () => new Map(),
+		});
+		const visibility = upcastPartial<ISessionChatPillVisibilityService>({
+			readHiddenKinds: () => new Set(),
+			isVisible: () => true,
+			hide: () => { },
+			toggle: () => { },
+		});
+		const [clipboardService, configurationService, contextMenuService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IClipboardService),
+			accessor.get(IConfigurationService),
+			accessor.get(IContextMenuService),
+			accessor.get(IEditorService),
+			accessor.get(IOpenerService),
+		] as const);
+
+		store.add(new AgentHostSessionInputPills(
+			widget,
+			false,
+			connectionsService,
+			browserViewService,
+			clipboardService,
+			configurationService,
+			contextMenuService,
+			editorService,
+			instantiationService,
+			openerService,
+			visibility,
+		));
+		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
+
+		assert.deepStrictEqual({
+			hidden: row?.classList.contains('hidden'),
+			pillCount: row?.querySelectorAll('.chat-pill-item').length,
+			persistentContentHeight,
+		}, {
+			hidden: true,
+			pillCount: 0,
+			persistentContentHeight: undefined,
 		});
 	});
 });
