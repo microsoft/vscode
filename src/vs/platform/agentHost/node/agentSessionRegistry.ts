@@ -92,6 +92,11 @@ export class AgentSessionRegistry extends Disposable {
 		return this._database.updateSessionModifiedTime(session.toString(), modifiedTime);
 	}
 
+	/** Advances the durable last-observed provider modification time for many sessions in one transaction. */
+	updateModifiedTimes(updates: readonly { readonly session: URI; readonly modifiedTime: number }[]): Promise<void> {
+		return this._database.updateSessionModifiedTimes(updates.map(({ session, modifiedTime }) => ({ session: session.toString(), modifiedTime })));
+	}
+
 	/** Every registered session URI key without running legacy metadata migration. */
 	async listSessionKeys(): Promise<ReadonlySet<string>> {
 		return new Set((await this._database.listSessionV2Registrations()).map(entry => entry.session));
@@ -100,6 +105,14 @@ export class AgentSessionRegistry extends Disposable {
 	/** Current and legacy identity keys used only to deduplicate cooling-period discovery. */
 	async listRuntimeCompatibleSessionKeys(): Promise<ReadonlySet<string>> {
 		return new Set(await this._database.listRuntimeCompatibleSessionKeys());
+	}
+
+	/**
+	 * Every current session URI mapped to its durable last-observed modification
+	 * time, without running legacy metadata migration.
+	 */
+	async listSessionModifiedTimes(): Promise<ReadonlyMap<string, number>> {
+		return new Map((await this._database.listSessionV2Registrations()).map(entry => [entry.session, entry.modifiedTime]));
 	}
 
 	/**

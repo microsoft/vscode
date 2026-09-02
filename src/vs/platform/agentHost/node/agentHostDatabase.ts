@@ -46,6 +46,11 @@ export interface IAgentHostDatabaseExternalUpdate {
 	readonly external: boolean;
 }
 
+export interface IAgentHostDatabaseModifiedTimeUpdate {
+	readonly session: string;
+	readonly modifiedTime: number;
+}
+
 export type AgentHostSessionsV2ExclusionReason = 'backing' | 'subagent' | 'providerAbsent' | 'staleExternal';
 
 export interface IAgentHostDatabaseSessionsV2Exclusion {
@@ -106,6 +111,8 @@ export interface IAgentHostDatabase extends IDisposable {
 	updateSessionExternal(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void>;
 	/** Advances the durable last-observed modification time. */
 	updateSessionModifiedTime(session: string, modifiedTime: number): Promise<boolean>;
+	/** Advances the durable last-observed modification time for many sessions in one transaction. */
+	updateSessionModifiedTimes(updates: readonly IAgentHostDatabaseModifiedTimeUpdate[]): Promise<void>;
 	getSession(session: string): Promise<IAgentHostDatabaseSession | undefined>;
 	listSessions(): Promise<readonly IAgentHostDatabaseSession[]>;
 	isSessionRegistryEmpty(): Promise<boolean>;
@@ -481,6 +488,8 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					const source = external
 						? `'discovery'`
 						: `CASE WHEN registration_source = 'explicit' THEN 'explicit' ELSE 'restore' END`;
+					await run(database, `UPDATE sessions_v2 SET external = ?, registration_source = ${source}
+						WHERE session_uri = ? AND external IS NULL`, [external ? 1 : 0, session]);
 					await run(database, `UPDATE sessions SET external = ?, registration_source = ${source}
 						WHERE session_uri = ? AND external IS NULL`, [external ? 1 : 0, session]);
 				}
@@ -510,6 +519,25 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				return changes > 0;
 			} catch (error) {
 				return this._rollback(database, error, `Failed to update the modified time for ${session}`);
+			}
+		});
+	}
+
+	async updateSessionModifiedTimes(updates: readonly IAgentHostDatabaseModifiedTimeUpdate[]): Promise<void> {
+		if (updates.length === 0) {
+			return;
+		}
+		await this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				for (const { session, modifiedTime } of updates) {
+					await run(database, 'UPDATE sessions_v2 SET modified_time = ? WHERE session_uri = ? AND modified_time < ?', [modifiedTime, session, modifiedTime]);
+					await run(database, 'UPDATE sessions SET modified_time = ? WHERE session_uri = ? AND modified_time < ?', [modifiedTime, session, modifiedTime]);
+				}
+				await exec(database, 'COMMIT');
+			} catch (error) {
+				await this._rollback(database, error, 'Failed to update session modified times');
 			}
 		});
 	}

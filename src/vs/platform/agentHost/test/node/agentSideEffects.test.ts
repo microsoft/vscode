@@ -22,6 +22,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession, AgentSignal, IAgent, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext } from '../../common/agent.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -1084,6 +1085,25 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), prompt: 'hello world', attachments: undefined, chat: URI.parse(defaultChatUri) }]);
 			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
 			assert.strictEqual(!URI.isUri(sendContext) ? sendContext?.hostInstructions : undefined, undefined);
+		});
+
+		test('marks Agent Merge turns on the provider send context', async () => {
+			setupSession();
+			sideEffects.handleAction(defaultChatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-agent-merge',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: {
+					text: 'repair the pull request',
+					origin: { kind: MessageKind.SystemNotification },
+					_meta: toAgentMergeMessageMeta(),
+				},
+			});
+
+			await waitForSendMessageCalls(1);
+
+			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
+			assert.strictEqual(!URI.isUri(sendContext) && sendContext?.agentMergeTurn, true);
 		});
 
 		test('stamps the exhaustive host chat context on the send boundary', async () => {

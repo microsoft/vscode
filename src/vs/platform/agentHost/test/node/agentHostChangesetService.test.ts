@@ -1842,6 +1842,18 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			}
 		}
 
+		/** Polls until the independently published primary branch changeset settles. */
+		async function waitForBranchCompute(svc: AgentHostChangesetService, stateManager: AgentHostStateManager): Promise<void> {
+			const branchUri = buildBranchChangesetUri(sessionStr);
+			for (let i = 0; i < 500; i++) {
+				const status = stateManager.getChangesetState(branchUri)?.status;
+				if (!svc.isStaticChangesetComputeActive(branchUri) && status !== ChangesetStatus.Computing) {
+					return;
+				}
+				await timeout(1);
+			}
+		}
+
 		test('sums every repository branch diff, not just the primary', async () => {
 			const git = createNoopGitService();
 			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
@@ -1983,7 +1995,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			);
 		});
 
-		test('a repository whose branch diff throws is skipped and logged, without failing the aggregate', async () => {
+		test('a repository branch diff failure leaves a cold summary unavailable without failing the branch changeset', async () => {
 			const log = new RecordingLogService();
 			const git = createNoopGitService();
 			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
@@ -1994,14 +2006,23 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 				if (root === 'file:///repoGood2') { return [gitDiff('/repoGood2/b.ts', 5, 1)]; }
 				return undefined;
 			};
-			const { svc, stateManager } = build({ workingDirectories: ['file:///repoGood1', 'file:///repoBad', 'file:///repoGood2'], git, checkpoint: NULL_CHECKPOINT_SERVICE, log });
+			const db = new TestSessionDatabase();
+			const { svc, stateManager } = build({ workingDirectories: ['file:///repoGood1', 'file:///repoBad', 'file:///repoGood2'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db, log });
 
 			svc.refreshBranchChangeset(sessionStr);
-			const changes = await waitForSummaryChanges(stateManager);
+			await waitForBranchCompute(svc, stateManager);
 
-			// repoBad is skipped; the aggregate is the sum of the two good repos.
-			assert.deepStrictEqual(changes, { additions: 7, deletions: 1, files: 2 }, 'the failing repository is excluded, the rest still counted');
-			assert.ok(log.errors.some(e => e.includes('repoBad')), `expected an error naming the failing repository, got ${JSON.stringify(log.errors)}`);
+			assert.deepStrictEqual({
+				live: stateManager.getSessionSummary(sessionStr)?.changes,
+				persisted: await db.getMetadata(META_CHANGES_SUMMARY),
+				branchStatus: stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.status,
+				loggedRepoBad: log.errors.some(e => e.includes('repoBad')),
+			}, {
+				live: undefined,
+				persisted: undefined,
+				branchStatus: ChangesetStatus.Ready,
+				loggedRepoBad: true,
+			}, 'one failed source prevents partial publication without failing the primary branch changeset');
 		});
 
 		test('threads a base branch per repository (primary uses the session base, secondaries their default)', async () => {
@@ -2027,18 +2048,35 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			assert.ok(repoB.length > 0 && repoB.every(c => c.baseBranch === 'develop'), `secondary repo must use its own default branch (not HEAD), got ${JSON.stringify(repoB)}`);
 		});
 
-		test('all-folder summary is computed even when the primary branch diff is unavailable', async () => {
+		test('partial recompute preserves cached all-folder summary when the primary branch diff is unavailable', async () => {
+			let primaryAvailable = true;
 			const git = createNoopGitService();
 			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
-			// The PRIMARY repo (repoA) has no resolvable branch diff; repoB does.
-			git.computeSessionFileDiffs = async wd => wd.toString() === 'file:///repoB' ? [gitDiff('/repoB/b.ts', 4, 1)] : undefined;
+			git.computeSessionFileDiffs = async wd => {
+				const root = wd.toString();
+				if (root === 'file:///repoA') { return primaryAvailable ? [gitDiff('/repoA/a.ts', 3, 1)] : undefined; }
+				if (root === 'file:///repoB') { return [gitDiff('/repoB/b.ts', 5, 2)]; }
+				return undefined;
+			};
 			const db = new TestSessionDatabase();
 			const { svc, stateManager } = build({ workingDirectories: ['file:///repoA', 'file:///repoB'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
 
 			svc.refreshBranchChangeset(sessionStr);
-			const changes = await waitForSummaryChanges(stateManager);
+			await waitForSummaryChanges(stateManager);
 
-			assert.deepStrictEqual(changes, { additions: 4, deletions: 1, files: 1 }, 'the all-folder chip is independent of the primary branch changeset succeeding');
+			primaryAvailable = false;
+			svc.refreshBranchChangeset(sessionStr);
+			await waitForBranchCompute(svc, stateManager);
+
+			assert.deepStrictEqual({
+				live: stateManager.getSessionSummary(sessionStr)?.changes,
+				persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+				branchStatus: stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.status,
+			}, {
+				live: { additions: 8, deletions: 3, files: 2 },
+				persisted: { additions: 8, deletions: 3, files: 2 },
+				branchStatus: ChangesetStatus.Ready,
+			}, 'an unavailable primary source preserves the last complete all-folder summary');
 		});
 
 		test('folds non-git folder edits into the all-folder chip', async () => {
@@ -2119,7 +2157,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			}, 'a genuinely empty all-folder aggregate is written as zero, not preserved');
 		});
 
-		test('a secondary default-branch lookup rejection yields a partial summary and keeps the branch changeset Ready (never Error)', async () => {
+		test('a secondary default-branch lookup rejection leaves a cold summary unavailable and keeps the branch changeset Ready', async () => {
 			const log = new RecordingLogService();
 			const git = createNoopGitService();
 			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
@@ -2138,19 +2176,21 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			const { svc, stateManager } = build({ workingDirectories: ['file:///repoA', 'file:///repoB'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db, log });
 
 			svc.refreshBranchChangeset(sessionStr);
-			const changes = await waitForSummaryChanges(stateManager);
+			await waitForBranchCompute(svc, stateManager);
 
 			assert.deepStrictEqual({
-				changes,
+				live: stateManager.getSessionSummary(sessionStr)?.changes,
+				persisted: await db.getMetadata(META_CHANGES_SUMMARY),
 				branchStatus: stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.status,
+				branchFiles: stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.files.map(file => file.id),
 				loggedRepoB: log.errors.some(e => e.includes('repoB')),
 			}, {
-				// repoB is unavailable (its default-branch probe threw); only the
-				// primary repoA contributes to the partial aggregate.
-				changes: { additions: 3, deletions: 1, files: 1 },
+				live: undefined,
+				persisted: undefined,
 				branchStatus: ChangesetStatus.Ready,
+				branchFiles: [URI.file('/repoA/a.ts').toString()],
 				loggedRepoB: true,
-			}, 'a secondary default-branch failure must not flip the published branch changeset to Error');
+			}, 'a secondary failure must not publish a partial summary or fail the independent primary branch changeset');
 		});
 	});
 

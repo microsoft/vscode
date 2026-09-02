@@ -187,10 +187,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/fe4b95bf8348637bba9f8c0dda791924e6c67fd7b5d173398f9b2c0bfc9f7071)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionAttachedContext/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/62ff8ab266d68ed5dc3f46d122cc05f67c1580222b0eeb3c83d7baea6c9e0937)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/b37045f2e22c3d9d6a396f113cfbf92c879f32d3612e1fb8b60bd0b769fb266c)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionAttachedContext/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/41ea93d7262689955020b1eced4f7c7b8b423bd592bb29fba739d1b982b67a17)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/46d3951ed96515724efb23c0754e07f935e8f0cad534ca955a9e606d2abe84ae)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionGitHubContextPicker/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/7228d732b817fa0201537ab73726c055a32e82ec4744abf94122e1b5b9f6054f)
@@ -209,6 +209,12 @@
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionWorkspacePicker/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/79d4608ac44ba3bf43cb4555a8e02fca4165866a2fb6b518d3c3994b9228e37c)
+
+#### sessions/sessionsList/SessionsList_NarrowHoverToolbar/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/8af0c707c9c8e321ac7c8fd792b3c242a0d394cdaf68c3fe1c61804095395030)
+
+#### sessions/sessionsList/SessionsList_NarrowHoverToolbar/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/d6baba279be027d3b1699b970a86bb168981c641332a46d3392287a14237b117)
 
 #### sessions/sessionsList/SessionsList_NestedChatHierarchyGuides/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/ae6689aace7015963b6fc3812c77019921e63523f97f630afde63579729077f2)

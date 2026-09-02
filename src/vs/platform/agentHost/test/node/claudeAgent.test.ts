@@ -7761,14 +7761,14 @@ suite('ClaudeAgent (Phase 8 — file edit tracking via SDK message stream)', () 
 		return { ctx, sessionId, sessionUri: created.session };
 	}
 
-	test('Options carries enableFileCheckpointing and only the transient host-context hook', async () => {
+	test('Options carries enableFileCheckpointing and host hooks', async () => {
 		// Phase 8 refactor. Pins the Options shape that
 		// `_materializeProvisional` ships to the SDK: file checkpointing
 		// must be on (a startup option, not user-bypassable). File-edit
 		// tracking remains wired
 		// through `ClaudeAgentSession._observeAssistantMessage` /
-		// `_observeUserMessage` in the message-pump loop; the only SDK hook
-		// adds transient host context to a submitted prompt.
+		// `_observeUserMessage` in the message-pump loop; SDK hooks add
+		// transient host context and enforce Agent Merge tool restrictions.
 		const { ctx } = await materialize();
 		const opts = ctx.sdk.capturedStartupOptions[0];
 		assert.ok(opts, 'Options captured');
@@ -7779,7 +7779,7 @@ suite('ClaudeAgent (Phase 8 — file edit tracking via SDK message stream)', () 
 			userPromptSubmitHooks: opts.hooks?.UserPromptSubmit?.[0].hooks.length,
 		}, {
 			enableFileCheckpointing: true,
-			hookNames: ['UserPromptSubmit'],
+			hookNames: ['PreToolUse', 'UserPromptSubmit'],
 			userPromptSubmitHooks: 1,
 		});
 	});

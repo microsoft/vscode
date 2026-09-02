@@ -24,6 +24,7 @@ import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ChatOriginKind } from '../../common/state/protocol/state.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatInteractivity, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, TurnState, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -1553,7 +1554,11 @@ suite('AgentHostChatContributions', () => {
 
 	test('skips rejected session flags while persisting config values', async () => {
 		const contributions = createBuiltInContributions(disposables);
-		const config = { mode: 'plan', autoApprove: 'default' };
+		const config = {
+			mode: 'plan',
+			autoApprove: 'default',
+			[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'export TRANSIENT=1' }],
+		};
 		contributions.stateManager.setSessionConfig(contributions.session, {
 			schema: { type: 'object', properties: {} },
 			values: config,
@@ -1570,7 +1575,7 @@ suite('AgentHostChatContributions', () => {
 		}, {
 			isRead: undefined,
 			isArchived: undefined,
-			configValues: JSON.stringify(config),
+			configValues: JSON.stringify({ mode: 'plan', autoApprove: 'default' }),
 		});
 	});
 

@@ -213,6 +213,8 @@ export class NewChatWidget extends Disposable {
 			supportsBackground: true,
 			deferredNotificationsEnabled,
 			petHostPreferred: this.options.petHostPreferred,
+			getChatPetPlatformElements: () => this._workspacePicker.getChatPetPlatformElements(),
+			onDidChangeChatPetPlatform: this._workspacePicker.onDidChangeChatPetPlatform,
 		});
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);

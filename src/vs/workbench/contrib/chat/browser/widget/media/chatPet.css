@@ -36,11 +36,48 @@
 
 .chat-pet-button.dragging {
 	cursor: grabbing;
+	/* The tree sticky-scroll container uses 13. Keep the active drag above it. */
+	z-index: 14;
 }
 
 .chat-pet-button,
 .chat-pet-respawn-effect {
 	z-index: 1;
+}
+
+.chat-pet-bounce-counter {
+	position: absolute;
+	z-index: 2;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	min-width: 24px;
+	height: 24px;
+	padding: 0 var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	font-variant-numeric: tabular-nums;
+	line-height: 1;
+	pointer-events: none;
+	transform: translate(-25%, -50%);
+}
+
+.chat-pet-bounce-counter.hidden {
+	display: none;
+}
+
+.chat-pet-confetti-anchor {
+	position: absolute;
+	pointer-events: none;
+}
+
+.hc-black .chat-pet-bounce-counter,
+.hc-light .chat-pet-bounce-counter {
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
 }
 
 .chat-pet-button.falling {

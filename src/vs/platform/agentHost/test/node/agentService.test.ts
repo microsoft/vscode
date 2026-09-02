@@ -41,7 +41,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification } from '../../common/state/sessionActions.js';
-import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isMessageHiddenFromTranscript, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionGitState, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn, createErrorResponsePart } from '../../common/state/sessionState.js';
+import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isMessageRequestHiddenFromTranscript, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionGitState, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn, createErrorResponsePart } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -407,6 +407,12 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		return true;
 	}
 
+	async updateSessionModifiedTimes(updates: readonly { readonly session: string; readonly modifiedTime: number }[]): Promise<void> {
+		for (const { session, modifiedTime } of updates) {
+			await this.updateSessionModifiedTime(session, modifiedTime);
+		}
+	}
+
 	async listSessions(): Promise<readonly IAgentHostDatabaseSession[]> {
 		this.undefinedExternalListCalls++;
 		return [...this._sessions.values()];
@@ -702,6 +708,9 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 	private readonly _sessionChats = new Map<string, IAgentHostDatabaseSessionChatCatalog>();
 	private _backfilled = false;
 	catalogListCalls = 0;
+	/** Test spies for the batched recency-write path. */
+	updateSessionModifiedTimesCalls = 0;
+	lastModifiedTimesBatchSize = 0;
 
 	async registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
 		if (registerOptions.checkTombstone && this._tombstones.has(session)) {
@@ -741,6 +750,14 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 		}
 		this._sessions.set(session, { ...existing, modifiedTime });
 		return true;
+	}
+
+	async updateSessionModifiedTimes(updates: readonly { readonly session: string; readonly modifiedTime: number }[]): Promise<void> {
+		this.updateSessionModifiedTimesCalls++;
+		this.lastModifiedTimesBatchSize = updates.length;
+		for (const { session, modifiedTime } of updates) {
+			await this.updateSessionModifiedTime(session, modifiedTime);
+		}
 	}
 
 	async listSessions(): Promise<readonly IAgentHostDatabaseSession[]> {
@@ -17703,7 +17720,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				// The turn exists only to carry the notice, so its own message
 				// stays out of the transcript.
-				hiddenMessage: isMessageHiddenFromTranscript(notice.message),
+				hiddenMessage: isMessageRequestHiddenFromTranscript(notice.message),
 				origin: notice.message.origin.kind,
 				state: notice.state,
 				responseParts: notice.responseParts,
