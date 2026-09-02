@@ -2724,12 +2724,24 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	private async _browseForGitHubContext(commandId: string, icon: ThemeIcon, currentWorkspace: ISessionWorkspace | undefined): Promise<ISessionWorkspace | undefined> {
-		const gitHubInfo = currentWorkspace?.folders
-			.map(folder => folder.gitRepository?.gitHubInfo.get())
-			.find(info => info !== undefined);
-		const repoId = gitHubInfo
-			? `${gitHubInfo.owner}/${gitHubInfo.repo}`
-			: currentWorkspace?.folders.map(folder => githubRemoteRepoLabel(folder.root)).find(id => id !== undefined);
+		const repositoryIds = new Set<string>();
+		for (const folder of currentWorkspace?.folders ?? []) {
+			const gitHubInfo = folder.gitRepository?.gitHubInfo.get();
+			const repositoryId = gitHubInfo
+				? `${gitHubInfo.owner}/${gitHubInfo.repo}`
+				: githubRemoteRepoLabel(folder.root);
+			if (repositoryId) {
+				repositoryIds.add(repositoryId);
+			}
+		}
+
+		const repoId = repositoryIds.size === 1
+			? repositoryIds.values().next().value
+			: await this.commandService.executeCommand<string>(OPEN_REPO_COMMAND);
+		if (!repoId) {
+			return undefined;
+		}
+
 		const selection = await this.commandService.executeCommand<IGitHubContextSelection>(commandId, repoId);
 		if (!selection) {
 			return undefined;

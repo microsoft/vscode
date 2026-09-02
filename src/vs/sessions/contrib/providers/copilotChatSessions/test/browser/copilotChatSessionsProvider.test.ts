@@ -495,6 +495,66 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 	});
 
+	test('selects a repository before browsing GitHub context when the repository is ambiguous', async () => {
+		const calls: { commandId: string; repoId: unknown }[] = [];
+		const harness: IGitHubContextBrowseHarness = {
+			commandService: new class extends mock<ICommandService>() {
+				override async executeCommand<T>(commandId: string, repoId?: unknown): Promise<T | undefined> {
+					calls.push({ commandId, repoId });
+					if (commandId === 'github.copilot.chat.cloudSessions.openRepository') {
+						return 'microsoft/vscode' as T;
+					}
+					return {
+						repoId: 'microsoft/vscode',
+						url: `https://github.com/microsoft/vscode/${commandId === 'openIssue' ? 'issues/1' : 'pull/2'}`,
+						label: `microsoft/vscode#${commandId === 'openIssue' ? '1' : '2'}`,
+					} as T;
+				}
+			}(),
+		};
+		const repositoryRoot = (repositoryId: string) => URI.from({
+			scheme: GITHUB_REMOTE_FILE_SCHEME,
+			authority: 'github',
+			path: `/${repositoryId}/HEAD`,
+		});
+		const multiRootWorkspace: ISessionWorkspace = {
+			uri: URI.parse('https://github.com'),
+			label: 'Multiple repositories',
+			icon: Codicon.repo,
+			group: SESSION_WORKSPACE_GROUP_GITHUB,
+			folders: ['microsoft/vscode', 'microsoft/typescript'].map(repositoryId => {
+				const root = repositoryRoot(repositoryId);
+				return {
+					root,
+					workingDirectory: root,
+					name: repositoryId,
+					description: undefined,
+					gitRepository: undefined,
+				};
+			}),
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: true,
+		};
+
+		const issue = await browseForGitHubContext.call(harness, 'openIssue', Codicon.issues, undefined);
+		const pullRequest = await browseForGitHubContext.call(harness, 'openPullRequest', Codicon.gitPullRequest, multiRootWorkspace);
+
+		assert.deepStrictEqual({
+			calls,
+			issue: { uri: issue?.uri.toString(), label: issue?.label },
+			pullRequest: { uri: pullRequest?.uri.toString(), label: pullRequest?.label },
+		}, {
+			calls: [
+				{ commandId: 'github.copilot.chat.cloudSessions.openRepository', repoId: undefined },
+				{ commandId: 'openIssue', repoId: 'microsoft/vscode' },
+				{ commandId: 'github.copilot.chat.cloudSessions.openRepository', repoId: undefined },
+				{ commandId: 'openPullRequest', repoId: 'microsoft/vscode' },
+			],
+			issue: { uri: 'https://github.com/microsoft/vscode/issues/1', label: 'microsoft/vscode#1' },
+			pullRequest: { uri: 'https://github.com/microsoft/vscode/pull/2', label: 'microsoft/vscode#2' },
+		});
+	});
+
 	test('sessionTypes excludes Local', () => {
 		const provider = createProvider(disposables, model);
 		assert.ok(!provider.sessionTypes.some(type => type.id === SessionType.Local));
