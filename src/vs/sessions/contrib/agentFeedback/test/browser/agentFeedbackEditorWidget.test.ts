@@ -10,13 +10,16 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
 import { withTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
+import { IFeedbackPullRequest } from '../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
+import { ICodeReviewService, ICodeReviewSuggestion } from '../../../codeReview/browser/codeReviewService.js';
 import { AgentFeedbackEditorWidget, IComposerDraftState } from '../../browser/agentFeedbackEditorWidget.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { IAgentFeedbackContext } from '../../browser/agentFeedbackEditorUtils.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { ISessionEditorComment, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
 
 suite('AgentFeedbackEditorWidget', () => {
@@ -42,6 +45,7 @@ suite('AgentFeedbackEditorWidget', () => {
 		/** Comment ids passed to `setNavigationAnchor`, in call order. */
 		readonly navigations: readonly string[];
 		readonly hiddenFeedbackIds: readonly string[];
+		readonly sourcePullRequests: readonly (IFeedbackPullRequest | undefined)[];
 		readonly domNode: HTMLElement;
 		/** Tears the widget down and builds a new one, as the contribution does on any feedback change. */
 		rebuild(): HTMLElement;
@@ -50,13 +54,32 @@ suite('AgentFeedbackEditorWidget', () => {
 	function withWidget(callback: (harness: ITestHarness) => void, testComment: ISessionEditorComment = comment): void {
 		const navigations: string[] = [];
 		const hiddenFeedbackIds: string[] = [];
+		const sourcePullRequests: (IFeedbackPullRequest | undefined)[] = [];
 		const services = new ServiceCollection();
 		services.set(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
 			override setNavigationAnchor(_sessionResource: URI, commentId: string): void { navigations.push(commentId); }
 			override updateFeedback(): void { }
 			override hideFeedbackInEditor(_sessionResource: URI, feedbackId: string): void { hiddenFeedbackIds.push(feedbackId); }
+			override addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, _context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind: AgentFeedbackKind = AgentFeedbackKind.UserReview, state: AgentFeedbackState = AgentFeedbackState.Accepted, sourcePullRequest?: IFeedbackPullRequest): IAgentFeedback {
+				sourcePullRequests.push(sourcePullRequest);
+				return {
+					id: 'converted',
+					text,
+					resourceUri,
+					range,
+					sessionResource,
+					suggestion,
+					kind,
+					sourcePRReviewCommentId,
+					sourcePullRequest,
+					state,
+				};
+			}
+			override addReply(): void { }
 		});
-		services.set(ICodeReviewService, new class extends mock<ICodeReviewService>() { });
+		services.set(ICodeReviewService, new class extends mock<ICodeReviewService>() {
+			override markPRReviewCommentConverted(): void { }
+		});
 		services.set(IMarkdownRendererService, new SyncDescriptor(MarkdownRendererService));
 
 		withTestCodeEditor(['first line', 'second line'], { serviceCollection: services }, (editor, _viewModel, instantiationService) => {
@@ -84,7 +107,7 @@ suite('AgentFeedbackEditorWidget', () => {
 			};
 
 			try {
-				callback({ navigations, hiddenFeedbackIds, domNode: createWidget(), rebuild });
+				callback({ navigations, hiddenFeedbackIds, sourcePullRequests, domNode: createWidget(), rebuild });
 			} finally {
 				widget?.getDomNode().remove();
 				store.dispose();
@@ -108,6 +131,12 @@ suite('AgentFeedbackEditorWidget', () => {
 	function dispatchEscape(target: HTMLElement): void {
 		const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
 		Object.defineProperty(event, 'keyCode', { get: () => 27 });
+		target.dispatchEvent(event);
+	}
+
+	function dispatchEnter(target: HTMLElement): void {
+		const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+		Object.defineProperty(event, 'keyCode', { get: () => 13 });
 		target.dispatchEvent(event);
 	}
 
@@ -155,7 +184,44 @@ suite('AgentFeedbackEditorWidget', () => {
 				hideLabel: 'Hide',
 				hiddenFeedbackIds: [resolvedComment.sourceId],
 			});
+
 		}, resolvedComment);
+	});
+
+	function prReviewComment(sourcePullRequest: IFeedbackPullRequest): ISessionEditorComment {
+		return {
+			...comment,
+			id: 'prReview:thread-1',
+			sourceId: 'thread-1',
+			source: SessionEditorCommentSource.PRReview,
+			kind: AgentFeedbackKind.PRReview,
+			canConvertToAgentFeedback: true,
+			sourcePullRequest,
+		};
+	}
+
+	test('preserves pull request identity when editing a PR comment', () => {
+		const sourcePullRequest = { owner: 'owner', repo: 'repo', number: 42 };
+		withWidget(({ domNode, sourcePullRequests }) => {
+			triggerAction(domNode, 'codicon-edit');
+			const textarea = composer(domNode)!;
+			type(textarea, 'Edited PR comment');
+			dispatchEnter(textarea);
+
+			assert.deepStrictEqual(sourcePullRequests, [sourcePullRequest]);
+		}, prReviewComment(sourcePullRequest));
+	});
+
+	test('preserves pull request identity when replying to a PR comment', () => {
+		const sourcePullRequest = { owner: 'owner', repo: 'repo', number: 42 };
+		withWidget(({ domNode, sourcePullRequests }) => {
+			triggerAction(domNode, 'codicon-comment-discussion');
+			const textarea = composer(domNode)!;
+			type(textarea, 'Reply to PR comment');
+			dispatchEnter(textarea);
+
+			assert.deepStrictEqual(sourcePullRequests, [sourcePullRequest]);
+		}, prReviewComment(sourcePullRequest));
 	});
 
 	test('the edit composer survives losing focus and is closed by Escape from the widget', () => {

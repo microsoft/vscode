@@ -3,13 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* When docked in the chat input area, hide the container when it's empty so
- * we don't reserve space. */
-.interactive-session .interactive-input-part > .chat-plan-review-widget-container:empty,
-.interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-plan-review-widget-container:empty {
-	display: none;
-}
-
 .interactive-session .interactive-input-part > .chat-plan-review-widget-container,
 .interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-plan-review-widget-container {
 	width: 100%;
@@ -17,11 +10,6 @@
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
-}
-
-.interactive-session .interactive-input-part > .chat-plan-review-widget-container:not(:empty),
-.interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-plan-review-widget-container:not(:empty) {
-	margin-top: 8px;
 }
 
 /* When the part is docked inside the input container, drop our own
@@ -79,7 +67,7 @@
 
 .interactive-session .chat-plan-review-container .chat-plan-review-title-label {
 	min-width: 0;
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	font-size: var(--vscode-chat-font-size-body-s);
 	white-space: nowrap;
 	overflow: hidden;
@@ -376,11 +364,6 @@
 	display: flex;
 	gap: 6px;
 	align-items: center;
-}
-
-/* ---------- Hidden helper ---------- */
-.interactive-session .chat-plan-review-container .monaco-button.chat-plan-review-hidden {
-	display: none;
 }
 
 /* ---------- Collapsed state ---------- */

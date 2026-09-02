@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.63.0",
+  "version": "0.65.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.135.0",
+    "vscode": "^1.137.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -2708,6 +2708,12 @@
         "category": "Developer"
       },
       {
+        "command": "github.copilot.debug.logTypeScriptContainers",
+        "title": "%github.copilot.command.logTypeScriptContainers%",
+        "enablement": "editorLangId == typescript || editorLangId == javascript",
+        "category": "Developer"
+      },
+      {
         "command": "github.copilot.debug.validateNesRename",
         "title": "%github.copilot.command.validateNesRename%",
         "category": "Developer"
@@ -3890,7 +3896,8 @@
             "agentsWindow": {
               "default": false
             }
-          },          "github.copilot.chat.languageContext.typescript.items": {
+          },
+          "github.copilot.chat.languageContext.typescript.items": {
             "type": "string",
             "enum": [
               "minimal",
@@ -4022,6 +4029,15 @@
               "onExp"
             ],
             "description": "%github.copilot.config.gemini35FlashReducedToolUsePrompt.enabled%"
+          },
+          "github.copilot.chat.geminiFlashPromptAdditions.enabled": {
+            "type": "boolean",
+            "default": false,
+            "tags": [
+              "experimental",
+              "onExp"
+            ],
+            "description": "%github.copilot.config.geminiFlashPromptAdditions.enabled%"
           },
           "github.copilot.chat.anthropic.contextEditing.mode": {
             "type": "string",
@@ -4379,7 +4395,7 @@
               "null"
             ],
             "default": null,
-            "markdownDescription": "Overrides the routing tier that the `Auto` model requests, ignoring both the tier picked in the model picker and the tier inline chat defaults to. Accepts `eco`, `balanced`, `max`, or `fast`. Used by evals.\n\n**Note**: This is an advanced debugging setting.",
+            "markdownDescription": "Overrides the routing tier that the `Auto` model requests, ignoring both the tier picked in the model picker and the tier inline chat defaults to. Accepts `efficiency`, `balance`, `intelligence`, or `fast`. Used by evals.\n\n**Note**: This is an advanced debugging setting.",
             "tags": [
               "advanced"
             ]
@@ -4941,16 +4957,6 @@
               "onExp"
             ]
           },
-          "github.copilot.chat.inlineEdits.nextCursorPrediction.displayLine": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.inlineEdits.nextCursorPrediction.displayLine%",
-            "tags": [
-              "advanced",
-              "experimental",
-              "onExp"
-            ]
-          },
           "github.copilot.chat.inlineEdits.nextCursorPrediction.currentFileMaxTokens": {
             "type": "number",
             "default": 3000,
@@ -5048,17 +5054,6 @@
             ],
             "agentsWindow": {
               "default": true
-            }
-          },
-          "github.copilot.chat.cli.showExternalSessions": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.cli.showExternalSessions%",
-            "tags": [
-              "advanced"
-            ],
-            "agentsWindow": {
-              "default": false
             }
           },
           "github.copilot.chat.cli.planExitMode.enabled": {
@@ -5245,16 +5240,6 @@
               "advanced",
               "experimental",
               "onExp"
-            ]
-          },
-          "github.copilot.chat.agentDebugLog.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%github.copilot.config.chat.agentDebugLog.enabled%",
-            "deprecationMessage": "%github.copilot.config.chat.agentDebugLog.enabled.deprecated%",
-            "tags": [
-              "advanced",
-              "experimental"
             ]
           },
           "github.copilot.chat.agentDebugLog.fileLogging.enabled": {
@@ -7008,7 +6993,7 @@
     "@typescript-eslint/eslint-plugin": "^8.35.0",
     "@typescript-eslint/parser": "^8.32.0",
     "@typescript-eslint/typescript-estree": "^8.26.1",
-    "@typescript/native": "npm:typescript@^7.0.2",
+    "@typescript/native": "npm:typescript@7.1.0-dev.20260818.1",
     "@vitest/coverage-v8": "^4.1.8",
     "@vitest/snapshot": "^1.5.0",
     "@vscode/debugadapter": "^1.68.0",

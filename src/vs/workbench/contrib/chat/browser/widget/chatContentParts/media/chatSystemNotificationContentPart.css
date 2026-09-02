@@ -1,0 +1,62 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-system-notification-disclosure {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
+	margin-bottom: var(--vscode-spacing-size160);
+	padding-top: var(--vscode-spacing-size20);
+}
+
+.chat-system-notification-disclosure-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	width: fit-content;
+	color: inherit;
+	cursor: pointer;
+}
+
+.chat-system-notification-disclosure-header.monaco-button {
+	padding: 0;
+}
+
+.chat-system-notification-disclosure-header:hover {
+	color: var(--vscode-foreground);
+}
+
+.chat-system-notification-disclosure-header:hover .chat-collapsible-hover-chevron,
+.chat-system-notification-disclosure-header:focus-visible .chat-collapsible-hover-chevron {
+	opacity: 1;
+}
+
+.chat-system-notification-disclosure-icon.codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.chat-system-notification-disclosure-icon.codicon-check-compact {
+	display: none;
+}
+
+.show-checkmarks .chat-system-notification-disclosure-icon.codicon-check-compact {
+	display: inline-flex;
+}
+
+.chat-system-notification-disclosure-summary > p {
+	margin: 0;
+}
+
+.chat-system-notification-disclosure-body {
+	margin: var(--vscode-spacing-size40) 0 0 var(--vscode-spacing-size120);
+}
+
+.chat-system-notification-disclosure-body > ul {
+	margin: 0;
+	padding-left: var(--vscode-spacing-size160);
+}
+
+.chat-system-notification-disclosure.collapsed > .chat-system-notification-disclosure-body {
+	display: none;
+}

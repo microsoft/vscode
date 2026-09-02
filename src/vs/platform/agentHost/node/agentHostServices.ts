@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SyncDescriptor } from '../../instantiation/common/descriptors.js';
-import { IInstantiationService, ServiceIdentifier } from '../../instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { GitHubService, IGitHubService } from '../../github/common/githubService.js';
 import type { GitHubServiceOptions } from '../../github/common/githubTypes.js';
@@ -20,9 +19,11 @@ import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
+import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
+import { IAgentHostSubscriptionService } from '../common/agentHostSubscriptionService.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { AgentHostGitService } from './agentHostGitService.js';
@@ -39,61 +40,30 @@ import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { AgentHostChangesetOperationService } from './agentHostChangesetOperationService.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
 import { AgentHostChangesetSubscriptionService } from './agentHostChangesetSubscriptionService.js';
+import { AgentHostChatContributions } from './agentHostChatContributionsService.js';
 import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostGitStateService } from './agentHostGitStateService.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostPromptCache, IAgentHostPromptCache } from './agentHostPromptCache.js';
+import { AgentHostPullRequestStatusService, IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
 import { AgentHostReviewService } from './agentHostReviewService.js';
+import { AgentHostSubscriptionService } from './agentHostSubscriptionService.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from './agentHostSessionTitleSignal.js';
+import { AgentHostSessionOpenTelemetry, IAgentHostSessionOpenTelemetry } from './agentHostSessionOpenTelemetry.js';
 import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHostTerminalManager.js';
+import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
+import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from './agentHostToolCallTracker.js';
+import { AgentHostTurnTracker, IAgentHostTurnTracker } from './agentHostTurnTracker.js';
+import { AgentHostProviderService, IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentEditAttributionService } from './shared/agentEditAttributionService.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { EditArcReporterService, IEditArcReporterService } from './shared/editArcReporter.js';
 import { EditSurvivalReporterFactory, IEditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
 import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
-
-/**
- * The process-local Agent Host service collection. Sealing is opt-in while the
- * existing imperative registrations migrate to descriptors.
- */
-export class AgentHostServiceCollection extends ServiceCollection {
-	private sealed = false;
-
-	seal(): void {
-		this.sealed = true;
-	}
-
-	override set<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | SyncDescriptor<T>): T | SyncDescriptor<T> {
-		if (this.sealed) {
-			const current = this.get(id);
-			const isDescriptorResolution = current instanceof SyncDescriptor && instanceOrDescriptor instanceof current.ctor;
-			if (!isDescriptorResolution) {
-				throw new Error(`Agent Host service collection is sealed: ${id}`);
-			}
-		}
-		return super.set(id, instanceOrDescriptor);
-	}
-}
-
-/**
- * Registers shared Agent Host services. This starts empty so descriptor
- * registrations can migrate atomically with their imperative construction.
- */
-function registerService<T>(
-	services: AgentHostServiceCollection,
-	ids: ServiceIdentifier<unknown>[],
-	id: ServiceIdentifier<T>,
-	value: T | SyncDescriptor<T>,
-): void {
-	if (services.has(id)) {
-		return;
-	}
-	services.set(id, value);
-	ids.push(id);
-}
+import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js';
 
 export interface IAgentHostCoreServiceInputs {
 	readonly storageResource: URI | undefined;
@@ -102,31 +72,39 @@ export interface IAgentHostCoreServiceInputs {
 	readonly copilotApiService?: ICopilotApiService;
 }
 
-export function registerAgentHostCoreServices(services: AgentHostServiceCollection, inputs: IAgentHostCoreServiceInputs): readonly ServiceIdentifier<unknown>[] {
-	const ids: ServiceIdentifier<unknown>[] = [];
-	registerService(services, ids, IAgentHostFileMonitorService, new SyncDescriptor(AgentHostFileMonitorService));
-	registerService(services, ids, INetworkDiagnosticsService, new SyncDescriptor(NetworkDiagnosticsService));
-	registerService(services, ids, IDiffComputeService, new SyncDescriptor(NodeWorkerDiffComputeService));
-	registerService(services, ids, IAgentEditAttributionService, new SyncDescriptor(AgentEditAttributionService, [undefined, undefined]));
-	registerService(services, ids, IEditSurvivalReporterFactory, new SyncDescriptor(EditSurvivalReporterFactory));
-	registerService(services, ids, IEditArcReporterService, new SyncDescriptor(EditArcReporterService, [undefined]));
-	registerService(services, ids, IAgentHostStorageService, new SyncDescriptor(AgentHostStorageService, [inputs.storageResource]));
-	registerService(services, ids, IAgentHostManagedSettingsService, new SyncDescriptor(AgentHostManagedSettingsService));
-	registerService(services, ids, IAgentHostOctoKitService, new SyncDescriptor(AgentHostOctoKitService, [inputs.fetchFn]));
-	registerService(services, ids, IGitHubService, new SyncDescriptor(GitHubService, [inputs.gitHubServiceOptions]));
-	registerService(services, ids, ICopilotApiService, inputs.copilotApiService ?? new SyncDescriptor(CopilotApiService, [inputs.fetchFn]));
-	registerService(services, ids, IAgentHostCustomizationEnablementService, new SyncDescriptor(AgentHostCustomizationEnablementService));
-	registerService(services, ids, IAgentHostGitStateService, new SyncDescriptor(AgentHostGitStateService));
-	registerService(services, ids, IAgentHostCheckpointService, new SyncDescriptor(AgentHostCheckpointService));
-	registerService(services, ids, IAgentHostPromptCache, new SyncDescriptor(AgentHostPromptCache));
-	registerService(services, ids, IAgentHostSessionTitleSignal, new SyncDescriptor(AgentHostSessionTitleSignal));
-	registerService(services, ids, IAgentHostChangesetSubscriptionService, new SyncDescriptor(AgentHostChangesetSubscriptionService));
-	registerService(services, ids, IAgentHostChangesetOperationService, new SyncDescriptor(AgentHostChangesetOperationService));
-	registerService(services, ids, IAgentHostReviewService, new SyncDescriptor(AgentHostReviewService));
-	registerService(services, ids, IAgentHostChangesetService, new SyncDescriptor(AgentHostChangesetService));
-	registerService(services, ids, IAgentHostCompletions, new SyncDescriptor(AgentHostCompletions));
-	registerService(services, ids, IAgentHostTerminalManager, new SyncDescriptor(AgentHostTerminalManager));
-	return ids;
+export function registerAgentHostCoreServices(services: ServiceCollection, inputs: IAgentHostCoreServiceInputs): void {
+	services.set(IAgentHostFileMonitorService, new SyncDescriptor(AgentHostFileMonitorService));
+	services.set(INetworkDiagnosticsService, new SyncDescriptor(NetworkDiagnosticsService));
+	services.set(IDiffComputeService, new SyncDescriptor(NodeWorkerDiffComputeService));
+	services.set(IAgentEditAttributionService, new SyncDescriptor(AgentEditAttributionService, [undefined, undefined]));
+	services.set(IEditSurvivalReporterFactory, new SyncDescriptor(EditSurvivalReporterFactory));
+	services.set(IEditArcReporterService, new SyncDescriptor(EditArcReporterService, [undefined]));
+	services.set(IAgentHostStorageService, new SyncDescriptor(AgentHostStorageService, [inputs.storageResource]));
+	services.set(IAgentHostManagedSettingsService, new SyncDescriptor(AgentHostManagedSettingsService));
+	services.set(IAgentHostOctoKitService, new SyncDescriptor(AgentHostOctoKitService, [inputs.fetchFn]));
+	services.set(IGitHubService, new SyncDescriptor(GitHubService, [inputs.gitHubServiceOptions]));
+	services.set(ICopilotApiService, inputs.copilotApiService ?? new SyncDescriptor(CopilotApiService, [inputs.fetchFn]));
+	services.set(IAgentHostCustomizationEnablementService, new SyncDescriptor(AgentHostCustomizationEnablementService));
+	services.set(IAgentHostGitStateService, new SyncDescriptor(AgentHostGitStateService));
+	services.set(IAgentHostCheckpointService, new SyncDescriptor(AgentHostCheckpointService));
+	services.set(IAgentHostPromptCache, new SyncDescriptor(AgentHostPromptCache));
+	services.set(IAgentHostSessionTitleSignal, new SyncDescriptor(AgentHostSessionTitleSignal));
+	services.set(IAgentHostSessionOpenTelemetry, new SyncDescriptor(AgentHostSessionOpenTelemetry));
+	services.set(IAgentHostChangesetSubscriptionService, new SyncDescriptor(AgentHostChangesetSubscriptionService));
+	services.set(IAgentHostPullRequestStatusService, new SyncDescriptor(AgentHostPullRequestStatusService));
+	services.set(IAgentHostSubscriptionService, new SyncDescriptor(AgentHostSubscriptionService));
+	services.set(IAgentHostChangesetOperationService, new SyncDescriptor(AgentHostChangesetOperationService));
+	services.set(IAgentHostReviewService, new SyncDescriptor(AgentHostReviewService));
+	services.set(IAgentHostChangesetService, new SyncDescriptor(AgentHostChangesetService));
+	services.set(IAgentHostCompletions, new SyncDescriptor(AgentHostCompletions));
+	services.set(IAgentHostTerminalManager, new SyncDescriptor(AgentHostTerminalManager));
+	services.set(IAgentHostChatContributions, new SyncDescriptor(AgentHostChatContributions));
+	services.set(IAgentHostTelemetryReporter, new SyncDescriptor(AgentHostTelemetryReporter));
+	services.set(IAgentHostTurnTracker, new SyncDescriptor(AgentHostTurnTracker));
+	services.set(IAgentHostToolCallTracker, new SyncDescriptor(AgentHostToolCallTracker));
+	services.set(IAgentHostProviderService, new SyncDescriptor(AgentHostProviderService));
+	services.set(IAgentBranchNameGenerator, new SyncDescriptor(AgentBranchNameGenerator));
+	services.set(IAgentHostWorktreeIsolation, new SyncDescriptor(WorktreeIsolation));
 }
 
 export interface IAgentHostHostServiceInputs {
@@ -135,31 +113,18 @@ export interface IAgentHostHostServiceInputs {
 	readonly byok: { readonly kind: 'renderer'; readonly bridgeRegistry: IByokLmBridgeRegistry } | { readonly kind: 'unavailable' };
 }
 
-export function registerAgentHostHostServices(services: AgentHostServiceCollection, inputs: IAgentHostHostServiceInputs): readonly ServiceIdentifier<unknown>[] {
-	const ids: ServiceIdentifier<unknown>[] = [];
-	registerService(services, ids, IWindowsMxcTerminalSandboxRuntime, new SyncDescriptor(WindowsMxcTerminalSandboxRuntime));
-	registerService(services, ids, ISandboxHelperService, new SyncDescriptor(SandboxHelperService));
-	registerService(services, ids, IAgentHostGitService, new SyncDescriptor(AgentHostGitService));
-	registerService(services, ids, IAgentPluginManager, new SyncDescriptor(AgentPluginManager, [inputs.userDataPath]));
-	registerService(services, ids, IAgentSdkDownloader, new SyncDescriptor(AgentSdkDownloader));
-	registerService(services, ids, IClaudeAgentSdkService, new SyncDescriptor(ClaudeAgentSdkService));
-	registerService(services, ids, IClaudeProxyService, new SyncDescriptor(ClaudeProxyService));
-	registerService(services, ids, ICodexProxyService, new SyncDescriptor(CodexProxyService));
-	registerService(services, ids, IAgentHostOTelService, new SyncDescriptor(AgentHostOTelService, [inputs.fetchFn]));
-	registerService(services, ids, IAgentHostWorktreeIsolation, new SyncDescriptor(WorktreeIsolation, [undefined]));
-	registerService(
-		services,
-		ids,
+export function registerAgentHostHostServices(services: ServiceCollection, inputs: IAgentHostHostServiceInputs): void {
+	services.set(IWindowsMxcTerminalSandboxRuntime, new SyncDescriptor(WindowsMxcTerminalSandboxRuntime));
+	services.set(ISandboxHelperService, new SyncDescriptor(SandboxHelperService));
+	services.set(IAgentHostGitService, new SyncDescriptor(AgentHostGitService));
+	services.set(IAgentPluginManager, new SyncDescriptor(AgentPluginManager, [inputs.userDataPath]));
+	services.set(IAgentSdkDownloader, new SyncDescriptor(AgentSdkDownloader));
+	services.set(IClaudeAgentSdkService, new SyncDescriptor(ClaudeAgentSdkService));
+	services.set(IClaudeProxyService, new SyncDescriptor(ClaudeProxyService));
+	services.set(ICodexProxyService, new SyncDescriptor(CodexProxyService));
+	services.set(IAgentHostOTelService, new SyncDescriptor(AgentHostOTelService, [inputs.fetchFn]));
+	services.set(
 		IByokLmProxyService,
 		inputs.byok.kind === 'renderer' ? new SyncDescriptor(ByokLmProxyService) : new NullByokLmProxyService(),
 	);
-	return ids;
-}
-
-export function instantiateAgentHostServices(instantiationService: IInstantiationService, ids: readonly ServiceIdentifier<unknown>[]): void {
-	instantiationService.invokeFunction(accessor => {
-		for (const id of ids) {
-			accessor.get(id);
-		}
-	});
 }

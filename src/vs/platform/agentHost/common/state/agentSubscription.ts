@@ -9,13 +9,14 @@ import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ActionEnvelope, ActionType, ChangesetAction, ChatAction, AnnotationsAction, ClientAnnotationsAction, ClientChangesetAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isChatAction, isAnnotationsAction, isSessionAction } from './sessionActions.js';
-import { changesetReducer, chatReducer, annotationsReducer, rootReducer, sessionReducer } from './sessionReducers.js';
+import { ActionEnvelope, ActionType, type AutomationAction, type AutomationRunAction, ChangesetAction, ChatAction, AnnotationsAction, ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, ClientChangesetAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isChatAction, isAnnotationsAction, isSessionAction } from './sessionActions.js';
+import { automationReducer, automationRunReducer, changesetReducer, chatReducer, annotationsReducer, rootReducer, sessionReducer } from './sessionReducers.js';
 import { terminalReducer } from './protocol/reducers.js';
 import type { RootAction, SessionAction as IProtocolSessionAction, ChatAction as IProtocolChatAction, TerminalAction } from './protocol/action-origin.generated.js';
-import type { AnnotationsState, ChangesetState, ChatState, RootState, SessionState, TerminalState } from './protocol/state.js';
+import type { AnnotationsState, AutomationRunState, AutomationState, ChangesetState, ChatState, RootState, SessionState, TerminalState } from './protocol/state.js';
 import type { IStateSnapshot } from './sessionProtocol.js';
-import { isAhpRootChannel, ROOT_STATE_URI, StateComponents } from './sessionState.js';
+import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isAhpRootChannel, ROOT_STATE_URI, StateComponents } from './sessionState.js';
+import { normalizeLegacyChatStateErrors } from './legacyProtocolCompatibility.js';
 
 // --- Public API --------------------------------------------------------------
 
@@ -212,6 +213,9 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	 * Session subscriptions override this for write-ahead.
 	 */
 	protected _reconcile(envelope: ActionEnvelope, _isOwnAction: boolean): void {
+		if (envelope.rejectionReason) {
+			return;
+		}
 		this._confirmedState = this._applyReducer(this._confirmedState!, envelope.action);
 		this._onDidChange.fire(this.value as T);
 	}
@@ -426,6 +430,10 @@ export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
 		this._seqAllocator = seqAllocator;
 	}
 
+	override handleSnapshot(state: ChatState, fromSeq: number): void {
+		super.handleSnapshot(normalizeLegacyChatStateErrors(state), fromSeq);
+	}
+
 	/**
 	 * Optimistically apply a chat action. Returns the clientSeq to send to
 	 * the server so it can echo back for reconciliation.
@@ -568,6 +576,53 @@ export class TerminalStateSubscription extends BaseAgentSubscription<TerminalSta
 	}
 }
 
+/** Subscription to the singleton host-owned automation catalogue. */
+export class AutomationCatalogSubscription extends BaseAgentSubscription<AutomationState> {
+
+	constructor(clientId: string, log: (msg: string) => void) {
+		super(clientId, log);
+	}
+
+	protected override _applyReducer(state: AutomationState, action: StateAction): AutomationState {
+		return automationReducer(state, action as AutomationAction, this._log);
+	}
+
+	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
+		return isAhpAutomationCatalogChannel(envelope.channel);
+	}
+
+	protected override _reconcile(envelope: ActionEnvelope, isOwnAction: boolean): void {
+		if (!envelope.rejectionReason) {
+			super._reconcile(envelope, isOwnAction);
+		}
+	}
+}
+
+/** Subscription to one host-owned automation run. */
+export class AutomationRunSubscription extends BaseAgentSubscription<AutomationRunState> {
+
+	private readonly _resource: string;
+
+	constructor(resource: string, clientId: string, log: (msg: string) => void) {
+		super(clientId, log);
+		this._resource = resource;
+	}
+
+	protected override _applyReducer(state: AutomationRunState, action: StateAction): AutomationRunState {
+		return automationRunReducer(state, action as AutomationRunAction, this._log);
+	}
+
+	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
+		return isAhpAutomationRunChannel(envelope.channel) && envelope.channel === this._resource;
+	}
+
+	protected override _reconcile(envelope: ActionEnvelope, isOwnAction: boolean): void {
+		if (!envelope.rejectionReason) {
+			super._reconcile(envelope, isOwnAction);
+		}
+	}
+}
+
 // --- Changeset State Subscription --------------------------------------------
 
 /**
@@ -666,7 +721,7 @@ export class ChangesetStateSubscription extends BaseAgentSubscription<ChangesetS
 	}
 }
 
-type ManagedSubscription = SessionStateSubscription | ChatStateSubscription | TerminalStateSubscription | ChangesetStateSubscription | AnnotationsStateSubscription;
+type ManagedSubscription = SessionStateSubscription | ChatStateSubscription | TerminalStateSubscription | ChangesetStateSubscription | AnnotationsStateSubscription | AutomationCatalogSubscription | AutomationRunSubscription;
 
 // --- Annotations State Subscription ------------------------------------------
 
@@ -1007,7 +1062,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 * `channel` is the protocol URI string identifying the channel the
 	 * action targets (a session URI for session actions, etc.).
 	 */
-	dispatchOptimistic(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): number {
+	dispatchOptimistic(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): number {
 		if (isSessionAction(action)) {
 			const entry = this._subscriptions.get(URI.parse(channel));
 			if (entry?.sub instanceof SessionStateSubscription) {
@@ -1154,6 +1209,10 @@ export class AgentSubscriptionManager extends Disposable {
 				return new ChangesetStateSubscription(key, this._clientId, this._seqAllocator, this._log);
 			case StateComponents.Annotations:
 				return new AnnotationsStateSubscription(key, this._clientId, this._seqAllocator, this._log);
+			case StateComponents.AutomationCatalog:
+				return new AutomationCatalogSubscription(this._clientId, this._log);
+			case StateComponents.AutomationRun:
+				return new AutomationRunSubscription(key, this._clientId, this._log);
 			case StateComponents.Root:
 				throw new Error('_createSubscription: root subscription is managed separately');
 			default:
@@ -1190,6 +1249,14 @@ export function isActionEnvelopeRelevantToSubscriptionUris(envelope: ActionEnvel
 	if (isAhpRootChannel(envelope.channel)) {
 		for (const uri of subscribedUris) {
 			if (isAhpRootChannel(uri)) {
+				return true;
+			}
+		}
+		return false;
+	}
+	if (isAhpAutomationCatalogChannel(envelope.channel)) {
+		for (const uri of subscribedUris) {
+			if (isAhpAutomationCatalogChannel(uri)) {
 				return true;
 			}
 		}

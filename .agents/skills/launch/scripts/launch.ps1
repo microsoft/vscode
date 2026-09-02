@@ -16,6 +16,8 @@ $sourceUserDataDir = ''
 $repo = ''
 $cloneExtensions = $false
 $full = $false
+$skipPreLaunch = $false
+$disableWorkspaceTrust = $false
 if ($null -eq $cliArgs) {
 	$cliArgs = @()
 }
@@ -135,6 +137,8 @@ function Test-ExcludedPath([string]$relativePath) {
 		'/logs',
 		'/Cache', '/Code Cache', '/CachedData', '/component_crx_cache',
 		'/GPUCache', '/ShaderCache', '/Dawn*Cache',
+		'Partitions/vscode-browser/Cache', 'Partitions/vscode-browser/Code Cache',
+		'Partitions/vscode-browser/GPUCache', 'Partitions/vscode-browser/Dawn*Cache',
 		'/Backups', '/blob_storage', '/BrowserMetrics', '/Crashpad',
 		'/Session Storage',
 		'/Singleton*',
@@ -464,6 +468,14 @@ for ($index = 0; $index -lt $cliArgs.Count; $index++) {
 			$full = $true
 			continue
 		}
+		'--skip-prelaunch' {
+			$skipPreLaunch = $true
+			continue
+		}
+		'--disable-workspace-trust' {
+			$disableWorkspaceTrust = $true
+			continue
+		}
 		'--' {
 			for ($forwardIndex = $index + 1; $forwardIndex -lt $cliArgs.Count; $forwardIndex++) {
 				$extraArgs.Add($cliArgs[$forwardIndex])
@@ -478,6 +490,7 @@ for ($index = 0; $index -lt $cliArgs.Count; $index++) {
 }
 
 try {
+	$launchStopwatch = [Diagnostics.Stopwatch]::StartNew()
 	if ([string]::IsNullOrWhiteSpace($repo)) {
 		$candidateRepo = (Get-Location).Path
 		if (Test-Path -LiteralPath (Join-Path $candidateRepo 'scripts\code.bat') -PathType Leaf) {
@@ -563,6 +576,7 @@ try {
 	$settingsFile = Join-Path $destinationUdd 'User\settings.json'
 	Ensure-SimpleDialogSetting $settingsFile
 	Write-LaunchError "[launch.ps1] ensured files.simpleDialog.enable=true in $settingsFile"
+	$profileReadyMs = $launchStopwatch.ElapsedMilliseconds
 
 	$launchArgs = [System.Collections.Generic.List[string]]::new()
 	if ($agents) {
@@ -575,53 +589,51 @@ try {
 	$launchArgs.Add("--inspect-extensions=$extHostPort")
 	$launchArgs.Add("--inspect=$mainPort")
 	$launchArgs.Add("--inspect-agenthost=$agentHostPort")
+	if ($disableWorkspaceTrust) {
+		$launchArgs.Add('--disable-workspace-trust')
+	}
 	foreach ($argument in $extraArgs) {
 		$launchArgs.Add($argument)
 	}
 
 	Write-LaunchError "[launch.ps1] launching: $codeBat $($launchArgs -join ' ')"
 	Write-LaunchError "[launch.ps1] logs: $logFile"
-	Write-LaunchError '[launch.ps1] running pre-launch (ensures electron + compiled output + built-ins)...'
-	Push-Location -LiteralPath $repo
-	try {
-		& $node 'build/lib/preLaunch.ts' *>> $logFile
-		$preLaunchExitCode = $LASTEXITCODE
-	} finally {
-		Pop-Location
-	}
-	if ($preLaunchExitCode -ne 0) {
-		Write-LaunchError '[launch.ps1] pre-launch FAILED. Log tail:'
-		Write-LogTail $logFile
-		exit 1
-	}
-
-	$process = Start-Code $codeBat $launchArgs.ToArray() $logFile
-	Write-LaunchError "[launch.ps1] waiting for CDP on port $cdpPort (timeout 90s)..."
-	$ready = $false
-	for ($second = 1; $second -le 90; $second++) {
-		if ($process.HasExited) {
-			Write-LaunchError "[launch.ps1] code.bat (PID $($process.Id)) exited before CDP came up. Log tail:"
+	if ($skipPreLaunch) {
+		Write-LaunchError '[launch.ps1] skipping pre-launch by request'
+	} else {
+		Write-LaunchError '[launch.ps1] running pre-launch (ensures electron + compiled output + built-ins)...'
+		Push-Location -LiteralPath $repo
+		try {
+			& $node 'build/lib/preLaunch.ts' *>> $logFile
+			$preLaunchExitCode = $LASTEXITCODE
+		} finally {
+			Pop-Location
+		}
+		if ($preLaunchExitCode -ne 0) {
+			Write-LaunchError '[launch.ps1] pre-launch FAILED. Log tail:'
 			Write-LogTail $logFile
 			exit 1
 		}
-
-		try {
-			$request = [Net.WebRequest]::Create("http://127.0.0.1:$cdpPort/json/version")
-			$request.Timeout = 1000
-			$response = $request.GetResponse()
-			$response.Close()
-			$ready = $true
-			Write-LaunchError "[launch.ps1] CDP ready after ${second}s"
-			break
-		} catch {
-			Start-Sleep -Seconds 1
-		}
 	}
-	if (-not $ready) {
-		Write-LaunchError "[launch.ps1] timed out waiting for CDP on port $cdpPort. Log tail:"
+	$preLaunchReadyMs = $launchStopwatch.ElapsedMilliseconds
+
+	$process = Start-Code $codeBat $launchArgs.ToArray() $logFile
+	Write-LaunchError "[launch.ps1] waiting for CDP on port $cdpPort (timeout 90s)..."
+	$waitForCdp = Join-Path $PSScriptRoot 'waitForCdp.ts'
+	$readyMs = & $node $waitForCdp $process.Id $cdpPort
+	$readyStatus = $LASTEXITCODE
+	if ($readyStatus -eq 0) {
+		Write-LaunchError "[launch.ps1] CDP ready after ${readyMs}ms"
+	} else {
+		switch ($readyStatus) {
+			1 { Write-LaunchError "[launch.ps1] timed out waiting for CDP on port $cdpPort. Log tail:" }
+			2 { Write-LaunchError "[launch.ps1] code.bat (PID $($process.Id)) exited before CDP came up. Log tail:" }
+			default { Write-LaunchError "[launch.ps1] failed while waiting for CDP on port $cdpPort. Log tail:" }
+		}
 		Write-LogTail $logFile
 		exit 1
 	}
+	$launchReadyMs = $launchStopwatch.ElapsedMilliseconds
 
 	[PSCustomObject]@{
 		pid = $process.Id
@@ -636,6 +648,12 @@ try {
 		logFile = $logFile
 		repo = $repo
 		agents = [bool]$agents
+		timings = [PSCustomObject]@{
+			profileMs = $profileReadyMs
+			preLaunchMs = $preLaunchReadyMs - $profileReadyMs
+			cdpReadyMs = $launchReadyMs - $preLaunchReadyMs
+			totalMs = $launchReadyMs
+		}
 	} | ConvertTo-Json -Compress
 } catch {
 	Write-LaunchError "[launch.ps1] $($_.Exception.Message)"

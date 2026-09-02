@@ -15,18 +15,19 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
-import { ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
-import { AgentSession, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
+import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
+import { AgentSession, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
-import { CollectAgentHostDebugLogsExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, type IAgentHostExtensionCommandMap } from '../common/agentHostExtensionProtocol.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult } from '../common/agentHostExtensionProtocol.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
-import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
+import { agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostUri } from '../common/agentHostUri.js';
 import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
-import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
-import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
+import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isDefaultChatUri, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
+import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCompatibility.js';
 import { SUPPORTED_PROTOCOL_VERSIONS } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
@@ -35,6 +36,7 @@ import { AhpErrorCodes, JsonRpcErrorCodes } from '../common/state/protocol/error
 import { ChatSourceKind, ContentEncoding, ResourceRequestParams, type CompletionsParams, type CompletionsResult, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { decodeBase64, encodeBase64 } from '../../../base/common/buffer.js';
+import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { ITelemetryService, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
@@ -45,18 +47,15 @@ import { AgentHostClientConnectionKind, toAgentHostClientMeta } from '../common/
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
-import { dirname } from '../../../base/common/resources.js';
 import { observableValue, type IObservable } from '../../../base/common/observable.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import { ResourceSet } from '../../../base/common/map.js';
+import { computeReconnectDelay, DEFAULT_RECONNECT_POLICY, hasExhaustedReconnectAttempts, type IRemoteAgentHostReconnectPolicy } from '../common/reconnectPolicy.js';
+import type { IRemoteAgentHostProtocolClient } from '../common/remoteAgentHostService.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
-
-/** Initial delay before the first transport-level reconnect attempt. */
-const RECONNECT_INITIAL_DELAY_MS = 1_000;
-
-/** Upper bound on the exponential backoff between reconnect attempts. */
-const RECONNECT_MAX_DELAY_MS = 30_000;
+// AHP 0.9 changed the automation catalog wire shape, so VS Code cannot safely negotiate 0.8.
+const CLIENT_SUPPORTED_PROTOCOL_VERSIONS = SUPPORTED_PROTOCOL_VERSIONS.filter(version => version !== '0.8.0');
 
 /**
  * After this much inbound silence, send an application-level `ping` to
@@ -96,6 +95,15 @@ function connectionDisposedError(address: string): ProtocolError {
 
 function transportLostError(address: string): ProtocolError {
 	return new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, `Transport lost (reconnecting): ${address}`);
+}
+
+/**
+ * Whether an error means the transport went away rather than the request
+ * being rejected on its merits. Such a failure is transient and must stay
+ * recoverable, so it is never reclassified as a terminal condition.
+ */
+function isConnectionClosedError(error: unknown): boolean {
+	return error instanceof ProtocolError && error.code === AHP_CLIENT_CONNECTION_CLOSED;
 }
 
 interface IRemoteAgentHostExtensionNotificationMap {
@@ -163,6 +171,28 @@ type ClientState =
 	| { readonly kind: AgentHostClientState.Reconnecting; readonly reconnect: IReconnectState }
 	| { readonly kind: AgentHostClientState.Closed; readonly error: ProtocolError };
 
+/** Optional configuration for an {@link AgentHostProtocolClient}. */
+export interface IAgentHostProtocolClientOptions {
+	/** Estimator used to suppress watchdog closes while the local event loop is saturated. Defaults to the shared instance. */
+	readonly loadEstimator?: ILoadEstimator;
+	/** Stable client identity. Generated when omitted. */
+	readonly clientId?: string;
+	/** Client implementation metadata advertised during the handshake. */
+	readonly clientInfo?: Implementation;
+	/** How a dropped transport is restored. Defaults to {@link DEFAULT_RECONNECT_POLICY}. */
+	readonly reconnectPolicy?: IRemoteAgentHostReconnectPolicy;
+	/** Resolves authentication to restore immediately after every fresh initialize. */
+	readonly resolveInitialAuthentication?: () => Promise<AuthenticateParams | undefined>;
+}
+
+/** An initial authentication resolver failed after a successful initialize. */
+export class InitialAuthenticationError extends Error {
+	constructor(error: unknown) {
+		super(`Initial authentication failed: ${error instanceof Error ? error.message : String(error)}`);
+		this.name = 'InitialAuthenticationError';
+	}
+}
+
 /**
  * A protocol-level client for a single agent host connection.
  * Manages the transport, handshake, subscriptions, action dispatch,
@@ -171,7 +201,7 @@ type ClientState =
  * Implements {@link IAgentConnection} so consumers can program against
  * a single interface regardless of whether the agent host is local or remote.
  */
-export class AgentHostProtocolClient extends Disposable implements IAgentConnection {
+export class AgentHostProtocolClient extends Disposable implements IAgentConnection, IRemoteAgentHostProtocolClient {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -183,6 +213,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	/** Disposable holding the listeners attached to the current transport. */
 	private readonly _transportListeners = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _connectionAuthority: string;
+	readonly resourceUris: IAgentHostResourceUriMapper;
 	private _serverSeq = 0;
 	private _nextClientSeq = 1;
 	private _defaultDirectory: string | undefined;
@@ -191,7 +222,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * {@link connect} and re-captured after a soft-reconnect that pulled
 	 * a fresh snapshot. `undefined` before the handshake completes.
 	 */
-	private readonly _initializeResult = observableValue<InitializeResult | undefined>('agentHostInitializeResult', undefined);
+	private readonly _initializeResult = observableValue<IAgentHostExtensionInitializeResult | undefined>('agentHostInitializeResult', undefined);
 	private readonly _subscriptionManager: AgentSubscriptionManager;
 
 	private readonly _onDidAction = this._register(new Emitter<ActionEnvelope>());
@@ -271,6 +302,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * reconnect cycle that aborts in-flight requests.
 	 */
 	private readonly _loadEstimator: ILoadEstimator;
+	private readonly _clientInfo: Implementation | undefined;
+	private readonly _reconnectPolicy: IRemoteAgentHostReconnectPolicy;
+	private readonly _resolveInitialAuthentication: (() => Promise<AuthenticateParams | undefined>) | undefined;
 
 	/**
 	 * URIs we have already granted implicit read access for on this connection.
@@ -308,9 +342,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	constructor(
 		identity: AgentHostResourceIdentity,
 		transportOrFactory: IProtocolTransport | (() => IProtocolTransport),
-		loadEstimator: ILoadEstimator | undefined,
-		clientId: string | undefined = undefined,
-		private readonly _clientInfo: Implementation | undefined,
+		options: IAgentHostProtocolClientOptions | undefined,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostResourceService private readonly _resourceService: IAgentHostResourceService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -319,9 +351,15 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		super();
 		this._resourceIdentity = identity;
 		this._address = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? AMBIENT_AGENT_HOST_AUTHORITY : identity;
-		this._clientId = clientId ?? generateUuid();
+		this._clientId = options?.clientId ?? generateUuid();
 		this._connectionAuthority = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? AMBIENT_AGENT_HOST_AUTHORITY : agentHostAuthority(identity);
-		this._loadEstimator = loadEstimator ?? LoadEstimator.getInstance();
+		this.resourceUris = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY
+			? identityAgentHostResourceUriMapper
+			: createAgentHostResourceUriMapper(this._connectionAuthority);
+		this._loadEstimator = options?.loadEstimator ?? LoadEstimator.getInstance();
+		this._clientInfo = options?.clientInfo;
+		this._reconnectPolicy = options?.reconnectPolicy ?? DEFAULT_RECONNECT_POLICY;
+		this._resolveInitialAuthentication = options?.resolveInitialAuthentication;
 
 		if (typeof transportOrFactory === 'function') {
 			this._transportFactory = transportOrFactory;
@@ -351,14 +389,17 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			const patch: Record<string, unknown> = {};
 			// These keys are host-level and last-writer-wins across windows.
 			const mirrored: string[] = [];
-			for (const entry of getAgentHostConfigurationSyncEntries(getAgentHostConfigurationSyncTarget(this._resourceIdentity))) {
-				if (!e.affectsConfiguration(entry.settingId)) {
-					continue;
-				}
-				const value = resolveAgentHostConfigurationSyncValue(this._configurationService, entry);
-				if (value !== undefined) {
-					patch[entry.sync.key] = value;
-					mirrored.push(`${entry.sync.key}=${formatAgentHostConfigurationSyncValueForLog(entry.settingId, value)} (${entry.settingId})`);
+			// Mirrored values exclude workspace, folder, and memory layers, so changes from those layers cannot affect them.
+			if (e.source !== ConfigurationTarget.WORKSPACE && e.source !== ConfigurationTarget.WORKSPACE_FOLDER && e.source !== ConfigurationTarget.MEMORY) {
+				for (const entry of getAgentHostConfigurationSyncEntries(getAgentHostConfigurationSyncTarget(this._resourceIdentity))) {
+					if (!e.affectsConfiguration(entry.settingId)) {
+						continue;
+					}
+					const value = resolveAgentHostConfigurationSyncValue(this._configurationService, entry);
+					if (value !== undefined) {
+						patch[entry.sync.key] = value;
+						mirrored.push(`${entry.sync.key}=${formatAgentHostConfigurationSyncValueForLog(entry.settingId, value)} (${entry.settingId})`);
+					}
 				}
 			}
 			if (Object.keys(patch).length) {
@@ -449,18 +490,24 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				throw transportLostError(this._address);
 			}
 
-			const result = await this._dispatchRequest<CommandMap['initialize']['result']>('initialize', {
+			const result = await this._dispatchRequest<IAgentHostExtensionInitializeResult>('initialize', {
 				channel: ROOT_STATE_URI,
-				// Advertise every version this client can negotiate, most-preferred first, so an
+				// Advertise every compatible version, most-preferred first, so an
 				// older host (a cloud sandbox running a 0.5.x `copilotd`) can negotiate down
 				// instead of rejecting the connection. A current host still picks the newest.
-				protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
+				protocolVersions: [...CLIENT_SUPPORTED_PROTOCOL_VERSIONS],
 				clientId: this._clientId,
 				clientInfo: this._clientInfo,
 				_meta: this._clientMeta(),
 				initialSubscriptions: [ROOT_STATE_URI],
 			}, { bypassInitializeQueue: true });
 			this._applyInitializeResult(result);
+			if (this._resolveInitialAuthentication || this._authentication.size > 0) {
+				await this._restoreAuthenticationAfterFreshInitialize(AgentHostClientState.Connecting);
+				if (this._state.kind !== AgentHostClientState.Connecting) {
+					throw transportLostError(this._address);
+				}
+			}
 
 			// Hydrate root state from the initial snapshot
 			for (const snapshot of result.snapshots ?? []) {
@@ -481,7 +528,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			const protocolError = error instanceof ProtocolError
 				? error
 				: new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, error instanceof Error ? error.message : String(error));
-			if (protocolError.code === AhpErrorCodes.UnsupportedProtocolVersion) {
+			if (protocolError.code === AhpErrorCodes.UnsupportedProtocolVersion || error instanceof InitialAuthenticationError) {
 				this._cancelLivenessTimers();
 				if (this._state.kind === AgentHostClientState.Connecting) {
 					this._state.outbox.length = 0;
@@ -491,8 +538,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				throw error;
 			}
 			if (error instanceof NonReconnectableTransportError) {
-				this._onDidFatalClose.fire(protocolError);
-				this._handleClose(protocolError);
+				this._handleFatalClose(protocolError);
 				throw error;
 			}
 			if (this._state.kind === AgentHostClientState.Reconnecting) {
@@ -551,6 +597,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					this._handleClose(connectionClosedError(this._address));
 					return;
 				}
+				if (!this._reconnectPolicy.autoRestore) {
+					const error = connectionClosedError(this._address);
+					this._logService.info(`[RemoteAgentHostProtocol] Transport lost for ${this._address}; automatic reconnect is disabled.`);
+					this._handleFatalClose(error);
+					return;
+				}
 				this._logService.info(`[RemoteAgentHostProtocol] Transport lost for ${this._address}; scheduling reconnect.`);
 				this._transitionTo({ kind: AgentHostClientState.Reconnecting, reconnect: this._newReconnectState() });
 				this._cancelLivenessTimers();
@@ -578,6 +630,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (this._state.kind !== AgentHostClientState.Connecting || !this._transportFactory) {
 			return false;
 		}
+		if (!this._reconnectPolicy.autoRestore) {
+			this._logService.info(`[RemoteAgentHostProtocol] Transport lost while connecting to ${this._address}; automatic reconnect is disabled.`);
+			this._handleFatalClose(error);
+			return true;
+		}
 		this._logService.info(`[RemoteAgentHostProtocol] Transport lost while connecting to ${this._address}; scheduling a fresh initialize.`);
 		// Carry the pre-handshake outbox into the reconnect state so queued
 		// messages are replayed once the fresh initialize succeeds.
@@ -602,11 +659,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			return false;
 		}
 		this._transitionTo({ kind: AgentHostClientState.Reconnecting, reconnect: this._newReconnectState() });
-		this._scheduleReconnect();
+		this._scheduleReconnect(true);
 		return true;
 	}
 
-	private _scheduleReconnect(): void {
+	private _scheduleReconnect(userInitiated = false): void {
 		if (this._state.kind !== AgentHostClientState.Reconnecting || !this._transportFactory) {
 			return;
 		}
@@ -614,8 +671,20 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (reconnect.timeoutHandle !== undefined) {
 			return;
 		}
+		if (!userInitiated && !this._reconnectPolicy.autoRestore) {
+			const error = connectionClosedError(this._address);
+			this._logService.info(`[RemoteAgentHostProtocol] Automatic reconnect to ${this._address} is disabled.`);
+			this._handleFatalClose(error);
+			return;
+		}
+		if (!userInitiated && hasExhaustedReconnectAttempts(this._reconnectPolicy, reconnect.attempt)) {
+			const error = new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, `Automatic reconnect gave up after ${reconnect.attempt} attempts.`);
+			this._logService.warn(`[RemoteAgentHostProtocol] Automatic reconnect to ${this._address} gave up after ${reconnect.attempt} attempts.`);
+			this._handleFatalClose(error);
+			return;
+		}
 		const attempt = reconnect.attempt + 1;
-		const delay = Math.min(RECONNECT_INITIAL_DELAY_MS * Math.pow(2, attempt - 1), RECONNECT_MAX_DELAY_MS);
+		const delay = computeReconnectDelay(this._reconnectPolicy, attempt);
 		this._logService.info(`[RemoteAgentHostProtocol] Reconnecting to ${this._address} in ${delay}ms (attempt ${attempt}).`);
 		reconnect.timeoutHandle = setTimeout(() => {
 			if (this._state.kind === AgentHostClientState.Reconnecting) {
@@ -657,7 +726,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._applyReconnectResult(result, freshInitialize);
 			this._updateManagedSettingsPermissions(true);
 			if (freshInitialize && result.type === ReconnectResultType.Snapshot) {
-				await this._restoreAuthenticationAfterFreshInitialize();
+				await this._restoreAuthenticationAfterFreshInitialize(AgentHostClientState.Reconnecting);
+				if (this._state.kind !== AgentHostClientState.Reconnecting) {
+					return;
+				}
 				await this._restoreSubscriptionsAfterFreshInitialize(result.snapshots);
 			}
 			if (this._state.kind !== AgentHostClientState.Reconnecting) {
@@ -690,8 +762,15 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 			if (err instanceof NonReconnectableTransportError) {
 				const protocolError = new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, err.message);
-				this._onDidFatalClose.fire(protocolError);
-				this._handleClose(protocolError);
+				this._handleFatalClose(protocolError);
+				return;
+			}
+			if (err instanceof InitialAuthenticationError) {
+				const protocolError = new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, err.message);
+				this._cancelLivenessTimers();
+				this._rejectPendingRequests(protocolError);
+				reconnect.gate.error(err);
+				this._transitionTo({ kind: AgentHostClientState.Incompatible, error: protocolError });
 				return;
 			}
 			// Replace the gate so awaiting callers see the failure but new
@@ -720,9 +799,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 
 		this._logService.info(`[RemoteAgentHostProtocol] Server forgot client ${this._clientId}; initializing a fresh connection.`);
-		const initializeResult = await this._dispatchRequest<CommandMap['initialize']['result']>('initialize', {
+		const initializeResult = await this._dispatchRequest<IAgentHostExtensionInitializeResult>('initialize', {
 			channel: ROOT_STATE_URI,
-			protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
+			protocolVersions: [...CLIENT_SUPPORTED_PROTOCOL_VERSIONS],
 			clientId: this._clientId,
 			clientInfo: this._clientInfo,
 			_meta: this._clientMeta(),
@@ -771,12 +850,40 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		]);
 	}
 
-	private async _restoreAuthenticationAfterFreshInitialize(): Promise<void> {
-		await Promise.all([...this._authentication.values()].map(params => this._dispatchRequest<CommandMap['authenticate']['result']>('authenticate', {
-			channel: ROOT_STATE_URI,
-			...params,
-			scopes: params.scopes ? [...params.scopes] : undefined,
-		}, { bypassReconnectGate: true })));
+	private async _restoreAuthenticationAfterFreshInitialize(expectedState: AgentHostClientState.Connecting | AgentHostClientState.Reconnecting): Promise<void> {
+		let resolvedInitialAuthentication = false;
+		if (this._resolveInitialAuthentication) {
+			try {
+				const initialAuthentication = await this._resolveInitialAuthentication();
+				if (initialAuthentication) {
+					const normalizedParams = this._normalizeAuthenticationParams(initialAuthentication);
+					this._authentication.set(this._authenticationKey(normalizedParams), normalizedParams);
+					resolvedInitialAuthentication = true;
+				}
+			} catch (error) {
+				throw new InitialAuthenticationError(error);
+			}
+			if (this._state.kind !== expectedState) {
+				return;
+			}
+		}
+		try {
+			await Promise.all([...this._authentication.values()].map(params => this._dispatchRequest<CommandMap['authenticate']['result']>('authenticate', {
+				channel: ROOT_STATE_URI,
+				...params,
+				scopes: params.scopes ? [...params.scopes] : undefined,
+			}, this._state.kind === AgentHostClientState.Connecting
+				? { bypassInitializeQueue: true, bypassReconnectGate: true }
+				: { bypassReconnectGate: true })));
+		} catch (error) {
+			// A dropped transport is not an authentication failure. Wrapping it
+			// would classify a momentary blip as terminally incompatible and
+			// permanently stop recovery, so let it stay a reconnectable error.
+			if (resolvedInitialAuthentication && !isConnectionClosedError(error)) {
+				throw new InitialAuthenticationError(error);
+			}
+			throw error;
+		}
 	}
 
 	private _clientMeta(): Record<string, unknown> {
@@ -790,7 +897,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		);
 	}
 
-	private _applyInitializeResult(result: CommandMap['initialize']['result'], forwardClientConfig = true): void {
+	private _applyInitializeResult(result: IAgentHostExtensionInitializeResult, forwardClientConfig = true): void {
 		this._initializeResult.set(result, undefined);
 		this._serverSeq = result.serverSeq;
 		if (result.defaultDirectory) {
@@ -855,7 +962,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				if (envelope.serverSeq > maxSeq) {
 					maxSeq = envelope.serverSeq;
 				}
-				this._onDidAction.fire(envelope);
+				this._onDidAction.fire(normalizeLegacyActionEnvelope(envelope));
 			}
 			this._serverSeq = maxSeq;
 			if (result.missing.length > 0) {
@@ -953,7 +1060,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return this._subscriptionManager.getActiveSubscriptions();
 	}
 
-	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
+	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
 		const seq = this._subscriptionManager.dispatchOptimistic(channel, action);
 		this.dispatchAction(channel, action, this._clientId, seq);
 	}
@@ -1000,7 +1107,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	/**
 	 * Dispatch a client action to the server. Returns the clientSeq used.
 	 */
-	private dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, _clientId: string, clientSeq: number): void {
+	private dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, _clientId: string, clientSeq: number): void {
 		this._grantImplicitReadsForOutgoingAction(action);
 		this._sendNotification('dispatchAction', { channel, clientSeq, action });
 	}
@@ -1032,6 +1139,36 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return promise;
 	}
 
+	async createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
+		const result = await this._sendExtensionRequest(CreateAgentHostDetachedWorktreeExtensionMethod, {
+			session: session.toString(),
+			prompt,
+		});
+		if (!result) {
+			throw new Error('Agent Host does not support detached worktrees.');
+		}
+		return { handle: result.handle, worktree: URI.parse(result.resource) };
+	}
+
+	async setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {
+		await this._sendExtensionRequest(SetAgentHostDetachedWorktreeArchivedExtensionMethod, {
+			handle,
+			archived,
+		});
+	}
+
+	async claimDetachedWorktree(handle: string): Promise<void> {
+		await this._sendExtensionRequest(ClaimAgentHostDetachedWorktreeExtensionMethod, { handle });
+	}
+
+	async deleteDetachedWorktree(handle: string): Promise<void> {
+		await this._sendExtensionRequest(DeleteAgentHostDetachedWorktreeExtensionMethod, { handle });
+	}
+
+	async reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
+		await this._sendExtensionRequest(ReconcileAgentHostDetachedWorktreesExtensionMethod, { scope, activeHandles: [...activeHandles] });
+	}
+
 	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
 		return this._sendRequest('resolveSessionConfig', {
 			channel: ROOT_STATE_URI,
@@ -1054,6 +1191,18 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	async completions(params: CompletionsParams): Promise<CompletionsResult> {
 		return this._sendRequest('completions', params);
+	}
+
+	async listAutomationTriggerDefinitions(params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> {
+		return this._sendRequest('listAutomationTriggerDefinitions', params);
+	}
+
+	async runAutomation(params: RunAutomationParams): Promise<RunAutomationResult> {
+		return this._sendRequest('runAutomation', params);
+	}
+
+	async fetchAutomationRuns(params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> {
+		return this._sendRequest('fetchAutomationRuns', params);
 	}
 
 	/**
@@ -1090,22 +1239,30 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * Authenticate with the remote agent host using a specific scheme.
 	 */
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
-		const normalizedParams: AuthenticateParams = {
-			...params,
-			scopes: params.scopes ? [...new Set(params.scopes)].sort() : undefined,
-		};
+		const normalizedParams = this._normalizeAuthenticationParams(params);
 		await this._sendRequest('authenticate', {
 			channel: ROOT_STATE_URI,
 			...normalizedParams,
 			scopes: normalizedParams.scopes ? [...normalizedParams.scopes] : undefined,
 		});
-		const key = `${normalizedParams.resource}\0${JSON.stringify(normalizedParams.scopes ?? [])}`;
+		const key = this._authenticationKey(normalizedParams);
 		if (params.token) {
 			this._authentication.set(key, normalizedParams);
 		} else {
 			this._authentication.delete(key);
 		}
 		return { authenticated: true };
+	}
+
+	private _normalizeAuthenticationParams(params: AuthenticateParams): AuthenticateParams {
+		return {
+			...params,
+			scopes: params.scopes ? [...new Set(params.scopes)].sort() : undefined,
+		};
+	}
+
+	private _authenticationKey(params: AuthenticateParams): string {
+		return `${params.resource}\0${JSON.stringify(params.scopes ?? [])}`;
 	}
 
 	/**
@@ -1126,9 +1283,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return this._sendExtensionRequest('getManagedSettingsDiagnostics');
 	}
 
-	async getSessionStateFile(session: URI): Promise<URI | undefined> {
+	async getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
+		const targetChat = chat && !isDefaultChatUri(chat) ? chat : undefined;
+		if (targetChat && !supportsAgentHostChatStateFile(this._initializeResult.get())) {
+			return undefined;
+		}
 		const result = await this._sendExtensionRequest(GetAgentHostSessionStateFileExtensionMethod, {
 			session: session.toString(),
+			chat: targetChat?.toString(),
 		});
 		if (!result.resource) {
 			return undefined;
@@ -1140,9 +1302,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return toAgentHostUri(resource, this._connectionAuthority);
 	}
 
-	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
+	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
 		const result = await this._sendExtensionRequest(CollectAgentHostDebugLogsExtensionMethod, {
 			session: session?.toString(),
+			chat: chat?.toString(),
 			kind,
 		});
 		if (result.kind !== kind) {
@@ -1215,7 +1378,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		await this._sendRequest('disposeSession', { channel: session.toString() });
 	}
 
-	async createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
 		await this._sendRequest('createChat', {
 			channel: session.toString(),
 			chat: chat.toString(),
@@ -1266,7 +1429,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	/**
 	 * List all sessions from the remote agent host.
 	 */
-	async listSessions(): Promise<IAgentSessionMetadata[]> {
+	async listSessions(): Promise<(IAgentSessionMetadata & { readonly workingDirectory?: URI })[]> {
 		const result = await this._sendRequest('listSessions', { channel: ROOT_STATE_URI });
 		return result.items.map((s: SessionSummary) => ({
 			session: URI.parse(s.resource),
@@ -1274,22 +1437,22 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			modifiedTime: Date.parse(s.modifiedAt),
 			...(s.project ? {
 				project: {
-					uri: this._toLocalProjectUri(URI.parse(s.project.uri)),
+					uri: this._toClientUri(URI.parse(s.project.uri)),
 					displayName: s.project.displayName,
 				}
 			} : {}),
 			summary: s.title,
 			status: s.status,
 			activity: s.activity,
-			workingDirectory: typeof s.workingDirectories?.[0] === 'string' ? toAgentHostUri(URI.parse(s.workingDirectories?.[0]), this._connectionAuthority) : undefined,
-			workingDirectories: s.workingDirectories?.map(d => toAgentHostUri(URI.parse(d), this._connectionAuthority)),
+			workingDirectory: typeof s.workingDirectories?.[0] === 'string' ? this._toClientUri(URI.parse(s.workingDirectories[0])) : undefined,
+			workingDirectories: s.workingDirectories?.map(d => this._toClientUri(URI.parse(d))),
 			changes: s.changes,
 			// Carry durable host provenance for sessions first materialized from a listing.
 			...(s._meta !== undefined ? { _meta: s._meta } : {}),
 		}));
 	}
 
-	private _toLocalProjectUri(uri: URI): URI {
+	private _toClientUri(uri: URI): URI {
 		return uri.scheme === Schemas.file ? toAgentHostUri(uri, this._connectionAuthority) : uri;
 	}
 
@@ -1297,7 +1460,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * Inspect an outgoing client-dispatched action and grant implicit reads for
 	 * resources that the host will need to read after receiving the action.
 	 */
-	private _grantImplicitReadsForOutgoingAction(action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
+	private _grantImplicitReadsForOutgoingAction(action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
 		switch (action.type) {
 			case ActionType.SessionActiveClientSet:
 				if (action.activeClient.customizations) {
@@ -1338,7 +1501,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			} catch {
 				continue;
 			}
-			this._grantImplicitRead(dirname(uri));
+			this._grantImplicitRead(uri);
 		}
 	}
 
@@ -1463,7 +1626,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					// Protocol envelope → VS Code envelope (superset of action types)
 					const envelope = msg.params;
 					this._serverSeq = Math.max(this._serverSeq, envelope.serverSeq);
-					this._onDidAction.fire(envelope);
+					this._onDidAction.fire(normalizeLegacyActionEnvelope(envelope));
 					break;
 				}
 				case 'root/sessionAdded':
@@ -1502,6 +1665,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		} else {
 			this._logService.warn(`[RemoteAgentHostProtocol] Unrecognized message:`, JSON.stringify(msg));
 		}
+	}
+
+	private _handleFatalClose(error: ProtocolError): void {
+		this._onDidFatalClose.fire(error);
+		this._handleClose(error);
 	}
 
 	private _handleClose(error: ProtocolError): void {

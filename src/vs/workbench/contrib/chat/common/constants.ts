@@ -26,6 +26,12 @@ export const enum BYOKUtilityModelDefault {
 	Copilot = 'copilot',
 }
 
+export const enum CustomizationMigrationHintMode {
+	Never = 'never',
+	Once = 'once',
+	Always = 'always',
+}
+
 export enum ChatConfiguration {
 	PluginsEnabled = 'chat.plugins.enabled',
 	PluginLocations = 'chat.pluginLocations',
@@ -81,6 +87,7 @@ export enum ChatConfiguration {
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	Verbose = 'chat.verbose',
 	ProgressBorder = 'chat.progressBorder.enabled',
+	SessionStateIndicatorEnabled = 'chat.experimental.sessionStateIndicator.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',
 	SubagentsUseRichRendering = 'chat.subagents.useRichRendering',
@@ -97,6 +104,7 @@ export enum ChatConfiguration {
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
 	ChatCustomizationsPromptMigrationEnabled = 'chat.customizations.promptMigration.enabled',
 	ChatCustomizationsUserDataMigrationEnabled = 'chat.customizations.userDataMigration.enabled',
+	ChatCustomizationsMigrationHint = 'chat.customizations.migrationHint',
 	AutopilotAdvancedEnabled = 'chat.autopilot.advanced.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
 	AssistedPermissionsEnabled = 'chat.assistedPermissions.enabled',
@@ -359,6 +367,27 @@ export function isNewChatSessionTypeUsable(
 	return isVisibleEditorChatSessionType(sessionType, configurationService, chatSessionsService, workspace, managedSandboxEnforced);
 }
 
+/** Why a new chat session type was selected. */
+export type SessionTypeSelectionReason =
+	/** A caller explicitly chose the session type. */
+	| 'explicitOverride'
+	/** The session type was automatically set to Local in a virtual workspace. */
+	| 'virtualWorkspace'
+	/** The user's last usable session type was restored. */
+	| 'rememberedSelection'
+	/** The current session's usable type was preserved. */
+	| 'currentSession'
+	/** The Copilot harness preference replaced a local current session. */
+	| 'copilotPreference'
+	/** An intended Agent Host session could not be acquired, so Local was used. */
+	| 'agentHostUnavailable'
+	/** Settings and available capabilities determined the default type. */
+	| 'computedDefault';
+
+export function getLocalFallbackSessionTypeSelectionReason(sessionType: string, didAcquireSession: boolean, inheritedReason?: SessionTypeSelectionReason): SessionTypeSelectionReason | undefined {
+	return !didAcquireSession && isAgentHostTarget(sessionType) ? 'agentHostUnavailable' : inheritedReason;
+}
+
 export interface IDefaultNewChatSessionTypeOptions {
 	readonly explicitOverride?: string;
 	readonly currentSessionType?: string;
@@ -367,6 +396,7 @@ export interface IDefaultNewChatSessionTypeOptions {
 export interface IResolvedNewChatSessionType {
 	/** The session type to open for the new chat. */
 	readonly sessionType: string;
+	readonly selectionReason: SessionTypeSelectionReason;
 }
 
 export function getDefaultNewChatSessionType(
@@ -378,27 +408,50 @@ export function getDefaultNewChatSessionType(
 	options?: IDefaultNewChatSessionTypeOptions,
 	managedSandboxEnforced = false
 ): string {
+	return getDefaultNewChatSessionTypeAndReasonFromServices(configurationService, chatSessionsService, storageService, workspace, agentHostEnabled, options, managedSandboxEnforced).sessionType;
+}
+
+export function getDefaultNewChatSessionTypeAndReasonFromServices(
+	configurationService: IConfigurationService,
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
+	storageService: IStorageService,
+	workspace: IWorkspace,
+	agentHostEnabled: boolean,
+	options?: IDefaultNewChatSessionTypeOptions,
+	managedSandboxEnforced = false
+): IResolvedNewChatSessionType {
 	if (options?.explicitOverride) {
-		return options.explicitOverride;
+		return { sessionType: options.explicitOverride, selectionReason: 'explicitOverride' };
 	}
 
 	if (isVirtualWorkspace(workspace)) {
-		return localChatSessionType;
+		return { sessionType: localChatSessionType, selectionReason: 'virtualWorkspace' };
 	}
 
+	const preferCopilotHarness = agentHostEnabled && isCopilotHarnessPreferred(configurationService, managedSandboxEnforced);
 	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced);
-	if (remembered) {
-		return remembered;
+	if (remembered && (remembered !== localChatSessionType || !preferCopilotHarness)) {
+		return { sessionType: remembered, selectionReason: 'rememberedSelection' };
 	}
 
+	let resolved: IResolvedNewChatSessionType;
 	if (options?.currentSessionType && isNewChatSessionTypeUsable(options.currentSessionType, configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced)) {
-		return options.currentSessionType;
+		resolved = { sessionType: options.currentSessionType, selectionReason: 'currentSession' };
+	} else if (remembered) {
+		resolved = { sessionType: remembered, selectionReason: 'rememberedSelection' };
+	} else {
+		resolved = {
+			sessionType: getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced),
+			selectionReason: 'computedDefault'
+		};
 	}
 
-	return getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced);
+	return resolved.sessionType === localChatSessionType && preferCopilotHarness
+		? { sessionType: SessionType.AgentHostCopilot, selectionReason: 'copilotPreference' }
+		: resolved;
 }
 
-export function resolveDefaultNewChatSessionType(
+export function getDefaultNewChatSessionTypeAndReason(
 	accessor: ServicesAccessor,
 	options?: IDefaultNewChatSessionTypeOptions
 ): IResolvedNewChatSessionType {
@@ -410,26 +463,7 @@ export function resolveDefaultNewChatSessionType(
 	const agentHostEnabled = agentHostEnablementService.enabled.get();
 	const managedSandboxEnforced = agentHostEnablementService.managedSandboxEnforced.get();
 
-	if (options?.explicitOverride) {
-		return { sessionType: options.explicitOverride };
-	}
-
-	if (isVirtualWorkspace(workspace)) {
-		return { sessionType: localChatSessionType };
-	}
-
-	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced);
-	if (remembered && remembered !== localChatSessionType) {
-		return { sessionType: remembered };
-	}
-
-	if (options?.currentSessionType === localChatSessionType
-		&& agentHostEnabled
-		&& isCopilotHarnessPreferred(configurationService, managedSandboxEnforced)) {
-		return { sessionType: SessionType.AgentHostCopilot };
-	}
-
-	return { sessionType: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, workspace, agentHostEnabled, options, managedSandboxEnforced) };
+	return getDefaultNewChatSessionTypeAndReasonFromServices(configurationService, chatSessionsService, storageService, workspace, agentHostEnabled, options, managedSandboxEnforced);
 }
 
 function getUsableRememberedSessionType(

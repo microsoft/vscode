@@ -141,6 +141,25 @@ export interface IConfigurationService {
 	getExperimentBasedConfigObservable<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): IObservable<T>;
 
 	/**
+	 * Like {@link getExperimentBasedConfig}, but returns `undefined` when neither the user's settings
+	 * nor an experiment provide a value, instead of falling back to the setting's default.
+	 *
+	 * Use this when some other source supplies a default that must stay overridable by the user and by
+	 * experimentation, so that source can be consulted only when the setting is not explicitly driven.
+	 *
+	 * @remark Only meaningful for settings that are not contributed in `package.json`
+	 * ({@link BaseConfig.isPublic} is `false`). For contributed settings tagged `onExp`, VS Code folds
+	 * the treatment into `inspect().defaultValue`, so an experiment value is indistinguishable from the
+	 * default and this method reports it as unset.
+	 */
+	getExperimentBasedConfigIfSet<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope): T | undefined;
+
+	/**
+	 * Gets the observable form of {@link getExperimentBasedConfigIfSet}.
+	 */
+	getExperimentBasedConfigIfSetObservable<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): IObservable<T | undefined>;
+
+	/**
 	 * For object values, the user config will be mixed in with the default config.
 	 */
 	getConfigMixedWithDefaults<T>(key: Config<T>): T;
@@ -263,8 +282,70 @@ export abstract class AbstractConfigurationService extends Disposable implements
 	abstract inspectConfig<T>(key: BaseConfig<T>, scope?: ConfigurationScope): InspectConfigResult<T> | undefined;
 	abstract getNonExtensionConfig<T>(configKey: string): T | undefined;
 	abstract setConfig<T>(key: BaseConfig<T>, value: T, target?: ConfigTarget): Thenable<void>;
-	abstract getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): T;
 	abstract dumpConfig(): { [key: string]: string };
+
+	public getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope): T {
+		const value = this.getExperimentBasedConfigIfSet(key, experimentationService, scope);
+		// Deliberately not `??`: a treatment may legitimately resolve to `null`.
+		return value === undefined ? this.getDefaultValue(key) : value;
+	}
+
+	public getExperimentBasedConfigIfSet<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope): T | undefined {
+		const configuredValue = this._getUserConfiguredExperimentBasedValue(key, scope);
+		if (configuredValue !== undefined) {
+			return configuredValue;
+		}
+		return this._getExperimentTreatment(key, experimentationService);
+	}
+
+	/**
+	 * The value the user explicitly configured for `key` in any settings scope, or `undefined` when the
+	 * setting is not configured. Implementations backed only by defaults have nothing to report.
+	 */
+	protected _getUserConfiguredExperimentBasedValue<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, scope?: ConfigurationScope): T | undefined {
+		return undefined;
+	}
+
+	/**
+	 * The value assigned to `key` by experimentation, looked up under every treatment name the key has
+	 * ever been published as, or `undefined` when no experiment assigns it.
+	 */
+	protected _getExperimentTreatment<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): T | undefined {
+		if (key.experimentName) {
+			const expValue = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(key.experimentName);
+			if (expValue !== undefined) {
+				return expValue;
+			}
+		}
+
+		// This is the pattern we've been using for a while now. We need to maintain it for older experiments.
+		const expValue = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(`copilotchat.config.${key.id}`);
+		if (expValue !== undefined) {
+			return expValue;
+		}
+
+		// This is the pattern vscode uses for settings using the `onExp` tag. But vscode only supports it for
+		// settings defined in package.json, so this is why we're also reading the value from exp here.
+		const expValue2 = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(`config.${key.fullyQualifiedId}`);
+		if (expValue2 !== undefined) {
+			return expValue2;
+		}
+
+		if (key.fullyQualifiedOldId) {
+			const oldExpValue = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(`copilotchat.config.${key.oldId}`);
+			if (oldExpValue !== undefined) {
+				return oldExpValue;
+			}
+
+			const oldExpValue2 = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(`config.${key.fullyQualifiedOldId}`);
+			if (oldExpValue2 !== undefined) {
+				return oldExpValue2;
+			}
+		}
+
+		return undefined;
+	}
+
 	public updateExperimentBasedConfiguration(treatments: string[]): void {
 		if (treatments.length === 0) {
 			return;
@@ -272,18 +353,57 @@ export abstract class AbstractConfigurationService extends Disposable implements
 		this._onDidChangeConfiguration.fire({ affectsConfiguration: () => true });
 	}
 
+	/**
+	 * Whether any of `treatments` can supply a value for `section`.
+	 *
+	 * Mirrors the alias list in {@link _getExperimentTreatment}: a treatment arriving under one of the
+	 * older names assigns the setting just as much as one under the `config.` name, so it has to
+	 * invalidate the setting's observers too.
+	 */
+	protected _treatmentsAffectConfiguration(treatments: string[], section: string): boolean {
+		const config = globalConfigRegistry.configs.get(section);
+		const names = [`config.${section}`];
+		if (config) {
+			names.push(`copilotchat.config.${config.id}`);
+			if (config.configType === ConfigType.ExperimentBased && config.experimentName) {
+				names.push(config.experimentName);
+			}
+			if (config.fullyQualifiedOldId) {
+				names.push(`config.${config.fullyQualifiedOldId}`);
+			}
+			if (config.oldId) {
+				names.push(`copilotchat.config.${config.oldId}`);
+			}
+		}
+		return treatments.some(treatment => names.some(name => treatment.startsWith(name)));
+	}
+
 	public getConfigObservable<T>(key: Config<T>): IObservable<T> {
-		return this._getObservable_$show2FramesUp(key, () => this.getConfig(key));
+		return this._getObservable_$show2FramesUp('config', key, () => this.getConfig(key));
 	}
 
 	public getExperimentBasedConfigObservable<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): IObservable<T> {
-		return this._getObservable_$show2FramesUp(key, () => this.getExperimentBasedConfig(key, experimentationService));
+		return this._getObservable_$show2FramesUp('exp', key, () => this.getExperimentBasedConfig(key, experimentationService));
 	}
 
+	public getExperimentBasedConfigIfSetObservable<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): IObservable<T | undefined> {
+		return this._getObservable_$show2FramesUp('expIfSet', key, () => this.getExperimentBasedConfigIfSet(key, experimentationService));
+	}
+
+	/**
+	 * Cached observables, keyed by accessor *and* setting id.
+	 *
+	 * {@link getExperimentBasedConfigObservable} and {@link getExperimentBasedConfigIfSetObservable}
+	 * report different values for the same setting: the latter reports `undefined` where the former
+	 * reports the setting's default. Keying on the setting alone would hand whichever accessor asked
+	 * second the observable built for the first, so an unset setting would read as explicitly set to
+	 * its default -- silently reintroducing the precedence bug the `IfSet` accessor exists to fix.
+	 */
 	private observables = new Map<string, IObservable<any>>();
 
-	private _getObservable_$show2FramesUp<T>(key: BaseConfig<T>, getValue: () => T): IObservable<T> {
-		let observable = this.observables.get(key.id);
+	private _getObservable_$show2FramesUp<T>(kind: 'config' | 'exp' | 'expIfSet', key: BaseConfig<T>, getValue: () => T): IObservable<T> {
+		const cacheKey = `${kind}:${key.id}`;
+		let observable = this.observables.get(cacheKey);
 		if (!observable) {
 			observable = observableFromEventOpts(
 				{ debugName: () => `Configuration Key "${key.id}"` },
@@ -294,7 +414,7 @@ export abstract class AbstractConfigurationService extends Disposable implements
 				})),
 				getValue
 			);
-			this.observables.set(key.id, observable);
+			this.observables.set(cacheKey, observable);
 		}
 		return observable;
 	}
@@ -624,7 +744,6 @@ export namespace ConfigKey {
 		export const AgentHistorySummarizationMode = defineAndMigrateSetting<string | undefined>('chat.advanced.agentHistorySummarizationMode', 'chat.agentHistorySummarizationMode', undefined);
 		export const UseResponsesApiTruncation = defineAndMigrateSetting<boolean | undefined>('chat.advanced.useResponsesApiTruncation', 'chat.useResponsesApiTruncation', false);
 		export const OmitBaseAgentInstructions = defineAndMigrateSetting<boolean>('chat.advanced.omitBaseAgentInstructions', 'chat.omitBaseAgentInstructions', false);
-		export const CLIShowExternalSessions = defineSetting<boolean>('chat.cli.showExternalSessions', ConfigType.Simple, true);
 		export const CLIPlanExitModeEnabled = defineSetting<boolean>('chat.cli.planExitMode.enabled', ConfigType.Simple, true);
 		export const CLIAutoModelEnabled = defineSetting<boolean>('chat.cli.autoModel.enabled', ConfigType.Simple, true);
 		/**
@@ -698,7 +817,6 @@ export namespace ConfigKey {
 		export const BackgroundTodoAgentEnabled = defineSetting<boolean>('chat.agent.backgroundTodoAgent.enabled', ConfigType.ExperimentBased, false);
 
 		export const InlineEditsTriggerOnEditorChangeAfterSeconds = defineAndMigrateExpSetting<number | undefined>('chat.advanced.inlineEdits.triggerOnEditorChangeAfterSeconds', 'chat.inlineEdits.triggerOnEditorChangeAfterSeconds', 10);
-		export const InlineEditsNextCursorPredictionDisplayLine = defineAndMigrateExpSetting<boolean>('chat.advanced.inlineEdits.nextCursorPrediction.displayLine', 'chat.inlineEdits.nextCursorPrediction.displayLine', true);
 		export const InlineEditsNextCursorPredictionCurrentFileMaxTokens = defineAndMigrateExpSetting<number>('chat.advanced.inlineEdits.nextCursorPrediction.currentFileMaxTokens', 'chat.inlineEdits.nextCursorPrediction.currentFileMaxTokens', 3000);
 		export const InlineEditsRenameSymbolSuggestions = defineSetting<boolean>('chat.inlineEdits.renameSymbolSuggestions', ConfigType.ExperimentBased, true);
 		export const InlineEditsPreferredModel = defineSetting<string | 'none'>('nextEditSuggestions.preferredModel', ConfigType.ExperimentBased, 'none');
@@ -728,9 +846,7 @@ export namespace ConfigKey {
 		/** Simulate GitHub authentication failures for testing. Can't be TeamInternal because we lose these flags as part of testing. */
 		export const DebugGitHubAuthFailWith = defineSetting<'NotAuthorized' | 'RequestFailed' | 'ParseFailed' | 'HTTP401' | 'RateLimited' | 'GitHubLoginFailed' | null>('chat.debug.githubAuthFailWith', ConfigType.Simple, null);
 
-		// Agent debug logging settings — fileLogging.enabled is the canonical toggle
-		/** @deprecated Use ChatDebugFileLogging instead. Kept during experiment transition. */
-		export const AgentDebugLogEnabled = defineAndMigrateExpSetting<boolean>('agentDebugLog.enabled', 'chat.agentDebugLog.enabled', false);
+		// Agent debug logging settings
 		export const ChatDebugFileLogging = defineAndMigrateExpSetting<boolean>('chat.chatDebug.fileLogging.enabled', 'chat.agentDebugLog.fileLogging.enabled', false);
 		export const ChatDebugFileLoggingFlushInterval = defineAndMigrateSetting<number>('chat.chatDebug.fileLogging.flushIntervalMs', 'chat.agentDebugLog.fileLogging.flushIntervalMs', 4000);
 		export const ChatDebugFileLoggingMaxRetainedSessionLogs = defineSetting<number>('chat.agentDebugLog.fileLogging.maxRetainedSessionLogs', ConfigType.ExperimentBased, 50);
@@ -1073,6 +1189,7 @@ export namespace ConfigKey {
 	export const EnableAlternateGptPrompt = defineSetting<boolean>('chat.alternateGptPrompt.enabled', ConfigType.ExperimentBased, false);
 	export const EnableAlternateGeminiModelFPrompt = defineSetting<boolean>('chat.alternateGeminiModelFPrompt.enabled', ConfigType.ExperimentBased, false);
 	export const EnableGemini3ReducedToolUsePrompt = defineSetting<boolean>('chat.gemini35FlashReducedToolUsePrompt.enabled', ConfigType.ExperimentBased, true);
+	export const EnableGeminiFlashPromptAdditions = defineSetting<boolean>('chat.geminiFlashPromptAdditions.enabled', ConfigType.ExperimentBased, false);
 
 	export const EnableOrganizationCustomAgents = defineSetting<boolean>('chat.organizationCustomAgents.enabled', ConfigType.Simple, true);
 	export const EnableOrganizationInstructions = defineSetting<boolean>('chat.organizationInstructions.enabled', ConfigType.Simple, true);

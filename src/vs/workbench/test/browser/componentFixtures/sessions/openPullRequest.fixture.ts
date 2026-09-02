@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { themeColorFromId } from '../../../../../base/common/themables.js';
+import { Event } from '../../../../../base/common/event.js';
+import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IObservable, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -15,6 +17,8 @@ import { IGitHubInfo, IGitHubPullRequestRef, ISessionFolder, ISessionGitReposito
 import { IActiveSession } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionContext, SessionContext } from '../../../../../sessions/services/sessions/browser/sessionContext.js';
+// eslint-disable-next-line local/code-import-patterns
+import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { computePullRequestIcon, IGitHubPullRequest, GitHubPullRequestState } from '../../../../../sessions/contrib/github/common/types.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -26,12 +30,13 @@ import { OpenPullRequestActionViewItem } from '../../../../../sessions/contrib/g
 // eslint-disable-next-line local/code-import-patterns
 import { IPullRequestIconCache } from '../../../../../sessions/contrib/github/browser/pullRequestIconCache.js';
 // eslint-disable-next-line local/code-import-patterns
-import { createGitHubReferenceListElement } from '../../../../../sessions/contrib/github/browser/githubReferenceList.js';
+import { GitHubReferenceList } from '../../../../../sessions/contrib/github/browser/githubReferenceList.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { createFixtureGitHubService, createFixturePullRequestIconCache } from './githubFixtureUtils.js';
 
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../sessions/browser/parts/media/chatCompositeBar.css';
+import '../../../../../base/browser/ui/actionbar/actionbar.css';
 import '../../../../../base/browser/ui/hover/hoverWidget.css';
 import '../../../../../platform/hover/browser/hover.css';
 
@@ -94,6 +99,10 @@ function renderPullRequestPill(ctx: ComponentFixtureContext, pullRequest: IGitHu
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
 			reg.defineInstance(ISessionContext, new SessionContext(session));
+			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+				override readonly onDidChangeProviders = Event.None;
+				override getProvider() { return undefined; }
+			}());
 			reg.defineInstance(IGitHubService, createFixtureGitHubService(pullRequestDetails.map(details => ({ owner: 'microsoft', repo: 'vscode', pullRequest: details }))));
 			reg.defineInstance(IPullRequestIconCache, createFixturePullRequestIconCache());
 		},
@@ -123,11 +132,18 @@ function renderPullRequestPill(ctx: ComponentFixtureContext, pullRequest: IGitHu
 }
 
 function renderPullRequestList(ctx: ComponentFixtureContext, pullRequests: readonly IGitHubPullRequest[]): void {
-	renderInHoverWidget(ctx, createGitHubReferenceListElement(pullRequests.map(pullRequest => ({
+	const list = ctx.disposableStore.add(new GitHubReferenceList(pullRequests.map(pullRequest => ({
 		number: pullRequest.number,
 		title: pullRequest.title,
 		icon: computePullRequestIcon(pullRequest.isDraft ? 'draft' : pullRequest.state),
-	})), () => { }), '480px');
+		toolbarActions: [toAction({
+			id: 'fixture.copyPullRequestLink',
+			label: 'Copy Pull Request Link',
+			class: ThemeIcon.asClassName(Codicon.copy),
+			run: () => { },
+		})],
+	})), () => { }));
+	renderInHoverWidget(ctx, list.element, '480px');
 }
 
 function renderPullRequestHover(ctx: ComponentFixtureContext, pullRequest: IGitHubPullRequest): void {

@@ -17,6 +17,7 @@ import { type AgentCustomization, type ChildCustomization } from '../../common/s
 import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDirectory.js';
 
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
+type PreToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPreToolUse']>>>;
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
 type UserPromptSubmittedHookInput = Parameters<NonNullable<SessionHooks['onUserPromptSubmitted']>>[0];
 type SessionStartHookInput = Parameters<NonNullable<SessionHooks['onSessionStart']>>[0];
@@ -114,6 +115,13 @@ function toStringEnv(env: Record<string, string | number | null>): Record<string
 // Custom agents
 // ---------------------------------------------------------------------------
 
+const customAgentReasoningEfforts = ['low', 'medium', 'high', 'xhigh', 'max'] as const satisfies readonly NonNullable<CustomAgentConfig['reasoningEffort']>[];
+type CustomAgentReasoningEffort = (typeof customAgentReasoningEfforts)[number];
+
+function isCustomAgentReasoningEffort(value: string | undefined): value is CustomAgentReasoningEffort {
+	return customAgentReasoningEfforts.some(reasoningEffort => reasoningEffort === value);
+}
+
 /**
  * Converts parsed plugin agents into the SDK's `customAgents` config.
  *
@@ -122,6 +130,7 @@ function toStringEnv(env: Record<string, string | number | null>): Record<string
  *  - `description` is forwarded verbatim.
  *  - `tools` is forwarded as the SDK's allow-list; an empty / missing array
  *    becomes `null` so the SDK grants the agent access to all tools.
+ *  - `reasoning-effort` is forwarded when it is a supported runtime value.
  *  - `prompt` is the markdown body that follows the frontmatter (or the
  *    full file content when there is no frontmatter).
  */
@@ -146,6 +155,7 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 				const description = md.getStringValue('description');
 				const tools = md.getStringArrayValue('tools');
 				const skills = md.getStringArrayValue('skills');
+				const reasoningEffort = md.getStringValue('reasoning-effort');
 				let infer = md.getBooleanValue('infer');
 				const disableModelInvocation = md.getBooleanValue('disable-model-invocation');
 				if (infer === undefined && disableModelInvocation === true) {
@@ -161,6 +171,7 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 					name,
 					...(description ? { description } : {}),
 					...(model ? { model } : {}),
+					...(isCustomAgentReasoningEffort(reasoningEffort) ? { reasoningEffort } : {}),
 					tools: tools && tools.length > 0 ? tools : null,
 					...(skills !== undefined ? { skills } : {}),
 					...(infer !== undefined ? { infer } : {}),
@@ -398,7 +409,7 @@ const HOOK_TYPE_TO_SDK_KEY: Record<string, keyof SessionHooks> = {
 export function toSdkHooks(
 	hookGroups: readonly IParsedHookGroup[],
 	editTrackingHooks?: {
-		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<void>;
+		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<PreToolUseHookOutput>;
 		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<void>;
 		readonly onUserPromptSubmitted?: () => { readonly additionalContext: string } | undefined;
 	},
@@ -421,7 +432,10 @@ export function toSdkHooks(
 	const preToolCommands = commandsByKey.get('onPreToolUse');
 	if (preToolCommands?.length || editTrackingHooks) {
 		hooks.onPreToolUse = async (input: PreToolUseHookInput) => {
-			await editTrackingHooks?.onPreToolUse(input);
+			const internalResult = await editTrackingHooks?.onPreToolUse(input);
+			if (internalResult !== undefined) {
+				return internalResult;
+			}
 			return runHookCommands(preToolCommands, input);
 		};
 	}
@@ -511,7 +525,12 @@ export function parsedPluginsEqual(a: readonly IParsedPlugin[], b: readonly IPar
 			format: p.format,
 			hooks: p.hooks.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, linux: c.linux, osx: c.osx, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout })) })),
 			mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration, defaultCwd: m.defaultCwd?.toString() })),
-			skills: p.skills.map(s => ({ uri: s.uri.toString(), name: s.name })),
+			skills: p.skills.map(s => ({
+				uri: s.uri.toString(),
+				name: s.name,
+				disableModelInvocation: s.disableModelInvocation,
+				disableUserInvocation: s.disableUserInvocation,
+			})),
 			agents: p.agents.map(a => ({ uri: a.uri.toString(), name: a.name })),
 			instructions: p.instructions.map(i => ({ uri: i.uri.toString(), name: i.name })),
 		})));

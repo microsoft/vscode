@@ -25,6 +25,7 @@ import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
+import { rewriteMarkdownLinks } from '../../../../../base/common/markdownLinks.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { FileAccess, Schemas } from '../../../../../base/common/network.js';
 import { clamp, formatTokenCount } from '../../../../../base/common/numbers.js';
@@ -46,6 +47,7 @@ import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { parseRemoteAgentHostSessionTypeAuthority } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { parseAgentMergePrompt } from '../../../../../platform/agentHost/common/agentMergePrompt.js';
 import { isCreateChatTool, isCreateSessionTool, isSendMessageTool } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CodiconActionViewItem } from '../../../notebook/browser/view/cellParts/cellActionView.js';
@@ -70,6 +72,7 @@ import { ForkConversationActionId } from '../actions/chatForkActions.js';
 import { MarkHelpfulActionId } from '../actions/chatTitleActions.js';
 import { focusChatModelFeedbackSurveyAction } from '../actions/chatModelFeedbackSurveyActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from '../chat.js';
+import { getCompactCodicon } from '../chatIcons.js';
 import { ChatModelFeedbackSurveyWidget } from '../feedbackSurvey/chatModelFeedbackSurveyWidget.js';
 import { AgentHostSnapshotController } from '../agentSessions/agentHost/agentHostSnapshotController.js';
 import { RestoreCheckpointActionId, StartOverActionId } from '../chatEditing/chatEditingActions.js';
@@ -78,6 +81,7 @@ import { ChatRestoreCheckpointActionViewItem } from './chatRestoreCheckpointActi
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
 import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 import { ChatAgentCommandContentPart } from './chatContentParts/chatAgentCommandContentPart.js';
+import { ChatAgentMergeContentPart } from './chatContentParts/chatAgentMergeContentPart.js';
 import { ChatAnonymousRateLimitedPart } from './chatContentParts/chatAnonymousRateLimitedPart.js';
 import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsContentPart.js';
 import { ChatAutoModeResolutionContentPart } from './chatContentParts/chatAutoModeResolutionContentPart.js';
@@ -277,6 +281,36 @@ function isResponseOutcomeTool(part: IChatRendererContent): boolean {
 		&& (part.toolSpecificData?.kind === 'sessionCreated' || part.toolSpecificData?.kind === 'generatedImage');
 }
 
+function getSessionCreatedOutcomeLink(part: IChatRendererContent): string | undefined {
+	return (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'sessionCreated'
+		? part.toolSpecificData.openLink
+		: undefined;
+}
+
+function getFinalResponseLinkTargets(content: ReadonlyArray<IChatRendererContent>): ReadonlySet<string> {
+	const targets = new Set<string>();
+	const finalResponseStartIndex = getFinalResponseStartIndex(content);
+	if (finalResponseStartIndex === undefined) {
+		return targets;
+	}
+
+	for (let index = finalResponseStartIndex; index < content.length; index++) {
+		const part = content[index];
+		if (part.kind !== 'markdownContent') {
+			break;
+		}
+		rewriteMarkdownLinks(part.content.value, {
+			rewriteLink: token => {
+				if (token.type === 'link') {
+					targets.add(token.href);
+				}
+				return undefined;
+			}
+		});
+	}
+	return targets;
+}
+
 export function getFinalResponseStartIndexAfterMovingResponseOutcomeTools(content: ReadonlyArray<IChatRendererContent>): number | undefined {
 	const finalResponseStartIndex = getFinalResponseStartIndex(content);
 	if (finalResponseStartIndex === undefined) {
@@ -301,6 +335,15 @@ export function moveResponseOutcomeToolsAfterFinalResponse(content: ReadonlyArra
 	if (outcomeTools.length === 0) {
 		return [...content];
 	}
+	const responseLinkTargets = outcomeTools.some(part => getSessionCreatedOutcomeLink(part) !== undefined)
+		? getFinalResponseLinkTargets(content)
+		: undefined;
+	const uniqueOutcomeTools = responseLinkTargets
+		? outcomeTools.filter(part => {
+			const openLink = getSessionCreatedOutcomeLink(part);
+			return openLink === undefined || !responseLinkTargets.has(openLink);
+		})
+		: outcomeTools;
 
 	const finalResponseStartIndex = getFinalResponseStartIndexAfterMovingResponseOutcomeTools(content);
 	if (finalResponseStartIndex === undefined) {
@@ -312,7 +355,7 @@ export function moveResponseOutcomeToolsAfterFinalResponse(content: ReadonlyArra
 	while (reordered[insertionIndex]?.kind === 'markdownContent') {
 		insertionIndex++;
 	}
-	reordered.splice(insertionIndex, 0, ...outcomeTools);
+	reordered.splice(insertionIndex, 0, ...uniqueOutcomeTools);
 	return reordered;
 }
 
@@ -625,6 +668,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private readonly templateDataByRequestId = new Map<string, IChatListItemTemplate>();
 	private readonly responseTemplateDataByRequestId = new Map<string, IChatListItemTemplate>();
+	private readonly stickyScrollTemplateDataByRequestId = new Map<string, IChatListItemTemplate>();
+	private readonly hoveredRequestBubbleByRequestId = new Map<string, HTMLElement>();
+	private readonly stickyScrollSourceWidthRatioByRequestId = new Map<string, number>();
+	private readonly appliedStickyScrollWidthRatioByBubble = new WeakMap<HTMLElement, number>();
 	private readonly stickyScrollSourceRangesByRequestId = new Map<string, IStickyScrollNodeSourceRange | null>();
 	private readonly stickyScrollRequestContentById = new Map<string, { contentKey: string; hasContent: boolean }>();
 	private readonly pendingStickyScrollSourceRangeRefresh = this._register(new MutableDisposable<IDisposable>());
@@ -869,6 +916,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	refreshStickyScrollSourceRanges(invalidateRejected = false): void {
 		if (!this.delegate.isStickyScrollEnabled()) {
 			this.stickyScrollSourceRangesByRequestId.clear();
+			this.stickyScrollSourceWidthRatioByRequestId.clear();
 			return;
 		}
 
@@ -885,6 +933,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.updateStickyScrollSourceRange(templateData.currentElement, templateData);
 			}
 		}
+		for (const templateData of this.stickyScrollTemplateDataByRequestId.values()) {
+			if (isRequestVM(templateData.currentElement)) {
+				this.updateStickyScrollSourceRange(templateData.currentElement, templateData);
+			}
+		}
 	}
 
 	updateViewModel(viewModel: IChatViewModel | undefined): void {
@@ -897,6 +950,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.focusedFileTreesByResponseId.clear();
 		this.responseTemplateDataByRequestId.clear();
 		this.templateDataByRequestId.clear();
+		this.stickyScrollTemplateDataByRequestId.clear();
+		this.hoveredRequestBubbleByRequestId.clear();
+		this.stickyScrollSourceWidthRatioByRequestId.clear();
 		this.stickyScrollSourceRangesByRequestId.clear();
 		this.stickyScrollRequestContentById.clear();
 
@@ -961,6 +1017,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			for (const diffEditor of this._diffEditorPool.inUse()) {
 				diffEditor.layout(newWidth);
 			}
+			this.stickyScrollSourceWidthRatioByRequestId.clear();
 			this.stickyScrollSourceRangesByRequestId.clear();
 			this.scheduleStickyScrollSourceRangeRefresh();
 		}
@@ -1669,7 +1726,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			avatarIcon.src = FileAccess.uriToBrowserUri(icon).toString(true);
 			templateData.avatarContainer.replaceChildren(dom.$('.avatar', undefined, avatarIcon));
 		} else {
-			const avatarIcon = dom.$(ThemeIcon.asCSSSelector(icon));
+			const avatarIcon = dom.$(ThemeIcon.asCSSSelector(templateData.rowContainer.classList.contains('interactive-item-compact') ? getCompactCodicon(icon) : icon));
 			templateData.avatarContainer.replaceChildren(dom.$('.avatar.codicon-avatar', undefined, avatarIcon));
 		}
 	}
@@ -2118,6 +2175,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				templateData.value.appendChild(explicitFileAttachmentsPart.domNode);
 				templateData.elementDisposables.add(explicitFileAttachmentsPart);
 			}
+			if (otherVariables.length) {
+				const otherAttachmentsPart = this.renderAttachments(otherVariables, element.contentReferences, element.modelId, templateData);
+				if (otherAttachmentsPart.domNode) {
+					templateData.value.appendChild(otherAttachmentsPart.domNode);
+				}
+				templateData.elementDisposables.add(otherAttachmentsPart);
+			}
 		}
 		const contentContainer = templateData.value;
 
@@ -2233,14 +2297,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			dispose(templateData.renderedParts);
 		}
 		templateData.renderedParts = parts;
-
-		if (!isStickyScrollRow && otherVariables.length) {
-			const newPart = this.renderAttachments(otherVariables, element.contentReferences, element.modelId, templateData);
-			if (newPart.domNode) {
-				// p has a :last-child rule for margin
-				templateData.value.appendChild(newPart.domNode);
-			}
-			templateData.elementDisposables.add(newPart);
+		if (isStickyScrollRow && this.stickyScrollTemplateDataByRequestId.get(element.id) !== templateData) {
+			this.stickyScrollTemplateDataByRequestId.set(element.id, templateData);
+			templateData.elementDisposables.add(toDisposable(() => {
+				if (this.stickyScrollTemplateDataByRequestId.get(element.id) === templateData) {
+					this.stickyScrollTemplateDataByRequestId.delete(element.id);
+				}
+			}));
+		}
+		const stickyScrollSourcePart = parts.find(part => part.domNode === templateData.stickyScrollSource);
+		if (stickyScrollSourcePart?.addDisposable && templateData.stickyScrollSource?.classList.contains('clickable')) {
+			stickyScrollSourcePart.addDisposable(this.registerSynchronizedRequestBubbleHover(element.id, templateData, templateData.stickyScrollSource));
 		}
 
 		if (!isStickyScrollRow && !element.pendingKind && !element.confirmation && this.rendererOptions.renderStyle !== 'minimal' && templateData.value.childElementCount > 0) {
@@ -2302,6 +2369,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const hasContent = isEditing ? !!editingValue?.trim() : !!this.getRequestMarkdown(element)?.trim();
 		this.stickyScrollRequestContentById.set(element.id, { contentKey, hasContent });
+		this.stickyScrollSourceWidthRatioByRequestId.delete(element.id);
 		this.stickyScrollSourceRangesByRequestId.delete(element.id);
 		return hasContent;
 	}
@@ -2327,6 +2395,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}));
 			return;
 		}
+		if (isStickyScrollRow) {
+			this.updateStickyScrollRequestWidth(element.id, requestBubble);
+		}
 
 		const requestBounds = requestBubble.getBoundingClientRect();
 		if (isStickyScrollRow) {
@@ -2351,6 +2422,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
+		this.updateStickyScrollSourceWidthRatio(element.id, requestBubble, requestBounds.width);
 		const rowBounds = templateData.rowContainer.getBoundingClientRect();
 		const start = Math.max(0, requestBounds.top - rowBounds.top - this.delegate.stickyScrollTopPadding);
 		const end = requestBounds.bottom - rowBounds.top;
@@ -2360,6 +2432,63 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const stickyNodeHeight = this.stickyScrollSourceRangesByRequestId.get(element.id)?.stickyNodeHeight;
 		this.stickyScrollSourceRangesByRequestId.set(element.id, { start, end, stickyNodeHeight });
+	}
+
+	private updateStickyScrollRequestWidth(requestId: string, requestBubble: HTMLElement): void {
+		const widthRatio = this.stickyScrollSourceWidthRatioByRequestId.get(requestId);
+		if (widthRatio !== undefined) {
+			if (this.appliedStickyScrollWidthRatioByBubble.get(requestBubble) !== widthRatio) {
+				requestBubble.style.boxSizing = 'border-box';
+				requestBubble.style.width = `${widthRatio * 100}%`;
+				requestBubble.style.maxWidth = 'none';
+				this.appliedStickyScrollWidthRatioByBubble.set(requestBubble, widthRatio);
+			}
+		} else if (this.appliedStickyScrollWidthRatioByBubble.delete(requestBubble)) {
+			requestBubble.style.removeProperty('box-sizing');
+			requestBubble.style.removeProperty('width');
+			requestBubble.style.removeProperty('max-width');
+		}
+	}
+
+	private updateStickyScrollSourceWidthRatio(requestId: string, requestBubble: HTMLElement, requestWidth: number): void {
+		const requestParentWidth = requestBubble.parentElement?.getBoundingClientRect().width;
+		if (requestWidth > 0 && requestParentWidth && requestParentWidth > 0) {
+			this.stickyScrollSourceWidthRatioByRequestId.set(requestId, requestWidth / requestParentWidth);
+		} else {
+			this.stickyScrollSourceWidthRatioByRequestId.delete(requestId);
+		}
+	}
+
+	private registerSynchronizedRequestBubbleHover(requestId: string, templateData: IChatListItemTemplate, requestBubble: HTMLElement): IDisposable {
+		const disposables = new DisposableStore();
+		const setHovered = (hovered: boolean) => {
+			if (hovered) {
+				this.hoveredRequestBubbleByRequestId.set(requestId, requestBubble);
+			} else if (this.hoveredRequestBubbleByRequestId.get(requestId) === requestBubble) {
+				this.hoveredRequestBubbleByRequestId.delete(requestId);
+			} else {
+				return;
+			}
+			this.updateSynchronizedRequestBubbleHover(requestId);
+		};
+		disposables.add(dom.addDisposableListener(requestBubble, dom.EventType.MOUSE_ENTER, () => setHovered(true)));
+		disposables.add(dom.addDisposableListener(requestBubble, dom.EventType.MOUSE_LEAVE, () => setHovered(false)));
+		if (requestBubble.matches(':hover')) {
+			setHovered(true);
+		} else {
+			this.updateSynchronizedRequestBubbleHover(requestId);
+		}
+		disposables.add(toDisposable(() => {
+			setHovered(false);
+			templateData.rowContainer.classList.remove('request-bubble-hovered');
+		}));
+		return disposables;
+	}
+
+	private updateSynchronizedRequestBubbleHover(requestId: string): void {
+		const hovered = this.hoveredRequestBubbleByRequestId.has(requestId);
+		this.templateDataByRequestId.get(requestId)?.rowContainer.classList.toggle('request-bubble-hovered', hovered);
+		this.stickyScrollTemplateDataByRequestId.get(requestId)?.rowContainer.classList.toggle('request-bubble-hovered', hovered);
 	}
 
 	private rejectStickyScrollSourceRange(requestId: string, refreshStickyScroll: boolean): void {
@@ -2393,6 +2522,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			dispose(templateData.renderedParts);
 		}
 		templateData.renderedParts = [];
+
+		// Agent Merge drives its turns with a machine-facing state block, which
+		// gets summarized instead of being shown to the user verbatim.
+		const agentMerge = element.systemInitiatedLabel === undefined ? parseAgentMergePrompt(element.messageText) : undefined;
+		if (agentMerge) {
+			const agentMergePart = this.instantiationService.createInstance(ChatAgentMergeContentPart, agentMerge, element.sessionResource, this.chatContentMarkdownRenderer);
+			templateData.elementDisposables.add(agentMergePart);
+			templateData.value.appendChild(agentMergePart.domNode);
+			return;
+		}
 
 		const label = element.systemInitiatedLabel ?? element.messageText;
 		const notificationPart = this.instantiationService.createInstance(
@@ -3275,7 +3414,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const subAgentInvocationId = subagentPart.subAgentInvocationId;
-		const agentName = subagentPart.getAgentLabel();
+		const subagentTitle = subagentPart.getSubagentTitle();
 
 		const revealSubagent = (targetSubAgentId: string) => {
 			const currentTemplateData = this.getTemplateDataForRequestId(context.element.id);
@@ -3288,7 +3427,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		};
 		const revealSubagentLabel = this.environmentService.isSessionsWindow
-			? localize('openSubagentChat', "Open {0} Chat", agentName)
+			? localize('openSubagentChat', "Open {0} Chat", subagentTitle)
 			: undefined;
 
 		const navigateToCarousel = (targetSubAgentId: string) => {
@@ -3304,7 +3443,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		);
 
 		const addToolToCarousel = (tool: IChatToolInvocation) => {
-			widget.inputPart.addToolToConfirmationCarousel(tool, factory, subAgentInvocationId, agentName, revealSubagent, revealSubagentLabel);
+			widget.inputPart.addToolToConfirmationCarousel(tool, factory, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel);
 			const listener = this.createUpdateWorkingProgressOnConfirmationEnd(tool, templateData);
 			if (listener) {
 				templateData.elementDisposables.add(listener);
@@ -3452,7 +3591,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (content.kind === 'externalEdit') {
 				return this.renderExternalEdit(content, context, templateData);
 			} else if (content.kind === 'autoModeResolution') {
-				return this.instantiationService.createInstance(ChatAutoModeResolutionContentPart, content, context, this.chatContentMarkdownRenderer);
+				// A row that never resolved (cancelled or errored turn) has nothing
+				// left to say, so drop it instead of leaving a stuck "Auto routing task".
+				if (!content.resolved && context.element.isComplete) {
+					return this.renderNoContent(other => other.kind === content.kind && !other.resolved);
+				}
+				return this.instantiationService.createInstance(ChatAutoModeResolutionContentPart, content, context);
 			}
 
 			return this.renderNoContent(other => content.kind === other.kind);

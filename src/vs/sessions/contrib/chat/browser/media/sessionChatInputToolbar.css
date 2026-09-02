@@ -18,7 +18,7 @@
 	width: 100%;
 	min-width: 0;
 	box-sizing: border-box;
-	padding: var(--vscode-spacing-size20) 0 var(--vscode-spacing-size60) 0;
+	padding: var(--vscode-spacing-size20) 0 var(--vscode-spacing-size40) 0;
 }
 
 .session-chat-input-toolbar-content > .chat-pills,
@@ -26,16 +26,26 @@
 	flex-shrink: 0;
 }
 
+.session-chat-input-toolbar-content > * {
+	pointer-events: auto;
+}
+
 .session-chat-input-toolbar.hidden {
 	display: none;
 }
 
-/* Every pill is hidden by the user but data exists: keep a slim strip so its
-	context menu stays reachable and the pills can be shown again. */
+/* No pill is left to right-click, so the row takes back a slim hit-testable
+	strip to keep the visibility menu (and with it the hidden pills) reachable. */
+.session-chat-input-toolbar.empty {
+	pointer-events: auto;
+}
+
 .session-chat-input-toolbar.empty .session-chat-input-toolbar-content {
 	min-height: var(--vscode-spacing-size120);
 }
 
+/* The floating row is click-through, so the slider shows the scroll position but
+	cannot be dragged; wheeling over a pill scrolls the row. */
 .session-chat-input-toolbar > .scrollbar > .slider {
 	background: transparent;
 }

@@ -11,11 +11,14 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
+import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
+import { getAgentHostExtensionInitializeResultMeta } from '../../common/agentHostExtensionProtocol.js';
+import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
@@ -27,12 +30,12 @@ import { ActionType, type ChatTurnStartedAction, type SessionActiveClientSetActi
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, customizationId, withSessionExternal, withSessionWorkspaceless } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, customizationId, withSessionExternal, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 import { NonReconnectableTransportError, type IClientTransport, type IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../common/agentHostManagedSettings.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
@@ -80,6 +83,7 @@ const syncTestConfigurationNode = {
 import type { Implementation } from '../../common/state/protocol/common/commands.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
+import type { IRemoteAgentHostReconnectPolicy } from '../../common/reconnectPolicy.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
 type RootConfigValue = boolean | string | AgentHostTerminalAutoApproveRules | undefined;
@@ -232,6 +236,7 @@ class TerminalAutoApproveConfigurationService extends TestConfigurationService {
 
 class ManagedPermissionsConfigurationService extends TestConfigurationService {
 	private globalAutoApprovePolicyValue: boolean | undefined = false;
+	private eligibleForAutoApprovalPolicyValue: Record<string, boolean> | undefined;
 
 	override inspect<T>(key: string): IConfigurationValue<T> {
 		if (key === GLOBAL_AUTO_APPROVE_SETTING_ID) {
@@ -240,11 +245,21 @@ class ManagedPermissionsConfigurationService extends TestConfigurationService {
 				policyValue: this.globalAutoApprovePolicyValue as T | undefined,
 			};
 		}
+		if (key === ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID) {
+			return {
+				...super.inspect<T>(key),
+				policyValue: this.eligibleForAutoApprovalPolicyValue as T | undefined,
+			};
+		}
 		return super.inspect<T>(key);
 	}
 
 	clearGlobalAutoApprovePolicy(): void {
 		this.globalAutoApprovePolicyValue = undefined;
+	}
+
+	setEligibleForAutoApprovalPolicy(value: Record<string, boolean> | undefined): void {
+		this.eligibleForAutoApprovalPolicyValue = value;
 	}
 }
 
@@ -315,8 +330,11 @@ suite('AgentHostProtocolClient', () => {
 		};
 	}
 
-	function createClientForIdentity(identity: AgentHostResourceIdentity, transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }, logService: ILogService = new NullLogService(), configurationService = new TestConfigurationService(), clientId?: string, clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService): { client: AgentHostProtocolClient; transport: TestProtocolTransport; configurationService: TestConfigurationService } {
-		const client = disposables.add(new AgentHostProtocolClient(identity, transport, loadEstimator, clientId, clientInfo, logService, permissionService, configurationService, telemetryService));
+	function createClientForIdentity(identity: AgentHostResourceIdentity, transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }, logService: ILogService = new NullLogService(), configurationService = new TestConfigurationService(), clientId?: string, clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy): { client: AgentHostProtocolClient; transport: TestProtocolTransport; configurationService: TestConfigurationService } {
+		const options = loadEstimator !== undefined || clientId !== undefined || clientInfo !== undefined || reconnectPolicy !== undefined
+			? { loadEstimator, clientId, clientInfo, reconnectPolicy }
+			: undefined;
+		const client = disposables.add(new AgentHostProtocolClient(identity, transport, options, logService, permissionService, configurationService, telemetryService));
 		return { client, transport, configurationService };
 	}
 
@@ -324,7 +342,7 @@ suite('AgentHostProtocolClient', () => {
 		return createClientForIdentity('test.example:1234', transport, permissionService, loadEstimator, logService, configurationService, clientId, clientInfo);
 	}
 
-	async function connectClient(client: AgentHostProtocolClient, transport: TestProtocolTransport): Promise<void> {
+	async function connectClient(client: AgentHostProtocolClient, transport: TestProtocolTransport, meta?: Record<string, unknown>): Promise<void> {
 		const connectPromise = client.connect();
 		while (transport.sentMessages.length === 0) {
 			await Promise.resolve();
@@ -333,7 +351,7 @@ suite('AgentHostProtocolClient', () => {
 		transport.fireMessage({
 			jsonrpc: '2.0',
 			id: sent.id,
-			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], _meta: meta },
 		});
 		await connectPromise;
 	}
@@ -380,9 +398,9 @@ suite('AgentHostProtocolClient', () => {
 		}
 	}
 
-	function fireConfigurationChange(configurationService: TestConfigurationService, settingId: string): void {
+	function fireConfigurationChange(configurationService: TestConfigurationService, settingId: string, source = ConfigurationTarget.USER): void {
 		configurationService.onDidChangeConfigurationEmitter.fire({
-			source: ConfigurationTarget.USER,
+			source,
 			affectedKeys: new Set([settingId]),
 			change: { keys: [settingId], overrides: [] },
 			affectsConfiguration: configuration => configuration === settingId,
@@ -442,7 +460,7 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual([...client['_authentication'].values()], []);
 	});
 
-	test('listSessions carries the workspace-less marker back on _meta', async () => {
+	test('listSessions carries the workspace-less marker and compatible working directories', async () => {
 		// Regression: the sessions provider resolves a session's kind (quick
 		// chat vs. workspace) from `_meta.workspaceless`, and after a window
 		// reload a listing is what materializes it.
@@ -470,7 +488,49 @@ suite('AgentHostProtocolClient', () => {
 		});
 
 		const sessions = await resultPromise;
-		assert.deepStrictEqual(sessions.map(s => readSessionWorkspaceless(s._meta)), [true]);
+		assert.deepStrictEqual(sessions.map(s => ({
+			workspaceless: readSessionWorkspaceless(s._meta),
+			workingDirectory: s.workingDirectory,
+			workingDirectories: s.workingDirectories,
+		})), [{
+			workspaceless: true,
+			workingDirectory: toAgentHostUri(URI.file('/home/user/.copilot/chats/quick-1'), agentHostAuthority('test.example:1234')),
+			workingDirectories: [toAgentHostUri(URI.file('/home/user/.copilot/chats/quick-1'), agentHostAuthority('test.example:1234'))],
+		}]);
+	});
+
+	test('listSessions derives the compatibility directory from the primary root', async () => {
+		const { client, transport } = createClient();
+		const directories = [URI.file('/workspace/primary'), URI.file('/workspace/secondary')];
+		const directorySets = [undefined, [], directories];
+		const resultPromise = client.listSessions();
+		const sent = transport.sentMessages[0] as JsonRpcRequest;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: sent.id,
+			result: {
+				items: directorySets.map((workingDirectories, index) => ({
+					resource: `agent-session://copilotcli/session-${index}`,
+					provider: 'copilotcli',
+					title: 'Session',
+					status: SessionStatus.Idle,
+					createdAt: new Date(1000).toISOString(),
+					modifiedAt: new Date(2000).toISOString(),
+					workingDirectories: workingDirectories?.map(directory => directory.toString()),
+				})),
+			},
+		});
+
+		const sessions = await resultPromise;
+		const wrappedDirectories = directories.map(directory => toAgentHostUri(directory, agentHostAuthority('test.example:1234')));
+		assert.deepStrictEqual(sessions.map(s => ({
+			workingDirectory: s.workingDirectory,
+			workingDirectories: s.workingDirectories,
+		})), [
+			{ workingDirectory: undefined, workingDirectories: undefined },
+			{ workingDirectory: undefined, workingDirectories: [] },
+			{ workingDirectory: wrappedDirectories[0], workingDirectories: wrappedDirectories },
+		]);
 	});
 
 	test('listSessions carries external provenance back on _meta', async () => {
@@ -496,6 +556,58 @@ suite('AgentHostProtocolClient', () => {
 
 		const sessions = await resultPromise;
 		assert.deepStrictEqual(sessions.map(s => readSessionExternal(s._meta)), [true]);
+	});
+
+	test('listSessions preserves client-addressed remote working directories across reload', async () => {
+		const { client, transport } = createClient();
+		const remoteDirectory = URI.parse('vscode-remote://ssh-remote+host/workspace');
+		const hostDirectory = URI.file('/workspace');
+		const summary = {
+			resource: 'agent-session://copilotcli/remote-1',
+			provider: 'copilotcli',
+			title: 'Remote Chat',
+			status: SessionStatus.Idle,
+			createdAt: new Date(1000).toISOString(),
+			modifiedAt: new Date(2000).toISOString(),
+			workingDirectories: [remoteDirectory.toString(), hostDirectory.toString()],
+		};
+		let liveWorkingDirectories: readonly string[] | undefined;
+		disposables.add(client.onDidNotification(notification => {
+			if (notification.type === 'root/sessionAdded') {
+				liveWorkingDirectories = notification.summary.workingDirectories;
+			}
+		}));
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			method: 'root/sessionAdded',
+			params: { channel: ROOT_STATE_URI, summary },
+		});
+
+		const resultPromise = client.listSessions();
+		const sent = transport.sentMessages[0] as JsonRpcRequest;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: sent.id,
+			result: {
+				items: [summary],
+			},
+		});
+
+		const [session] = await resultPromise;
+		assert.deepStrictEqual({
+			liveWorkingDirectories,
+			liveVisibleInWorkspace: liveWorkingDirectories?.some(directory => extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(directory), remoteDirectory)),
+			workingDirectories: session.workingDirectories?.map(uri => uri.toString()),
+			restoredVisibleInWorkspace: session.workingDirectories?.some(directory => extUriBiasedIgnorePathCase.isEqualOrParent(directory, remoteDirectory)),
+		}, {
+			liveWorkingDirectories: summary.workingDirectories,
+			liveVisibleInWorkspace: true,
+			workingDirectories: [
+				remoteDirectory.toString(),
+				client.resourceUris.fromAgentHost(hostDirectory).toString(),
+			],
+			restoredVisibleInWorkspace: true,
+		});
 	});
 
 	test('queues requests and notifications until a client transport initializes', async () => {
@@ -944,7 +1056,7 @@ suite('AgentHostProtocolClient', () => {
 			assert.ok(err instanceof ProtocolError);
 
 			// Late response for the same request id — the shared
-			// SSHRelayTransport feeds both old and new clients for the
+			// The SSH relay transport feeds both old and new clients for the
 			// same connectionId, so this can happen in production. The
 			// pending request was already rejected; if _handleMessage
 			// processed the response it would log a "unknown request id"
@@ -1013,9 +1125,9 @@ suite('AgentHostProtocolClient', () => {
 			clientInfo: params.clientInfo,
 			_meta: params._meta,
 		}, {
-			// Every negotiable version is offered so an older host can negotiate down,
+			// Every compatible version is offered so an older host can negotiate down,
 			// newest first so a current host still picks it.
-			protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
+			protocolVersions: SUPPORTED_PROTOCOL_VERSIONS.filter(version => version !== '0.8.0'),
 			clientId: 'renderer-client-id',
 			clientInfo,
 			_meta: {
@@ -1026,6 +1138,7 @@ suite('AgentHostProtocolClient', () => {
 			},
 		});
 		assert.strictEqual(params.protocolVersions[0], PROTOCOL_VERSION);
+		assert.ok(!params.protocolVersions.includes('0.8.0'));
 
 		// Reply with a successful handshake so `connect()` resolves and the
 		// test can finish cleanly.
@@ -1069,9 +1182,7 @@ suite('AgentHostProtocolClient', () => {
 		const client = disposables.add(new AgentHostProtocolClient(
 			'test.example:1234',
 			transport,
-			undefined,
-			'telemetry-disabled-client',
-			editorWindowAgentHostClientInfo,
+			{ clientId: 'telemetry-disabled-client', clientInfo: editorWindowAgentHostClientInfo },
 			new NullLogService(),
 			createPermissionService(),
 			configurationService,
@@ -1145,6 +1256,19 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual(getRootConfig(findLastRootConfigNotification(transport.sentMessages, SYNC_CONFIG_KEY_A)), {
 			[SYNC_CONFIG_KEY_A]: false,
 		});
+	});
+
+	test('ignores configuration changes from layers excluded by global mirroring', async () => {
+		const configurationService = new TestConfigurationService({ [SYNC_SETTING_A]: true });
+		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
+		await connectClient(client, transport);
+		transport.sentMessages.length = 0;
+
+		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.WORKSPACE);
+		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.WORKSPACE_FOLDER);
+		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.MEMORY);
+
+		assert.deepStrictEqual(transport.sentMessages, []);
 	});
 
 	test('applies local and ambient configuration scopes to the target Agent Host', async () => {
@@ -1228,6 +1352,41 @@ suite('AgentHostProtocolClient', () => {
 		fireConfigurationChange(configurationService, GLOBAL_AUTO_APPROVE_SETTING_ID);
 		await configurationService.setUserConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, true);
 		fireConfigurationChange(configurationService, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID);
+
+		assert.deepStrictEqual(findLastManagedSettingsNotification(transport.sentMessages), {
+			jsonrpc: '2.0',
+			method: 'setClientManagedSettingsPermissions',
+			params: { permissions: {} },
+		});
+	});
+
+	test('forwards and clears the mapped per-tool auto-approval policy for the local host', async () => {
+		const configurationService = new ManagedPermissionsConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: true,
+		});
+		// Isolate this setting's notification path from the global auto-approve mapping.
+		configurationService.clearGlobalAutoApprovePolicy();
+		configurationService.setEligibleForAutoApprovalPolicy({ runTask: false });
+		const { client, transport } = createClientForIdentity(
+			LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
+			disposables.add(new TestProtocolTransport()),
+			createPermissionService(),
+			undefined,
+			new NullLogService(),
+			configurationService,
+		);
+
+		await connectClient(client, transport);
+
+		assert.deepStrictEqual(findLastManagedSettingsNotification(transport.sentMessages), {
+			jsonrpc: '2.0',
+			method: 'setClientManagedSettingsPermissions',
+			params: { permissions: { disableBypassPermissionsMode: 'disable' } },
+		});
+
+		transport.sentMessages.length = 0;
+		configurationService.setEligibleForAutoApprovalPolicy(undefined);
+		fireConfigurationChange(configurationService, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID);
 
 		assert.deepStrictEqual(findLastManagedSettingsNotification(transport.sentMessages), {
 			jsonrpc: '2.0',
@@ -1369,13 +1528,14 @@ suite('AgentHostProtocolClient', () => {
 	test('collectDebugLogs maps the returned host resource', async () => {
 		const { client, transport } = createClient();
 		const session = URI.parse('copilotcli:/session-1');
-		const resultPromise = client.collectDebugLogs(session, 'archive');
+		const chat = URI.parse(buildChatUri(session, 'peer-1'));
+		const resultPromise = client.collectDebugLogs(session, 'archive', chat);
 
 		assert.deepStrictEqual(transport.sentMessages[0], {
 			jsonrpc: '2.0',
 			id: 1,
 			method: 'vscode/collectAgentHostDebugLogs',
-			params: { session: session.toString(), kind: 'archive' },
+			params: { session: session.toString(), chat: chat.toString(), kind: 'archive' },
 		});
 
 		transport.fireMessage({
@@ -1407,19 +1567,22 @@ suite('AgentHostProtocolClient', () => {
 
 	test('getSessionStateFile maps the returned host resource', async () => {
 		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta());
+		transport.sentMessages.length = 0;
 		const session = URI.parse('copilotcli:/session-1');
-		const resultPromise = client.getSessionStateFile(session);
+		const chat = URI.parse(buildChatUri(session, 'peer-1'));
+		const resultPromise = client.getSessionStateFile(session, chat);
 
 		assert.deepStrictEqual(transport.sentMessages[0], {
 			jsonrpc: '2.0',
-			id: 1,
+			id: 2,
 			method: 'vscode/getAgentHostSessionStateFile',
-			params: { session: session.toString() },
+			params: { session: session.toString(), chat: chat.toString() },
 		});
 
 		transport.fireMessage({
 			jsonrpc: '2.0',
-			id: 1,
+			id: 2,
 			result: { resource: 'file:///state/sdk-session/events.jsonl' },
 		});
 
@@ -1427,6 +1590,16 @@ suite('AgentHostProtocolClient', () => {
 			(await resultPromise)?.toString(),
 			'vscode-agent-host://test.example__1234/state/sdk-session/events.jsonl?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0',
 		);
+	});
+
+	test('getSessionStateFile returns undefined when the host does not advertise chat targeting', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport);
+		transport.sentMessages.length = 0;
+		const session = URI.parse('copilotcli:/session-1');
+		const result = await client.getSessionStateFile(session, URI.parse(buildChatUri(session, 'peer-1')));
+
+		assert.deepStrictEqual({ result, sentMessages: transport.sentMessages }, { result: undefined, sentMessages: [] });
 	});
 
 	test('getSessionStateFile rejects a non-file host resource', async () => {
@@ -1770,8 +1943,8 @@ suite('AgentHostProtocolClient', () => {
 			assert.deepStrictEqual(
 				calls.map(c => ({ address: c.address, uri: c.uri.toString() })),
 				[
-					{ address: 'test.example:1234', uri: 'file:///plugins' },
-					{ address: 'test.example:1234', uri: 'file:///other' },
+					{ address: 'test.example:1234', uri: 'file:///plugins/foo' },
+					{ address: 'test.example:1234', uri: 'file:///other/bar' },
 				],
 			);
 		});
@@ -1837,7 +2010,7 @@ suite('AgentHostProtocolClient', () => {
 			assert.deepStrictEqual(calls.map(call => call.uri.toString()), ['file:///attachments/queued.txt']);
 		});
 
-		test('multiple customizations in the same directory dedupe to one grant', () => {
+		test('multiple customizations in the same directory receive individual grants', () => {
 			const { service, calls } = createCapturingPermissionService();
 			const { client } = createClient(undefined, service);
 			const sessionUri = URI.parse('ahp-session:/test');
@@ -1856,7 +2029,7 @@ suite('AgentHostProtocolClient', () => {
 
 			assert.deepStrictEqual(
 				calls.map(c => c.uri.toString()),
-				['file:///plugins'],
+				['file:///plugins/foo', 'file:///plugins/bar'],
 			);
 		});
 
@@ -1945,7 +2118,7 @@ suite('AgentHostProtocolClient', () => {
 
 			assert.deepStrictEqual(
 				calls.map(c => c.uri.toString()),
-				['file:///plugins'],
+				['file:///plugins/foo'],
 			);
 		});
 	});
@@ -2099,7 +2272,7 @@ suite('AgentHostProtocolClient', () => {
 		 * client plus a `transports` array recording each transport handed
 		 * out, so tests can drive handshake/reconnect interactions.
 		 */
-		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
+		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
 			const transports: TestClientProtocolTransport[] = [];
 			const factory = () => {
 				const t = disposables.add(new TestClientProtocolTransport());
@@ -2107,7 +2280,7 @@ suite('AgentHostProtocolClient', () => {
 				return t;
 			};
 			const client = disposables.add(new AgentHostProtocolClient(
-				'test.example:1234', factory, undefined, undefined, clientInfo, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService,
+				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined ? { clientInfo, reconnectPolicy } : undefined, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService,
 			));
 			return { client, transports };
 		}
@@ -2199,6 +2372,75 @@ suite('AgentHostProtocolClient', () => {
 				fatalError: 'terminal failure',
 				state: AgentHostClientState.Closed,
 				transportCount: 2,
+			});
+		});
+
+		test('stops after exhausting automatic reconnect attempts and permits an explicit reconnect', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const reconnectPolicy: IRemoteAgentHostReconnectPolicy = {
+					autoRestore: true,
+					initialDelayMs: 1,
+					maxDelayMs: 1,
+					maxAttempts: 1,
+				};
+				const { client, transports } = createFactoryClient(createPermissionService(), undefined, NullTelemetryService, reconnectPolicy);
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				const fatalError = Event.toPromise(client.onDidFatalClose);
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+				const failedReconnect = await waitForTransport(transports, 1);
+				failedReconnect.connectDeferred.error(new Error('reconnect failed'));
+
+				assert.deepStrictEqual({
+					fatalError: (await fatalError).message,
+					state: client.connectionState,
+					transportCount: transports.length,
+				}, {
+					fatalError: 'Automatic reconnect gave up after 1 attempts.',
+					state: AgentHostClientState.Closed,
+					transportCount: 2,
+				});
+
+				assert.strictEqual(client.reconnectFromClosed(), true);
+				const explicitReconnect = await waitForTransport(transports, 2);
+				explicitReconnect.connectDeferred.complete();
+				const reconnect = await waitForRequest(explicitReconnect, 'reconnect');
+				explicitReconnect.fireMessage({
+					jsonrpc: '2.0',
+					id: reconnect.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+				});
+				await flushMicrotasks();
+
+				assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
+			});
+		});
+
+		test('does not automatically reconnect when the policy disables automatic restore', async () => {
+			const reconnectPolicy: IRemoteAgentHostReconnectPolicy = {
+				autoRestore: false,
+				initialDelayMs: 1,
+				maxDelayMs: 1,
+				maxAttempts: 1,
+			};
+			const { client, transports } = createFactoryClient(createPermissionService(), undefined, NullTelemetryService, reconnectPolicy);
+			const connectPromise = client.connect();
+			await completeHandshake(transports[0], connectPromise);
+
+			const fatalError = Event.toPromise(client.onDidFatalClose);
+			transports[0].fireClose();
+
+			assert.deepStrictEqual({
+				fatalError: (await fatalError).message,
+				state: client.connectionState,
+				transportCount: transports.length,
+			}, {
+				fatalError: 'Connection closed: test.example:1234',
+				state: AgentHostClientState.Closed,
+				transportCount: 1,
 			});
 		});
 
@@ -2469,6 +2711,60 @@ suite('AgentHostProtocolClient', () => {
 			annotationsRef.dispose();
 			chatRef.dispose();
 			sessionRef.dispose();
+			client.dispose();
+		});
+
+		test('marks an Automation catalogue subscription missing when restore fails', async function () {
+			this.timeout(10_000);
+			const { client, transports } = createFactoryClient();
+			const connectPromise = client.connect();
+			await completeHandshake(transports[0], connectPromise);
+
+			const catalogRef = client.getSubscription(StateComponents.AutomationCatalog, URI.parse(AUTOMATION_CATALOG_URI), 'test');
+			const initialSubscribe = await waitForRequest(transports[0], 'subscribe');
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: initialSubscribe.id,
+				result: { snapshot: { resource: AUTOMATION_CATALOG_URI, state: { entries: [] }, fromSeq: 5 } },
+			});
+			await flushMicrotasks();
+
+			transports[0].fireClose();
+			await waitForReconnecting(client);
+			const reconnectTransport = await waitForTransport(transports, 1);
+			reconnectTransport.connectDeferred.complete();
+			const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: reconnect.id,
+				error: { code: AhpErrorCodes.NotFound, message: 'Reconnect client not found' },
+			});
+			const initialize = await waitForRequest(reconnectTransport, 'initialize');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: {
+					protocolVersion: PROTOCOL_VERSION,
+					serverSeq: 0,
+					snapshots: [{ resource: ROOT_STATE_URI, state: { agents: [], activeSessions: 0 }, fromSeq: 0 }],
+				},
+			});
+
+			const restoredSubscribe = await waitForRequest(reconnectTransport, 'subscribe');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: restoredSubscribe.id,
+				error: { code: JsonRpcErrorCodes.InternalError, message: 'Catalogue unavailable' },
+			});
+			await flushMicrotasks();
+
+			assert.deepStrictEqual({
+				initialChannel: (initialSubscribe.params as { channel: string }).channel,
+				restoredChannel: (restoredSubscribe.params as { channel: string }).channel,
+				valueIsError: catalogRef.object.value instanceof Error,
+			}, {
+				initialChannel: URI.parse(AUTOMATION_CATALOG_URI).toString(),
+				restoredChannel: URI.parse(AUTOMATION_CATALOG_URI).toString(),
+				valueIsError: true,
+			});
+
+			catalogRef.dispose();
 			client.dispose();
 		});
 

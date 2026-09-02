@@ -13,7 +13,7 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { ChatEntitlementService, getQuotaReset, getQuotaUsage, parseQuotas, QuotaUsageKind } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementContextKeys, ChatEntitlementService, getQuotaReset, getQuotaUsage, parseQuotas, QuotaUsageKind } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
@@ -512,7 +512,7 @@ suite('getQuotaUsage', () => {
 			unlimitedWithoutCredits: getQuotaUsage({ percentRemaining: 100, unlimited: true }),
 			unlimitedPooledDepleted: getQuotaUsage({ percentRemaining: 0, unlimited: true, hasQuota: false, creditsUsed: 500 }),
 			cappedWithRemaining: getQuotaUsage({ percentRemaining: 25, unlimited: false, entitlement: 400, quotaRemaining: 100 }),
-			cappedPrefersCreditsUsed: getQuotaUsage({ percentRemaining: 25, unlimited: false, entitlement: 400, quotaRemaining: 100, creditsUsed: 303 }),
+			cappedIgnoresCreditsUsed: getQuotaUsage({ percentRemaining: 6.2, unlimited: false, entitlement: 13000, quotaRemaining: 807.7, creditsUsed: 14517 }),
 			cappedWithoutRemaining: getQuotaUsage({ percentRemaining: 25, unlimited: false, entitlement: 400 }),
 			cappedWithoutEntitlement: getQuotaUsage({ percentRemaining: 25, unlimited: false }),
 			cappedZeroEntitlement: getQuotaUsage({ percentRemaining: 25, unlimited: false, entitlement: 0 }),
@@ -522,7 +522,7 @@ suite('getQuotaUsage', () => {
 			unlimitedWithoutCredits: undefined,
 			unlimitedPooledDepleted: undefined,
 			cappedWithRemaining: { kind: QuotaUsageKind.Percentage, usedPercentage: 75, used: 300, total: 400 },
-			cappedPrefersCreditsUsed: { kind: QuotaUsageKind.Percentage, usedPercentage: 75, used: 303, total: 400 },
+			cappedIgnoresCreditsUsed: { kind: QuotaUsageKind.Percentage, usedPercentage: 93.8, used: 12192.3, total: 13000 },
 			cappedWithoutRemaining: { kind: QuotaUsageKind.Percentage, usedPercentage: 75, used: 300, total: 400 },
 			cappedWithoutEntitlement: { kind: QuotaUsageKind.Percentage, usedPercentage: 75, used: undefined, total: undefined },
 			cappedZeroEntitlement: { kind: QuotaUsageKind.Percentage, usedPercentage: 75, used: undefined, total: undefined },
@@ -654,6 +654,39 @@ suite('ChatEntitlementService', () => {
 				creditsUsed: 700,
 			},
 			removed: undefined,
+		});
+	});
+});
+
+suite('ChatEntitlementContext', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function resolveInternal(organisations: string[], isStaff: boolean | undefined): Promise<boolean | undefined> {
+		const contextKeyService = store.add(new MockContextKeyService());
+		const context = store.add(new ChatEntitlementContext(
+			contextKeyService,
+			store.add(new TestStorageService()),
+			new NullLogService(),
+			new TestConfigurationService(),
+			NullTelemetryService,
+		));
+
+		await context.update({ entitlement: ChatEntitlement.Pro, organisations, isStaff, sku: undefined, copilotTrackingId: undefined });
+
+		return contextKeyService.getContextKeyValue(ChatEntitlementContextKeys.Entitlement.internal.key);
+	}
+
+	test('treats staff and internal organisation members as internal', async () => {
+		assert.deepStrictEqual({
+			external: await resolveInternal(['contoso'], false),
+			staff: await resolveInternal(['contoso'], true),
+			internalOrg: await resolveInternal(['microsoft'], false),
+			unknownStaff: await resolveInternal(['contoso'], undefined),
+		}, {
+			external: false,
+			staff: true,
+			internalOrg: true,
+			unknownStaff: false,
 		});
 	});
 });

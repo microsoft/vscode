@@ -15,10 +15,13 @@ import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetR
 import { IAccessibleViewService } from '../../../../../../platform/accessibility/browser/accessibleView.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { WorkbenchListSupportsFind } from '../../../../../../platform/list/browser/listService.js';
 import { scrollbarShadow } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IChatAccessibilityService } from '../../../browser/chat.js';
+import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions } from '../../../browser/widget/chatListWidget.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -77,6 +80,7 @@ suite('ChatListWidget', () => {
 		instantiationService.stub(IChatService, new MockChatService());
 		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+		instantiationService.stub(IChatAttachmentWidgetRegistry, new ChatAttachmentWidgetRegistry());
 		instantiationService.stub(IAccessibleViewService, { getOpenAriaHint: () => '' });
 		instantiationService.stub(IChatAccessibilityService, {
 			acceptRequest: () => { },
@@ -120,7 +124,7 @@ suite('ChatListWidget', () => {
 		}));
 		widget.setViewModel(viewModel);
 		widget.setVisible(true);
-		return { disposables, model, viewModel, container, widget };
+		return { disposables, model, viewModel, container, widget, contextKeyService: instantiationService.get(IContextKeyService) };
 	}
 
 	async function measureFirstRequestPushOut(firstText: string) {
@@ -222,6 +226,14 @@ suite('ChatListWidget', () => {
 		assert.deepStrictEqual(states, [false, true, true, true, false]);
 	});
 
+	test('disables the generic tree Find widget', () => {
+		const { disposables, contextKeyService } = createWidget();
+
+		assert.strictEqual(contextKeyService.getContextKeyValue(WorkbenchListSupportsFind.key), false);
+
+		disposables.dispose();
+	});
+
 	test('keeps user toggle tracking active until resizing settles', () => {
 		const state = new UserToggleResizeState(2);
 		const states = [state.isActive];
@@ -274,6 +286,38 @@ suite('ChatListWidget', () => {
 			{ showButton: true, atBottom: true },
 			{ showButton: true, atBottom: false },
 		]);
+	});
+
+	// The bottom padding counts towards the scroll height, so `scrollToEnd` has to
+	// scroll through it or the list never reports being at the bottom - which both
+	// streaming auto-scroll and the scroll-down button depend on.
+	test('scrolls through the bottom padding to reach the end', async () => {
+		const { disposables, model, widget } = createWidget({ paddingBottom: 30 });
+		for (let i = 0; i < 10; i++) {
+			const text = `question ${i}`;
+			const request = model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+			}, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`response ${i}`) });
+		}
+
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		widget.scrollToEnd();
+		await waitForStableLayout(widget);
+
+		assert.deepStrictEqual({
+			// Guards the test from passing vacuously on a list that cannot scroll.
+			overflows: widget.scrollHeight > widget.renderHeight,
+			atBottom: widget.isScrolledToBottom,
+		}, {
+			overflows: true,
+			atBottom: true,
+		});
+
+		disposables.dispose();
 	});
 
 	test('keeps responses visible when a filter excludes their requests', async () => {
@@ -367,23 +411,30 @@ suite('ChatListWidget', () => {
 	test('uses the request bubble as the sticky source and content', async () => {
 		const { disposables, model, container, widget } = createWidget({
 			styles: { listShadow: scrollbarShadow },
+			rendererOptions: { editable: true },
 		}, configurationService => {
 			configurationService.setUserConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING, true);
 			configurationService.setUserConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled, true);
 			configurationService.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, true);
+			configurationService.setUserConfiguration('chat.editRequests', 'inline');
 			configurationService.setUserConfiguration('workbench.tree.enableStickyScroll', false);
 			configurationService.setUserConfiguration('workbench.tree.stickyScrollMaxItemCount', 1);
 		}, true);
 		container.classList.add('interactive-list');
+		container.style.width = '500.5px';
 		container.style.height = '600px';
 		container.style.setProperty('--vscode-spacing-size60', '6px');
 		container.style.setProperty('--vscode-spacing-size80', '8px');
+		container.style.setProperty('--vscode-spacing-size120', '12px');
 		container.style.setProperty('--vscode-spacing-size160', '16px');
 		container.style.setProperty('--vscode-spacing-size200', '20px');
 		container.style.setProperty('--vscode-cornerRadius-medium', '6px');
+		container.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgb(1, 2, 3)');
+		container.style.setProperty('--vscode-chat-requestBubbleHoverBackground', 'rgb(4, 5, 6)');
 		const hasStickyShadowRule = Array.from(container.querySelectorAll('style')).some(style =>
 			style.textContent?.includes('.monaco-tree-sticky-container-shadow') && style.textContent.includes('box-shadow'));
-		const text = Array.from({ length: 8 }, (_, index) => `question with an attachment, paragraph ${index}`).join('\n\n');
+		const firstParagraph = 'question with an attachment '.repeat(20).trim();
+		const text = [firstParagraph, ...Array.from({ length: 7 }, (_, index) => `question with an attachment, paragraph ${index + 1}`)].join('\n\n');
 		const attachment: IChatRequestVariableEntry = {
 			kind: 'file',
 			id: 'attachment',
@@ -399,15 +450,16 @@ suite('ChatListWidget', () => {
 		request.response?.complete();
 
 		widget.refresh();
-		widget.layout(600, 500);
+		widget.layout(600, 500.5);
 		await waitForStableLayout(widget);
-		widget.layout(600, 500);
+		widget.layout(600, 500.5);
 		widget.scrollTop = 0;
 		await nextFrame();
 
 		const requestRow = container.querySelector<HTMLElement>('.monaco-list-rows > .monaco-list-row.request');
+		const sourceRequestContainer = requestRow?.querySelector<HTMLElement>('.interactive-item-container.interactive-request');
 		const sourceRequestBubble = requestRow?.querySelector<HTMLElement>('.chat-markdown-part.rendered-markdown');
-		assert.ok(requestRow && sourceRequestBubble);
+		assert.ok(requestRow && sourceRequestContainer && sourceRequestBubble);
 		const rowBounds = requestRow.getBoundingClientRect();
 		const sourceBounds = sourceRequestBubble.getBoundingClientRect();
 		const sourceStart = sourceBounds.top - rowBounds.top;
@@ -415,13 +467,14 @@ suite('ChatListWidget', () => {
 		const stickyTopPadding = parseFloat(mainWindow.getComputedStyle(container).getPropertyValue('--vscode-spacing-size80'));
 		const stickySourceStart = Math.max(0, sourceStart - stickyTopPadding);
 		assert.ok(sourceStart > stickyTopPadding);
-		const sourcePaddingTop = mainWindow.getComputedStyle(requestRow.querySelector<HTMLElement>('.interactive-item-container.interactive-request')!).paddingTop;
+		const sourcePaddingTop = mainWindow.getComputedStyle(sourceRequestContainer).paddingTop;
 
 		widget.scrollTop = stickySourceStart;
 		await nextFrame();
 		const stickyBeforeSourceLeaves = container.querySelector('.monaco-tree-sticky-row');
 		const sourceBubbleTopBeforeSticky = sourceRequestBubble.getBoundingClientRect().top;
 
+		sourceRequestBubble.dispatchEvent(new mainWindow.MouseEvent('mouseenter'));
 		widget.scrollTop = stickySourceStart + 1;
 		await nextFrame();
 		const partiallyVisibleStickyRow = container.querySelector<HTMLElement>('.monaco-tree-sticky-row');
@@ -434,11 +487,20 @@ suite('ChatListWidget', () => {
 		assert.ok(partiallyVisibleStickyRow && stickyContainer && partialRequestContainer && partialRequestValue && partialRequestBubble && partialFirstParagraph && stickyShadow);
 		const partialRequestStyle = mainWindow.getComputedStyle(partialRequestContainer);
 		const partialBubbleStyle = mainWindow.getComputedStyle(partialRequestBubble);
+		const partialFirstParagraphStyle = mainWindow.getComputedStyle(partialFirstParagraph);
+		const partialInlineContinuationStyle = mainWindow.getComputedStyle(partialFirstParagraph, '::after');
+		const partialLineHeight = Number.parseFloat(partialFirstParagraphStyle.lineHeight);
+		const partialLineCount = partialFirstParagraph.getBoundingClientRect().height / partialLineHeight;
+		const partialBubbleVerticalChrome = Number.parseFloat(partialBubbleStyle.paddingTop)
+			+ Number.parseFloat(partialBubbleStyle.paddingBottom)
+			+ Number.parseFloat(partialBubbleStyle.borderTopWidth)
+			+ Number.parseFloat(partialBubbleStyle.borderBottomWidth);
 		const partialState = {
 			row: partiallyVisibleStickyRow.classList.contains('source-node-partially-visible'),
 			container: stickyContainer.classList.contains('source-node-partially-visible'),
 			sourceExtendsBelowSticky: sourceRequestBubble.getBoundingClientRect().bottom > partialRequestBubble.getBoundingClientRect().bottom,
 			activationJump: Math.round(partialRequestBubble.getBoundingClientRect().top - sourceBubbleTopBeforeSticky),
+			widthDifference: Math.abs(sourceBounds.width - partialRequestBubble.getBoundingClientRect().width),
 			paddingTop: partialRequestStyle.paddingTop,
 			paddingBottom: partialRequestStyle.paddingBottom,
 			bubbleMarginBottom: partialBubbleStyle.marginBottom,
@@ -446,13 +508,40 @@ suite('ChatListWidget', () => {
 			shadowDisplay: mainWindow.getComputedStyle(stickyShadow).display,
 			shadowTransform: mainWindow.getComputedStyle(stickyShadow).transform,
 			hasMore: partialRequestBubble.classList.contains('chat-request-has-more'),
-			continuationContent: mainWindow.getComputedStyle(partialFirstParagraph, '::after').content,
+			inlineContinuationContent: partialInlineContinuationStyle.content,
+			lineCountAtMostTwo: partialLineCount <= 2.01,
+			firstParagraphMarginBottom: partialFirstParagraphStyle.marginBottom,
+			bubbleHasNoExtraLineSpace: Math.abs(partialRequestBubble.getBoundingClientRect().height - partialFirstParagraph.getBoundingClientRect().height - partialBubbleVerticalChrome) < 0.01,
+			lineClamp: partialFirstParagraphStyle.getPropertyValue('-webkit-line-clamp'),
 			requestVisible: partiallyVisibleStickyRow.textContent?.includes('question with an attachment'),
 			valueContainsOnlyBubble: partialRequestValue.childElementCount === 1 && partialRequestValue.firstElementChild === partialRequestBubble,
 			originCount: partiallyVisibleStickyRow.querySelectorAll('.chat-request-origin').length,
 			attachmentCount: partiallyVisibleStickyRow.querySelectorAll('.chat-request-attachment-cards').length,
 			timestampCount: partiallyVisibleStickyRow.querySelectorAll('.chat-request-timestamp').length,
 			checkpointHidden: partiallyVisibleStickyRow.querySelector('.checkpoint-container')?.classList.contains('hidden'),
+		};
+		const stickyCreationHoverState = {
+			stickyInheritedHover: partialRequestContainer.classList.contains('request-bubble-hovered'),
+			stickyBackground: mainWindow.getComputedStyle(partialRequestBubble).backgroundColor,
+		};
+		sourceRequestBubble.dispatchEvent(new mainWindow.MouseEvent('mouseleave'));
+		sourceRequestBubble.dispatchEvent(new mainWindow.MouseEvent('mouseenter'));
+		const sourceHoverState = {
+			stickySynchronized: partialRequestContainer.classList.contains('request-bubble-hovered'),
+			stickyBackground: mainWindow.getComputedStyle(partialRequestBubble).backgroundColor,
+		};
+		sourceRequestBubble.dispatchEvent(new mainWindow.MouseEvent('mouseleave'));
+		partialRequestBubble.dispatchEvent(new mainWindow.MouseEvent('mouseenter'));
+		const stickyHoverState = {
+			sourceSynchronized: sourceRequestContainer.classList.contains('request-bubble-hovered'),
+			sourceBackground: mainWindow.getComputedStyle(sourceRequestBubble).backgroundColor,
+		};
+		partialRequestBubble.dispatchEvent(new mainWindow.MouseEvent('mouseleave'));
+		const hoverRestoredState = {
+			sourceSynchronized: sourceRequestContainer.classList.contains('request-bubble-hovered'),
+			stickySynchronized: partialRequestContainer.classList.contains('request-bubble-hovered'),
+			sourceBackground: mainWindow.getComputedStyle(sourceRequestBubble).backgroundColor,
+			stickyBackground: mainWindow.getComputedStyle(partialRequestBubble).backgroundColor,
 		};
 
 		const coveredSourceScrollTop = widget.scrollTop
@@ -480,7 +569,8 @@ suite('ChatListWidget', () => {
 		const fullRequestContainer = fullyHiddenStickyRow?.querySelector<HTMLElement>('.interactive-item-container.interactive-request');
 		const fullRequestValue = fullRequestContainer?.querySelector<HTMLElement>(':scope > .value');
 		const fullRequestBubble = fullyHiddenStickyRow?.querySelector<HTMLElement>('.chat-markdown-part.rendered-markdown');
-		assert.ok(fullyHiddenStickyRow && fullRequestContainer && fullRequestValue && fullRequestBubble);
+		const fullFirstParagraph = fullRequestBubble?.querySelector<HTMLElement>('p:first-child');
+		assert.ok(fullyHiddenStickyRow && fullRequestContainer && fullRequestValue && fullRequestBubble && fullFirstParagraph);
 		const fullRequestStyle = mainWindow.getComputedStyle(fullRequestContainer);
 		const fullBubbleStyle = mainWindow.getComputedStyle(fullRequestBubble);
 		const fullState = {
@@ -493,6 +583,9 @@ suite('ChatListWidget', () => {
 			shadowDisplay: mainWindow.getComputedStyle(stickyShadow).display,
 			shadowGap: stickyShadow.getBoundingClientRect().top - stickyContainer.getBoundingClientRect().bottom,
 			shadowSpacerHeight: mainWindow.getComputedStyle(stickyShadow, '::before').height,
+			inlineContinuationContent: mainWindow.getComputedStyle(fullFirstParagraph, '::after').content,
+			continuationContent: mainWindow.getComputedStyle(fullRequestBubble, '::after').content,
+			lineClamp: mainWindow.getComputedStyle(fullFirstParagraph).getPropertyValue('-webkit-line-clamp'),
 			valueContainsOnlyBubble: fullRequestValue.childElementCount === 1 && fullRequestValue.firstElementChild === fullRequestBubble,
 			originCount: fullyHiddenStickyRow.querySelectorAll('.chat-request-origin').length,
 			timestampCount: fullyHiddenStickyRow.querySelectorAll('.chat-request-timestamp').length,
@@ -510,6 +603,25 @@ suite('ChatListWidget', () => {
 			shadowDisplay: mainWindow.getComputedStyle(stickyShadow).display,
 		};
 
+		container.style.width = '503.25px';
+		widget.layout(600, 503.25);
+		await nextFrame();
+		await nextFrame();
+		const resizedSourceBubble = requestRow.querySelector<HTMLElement>('.chat-markdown-part.rendered-markdown');
+		const resizedStickyBubble = container.querySelector<HTMLElement>('.monaco-tree-sticky-row .chat-markdown-part.rendered-markdown');
+		const resizedStickyParagraph = resizedStickyBubble?.querySelector<HTMLElement>('p:first-child');
+		assert.ok(resizedSourceBubble && resizedStickyBubble && resizedStickyParagraph);
+		const resizedParagraphStyle = mainWindow.getComputedStyle(resizedStickyParagraph);
+		const resizedState = {
+			widthDifference: Math.abs(resizedSourceBubble.getBoundingClientRect().width - resizedStickyBubble.getBoundingClientRect().width),
+			lineCountAtMostTwo: resizedStickyParagraph.getBoundingClientRect().height / Number.parseFloat(resizedParagraphStyle.lineHeight) <= 2.01,
+			firstParagraphMarginBottom: resizedParagraphStyle.marginBottom,
+		};
+		container.style.width = '500.5px';
+		widget.layout(600, 500.5);
+		await nextFrame();
+		await nextFrame();
+
 		widget.scrollTop = sourceEnd + 1;
 		await nextFrame();
 		const returnedFullStickyRow = container.querySelector<HTMLElement>('.monaco-tree-sticky-row');
@@ -523,6 +635,26 @@ suite('ChatListWidget', () => {
 			shadowGap: stickyShadow.getBoundingClientRect().top - stickyContainer.getBoundingClientRect().bottom,
 		};
 
+		widget.scrollTop = sourceEnd + widget.renderHeight * 2;
+		await nextFrame();
+		await nextFrame();
+		const sourceWasVirtualized = !container.querySelector('.monaco-list-rows > .monaco-list-row.request');
+		const stickyOnlyBubble = container.querySelector<HTMLElement>('.monaco-tree-sticky-row .chat-markdown-part.rendered-markdown');
+		assert.ok(stickyOnlyBubble);
+		stickyOnlyBubble.dispatchEvent(new mainWindow.MouseEvent('mouseenter'));
+		widget.scrollTop = sourceEnd + 1;
+		await nextFrame();
+		await nextFrame();
+		const remountedSourceContainer = container.querySelector<HTMLElement>('.monaco-list-rows > .monaco-list-row.request .interactive-item-container.interactive-request');
+		const remountedSourceBubble = remountedSourceContainer?.querySelector<HTMLElement>('.chat-markdown-part.rendered-markdown');
+		assert.ok(remountedSourceContainer && remountedSourceBubble);
+		const sourceRemountHoverState = {
+			sourceWasVirtualized,
+			sourceInheritedHover: remountedSourceContainer.classList.contains('request-bubble-hovered'),
+			sourceBackground: mainWindow.getComputedStyle(remountedSourceBubble).backgroundColor,
+		};
+		stickyOnlyBubble.dispatchEvent(new mainWindow.MouseEvent('mouseleave'));
+
 		assert.deepStrictEqual({
 			hasStickyShadowRule,
 			sourceOriginCount: requestRow.querySelectorAll('.chat-request-origin').length,
@@ -531,10 +663,16 @@ suite('ChatListWidget', () => {
 			sourcePaddingTop,
 			stickyBeforeSourceLeaves: !!stickyBeforeSourceLeaves,
 			partialState,
+			stickyCreationHoverState,
+			sourceHoverState,
+			stickyHoverState,
+			hoverRestoredState,
 			coveredSourceState,
 			fullState,
 			returnedPartialState,
+			resizedState,
 			returnedFullState,
+			sourceRemountHoverState,
 		}, {
 			hasStickyShadowRule: true,
 			sourceOriginCount: 1,
@@ -547,6 +685,7 @@ suite('ChatListWidget', () => {
 				container: true,
 				sourceExtendsBelowSticky: true,
 				activationJump: 0,
+				widthDifference: 0,
 				paddingTop: '8px',
 				paddingBottom: '0px',
 				bubbleMarginBottom: '0px',
@@ -554,13 +693,35 @@ suite('ChatListWidget', () => {
 				shadowDisplay: 'none',
 				shadowTransform: 'none',
 				hasMore: true,
-				continuationContent: '"…"',
+				inlineContinuationContent: '"…"',
+				lineCountAtMostTwo: true,
+				firstParagraphMarginBottom: '0px',
+				bubbleHasNoExtraLineSpace: true,
+				lineClamp: '2',
 				requestVisible: true,
 				valueContainsOnlyBubble: true,
 				originCount: 0,
 				attachmentCount: 0,
 				timestampCount: 0,
 				checkpointHidden: true,
+			},
+			stickyCreationHoverState: {
+				stickyInheritedHover: true,
+				stickyBackground: 'rgb(4, 5, 6)',
+			},
+			sourceHoverState: {
+				stickySynchronized: true,
+				stickyBackground: 'rgb(4, 5, 6)',
+			},
+			stickyHoverState: {
+				sourceSynchronized: true,
+				sourceBackground: 'rgb(4, 5, 6)',
+			},
+			hoverRestoredState: {
+				sourceSynchronized: false,
+				stickySynchronized: false,
+				sourceBackground: 'rgb(1, 2, 3)',
+				stickyBackground: 'rgb(1, 2, 3)',
 			},
 			coveredSourceState: {
 				row: false,
@@ -579,6 +740,9 @@ suite('ChatListWidget', () => {
 				shadowDisplay: 'block',
 				shadowGap: 8,
 				shadowSpacerHeight: '8px',
+				inlineContinuationContent: '"…"',
+				continuationContent: 'none',
+				lineClamp: '2',
 				valueContainsOnlyBubble: true,
 				originCount: 0,
 				timestampCount: 0,
@@ -589,12 +753,22 @@ suite('ChatListWidget', () => {
 				paddingBottom: '0px',
 				shadowDisplay: 'none',
 			},
+			resizedState: {
+				widthDifference: 0,
+				lineCountAtMostTwo: true,
+				firstParagraphMarginBottom: '0px',
+			},
 			returnedFullState: {
 				row: false,
 				container: false,
 				paddingBottom: '0px',
 				shadowDisplay: 'block',
 				shadowGap: 8,
+			},
+			sourceRemountHoverState: {
+				sourceWasVirtualized: true,
+				sourceInheritedHover: true,
+				sourceBackground: 'rgb(4, 5, 6)',
 			},
 		});
 
@@ -669,6 +843,39 @@ suite('ChatListWidget', () => {
 			},
 			stickyRows: 0,
 			stickyContainerEmpty: true,
+		});
+
+		disposables.dispose();
+	});
+
+	test('renders transcript context above the request message', async () => {
+		const { disposables, model, container, widget } = createWidget();
+		const text = 'Tell me about this pull request';
+		const attachment: IChatRequestVariableEntry = {
+			kind: 'transcriptContext',
+			id: 'pull-request-context',
+			name: '#42 Fix the issue',
+			value: '{}',
+			uri: URI.parse('https://github.com/owner/repo/pull/42'),
+		};
+		model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+		}, { variables: [attachment] }, 0);
+
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+
+		const requestValue = container.querySelector<HTMLElement>('.monaco-list-rows > .monaco-list-row.request .interactive-item-container > .value');
+		assert.ok(requestValue);
+		const children = Array.from(requestValue.children);
+		assert.deepStrictEqual({
+			attachmentIndex: children.findIndex(child => child.classList.contains('chat-attached-context')),
+			messageIndex: children.findIndex(child => child.classList.contains('rendered-markdown')),
+		}, {
+			attachmentIndex: 0,
+			messageIndex: 1,
 		});
 
 		disposables.dispose();

@@ -36,7 +36,6 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { BlockedSessionsList, IBlockedSessionsHeaderActionContext, registerBlockedSessionsItemActions } from './blockedSessionsList.js';
 import { SessionActionFeedback } from './sessionActionFeedback.js';
 import { BlockedSessionsIndicatorModel, RequiresInputKind } from './blockedSessionsIndicatorModel.js';
-import { openSessionToTheSide } from './views/sessionsView.js';
 import { getSessionWorkspaceDisplayInfo, ISessionWorkspaceDisplayInfo } from '../../../browser/sessionWorkspace.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
@@ -654,11 +653,11 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		if (sideBySide) {
 			const session = this.sessionsManagementService.getSession(resource);
 			if (session) {
-				openSessionToTheSide(this.sessionsService, session, { preserveFocus }).catch(onUnexpectedError);
+				this.sessionsService.openSessionToSide(session, { preserveFocus, source: 'sessionsList' }).catch(onUnexpectedError);
 				return;
 			}
 		}
-		this.sessionsService.openSession(resource, { preserveFocus }).catch(onUnexpectedError);
+		this.sessionsService.openSession(resource, { preserveFocus, source: 'sessionsList' }).catch(onUnexpectedError);
 	}
 
 	private _showSessionsPicker(): void {

@@ -7,6 +7,7 @@ import { $, addDisposableListener, DisposableResizeObserver, EventType, getWindo
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { toAction, Action, Separator, type IAction } from '../../../../base/common/actions.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -17,7 +18,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatResponseFileChangesService } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { CHAT_TURN_ARTIFACT_PILL_ID, CHAT_TURN_CHANGES_PILL_ID, ChatTurnPillsProvider, diffStatsEqual, EMPTY_DIFF_STATS, IChatTurnPillsModel, IDiffStats, observeTurnStatusPillsEnabled } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
-import { SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
+import { SessionArtifacts, sessionArtifactLocation, sessionReferencesPillOptions, SESSION_REFERENCES_PILL_ID } from './sessionArtifacts.js';
 import { chatCustomizationPillOptions, SessionCustomizations, SESSION_CUSTOMIZATIONS_PILL_ID } from './sessionCustomizations.js';
 import { localize } from '../../../../nls.js';
 import { getChatPillEntries, ChatPillsWidget, IChatPill, IChatPillsModel, type IChatPillSection } from '../../../../workbench/browser/chatPills.js';
@@ -53,7 +54,7 @@ function computeTurnStats(chat: IChat, reader: IReader): IDiffStats {
 function buildDebugArtifactSections(debugData: ISessionChatPillsDebugData): readonly IChatPillSection[] {
 	const entries = debugData.markdownFiles.map(name => {
 		const resource = URI.from({ scheme: 'session-chat-pills-debug', path: `/${name}` });
-		return { id: name, label: name, resource, ...sessionArtifactLocation(resource, name), open: () => { } };
+		return { id: name, label: name, resource, ...sessionArtifactLocation(resource.path, name), open: () => { } };
 	});
 	return entries.length ? [{ title: localize('sessionArtifacts.files', "Files"), entries }] : [];
 }
@@ -70,6 +71,8 @@ export function getSessionChatPillKindForAction(actionId: string): SessionChatPi
 			return SessionChatPillKind.Changes;
 		case CHAT_TURN_ARTIFACT_PILL_ID:
 			return SessionChatPillKind.Artifacts;
+		case SESSION_REFERENCES_PILL_ID:
+			return SessionChatPillKind.References;
 		case SESSION_CUSTOMIZATIONS_PILL_ID:
 			return SessionChatPillKind.Customizations;
 		case OPEN_PULL_REQUEST_ACTION_ID:
@@ -85,12 +88,25 @@ export function getSessionChatPillKindForAction(actionId: string): SessionChatPi
 	}
 }
 
+/**
+ * The row's rendered height, reserved below the transcript by its host because
+ * the row floats over it. Derived from the row's `2px`/`4px` padding here plus a
+ * 22px `.monaco-text-button.small` pill; keep in sync if either changes.
+ */
+export const SESSION_CHAT_INPUT_TOOLBAR_HEIGHT = 28;
+
 /** A toolbar for session metadata, active-turn status, and background activity. */
 export class SessionChatInputToolbar extends Disposable {
 
 	readonly element: HTMLElement;
 	private readonly _content: HTMLElement;
 	private readonly _scrollable: DomScrollableElement;
+	private readonly _onDidChangeChatPetPlatform = this._register(new Emitter<void>());
+	readonly onDidChangeChatPetPlatform: Event<void> = this._onDidChangeChatPetPlatform.event;
+	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
+	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
+	private _visible = false;
+	private readonly _pills: ChatPillsWidget;
 
 	/** Sentinel distinguishing "no override" from an explicit `undefined` session. */
 	private readonly _sessionOverride = observableValue<IActiveSession | undefined | 'unset'>(this, 'unset');
@@ -117,6 +133,8 @@ export class SessionChatInputToolbar extends Disposable {
 	private readonly _diffStats: IObservable<IDiffStats>;
 	/** Artifact sections shown in the artifact pill. */
 	private readonly _artifactSections: IObservable<readonly IChatPillSection[]>;
+	/** Reference sections shown in the references pill. */
+	private readonly _referenceSections: IObservable<readonly IChatPillSection[]>;
 	/** Customization sections shown in the customizations pill. */
 	private readonly _customizationSections: IObservable<readonly IChatPillSection[]>;
 
@@ -148,15 +166,21 @@ export class SessionChatInputToolbar extends Disposable {
 			return chat ? computeTurnStats(chat, reader) : EMPTY_DIFF_STATS;
 		});
 
-		const sessionArtifacts = this._register(instantiationService.createInstance(SessionArtifacts, this._session));
+		const turnStatusPillsEnabled = observeTurnStatusPillsEnabled(this._configurationService);
+		const visibility = this._register(instantiationService.createInstance(SessionChatPillVisibility));
+		this._browsers = this._register(instantiationService.createInstance(SessionBrowsersControl, this._session, this._chat, turnStatusPillsEnabled, derived(reader => visibility.isVisible(SessionChatPillKind.Browsers, reader))));
+
+		// The browsers pill already offers the pages it lists, so the artifacts and
+		// references pills leave those websites out.
+		const sessionArtifacts = this._register(instantiationService.createInstance(SessionArtifacts, this._session, this._browsers.urls));
 		this._artifactSections = derived(this, reader => {
 			const debugData = this._debugData.read(reader);
 			return debugData ? buildDebugArtifactSections(debugData) : sessionArtifacts.sections.read(reader);
 		});
+		this._referenceSections = sessionArtifacts.referenceSections;
 		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations, this._chat, this._session));
 		this._customizationSections = sessionCustomizations.sections;
 
-		const turnStatusPillsEnabled = observeTurnStatusPillsEnabled(this._configurationService);
 		const pillsEnabled = derived(reader => this._debugData.read(reader) !== undefined || turnStatusPillsEnabled.read(reader));
 		const model: IChatTurnPillsModel = {
 			stats: this._diffStats,
@@ -168,7 +192,6 @@ export class SessionChatInputToolbar extends Disposable {
 
 		const turnPills = this._register(instantiationService.createInstance(ChatTurnPillsProvider, model));
 		const metadataPills = this._register(instantiationService.createInstance(SessionMetadataPills, this.element, this._session));
-		const visibility = this._register(instantiationService.createInstance(SessionChatPillVisibility));
 
 		// Every pill the session currently has data for, before the user's
 		// per-kind visibility choices are applied.
@@ -179,7 +202,6 @@ export class SessionChatInputToolbar extends Disposable {
 				...turn.filter(pill => pill.action.id !== CHAT_TURN_CHANGES_PILL_ID),
 			];
 		});
-		this._browsers = this._register(instantiationService.createInstance(SessionBrowsersControl, this._session, this._chat, turnStatusPillsEnabled, derived(reader => visibility.isVisible(SessionChatPillKind.Browsers, reader))));
 		this._backgroundActivities = this._register(instantiationService.createInstance(SessionBackgroundActivitiesControl, this._session, this._chat, turnStatusPillsEnabled, derived(reader => visibility.isVisible(SessionChatPillKind.Subagents, reader))));
 
 		// `show-file-icons` lets a resource pill paint its themed file icon.
@@ -189,20 +211,28 @@ export class SessionChatInputToolbar extends Disposable {
 			return createChatSectionPill(action, sections, options, resourceLabels, instantiationService);
 		};
 
-		// Customization sections are not gated at the source, so gate them here the
-		// way the two activity controls gate their own. Data presence follows the
-		// feature gate but not the user's visibility choice, otherwise hiding the
-		// pill would drop it from the menu that restores it.
-		const availableCustomizations = derived(reader => turnStatusPillsEnabled.read(reader) ? this._customizationSections.read(reader) : []);
-		const hasCustomizations = derived(reader => getChatPillEntries(availableCustomizations.read(reader)).length > 0);
-		const customizationSections = derived(reader => visibility.isVisible(SessionChatPillKind.Customizations, reader)
-			? availableCustomizations.read(reader)
-			: []);
+		// Customization and reference sections are not gated at the source, so gate
+		// them here the way the two activity controls gate their own. Data presence
+		// follows the feature gate but not the user's visibility choice, otherwise
+		// hiding the pill would drop it from the menu that restores it.
+		const gated = (kind: SessionChatPillKind, source: IObservable<readonly IChatPillSection[]>) => {
+			const available = derived(reader => turnStatusPillsEnabled.read(reader) ? source.read(reader) : []);
+			return {
+				hasData: derived(reader => getChatPillEntries(available.read(reader)).length > 0),
+				sections: derived(reader => visibility.isVisible(kind, reader) ? available.read(reader) : []),
+			};
+		};
+		const customizations = gated(SessionChatPillKind.Customizations, this._customizationSections);
+		const references = gated(SessionChatPillKind.References, this._referenceSections);
 
 		// Every section-backed pill lives in the same toolbar, so the whole row is
 		// one tab stop with arrow-key navigation instead of one stop per pill.
+		// These follow the candidate pills, which is what puts References directly
+		// after the artifacts pill: the two read as a pair, what the session made
+		// and what it points at.
 		const sectionPills: readonly { readonly pill: IObservable<IChatPill>; readonly sections: IObservable<readonly IChatPillSection[]> }[] = [
-			{ pill: sectionPill(SESSION_CUSTOMIZATIONS_PILL_ID, localize('sessionChatPills.customizations', "Customizations"), customizationSections, chatCustomizationPillOptions), sections: customizationSections },
+			{ pill: sectionPill(SESSION_REFERENCES_PILL_ID, localize('sessionChatPills.references', "References"), references.sections, sessionReferencesPillOptions), sections: references.sections },
+			{ pill: sectionPill(SESSION_CUSTOMIZATIONS_PILL_ID, localize('sessionChatPills.customizations', "Customizations"), customizations.sections, chatCustomizationPillOptions), sections: customizations.sections },
 			{ pill: sectionPill(SESSION_BROWSERS_PILL_ID, localize('sessionChatPills.browsers', "Browsers"), this._browsers.sections, sessionBrowsersPillOptions), sections: this._browsers.sections },
 			{ pill: sectionPill(SESSION_SUBAGENTS_PILL_ID, localize('sessionChatPills.subagents', "Subagents"), this._backgroundActivities.sections, sessionSubagentsPillOptions), sections: this._backgroundActivities.sections },
 		];
@@ -220,7 +250,7 @@ export class SessionChatInputToolbar extends Disposable {
 			context: this._session,
 		};
 		const actionRunner = this._register(new SessionActivatingActionRunner(() => this._session.get(), this._sessionsService));
-		const pills = this._register(instantiationService.createInstance(ChatPillsWidget, pillsModel, {
+		const pills = this._pills = this._register(instantiationService.createInstance(ChatPillsWidget, pillsModel, {
 			actionRunner,
 			// The row's visibility menu must be reachable by right-clicking a pill,
 			// not just the empty space beside it.
@@ -228,6 +258,7 @@ export class SessionChatInputToolbar extends Disposable {
 		}));
 		pills.element.classList.add('show-file-icons');
 		this._content.appendChild(pills.element);
+		this._register(pills.onDidChangePills(() => this._onDidChangeChatPetPlatform.fire()));
 
 		// Kinds the session reports data for; the others are listed in a separate group.
 		const kindsWithData = derived(reader => {
@@ -244,8 +275,11 @@ export class SessionChatInputToolbar extends Disposable {
 			if (this._backgroundActivities.hasData.read(reader)) {
 				kinds.add(SessionChatPillKind.Subagents);
 			}
-			if (hasCustomizations.read(reader)) {
+			if (customizations.hasData.read(reader)) {
 				kinds.add(SessionChatPillKind.Customizations);
+			}
+			if (references.hasData.read(reader)) {
+				kinds.add(SessionChatPillKind.References);
 			}
 			return kinds;
 		});
@@ -288,20 +322,43 @@ export class SessionChatInputToolbar extends Disposable {
 			});
 		}));
 
-		const resizeObserver = this._register(new DisposableResizeObserver('SessionChatInputToolbar.content', () => this._scrollable.scanDomNode()));
+		const resizeObserver = this._register(new DisposableResizeObserver('SessionChatInputToolbar.content', () => {
+			this._scrollable.scanDomNode();
+			this._onDidChangeChatPetPlatform.fire();
+		}));
 		this._register(resizeObserver.observe(this._content));
 		this._register(resizeObserver.observe(pills.element));
+		this._register(this._scrollable.onScroll(e => {
+			if (e.scrollLeftChanged) {
+				this._onDidChangeChatPetPlatform.fire();
+			}
+		}));
 		this._register(addDisposableListener(this._content, EventType.FOCUS_IN, () => this._scrollable.scanDomNode()));
 
 		this._register(autorun(reader => {
 			const anyVisible = pills.isVisible.read(reader);
-			// Keep the (empty) row present while hidden pills have data so its
-			// context menu stays reachable and they can be shown again.
+			// Stay rendered while hidden pills have data: in read-only chats the
+			// input part is only kept alive by a non-hidden persistent child.
 			const anyHidden = kindsWithData.read(reader).size > 0;
-			this.element.classList.toggle('hidden', !anyVisible && !anyHidden);
+			const visible = anyVisible || anyHidden;
+			this.element.classList.toggle('hidden', !visible);
+			// With no pill left to right-click, the row itself has to carry the
+			// visibility menu or the hidden pills could never be restored.
 			this.element.classList.toggle('empty', !anyVisible);
+			if (this._visible !== visible) {
+				this._visible = visible;
+				this._onDidChangeVisibility.fire(visible);
+			}
 			this._scrollable.scanDomNode();
 		}));
+	}
+
+	get visible(): boolean {
+		return this._visible;
+	}
+
+	getChatPetPlatformElements(): readonly HTMLElement[] {
+		return this._pills.getPillElements();
 	}
 
 	/**

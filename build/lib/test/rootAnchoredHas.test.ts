@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { suite, test } from 'node:test';
-import { containsRootAnchoredHas, findRootAnchoredHas } from '../stylelint/validateHasSelectors.ts';
+import { containsRootAnchoredHas, findClassAttributeSubstringSelector, findRootAnchoredHas } from '../stylelint/validateHasSelectors.ts';
 
 suite('stylelint root-anchored :has() check', () => {
 
@@ -65,5 +65,52 @@ suite('stylelint root-anchored :has() check', () => {
 		assert.ok(findRootAnchoredHas('body { .child { &:has(.foo) {} } }') === undefined);
 		assert.ok(findRootAnchoredHas('body { & .child:has(.foo) {} }') === undefined);
 		assert.ok(findRootAnchoredHas('.embedded { @media (width > 0) { &:has(.foo) {} } }') === undefined);
+	});
+});
+
+suite('stylelint class attribute substring check', () => {
+
+	test('flags every class substring operator', () => {
+		assert.ok(findClassAttributeSubstringSelector('.a[class*="icon"] {}') !== undefined);
+		assert.ok(findClassAttributeSubstringSelector('.a[ class ^= \'icon\' i] {}') !== undefined);
+		assert.ok(findClassAttributeSubstringSelector('.a[CLASS$="icon"] {}') !== undefined);
+		assert.ok(findClassAttributeSubstringSelector('.a[\\63 lass*="icon"] {}') !== undefined);
+		assert.ok(findClassAttributeSubstringSelector('.a[|class*="icon"] {}') !== undefined);
+		assert.ok(findClassAttributeSubstringSelector('.a[*|class^="icon"] {}') !== undefined);
+		assert.ok(findClassAttributeSubstringSelector('[cl\\61\r\nss*=x] {}') !== undefined);
+		assert.ok(findClassAttributeSubstringSelector('--foo[class*=x] {}') !== undefined);
+		assert.ok(findClassAttributeSubstringSelector('--foo { & [class*=x] {} }') !== undefined);
+	});
+
+	test('ignores stable class and non-substring attribute selectors', () => {
+		assert.strictEqual(findClassAttributeSubstringSelector('.codicon.codicon {}'), undefined);
+		assert.strictEqual(findClassAttributeSubstringSelector('.codicon[class*="codicon-"] {}'), undefined);
+		assert.strictEqual(findClassAttributeSubstringSelector('.icon[class*="codicon-debug"] {}'), undefined);
+		assert.ok(findClassAttributeSubstringSelector('.codicon[class*="CODICON-"] {}') !== undefined);
+		assert.ok(findClassAttributeSubstringSelector('.codicon[class*="codi/**/con-"] {}') !== undefined);
+		assert.strictEqual(findClassAttributeSubstringSelector('.a[class~="icon"] {}'), undefined);
+		assert.strictEqual(findClassAttributeSubstringSelector('.a[data-class*="icon"] {}'), undefined);
+		assert.strictEqual(findClassAttributeSubstringSelector('.a[class="icon"] {}'), undefined);
+	});
+
+	test('scans only stylesheet selectors', () => {
+		assert.strictEqual(findClassAttributeSubstringSelector('/* .a[class*="icon"] {} */\n.foo {}'), undefined);
+		assert.strictEqual(findClassAttributeSubstringSelector('.foo { content: "[class*=icon]"; }'), undefined);
+		assert.strictEqual(findClassAttributeSubstringSelector('@supports selector([class*="icon"]) { .foo {} }'), undefined);
+	});
+
+	test('scans nested stylesheet selectors', () => {
+		assert.ok(findClassAttributeSubstringSelector('.foo { &[class*="icon"] {} }') !== undefined);
+		assert.ok(findClassAttributeSubstringSelector('@media (width > 0) { .foo[class^="icon"] {} }') !== undefined);
+	});
+
+	test('handles scope, escaped delimiters, and custom property blocks', () => {
+		assert.ok(findClassAttributeSubstringSelector('@scope ([class*=foo]) { .x {} }') !== undefined);
+		assert.ok(findClassAttributeSubstringSelector('.foo\\}bar[class*=foo] {}') !== undefined);
+		assert.strictEqual(findClassAttributeSubstringSelector('.x { --tokens: { [class*=foo] {} }; }'), undefined);
+		assert.strictEqual(findClassAttributeSubstringSelector('.x { --tokens: { a: b } [class*=foo] {}; }'), undefined);
+		assert.strictEqual(findClassAttributeSubstringSelector('.x { -\\-tokens: { [class*=foo] {} }; }'), undefined);
+		assert.ok(findClassAttributeSubstringSelector('.\\110000[class*=x] {}') !== undefined);
+		assert.ok(findClassAttributeSubstringSelector('.\\ffffff[class*=x] {}') !== undefined);
 	});
 });

@@ -6,7 +6,8 @@
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, isLanguageModelVendorAbsenceConclusive } from '../../../common/languageModels.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { localChatSessionType } from '../../../common/chatSessionsService.js';
+import { isAgentHostTarget, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { isByokModel } from '../../../common/chatSelectedModel.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 
 /**
@@ -14,6 +15,11 @@ import { getChatSessionType, isUntitledChatSession } from '../../../common/model
  * Supplied by the surface so these rules do not have to be restated in terms of its inputs.
  */
 export type IsModelSupportedHere = (model: ILanguageModelChatMetadataAndIdentifier) => boolean;
+
+/** Whether the vendor published this itself, rather than it being an agent-host copy of a BYOK model. */
+function isOwnModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
+	return model.metadata.byokModelIdentifier === undefined;
+}
 
 /**
  * Filter models based on session type.
@@ -186,10 +192,28 @@ export function shouldRestorePerTypeModelOnSessionSwitch(isEmpty: boolean, sessi
 }
 
 /**
+ * Whether two models bill the same way. A BYOK model and a first-party one can share id, family and
+ * name, so matching across them changes which account is billed; two copies of one key do match.
+ */
+function isSameBillingIdentity(
+	a: ILanguageModelChatMetadataAndIdentifier,
+	b: ILanguageModelChatMetadataAndIdentifier,
+): boolean {
+	if (isByokModel(a.metadata) !== isByokModel(b.metadata)) {
+		return false;
+	}
+	if (!isByokModel(a.metadata)) {
+		return true;
+	}
+	return (a.metadata.byokModelIdentifier ?? a.identifier) === (b.metadata.byokModelIdentifier ?? b.identifier);
+}
+
+/**
  * Find a model in `pool` that matches `previous` by id, then family, then
  * name (case-insensitive). Used to carry a selection across model pools
  * (e.g. `copilot/claude-sonnet-4.6` → `agent-host-copilotcli:claude-sonnet-4.6`).
  * Returns `undefined` when no candidate matches.
+ * Candidates that would change which account is billed are never matches.
  */
 export function findBestMatchingModel(
 	previous: ILanguageModelChatMetadataAndIdentifier | undefined,
@@ -198,12 +222,16 @@ export function findBestMatchingModel(
 	if (!previous || pool.length === 0) {
 		return undefined;
 	}
+	const candidates = pool.filter(m => isSameBillingIdentity(previous, m));
+	if (candidates.length === 0) {
+		return undefined;
+	}
 	const id = previous.metadata.id?.trim().toLowerCase();
 	const family = previous.metadata.family?.trim().toLowerCase();
 	const name = previous.metadata.name?.trim().toLowerCase();
-	return (id ? pool.find(m => m.metadata.id?.trim().toLowerCase() === id) : undefined)
-		?? (family ? pool.find(m => m.metadata.family?.trim().toLowerCase() === family) : undefined)
-		?? (name ? pool.find(m => m.metadata.name?.trim().toLowerCase() === name) : undefined);
+	return (id ? candidates.find(m => m.metadata.id?.trim().toLowerCase() === id) : undefined)
+		?? (family ? candidates.find(m => m.metadata.family?.trim().toLowerCase() === family) : undefined)
+		?? (name ? candidates.find(m => m.metadata.name?.trim().toLowerCase() === name) : undefined);
 }
 
 /**
@@ -291,6 +319,8 @@ export function resolveModelFromSyncState(
  * - Copilot is the exception: its models are gated on an async token that can resolve slower than fast/local BYOK
  *   providers, so an early empty resolution is transient. Keeping its cache avoids resetting (and persisting) a
  *   restored Copilot selection to a BYOK default, which also preserves the selection across sign-out/in (see #321037).
+ * - An agent-host vendor is judged on models of its OWN: it also publishes bridged copies of the workbench's
+ *   BYOK models, and counting those as live evicts the cache mid-publication and persists the gap.
  * - When nothing is contributed yet and there are no live models (startup / reload), the full cache is returned to
  *   avoid flickering the picker to empty.
  */
@@ -304,10 +334,16 @@ export function mergeModelsWithCache(
 		return cachedModels;
 	}
 	const liveVendors = new Set(liveModels.map(m => m.metadata.vendor));
+	const ownLiveVendors = new Set(liveModels.filter(m => isOwnModel(m)).map(m => m.metadata.vendor));
 	const usableCached = cachedModels.filter(m => {
 		const vendor = m.metadata.vendor;
-		if (!contributedVendors.has(vendor) || liveVendors.has(vendor)) {
+		if (!contributedVendors.has(vendor) || ownLiveVendors.has(vendor)) {
 			return false;
+		}
+		// Only bridged copies so far, so the vendor has not finished publishing. Its own models are
+		// kept; the bridged ones are already live, so a removed key must not come back from cache.
+		if (liveVendors.has(vendor) && isAgentHostTarget(vendor)) {
+			return isOwnModel(m);
 		}
 		if (isLanguageModelVendorAbsenceConclusive(vendor, liveVendors.has(vendor), resolvedVendors?.has(vendor) ?? false)) {
 			return false;

@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { AgentSession } from '../../common/agent.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
+import { getErrorResponsePart, getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
 import { appendSdkToolResultContent, mapSessionEvents as mapSessionEventsWithRouting, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 
@@ -26,12 +26,12 @@ suite('mapSessionEvents — history replay', () => {
 		return parts.map(p => p.kind === ResponsePartKind.Markdown || p.kind === ResponsePartKind.SystemNotification ? { kind: p.kind, content: p.content } : { kind: p.kind });
 	}
 
-	test('task_complete with a summary renders as a markdown part, not a tool call', async () => {
+	test('task_complete renders the input summary when tool output is truncated', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
 			{ type: 'assistant.message', data: { messageId: 'm2', content: 'Working on it.', toolRequests: [{ toolCallId: 'tc-1', name: 'task_complete' }] } },
 			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'task_complete', arguments: { summary: 'Done. All good.' } } },
-			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true, result: { content: 'Output too large to read at once (11.3 KB). Saved to: /tmp/task-complete.txt' } } },
 		];
 
 		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
@@ -76,6 +76,37 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
+	test('restores a subagent Auto model resolution onto the subagent turn', async () => {
+		const autoModeResolved = { chosenModel: 'claude-opus-4.8' };
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'turn-1', data: { interactionId: 'm1', content: 'summarize the service' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-task', name: 'task' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-task', toolName: 'task', arguments: { description: 'Summarize', agent_type: 'explore' } } },
+			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore Agent', agentDescription: 'Explores' } },
+			// Auto routes before the model call, so the decision lands before the
+			// subagent's first message. It must not pull the turn's start time back.
+			{ type: 'session.auto_mode_resolved', agentId: 'agent-1', timestamp: '2025-01-01T00:00:10.000Z', data: autoModeResolved },
+			{ type: 'user.message', agentId: 'agent-1', timestamp: '2025-01-01T00:00:20.000Z', data: { interactionId: 'subagent-prompt', content: 'Inspect the implementation.' } },
+			{ type: 'assistant.message', agentId: 'agent-1', timestamp: '2025-01-01T00:00:30.000Z', data: { messageId: 'm3', content: 'Subagent is done.' } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-task', success: true } },
+		];
+
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual({
+			parentUsage: turns.map(turn => turn.usage),
+			subagentTurns: subagentTurnsByToolCallId.get('tc-task')?.map(turn => ({ text: turn.message.text, startedAt: turn.startedAt, duration: turn.duration, usage: turn.usage })),
+		}, {
+			parentUsage: [undefined],
+			subagentTurns: [{
+				text: 'Inspect the implementation.',
+				startedAt: '2025-01-01T00:00:20.000Z',
+				duration: 10000,
+				usage: { model: 'claude-opus-4.8', _meta: { autoModeResolved } },
+			}],
+		});
+	});
+
 	test('task_complete without a summary renders nothing', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
@@ -90,6 +121,181 @@ suite('mapSessionEvents — history replay', () => {
 		assert.deepStrictEqual(partKinds(turns[0].responseParts), [
 			{ kind: ResponsePartKind.Markdown, content: 'All set.' },
 		]);
+	});
+
+	test('restored completed task_complete is not marked interrupted', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'turn-task-complete', data: { interactionId: 'm1', content: 'finish the task' } },
+			{ type: 'assistant.turn_start', data: { turnId: 'sdk-turn' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: 'All done.', toolRequests: [{ toolCallId: 'tc-1', name: 'task_complete' }] } },
+			{ type: 'assistant.turn_end', data: { turnId: 'sdk-turn' } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'task_complete', arguments: {} } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events), {
+			interruptedTurnError: { errorType: 'executionInterrupted', message: 'interrupted' },
+		});
+
+		assert.deepStrictEqual({
+			state: turns[0].state,
+			error: getErrorResponsePart(turns[0]),
+		}, {
+			state: TurnState.Complete,
+			error: undefined,
+		});
+	});
+
+	test('restores an unfinished request as an error on the same turn', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'interrupted-turn', data: { interactionId: 'm1', content: 'Keep working' } },
+			{ type: 'assistant.turn_start', data: { turnId: 'sdk-turn' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: 'Partial response' } },
+		];
+		const interruptedTurnError = {
+			errorType: 'executionInterrupted',
+			message: 'The agent was interrupted before this request finished.',
+		};
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events), { interruptedTurnError });
+
+		assert.deepStrictEqual({
+			turnCount: turns.length,
+			id: turns[0].id,
+			state: turns[0].state,
+			errorPart: getErrorResponsePart(turns[0]),
+		}, {
+			turnCount: 1,
+			id: 'interrupted-turn',
+			state: TurnState.Error,
+			errorPart: {
+				kind: ResponsePartKind.Error,
+				error: interruptedTurnError,
+			},
+		});
+	});
+
+	test('restores a continued failed request as one completed turn', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'turn-1', timestamp: '2026-08-11T00:00:00.000Z', data: { interactionId: 'm1', content: 'Keep working' } },
+			{ type: 'assistant.turn_start', timestamp: '2026-08-11T00:00:00.100Z', data: { turnId: 'sdk-turn-1' } },
+			{ type: 'session.error', timestamp: '2026-08-11T00:00:02.000Z', data: { errorType: 'requestFailed', message: 'First failure' } },
+			{ type: 'assistant.turn_start', timestamp: '2026-08-11T00:10:00.000Z', data: { turnId: 'sdk-turn-2' } },
+			{ type: 'assistant.message', timestamp: '2026-08-11T00:10:03.000Z', data: { messageId: 'm2', content: 'Finished response' } },
+			{ type: 'assistant.turn_end', timestamp: '2026-08-11T00:10:03.000Z', data: { turnId: 'sdk-turn-2' } },
+			{ type: 'session.idle', timestamp: '2026-08-11T00:10:03.000Z', data: {} },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({
+			id: turn.id,
+			state: turn.state,
+			duration: turn.duration,
+			parts: partKinds(turn.responseParts),
+		})), [{
+			id: 'turn-1',
+			state: TurnState.Complete,
+			duration: 5000,
+			parts: [
+				{ kind: ResponsePartKind.Error },
+				{ kind: ResponsePartKind.Markdown, content: 'Finished response' },
+			],
+		}]);
+	});
+
+	test('excludes host downtime when an interrupted execution resumes and is interrupted again', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'turn-1', timestamp: '2026-08-11T00:00:00.000Z', data: { interactionId: 'm1', content: 'Keep working' } },
+			{ type: 'assistant.turn_start', timestamp: '2026-08-11T00:00:00.100Z', data: { turnId: 'sdk-turn-1' } },
+			{ type: 'assistant.message', timestamp: '2026-08-11T00:00:02.000Z', data: { messageId: 'm2', content: 'First segment' } },
+			{ type: 'assistant.turn_start', timestamp: '2026-08-11T00:10:00.000Z', data: { turnId: 'sdk-turn-2' } },
+			{ type: 'assistant.message', timestamp: '2026-08-11T00:10:03.000Z', data: { messageId: 'm3', content: 'Second segment' } },
+		];
+		const interruptedTurnError = {
+			errorType: 'executionInterrupted',
+			message: 'The agent was interrupted before this request finished.',
+		};
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events), { interruptedTurnError });
+
+		assert.deepStrictEqual({
+			duration: turns[0].duration,
+			state: turns[0].state,
+			parts: partKinds(turns[0].responseParts),
+			resumable: getErrorResponsePart(turns[0])?.resumable,
+		}, {
+			duration: 5000,
+			state: TurnState.Error,
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: 'First segment' },
+				{ kind: ResponsePartKind.Markdown, content: 'Second segment' },
+				{ kind: ResponsePartKind.Error },
+			],
+			resumable: undefined,
+		});
+	});
+
+	test('keeps an error terminal when a later notification starts another turn', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'failed-turn', timestamp: '2026-08-11T00:00:00.000Z', data: { interactionId: 'm1', content: 'Start the background agent' } },
+			{ type: 'assistant.turn_start', timestamp: '2026-08-11T00:00:00.100Z', data: { turnId: 'sdk-turn-1' } },
+			{ type: 'session.error', timestamp: '2026-08-11T00:00:02.000Z', data: { errorType: 'requestFailed', message: 'First failure' } },
+			{
+				type: 'system.notification',
+				id: 'notification-turn',
+				timestamp: '2026-08-11T00:10:00.000Z',
+				data: {
+					content: '<system_notification>\nAgent completed\n</system_notification>',
+					kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'general-purpose' },
+				},
+			},
+			{ type: 'assistant.turn_start', timestamp: '2026-08-11T00:10:00.100Z', data: { turnId: 'sdk-turn-2' } },
+			{ type: 'assistant.message', timestamp: '2026-08-11T00:10:01.000Z', data: { messageId: 'm2', content: 'The background agent finished.' } },
+			{ type: 'assistant.turn_end', timestamp: '2026-08-11T00:10:01.000Z', data: { turnId: 'sdk-turn-2' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({
+			id: turn.id,
+			message: turn.message,
+			state: turn.state,
+			parts: partKinds(turn.responseParts),
+		})), [{
+			id: 'failed-turn',
+			message: { text: 'Start the background agent', origin: { kind: MessageKind.User } },
+			state: TurnState.Error,
+			parts: [{ kind: ResponsePartKind.Error }],
+		}, {
+			id: 'notification-turn',
+			message: { text: 'Background agent agent-a is complete', origin: { kind: MessageKind.SystemNotification } },
+			state: TurnState.Complete,
+			parts: [{ kind: ResponsePartKind.Markdown, content: 'The background agent finished.' }],
+		}]);
+		assert.strictEqual(getErrorResponsePart(turns[0])?.resumable, undefined);
+	});
+
+	test('keeps an error as the final part when a late tool completion arrives', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'failed-turn', data: { interactionId: 'm1', content: 'Run a command' } },
+			{ type: 'assistant.turn_start', data: { turnId: 'sdk-turn-1' } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'bash', arguments: { command: 'echo hi' } } },
+			{ type: 'session.error', data: { errorType: 'requestFailed', message: 'First failure' } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true, result: { content: 'hi\n' } } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual({
+			state: turns[0].state,
+			parts: partKinds(turns[0].responseParts),
+			resumable: getErrorResponsePart(turns[0])?.resumable,
+		}, {
+			state: TurnState.Error,
+			parts: [{ kind: ResponsePartKind.Error }],
+			resumable: undefined,
+		});
 	});
 
 	test('fallback task_complete marks the turn complete', async () => {
@@ -616,6 +822,10 @@ suite('mapSessionEvents — history replay', () => {
 
 	test('strips prompt scaffolding from user message content', async () => {
 		const wrapped = 'hi\n <reminder>\nIMPORTANT: ignore this\n</reminder>\n<attachments>\n<attachment id="microsoft/vscode">repo</attachment>\n</attachments>\n<userRequest>\nhi\n</userRequest>\n';
+		// The Copilot CLI injects context as a `<system_reminder>` block (e.g. the
+		// `IMPORTANT: this context may or may not be relevant…` preamble); it must
+		// not leak into the reconstructed message (and thus the session title).
+		const systemReminder = 'hi\n\n<system_reminder>\nIMPORTANT: this context may or may not be relevant\n<sql_tables>Available tables: todos, todo_deps</sql_tables>\n</system_reminder>';
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'wrapped', data: { interactionId: 'interaction-1', content: wrapped } },
 			{ type: 'assistant.message', data: { interactionId: 'interaction-1', content: 'Hello.', toolRequests: [] } },
@@ -625,11 +835,13 @@ suite('mapSessionEvents — history replay', () => {
 			{ type: 'assistant.message', data: { interactionId: 'interaction-3', content: 'Ok remote.', toolRequests: [] } },
 			{ type: 'user.message', id: 'plain', data: { interactionId: 'interaction-4', content: 'just text' } },
 			{ type: 'assistant.message', data: { interactionId: 'interaction-4', content: 'Ok.', toolRequests: [] } },
+			{ type: 'user.message', id: 'system-reminder', data: { interactionId: 'interaction-5', content: systemReminder } },
+			{ type: 'assistant.message', data: { interactionId: 'interaction-5', content: 'Hi.', toolRequests: [] } },
 		];
 
 		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
 
-		assert.deepStrictEqual(turns.map(turn => turn.message.text), ['hi', 'hi5', '/remote', 'just text']);
+		assert.deepStrictEqual(turns.map(turn => turn.message.text), ['hi', 'hi5', '/remote', 'just text', 'hi']);
 	});
 
 	test('terminal empty assistant message completes a tool-only turn', async () => {
@@ -752,7 +964,7 @@ suite('mapSessionEvents — history replay', () => {
 			id: turn.id,
 			state: turn.state,
 			duration: turn.duration,
-			error: turn.error,
+			error: getTurnError(turn),
 			parts: partKinds(turn.responseParts),
 		})), [{
 			id: 'user-event',
@@ -779,7 +991,7 @@ suite('mapSessionEvents — history replay', () => {
 			},
 			parts: [
 				{ kind: ResponsePartKind.Markdown, content: 'Working on it.' },
-				{ kind: ResponsePartKind.Markdown, content: 'Late completion.' },
+				{ kind: ResponsePartKind.Error },
 			],
 		}]);
 	});
@@ -1048,9 +1260,9 @@ suite('mapSessionEvents — subagent routing', () => {
 
 		assert.deepStrictEqual({
 			parentState: turns[0].state,
-			parentError: turns[0].error,
+			parentError: getTurnError(turns[0]),
 			subagentState: subagentTurn?.state,
-			subagentError: subagentTurn?.error,
+			subagentError: getTurnError(subagentTurn),
 			subagentParts: partKinds(subagentTurn?.responseParts ?? []),
 		}, {
 			parentState: TurnState.Complete,
@@ -1073,6 +1285,7 @@ suite('mapSessionEvents — subagent routing', () => {
 			},
 			subagentParts: [
 				{ kind: ResponsePartKind.Markdown, content: 'Partial result.' },
+				{ kind: ResponsePartKind.Error },
 			],
 		});
 	});

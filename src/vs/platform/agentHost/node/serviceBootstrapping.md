@@ -1,6 +1,6 @@
 # Agent Host service construction
 
-> **Status: CURRENT** (2026-08-21)
+> **Status: CURRENT** (2026-08-24)
 
 ## Maintaining this document
 
@@ -46,9 +46,11 @@ These are the intended extension points for new work:
 - one primary runtime graph, with explicitly scoped child graphs allowed;
 - foundation, core-service, host-service, composition, contribution, and
   entry-activation placement categories;
-- exact leading static arguments for descriptors;
-- eager startup resolution of registered service IDs;
-- collection sealing after bootstrap registration;
+- lazy descriptor construction on first resolution;
+- ordered chat contributions for cross-cutting turn, action, hydration, and
+  outgoing-message behavior;
+- named resolution sites for descriptors whose constructors register behavior
+  required independently of their direct consumers;
 - one disposal owner per object and phase-ordered runtime teardown;
 - typed test overrides that reuse the production core registration list.
 
@@ -63,42 +65,30 @@ wart has an explicit exit condition; update this document when one is removed.
 
 ## Construction phases
 
-```ts
-async function createAgentHostRuntime(options) {
-	const services = new AgentHostServiceCollection();
-	const foundation = createAgentServiceFoundation(options, services);
-	const telemetry = await createAgentHostTelemetryService(foundation);
-	services.set(ITelemetryService, telemetry);
-
-	const coreIds = registerAgentHostCoreServices(services, foundation);
-	const hostIds = registerAgentHostHostServices(services, foundation);
-	const instantiationService = new InstantiationService(services, true);
-	services.seal();
-	resolveAll(instantiationService, [...coreIds, ...hostIds]);
-
-	const composition = createAgentServiceComposition(instantiationService, foundation);
-	const contributions = activateAgentHostContributions(instantiationService, composition);
-	composition.setContributions(contributions);
-	wireProductionWorktree(instantiationService, composition.agentService);
-
-	return new AgentHostRuntime(foundation, instantiationService, composition, contributions);
-}
-```
+Bootstrap creates the pre-DI foundation, awaits telemetry, registers lazy
+descriptors, creates the strict instantiation service, composes `AgentService`,
+and finally activates contributions.
 
 Tests use the same synchronous foundation, core registrations, and composition,
-but supply telemetry and typed overrides directly, skip production host
-services, and preserve the historical no-worktree path.
+but supply telemetry directly, apply typed overrides after registering core
+defaults, skip production host services, and use a mutable worktree seam whose
+default delegate is `NullAgentHostWorktreeIsolation`.
 
 ## Where does a new object go?
 
 | If the object... | Put it in | Construction |
 |---|---|---|
-| must exist before DI, performs bootstrap I/O, or needs entry-point inputs | `agentHostBootstrap.ts` foundation | concrete instance registered before sealing |
+| must exist before DI, performs bootstrap I/O, or needs entry-point inputs | `agentHostBootstrap.ts` foundation | concrete instance registered during bootstrap |
 | is shared by production and AgentService tests | `registerAgentHostCoreServices` | local `SyncDescriptor`; tests must supply any required host-facing dependency override |
 | needs production environment, sandbox, SDK, plugin, or provider-host inputs | `registerAgentHostHostServices` | local descriptor or selected concrete null implementation |
 | needs a back-reference to `AgentService` | `agentServiceComposition.ts` | explicit callback seam |
-| registers providers, handlers, listeners, or other disposable behavior after construction | `agentHostContributions.ts` | create and immediately register in its returned store |
+| observes or enriches chat turns, actions, hydration, or outgoing messages | `chatContributions/` | implement `IAgentHostChatContribution` and register it in `registerBuiltInChatContributions` |
+| registers non-chat providers, handlers, listeners, or other disposable behavior after construction | `agentHostContributions.ts` | create and immediately register in its returned store |
 | starts transports, providers, recurring schedulers, or process listeners | entry point | activation after runtime creation |
+
+`IAgentHostProviderService` is the core service that owns provider registration,
+routing, lifetime, and provider-wide diagnostics aggregation. A successful
+`registerProvider` call transfers disposal ownership to that service.
 
 Place an object based on construction requirements and lifetime, not on which
 existing file first needs it.
@@ -109,29 +99,27 @@ existing file first needs it.
   decorated service parameter. A trailing non-service parameter is valid only
   when it has an optional/default value and the descriptor intentionally accepts
   that value; DI cannot supply a trailing static argument.
-- `SyncDescriptor.staticArguments.length` must equal the first service
-  dependency index exactly. `InstantiationService` otherwise pads or truncates
-  arguments after only a `console.trace`.
+- Follow the standard `SyncDescriptor` convention: static arguments precede
+  decorated service dependencies.
 - Do not use `supportsDelayedInstantiation`. In Node it schedules construction
   on a later macrotask, which makes startup failures and disposal timing
   nondeterministic. An eager descriptor is already lazy until first resolved.
-- Production eagerly resolves every returned core and host service ID before
-  composition. This intentionally preserves the pre-descriptor behavior, where
-  bootstrap constructed every service eagerly, so this migration changes
-  construction ownership without also introducing accidental laziness. Future
-  lazy construction should be a separate, measured change with targeted tests.
+- Descriptors resolve lazily through normal DI demand. If a constructor
+  registers behavior required independently of direct calls, resolve it at a
+  named composition or activation site, explain why, and test the behavior.
+- Descriptor constructors must not read `AgentServiceCallbackAdapter.value`;
+  lazy resolution order is not fixed relative to adapter binding.
 - Never call `createInstance()` for a class registered as a descriptor.
 - Migrate a service atomically: add its descriptor and remove its old
   imperative construction in the same commit.
 
-## Sealing
+## Registration window
 
-The collection is sealed only after every concrete instance and descriptor,
-including awaited telemetry, has been registered. After sealing:
-
-- new service IDs are rejected;
-- replacements are rejected;
-- descriptor-to-instance replacement by `InstantiationService` is allowed.
+The collection is created, populated, and dropped inside
+`createAgentHostRuntime` or `createTestAgentService`. It is never returned or
+handed to another component; `InstantiationService` keeps its reference private.
+That ownership boundary, rather than a runtime seal, makes post-bootstrap
+registration unavailable.
 
 Dynamic feature registration belongs in a service-owned registry or the
 contribution phase, not in the service collection.
@@ -144,6 +132,7 @@ contribution phase, not in the service collection.
 | `InstantiationService` | descriptor-created services |
 | AgentService composition | callback-bound objects and `AgentService` |
 | contribution store | activation objects and registration disposables |
+| `IAgentHostChatContributions` | registered chat contribution instances and their scoped mementos |
 | entry point | transports, process listeners, providers, schedulers |
 
 Never add a descriptor-created service to another `DisposableStore`.
@@ -151,17 +140,25 @@ Never add a descriptor-created service to another `DisposableStore`.
 instantiation service, then foundation. Entry-point resources and logging are
 disposed outside the runtime.
 
+A descriptor that is never resolved is never constructed and therefore never
+disposed. `InstantiationService` disposes only instances it creates.
+
 ## Test overrides
 
 `createTestAgentService` builds the shared foundation and core graph with typed
-overrides; defaults never overwrite an existing override. Its returned
-`AgentService` disposes the whole test graph.
+overrides applied explicitly after the core defaults. Its returned `AgentService`
+disposes the whole test graph.
+
+The test graph does not force construction of unused descriptors. Whole-graph
+dependency completeness and cycle freedom are checked statically in
+`agentHostServices.test.ts`.
 
 The compatibility graph intentionally defaults to:
 
-- no worktree isolation, preserving the historical degraded path;
-- `NullAgentEditAttributionService`, avoiding background git polling in
-  unrelated fake-timer tests.
+- a mutable worktree seam whose default delegate is the folder-preserving null
+  implementation;
+- `NullAgentEditAttributionService`, keeping telemetry attribution out of the
+  default test graph;
 - the caller-supplied git service required by core git/changeset descriptors.
 
 Production and targeted graph tests still resolve the real implementations.
@@ -171,30 +168,46 @@ Production and targeted graph tests still resolve the real implementations.
 ### `AgentServiceCallbackAdapter`
 
 **Why it exists:** callback-dependent services are constructed before
-`AgentService`, while provider lookup, session restore, server-tool operations,
-and changeset liveness are still owned by `AgentService`.
+`AgentService`, while session restore, server-tool operations, and changeset
+eviction are still owned by `AgentService`.
+
+Cross-cutting turn behavior now belongs in `IAgentHostChatContributions`; do not
+add callbacks for behavior expressible through its lifecycle hooks.
 
 **Do not extend it by default:** a new callback usually means another
 responsibility should move to a narrower owning service.
 
-**Exit condition:** extract provider registry, session operations/restoration,
-working-directory resolution, turn dispatch, and subscription liveness so
-their consumers can inject those owners directly. Then delete the adapter and
-its binder contract.
+**Exit condition:** extract session operations/restoration, server-tool
+ownership, turn dispatch, and changeset eviction so consumers inject those
+owners directly. Contributions reduce the cross-cutting behavior that those
+services must own, but the remaining callback queries and commands need service
+owners rather than contribution hooks. Then delete the adapter and binder
+contract.
 
-### `AgentService.setWorktreeIsolation`
+### Post-DI service registrations
 
-**Why it exists:** worktree isolation is a production host descriptor, but
-configuration, side effects, and customization enablement need its late
-back-reference after composition. The compatibility test graph historically
-runs without worktree isolation.
+`IAgentHostSessionTitleController`, `IAgentHostLocalCommands`, and
+`IAgentService` are currently registered after the primary
+`InstantiationService` is created because they depend on composition-owned
+callbacks or objects.
 
-**Do not add sibling setters:** ordinary construction-order dependencies belong
-in constructor injection.
+**Do not add another post-DI registration.** Ordinary services belong in the
+descriptor lists or the pre-DI foundation.
 
-**Exit condition:** introduce a correctly typed host-facing worktree contract
-that can be injected without changing the default test graph, or relocate the
-pending-worktree state so the back-reference disappears.
+**Exit condition:** the server-tool, session, and turn-dispatch extractions
+remove the callback cycles. Register the remaining services before constructing
+`InstantiationService`, with `IAgentService` as a descriptor.
+
+### Chat contribution host bridge
+
+`AgentSideEffects` registers its narrow `sendTurnMessage`/launch-kind host bridge
+after the chat contribution service is constructed.
+
+**Do not broaden this bridge for behavior that fits a contribution hook.**
+
+**Exit condition:** once turn admission and dispatch have injectable owners,
+inject those services into contributions directly and remove
+`registerHost`/`getHost`.
 
 ### Concrete foundation services
 
@@ -212,20 +225,26 @@ unrelated services.
 
 ## Anti-patterns
 
-- `services.set(...)` after the collection is sealed.
+- Handing the service collection to anything outside bootstrap.
 - A parallel root graph that duplicates services owned by the primary runtime.
 - Public service getters on `AgentService`.
-- Adding another post-construction `setX(...)` to fix ordinary ordering.
+- Adding a post-construction `setX(...)` to fix ordinary ordering.
+- Adding cross-cutting chat behavior directly to `AgentService` or
+  `AgentSideEffects` when an existing contribution hook fits.
 - Global `registerSingleton` for node Agent Host services.
 - Process behavior in service constructors when it belongs in activation.
 - A second test-only list of production service registrations.
-- Descriptor registration without an exact static-argument audit.
 
 ## Adding a service checklist
 
 - [ ] Classify it as foundation, core descriptor, host descriptor, composition, contribution, or entry activation.
-- [ ] Keep constructor service parameters trailing and static-argument arity exact.
-- [ ] Register and eagerly resolve its service ID in the appropriate graph.
+- [ ] Keep constructor service parameters trailing and follow standard
+  `SyncDescriptor` static-argument conventions.
+- [ ] Register its service ID in the appropriate graph.
+- [ ] If its constructor registers required behavior, add a documented
+  resolution site and a behavior test.
+- [ ] Put cross-cutting chat behavior in an ordered contribution and use scoped
+  mementos for per-chat or per-session state.
 - [ ] If using a child graph, document its scope, parent, and disposal owner.
 - [ ] Give it exactly one disposal owner.
 - [ ] Add a typed test override only when default test behavior must differ.

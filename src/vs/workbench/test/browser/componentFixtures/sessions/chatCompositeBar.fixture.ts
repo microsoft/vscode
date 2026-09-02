@@ -69,7 +69,6 @@ function createMockDelegate(session: IActiveSession, chats: readonly IChat[], ac
 		visible: session.shouldShowChatTabs,
 		showSessionActions: session.shouldShowChatTabs,
 		openChat: () => { },
-		newChat: () => { },
 	};
 }
 
@@ -102,7 +101,7 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 	container.classList.add('chat-groups-view', 'single-group');
 
 	const session = createMockSession(chats, activeChat, sessionTitle);
-	const bar = disposableStore.add(instantiationService.createInstance(ChatCompositeBar));
+	const bar = disposableStore.add(instantiationService.createInstance(ChatCompositeBar, undefined));
 	bar.setGroup(createMockDelegate(session, chats, activeChat));
 	container.appendChild(bar.element);
 

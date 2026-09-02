@@ -5,11 +5,33 @@
 
 export const enum AgentSystemNotificationKind {
 	WorktreeCreationFailure = 'worktreeCreationFailure',
+	/** An automatic approval review did not finish before its deadline. */
+	AutomaticApprovalReviewTimedOut = 'automaticApprovalReviewTimedOut',
+	/** An automatic approval review stopped before reaching a decision. */
+	AutomaticApprovalReviewAborted = 'automaticApprovalReviewAborted',
+	/** Automatic approval review denials triggered the turn circuit breaker. */
+	AutomaticApprovalReviewInterrupted = 'automaticApprovalReviewInterrupted',
+	/** Agent Merge started monitoring the session's branch. */
+	AgentMergeEnabled = 'agentMergeEnabled',
+	/** Effective Agent Merge behavior changed while monitoring. */
+	AgentMergeConfigurationChanged = 'agentMergeConfigurationChanged',
+	/** Agent Merge stopped monitoring the session, usually on its own. */
+	AgentMergeDisabled = 'agentMergeDisabled',
 }
 
 export const enum AgentSystemNotificationSeverity {
 	Warning = 'warning',
 }
+
+const knownKinds: ReadonlySet<string> = new Set<string>([
+	AgentSystemNotificationKind.WorktreeCreationFailure,
+	AgentSystemNotificationKind.AutomaticApprovalReviewTimedOut,
+	AgentSystemNotificationKind.AutomaticApprovalReviewAborted,
+	AgentSystemNotificationKind.AutomaticApprovalReviewInterrupted,
+	AgentSystemNotificationKind.AgentMergeEnabled,
+	AgentSystemNotificationKind.AgentMergeConfigurationChanged,
+	AgentSystemNotificationKind.AgentMergeDisabled,
+]);
 
 interface IHasSystemNotificationMeta {
 	readonly _meta?: Record<string, unknown>;
@@ -26,8 +48,9 @@ export function readAgentSystemNotificationMeta(source: IHasSystemNotificationMe
 	if (!meta) {
 		return {};
 	}
+	const kind = meta['kind'];
 	return {
-		kind: meta['kind'] === AgentSystemNotificationKind.WorktreeCreationFailure ? meta['kind'] : undefined,
+		kind: typeof kind === 'string' && knownKinds.has(kind) ? kind as AgentSystemNotificationKind : undefined,
 		severity: meta['severity'] === AgentSystemNotificationSeverity.Warning ? meta['severity'] : undefined,
 	};
 }

@@ -8,7 +8,7 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
+import { constObservable, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
@@ -90,6 +90,7 @@ class TestActiveSession extends mock<IActiveSession>() {
 	override readonly mainChat: IObservable<IChat>;
 	override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: true });
 	override readonly isCreated: IObservable<boolean>;
+	override readonly isNewSessionRequestInProgress = observableValue(this, false);
 	override readonly isArchived: IObservable<boolean> = constObservable(false);
 	override readonly loading: IObservable<boolean> = constObservable(false);
 
@@ -116,9 +117,14 @@ class TestActiveSession extends mock<IActiveSession>() {
 
 class TestSessionsService extends mock<ISessionsService>() {
 	override readonly activeSession = observableValue<IActiveSession | undefined>(this, undefined);
-	newChatGate: Promise<void> | undefined;
+	openChatGate: Promise<void> | undefined;
+	openChatError: Error | undefined;
 
 	override async openChat(session: ISession, chatUri: URI): Promise<void> {
+		await this.openChatGate;
+		if (this.openChatError) {
+			throw this.openChatError;
+		}
 		if (!(session instanceof TestActiveSession)) {
 			return;
 		}
@@ -133,16 +139,6 @@ class TestSessionsService extends mock<ISessionsService>() {
 		this.activeSession.set(session, undefined);
 	}
 
-	override async openNewChatInSession(session: ISession): Promise<void> {
-		if (!(session instanceof TestActiveSession)) {
-			return;
-		}
-		await this.newChatGate;
-		const chat = createChat(`new-${session.allChats.get().length}`, SessionStatus.Untitled);
-		session.allChats.set([...session.allChats.get(), chat], undefined);
-		session.visibleChatTabs.set([...session.visibleChatTabs.get(), chat], undefined);
-		session.activeChat.set(chat, undefined);
-	}
 }
 
 interface IChatGroupsHarness {
@@ -177,7 +173,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 
 suite('Sessions - ChatGroupsView', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-	const options = { renderSessionTypePickerInControls: constObservable(false) };
+	const options = {};
 
 	test('opens a session with an active child chat after initial layout', () => {
 		const { view, chatViewFactory } = createHarness(disposables);
@@ -209,6 +205,30 @@ suite('Sessions - ChatGroupsView', () => {
 			focusedKind: 'chat',
 			activeTab: child.resource.toString(),
 			tabs: [main.resource.toString(), child.resource.toString()],
+		});
+	});
+
+	test('does not lay out chat views while the session is hidden', () => {
+		const { view, chatViewFactory } = createHarness(disposables);
+		view.setSession(new TestActiveSession([createChat('main')]), options);
+		const chatView = chatViewFactory.views.find(candidate => candidate.kind === 'chat')!;
+
+		view.layout(800, 600, 0, 0);
+		const initialLayoutCount = chatView.layoutCount;
+		view.setSessionVisible(false);
+		view.layout(640, 480, 0, 0);
+		const hiddenLayoutCount = chatView.layoutCount;
+		view.setSessionVisible(true);
+		view.layout(640, 480, 0, 0);
+
+		assert.deepStrictEqual({
+			initialLayoutCount,
+			hiddenLayoutCount,
+			shownLayoutCount: chatView.layoutCount,
+		}, {
+			initialLayoutCount: 1,
+			hiddenLayoutCount: 1,
+			shownLayoutCount: 2,
 		});
 	});
 
@@ -274,6 +294,25 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
+	test('new session request activity switches the draft to the chat view', () => {
+		const { view } = createHarness(disposables);
+		const draft = new TestActiveSession([createChat('draft', SessionStatus.Untitled)], undefined, false);
+		view.setSession(draft, options);
+		const viewKinds = () => Array.from(view.element.querySelectorAll<HTMLElement>('.chat-view')).map(element => element.dataset.kind);
+
+		const before = viewKinds();
+		draft.isNewSessionRequestInProgress.set(true, undefined);
+		const during = viewKinds();
+		draft.isNewSessionRequestInProgress.set(false, undefined);
+		const after = viewKinds();
+
+		assert.deepStrictEqual({ before, during, after }, {
+			before: ['newSession'],
+			during: ['chat'],
+			after: ['newSession'],
+		});
+	});
+
 	test('opening a hidden chat to the side removes its temporary active-group assignment', async () => {
 		const { view } = createHarness(disposables);
 		const main = createChat('main');
@@ -293,6 +332,48 @@ suite('Sessions - ChatGroupsView', () => {
 			groupTabs: [[main.resource.toString()], [hidden.resource.toString()]],
 			groupLabels: ['Chat Group 1 of 2', 'Chat Group 2 of 2'],
 		});
+	});
+
+	test('opening an existing main-group tab to the side moves it into its own group', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const session = new TestActiveSession([main, secondary]);
+		view.setSession(session, options);
+
+		const gate = new DeferredPromise<void>();
+		sessionsService.openChatGate = gate.p;
+		let settled = false;
+		const openPromise = view.openChatInNewGroup(secondary.resource).finally(() => settled = true);
+		await Promise.resolve();
+		const settledBeforeOpen = settled;
+		gate.complete();
+		await openPromise;
+		const afterSplit = Array.from(view.element.querySelectorAll('.chat-group-view'))
+			.map(group => Array.from(group.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource));
+		await view.openChatInNewGroup(secondary.resource);
+
+		assert.deepStrictEqual({
+			settledBeforeOpen,
+			afterSplit,
+			groupCountAfterRepeatedOpen: view.groupCount.get(),
+			activeChat: session.activeChat.get().resource.toString(),
+		}, {
+			settledBeforeOpen: false,
+			afterSplit: [[main.resource.toString()], [secondary.resource.toString()]],
+			groupCountAfterRepeatedOpen: 2,
+			activeChat: secondary.resource.toString(),
+		});
+	});
+
+	test('opening an existing tab to the side propagates open failures', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		view.setSession(new TestActiveSession([main, secondary]), options);
+		sessionsService.openChatError = new Error('open failed');
+
+		await assert.rejects(view.openChatInNewGroup(secondary.resource), /open failed/);
 	});
 
 	test('dropping a hidden subagent on an edge opens it in a new group', async () => {
@@ -403,35 +484,49 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
-	test('new chat remains assigned to the group where creation started', async () => {
-		const { sessionsService, view } = createHarness(disposables);
+	test('removing an empty split group does not create a transient new chat view', () => {
+		const { chatViewFactory, view } = createHarness(disposables);
 		const main = createChat('main');
 		const secondary = createChat('secondary');
 		const session = new TestActiveSession([main, secondary]);
 		view.setSession(session, options);
 		view.splitChatToSide(secondary.resource);
-		view.focusAdjacentGroup('previous');
-		const groups = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'));
-		const mainGroup = groups.find(group => group.querySelector<HTMLElement>('.chat-composite-bar-tab')?.dataset.chatResource === main.resource.toString())!;
-		const gate = new DeferredPromise<void>();
-		sessionsService.newChatGate = gate.p;
+		const viewCountBeforeClose = chatViewFactory.views.length;
 
-		mainGroup.querySelector<HTMLElement>('.chat-composite-bar-new-chat .action-label')!.click();
-		view.focusAdjacentGroup('next');
-		gate.complete();
-		await gate.p;
-		await Promise.resolve();
-		await Promise.resolve();
+		session.visibleChatTabs.set([main], undefined);
 
-		const newChat = session.activeChat.get();
 		assert.deepStrictEqual({
-			mainGroupTabs: Array.from(mainGroup.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource),
-			secondaryGroupTabs: Array.from(groups.find(group => group !== mainGroup)!.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource),
-			focusInMainGroup: mainGroup.contains(mainWindow.document.activeElement),
+			groupCount: view.groupCount.get(),
+			newViews: chatViewFactory.views.slice(viewCountBeforeClose).map(createdView => createdView.kind),
 		}, {
-			mainGroupTabs: [main.resource.toString(), newChat.resource.toString()],
-			secondaryGroupTabs: [secondary.resource.toString()],
-			focusInMainGroup: true,
+			groupCount: 1,
+			newViews: [],
+		});
+	});
+
+	test('atomically replacing the active split chat preserves its group', () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const tertiary = createChat('tertiary');
+		const session = new TestActiveSession([main, secondary, tertiary], [main, secondary]);
+		view.setSession(session, options);
+		view.splitChatToSide(secondary.resource);
+
+		transaction(tx => {
+			session.visibleChatTabs.set([main, tertiary], tx);
+			session.activeChat.set(tertiary, tx);
+		});
+
+		const groups = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'));
+		assert.deepStrictEqual({
+			groupCount: view.groupCount.get(),
+			groupTabs: groups.map(group => Array.from(group.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource)),
+			activeChat: session.activeChat.get().resource.toString(),
+		}, {
+			groupCount: 2,
+			groupTabs: [[main.resource.toString()], [tertiary.resource.toString()]],
+			activeChat: tertiary.resource.toString(),
 		});
 	});
 

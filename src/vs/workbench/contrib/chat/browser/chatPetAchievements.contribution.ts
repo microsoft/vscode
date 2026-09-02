@@ -13,6 +13,7 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -97,6 +98,24 @@ registerAction2(class extends Action2 {
 	}
 });
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'chat.pet.developer.resetSize',
+			title: localize2('chatPet.developer.resetSize', "Reset Pet Size"),
+			category: Categories.Developer,
+			precondition: ChatContextKeys.enabled,
+			f1: true,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const chatPetService = accessor.get(IChatPetService);
+		chatPetService.resetScale();
+		status(localize('chatPet.developer.resetSizeComplete', "VS Code pet size reset to {0} percent", Math.round(chatPetService.scale.get() * 100)));
+	}
+});
+
 export class ChatPetContextContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatPetContext';
@@ -110,6 +129,54 @@ export class ChatPetContextContribution extends Disposable implements IWorkbench
 		const enabledContextKey = ChatPetContextKeys.enabled.bindTo(contextKeyService);
 		this._register(autorun(reader => {
 			enabledContextKey.set(chatPetService.enabled.read(reader));
+		}));
+	}
+}
+
+const CHAT_PET_KEEP_EDIT_COMMAND_IDS = new Set([
+	'chatEditing.acceptFile',
+	'chatEditing.acceptAllFiles',
+	'chatEditor.action.accept',
+	'chatEditor.action.acceptHunk',
+	'chatEditor.action.acceptAllEdits',
+	'chatEditing.multidiff.acceptAllFiles',
+]);
+
+const CHAT_PET_REVIEW_EDIT_COMMAND_IDS = new Set([
+	'chatEditor.action.reviewChanges',
+	'chatEditing.openFileInDiff',
+	'chatEditing.viewChanges',
+	'chatEditing.viewAllSessionChanges',
+	'workbench.changesView.action.viewChanges',
+]);
+
+const CHAT_PET_COPY_OUTPUT_COMMAND_IDS = new Set([
+	'workbench.action.chat.copyAll',
+	'workbench.action.chat.copyItem',
+	'workbench.action.chat.copyFinalResponse',
+	'workbench.action.chat.copyCodeBlock',
+]);
+
+export class ChatPetEditingAchievementContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.chatPetEditingAchievement';
+
+	constructor(
+		@ICommandService commandService: ICommandService,
+		@IChatPetService chatPetService: IChatPetService,
+	) {
+		super();
+
+		this._register(commandService.onDidExecuteCommand(event => {
+			if (CHAT_PET_KEEP_EDIT_COMMAND_IDS.has(event.commandId)) {
+				chatPetService.unlockAchievement(ChatPetAchievementIds.AgentEditKept);
+			}
+			if (CHAT_PET_REVIEW_EDIT_COMMAND_IDS.has(event.commandId)) {
+				chatPetService.unlockAchievement(ChatPetAchievementIds.AgentChangesReviewed);
+			}
+			if (CHAT_PET_COPY_OUTPUT_COMMAND_IDS.has(event.commandId)) {
+				chatPetService.unlockAchievement(ChatPetAchievementIds.UsefulOutputCopied);
+			}
 		}));
 	}
 }
@@ -270,8 +337,8 @@ export class ChatPetAchievementsAccessibilityHelp implements IAccessibleViewImpl
 		const previouslyFocusedElement = DOM.getActiveElement();
 		const editorService = _accessor.get(IEditorService);
 		const content = [
-			localize('chatPet.achievements.accessibilityHelp.overview', "The Achievements modal lists secret agent-feature achievements and the pet hats rewarded by unlocked achievements."),
-			localize('chatPet.achievements.accessibilityHelp.cards', "Use Tab and Shift+Tab to move through No Hat and the achievement cards. Press Enter or Space on No Hat or an unlocked achievement to change what the pet wears. Newly unlocked cards are announced as New until you activate them. Locked achievements are announced as locked and cannot be selected."),
+			localize('chatPet.achievements.accessibilityHelp.overview', "The Achievements modal lists agent-feature achievements and their pet hat rewards. Locked cards reveal a hint and reward while keeping the achievement name and exact unlock requirement hidden."),
+			localize('chatPet.achievements.accessibilityHelp.cards', "Use Tab and Shift+Tab to move through No Hat and the achievement cards. Press Enter or Space on No Hat or an unlocked achievement to change what the pet wears. Newly unlocked cards are announced as New until you activate them. Locked achievements announce their hint and reward and cannot be selected."),
 			localize('chatPet.achievements.accessibilityHelp.roadmap', "The final TBD card is informational and lists upcoming pet ideas. The VS Code pet and achievements are experimental and may change."),
 			localize('chatPet.achievements.accessibilityHelp.close', "Press Escape to close the Achievements modal."),
 		].join('\n\n');
