@@ -88,7 +88,7 @@ const CONTROL_ROUTES = [
 	{ method: 'POST', path: '/api/state', purpose: 'Apply and persist one update or an atomic endpoints array.', returns: 'Updated server state.', sideEffects: 'server-state,filesystem' },
 	{ method: 'POST', path: '/api/reset', purpose: 'Restore and persist default endpoint state.', returns: 'Reset server state.', sideEffects: 'server-state,filesystem' },
 	{ method: 'GET', path: '/api/schema', purpose: 'Read the managed-settings schema.', returns: 'Schema source, resolved location, load status, and schema or error.', sideEffects: 'none' },
-	{ method: 'POST', path: '/api/schema', purpose: 'Change and reload the managed-settings schema source for this server process.', returns: 'Schema source, resolved location, load status, and schema or error.', sideEffects: 'server-state' },
+	{ method: 'POST', path: '/api/schema', purpose: 'Change and reload the managed-settings schema source for this server process. Only accepted through a loopback URL.', returns: 'Schema source, resolved location, load status, and schema or error.', sideEffects: 'server-state' },
 	{ method: 'GET', path: '/api/file-deployment', purpose: 'Generate install and removal commands for the current Managed Settings body.', returns: 'Source body and per-platform paths, install commands, and removal commands.', sideEffects: 'none' },
 	{ method: 'GET', path: '/api/log', purpose: 'Read the request log.', returns: 'Object containing the newest-first entries array.', sideEffects: 'none' },
 	{ method: 'DELETE', path: '/api/log', purpose: 'Clear the request log.', returns: 'Object containing an empty entries array.', sideEffects: 'server-state' },
@@ -256,6 +256,9 @@ function handleControlApi(req: IncomingMessage, res: ServerResponse, pathname: s
 	}
 
 	if (pathname === '/api/schema' && req.method === 'POST') {
+		if (!isLoopbackRequest(req)) {
+			return sendJson(res, 403, { error: 'Changing the schema source is only allowed from a loopback URL.' });
+		}
 		return readBody(req, (err, raw) => {
 			if (err) {
 				return sendJson(res, 400, { error: String(err) });
@@ -520,6 +523,24 @@ function isAllowedControlOrigin(req: IncomingMessage): boolean {
 	} catch {
 		return false;
 	}
+}
+
+function isLoopbackRequest(req: IncomingMessage): boolean {
+	const remoteAddress = req.socket.remoteAddress;
+	const host = req.headers.host;
+	if (!remoteAddress || !host || Array.isArray(host)) {
+		return false;
+	}
+	try {
+		return isLoopbackAddress(remoteAddress) && isLoopbackAddress(new URL(`http://${host}`).hostname);
+	} catch {
+		return false;
+	}
+}
+
+function isLoopbackAddress(address: string): boolean {
+	const normalized = address.replace(/^\[|\]$/g, '').replace(/^::ffff:/, '');
+	return normalized === '::1' || normalized === 'localhost' || /^127(?:\.\d{1,3}){3}$/.test(normalized);
 }
 
 /**

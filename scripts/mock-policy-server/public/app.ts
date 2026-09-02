@@ -263,15 +263,14 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		}
 	}
 
-	function setExpandableSectionState(detailsId: string, toggleId: string, chevronId: string, storageKey: string, expanded: boolean): void {
-		$(detailsId).hidden = !expanded;
-		$(chevronId).classList.toggle('open', expanded);
-		$(toggleId).setAttribute('aria-expanded', String(expanded));
-		persistExpandedState(storageKey, expanded);
+	function setSchemaSectionState(expanded: boolean): void {
+		$('schema-details').hidden = !expanded;
+		$('schema-chevron').classList.toggle('open', expanded);
+		$('schema-toggle').setAttribute('aria-expanded', String(expanded));
 	}
 
 	function restoreDisclosureState(): void {
-		setExpandableSectionState('schema-details', 'schema-toggle', 'schema-chevron', 'schema', false);
+		setSchemaSectionState(false);
 		for (const details of document.querySelectorAll<HTMLDetailsElement>('details[data-persist-expanded]')) {
 			const key = details.dataset.persistExpanded;
 			if (!key) {
@@ -866,6 +865,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			const input = $(`setup-method-${candidate}`) as HTMLInputElement;
 			input.checked = selected;
 			input.setAttribute('aria-expanded', String(selected));
+			$(`setup-method-${candidate}-option`).dataset.selected = String(selected);
 		}
 	}
 
@@ -1383,7 +1383,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	}
 
 	function toggleSchemaSection(): void {
-		setExpandableSectionState('schema-details', 'schema-toggle', 'schema-chevron', 'schema', Boolean($('schema-details').hidden));
+		setSchemaSectionState(Boolean($('schema-details').hidden));
 	}
 
 	function openFileDeploy(): void {

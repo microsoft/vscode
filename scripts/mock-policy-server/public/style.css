@@ -534,7 +534,7 @@ h2 {
 	border-left: 1px solid var(--border);
 }
 
-.delivery-option:has(input:checked) {
+.delivery-option[data-selected='true'] {
 	background: color-mix(in srgb, var(--accent) 10%, var(--surface));
 }
 
@@ -1590,7 +1590,7 @@ code {
 }
 
 .schema-source-form .status:empty {
-	display: none;
+	min-height: 0;
 }
 
 .schema-details[hidden] {

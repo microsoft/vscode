@@ -58,7 +58,7 @@
 			<fieldset class="delivery-picker">
 				<legend>Delivery mechanism</legend>
 				<div class="delivery-options">
-					<label class="delivery-option" for="setup-method-proxy">
+					<label id="setup-method-proxy-option" class="delivery-option" for="setup-method-proxy" data-selected="true">
 						<input id="setup-method-proxy" type="radio" name="setup-method" value="proxy"
 							aria-expanded="true" aria-controls="proxy-method-content" checked>
 						<span class="delivery-option-copy">
@@ -67,7 +67,7 @@
 						</span>
 						<span class="method-badge">Recommended</span>
 					</label>
-					<label class="delivery-option" for="setup-method-file">
+					<label id="setup-method-file-option" class="delivery-option" for="setup-method-file" data-selected="false">
 						<input id="setup-method-file" type="radio" name="setup-method" value="file"
 							aria-expanded="false" aria-controls="file-method-content">
 						<span class="delivery-option-copy">
