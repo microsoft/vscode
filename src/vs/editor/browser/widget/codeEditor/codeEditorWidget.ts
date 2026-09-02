@@ -68,8 +68,6 @@ import { IUserInteractionService } from '../../../../platform/userInteraction/br
 
 const MOUSE_CURSOR_HIDDEN_CSS_CLASS_NAME = 'monaco-editor-hide-mouse-cursor';
 
-const MOUSE_CURSOR_REVEAL_EVENT_TYPES = ['pointerdown', 'wheel', 'contextmenu'] as const;
-
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
 	private static readonly dropIntoEditorDecorationOptions = ModelDecorationOptions.register({
@@ -324,6 +322,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			}
 		}));
 		this._register(this.onDidBlurEditorText(() => this._showMouseCursor()));
+		// Make sure to show the cursor again after editor is disposed so it doesn't get stuck hidden
 		this._register(toDisposable(() => this._showMouseCursor()));
 
 		this._contextKeyService = this._register(contextKeyService.createScoped(this._domElement));
@@ -424,34 +423,21 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	private _hideMouseCursor(): void {
-		if (
-			this._mouseCursorHidden
-			|| !this.hasTextFocus()
-			|| this._configuration.options.get(EditorOption.readOnly)
-			|| !this._configuration.options.get(EditorOption.hideMouseCursorOnTyping)
-		) {
+		if (this._mouseCursorHidden || !this._configuration.options.get(EditorOption.hideMouseCursorOnTyping)) {
 			return;
 		}
 		this._mouseCursorHidden = true;
 		this._domElement.classList.add(MOUSE_CURSOR_HIDDEN_CSS_CLASS_NAME);
 
 		const store = new DisposableStore();
-		const reveal = () => this._showMouseCursor();
-		for (const eventType of MOUSE_CURSOR_REVEAL_EVENT_TYPES) {
-			store.add(dom.addDisposableListener(this._domElement, eventType, reveal, { capture: true }));
-		}
-		// Ignore pointer moves caused only by rendering new content below a stationary pointer.
-		let lastPointerPosition: { readonly screenX: number; readonly screenY: number } | undefined;
-		store.add(dom.addDisposableListener(this._domElement, 'pointermove', (e: PointerEvent) => {
-			const hasMoved = e.movementX !== 0 || e.movementY !== 0
-				|| (!!lastPointerPosition && (lastPointerPosition.screenX !== e.screenX || lastPointerPosition.screenY !== e.screenY));
-			lastPointerPosition = { screenX: e.screenX, screenY: e.screenY };
-			if (hasMoved) {
-				reveal();
-			}
-		}, { capture: true }));
-		store.add(dom.addDisposableListener(this._domElement, 'pointerleave', reveal));
-		store.add(dom.addDisposableListener(dom.getWindow(this._domElement), 'blur', reveal));
+		// Listen in the capture phase: descendants such as the scrollbars and the minimap stop
+		// propagation of these events, so a bubbling listener would miss them and leave the cursor hidden.
+		store.add(dom.addDisposableListener(this._domElement, 'wheel', () => this._showMouseCursor(), { capture: true }));
+		store.add(dom.addDisposableListener(this._domElement, 'pointerdown', () => this._showMouseCursor(), { capture: true }));
+		store.add(dom.addDisposableListener(this._domElement, 'contextmenu', () => this._showMouseCursor(), { capture: true }));
+		store.add(dom.addDisposableListener(this._domElement, 'pointermove', () => this._showMouseCursor(), { capture: true }));
+		store.add(dom.addDisposableListener(this._domElement, 'pointerleave', () => this._showMouseCursor(), { capture: true }));
+		store.add(dom.addDisposableListener(dom.getWindow(this._domElement), 'blur', () => this._showMouseCursor(), { capture: true }));
 		this._mouseCursorRevealListeners.value = store;
 	}
 
