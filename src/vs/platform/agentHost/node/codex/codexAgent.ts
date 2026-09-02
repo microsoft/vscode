@@ -238,7 +238,6 @@ const MCP_TOOL_APPROVAL_ANSWER_DECLINE = '__codex_mcp_decline__';
 const CODEX_RESPONSES_ENDPOINT = '/responses';
 const CODEX_COPILOT_MODEL_PROVIDER = 'vscode-proxy';
 const CODEX_COPILOT_MODEL_GROUP = 'copilot';
-const CODEX_OPENAI_MODEL_VENDOR = 'openai';
 const CODEX_OPENAI_MODEL_PROVIDER = 'openai';
 const CODEX_MODEL_SELECTION_PREFIX = '@provider=';
 
@@ -248,7 +247,7 @@ const CODEX_MODEL_SELECTION_PREFIX = '@provider=';
  * Codex request lifecycle, so only publish OpenAI's picker-eligible models.
  */
 function isCodexCompatibleCopilotModel(model: CCAModel): boolean {
-	return model.vendor.toLowerCase() === CODEX_OPENAI_MODEL_VENDOR
+	return model.vendor.toLowerCase() === CODEX_OPENAI_MODEL_PROVIDER
 		&& !!model.model_picker_enabled
 		&& !!model.supported_endpoints?.includes(CODEX_RESPONSES_ENDPOINT);
 }
