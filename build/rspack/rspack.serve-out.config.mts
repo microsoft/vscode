@@ -103,10 +103,14 @@ export default {
 				},
 			},
 			{
-				// Built-in theme JSON files use JSONC (comments / trailing
+				test: /\.woff$/,
+				type: 'asset/resource',
+			},
+			{
+				// Built-in color and file icon theme JSON files use JSONC (comments / trailing
 				// commas), so import them as raw strings and let VS Code's
 				// JSON parser handle them.
-				test: /[\\/]extensions[\\/]theme-defaults[\\/]themes[\\/].*\.json$/,
+				test: /[\\/]extensions[\\/](?:theme-defaults[\\/]themes|theme-seti[\\/]icons)[\\/].*\.json$/,
 				type: 'asset/source',
 			},
 		],
