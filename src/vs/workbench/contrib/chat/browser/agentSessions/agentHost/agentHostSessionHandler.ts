@@ -5846,7 +5846,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/**
 	 * Drop working directories whose scheme the host cannot address, falling back to `undefined` so
-	 * it picks its own. Schemes are compared as the host receives them, after unwrapping.
+	 * it picks its own. Schemes are compared as the host receives them: unwrapped, and with a remote
+	 * window's `vscode-remote:` folders kept since `EditorRemoteAgentHostTransport` sends those as host-local paths.
 	 */
 	private _hostAddressableWorkingDirectories(directories: readonly URI[] | undefined): readonly URI[] | undefined {
 		const defaultDirectory = this._config.connection.initializeResult.get()?.defaultDirectory;
@@ -5854,7 +5855,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return directories;
 		}
 		const hostScheme = URI.isUri(defaultDirectory) ? URI.revive(defaultDirectory).scheme : URI.parse(defaultDirectory).scheme;
-		const addressable = directories.filter(directory => this._config.connection.resourceUris.toAgentHost(directory).scheme === hostScheme);
+		const addressable = directories.filter(directory => {
+			const scheme = this._config.connection.resourceUris.toAgentHost(directory).scheme;
+			return scheme === hostScheme || scheme === Schemas.vscodeRemote;
+		});
 		if (addressable.length === directories.length) {
 			return directories;
 		}
