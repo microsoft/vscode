@@ -146,6 +146,10 @@ interface ICopilotActiveToolCall {
 	readonly contributor: ToolCallContributor | undefined;
 	readonly intention: string | undefined;
 	meta: IToolCallMeta | undefined;
+	/** Mirrors the reducer's `Running` status, the only one in which it applies a content change. */
+	isRunning: boolean;
+	/** Latest progress message, kept out of {@link content} so it never becomes the result. */
+	progressMessage: string | undefined;
 }
 
 interface ICopilotStreamingToolCall {
@@ -1246,12 +1250,50 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.error(`[Copilot:${this.sessionId}] ${action.type} emitted after cancellation; dropping`);
 			return;
 		}
+		this._trackToolCallRunning(action);
 		this._onDidSessionProgress.fire({
 			kind: 'action',
 			resource: isChatAction(action) ? this._chatChannelUri : this._ownerSessionUri,
 			action,
 			parentToolCallId,
 		});
+	}
+
+	/**
+	 * Mirrors the reducer's transitions in and out of `Running` onto the tracked
+	 * tool call, so {@link _emitToolCallProgress} only emits what will be applied.
+	 */
+	private _trackToolCallRunning(action: SessionAction | ChatAction): void {
+		let running: { toolCallId: string; isRunning: boolean };
+		switch (action.type) {
+			case ActionType.ChatToolCallReady: running = { toolCallId: action.toolCallId, isRunning: !!action.confirmed }; break;
+			case ActionType.ChatToolCallAuthResolved: running = { toolCallId: action.toolCallId, isRunning: true }; break;
+			case ActionType.ChatToolCallAuthRequired: running = { toolCallId: action.toolCallId, isRunning: false }; break;
+			default: return;
+		}
+		const tracked = this._activeToolCalls.get(running.toolCallId);
+		if (tracked) {
+			tracked.isRunning = running.isRunning;
+		}
+	}
+
+	/**
+	 * Routes a tool's progress status to `_meta.progressMessage`, coalescing
+	 * repeats and leaving the call's own content untouched.
+	 */
+	private _emitToolCallProgress(toolCallId: string, progressMessage: string): void {
+		const tracked = this._activeToolCalls.get(toolCallId);
+		if (!tracked || !tracked.isRunning || tracked.progressMessage === progressMessage) {
+			return;
+		}
+		tracked.progressMessage = progressMessage;
+		this._emitAction({
+			type: ActionType.ChatToolCallContentChanged,
+			turnId: this._turnId,
+			toolCallId,
+			content: tracked.content,
+			_meta: toToolCallMeta({ ...(tracked.meta ?? {}), progressMessage }),
+		}, tracked.parentToolCallId);
 	}
 
 	private _emitModelCallCompleted(turnId: string, modelCallId: string, parentToolCallId?: string): void {
@@ -4912,6 +4954,8 @@ export class CopilotAgentSession extends Disposable {
 				contributor,
 				intention,
 				meta: undefined,
+				isRunning: false,
+				progressMessage: undefined,
 			});
 			const existingApproval = this._toolApprovalRecords.get(e.data.toolCallId);
 			const approvalRecord = {
@@ -6375,6 +6419,7 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onToolProgress(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Tool progress: ${e.data.toolCallId} - ${e.data.progressMessage}`);
+			this._emitToolCallProgress(e.data.toolCallId, e.data.progressMessage);
 		}));
 
 		this._register(wrapper.onSkillInvoked(e => {
