@@ -31,7 +31,7 @@ export interface ILabelService {
 	/** Returns the display home containing `resource`. */
 	getUriHome(resource: URI): URI | undefined;
 
-	registerFormatter(formatter: ResourceLabelFormatter): IDisposable;
+	registerFormatter(formatter: ResourceLabelFormatter | ResourceLabelTemplateFormatter): IDisposable;
 	readonly onDidChangeFormatters: Event<IFormatterChangeEvent>;
 
 	/**
@@ -59,6 +59,20 @@ export interface ResourceLabelFormatter {
 	home?: string;
 	priority?: boolean;
 	formatting: ResourceLabelFormatting;
+}
+
+export interface ResourceLabelTemplateFormatter {
+	/** URI template whose path parameters occupy an entire segment, such as `/sessions/${sessionId}`. */
+	home: URI;
+	/** Fires when state used by `formatting` changes and existing labels must be recomputed. */
+	onDidChangeFormatting: Event<void>;
+	formatting(context: ResourceLabelFormattingContext): ResourceLabelFormatting | undefined;
+}
+
+export interface ResourceLabelFormattingContext {
+	readonly resource: URI;
+	readonly home: URI;
+	readonly parameters: ReadonlyMap<string, string>;
 }
 
 export interface ResourceLabelFormatting {

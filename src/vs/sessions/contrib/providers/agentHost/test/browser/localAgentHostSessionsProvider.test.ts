@@ -5854,8 +5854,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			quickChat: getHomeLabel(URI.joinPath(claudeHome, 'artifact.md')),
 			copilotState: getHomeLabel(URI.file('/home/test/.copilot/session-state/copilot-session/artifact.md')),
 		}, {
-			quickChat: 'claude/Session',
-			copilotState: 'Copilot/Session',
+			quickChat: 'claude/Claude Quick Chat',
+			copilotState: 'Copilot/Copilot Session',
 		});
 
 		provider.dispose();

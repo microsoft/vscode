@@ -1269,7 +1269,13 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		const root = URI.file('/home/remote/.copilot/session-state/sdk-session');
 		const resource = toAgentHostUri(URI.joinPath(root, 'files/plan.md'), agentHostAuthority('localhost:4321'));
-		assert.strictEqual(labelService.getUriHome(resource)?.path, root.path);
+		assert.deepStrictEqual({
+			home: labelService.getUriHome(resource)?.path,
+			label: labelService.getUriLabel(resource),
+		}, {
+			home: root.path,
+			label: 'Copilot [Test Host]/Remote Session/files/plan.md',
+		});
 	}));
 
 	test('session adapter uses raw ID as fallback title', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
