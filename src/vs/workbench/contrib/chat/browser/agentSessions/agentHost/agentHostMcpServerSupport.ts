@@ -57,7 +57,6 @@ export const enum AgentHostMcpServerSourceKind {
 	WorkspaceConfiguration = 'workspaceConfiguration',
 	WorkspaceDotMcp = 'workspaceDotMcp',
 	ClaudeDesktop = 'claudeDesktop',
-	CopilotHome = 'copilotHome',
 	Windsurf = 'windsurf',
 	CursorUser = 'cursorUser',
 	CursorWorkspace = 'cursorWorkspace',
@@ -254,10 +253,6 @@ async function resolveMcpServerForAgentHostDelivery(
 		);
 	}
 
-	if (source.kind === AgentHostMcpServerSourceKind.CopilotHome && isCopilotCliSessionType(sessionType)) {
-		return createResolution(server, definition, source, applicability, AgentHostMcpServerDelivery.RuntimeDiscovered, supported());
-	}
-
 	if (collection && McpCollectionDefinition.isWorkspaceDiscovered(collection) && !McpCollectionDefinition.isVscodeMcpJson(collection)) {
 		return createResolution(
 			server,
@@ -401,8 +396,6 @@ function getExternalConfigurationSourceKind(discoverySource: ExternalDiscoverySo
 	switch (discoverySource) {
 		case ExternalDiscoverySource.ClaudeDesktop:
 			return AgentHostMcpServerSourceKind.ClaudeDesktop;
-		case ExternalDiscoverySource.Copilot:
-			return AgentHostMcpServerSourceKind.CopilotHome;
 		case ExternalDiscoverySource.Windsurf:
 			return AgentHostMcpServerSourceKind.Windsurf;
 		case ExternalDiscoverySource.CursorGlobal:
@@ -419,7 +412,6 @@ function getMcpServerSourceGroup(kind: AgentHostMcpServerSourceKind): AICustomiz
 		case AgentHostMcpServerSourceKind.UserProfile:
 		case AgentHostMcpServerSourceKind.RemoteUser:
 		case AgentHostMcpServerSourceKind.ClaudeDesktop:
-		case AgentHostMcpServerSourceKind.CopilotHome:
 		case AgentHostMcpServerSourceKind.Windsurf:
 		case AgentHostMcpServerSourceKind.CursorUser:
 			return AICustomizationSources.user;

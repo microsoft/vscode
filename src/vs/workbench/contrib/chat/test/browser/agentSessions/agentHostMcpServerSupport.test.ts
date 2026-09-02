@@ -14,7 +14,7 @@ import { ExtensionIdentifier } from '../../../../../../platform/extensions/commo
 import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { StorageScope } from '../../../../../../platform/storage/common/storage.js';
-import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, assessMcpServersForCopilotAgentHost, COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID, mergeInstalledMcpServersIntoAgentHostSupportAssessment, resolveMcpServersForAgentHostDelivery } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
+import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, assessMcpServersForCopilotAgentHost, COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID, mergeInstalledMcpServersIntoAgentHostSupportAssessment } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { AgentHostMcpServerSupportScope } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupportScope.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { ExternalDiscoverySource } from '../../../../mcp/common/mcpConfiguration.js';
@@ -40,13 +40,6 @@ suite('agentHostMcpServerSupport', () => {
 				provenance: McpCollectionProvenance.WorkspaceDotMcp,
 				configTarget: ConfigurationTarget.WORKSPACE_FOLDER,
 				collectionOrigin: URI.joinPath(root, '.mcp.json'),
-			}),
-			makeMcpServer({
-				id: 'copilot.null.user',
-				collectionId: 'copilot.null',
-				provenance: McpCollectionProvenance.ExternalConfiguration,
-				discoverySource: ExternalDiscoverySource.Copilot,
-				collectionOrigin: URI.file('/home/test/.copilot/mcp-config.json'),
 			}),
 			makeMcpServer({
 				id: 'plugin.test/server',
@@ -78,7 +71,6 @@ suite('agentHostMcpServerSupport', () => {
 		})), [
 			{ name: 'mcp.config.usrlocal.user', source: AgentHostMcpServerSourceKind.UserProfile, delivery: AgentHostMcpServerDelivery.ClientForwarded, compatibility: 'supported' },
 			{ name: 'workspace-dot-mcp.0.root', source: AgentHostMcpServerSourceKind.WorkspaceDotMcp, delivery: AgentHostMcpServerDelivery.RuntimeDiscovered, compatibility: 'supported' },
-			{ name: 'copilot.null.user', source: AgentHostMcpServerSourceKind.CopilotHome, delivery: AgentHostMcpServerDelivery.RuntimeDiscovered, compatibility: 'supported' },
 			{ name: 'plugin.test/server', source: AgentHostMcpServerSourceKind.AgentPlugin, delivery: AgentHostMcpServerDelivery.AgentPlugin, compatibility: 'supported' },
 			{ name: 'extension.server', source: AgentHostMcpServerSourceKind.Extension, delivery: AgentHostMcpServerDelivery.ClientForwarded, compatibility: 'supported' },
 			{ name: 'github', source: AgentHostMcpServerSourceKind.Extension, delivery: AgentHostMcpServerDelivery.ProviderBuiltIn, compatibility: 'supported' },
@@ -174,28 +166,6 @@ suite('agentHostMcpServerSupport', () => {
 				compatibility: { kind: 'unsupported', reasons: [AgentHostMcpSupportReason.UnsupportedSourceLocation] },
 			},
 		]);
-	});
-
-	test('forwards Copilot user configuration to agent hosts that do not discover it', async () => {
-		const [result] = await resolveMcpServersForAgentHostDelivery([
-			makeMcpServer({
-				id: 'copilot.null.user',
-				collectionId: 'copilot.null',
-				provenance: McpCollectionProvenance.ExternalConfiguration,
-				discoverySource: ExternalDiscoverySource.Copilot,
-				collectionOrigin: URI.file('/home/test/.copilot/mcp-config.json'),
-			}),
-		], makeConfigurationResolverService(), 'agent-host-claude', []);
-
-		assert.deepStrictEqual({
-			source: result.source.kind,
-			delivery: result.delivery,
-			compatibility: result.compatibility,
-		}, {
-			source: AgentHostMcpServerSourceKind.CopilotHome,
-			delivery: AgentHostMcpServerDelivery.ClientForwarded,
-			compatibility: { kind: 'supported' },
-		});
 	});
 
 	test('keeps scope applicability separate from configuration compatibility', async () => {
