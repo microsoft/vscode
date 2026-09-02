@@ -35,6 +35,7 @@ const transparentButtonStyles: IButtonStyles = {
 
 export class ChatSystemNotificationContentPart extends Disposable implements IChatContentPart {
 	readonly domNode: HTMLElement;
+	readonly inlineTimingContainer: HTMLElement | undefined;
 
 	constructor(
 		private readonly notification: IChatSystemNotificationPart,
@@ -43,16 +44,32 @@ export class ChatSystemNotificationContentPart extends Disposable implements ICh
 	) {
 		super();
 
+		let notificationNode: HTMLElement;
 		if (notification.collapsible) {
 			const firstLineBreak = notification.content.value.indexOf('\n');
 			const detailsValue = firstLineBreak === -1 ? '' : notification.content.value.slice(firstLineBreak).trim();
 			if (detailsValue) {
-				this.domNode = this._renderCollapsibleNotification(notification, renderer, firstLineBreak, detailsValue);
-				return;
+				notificationNode = this._renderCollapsibleNotification(notification, renderer, firstLineBreak, detailsValue);
+			} else {
+				notificationNode = this._renderNotification(notification, renderer, instantiationService);
 			}
+		} else {
+			notificationNode = this._renderNotification(notification, renderer, instantiationService);
 		}
+
+		if (notification.renderInlineTiming) {
+			this.domNode = dom.$('.chat-system-notification-layout');
+			this.domNode.appendChild(notificationNode);
+			this.inlineTimingContainer = dom.append(this.domNode, dom.$('span.chat-system-notification-timing'));
+		} else {
+			this.domNode = notificationNode;
+			this.inlineTimingContainer = undefined;
+		}
+	}
+
+	private _renderNotification(notification: IChatSystemNotificationPart, renderer: IMarkdownRenderer, instantiationService: IInstantiationService): HTMLElement {
 		const rendered = this._register(renderer.render(notification.content));
-		this.domNode = this._register(instantiationService.createInstance(ChatProgressSubPart, rendered.element, notification.icon ?? Codicon.check, undefined)).domNode;
+		return this._register(instantiationService.createInstance(ChatProgressSubPart, rendered.element, notification.icon ?? Codicon.check, undefined)).domNode;
 	}
 
 	private _renderCollapsibleNotification(notification: IChatSystemNotificationPart, renderer: IMarkdownRenderer, firstLineBreak: number, detailsValue: string): HTMLElement {
@@ -101,6 +118,7 @@ export class ChatSystemNotificationContentPart extends Disposable implements ICh
 		return other.kind === 'systemNotification'
 			&& other.content.value === this.notification.content.value
 			&& ThemeIcon.isEqual(other.icon ?? Codicon.check, this.notification.icon ?? Codicon.check)
-			&& !!other.collapsible === !!this.notification.collapsible;
+			&& !!other.collapsible === !!this.notification.collapsible
+			&& !!other.renderInlineTiming === !!this.notification.renderInlineTiming;
 	}
 }
