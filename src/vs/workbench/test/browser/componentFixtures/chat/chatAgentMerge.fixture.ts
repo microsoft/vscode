@@ -148,8 +148,8 @@ interface IRenderAgentMergeOptions {
 	readonly summary: IAgentMergePromptSummary;
 	/** Expands the widget by clicking its header, the way a user would. */
 	readonly expanded?: boolean;
-	/** Also expands the nested agent-message disclosure. */
-	readonly agentMessageExpanded?: boolean;
+	/** Shows the agent message instead of the merge details. */
+	readonly agentMessageVisible?: boolean;
 	/** Review thread ids the session mirrored into agent feedback. */
 	readonly mirroredThreadIds?: readonly string[];
 }
@@ -196,11 +196,11 @@ function renderAgentMerge({ container, disposableStore, theme }: ComponentFixtur
 	const part = disposableStore.add(instantiationService.createInstance(ChatAgentMergeContentPart, options.summary, sessionResource, markdownRenderer));
 	container.appendChild(part.domNode);
 
-	if (options.expanded || options.agentMessageExpanded) {
-		part.domNode.querySelector<HTMLElement>('.chat-agent-merge-header')?.click();
+	if (options.expanded) {
+		part.domNode.querySelector<HTMLElement>('.chat-agent-merge-header-disclosure')?.click();
 	}
-	if (options.agentMessageExpanded) {
-		part.domNode.querySelector<HTMLElement>('.chat-agent-merge-message-header')?.click();
+	if (options.agentMessageVisible) {
+		part.domNode.querySelector<HTMLElement>('.chat-agent-merge-message-toggle')?.click();
 	}
 }
 
@@ -274,7 +274,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 		labels: { kind: 'screenshot' },
 		render: (ctx) => renderAgentMerge(ctx, {
 			summary: createSummary(['addressReviews', 'fixCI'], { reviewThreads: reviewThreads.slice(0, 1), failedChecks }),
-			agentMessageExpanded: true,
+			agentMessageVisible: true,
 		}),
 	}),
 

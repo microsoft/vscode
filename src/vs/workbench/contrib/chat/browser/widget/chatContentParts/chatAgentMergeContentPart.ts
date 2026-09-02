@@ -11,7 +11,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { shorten } from '../../../../../../base/common/labels.js';
-import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { posix } from '../../../../../../base/common/path.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -140,16 +140,7 @@ export function getAgentMergeRequestLabel(element: IChatRequestViewModel): strin
 	return summary && getAgentMergeSummaryLabel(summary);
 }
 
-/**
- * Renders the machine-facing Agent Merge prompt as a compact disclosure: a
- * header naming the pull request work in progress with counts of the review
- * feedback and failing checks that triggered it, expanding to the feedback
- * itself and a nested disclosure holding the verbatim instructions sent to the
- * agent.
- *
- * Review threads the session mirrored into agent feedback link to their local
- * comment, so a click on the file label reveals that comment in the editor.
- */
+/** Renders the Agent Merge prompt as a compact disclosure whose header action switches between merge details and the agent message. Mirrored review file labels link to their local comments. */
 export class ChatAgentMergeContentPart extends Disposable {
 
 	readonly domNode: HTMLElement;
@@ -174,26 +165,72 @@ export class ChatAgentMergeContentPart extends Disposable {
 		this._createHeader(this.domNode);
 
 		const body = dom.append(this.domNode, dom.$('.chat-agent-merge-body'));
-		this._createPullRequestRow(body);
-		this._createCommentsSection(body);
-		this._createChecksSection(body);
-		this._createAgentMessageSection(body);
+		const details = dom.append(body, dom.$('.chat-agent-merge-details'));
+		this._createPullRequestRow(details);
+		this._createCommentsSection(details);
+		this._createChecksSection(details);
+		this._createAgentMessage(body);
 	}
 
 	private _createHeader(parent: HTMLElement): void {
-		const button = this._register(new Button(parent, { ...transparentButtonStyles, title: false }));
-		button.element.classList.add('chat-agent-merge-header');
+		const header = dom.append(parent, dom.$('.chat-agent-merge-header'));
+		const preventPointerFocus = (button: Button) => {
+			this._register(dom.addDisposableGenericMouseDownListener(button.element, event => {
+				event.preventDefault();
+				button.element.blur();
+			}));
+		};
+		const disclosureButton = this._register(new Button(header, { ...transparentButtonStyles, title: false }));
+		disclosureButton.element.classList.add('chat-agent-merge-header-disclosure');
 
 		const status = describeAgentMergeStatus(this._summary, this._comments.length);
-		const icon = dom.append(button.element, dom.$('span.chat-agent-merge-status-icon'));
+		const content = dom.append(header, dom.$('.chat-agent-merge-header-content', { 'aria-hidden': 'true' }));
+		const icon = dom.append(content, dom.$('span.chat-agent-merge-status-icon'));
 		icon.classList.add(...ThemeIcon.asClassNameArray(status.icon));
-		const title = dom.append(button.element, dom.$('span.chat-agent-merge-title', undefined, status.title));
+		const title = dom.append(content, dom.$('span.chat-agent-merge-title', undefined, status.title));
 		this._register(this._hoverService.setupDelayedHover(title, { content: status.title }));
-		dom.append(button.element, dom.$('span.chat-agent-merge-source', undefined, localize('chat.agentMerge.visualSource', "• {0}", agentMergeSource)));
-		const twistie = dom.append(button.element, dom.$('span.chat-agent-merge-twistie'));
-		twistie.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRightCompact));
+		dom.append(content, dom.$('span.chat-agent-merge-source', undefined, agentMergeSource));
 
-		this._register(toggleDisclosure(button, this.domNode, getAgentMergeSummaryLabel(this._summary)));
+		let messageButton: Button | undefined;
+		const setExpanded = (expanded: boolean) => {
+			this.domNode.classList.toggle('collapsed', !expanded);
+			disclosureButton.element.ariaExpanded = String(expanded);
+			disclosureButton.element.ariaLabel = getAgentMergeSummaryLabel(this._summary);
+			if (messageButton) {
+				messageButton.element.tabIndex = expanded ? 0 : -1;
+			}
+		};
+		setExpanded(false);
+		preventPointerFocus(disclosureButton);
+		this._register(disclosureButton.onDidClick(() => setExpanded(this.domNode.classList.contains('collapsed'))));
+
+		if (this._summary.agentMessage) {
+			const showMessageLabel = localize('chat.agentMerge.showAgentMessage', "Show Agent Message");
+			const showDetailsLabel = localize('chat.agentMerge.showMergeDetails', "Show Merge Details");
+			messageButton = this._register(new Button(header, { ...transparentButtonStyles, title: false }));
+			messageButton.element.classList.add('chat-agent-merge-message-toggle');
+			messageButton.icon = Codicon.commentDiscussion;
+			messageButton.element.tabIndex = -1;
+			preventPointerFocus(messageButton);
+			let showingAgentMessage = false;
+			const updateMessageVisibility = (visible: boolean) => {
+				showingAgentMessage = visible;
+				this.domNode.classList.toggle('showing-agent-message', visible);
+				messageButton.checked = visible;
+				messageButton.setAriaLabel(visible ? showDetailsLabel : showMessageLabel);
+			};
+			updateMessageVisibility(false);
+			this._register(this._hoverService.setupDelayedHover(messageButton.element, () => ({
+				content: showingAgentMessage ? showDetailsLabel : showMessageLabel,
+			})));
+			this._register(messageButton.onDidClick(() => {
+				setExpanded(true);
+				updateMessageVisibility(!showingAgentMessage);
+			}));
+		}
+
+		const twistie = dom.append(header, dom.$('span.chat-agent-merge-twistie', { 'aria-hidden': 'true' }));
+		twistie.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRightCompact));
 	}
 
 	private _createPullRequestRow(body: HTMLElement): void {
@@ -228,7 +265,6 @@ export class ChatAgentMergeContentPart extends Disposable {
 		}
 
 		const section = dom.append(body, dom.$('.chat-agent-merge-section'));
-		dom.append(section, dom.$('.chat-agent-merge-section-title', undefined, localize('chat.agentMerge.commentsTitle', "Feedback")));
 
 		const fileElements = new Map<string, HTMLElement>();
 		this._comments.forEach((comment, index) => {
@@ -297,7 +333,9 @@ export class ChatAgentMergeContentPart extends Disposable {
 		}
 
 		const section = dom.append(body, dom.$('.chat-agent-merge-section'));
-		dom.append(section, dom.$('.chat-agent-merge-section-title', undefined, localize('chat.agentMerge.checksTitle', "Checks")));
+		if (this._comments.length > 0) {
+			dom.append(section, dom.$('.chat-agent-merge-section-title', undefined, localize('chat.agentMerge.checksTitle', "Checks")));
+		}
 		// A check's own run URL is not part of the prompt, so the pull request's
 		// checks tab is the closest target that always resolves.
 		const checksUrl = this._summary.pullRequestUrl ? `${this._summary.pullRequestUrl}/checks` : undefined;
@@ -315,23 +353,13 @@ export class ChatAgentMergeContentPart extends Disposable {
 		}
 	}
 
-	private _createAgentMessageSection(body: HTMLElement): void {
+	private _createAgentMessage(body: HTMLElement): void {
 		if (!this._summary.agentMessage) {
 			return;
 		}
 
-		const label = localize('chat.agentMerge.agentMessage', "Agent message");
 		const section = dom.append(body, dom.$('.chat-agent-merge-message'));
-		const messageBody = dom.$('.chat-agent-merge-message-body', undefined, this._summary.agentMessage);
-
-		const button = this._register(new Button(section, { ...transparentButtonStyles, title: false }));
-		button.element.classList.add('chat-agent-merge-message-header');
-		const twistie = dom.append(button.element, dom.$('span.chat-agent-merge-twistie'));
-		twistie.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRightCompact));
-		dom.append(button.element, dom.$('span', undefined, label));
-
-		section.appendChild(messageBody);
-		this._register(toggleDisclosure(button, section, label));
+		dom.append(section, dom.$('.chat-agent-merge-message-body', undefined, this._summary.agentMessage));
 	}
 
 	/** Makes an element activate `run` by mouse or keyboard, with a hover describing it. */
@@ -350,21 +378,6 @@ export class ChatAgentMergeContentPart extends Disposable {
 			}
 		}));
 	}
-}
-
-/**
- * Wires a button to expand and collapse the region its owner holds, keeping the
- * collapsed state on the owner so CSS can drive both the twistie and the
- * region's visibility from one class.
- */
-function toggleDisclosure(button: Button, owner: HTMLElement, ariaLabel: string): IDisposable {
-	const apply = (expanded: boolean) => {
-		owner.classList.toggle('collapsed', !expanded);
-		button.element.ariaExpanded = String(expanded);
-		button.element.ariaLabel = ariaLabel;
-	};
-	apply(false);
-	return button.onDidClick(() => apply(owner.classList.contains('collapsed')));
 }
 
 function collectComments(summary: IAgentMergePromptSummary): readonly IAgentMergeCommentItem[] {
