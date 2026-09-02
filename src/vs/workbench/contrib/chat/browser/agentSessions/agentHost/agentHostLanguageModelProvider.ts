@@ -165,14 +165,18 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	/**
 	 * The workbench catalogue entry describing the same model, when one is known.
 	 *
-	 * Compatibility shim, not a durable design. A host driving the Copilot SDK advertises no
-	 * billing and incomplete token counts, so the CAPI-backed Copilot catalogue fills the gaps.
+	 * A host driving the Copilot SDK advertises no billing and, where the SDK omits them, no token
+	 * limits — so the CAPI-backed Copilot catalogue fills the gaps.
 	 *
 	 * Matching by raw model id does not prove the two describe the same offering — they can differ
 	 * by entitlement, policy, rollout or billing route — so this is restricted to models billed
 	 * through Copilot and only ever fills fields the host left absent.
 	 *
-	 * Remove once the agent host publishes its own token counts and billing metadata.
+	 * The token-limit half is a shim: those are native protocol fields, and a host that populates
+	 * them makes the fallback dead. The billing half is not. Pricing is deliberately kept off the
+	 * agent host protocol as operator-sensitive, so a client that wants to show it has to source it
+	 * itself. Removing this join therefore means dropping pricing for these models, which is a
+	 * product decision rather than a cleanup.
 	 */
 	private _catalogueEntryFor(model: SessionModelInfo, group: ILanguageModelChatMetadata['modelGroup']): ILanguageModelChatMetadata | undefined {
 		if (!this._catalogue || group?.id !== COPILOT_VENDOR_ID) {
