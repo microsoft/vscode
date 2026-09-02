@@ -1861,8 +1861,8 @@ interface ISessionsListDndDelegate {
 	getGroupIdOfSession(session: ISession): string | undefined;
 	/**
 	 * The id of the workspace section (`workspace:<label>`) the session belongs
-	 * to, or `undefined` when sessions are not sectioned by workspace (date
-	 * grouping) or the session has no workspace section (quick chats).
+	 * to, or `undefined` when the list is not sectioned by workspace or the
+	 * session belongs elsewhere (pinned, done, quick chat).
 	 */
 	getWorkspaceSectionIdOfSession(session: ISession): string | undefined;
 	/** Add the given sessions to the group. */
@@ -2165,8 +2165,8 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		let target: ISession | undefined;
 		if (isSessionSection(targetElement)) {
 			sectionId = targetElement.id.startsWith('workspace:') ? targetElement.id : undefined;
-		} else if (isSessionItem(targetElement)) {
-			sectionId = this.renderedWorkspaceSectionOf(targetElement);
+		} else if (isSessionItem(targetElement) && this.delegate.getGroupIdOfSession(targetElement) === undefined) {
+			sectionId = this.delegate.getWorkspaceSectionIdOfSession(targetElement);
 			target = sectionId === undefined ? undefined : targetElement;
 		}
 		if (sectionId === undefined) {
@@ -2177,9 +2177,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		// dropped back out, and only into their own workspace section.
 		const dragged = this.draggedSessions(data);
 		const canRemove = dragged.every(session =>
-			!session.isArchived.get()
-			&& !this.delegate.isSessionPinned(session)
-			&& this.delegate.getGroupIdOfSession(session) !== undefined
+			this.delegate.getGroupIdOfSession(session) !== undefined
 			&& this.delegate.getWorkspaceSectionIdOfSession(session) === sectionId);
 		if (dragged.length === 0 || !canRemove) {
 			return undefined;
@@ -2190,14 +2188,6 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			target,
 			position: target ? sectorToPosition(targetSector) : undefined,
 		};
-	}
-
-	/** The workspace section a session renders in, or `undefined` when it renders elsewhere (pinned, done or inside a custom group). */
-	private renderedWorkspaceSectionOf(session: ISession): string | undefined {
-		if (session.isArchived.get() || this.delegate.isSessionPinned(session) || this.delegate.getGroupIdOfSession(session) !== undefined) {
-			return undefined;
-		}
-		return this.delegate.getWorkspaceSectionIdOfSession(session);
 	}
 
 	/**
@@ -3679,11 +3669,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/**
 	 * The id of the workspace section a session belongs to, or `undefined` when
-	 * the list does not section by workspace or the session has no workspace
-	 * section of its own (quick chats render under "Chats").
+	 * the list does not section by workspace or the session belongs to another
+	 * section (Pinned, Done, or the "Chats" section for quick chats).
 	 */
 	private getWorkspaceSectionIdOfSession(session: ISession): string | undefined {
-		if (this.options.grouping() !== SessionsGrouping.Workspace || isQuickChatSession(session)) {
+		if (this.options.grouping() !== SessionsGrouping.Workspace
+			|| session.isArchived.get()
+			|| this.isSessionPinned(session)
+			|| isQuickChatSession(session)) {
 			return undefined;
 		}
 		return `workspace:${sessionWorkspaceLabel(session)}`;
