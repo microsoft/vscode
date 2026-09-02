@@ -480,8 +480,17 @@ function canonicalClientTools(): ToolDefinition[] {
 			// The Copilot extension publishes ToolSearchTool over AHP by its
 			// toolReferenceName; its internal `tool_search` name does not cross this boundary.
 			name: CLIENT_TOOL_SEARCH_REFERENCE_NAME,
-			description: 'Searches deferred tools by a short description of the needed capability.',
-			inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+			description: 'Search for relevant tools by describing what you need. Returns tool references for tools matching your query. Use this when you need to find a tool but aren\'t sure of its exact name. Check the deferred tools list in your instructions for the full set of deferred tools, and include relevant tool names from that list in your query for more accurate results. Use broad queries to find all related tools in a single call rather than making multiple narrow searches.',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					query: {
+						type: 'string',
+						description: 'Natural language description of what tool capability you are looking for. Use broad queries to cover related tools in one search (e.g., "github" instead of separate searches for issues and PRs).',
+					},
+				},
+				required: ['query'],
+			},
 		},
 		plain('runTests'),
 		plain('rename'),

@@ -24,7 +24,11 @@
       "content": [
         {
           "type": "text",
-          "text": "<current_datetime>${datetime}</current_datetime>\n\nSay exactly \"ok\"",
+          "text": "<current_datetime>${datetime}</current_datetime>\n\nSay exactly \"ok\""
+        },
+        {
+          "type": "text",
+          "text": "<system_reminder>\nIMPORTANT: The tools listed below are deferred — their full definitions are NOT loaded, so you cannot call them directly yet. Whenever a task could be served by any of these tools, you MUST FIRST call the tool search tool. Do not guess a deferred tool's arguments, or signature, and never invoke one before searching for it.\n\nOther tools:\n- openBrowserPage\n- readPage\n</system_reminder>",
           "cache_control": {
             "type": "ephemeral"
           }
@@ -573,7 +577,8 @@
             "description": "Whether to force opening a new page even if a page with the same host already exists. Default is false."
           }
         }
-      }
+      },
+      "defer_loading": true
     },
     {
       "name": "readPage",
@@ -589,7 +594,8 @@
         "required": [
           "pageId"
         ]
-      }
+      },
+      "defer_loading": true
     },
     {
       "name": "addComment",
@@ -889,6 +895,22 @@
         },
         "required": [
           "session"
+        ]
+      }
+    },
+    {
+      "name": "tool_search_tool",
+      "description": "Search for relevant tools by describing what you need. Returns tool references for tools matching your query. Use this when you need to find a tool but aren't sure of its exact name. Check the deferred tools list in your instructions for the full set of deferred tools, and include relevant tool names from that list in your query for more accurate results. Use broad queries to find all related tools in a single call rather than making multiple narrow searches.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Natural language description of what tool capability you are looking for. Use broad queries to cover related tools in one search (e.g., \"github\" instead of separate searches for issues and PRs)."
+          }
+        },
+        "required": [
+          "query"
         ]
       },
       "cache_control": {

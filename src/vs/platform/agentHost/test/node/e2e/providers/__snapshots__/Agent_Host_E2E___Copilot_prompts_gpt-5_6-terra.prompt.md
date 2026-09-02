@@ -12,9 +12,36 @@
         }
       ],
       "type": "message"
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "<system_reminder>\nIMPORTANT: The tools listed below are deferred — their full definitions are NOT loaded, so you cannot call them directly yet. Whenever a task could be served by any of these tools, you MUST FIRST call the tool search tool. Do not guess a deferred tool's arguments, or signature, and never invoke one before searching for it.\n\nOther tools:\n- openBrowserPage\n- readPage\n</system_reminder>"
+        }
+      ],
+      "type": "message"
     }
   ],
   "tools": [
+    {
+      "type": "tool_search",
+      "execution": "client",
+      "description": "Search for relevant tools by describing what you need. Returns tool references for tools matching your query. Use this when you need to find a tool but aren't sure of its exact name. Check the deferred tools list in your instructions for the full set of deferred tools, and include relevant tool names from that list in your query for more accurate results. Use broad queries to find all related tools in a single call rather than making multiple narrow searches.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Natural language description of what tool capability you are looking for. Use broad queries to cover related tools in one search (e.g., \"github\" instead of separate searches for issues and PRs)."
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    },
     {
       "name": "bash",
       "description": "Runs a Bash command.\n* The \"command\" parameter does NOT need to be XML-escaped.\n* You can run Python, Node.js and Go code with `python`, `node` and `go`.\n* Sync sessions are discarded after the command completes. Use async mode for sessions that need follow-up interaction.\n* `initial_wait` must be 30-600 seconds. Use short waits for commands that you can leave running in the background — you'll be notified when commands complete. Use longer waits (120+ seconds) for commands that you need to wait for.\n* If a command hasn't completed within initial_wait, it returns partial output and continues running. Use `read_bash` for more output or `stop_bash` to stop it.\n* You can install ${platform_packages}.",
@@ -537,43 +564,6 @@
       "parameters": {
         "type": "object",
         "properties": {}
-      },
-      "strict": false,
-      "type": "function"
-    },
-    {
-      "name": "openBrowserPage",
-      "description": "Open a new browser page in the integrated browser at the given URL.\nMay prompt the user to share a page if there is a similar one already open, unless \"forceNew\" is true.\nReturns a page ID that must be used with other browser tools to interact with the page, as well as an accessibility snapshot of the page.\n\nImportant: Prefer to reuse existing pages whenever possible and only call this tool if you do not already have access to a tab you can reuse.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "url": {
-            "type": "string",
-            "description": "The URL to open in the browser. Must be an absolute URI with a scheme such as file:, http:, or https:. For local files, use the canonical absolute form, for example file:///path/to/file."
-          },
-          "forceNew": {
-            "type": "boolean",
-            "description": "Whether to force opening a new page even if a page with the same host already exists. Default is false."
-          }
-        }
-      },
-      "strict": false,
-      "type": "function"
-    },
-    {
-      "name": "readPage",
-      "description": "Get a snapshot of the current browser page state. This is better than screenshot.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "pageId": {
-            "type": "string",
-            "description": "The browser page ID to read, acquired from context or the open tool."
-          }
-        },
-        "required": [
-          "pageId"
-        ]
       },
       "strict": false,
       "type": "function"
