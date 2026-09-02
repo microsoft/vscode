@@ -936,6 +936,11 @@ configurationRegistry.registerConfiguration({
 			minimum: 0,
 			default: 10000,
 		},
+		[ChatConfiguration.PasteGitHubLinksAsReferences]: {
+			markdownDescription: nls.localize('chat.pasteGitHubLinksAsReferences', "Controls whether pasted GitHub issue and pull request URLs are shown as compact clickable references in the chat input."),
+			type: 'boolean',
+			default: true,
+		},
 		[ChatConfiguration.ChatViewSessionsEnabled]: {
 			type: 'boolean',
 			default: true,
