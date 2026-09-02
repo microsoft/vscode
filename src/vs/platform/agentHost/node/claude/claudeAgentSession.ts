@@ -1082,7 +1082,7 @@ export class ClaudeAgentSession extends Disposable {
 		const externalMcpTool = toolName.startsWith('mcp__') && !toolName.startsWith(`mcp__${CLAUDE_SERVER_TOOL_MCP_SERVER_NAME}__`);
 		const restriction = this._agentMergeTurn
 			? getAgentMergeGitHubToolRestriction(toolName, input)
-				?? (externalMcpTool ? AGENT_MERGE_GITHUB_TOOL_RESTRICTION : undefined)
+			?? (externalMcpTool ? AGENT_MERGE_GITHUB_TOOL_RESTRICTION : undefined)
 			: undefined;
 		if (!restriction) {
 			return undefined;
