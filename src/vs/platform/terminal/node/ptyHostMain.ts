@@ -22,6 +22,7 @@ import { PtyService } from './ptyService.js';
 import { isUtilityProcess } from '../../../base/parts/sandbox/node/electronTypes.js';
 import { timeout } from '../../../base/common/async.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { markNodeCompileCacheReady } from '../../../base/node/nodeCompileCache.js';
 
 startPtyHost();
 
@@ -91,6 +92,7 @@ async function startPtyHost() {
 	if (_isUtilityProcess) {
 		server.registerChannel(TerminalIpcChannels.PtyHostWindow, ptyServiceChannel);
 	}
+	markNodeCompileCacheReady();
 
 	// Clean up
 	process.once('exit', () => {

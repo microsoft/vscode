@@ -6,8 +6,15 @@
 import * as performance from './vs/base/common/performance.js';
 import { removeGlobalNodeJsModuleLookupPaths, devInjectNodeModuleLookupPath } from './bootstrap-node.js';
 import { bootstrapESM } from './bootstrap-esm.js';
+import { enableNodeCompileCache, getNodeCompileCacheKindForUtilityProcess } from './vs/base/node/nodeCompileCache.js';
 
 performance.mark('code/fork/start');
+
+const nodeCompileCacheKind = getNodeCompileCacheKindForUtilityProcess(process.env['VSCODE_CRASH_REPORTER_PROCESS_TYPE'] ?? '');
+const esmEntryPoint = process.env['VSCODE_ESM_ENTRYPOINT'];
+if (nodeCompileCacheKind && esmEntryPoint) {
+	enableNodeCompileCache(nodeCompileCacheKind, new URL(`./${esmEntryPoint}.js`, import.meta.url).href);
+}
 
 //#region Helpers
 
@@ -226,4 +233,4 @@ if (process.env['VSCODE_PARENT_PID']) {
 await bootstrapESM();
 
 // Load ESM entry point
-await import([`./${process.env['VSCODE_ESM_ENTRYPOINT']}.js`].join('/') /* workaround: esbuild prints some strange warnings when trying to inline? */);
+await import([`./${esmEntryPoint}.js`].join('/') /* workaround: esbuild prints some strange warnings when trying to inline? */);
