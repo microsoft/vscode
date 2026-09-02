@@ -6053,7 +6053,7 @@ class PluginController extends Disposable {
 
 	public async tryParsePlugin(pluginDir: URI): Promise<IParsedPlugin | undefined> {
 		try {
-			return await parsePlugin(pluginDir, this._fileService, undefined, this.getUserHome(), pluginDir);
+			return await parsePlugin(pluginDir, this._fileService, undefined, this.getUserHome(), pluginDir, this._logService);
 		} catch (error) {
 			this._logService.warn(`[Copilot:PluginController] Error parsing plugin '${pluginDir.toString()}': ${error instanceof Error ? error.message : String(error)}`);
 			return undefined;
@@ -6484,7 +6484,7 @@ class SessionPluginController extends Disposable {
 		}
 		if (!this._sessionMcpDiscovery.value) {
 			const store = new DisposableStore();
-			const discovery = store.add(new SessionMcpDiscovery([this._directory, ...this._additionalDirectories], this._fileService));
+			const discovery = store.add(new SessionMcpDiscovery([this._directory, ...this._additionalDirectories], this._fileService, this._logService));
 			store.add(discovery.onDidChange(() => this._publish(() => ({
 				type: ActionType.SessionCustomizationsChanged,
 				customizations: [...this.getCustomizations()],

@@ -55,6 +55,7 @@ suite('SessionMcpDiscovery', () => {
 
 	const store = new DisposableStore();
 	let fileService: TestFileService;
+	const logService = new NullLogService();
 	const primary = URI.from({ scheme: Schemas.inMemory, path: '/primary' });
 	const additional = URI.from({ scheme: Schemas.inMemory, path: '/additional' });
 
@@ -85,7 +86,7 @@ suite('SessionMcpDiscovery', () => {
 			}
 		});
 
-		const discovery = store.add(new SessionMcpDiscovery([primary, additional], fileService));
+		const discovery = store.add(new SessionMcpDiscovery([primary, additional], fileService, logService));
 		const definitions = await discovery.refresh();
 
 		assert.deepStrictEqual(definitions.map(definition => definition.name), ['duplicate', 'primary', 'additional']);
@@ -103,7 +104,7 @@ suite('SessionMcpDiscovery', () => {
 			}
 		});
 
-		const discovery = store.add(new SessionMcpDiscovery([primary], fileService));
+		const discovery = store.add(new SessionMcpDiscovery([primary], fileService, logService));
 		const [definition] = await discovery.refresh();
 
 		assert.strictEqual(definition.configuration.type, McpServerType.LOCAL);
@@ -113,7 +114,7 @@ suite('SessionMcpDiscovery', () => {
 
 	test('ignores malformed files and refreshes after an exact file change', async () => {
 		await fileService.writeFile(URI.joinPath(primary, '.mcp.json'), VSBuffer.fromString('{ malformed'));
-		const discovery = store.add(new SessionMcpDiscovery([primary], fileService));
+		const discovery = store.add(new SessionMcpDiscovery([primary], fileService, logService));
 		assert.deepStrictEqual(await discovery.refresh(), []);
 
 		const changed = Event.toPromise(discovery.onDidChange);
@@ -127,7 +128,7 @@ suite('SessionMcpDiscovery', () => {
 
 	test('removes definitions when a workspace config is deleted', async () => {
 		await write(primary, { mcpServers: { server: { command: 'server' } } });
-		const discovery = store.add(new SessionMcpDiscovery([primary], fileService));
+		const discovery = store.add(new SessionMcpDiscovery([primary], fileService, logService));
 		assert.deepStrictEqual((await discovery.refresh()).map(definition => definition.name), ['server']);
 
 		const changed = Event.toPromise(discovery.onDidChange);
@@ -142,8 +143,8 @@ suite('SessionMcpDiscovery', () => {
 		await write(primary, { mcpServers: { server: { command: 'server' } } });
 		const firstStore = store.add(new DisposableStore());
 		const secondStore = store.add(new DisposableStore());
-		const first = firstStore.add(new SessionMcpDiscovery([primary], fileService));
-		const second = secondStore.add(new SessionMcpDiscovery([primary], fileService));
+		const first = firstStore.add(new SessionMcpDiscovery([primary], fileService, logService));
+		const second = secondStore.add(new SessionMcpDiscovery([primary], fileService, logService));
 
 		assert.strictEqual(fileService.watcherCount(primary), 1);
 		assert.deepStrictEqual((await first.refresh()).map(definition => definition.name), ['server']);

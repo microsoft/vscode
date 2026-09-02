@@ -2582,7 +2582,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (entry?.rootsSignature !== rootsSignature) {
 			entry?.dispose();
 			const store = new DisposableStore();
-			const discovery = store.add(new SessionMcpDiscovery(roots, this._fileService));
+			const discovery = store.add(new SessionMcpDiscovery(roots, this._fileService, this._logService));
 			store.add(discovery.onDidChange(() => {
 				session.materializedMcpSig = undefined;
 				if (session.firstTurnSent) {
@@ -6957,7 +6957,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			return { synced, parsed: undefined, input };
 		}
 		try {
-			const parsed = await parsePlugin(synced.pluginDir, this._fileService, session.workingDirectory, this._environmentService.userHome, synced.pluginDir);
+			const parsed = await parsePlugin(synced.pluginDir, this._fileService, session.workingDirectory, this._environmentService.userHome, synced.pluginDir, this._logService);
 			const candidate = { ...synced.customization, children: parsedPluginChildren(parsed) };
 			const clientPlugins = input ? new Map([[input.uri, input]]) : undefined;
 			const resolution = resolveCustomizationEnablement(this._customizationEnablementService, session.configurationResource, [candidate], input?.childEnablement ? new Map([[input.uri, input.childEnablement]]) : undefined, clientPlugins);

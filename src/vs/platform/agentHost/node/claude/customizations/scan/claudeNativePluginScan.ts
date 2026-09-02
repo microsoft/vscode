@@ -7,7 +7,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../files/common/files.js';
 import { ILogService } from '../../../../../log/common/log.js';
-import { detectPluginFormat, parsePlugin, readJsonFile, type IParsedPlugin } from '../../../../../agentPlugins/common/pluginParsers.js';
+import { detectPluginFormat, parsePlugin, readJsonFile, tryResolve, type IParsedPlugin } from '../../../../../agentPlugins/common/pluginParsers.js';
 import { findMostSpecificClaudeWorkspaceRoot, selectEnabledClaudePluginIds } from '../claudeCustomizationPolicy.js';
 
 /**
@@ -47,9 +47,9 @@ function claudeSettingsFilesByPrecedence(workingDirectory: URI | undefined, user
 	return files;
 }
 
-async function readEnabledPlugins(uri: URI, fileService: IFileService): Promise<ReadonlyMap<string, boolean>> {
+async function readEnabledPlugins(uri: URI, fileService: IFileService, logService: ILogService): Promise<ReadonlyMap<string, boolean>> {
 	const result = new Map<string, boolean>();
-	const raw = await readJsonFile(uri, fileService);
+	const raw = await readJsonFile(uri, fileService, logService);
 	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
 		return result;
 	}
@@ -69,7 +69,7 @@ async function readEnabledPlugins(uri: URI, fileService: IFileService): Promise<
  * constraint), or an object (extended form) — all of which mean
  * **enabled**; only `false` disables. Later scopes override earlier ones.
  */
-async function resolveEnabledPluginIds(workingDirectory: URI | undefined, userHome: URI, fileService: IFileService): Promise<string[]> {
+async function resolveEnabledPluginIds(workingDirectory: URI | undefined, userHome: URI, fileService: IFileService, logService: ILogService): Promise<string[]> {
 	const effective = new Map<string, boolean>();
 	const seenFiles = new ResourceSet();
 	for (const uri of claudeSettingsFilesByPrecedence(workingDirectory, userHome)) {
@@ -77,7 +77,7 @@ async function resolveEnabledPluginIds(workingDirectory: URI | undefined, userHo
 			continue;
 		}
 		seenFiles.add(uri);
-		const raw = await readJsonFile(uri, fileService);
+		const raw = await readJsonFile(uri, fileService, logService);
 		if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
 			continue;
 		}
@@ -119,8 +119,8 @@ function splitPluginId(id: string): { readonly plugin: string; readonly marketpl
  * (`.plugin/plugin.json`), and Copilot (`plugin.json`) layouts — the same
  * formats {@link parsePlugin} can parse — rather than only the Claude one.
  */
-async function hasManifest(dir: URI, fileService: IFileService): Promise<boolean> {
-	const format = await detectPluginFormat(dir, fileService);
+async function hasManifest(dir: URI, fileService: IFileService, logService: ILogService): Promise<boolean> {
+	const format = await detectPluginFormat(dir, fileService, logService);
 	return fileService.exists(URI.joinPath(dir, format.manifestPath));
 }
 
@@ -129,14 +129,14 @@ async function hasManifest(dir: URI, fileService: IFileService): Promise<boolean
  * workspace scope over the user scope. Accepts a candidate only when it
  * holds a plugin manifest.
  */
-async function resolveSkillsDirRoot(plugin: string, workingDirectories: readonly URI[], userHome: URI, fileService: IFileService): Promise<URI | undefined> {
+async function resolveSkillsDirRoot(plugin: string, workingDirectories: readonly URI[], userHome: URI, fileService: IFileService, logService: ILogService): Promise<URI | undefined> {
 	const candidates: URI[] = [];
 	for (const workingDirectory of workingDirectories) {
 		candidates.push(URI.joinPath(workingDirectory, '.claude', 'skills', plugin));
 	}
 	candidates.push(URI.joinPath(userHome, '.claude', 'skills', plugin));
 	for (const candidate of candidates) {
-		if (await hasManifest(candidate, fileService)) {
+		if (await hasManifest(candidate, fileService, logService)) {
 			return candidate;
 		}
 	}
@@ -152,23 +152,18 @@ async function resolveSkillsDirRoot(plugin: string, workingDirectories: readonly
  * version subdir). Returns `undefined` (caller warns + skips) when no
  * manifest-bearing candidate is found.
  */
-async function resolveMarketplaceCacheRoot(plugin: string, marketplace: string, userHome: URI, fileService: IFileService): Promise<URI | undefined> {
+async function resolveMarketplaceCacheRoot(plugin: string, marketplace: string, userHome: URI, fileService: IFileService, logService: ILogService): Promise<URI | undefined> {
 	const base = URI.joinPath(userHome, '.claude', 'plugins', 'cache', marketplace, plugin);
-	if (await hasManifest(base, fileService)) {
+	if (await hasManifest(base, fileService, logService)) {
 		return base;
 	}
-	let stat;
-	try {
-		stat = await fileService.resolve(base);
-	} catch {
-		return undefined;
-	}
-	if (!stat.isDirectory || !stat.children) {
+	const stat = await tryResolve(base, fileService, logService);
+	if (!stat?.isDirectory || !stat.children) {
 		return undefined;
 	}
 	let best: { readonly uri: URI; readonly mtime: number; readonly name: string } | undefined;
 	for (const child of stat.children) {
-		if (!child.isDirectory || !(await hasManifest(child.resource, fileService))) {
+		if (!child.isDirectory || !(await hasManifest(child.resource, fileService, logService))) {
 			continue;
 		}
 		const mtime = child.mtime ?? 0;
@@ -203,7 +198,7 @@ export async function scanClaudeNativePlugins(
 	fileService: IFileService,
 	logService: ILogService,
 ): Promise<readonly IResolvedNativePlugin[]> {
-	const ids = await resolveEnabledPluginIds(workingDirectory, userHome, fileService);
+	const ids = await resolveEnabledPluginIds(workingDirectory, userHome, fileService, logService);
 	return resolveNativePlugins(ids, workingDirectory ? [workingDirectory] : [], userHome, fileService, logService);
 }
 
@@ -221,7 +216,7 @@ export async function scanClaudeNativePluginsForRoots(
 		);
 	}
 	settingsFiles.push(URI.joinPath(userHome, '.claude', 'settings.json'));
-	const ids = selectEnabledClaudePluginIds(await Promise.all(settingsFiles.map(uri => readEnabledPlugins(uri, fileService))));
+	const ids = selectEnabledClaudePluginIds(await Promise.all(settingsFiles.map(uri => readEnabledPlugins(uri, fileService, logService))));
 	return resolveNativePlugins(ids, workingDirectories, userHome, fileService, logService);
 }
 
@@ -241,8 +236,8 @@ async function resolveNativePlugins(
 			continue;
 		}
 		const root = parts.marketplace === SKILLS_DIR_MARKETPLACE
-			? await resolveSkillsDirRoot(parts.plugin, workingDirectories, userHome, fileService)
-			: await resolveMarketplaceCacheRoot(parts.plugin, parts.marketplace, userHome, fileService);
+			? await resolveSkillsDirRoot(parts.plugin, workingDirectories, userHome, fileService, logService)
+			: await resolveMarketplaceCacheRoot(parts.plugin, parts.marketplace, userHome, fileService, logService);
 		if (!root) {
 			logService.warn(`[claudeNativePluginScan] could not resolve an on-disk root for enabled plugin '${id}'`);
 			continue;
@@ -255,7 +250,7 @@ async function resolveNativePlugins(
 			const workspaceRoot = parts.marketplace === SKILLS_DIR_MARKETPLACE
 				? findMostSpecificClaudeWorkspaceRoot(root, workingDirectories)
 				: undefined;
-			const parsed = await parsePlugin(root, fileService, workspaceRoot ?? workingDirectories[0], userHome, root);
+			const parsed = await parsePlugin(root, fileService, workspaceRoot ?? workingDirectories[0], userHome, root, logService);
 			result.push({ id, root, parsed });
 		} catch (err) {
 			logService.warn(`[claudeNativePluginScan] failed to parse plugin '${id}' at '${root.toString()}': ${err instanceof Error ? err.message : String(err)}`);

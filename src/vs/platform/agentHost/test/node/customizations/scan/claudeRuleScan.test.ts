@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../../files/common/files.js';
+import { NullLogService } from '../../../../../log/common/log.js';
 import { CustomizationType } from '../../../../common/state/protocol/state.js';
 import { scanClaudeRules } from '../../../../node/claude/customizations/scan/claudeRuleScan.js';
 import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, createInMemoryFileService, seedFile } from '../claudeCustomizationTestUtils.js';
@@ -15,6 +16,7 @@ suite('claudeRuleScan', () => {
 
 	const disposables = new DisposableStore();
 	let fileService: IFileService;
+	const logService = new NullLogService();
 	const seed = (path: string, content = '') => seedFile(fileService, path, content);
 
 	setup(() => {
@@ -32,7 +34,7 @@ suite('claudeRuleScan', () => {
 		const dotMem = await seed('/workspace/.claude/CLAUDE.md', '# project .claude memory');
 		const localMem = await seed('/workspace/CLAUDE.local.md', '# personal memory');
 
-		const rules = await scanClaudeRules(workspace, userHome, fileService);
+		const rules = await scanClaudeRules(workspace, userHome, fileService, logService);
 
 		assert.deepStrictEqual(
 			rules
@@ -51,7 +53,7 @@ suite('claudeRuleScan', () => {
 		const scoped = await seed('/workspace/.claude/rules/scoped.md', '---\nname: scoped-rule\ndescription: Only for src\npaths:\n  - "src/**"\n  - "lib/**"\n---\nbody');
 		const always = await seed('/workspace/.claude/rules/always.md', '# applies everywhere');
 
-		const rules = await scanClaudeRules(workspace, userHome, fileService);
+		const rules = await scanClaudeRules(workspace, userHome, fileService, logService);
 
 		assert.deepStrictEqual(
 			rules
@@ -68,7 +70,7 @@ suite('claudeRuleScan', () => {
 		const projectNested = await seed('/workspace/.claude/rules/frontend/ui.md', '# ui rule');
 		const userRule = await seed('/home/.claude/rules/global.md', '# global rule');
 
-		const rules = await scanClaudeRules(workspace, userHome, fileService);
+		const rules = await scanClaudeRules(workspace, userHome, fileService, logService);
 
 		assert.deepStrictEqual(
 			rules.map(r => r.uri.toString()).sort(),

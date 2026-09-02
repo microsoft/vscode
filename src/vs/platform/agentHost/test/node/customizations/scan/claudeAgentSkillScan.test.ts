@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../../files/common/files.js';
+import { NullLogService } from '../../../../../log/common/log.js';
 import { CustomizationType } from '../../../../common/state/protocol/state.js';
 import { scanClaudeDiskCustomizations } from '../../../../node/claude/customizations/scan/claudeAgentSkillScan.js';
 import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, createInMemoryFileService, seedFile } from '../claudeCustomizationTestUtils.js';
@@ -16,6 +17,7 @@ suite('claudeAgentSkillScan', () => {
 
 	const disposables = new DisposableStore();
 	let fileService: IFileService;
+	const logService = new NullLogService();
 	const seed = (path: string, content = '') => seedFile(fileService, path, content);
 
 	setup(() => {
@@ -33,7 +35,7 @@ suite('claudeAgentSkillScan', () => {
 		// Slash commands are a variant of skills (spec §3) — discovered as Skill kind.
 		const command = await seed('/workspace/.claude/commands/c.md', '---\nname: c-cmd\ndescription: Command C\n---\nbody');
 
-		const discovered = await scanClaudeDiskCustomizations(workspace, userHome, fileService);
+		const discovered = await scanClaudeDiskCustomizations(workspace, userHome, fileService, logService);
 		const actual = discovered
 			.map(d => ({ type: d.customization.type, uri: d.uri.toString(), name: d.name, description: d.description }))
 			.sort((a, b) => a.uri.localeCompare(b.uri));
@@ -49,7 +51,7 @@ suite('claudeAgentSkillScan', () => {
 		await seed('/workspace/.claude/skills/s/SKILL.md', '---\nname: skill\nuser-invocable: false\ndisable-model-invocation: true\n---\nbody');
 		await seed('/workspace/.claude/commands/c.md', '---\nname: command\nuser-invocable: false\ndisable-model-invocation: true\n---\nbody');
 
-		const discovered = await scanClaudeDiskCustomizations(workspace, userHome, fileService);
+		const discovered = await scanClaudeDiskCustomizations(workspace, userHome, fileService, logService);
 
 		assert.deepStrictEqual(discovered.map(item => ({
 			name: item.name,
@@ -65,7 +67,7 @@ suite('claudeAgentSkillScan', () => {
 		const skill = await seed('/workspace/.claude/skills/dup/SKILL.md', '---\nname: dup\ndescription: The skill\n---\nbody');
 		await seed('/workspace/.claude/commands/dup.md', '---\nname: dup\ndescription: The command\n---\nbody');
 
-		const discovered = await scanClaudeDiskCustomizations(workspace, userHome, fileService);
+		const discovered = await scanClaudeDiskCustomizations(workspace, userHome, fileService, logService);
 
 		assert.deepStrictEqual(
 			discovered.map(d => ({ type: d.customization.type, uri: d.uri.toString(), name: d.name, description: d.description })),
@@ -77,7 +79,7 @@ suite('claudeAgentSkillScan', () => {
 		const projectAgent = await seed('/workspace/.claude/agents/dup.md', '---\nname: dup\ndescription: project\n---\nbody');
 		await seed('/home/.claude/agents/dup.md', '---\nname: dup\ndescription: user\n---\nbody');
 
-		const discovered = await scanClaudeDiskCustomizations(workspace, userHome, fileService);
+		const discovered = await scanClaudeDiskCustomizations(workspace, userHome, fileService, logService);
 		const dup = discovered.filter(d => d.name === 'dup');
 
 		assert.strictEqual(dup.length, 1);
@@ -94,7 +96,7 @@ suite('claudeAgentSkillScan', () => {
 		await seed('/workspace/.claude/skills/tg/.claude-plugin/plugin.json', JSON.stringify({ name: 'tg' }));
 		await seed('/workspace/.claude/skills/tg/SKILL.md', '---\nname: tg\ndescription: plugin\n---\nbody');
 
-		const discovered = await scanClaudeDiskCustomizations(workspace, userHome, fileService);
+		const discovered = await scanClaudeDiskCustomizations(workspace, userHome, fileService, logService);
 
 		assert.deepStrictEqual(
 			discovered.filter(d => d.customization.type === CustomizationType.Skill).map(d => ({ name: d.name, uri: d.uri.toString() })),
@@ -112,7 +114,7 @@ suite('claudeAgentSkillScan', () => {
 			name: 'compatible',
 		}));
 
-		const discovered = await scanClaudeDiskCustomizations(workspace, userHome, fileService);
+		const discovered = await scanClaudeDiskCustomizations(workspace, userHome, fileService, logService);
 
 		assert.deepStrictEqual(
 			discovered.map(d => ({ name: d.name, uri: d.uri.toString() })),

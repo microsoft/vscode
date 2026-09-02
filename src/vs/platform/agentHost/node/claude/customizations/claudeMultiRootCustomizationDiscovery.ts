@@ -48,14 +48,14 @@ export async function discoverClaudeMultiRootCustomizations(
 	const roots = distinctClaudeWorkingDirectories(workingDirectories);
 	if (roots.length <= 1) {
 		const [discovered, nativePlugins] = await Promise.all([
-			scanClaudeDiskCustomizations(roots[0], userHome, fileService),
+			scanClaudeDiskCustomizations(roots[0], userHome, fileService, logService),
 			scanClaudeNativePlugins(roots[0], userHome, fileService, logService),
 		]);
 		return { workingDirectories: roots, discovered, nativePlugins };
 	}
 	const [rootScopes, userScope, nativePlugins] = await Promise.all([
-		Promise.all(roots.map((root, index) => scanClaudeCustomizationScope(root, fileService, index === 0))),
-		scanClaudeCustomizationScope(userHome, fileService),
+		Promise.all(roots.map((root, index) => scanClaudeCustomizationScope(root, fileService, logService, index === 0))),
+		scanClaudeCustomizationScope(userHome, fileService, logService),
 		scanClaudeNativePluginsForRoots(roots, userHome, fileService, logService),
 	]);
 	const scopes = [...rootScopes, userScope];

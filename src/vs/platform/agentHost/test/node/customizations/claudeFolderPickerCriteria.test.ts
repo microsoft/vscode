@@ -9,6 +9,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../files/common/files.js';
+import { NullLogService } from '../../../../log/common/log.js';
 import { claudeDirectoryQualifiesForPrimary } from '../../../node/claude/claudeFolderPickerCriteria.js';
 import { createInMemoryFileService, seedFile } from './claudeCustomizationTestUtils.js';
 
@@ -16,6 +17,7 @@ suite('claudeDirectoryQualifiesForPrimary', () => {
 
 	const disposables = new DisposableStore();
 	let fileService: IFileService;
+	const logService = new NullLogService();
 	const userHome = URI.from({ scheme: Schemas.inMemory, path: '/home' });
 	const hooks = JSON.stringify({ hooks: { PostToolUse: [{ hooks: [{ type: 'command', command: 'echo hi' }] }] } });
 
@@ -28,7 +30,7 @@ suite('claudeDirectoryQualifiesForPrimary', () => {
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const qualifies = (path: string) => claudeDirectoryQualifiesForPrimary(fileService, URI.from({ scheme: Schemas.inMemory, path }), userHome);
+	const qualifies = (path: string) => claudeDirectoryQualifiesForPrimary(fileService, URI.from({ scheme: Schemas.inMemory, path }), userHome, logService);
 
 	test('qualifies on an .mcp.json manifest or a non-empty hooks block, and ignores empty/disabled hooks', async () => {
 		await seedFile(fileService, '/mcp/.mcp.json', '{}');
