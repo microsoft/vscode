@@ -21,7 +21,7 @@ import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agen
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifacts, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { Changeset, ChangesetState, getSessionRelatedPullRequestUrls, readSessionGitHubState, SessionState, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { Changeset, ChangesetState, ChatOriginKind, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, parseChatUri, readSessionGitHubState, SessionState, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
@@ -35,6 +35,7 @@ import { BrowserEditorInput } from '../../../../browserView/common/browserEditor
 import { browserViewUrlMatches, BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { getSessionChatPillMenu, ISessionChatPillMenuEntry, ISessionChatPillVisibilityService, SessionChatPillKind } from '../../../common/sessionChatPills.js';
+import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import type { ChatWidget } from '../../widget/chatWidget.js';
 import { chatArtifactPillOptions, observeTurnStatusPillsEnabled, openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
@@ -186,6 +187,34 @@ export function selectAgentHostSessionChangeset(changesets: readonly Changeset[]
 		?? staticChangesets.at(0);
 }
 
+/** Returns the workbench chat resources whose browsers belong in the current chat's pill. */
+export function getAgentHostSessionBrowserOwnerIds(sessionResource: URI, state: Pick<SessionState, 'chats' | 'defaultChat'> | undefined): ReadonlySet<string> {
+	const ownerIds = new Set<string>([sessionResource.toString()]);
+	if (!state) {
+		return ownerIds;
+	}
+
+	const explicitChatResource = new URLSearchParams(sessionResource.query).get(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM);
+	const currentChatResource = parseUri(explicitChatResource ?? getSessionChatResource(state, sessionResource.fragment || DEFAULT_CHAT_ID)?.toString());
+	if (!currentChatResource) {
+		return ownerIds;
+	}
+
+	for (const chat of state.chats) {
+		const parentChatResource = chat.origin?.kind === ChatOriginKind.Tool ? parseUri(chat.origin.chat) : undefined;
+		const parsedChat = parseChatUri(chat.resource);
+		if (!parentChatResource || !isEqual(parentChatResource, currentChatResource) || !parsedChat) {
+			continue;
+		}
+
+		ownerIds.add(sessionResource.with({ fragment: parsedChat.chatId, query: null }).toString());
+		const query = new URLSearchParams(sessionResource.query);
+		query.set(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, chat.resource);
+		ownerIds.add(sessionResource.with({ fragment: parsedChat.chatId, query: query.toString() }).toString());
+	}
+	return ownerIds;
+}
+
 function resolutionEquals(first: ResolvedAgentHostSession | undefined, second: ResolvedAgentHostSession | undefined): boolean {
 	return first === second || (!!first && !!second
 		&& first.connection === second.connection
@@ -329,9 +358,9 @@ export class AgentHostSessionInputPills extends Disposable {
 			if (!resource || !resolution.read(reader) || !pillsEnabled.read(reader)) {
 				return [];
 			}
-			const ownerId = resource.toString();
+			const ownerIds = getAgentHostSessionBrowserOwnerIds(resource, sessionState.read(reader));
 			return [...this._browserViewService.getKnownBrowserViews().values()]
-				.filter(input => input.model?.owner.type === 'agent' && input.model.owner.sessionId === ownerId);
+				.filter(input => input.model?.owner.type === 'agent' && ownerIds.has(input.model.owner.sessionId));
 		});
 		const browserUrls = derivedOpts<ReadonlySet<string>>({ owner: this, equalsFn: (first, second) => first.size === second.size && [...first].every(value => second.has(value)) }, reader => {
 			return visibility.isVisible(SessionChatPillKind.Browsers, reader)

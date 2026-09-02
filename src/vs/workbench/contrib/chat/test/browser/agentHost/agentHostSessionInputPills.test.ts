@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { ISessionArtifact, SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
-import { Changeset, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { getAgentHostSessionPillMetadata, selectAgentHostSessionChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
+import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChatOriginKind, SessionState, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
+import { getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, selectAgentHostSessionChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
 
 suite('AgentHostSessionInputPills', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -62,6 +64,54 @@ suite('AgentHostSessionInputPills', () => {
 			preferred: 'Branch Changes',
 			fallback: 'Session Changes',
 			turnOnly: undefined,
+		});
+	});
+
+	test('includes browsers owned by direct tool-origin child chats', () => {
+		const sessionResource = URI.parse('vscode-chat-session://agent-host/session');
+		const backendSession = URI.parse('ahp-session://host/session');
+		const parentChat = buildDefaultChatUri(backendSession);
+		const childChat = buildSubagentChatUri(backendSession, 'tool-1');
+		const unrelatedChildChat = buildSubagentChatUri(backendSession, 'tool-2');
+		const childChatId = 'subagent/tool-1';
+		const stateWithoutChild = {
+			defaultChat: parentChat,
+			chats: [],
+		} as unknown as SessionState;
+		const stateWithChild = {
+			defaultChat: parentChat,
+			chats: [{
+				resource: childChat,
+				origin: { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: 'tool-1' },
+			}, {
+				resource: unrelatedChildChat,
+				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(URI.parse('ahp-session://host/other')), toolCallId: 'tool-2' },
+			}],
+		} as unknown as SessionState;
+		const explicitQuery = new URLSearchParams();
+		explicitQuery.set(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, childChat);
+		const canonicalChildResource = sessionResource.with({ fragment: childChatId, query: null });
+		const explicitChildResource = sessionResource.with({ fragment: childChatId, query: explicitQuery.toString() });
+
+		const before = getAgentHostSessionBrowserOwnerIds(sessionResource, stateWithoutChild);
+		const after = getAgentHostSessionBrowserOwnerIds(sessionResource, stateWithChild);
+
+		assert.deepStrictEqual({
+			before: [...before],
+			after: [...after],
+			hasCanonicalChild: after.has(canonicalChildResource.toString()),
+			hasExplicitChild: after.has(explicitChildResource.toString()),
+			hasUnrelatedChild: after.has(sessionResource.with({ fragment: 'subagent/tool-2', query: null }).toString()),
+		}, {
+			before: [sessionResource.toString()],
+			after: [
+				sessionResource.toString(),
+				canonicalChildResource.toString(),
+				explicitChildResource.toString(),
+			],
+			hasCanonicalChild: true,
+			hasExplicitChild: true,
+			hasUnrelatedChild: false,
 		});
 	});
 });
