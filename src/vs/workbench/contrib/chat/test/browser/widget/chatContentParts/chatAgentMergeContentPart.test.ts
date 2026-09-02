@@ -4,9 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IAgentMergePromptSummary } from '../../../../../../../platform/agentHost/common/agentMergePrompt.js';
-import { describeAgentMergeFileLabels, getAgentMergeSummaryLabel } from '../../../../browser/widget/chatContentParts/chatAgentMergeContentPart.js';
+import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
+import { ChatAgentMergeContentPart, describeAgentMergeFileLabels, getAgentMergeSummaryLabel } from '../../../../browser/widget/chatContentParts/chatAgentMergeContentPart.js';
 
 function summary(overrides: Partial<IAgentMergePromptSummary> = {}): IAgentMergePromptSummary {
 	return {
@@ -28,7 +35,7 @@ function summary(overrides: Partial<IAgentMergePromptSummary> = {}): IAgentMerge
 }
 
 suite('ChatAgentMergeContentPart file labels', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('names a unique file without a disambiguating path', () => {
 		const labels = describeAgentMergeFileLabels([
@@ -89,6 +96,35 @@ suite('ChatAgentMergeContentPart file labels', () => {
 			'Behind Base Branch, Agent Merge',
 			'Merge Conflicts, Agent Merge',
 			'2 Review Comments, 2 Failing Checks, Merge Conflicts, and Behind Base Branch, Agent Merge',
+		]);
+	});
+
+	test('keeps the Agent Message toggle name stable while reporting its state', () => {
+		const part = store.add(new ChatAgentMergeContentPart(
+			summary({ agentMessage: 'Merge agent details.' }),
+			URI.parse('test://session'),
+			upcastPartial<IMarkdownRenderer>({}),
+			upcastPartial<IOpenerService>({}),
+			upcastPartial<IHoverService>({ setupDelayedHover: () => toDisposable(() => { }) }),
+			upcastPartial<ICommandService>({}),
+		));
+		const button = part.domNode.querySelector<HTMLElement>('.chat-agent-merge-message-toggle');
+		assert.ok(button);
+
+		const getAccessibleState = () => ({
+			label: button.getAttribute('aria-label'),
+			pressed: button.getAttribute('aria-pressed'),
+		});
+		const initial = getAccessibleState();
+		button.click();
+		const showingMessage = getAccessibleState();
+		button.click();
+		const showingDetails = getAccessibleState();
+
+		assert.deepStrictEqual([initial, showingMessage, showingDetails], [
+			{ label: 'Agent Message', pressed: 'false' },
+			{ label: 'Agent Message', pressed: 'true' },
+			{ label: 'Agent Message', pressed: 'false' },
 		]);
 	});
 });

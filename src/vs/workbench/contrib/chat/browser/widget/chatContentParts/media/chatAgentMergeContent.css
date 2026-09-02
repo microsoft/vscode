@@ -96,6 +96,7 @@
 	color: var(--vscode-descriptionForeground);
 	opacity: 0;
 	pointer-events: none;
+	cursor: pointer;
 	transition: opacity 100ms ease-out;
 }
 

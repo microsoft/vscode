@@ -205,11 +205,13 @@ export class ChatAgentMergeContentPart extends Disposable {
 		this._register(disclosureButton.onDidClick(() => setExpanded(this.domNode.classList.contains('collapsed'))));
 
 		if (this._summary.agentMessage) {
+			const agentMessageLabel = localize('chat.agentMerge.agentMessage', "Agent Message");
 			const showMessageLabel = localize('chat.agentMerge.showAgentMessage', "Show Agent Message");
 			const showDetailsLabel = localize('chat.agentMerge.showMergeDetails', "Show Merge Details");
 			messageButton = this._register(new Button(header, { ...transparentButtonStyles, title: false }));
 			messageButton.element.classList.add('chat-agent-merge-message-toggle');
 			messageButton.icon = Codicon.commentDiscussion;
+			messageButton.setAriaLabel(agentMessageLabel);
 			messageButton.element.tabIndex = -1;
 			preventPointerFocus(messageButton);
 			let showingAgentMessage = false;
@@ -217,7 +219,6 @@ export class ChatAgentMergeContentPart extends Disposable {
 				showingAgentMessage = visible;
 				this.domNode.classList.toggle('showing-agent-message', visible);
 				messageButton.checked = visible;
-				messageButton.setAriaLabel(visible ? showDetailsLabel : showMessageLabel);
 			};
 			updateMessageVisibility(false);
 			this._register(this._hoverService.setupDelayedHover(messageButton.element, () => ({
