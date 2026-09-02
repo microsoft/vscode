@@ -36,6 +36,8 @@
 
 .chat-pet-button.dragging {
 	cursor: grabbing;
+	/* The tree sticky-scroll container uses 13. Keep the active drag above it. */
+	z-index: 14;
 }
 
 .chat-pet-button,

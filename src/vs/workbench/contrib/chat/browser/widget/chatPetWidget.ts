@@ -1037,8 +1037,32 @@ export function getChatPetPlatformTop(hostTop: number, inputTop: number, substan
 	return hostTop + getChatPetVerticalOffset(hostTop, inputTop);
 }
 
-export function getChatPetProjectedPlatformTop(hostTop: number, inputTop: number, overlayLeft: number, petLeft: number, petWidth: number, getPlatformTop: (petCenterX: number) => number | undefined): number {
+function getChatPetProjectedPlatformTop(hostTop: number, inputTop: number, overlayLeft: number, petLeft: number, petWidth: number, getPlatformTop: (petCenterX: number) => number | undefined): number {
 	return getChatPetPlatformTop(hostTop, inputTop, getPlatformTop(overlayLeft + petLeft + petWidth / 2));
+}
+
+export function getChatPetSweptPlatformTop(hostTop: number, inputTop: number, overlayLeft: number, previousLeft: number, previousTop: number, left: number, top: number, petWidth: number, petHeight: number, getPlatformTop: (petCenterX: number) => number | undefined): number {
+	const fallbackPlatformTop = getChatPetPlatformTop(hostTop, inputTop);
+	if (top <= previousTop) {
+		return fallbackPlatformTop;
+	}
+
+	const getProjectedPlatformTop = (petLeft: number) => getChatPetProjectedPlatformTop(hostTop, inputTop, overlayLeft, petLeft, petWidth, getPlatformTop);
+	const candidatePlatformTops = [getProjectedPlatformTop(previousLeft), getProjectedPlatformTop(left)]
+		.filter((candidate, index, candidates) => Math.abs(candidate - fallbackPlatformTop) > POSITION_EPSILON && candidates.indexOf(candidate) === index)
+		.sort((first, second) => first - second);
+	for (const candidatePlatformTop of candidatePlatformTops) {
+		const landingTop = candidatePlatformTop - hostTop - petHeight;
+		if (previousTop > landingTop || top < landingTop) {
+			continue;
+		}
+
+		const landingLeft = previousLeft + (left - previousLeft) * (landingTop - previousTop) / (top - previousTop);
+		if (Math.abs(getProjectedPlatformTop(landingLeft) - candidatePlatformTop) <= POSITION_EPSILON) {
+			return candidatePlatformTop;
+		}
+	}
+	return fallbackPlatformTop;
 }
 
 export function getChatPetPillPlatformTop(petCenterX: number, pillBounds: readonly Pick<DOMRect, 'height' | 'left' | 'right' | 'top' | 'width'>[]): number | undefined {
@@ -2012,11 +2036,15 @@ export class ChatPetWidget extends Disposable {
 			lastFrameTime = now;
 			const previousMotion = motion;
 			const step = advanceChatPetThrow(previousMotion, elapsed, geometry.bounds);
-			const platformTop = getChatPetProjectedPlatformTop(
+			const platformTop = getChatPetSweptPlatformTop(
 				geometry.overlayTop,
 				geometry.inputTop,
 				geometry.overlayLeft,
+				previousMotion.left,
+				previousMotion.top,
 				step.left,
+				step.top,
+				geometry.displaySize,
 				geometry.displaySize,
 				petCenterX => this._host.get().getPlatformTop(petCenterX),
 			) - geometry.overlayTop;
