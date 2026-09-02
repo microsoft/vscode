@@ -754,9 +754,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 					(textareaSpansSingleToken ? viewLineData.tokens.getPresentation(startTokenIndex) : null)
 				);
 
-				this.textArea.domNode.scrollTop = lineCount * lineHeight;
-				this.textArea.domNode.scrollLeft = scrollLeft;
-
 				this._doRender({
 					lastRenderPosition: null,
 					top: top,
@@ -771,6 +768,11 @@ export class TextAreaEditContext extends AbstractEditContext {
 					strikethrough: presentation.strikethrough,
 					fontSize
 				});
+				// After `_doRender`, the way the non-composition branch below orders it: a scroll
+				// offset is clamped against the textarea's size at the time it is written, and it is
+				// `_doRender` that gives the textarea its size for this row.
+				this.textArea.domNode.scrollTop = lineCount * lineHeight;
+				this.textArea.domNode.scrollLeft = scrollLeft;
 			}
 			return;
 		}
