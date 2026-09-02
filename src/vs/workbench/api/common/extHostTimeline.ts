@@ -99,9 +99,7 @@ export class ExtHostTimeline implements IExtHostTimeline {
 				};
 			},
 			dispose() {
-				for (const sourceMap of itemsBySourceAndUriMap.values()) {
-					sourceMap.get(provider.id)?.clear();
-				}
+				itemsBySourceAndUriMap.delete(provider.id);
 
 				disposable?.dispose();
 				timelineDisposables.dispose();
@@ -202,10 +200,6 @@ export class ExtHostTimeline implements IExtHostTimeline {
 		this._providers.set(provider.id, { provider, extension });
 
 		return toDisposable(() => {
-			for (const sourceMap of this._itemsBySourceAndUriMap.values()) {
-				sourceMap.get(provider.id)?.clear();
-			}
-
 			this._providers.delete(provider.id);
 			this._proxy.$unregisterTimelineProvider(provider.id);
 			provider.dispose();
