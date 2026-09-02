@@ -1,11 +1,11 @@
 ---
 name: azure-pipelines
-description: Use when validating Azure DevOps pipeline changes or running cross-platform VS Code product and end-to-end test builds. Covers queueing builds, checking live job status, viewing logs, canceling obsolete runs, and iterating without waiting for unrelated stages.
+description: Use when validating Azure DevOps pipeline changes for the VS Code build. Covers queueing builds, checking build status, viewing logs, and iterating on pipeline YAML changes without waiting for full CI runs.
 ---
 
-# Azure Pipeline Validation
+# Validating Azure Pipeline Changes
 
-Use Azure DevOps pipeline builds both to validate pipeline YAML changes and to exercise product or end-to-end tests on the real packaged Windows, Linux, and macOS builds.
+When modifying Azure DevOps pipeline files (YAML files in `build/azure-pipelines/`), you can validate changes locally using the Azure CLI before committing. This avoids the slow feedback loop of pushing changes, waiting for CI, and checking results.
 
 ## Prerequisites
 
@@ -125,61 +125,10 @@ Example: run a quick CI-oriented validation with minimal publish/release side ef
 
 ```bash
 node .github/skills/azure-pipelines/azure-pipeline.ts queue \
-   --parameter "VSCODE_BUILD_TYPE=CI" \
+   --parameter "VSCODE_BUILD_TYPE=CI Build" \
    --parameter "VSCODE_PUBLISH=false" \
    --parameter "VSCODE_RELEASE=false"
 ```
-
----
-
-## Cross-platform Product and E2E Test Validation
-
-Use this workflow when a feature-specific skill requires packaged cross-platform validation, especially for new Agent Host E2E tests.
-
-1. Push the branch first. Azure builds the remote branch commit, not unpushed local changes.
-2. Check for active builds on the branch and cancel obsolete runs before queueing a replacement.
-3. Queue a non-publishing CI build on Windows, Linux, and macOS x64:
-
-   ```bash
-   node .github/skills/azure-pipelines/azure-pipeline.ts queue \
-     --branch "$(git branch --show-current)" \
-     --parameter "VSCODE_BUILD_TYPE=CI" \
-     --parameter "VSCODE_BUILD_WIN32=true" \
-     --parameter "VSCODE_BUILD_WIN32_ARM64=false" \
-     --parameter "VSCODE_BUILD_LINUX=true" \
-     --parameter "VSCODE_BUILD_LINUX_SNAP=false" \
-     --parameter "VSCODE_BUILD_LINUX_ARM64=false" \
-     --parameter "VSCODE_BUILD_LINUX_ARMHF=false" \
-     --parameter "VSCODE_BUILD_ALPINE=false" \
-     --parameter "VSCODE_BUILD_ALPINE_ARM64=false" \
-     --parameter "VSCODE_BUILD_MACOS=true" \
-     --parameter "VSCODE_BUILD_MACOS_ARM64=false" \
-     --parameter "VSCODE_BUILD_MACOS_UNIVERSAL=false" \
-     --parameter "VSCODE_BUILD_WEB=false" \
-     --parameter "VSCODE_PUBLISH=false" \
-     --parameter "VSCODE_RELEASE=false"
-   ```
-
-4. Watch the build, but inspect failed completed jobs immediately. Do not wait for the whole pipeline when a platform's relevant test job has already failed.
-5. Use the build timeline to find failed task log IDs, then download only the relevant logs:
-
-   ```bash
-   az devops invoke \
-     --organization https://dev.azure.com/monacotools \
-     --area build \
-     --resource timeline \
-     --route-parameters project=Monaco buildId=<build-id> \
-     --api-version 7.1 -o json
-
-   node .github/skills/azure-pipelines/azure-pipeline.ts status \
-     --build-id <build-id> --download-log <log-id>
-   ```
-
-6. Distinguish the primary test failure from downstream compliance or log-publishing failures caused by the failed job.
-7. Rerun an apparently unrelated failure in isolation before changing product or test code.
-8. After pushing a fix, cancel an obsolete running build and queue a new build. For a platform-specific correction, a platform-only follow-up build is acceptable when every unaffected platform already passed the same commit series and the change cannot affect them.
-
-For tests involving timing, filesystem watching, process lifecycle, worktrees, reconnect/restart, or other known flake surfaces, run the new tests cleanly twice on every supported platform. The feature-specific skill decides whether that means two full builds or one full build followed by targeted platform builds.
 
 ---
 
