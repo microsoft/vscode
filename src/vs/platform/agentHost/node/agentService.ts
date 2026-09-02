@@ -29,7 +29,7 @@ import { buildAnnotationsUri, parseAnnotationsUri } from '../common/annotationsU
 import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, isAgentHostAutomationMigrationCompletion } from '../common/automationMigration.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isAnnotationsAction, isPassiveSessionMetadataAction, isSessionAction, type ChatAction, type ClientAutomationAction, type ClientAutomationRunAction, type IIsArchivedChangedAction, type IIsReadChangedAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
-import { resolveSessionWorkingDirectoryAction } from '../common/state/sessionWorkingDirectories.js';
+import { isSupportedWorkingDirectory, resolveSessionWorkingDirectoryAction } from '../common/state/sessionWorkingDirectories.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigPropertySchema } from '../common/state/protocol/commands.js';
 import type { AutomationCapabilities } from '../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
@@ -2803,6 +2803,10 @@ export class AgentService extends Disposable implements IAgentService {
 		const isEphemeral = config ? readEphemeralSessionMeta(config).isEphemeral === true : false;
 		if (!provider) {
 			throw new Error(`No agent provider registered for: ${config?.provider ?? '(none)'}`);
+		}
+		const unsupportedDirectory = config?.workingDirectories?.find(directory => !isSupportedWorkingDirectory(directory));
+		if (unsupportedDirectory) {
+			throw new Error(`Working directory must be a file or vscode-remote URI: ${unsupportedDirectory.toString()}`);
 		}
 		if (config?.session) {
 			this._cancelPendingSessionGc(config.session);

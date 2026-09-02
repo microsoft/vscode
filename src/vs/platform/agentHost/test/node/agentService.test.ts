@@ -41,6 +41,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification } from '../../common/state/sessionActions.js';
+import { resolveSessionWorkingDirectoryAction } from '../../common/state/sessionWorkingDirectories.js';
 import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
@@ -1884,13 +1885,12 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
-		async function createDynamicWorkingDirectorySession(immutablePrimary = true): Promise<{ svc: AgentService; session: URI; primary: URI; secondary: URI }> {
+		async function createDynamicWorkingDirectorySession(immutablePrimary = true, directories?: readonly [URI, URI]): Promise<{ svc: AgentService; session: URI; primary: URI; secondary: URI }> {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new DynamicWorkingDirectoryAgent('dynamic', immutablePrimary);
 			disposables.add(toDisposable(() => agent.dispose()));
 			registerTestAgentProvider(svc, agent);
-			const primary = URI.file('/workspace/primary');
-			const secondary = URI.file('/workspace/secondary');
+			const [primary, secondary] = directories ?? [URI.file('/workspace/primary'), URI.file('/workspace/secondary')];
 			const session = await svc.createSession({
 				provider: agent.id,
 				workingDirectories: [primary, secondary],
@@ -2253,6 +2253,20 @@ suite('AgentService (node dispatcher)', () => {
 				confirmed: [primary.toString(), secondary.toString()],
 			});
 			listener.dispose();
+		});
+
+		test('applies vscode-remote working-directory actions to a session created with remote folders', async () => {
+			const remoteFolder = (name: string) => URI.from({ scheme: Schemas.vscodeRemote, authority: 'dev-container+6162', path: `/workspaces/${name}` });
+			const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession(true, [remoteFolder('primary'), remoteFolder('secondary')]);
+			const added = remoteFolder('added');
+
+			svc.dispatchAction(session.toString(), { type: ActionType.SessionWorkingDirectorySet, directory: added.toString() }, 'test-client', 1, AgentHostClientType.EditorWindow);
+			svc.dispatchAction(session.toString(), { type: ActionType.SessionWorkingDirectoryRemoved, directory: secondary.toString() }, 'test-client', 2, AgentHostClientType.EditorWindow);
+
+			assert.deepStrictEqual(
+				getStateManager(svc).getSessionState(session.toString())?.workingDirectories,
+				[primary.toString(), added.toString()],
+			);
 		});
 
 		test('rejects removal of the immutable primary', async () => {
@@ -2929,6 +2943,34 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				single: [dirs[0].toString()],
 				multi: dirs.map(d => d.toString()),
+			});
+		});
+
+		test('validates working-directory schemes the same way as working-directory actions', async () => {
+			registerTestAgentProvider(service, copilotAgent);
+			const remoteFolder = URI.from({ scheme: Schemas.vscodeRemote, authority: 'dev-container+6162', path: '/workspaces/primary' });
+			const unsupportedFolder = URI.from({ scheme: Schemas.untitled, path: '/workspaces/primary' });
+			const actionAccepts = (directory: URI) => {
+				try {
+					resolveSessionWorkingDirectoryAction({ type: ActionType.SessionWorkingDirectorySet, directory: directory.toString() }, [], { immutablePrimary: true, primaryReplacement: false });
+					return true;
+				} catch {
+					return false;
+				}
+			};
+
+			const session = await service.createSession({ provider: 'copilot', workingDirectories: [remoteFolder] });
+			await assert.rejects(
+				service.createSession({ provider: 'copilot', workingDirectories: [unsupportedFolder] }),
+				/Working directory must be a file or vscode-remote URI/,
+			);
+
+			assert.deepStrictEqual({
+				stored: getStateManager(service).getSessionState(session.toString())?.workingDirectories,
+				action: [remoteFolder, unsupportedFolder].map(actionAccepts),
+			}, {
+				stored: [remoteFolder.toString()],
+				action: [true, false],
 			});
 		});
 

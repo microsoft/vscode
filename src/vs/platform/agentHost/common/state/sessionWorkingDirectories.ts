@@ -56,6 +56,14 @@ export interface ISessionWorkingDirectoryCapability {
 }
 
 /**
+ * Whether session state may hold `uri` as a working directory. A remote
+ * workspace folder keeps its client `vscode-remote:` spelling next to `file:`.
+ */
+export function isSupportedWorkingDirectory(uri: URI): boolean {
+	return uri.scheme === Schemas.file || uri.scheme === Schemas.vscodeRemote;
+}
+
+/**
  * Validates and canonicalizes a working-directory delta against the session's
  * current host-side URI identities. The returned spelling is safe for the
  * exact-string session reducer. `capability` reflects the owning agent's
@@ -70,8 +78,8 @@ export function resolveSessionWorkingDirectoryAction(
 	capability: ISessionWorkingDirectoryCapability,
 ): SessionWorkingDirectoryAction {
 	const directory = URI.parse(action.directory, true);
-	if (directory.scheme !== Schemas.file) {
-		throw new Error(`Working directory must be a file URI: ${action.directory}`);
+	if (!isSupportedWorkingDirectory(directory)) {
+		throw new Error(`Working directory must be a file or vscode-remote URI: ${action.directory}`);
 	}
 
 	const current = workingDirectories.map(value => URI.parse(value, true));
@@ -90,8 +98,8 @@ export function resolveSessionWorkingDirectoryAction(
 
 	if (action.type === ActionType.SessionWorkingDirectoryReplaced) {
 		const replacement = URI.parse(action.replacement, true);
-		if (replacement.scheme !== Schemas.file) {
-			throw new Error(`Working directory replacement must be a file URI: ${action.replacement}`);
+		if (!isSupportedWorkingDirectory(replacement)) {
+			throw new Error(`Working directory replacement must be a file or vscode-remote URI: ${action.replacement}`);
 		}
 		// Index 0 may only be replaced when the provider advertises
 		// primaryReplacement. An immutable primary without primaryReplacement

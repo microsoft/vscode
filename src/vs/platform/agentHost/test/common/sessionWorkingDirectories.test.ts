@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { areAdditionalWorkingDirectoriesEqual, areSessionWorkingDirectoriesEqual, resolveSessionWorkingDirectoryAction } from '../../common/state/sessionWorkingDirectories.js';
+import { areAdditionalWorkingDirectoriesEqual, areSessionWorkingDirectoriesEqual, isSupportedWorkingDirectory, resolveSessionWorkingDirectoryAction } from '../../common/state/sessionWorkingDirectories.js';
 
 suite('Session working directories', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -15,6 +16,7 @@ suite('Session working directories', () => {
 	const primary = 'file:///workspace/primary';
 	const secondary = 'file:///workspace/secondary';
 	const replacement = 'file:///workspace/replacement';
+	const remoteDirectory = (name: string) => URI.from({ scheme: Schemas.vscodeRemote, authority: 'dev-container+6162', path: `/workspaces/${name}` }).toString();
 	const capImmutable = { immutablePrimary: true, primaryReplacement: false };
 	const capReplaceablePrimary = { immutablePrimary: true, primaryReplacement: true };
 	const capReplaceablePrimaryOnly = { immutablePrimary: false, primaryReplacement: true };
@@ -120,7 +122,7 @@ suite('Session working directories', () => {
 		);
 	});
 
-	test('rejects malformed and non-file URIs', () => {
+	test('rejects malformed and unsupported URIs', () => {
 		assert.throws(
 			() => resolveSessionWorkingDirectoryAction(
 				{ type: ActionType.SessionWorkingDirectorySet, directory: 'not a URI' },
@@ -131,12 +133,67 @@ suite('Session working directories', () => {
 		);
 		assert.throws(
 			() => resolveSessionWorkingDirectoryAction(
-				{ type: ActionType.SessionWorkingDirectorySet, directory: 'vscode-remote://ssh-remote+host/workspace' },
+				{ type: ActionType.SessionWorkingDirectorySet, directory: 'untitled:/workspace' },
 				[primary],
 				capImmutable,
 			),
-			/Working directory must be a file URI/,
+			/Working directory must be a file or vscode-remote URI/,
 		);
+	});
+
+	test('accepts and canonicalizes vscode-remote set, remove and replace actions', () => {
+		const remotePrimary = remoteDirectory('primary');
+		const remoteSecondary = remoteDirectory('secondary');
+		const remoteAdded = remoteDirectory('added');
+		const encodedRemoteSecondary = remoteSecondary.replace('/secondary', '/%73econdary');
+
+		assert.deepStrictEqual([
+			resolveSessionWorkingDirectoryAction(
+				{ type: ActionType.SessionWorkingDirectorySet, directory: remoteAdded },
+				[remotePrimary, remoteSecondary],
+				capImmutable,
+			),
+			resolveSessionWorkingDirectoryAction(
+				{ type: ActionType.SessionWorkingDirectoryRemoved, directory: encodedRemoteSecondary },
+				[remotePrimary, remoteSecondary],
+				capImmutable,
+			),
+			resolveSessionWorkingDirectoryAction(
+				{ type: ActionType.SessionWorkingDirectoryReplaced, directory: encodedRemoteSecondary, replacement: remoteAdded },
+				[remotePrimary, remoteSecondary],
+				capImmutable,
+			),
+		], [
+			{ type: ActionType.SessionWorkingDirectorySet, directory: remoteAdded },
+			{ type: ActionType.SessionWorkingDirectoryRemoved, directory: remoteSecondary },
+			{ type: ActionType.SessionWorkingDirectoryReplaced, directory: remoteSecondary, replacement: remoteAdded },
+		]);
+	});
+
+	test('accepts exactly the schemes isSupportedWorkingDirectory accepts', () => {
+		const candidates = [
+			'file:///workspace/candidate',
+			remoteDirectory('candidate'),
+			'untitled:/workspace/candidate',
+			'https://example.com/workspace/candidate',
+			'vscode-vfs://github/owner/repo',
+		];
+		const actionAccepts = (directory: string) => {
+			try {
+				resolveSessionWorkingDirectoryAction({ type: ActionType.SessionWorkingDirectorySet, directory }, [primary], capImmutable);
+				return true;
+			} catch {
+				return false;
+			}
+		};
+
+		assert.deepStrictEqual({
+			action: candidates.map(actionAccepts),
+			predicate: candidates.map(directory => isSupportedWorkingDirectory(URI.parse(directory))),
+		}, {
+			action: [true, true, false, false, false],
+			predicate: [true, true, false, false, false],
+		});
 	});
 
 	test('canonicalizes both directory and replacement in a replace action', () => {
@@ -211,18 +268,18 @@ suite('Session working directories', () => {
 		);
 	});
 
-	test('rejects a replace with a non-file replacement URI', () => {
+	test('rejects a replace with an unsupported replacement URI', () => {
 		assert.throws(
 			() => resolveSessionWorkingDirectoryAction(
 				{
 					type: ActionType.SessionWorkingDirectoryReplaced,
 					directory: secondary,
-					replacement: 'vscode-remote://ssh-remote+host/workspace',
+					replacement: 'untitled:/workspace',
 				},
 				[primary, secondary],
 				capImmutable,
 			),
-			/Working directory replacement must be a file URI/,
+			/Working directory replacement must be a file or vscode-remote URI/,
 		);
 	});
 });
