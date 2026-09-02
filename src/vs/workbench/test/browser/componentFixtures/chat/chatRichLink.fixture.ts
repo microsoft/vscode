@@ -115,6 +115,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			{ authoredLabel: 'Review architecture', presentation: buildAgentSessionLinkPresentation('Review architecture', undefined, 'needsInput') },
 			{ authoredLabel: 'Update fixtures', presentation: buildAgentSessionLinkPresentation('Update fixtures', undefined, 'completed') },
 			{ authoredLabel: 'Run validation', presentation: buildAgentSessionLinkPresentation('Run validation', undefined, 'error') },
+			{ authoredLabel: 'Investigate tests', presentation: buildAgentSessionLinkPresentation('Investigate tests', undefined, 'inProgress', 'chat') },
 		]),
 	}),
 	presentationKinds: defineComponentFixture({

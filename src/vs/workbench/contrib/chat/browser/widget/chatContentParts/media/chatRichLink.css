@@ -364,7 +364,7 @@
 .interactive-item-container .value .rendered-markdown .chat-rich-link:is(
 	[data-chat-rich-link-kind='session'],
 	[data-chat-rich-link-kind='chat']
-) .chat-rich-link-icon {
+) :is(.chat-rich-link-icon, .chat-rich-link-status-icon) {
 	position: static;
 	top: auto;
 }
@@ -430,15 +430,6 @@
 	[data-chat-rich-link-kind='chat']
 ) .chat-rich-link-primary-status .chat-rich-link-status-label {
 	display: none;
-}
-
-.chat-rich-link:is(
-	[data-chat-rich-link-kind='session'],
-	[data-chat-rich-link-kind='chat']
-) .chat-rich-link-primary-status .chat-rich-link-status-icon {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
 }
 
 .chat-rich-link:is(
