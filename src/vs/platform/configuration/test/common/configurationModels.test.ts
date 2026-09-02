@@ -537,6 +537,48 @@ suite('ConfigurationModelParser - Nested Restricted Properties', () => {
 		assert.strictEqual(overrideConfig.getValue('terminal.integrated.allowInUntrustedWorkspace'), undefined);
 		assert.strictEqual(overrideConfig.getValue('terminal.integrated.cwd'), '/safe');
 	});
+
+	test('partial nested exclusion reports hasExcludedProperties and preserves unfiltered raw', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		const testData = {
+			'terminal': {
+				'integrated': {
+					'allowInUntrustedWorkspace': true,
+					'cwd': '/safe'
+				}
+			}
+		};
+
+		testObject.parse(JSON.stringify(testData), { skipRestricted: true });
+
+		const model = testObject.configurationModel;
+		// The restricted nested setting is filtered out while a sibling remains, so the model must
+		// still flag that raw was filtered and retain the unfiltered raw for trust re-evaluation.
+		assert.notStrictEqual(model.raw, undefined);
+		assert.strictEqual(model.getValue('terminal.integrated.allowInUntrustedWorkspace'), undefined);
+		assert.strictEqual(model.rawConfiguration.getValue('terminal.integrated.allowInUntrustedWorkspace'), true);
+	});
+
+	test('nested object whose parent key is explicitly excluded is dropped entirely', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		const testData = {
+			'terminal': {
+				'integrated': {
+					'cwd': '/safe'
+				}
+			}
+		};
+
+		testObject.parse(JSON.stringify(testData), { exclude: ['terminal'] });
+
+		const model = testObject.configurationModel;
+		assert.strictEqual(model.getValue('terminal.integrated.cwd'), undefined);
+		assert.notStrictEqual(model.raw, undefined);
+	});
 });
 
 suite('ConfigurationModel', () => {
