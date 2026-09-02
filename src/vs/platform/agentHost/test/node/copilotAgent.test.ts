@@ -8293,7 +8293,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('materialization replaces the complete SDK system message when configured', async () => {
+		test('materialization passes prompt and tool description overrides to the SDK', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);
 			let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
@@ -8306,7 +8306,14 @@ suite('CopilotAgent', () => {
 			try {
 				configurationService.updateRootConfig({
 					[CopilotCliConfigKey.ModelCapabilityOverrides]: {
-						'*': { promptOverrideString: 'systemPrompt: You are an evaluation agent.' },
+						'*': {
+							promptOverrideString: [
+								'systemPrompt: You are an evaluation agent.',
+								'toolDescriptions:',
+								'  test_tool:',
+								'    description: Overridden tool description.',
+							].join('\n'),
+						},
 					},
 				});
 				await agent.authenticate('https://api.github.com', 'token');
@@ -8314,12 +8321,27 @@ suite('CopilotAgent', () => {
 				const result = await provisionSession(agent, {
 					session: AgentSession.uri('copilotcli', 'system-message-override-session'),
 					workingDirectories: [URI.file('/workspace')],
+					activeClient: {
+						clientId: 'client-1',
+						tools: [{ name: 'test_tool', description: 'Original tool description.', inputSchema: { type: 'object' } }],
+						customizations: [],
+					},
 				});
 				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, defaultChatUri(result.session), result.session));
 
-				assert.deepStrictEqual(capturedConfig?.systemMessage, {
-					mode: 'replace',
-					content: 'You are an evaluation agent.',
+				const testTool = capturedConfig?.tools?.find(tool => tool.name === 'test_tool');
+				assert.deepStrictEqual({
+					systemMessage: capturedConfig?.systemMessage,
+					tool: testTool && { name: testTool.name, description: testTool.description },
+				}, {
+					systemMessage: {
+						mode: 'replace',
+						content: 'You are an evaluation agent.',
+					},
+					tool: {
+						name: 'test_tool',
+						description: 'Overridden tool description.',
+					},
 				});
 			} finally {
 				await disposeAgent(agent);
