@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -25,12 +25,23 @@ export async function prepareNewVoiceSession(
 	sessionsManagementService: ISessionsManagementService,
 	voiceSessionController: IVoiceSessionController,
 	hasActiveComposer: () => boolean,
+	beginVoiceTransition: () => IDisposable,
 	logService: ILogService,
 ): Promise<VoiceNewSessionPreparationResult> {
 	const activeSession = sessionsService.activeSession.get();
 	const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
 	const folderUri = isQuickChat ? undefined : activeSession?.workspace.get()?.uri;
+	const previousTarget = voiceSessionController.targetSession.get();
+	const previousHadDraftTarget = voiceSessionController.hasDraftTarget.get();
+	const restoreVoiceTarget = () => previousHadDraftTarget
+		? voiceSessionController.setDraftTarget()
+		: voiceSessionController.setTargetSession(previousTarget);
+	const fail = (): VoiceNewSessionPreparationResult => {
+		restoreVoiceTarget();
+		return 'failed';
+	};
 	voiceSessionController.setDraftTarget();
+	const transition = beginVoiceTransition();
 	try {
 		const result = await sessionsService.openNewSession({
 			folderUri,
@@ -38,7 +49,7 @@ export async function prepareNewVoiceSession(
 		});
 		if (folderUri) {
 			if (!result.session) {
-				return 'failed';
+				return fail();
 			}
 			if (text.trim()) {
 				await sessionsManagementService.sendNewChatRequest(result.session, { query: text });
@@ -46,10 +57,12 @@ export async function prepareNewVoiceSession(
 			}
 			return 'prepared';
 		}
-		return sessionsService.activeSession.get() === undefined && hasActiveComposer() ? 'prepared' : 'failed';
+		return sessionsService.activeSession.get() === undefined && hasActiveComposer() ? 'prepared' : fail();
 	} catch (error) {
 		logService.error('Failed to prepare a new session for Voice Mode:', error);
-		return 'failed';
+		return fail();
+	} finally {
+		transition.dispose();
 	}
 }
 
@@ -137,7 +150,15 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 		}));
 
 		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.prepareNewSession', (_accessor, text: string) =>
-			prepareNewVoiceSession(text, this.sessionsService, this.sessionsManagementService, this.voiceSessionController, () => !!this._activeComposerTarget(), this.logService)
+			prepareNewVoiceSession(
+				text,
+				this.sessionsService,
+				this.sessionsManagementService,
+				this.voiceSessionController,
+				() => !!this._activeComposerTarget(),
+				() => this.newChatVoiceTargetService.beginVoiceTransition(),
+				this.logService,
+			)
 		));
 
 		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.selectModel', (_accessor, requestedModel: string): IVoiceModelSelectionResult => {
@@ -375,7 +396,6 @@ export class SessionsVoiceNewComposerContribution extends Disposable implements 
 		this._register(autorun(reader => {
 			const connected = voiceSessionController.isConnected.read(reader) || voiceSessionController.isConnecting.read(reader);
 			const activeComposer = newChatVoiceTargetService.activeComposer.read(reader);
-			const hasDraftTarget = voiceSessionController.hasDraftTarget.read(reader);
 			if (!connected) {
 				voiceComposer = activeComposer;
 				voiceComposerCaptured = false;
@@ -386,11 +406,12 @@ export class SessionsVoiceNewComposerContribution extends Disposable implements 
 				voiceComposerCaptured = true;
 				return;
 			}
-			// A different welcome composer took over while voice is connected: the
-			// connection is bound to the previous surface and can't route here,
-			// unless voice itself initiated the draft transition.
-			if (activeComposer && activeComposer !== voiceComposer && !activeComposer.routesWhileSessionActive && !hasDraftTarget) {
-				voiceSessionController.disconnect('internal');
+			if (activeComposer && activeComposer !== voiceComposer) {
+				if (newChatVoiceTargetService.consumeVoiceTransition()) {
+					voiceComposer = activeComposer;
+				} else if (!activeComposer.routesWhileSessionActive) {
+					voiceSessionController.disconnect('internal');
+				}
 			}
 		}));
 	}

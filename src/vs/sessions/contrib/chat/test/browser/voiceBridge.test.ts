@@ -77,18 +77,36 @@ suite('SessionsVoiceNewComposerContribution', () => {
 	test('keeps voice connected when voice creates a fresh session composer', () => {
 		const target = disposables.add(createTarget());
 		const isConnected = observableValue<boolean>('isConnected', false);
-		const { controller, hasDraftTarget, getDisconnectCount } = createController(isConnected);
+		const { controller, getDisconnectCount } = createController(isConnected);
 
 		const a = composer();
 		disposables.add(target.registerComposer(a));
 		isConnected.set(true, undefined);
 		disposables.add(new SessionsVoiceNewComposerContribution(controller, target));
 
+		const transition = target.beginVoiceTransition();
+		const b = composer();
+		disposables.add(target.registerComposer(b));
+		transition.dispose();
+
+		assert.strictEqual(getDisconnectCount(), 0);
+	});
+
+	test('disconnects for an unrelated composer even when voice owns a draft', () => {
+		const target = disposables.add(createTarget());
+		const isConnected = observableValue<boolean>('isConnected', false);
+		const { controller, hasDraftTarget, getDisconnectCount } = createController(isConnected);
+
+		const a = composer();
+		disposables.add(target.registerComposer(a));
 		hasDraftTarget.set(true, undefined);
+		isConnected.set(true, undefined);
+		disposables.add(new SessionsVoiceNewComposerContribution(controller, target));
+
 		const b = composer();
 		disposables.add(target.registerComposer(b));
 
-		assert.strictEqual(getDisconnectCount(), 0);
+		assert.strictEqual(getDisconnectCount(), 1);
 	});
 
 	test('disconnects when a fresh welcome composer takes over a connecting voice session', () => {
@@ -164,9 +182,19 @@ suite('SessionsVoiceNewComposerContribution', () => {
 				sent.push({ session, query: options.query });
 			}
 		}();
-		let draftTargetSet = false;
+		const targetSession = observableValue<URI | undefined>('targetSession', URI.parse('agent-host-copilot:/existing'));
+		const hasDraftTarget = observableValue<boolean>('hasDraftTarget', false);
 		const voiceSessionController = new class extends mock<IVoiceSessionController>() {
-			override setDraftTarget(): void { draftTargetSet = true; }
+			override readonly targetSession = targetSession;
+			override readonly hasDraftTarget = hasDraftTarget;
+			override setDraftTarget(): void {
+				targetSession.set(undefined, undefined);
+				hasDraftTarget.set(true, undefined);
+			}
+			override setTargetSession(resource: URI | undefined): void {
+				hasDraftTarget.set(false, undefined);
+				targetSession.set(resource, undefined);
+			}
 		}();
 
 		const result = await prepareNewVoiceSession(
@@ -175,17 +203,69 @@ suite('SessionsVoiceNewComposerContribution', () => {
 			sessionsManagementService,
 			voiceSessionController,
 			() => false,
+			() => ({ dispose() { } }),
 			new NullLogService(),
 		);
 
 		assert.deepStrictEqual({
 			result,
-			draftTargetSet,
+			hasDraftTarget: hasDraftTarget.get(),
 			sent,
 		}, {
 			result: 'sent',
-			draftTargetSet: true,
+			hasDraftTarget: true,
 			sent: [{ session: createdSession, query: 'refactor the upload service' }],
+		});
+	});
+
+	test('restores the previous voice target when new-session preparation is declined', async () => {
+		const previousTarget = URI.parse('agent-host-copilot:/existing');
+		const workspace = new class extends mock<ISessionWorkspace>() {
+			override readonly uri = URI.file('/workspace');
+		}();
+		const activeSession = new class extends mock<IActiveSession>() {
+			override readonly workspace = constObservable(workspace);
+			override readonly isQuickChat = constObservable(false);
+		}();
+		const sessionsService = new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(activeSession);
+			override async openNewSession() {
+				return { session: undefined, trustDeclined: true };
+			}
+		}();
+		const targetSession = observableValue<URI | undefined>('targetSession', previousTarget);
+		const hasDraftTarget = observableValue<boolean>('hasDraftTarget', false);
+		const voiceSessionController = new class extends mock<IVoiceSessionController>() {
+			override readonly targetSession = targetSession;
+			override readonly hasDraftTarget = hasDraftTarget;
+			override setDraftTarget(): void {
+				targetSession.set(undefined, undefined);
+				hasDraftTarget.set(true, undefined);
+			}
+			override setTargetSession(resource: URI | undefined): void {
+				hasDraftTarget.set(false, undefined);
+				targetSession.set(resource, undefined);
+			}
+		}();
+
+		const result = await prepareNewVoiceSession(
+			'refactor the upload service',
+			sessionsService,
+			new class extends mock<ISessionsManagementService>() { }(),
+			voiceSessionController,
+			() => false,
+			() => ({ dispose() { } }),
+			new NullLogService(),
+		);
+
+		assert.deepStrictEqual({
+			result,
+			targetSession: targetSession.get()?.toString(),
+			hasDraftTarget: hasDraftTarget.get(),
+		}, {
+			result: 'failed',
+			targetSession: previousTarget.toString(),
+			hasDraftTarget: false,
 		});
 	});
 });

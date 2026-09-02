@@ -3705,9 +3705,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 
 		this._setPinnedSubmitSession(undefined);
-		const preparedByHost = await this.commandService.executeCommand<VoiceNewSessionPreparationResult>('_chat.voice.prepareNewSession', text).catch(() => undefined);
-		if (preparedByHost !== undefined) {
-			return preparedByHost;
+		if (CommandsRegistry.getCommand('_chat.voice.prepareNewSession')) {
+			try {
+				return await this.commandService.executeCommand<VoiceNewSessionPreparationResult>('_chat.voice.prepareNewSession', text) ?? 'failed';
+			} catch (error) {
+				this.logService.error('Failed to prepare a host session for Voice Mode:', error);
+				return 'failed';
+			}
 		}
 
 		this.newSessionAsTarget();

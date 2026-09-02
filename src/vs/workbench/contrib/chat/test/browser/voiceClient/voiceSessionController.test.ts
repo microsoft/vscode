@@ -16,7 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService as BaseTestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -697,6 +697,15 @@ class PreparingNewSessionCommandService extends TestCommandService {
 		}
 		if (commandId === '_chat.voice.getCurrentSession') {
 			return 'sessions-voice://new-chat/composer' as T;
+		}
+		return super.executeCommand<T>(commandId, ...args);
+	}
+}
+
+class RejectingNewSessionCommandService extends TestCommandService {
+	override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T> {
+		if (commandId === '_chat.voice.prepareNewSession') {
+			throw new Error('preparation failed');
 		}
 		return super.executeCommand<T>(commandId, ...args);
 	}
@@ -5421,6 +5430,7 @@ suite('VoiceSessionController', () => {
 	});
 
 	test('send_to_chat with new_session lets the host prepare its own session', async () => {
+		store.add(CommandsRegistry.registerCommand('_chat.voice.prepareNewSession', () => undefined));
 		const voiceClientService = new TestVoiceClientService();
 		const commandService = new PreparingNewSessionCommandService();
 		const chatService = new NewSessionChatService();
@@ -5449,6 +5459,7 @@ suite('VoiceSessionController', () => {
 	});
 
 	test('send_to_chat with new_session does not fall back when host preparation fails', async () => {
+		store.add(CommandsRegistry.registerCommand('_chat.voice.prepareNewSession', () => undefined));
 		const voiceClientService = new TestVoiceClientService();
 		const commandService = new PreparingNewSessionCommandService('failed');
 		const chatService = new NewSessionChatService();
@@ -5473,6 +5484,35 @@ suite('VoiceSessionController', () => {
 			sent: [],
 			acceptedInputs: [],
 			toolResults: [{ callId: 'host-new-session-failed', result: 'error' }],
+		});
+	});
+
+	test('send_to_chat with new_session does not fall back when the host command rejects', async () => {
+		store.add(CommandsRegistry.registerCommand('_chat.voice.prepareNewSession', () => undefined));
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new RejectingNewSessionCommandService();
+		const chatService = new NewSessionChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'host-new-session-rejected',
+			name: 'send_to_chat',
+			args: { text: 'refactor the upload service', new_session: true },
+		});
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual({
+			created: chatService.created.length,
+			sent: chatService.sent,
+			acceptedInputs: commandService.acceptedInputs,
+			toolResults: voiceClientService.toolResults,
+		}, {
+			created: 0,
+			sent: [],
+			acceptedInputs: [],
+			toolResults: [{ callId: 'host-new-session-rejected', result: 'error' }],
 		});
 	});
 
