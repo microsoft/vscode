@@ -12,6 +12,7 @@ import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themable
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
+import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -38,7 +39,7 @@ import { IChat, ISession, ISessionChangesSummary, ISessionFolder, ISessionWorksp
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
-import { SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
+import { SessionItemToolbarMenuId, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IsPhoneLayoutContext } from '../../../../../sessions/common/contextkeys.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
@@ -50,6 +51,7 @@ import { IChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../../contrib/chat/common/voicePlaybackService.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
+import { FixtureMenuService } from '../chat/chatFixtureUtils.js';
 
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../sessions/contrib/sessions/browser/media/sessionsList.css';
@@ -170,6 +172,7 @@ interface IRenderOptions {
 	readonly width?: number;
 	readonly phone?: boolean;
 	readonly revealHierarchyGuides?: boolean;
+	readonly showToolbarActions?: boolean;
 }
 
 function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOptions): void {
@@ -189,6 +192,9 @@ function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOption
 		colorTheme: ctx.theme,
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
+			if (options.showToolbarActions) {
+				reg.define(IMenuService, FixtureMenuService);
+			}
 			reg.define(IListService, ListService);
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.defineInstance(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() { }());
@@ -269,6 +275,19 @@ function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOption
 			reg.defineInstance(ICustomViewService, new class extends mock<ICustomViewService>() { }());
 		},
 	});
+	if (options.showToolbarActions) {
+		const menuService = instantiationService.get(IMenuService) as FixtureMenuService;
+		menuService.addItem(SessionItemToolbarMenuId, {
+			command: { id: 'fixture.sessions.archive', title: 'Archive' },
+			group: 'navigation',
+			order: 1,
+		});
+		menuService.addItem(SessionItemToolbarMenuId, {
+			command: { id: 'fixture.sessions.pin', title: 'Pin' },
+			group: 'navigation',
+			order: 2,
+		});
+	}
 
 	// Render terminal-approval labels as real (monospace) code blocks — otherwise
 	// the markdown renderer emits empty code-block spans and the command is blank.
@@ -343,6 +362,19 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionsList_WorkspaceSection: defineComponentFixture({
 		render: ctx => renderSessionsList(ctx, {
 			sessions: [{ id: 'c', title: 'Update onboarding copy', workspace: 'vscode-docs', minutesAgo: 180 }],
+		}),
+	}),
+	SessionsList_NarrowHoverActions: defineComponentFixture({
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [{
+				id: 'c',
+				title: 'Update onboarding copy',
+				workspace: 'vscode-docs',
+				minutesAgo: 180,
+				chats: [{ id: 'task-a', title: 'Review the updated onboarding copy' }],
+			}],
+			width: 160,
+			showToolbarActions: true,
 		}),
 	}),
 	SessionsList_CustomGroup_Phone: defineComponentFixture({

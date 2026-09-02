@@ -129,6 +129,7 @@
 
 	.monaco-list-row .session-title-toolbar {
 		position: relative;
+		flex-shrink: 0;
 		height: 16px;
 		display: none;
 
@@ -192,6 +193,7 @@
 	height: 100%;
 	box-sizing: border-box;
 	position: relative;
+	min-width: 0;
 	overflow: visible;
 	padding: 8px 6px 8px 12px;
 
@@ -506,6 +508,7 @@
 	flex-direction: column;
 	box-sizing: border-box;
 	position: relative;
+	min-width: 0;
 	overflow: visible;
 	padding: 0 var(--vscode-spacing-size120) 0 var(--vscode-spacing-size360);
 	color: var(--vscode-foreground);
