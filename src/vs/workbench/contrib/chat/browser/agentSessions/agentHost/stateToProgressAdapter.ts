@@ -484,14 +484,22 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 			return meta.severity === AgentSystemNotificationSeverity.Warning
 				? { kind: 'warning', content: markdown }
 				: { kind: 'systemNotification', content: markdown };
-		// Agent Merge reports a state change rather than a completed step, so the
-		// default check would misdescribe both of these.
+		case AgentSystemNotificationKind.AutomaticApprovalReviewTimedOut:
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.clock, collapsible: true };
+		case AgentSystemNotificationKind.AutomaticApprovalReviewAborted:
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.circleSlash, collapsible: true };
+		case AgentSystemNotificationKind.AutomaticApprovalReviewInterrupted:
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.warning };
+		// Agent Merge state changes use icons that describe the transition rather
+		// than the default completed-step check.
 		case AgentSystemNotificationKind.AgentMergeEnabled:
-			return { kind: 'systemNotification', content: markdown, icon: Codicon.gitMerge, collapsible: true };
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.gitMerge, collapsible: true, renderInlineTiming: true };
 		case AgentSystemNotificationKind.AgentMergeConfigurationChanged:
-			return { kind: 'systemNotification', content: markdown, icon: Codicon.settingsGear, collapsible: true };
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.settingsGear, collapsible: true, renderInlineTiming: true };
 		case AgentSystemNotificationKind.AgentMergeDisabled:
-			return { kind: 'systemNotification', content: markdown, icon: Codicon.circleSlash };
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.circleSlash, renderInlineTiming: true };
+		case AgentSystemNotificationKind.AgentMergePullRequestMerged:
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.gitMerge, renderInlineTiming: true };
 		default:
 			return { kind: 'systemNotification', content: markdown };
 	}

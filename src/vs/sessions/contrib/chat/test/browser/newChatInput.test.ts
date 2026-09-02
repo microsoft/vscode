@@ -20,6 +20,7 @@ import { FileKind } from '../../../../../platform/files/common/files.js';
 import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
 import { FileThemeIcon, FolderThemeIcon } from '../../../../../platform/theme/common/themeService.js';
 import { IFileLabelOptions } from '../../../../../workbench/browser/labels.js';
+import { ChatDynamicVariableModel } from '../../../../../workbench/contrib/chat/browser/attachments/chatDynamicVariables.js';
 import { hasSendableNewChatContent, NewChatInputWidget } from '../../browser/newChatInput.js';
 import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { NewChatContextAttachments } from '../../browser/newChatContextAttachments.js';
@@ -37,14 +38,12 @@ interface IInputModelReferenceHarness {
 }
 
 const holdInputModelReference = Reflect.get(NewChatInputWidget.prototype, '_holdInputModelReference') as (this: IInputModelReferenceHarness, uri: URI, model: ITextModel) => void;
-const getDraftState = Reflect.get(NewChatInputWidget.prototype, '_getDraftState') as (this: IDraftStateHarness) => { inputText: string; attachments: readonly IChatRequestVariableEntry[] } | undefined;
+const getDraftState = Reflect.get(NewChatInputWidget.prototype, '_getDraftState') as (this: IDraftStateHarness) => { inputText: string; attachments: readonly IChatRequestVariableEntry[]; contrib?: Record<string, unknown> } | undefined;
 const restoreState = Reflect.get(NewChatInputWidget.prototype, '_restoreState') as (this: IRestoreStateHarness) => void;
 const saveState = Reflect.get(NewChatInputWidget.prototype, 'saveState') as (this: IDraftStateHarness) => void;
 const clearDraftState = Reflect.get(NewChatInputWidget.prototype, '_clearDraftState') as (this: IDraftStateHarness) => void;
 const updateDraftState = Reflect.get(NewChatInputWidget.prototype, '_updateDraftState') as (this: IUpdateDraftStateHarness) => void;
 const updateAndSaveDraftState = Reflect.get(NewChatInputWidget.prototype, '_updateAndSaveDraftState') as (this: IUpdateAndSaveDraftStateHarness) => void;
-const syncInputGitHubContext = Reflect.get(NewChatInputWidget.prototype, '_syncInputGitHubContext') as (this: ISyncInputGitHubContextHarness) => void;
-const attachTextContext = Reflect.get(NewChatInputWidget.prototype, 'attachTextContext') as (this: IAttachTextContextHarness, name: string, content: string, icon: ThemeIcon, id: string) => void;
 const updateSendButtonState = Reflect.get(NewChatInputWidget.prototype, '_updateSendButtonState') as (this: IUpdateSendButtonStateHarness) => void;
 const setInputEditorFocused = Reflect.get(NewChatInputWidget.prototype, '_setInputEditorFocused') as (container: HTMLElement, focused: boolean) => void;
 const updateAttachmentRendering = Reflect.get(NewChatContextAttachments.prototype, '_updateRendering') as (this: IAttachmentRenderingHarness) => void;
@@ -54,18 +53,20 @@ interface IDraftStateHarness {
 		get(key: string, scope: unknown): string | undefined;
 		store(key: string, value: string, scope: unknown, target: unknown): void;
 	};
-	_draftState?: { inputText: string; attachments: readonly IChatRequestVariableEntry[] };
+	_draftState?: { inputText: string; attachments: readonly IChatRequestVariableEntry[]; contrib?: Record<string, unknown> };
 }
 
 interface IRestoreStateHarness {
-	_getDraftState(): { inputText: string; attachments: readonly IChatRequestVariableEntry[] } | undefined;
+	_getDraftState(): { inputText: string; attachments: readonly IChatRequestVariableEntry[]; contrib?: Record<string, unknown> } | undefined;
 	readonly _editor: {
 		getModel(): { setValue(value: string): void } | null;
 	};
 	readonly _contextAttachments: {
 		setAttachments(entries: readonly IChatRequestVariableEntry[]): void;
 	};
-	_syncInputGitHubContext(): void;
+	readonly _dynamicVariableModel: {
+		setInputState(contrib: Readonly<Record<string, unknown>>): void;
+	};
 	_updateSendButtonState(): void;
 }
 
@@ -76,30 +77,16 @@ interface IUpdateDraftStateHarness extends IDraftStateHarness {
 	readonly _contextAttachments: {
 		readonly attachments: readonly IChatRequestVariableEntry[];
 	};
+	readonly _dynamicVariableModel?: {
+		readonly variables: readonly object[];
+		getInputState(contrib: Record<string, unknown>): void;
+	};
 }
 
 interface IUpdateAndSaveDraftStateHarness extends IUpdateDraftStateHarness {
 	readonly _sending: boolean;
 	_updateDraftState(): void;
 	saveState(): void;
-}
-
-interface ISyncInputGitHubContextHarness {
-	readonly _editor: {
-		getValue(): string;
-	};
-	readonly _contextAttachments: {
-		attachments: readonly IChatRequestVariableEntry[];
-		setAttachments(entries: readonly IChatRequestVariableEntry[]): void;
-	};
-}
-
-interface IAttachTextContextHarness {
-	readonly _contextAttachments: {
-		attachments: readonly IChatRequestVariableEntry[];
-		addAttachments(...entries: IChatRequestVariableEntry[]): void;
-		setAttachments(entries: readonly IChatRequestVariableEntry[]): void;
-	};
 }
 
 interface IUpdateSendButtonStateHarness {
@@ -188,54 +175,54 @@ suite('NewChatInputWidget', () => {
 			focused: { input: true, stack: true },
 			blurred: { input: false, stack: false },
 		});
-	});
 
-	test('keeps the input model alive until reference acquisition settles during disposal', async () => {
-		const referenceDeferred = new DeferredPromise<IReference<IResolvedTextEditorModel>>();
-		let modelDisposed = false;
-		let referenceDisposed = false;
-		const errors: { message: string; error: Error }[] = [];
-		const model = new class extends mock<ITextModel>() {
-			override dispose(): void {
-				modelDisposed = true;
-			}
-		}();
-		const resolvedModel = new class extends mock<IResolvedTextEditorModel>() {
-			override readonly textEditorModel = model;
-		}();
-		const harness = disposables.add(new InputModelReferenceHarness(
-			{
-				createModelReference: () => referenceDeferred.p,
-			},
-			{
-				error: (message, error) => errors.push({ message, error }),
-			},
-		));
+		test('keeps the input model alive until reference acquisition settles during disposal', async () => {
+			const referenceDeferred = new DeferredPromise<IReference<IResolvedTextEditorModel>>();
+			let modelDisposed = false;
+			let referenceDisposed = false;
+			const errors: { message: string; error: Error }[] = [];
+			const model = new class extends mock<ITextModel>() {
+				override dispose(): void {
+					modelDisposed = true;
+				}
+			}();
+			const resolvedModel = new class extends mock<IResolvedTextEditorModel>() {
+				override readonly textEditorModel = model;
+			}();
+			const harness = disposables.add(new InputModelReferenceHarness(
+				{
+					createModelReference: () => referenceDeferred.p,
+				},
+				{
+					error: (message, error) => errors.push({ message, error }),
+				},
+			));
 
-		holdInputModelReference.call(harness, URI.from({ scheme: Schemas.sessionsChatInput, path: 'input-test' }), model);
-		harness.dispose();
-		const disposedBeforeReferenceSettled = modelDisposed;
+			holdInputModelReference.call(harness, URI.from({ scheme: Schemas.sessionsChatInput, path: 'input-test' }), model);
+			harness.dispose();
+			const disposedBeforeReferenceSettled = modelDisposed;
 
-		referenceDeferred.complete({
-			object: resolvedModel,
-			dispose: () => {
-				referenceDisposed = true;
-				model.dispose();
-			},
-		});
-		await referenceDeferred.p;
-		await Promise.resolve();
+			referenceDeferred.complete({
+				object: resolvedModel,
+				dispose: () => {
+					referenceDisposed = true;
+					model.dispose();
+				},
+			});
+			await referenceDeferred.p;
+			await Promise.resolve();
 
-		assert.deepStrictEqual({
-			disposedBeforeReferenceSettled,
-			modelDisposed,
-			referenceDisposed,
-			errors,
-		}, {
-			disposedBeforeReferenceSettled: false,
-			modelDisposed: true,
-			referenceDisposed: true,
-			errors: [],
+			assert.deepStrictEqual({
+				disposedBeforeReferenceSettled,
+				modelDisposed,
+				referenceDisposed,
+				errors,
+			}, {
+				disposedBeforeReferenceSettled: false,
+				modelDisposed: true,
+				referenceDisposed: true,
+				errors: [],
+			});
 		});
 	});
 
@@ -299,7 +286,7 @@ suite('NewChatInputWidget', () => {
 			_getDraftState: () => draft,
 			_editor: { getModel: () => ({ setValue: value => restored.inputText = value }) },
 			_contextAttachments: { setAttachments: entries => restored.attachments = entries },
-			_syncInputGitHubContext: () => { },
+			_dynamicVariableModel: { setInputState: () => { } },
 			_updateSendButtonState: () => { },
 		});
 
@@ -341,6 +328,52 @@ suite('NewChatInputWidget', () => {
 		assert.deepStrictEqual(getDraftState.call({ storageService }), {
 			inputText: 'Fix this after reload',
 			attachments: [],
+		});
+	});
+
+	test('persists and restores inline reference contribution state', () => {
+		let stored: string | undefined;
+		const storageService: IDraftStateHarness['storageService'] = {
+			get: () => stored,
+			store: (_key, value) => stored = value,
+		};
+		const url = 'https://github.com/microsoft/vscode/issues/334061';
+		const contribution = [{
+			id: url,
+			range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 25 },
+			promptText: url,
+			data: URI.parse(url),
+		}];
+		const saveHarness: IUpdateAndSaveDraftStateHarness = {
+			storageService,
+			_sending: false,
+			_editor: { getModel: () => ({ getValue: () => 'microsoft/vscode#334061' }) },
+			_contextAttachments: { attachments: [] },
+			_dynamicVariableModel: {
+				variables: contribution,
+				getInputState: contrib => contrib[ChatDynamicVariableModel.ID] = contribution,
+			},
+			_updateDraftState() {
+				updateDraftState.call(this);
+			},
+			saveState() {
+				saveState.call(this);
+			},
+		};
+		updateAndSaveDraftState.call(saveHarness);
+
+		let restoredContrib: Readonly<Record<string, unknown>> | undefined;
+		const draft = getDraftState.call({ storageService });
+		restoreState.call({
+			_getDraftState: () => draft,
+			_editor: { getModel: () => ({ setValue: () => { } }) },
+			_contextAttachments: { setAttachments: () => { } },
+			_dynamicVariableModel: { setInputState: contrib => restoredContrib = contrib },
+			_updateSendButtonState: () => { },
+		});
+
+		assert.deepStrictEqual(restoredContrib, {
+			[ChatDynamicVariableModel.ID]: contribution,
 		});
 	});
 
@@ -391,9 +424,9 @@ suite('NewChatInputWidget', () => {
 				attachments: [],
 				setAttachments: () => { },
 			},
+			_dynamicVariableModel: { setInputState: () => { } },
 			options: {},
 			_canSendRequest: { get: () => true },
-			_syncInputGitHubContext: () => { },
 			_updateSendButtonState() {
 				updateSendButtonState.call(this);
 			},
@@ -402,89 +435,6 @@ suite('NewChatInputWidget', () => {
 		restoreState.call(harness);
 
 		assert.strictEqual(sendButton.enabled, true);
-	});
-
-	test('synchronizes GitHub context attachments with issue and pull request links in the input', () => {
-		let input = 'Fix https://github.com/microsoft/vscode/issues/333845 and review https://www.github.com/microsoft/vscode/pull/333575#discussion.';
-		const manualAttachment = toPasteVariableEntry('Manually attached', 'Manual context', {
-			id: 'github-context:https://github.com/microsoft/vscode/issues/1',
-		});
-		let attachments: readonly IChatRequestVariableEntry[] = [manualAttachment];
-		const harness: ISyncInputGitHubContextHarness = {
-			_editor: { getValue: () => input },
-			_contextAttachments: {
-				get attachments() { return attachments; },
-				setAttachments: entries => attachments = entries,
-			},
-		};
-		const snapshot = () => attachments.map(attachment => ({
-			id: attachment.id,
-			name: attachment.name,
-			icon: ThemeIcon.isThemeIcon(attachment.icon) ? attachment.icon.id : undefined,
-		}));
-
-		syncInputGitHubContext.call(harness);
-		const withLinks = snapshot();
-		input = 'Review https://github.com/microsoft/vscode/pull/333575.';
-		syncInputGitHubContext.call(harness);
-		const afterRemovingIssueLink = snapshot();
-		input = '';
-		syncInputGitHubContext.call(harness);
-
-		assert.deepStrictEqual({
-			withLinks,
-			afterRemovingIssueLink,
-			afterRemovingAllLinks: snapshot(),
-		}, {
-			withLinks: [
-				{ id: manualAttachment.id, name: 'Manually attached', icon: undefined },
-				{ id: 'github-context:https://github.com/microsoft/vscode/issues/333845', name: 'microsoft/vscode#333845', icon: Codicon.issues.id },
-				{ id: 'github-context:https://github.com/microsoft/vscode/pull/333575', name: 'microsoft/vscode#333575', icon: Codicon.gitPullRequest.id },
-			],
-			afterRemovingIssueLink: [
-				{ id: manualAttachment.id, name: 'Manually attached', icon: undefined },
-				{ id: 'github-context:https://github.com/microsoft/vscode/pull/333575', name: 'microsoft/vscode#333575', icon: Codicon.gitPullRequest.id },
-			],
-			afterRemovingAllLinks: [
-				{ id: manualAttachment.id, name: 'Manually attached', icon: undefined },
-			],
-		});
-	});
-
-	test('preserves pasted GitHub context after the same target is explicitly attached', () => {
-		const uri = 'https://github.com/microsoft/vscode/issues/333845';
-		let input = `Fix ${uri}`;
-		let attachments: readonly IChatRequestVariableEntry[] = [];
-		const contextAttachments = {
-			get attachments() { return attachments; },
-			addAttachments: (...entries: IChatRequestVariableEntry[]) => attachments = [...attachments, ...entries],
-			setAttachments: (entries: readonly IChatRequestVariableEntry[]) => attachments = entries,
-		};
-		const syncHarness: ISyncInputGitHubContextHarness = {
-			_editor: { getValue: () => input },
-			_contextAttachments: contextAttachments,
-		};
-
-		syncInputGitHubContext.call(syncHarness);
-		attachTextContext.call(
-			{ _contextAttachments: contextAttachments },
-			'microsoft/vscode#333845',
-			`GitHub context: ${uri}`,
-			Codicon.issues,
-			`github-context:${uri}`,
-		);
-		input = '';
-		syncInputGitHubContext.call(syncHarness);
-
-		assert.deepStrictEqual(attachments.map(attachment => ({
-			id: attachment.id,
-			name: attachment.name,
-			icon: ThemeIcon.isThemeIcon(attachment.icon) ? attachment.icon.id : undefined,
-		})), [{
-			id: `github-context:${uri}`,
-			name: 'microsoft/vscode#333845',
-			icon: Codicon.issues.id,
-		}]);
 	});
 
 	test('renders GitHub context pills as openable with a keyboard-reachable remove button', async () => {

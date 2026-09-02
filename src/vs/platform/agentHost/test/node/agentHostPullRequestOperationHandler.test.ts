@@ -362,6 +362,35 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		});
 	});
 
+	test('creates a draft pull request and enables Agent Merge', async () => {
+		const gitService = new TestGitService();
+		const octoKitService = new TestOctoKitService();
+		const { handler, session, sessionConfigUpdates } = setup(disposables, gitService, octoKitService, {
+			draft: true,
+			enableAgentMerge: true,
+		});
+
+		const result = await handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: AgentHostPullRequestOperationHandler.OPERATION_CREATE_DRAFT_PR_AGENT_MERGE }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			message: result.message,
+			octoCalls: octoKitService.calls,
+			sessionConfigUpdates,
+		}, {
+			message: { markdown: 'Created draft pull request [#123](https://github.com/microsoft/vscode/pull/123) and enabled Agent Merge.' },
+			octoCalls: [
+				'findPullRequestByHeadBranch:feature/test',
+				'createPullRequest:true',
+			],
+			sessionConfigUpdates: [{
+				[SessionConfigKey.AgentMerge]: {
+					enabled: true,
+				},
+				[SessionConfigKey.AgentMergeController]: {},
+			}],
+		});
+	});
+
 	test('creates a generated branch before committing when the current branch is the base branch', async () => {
 		const gitService = new TestGitService();
 		gitService.uncommitted = true;
