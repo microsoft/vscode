@@ -194,7 +194,7 @@ suite('ChatAgentMergeContentPart file labels', () => {
 		], [
 			[],
 			[],
-			['Review Feedback', 'Checks'],
+			['Feedback', 'Checks'],
 		]);
 	});
 });

@@ -272,7 +272,7 @@ export class ChatAgentMergeContentPart extends Disposable {
 
 		const section = dom.append(body, dom.$('.chat-agent-merge-section'));
 		if (this._summary.failedChecks.length > 0) {
-			dom.append(section, dom.$('.chat-agent-merge-section-title', undefined, localize('chat.agentMerge.commentsTitle', "Review Feedback")));
+			dom.append(section, dom.$('.chat-agent-merge-section-title', undefined, localize('chat.agentMerge.commentsTitle', "Feedback")));
 		}
 
 		const fileElements = new Map<string, HTMLElement>();
