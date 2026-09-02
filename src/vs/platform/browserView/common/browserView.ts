@@ -456,6 +456,10 @@ export function isInMemoryStorageScope(scope: BrowserViewStorageScope): boolean 
 	return scope === BrowserViewStorageScope.Ephemeral || scope === BrowserViewStorageScope.Agent;
 }
 
+export function isBrowserViewStorageScopeShareableWithAgent(scope: BrowserViewStorageScope, networkFilteringEnabled: boolean): boolean {
+	return !networkFilteringEnabled || scope === BrowserViewStorageScope.Agent;
+}
+
 /** Selects an existing browser context by ID or resolves one from storage options. */
 export type BrowserViewSessionSelector = string | IBrowserViewSessionOptions;
 
