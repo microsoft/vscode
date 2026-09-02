@@ -5,10 +5,12 @@
 
 import { IReference, ReferenceCollection } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentSession } from '../common/agentService.js';
-import { ISessionDatabase, ISessionDataService, SESSION_DB_FILENAME } from '../common/sessionDataService.js';
+import { AgentSession } from '../common/agent.js';
+import { DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX } from '../common/meta/agentDevContainerWorktreeMeta.js';
+import { ISessionDatabase, ISessionDataService, IWillDeleteSessionDataEvent, SESSION_DB_FILENAME } from '../common/sessionDataService.js';
 import { SessionDatabase } from './sessionDatabase.js';
 
 class SessionDatabaseCollection extends ReferenceCollection<ISessionDatabase> {
@@ -50,6 +52,11 @@ export class SessionDataService implements ISessionDataService {
 
 	private readonly _basePath: URI;
 	private readonly _databases: SessionDatabaseCollection;
+	private readonly _onWillDeleteSessionData = new Emitter<IWillDeleteSessionDataEvent>();
+
+	get onWillDeleteSessionData(): Event<IWillDeleteSessionDataEvent> {
+		return this._onWillDeleteSessionData.event;
+	}
 
 	constructor(
 		userDataPath: URI,
@@ -65,7 +72,7 @@ export class SessionDataService implements ISessionDataService {
 	}
 
 	getSessionDataDir(session: URI): URI {
-		return this.getSessionDataDirById(AgentSession.id(session));
+		return URI.joinPath(this._basePath, this._sanitizedSessionKey(session));
 	}
 
 	getSessionDataDirById(sessionId: string): URI {
@@ -74,7 +81,21 @@ export class SessionDataService implements ISessionDataService {
 	}
 
 	private _sanitizedSessionKey(session: URI): string {
-		return AgentSession.id(session).replace(/[^a-zA-Z0-9_.-]/g, '-');
+		return this._dataKey(session).replace(/[^a-zA-Z0-9_.-]/g, '-');
+	}
+
+	/**
+	 * Derives the per-URI storage key. Chat channel URIs
+	 * (`ahp-chat://<chatId>/<base64(session)>`) carry the chat id in the
+	 * authority while encoding the SAME owning-session URI in the path, so
+	 * keying only by the path (via {@link AgentSession.id}) would collapse
+	 * every peer chat of a session onto one data directory and database.
+	 * Prefixing with the authority gives each chat its own storage while
+	 * leaving plain session URIs (no authority) unchanged.
+	 */
+	private _dataKey(uri: URI): string {
+		const id = AgentSession.id(uri);
+		return uri.authority ? `${uri.authority}-${id}` : id;
 	}
 
 	openDatabase(session: URI): IReference<ISessionDatabase> {
@@ -90,8 +111,30 @@ export class SessionDataService implements ISessionDataService {
 		return this._databases.acquire(key);
 	}
 
-	async deleteSessionData(session: URI): Promise<void> {
+	async deleteSessionData(session: URI, workingDirectories?: readonly string[]): Promise<void> {
 		const dir = this.getSessionDataDir(session);
+		// Fire the will-delete event first so subscribers (notably the
+		// checkpoint service) can perform async cleanup that needs the
+		// database to still be readable. `waitUntil` collects each
+		// subscriber's promise; we await them all before touching disk.
+		const pending: Promise<unknown>[] = [];
+		try {
+			this._onWillDeleteSessionData.fire({
+				session,
+				workingDirectories,
+				waitUntil: p => { pending.push(p); },
+			});
+		} catch (err) {
+			this._logService.warn(`[SessionDataService] onWillDeleteSessionData listener threw synchronously: ${dir.toString()}`, err);
+		}
+		if (pending.length > 0) {
+			const results = await Promise.allSettled(pending);
+			for (const r of results) {
+				if (r.status === 'rejected') {
+					this._logService.warn(`[SessionDataService] onWillDeleteSessionData waitUntil rejected: ${dir.toString()}`, r.reason);
+				}
+			}
+		}
 		try {
 			if (await this._fileService.exists(dir)) {
 				await this._fileService.del(dir, { recursive: true });
@@ -120,7 +163,7 @@ export class SessionDataService implements ISessionDataService {
 					continue;
 				}
 				const name = child.name;
-				if (!knownSessionIds.has(name)) {
+				if (!knownSessionIds.has(name) && !name.startsWith(DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX)) {
 					this._logService.trace(`[SessionDataService] Cleaning up orphaned session data: ${name}`);
 					deletions.push(
 						this._fileService.del(child.resource, { recursive: true }).catch(err => {
@@ -134,6 +177,14 @@ export class SessionDataService implements ISessionDataService {
 		} catch (err) {
 			this._logService.warn('[SessionDataService] Failed to run orphan cleanup', err);
 		}
+	}
+
+	async listSessionDataIds(prefix: string): Promise<readonly string[]> {
+		if (!await this._fileService.exists(this._basePath)) {
+			return [];
+		}
+		const stat = await this._fileService.resolve(this._basePath);
+		return stat.children?.filter(child => child.isDirectory && child.name.startsWith(prefix)).map(child => child.name) ?? [];
 	}
 
 	async whenIdle(): Promise<void> {

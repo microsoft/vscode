@@ -24,10 +24,40 @@ export function getImageDimensions(base64: string) {
 	}
 }
 
+export function getImageDimensionsFromBytes(data: Uint8Array, mimeType: string | undefined) {
+	switch (normalizeMimeType(mimeType)) {
+		case 'image/png':
+			return getPngDimensionsFromBytes(data);
+		case 'image/gif':
+			return getGifDimensionsFromBytes(data);
+		case 'image/jpeg':
+		case 'image/jpg':
+			return getJpegDimensionsFromBytes(data);
+		case 'image/webp':
+			return getWebPDimensionsFromBytes(data);
+		default:
+			throw new Error('Unsupported image format');
+	}
+}
+
 export function getPngDimensions(base64: string) {
-	const header = atob(base64.slice(0, 50)).slice(16, 24);
-	const uint8 = Uint8Array.from(header, c => c.charCodeAt(0));
-	const dataView = new DataView(uint8.buffer);
+	return getPngDimensionsFromBytes(base64ToBytes(base64.slice(0, 50)));
+}
+
+export function getGifDimensions(base64: string) {
+	return getGifDimensionsFromBytes(base64ToBytes(base64.slice(0, 50)));
+}
+
+export function getJpegDimensions(base64: string) {
+	return getJpegDimensionsFromBytes(base64ToBytes(base64));
+}
+
+function getPngDimensionsFromBytes(data: Uint8Array) {
+	if (!hasBytes(data, 0, [0x89, 0x50, 0x4E, 0x47])) {
+		throw new Error('Not a valid PNG image.');
+	}
+
+	const dataView = new DataView(data.buffer, data.byteOffset + 16, 8);
 
 	return {
 		width: dataView.getUint32(0, false),
@@ -35,29 +65,33 @@ export function getPngDimensions(base64: string) {
 	};
 }
 
-export function getGifDimensions(base64: string) {
-	const header = atob(base64.slice(0, 50));
-	const uint8 = Uint8Array.from(header, c => c.charCodeAt(0));
-	const dataView = new DataView(uint8.buffer);
+function getGifDimensionsFromBytes(data: Uint8Array) {
+	if (!hasAsciiSequence(data, 0, 'GIF8')) {
+		throw new Error('Not a valid GIF image.');
+	}
+
+	const dataView = new DataView(data.buffer, data.byteOffset + 6, 4);
 
 	return {
-		width: dataView.getUint16(6, true),
-		height: dataView.getUint16(8, true)
+		width: dataView.getUint16(0, true),
+		height: dataView.getUint16(2, true)
 	};
 }
 
-export function getJpegDimensions(base64: string) {
-	const binary = atob(base64);
-	const uint8 = Uint8Array.from(binary, c => c.charCodeAt(0));
-	const length = uint8.length;
+function getJpegDimensionsFromBytes(data: Uint8Array) {
+	if (!hasBytes(data, 0, [0xFF, 0xD8])) {
+		throw new Error('Not a valid JPEG image.');
+	}
+
+	const length = data.length;
 	let offset = 2;
 
-	while (offset < length) {
-		const marker = (uint8[offset] << 8) | uint8[offset + 1];
-		const segmentLength = (uint8[offset + 2] << 8) | uint8[offset + 3];
+	while (offset + 3 < length) {
+		const marker = (data[offset] << 8) | data[offset + 1];
+		const segmentLength = (data[offset + 2] << 8) | data[offset + 3];
 
 		if (marker >= 0xFFC0 && marker <= 0xFFC2) {
-			const dataView = new DataView(uint8.buffer, offset + 5, 4);
+			const dataView = new DataView(data.buffer, data.byteOffset + offset + 5, 4);
 			return {
 				height: dataView.getUint16(0, false),
 				width: dataView.getUint16(2, false)
@@ -71,17 +105,15 @@ export function getJpegDimensions(base64: string) {
 }
 
 export function getWebPDimensions(base64String: string) {
-	const binaryString = atob(base64String);
-	const binaryData = new Uint8Array(binaryString.length);
-	for (let i = 0; i < binaryString.length; i++) {
-		binaryData[i] = binaryString.charCodeAt(i);
-	}
+	return getWebPDimensionsFromBytes(base64ToBytes(base64String));
+}
 
-	if (binaryString.slice(0, 4) !== 'RIFF' || binaryString.slice(8, 12) !== 'WEBP') {
+function getWebPDimensionsFromBytes(binaryData: Uint8Array) {
+	if (!hasAsciiSequence(binaryData, 0, 'RIFF') || !hasAsciiSequence(binaryData, 8, 'WEBP')) {
 		throw new Error('Not a valid WebP image.');
 	}
 
-	const chunkHeader = binaryString.slice(12, 16);
+	const chunkHeader = readAscii(binaryData, 12, 4);
 
 	if (chunkHeader === 'VP8 ') {
 		const width = (binaryData[26] | (binaryData[27] << 8)) & 0x3FFF;
@@ -98,6 +130,37 @@ export function getWebPDimensions(base64String: string) {
 	} else {
 		throw new Error('Unsupported WebP format.');
 	}
+}
+
+function normalizeMimeType(mimeType: string | undefined): string | undefined {
+	return mimeType?.toLowerCase().split(';')[0].trim();
+}
+
+function base64ToBytes(base64: string): Uint8Array {
+	const binary = atob(base64);
+	return Uint8Array.from(binary, char => char.codePointAt(0) ?? 0);
+}
+
+function hasBytes(data: Uint8Array, offset: number, bytes: readonly number[]): boolean {
+	for (let index = 0; index < bytes.length; index++) {
+		if (data[offset + index] !== bytes[index]) {
+			return false;
+		}
+	}
+	return true;
+}
+
+function hasAsciiSequence(data: Uint8Array, offset: number, sequence: string): boolean {
+	for (let index = 0; index < sequence.length; index++) {
+		if (data[offset + index] !== sequence.codePointAt(index)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+function readAscii(data: Uint8Array, offset: number, length: number): string {
+	return String.fromCodePoint(...data.subarray(offset, offset + length));
 }
 
 export function getMimeType(base64String: string): string | undefined {

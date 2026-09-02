@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { h } from '../../../../../../../base/browser/dom.js';
+import { createPixelSpinner } from '../../../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { isMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -21,19 +22,21 @@ import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { extractImagesFromToolInvocationOutputDetails } from '../../../../common/chatImageExtraction.js';
 import { TerminalToolAutoExpand } from './terminalToolAutoExpand.js';
 import { ChatCollapsibleContentPart } from '../chatCollapsibleContentPart.js';
-import { IChatRendererContent } from '../../../../common/model/chatViewModel.js';
+import { IChatRendererContent, isResponseVM } from '../../../../common/model/chatViewModel.js';
 import '../media/chatTerminalToolProgressPart.css';
 import type { ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { Action, IAction } from '../../../../../../../base/common/actions.js';
 import { ActionBar } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { timeout } from '../../../../../../../base/common/async.js';
-import { IAhpTerminalCommandSource, IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../../terminal/browser/terminal.js';
+import { IAhpTerminalCommandSource, IChatTerminalOutputSource, IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { DecorationSelector, getTerminalCommandDecorationState, getTerminalCommandDecorationTooltip } from '../../../../../terminal/browser/xterm/decorationStyles.js';
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../../../../../base/common/keyCodes.js';
 import { DomScrollableElement } from '../../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../../../base/common/scrollable.js';
 import { localize } from '../../../../../../../nls.js';
@@ -56,7 +59,7 @@ import { isNumber } from '../../../../../../../base/common/types.js';
 import { removeAnsiEscapeCodes } from '../../../../../../../base/common/strings.js';
 import { PANEL_BACKGROUND } from '../../../../../../common/theme.js';
 import { editorBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
-import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
+import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
 
 /**
@@ -137,11 +140,19 @@ interface ITerminalCommandDecorationOptions {
 	 * Used to access command metadata for the decoration.
 	 */
 	getResolvedCommand(): ITerminalCommand | undefined;
+
+	/**
+	 * Returns whether the tool invocation is currently running.
+	 */
+	getIsRunning(): boolean;
+
+	/** Returns a structured exit code that may arrive without command detection. */
+	getExitCode(): number | undefined;
 }
 
 class TerminalCommandDecoration extends Disposable {
 	private readonly _element: HTMLElement;
-	private _interactionElement: HTMLElement | undefined;
+	private _hoverRegistered = false;
 
 	constructor(
 		private readonly _options: ITerminalCommandDecorationOptions,
@@ -150,6 +161,7 @@ class TerminalCommandDecoration extends Disposable {
 		super();
 		const decorationElements = h('span.chat-terminal-command-decoration@decoration', { role: 'img', tabIndex: 0 });
 		this._element = decorationElements.decoration;
+		this._register(createPixelSpinner(this._element));
 		this._attachElementToContainer();
 	}
 
@@ -169,16 +181,18 @@ class TerminalCommandDecoration extends Disposable {
 			}
 		}
 
-		this._register(this._hoverService.setupDelayedHover(decoration, () => ({
-			content: this._getHoverText()
-		})));
-		this._attachInteractionHandlers(decoration);
+		if (!this._hoverRegistered) {
+			this._hoverRegistered = true;
+			this._register(this._hoverService.setupDelayedHover(decoration, () => ({
+				content: this._getHoverText()
+			})));
+		}
 	}
 
 	private _getHoverText(): string {
 		const command = this._options.getResolvedCommand();
-		const storedState = this._options.terminalData.terminalCommandState;
-		return getTerminalCommandDecorationTooltip(command, storedState) || '';
+		const { effectiveCommand, storedState } = this._getDecorationInput(command);
+		return getTerminalCommandDecorationTooltip(effectiveCommand, storedState) || '';
 	}
 
 	public update(command?: ITerminalCommand): void {
@@ -190,9 +204,7 @@ class TerminalCommandDecoration extends Disposable {
 
 	private _apply(decoration: HTMLElement, command: ITerminalCommand | undefined): void {
 		const terminalData = this._options.terminalData;
-		let storedState = terminalData.terminalCommandState;
-
-		if (command) {
+		if (terminalData.isPty !== false && command) {
 			const existingState = terminalData.terminalCommandState ?? {};
 			terminalData.terminalCommandState = {
 				...existingState,
@@ -200,22 +212,24 @@ class TerminalCommandDecoration extends Disposable {
 				timestamp: command.timestamp ?? existingState.timestamp,
 				duration: command.duration ?? existingState.duration
 			};
-			storedState = terminalData.terminalCommandState;
-		} else if (!storedState) {
+		} else if (terminalData.isPty !== false && !terminalData.terminalCommandState) {
 			const now = Date.now();
 			terminalData.terminalCommandState = { exitCode: undefined, timestamp: now };
-			storedState = terminalData.terminalCommandState;
 		}
 
-		const decorationState = getTerminalCommandDecorationState(command, storedState);
-		const tooltip = getTerminalCommandDecorationTooltip(command, storedState);
+		const { effectiveCommand, storedState } = this._getDecorationInput(command);
+		const decorationState = getTerminalCommandDecorationState(effectiveCommand, storedState);
+		const tooltip = getTerminalCommandDecorationTooltip(effectiveCommand, storedState);
+
+		const isRunning = this._options.getIsRunning();
 
 		decoration.className = `chat-terminal-command-decoration ${DecorationSelector.CommandDecoration}`;
-		decoration.classList.add(DecorationSelector.Codicon);
-		for (const className of decorationState.classNames) {
-			decoration.classList.add(className);
+		if (isRunning) {
+			const nonIconClasses = decorationState.classNames.filter(c => c !== DecorationSelector.Codicon && !c.startsWith('codicon-'));
+			decoration.classList.add('chat-terminal-running-spinner', ...nonIconClasses);
+		} else {
+			decoration.classList.add(DecorationSelector.Codicon, ...decorationState.classNames, ...ThemeIcon.asClassNameArray(decorationState.icon));
 		}
-		decoration.classList.add(...ThemeIcon.asClassNameArray(decorationState.icon));
 		const isInteractive = !decoration.classList.contains(DecorationSelector.Default);
 		decoration.tabIndex = isInteractive ? 0 : -1;
 		if (isInteractive) {
@@ -231,12 +245,22 @@ class TerminalCommandDecoration extends Disposable {
 		}
 	}
 
-	private _attachInteractionHandlers(decoration: HTMLElement): void {
-		if (this._interactionElement === decoration) {
-			return;
+	private _getDecorationInput(command: ITerminalCommand | undefined): {
+		effectiveCommand: ITerminalCommand | undefined;
+		storedState: IChatTerminalToolInvocationData['terminalCommandState'];
+	} {
+		let storedState = this._options.terminalData.terminalCommandState;
+		if (this._options.terminalData.isPty !== false) {
+			return { effectiveCommand: command, storedState };
 		}
-		this._interactionElement = decoration;
+		const exitCode = this._options.getExitCode();
+		storedState = exitCode === undefined ? storedState : { ...storedState, exitCode };
+		return {
+			effectiveCommand: command?.exitCode === undefined && storedState?.exitCode !== undefined ? undefined : command,
+			storedState
+		};
 	}
+
 }
 
 /**
@@ -284,11 +308,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _commandText: string;
 	private readonly _isSerializedInvocation: boolean;
 	private _terminalInstance: ITerminalInstance | undefined;
+	private _outputSource: IChatTerminalOutputSource | undefined;
+	private readonly _outputSourceListener = this._register(new MutableDisposable<IDisposable>());
 	private readonly _decoration: TerminalCommandDecoration;
 	private _userToggledOutput: boolean = false;
 	private _isInThinkingContainer: boolean = false;
 	private _usesCollapsibleWrapper: boolean = false;
 	private _thinkingCollapsibleWrapper: ChatTerminalThinkingCollapsibleWrapper | undefined;
+	private readonly _forceExpandTerminalOutput: boolean;
 
 	private markdownPart: ChatMarkdownContentPart | undefined;
 	public get codeblocks(): IChatCodeBlockInfo[] {
@@ -301,6 +328,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	public get contentIndex(): number {
 		return this._contentIndex;
+	}
+
+	public get terminalToolSessionId(): string | undefined {
+		return this._terminalData.terminalToolSessionId;
 	}
 
 	constructor(
@@ -326,6 +357,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._elementIndex = context.elementIndex;
 		this._contentIndex = context.contentIndex;
 		this._sessionResource = context.element.sessionResource;
+		this._forceExpandTerminalOutput = isResponseVM(context.element) && context.element.isTerminalCommand;
 
 		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
 		this._terminalData = terminalData;
@@ -348,7 +380,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			terminalData: this._terminalData,
 			getCommandBlock: () => elements.commandBlock,
 			getIconElement: () => undefined,
-			getResolvedCommand: () => this._getResolvedCommand()
+			getResolvedCommand: () => this._getResolvedCommand(),
+			getIsRunning: () => this._isInvocationRunning(),
+			getExitCode: () => this._outputSource?.exitCode,
 		}));
 
 		// Use presentationOverrides for display if available (e.g., extracted Python code with syntax highlighting)
@@ -372,9 +406,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			ChatTerminalToolOutputSection,
 			() => this._ensureTerminalInstance(),
 			() => this._getResolvedCommand(),
+			() => this._outputSource,
 			() => this._terminalData.terminalCommandOutput,
 			() => this._commandText,
 			() => this._terminalData.terminalTheme,
+			() => this._isInvocationRunning(),
 			!!this._terminalData.terminalToolSessionId,
 		));
 		// Only append the output section if there's a terminal session or stored output;
@@ -406,16 +442,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			initializeTerminalActionsOnce();
 		});
 
-		// Listen for continue in background — updates toolbar to auto-hide the action
 		const terminalToolSessionId = this._terminalData.terminalToolSessionId;
 		if (terminalToolSessionId) {
-			this._register(this._terminalChatService.onDidContinueInBackground(sessionId => {
-				if (sessionId === terminalToolSessionId) {
-					this._terminalData.didContinueInBackground = true;
-					this._toolbarCanContinueInBackground = false;
-					this._updateToolbarActions();
-				}
-			}));
+			if (this._terminalData.isPty === false) {
+				this._attachOutputSource();
+			}
 		}
 		let pastTenseMessage: string | undefined;
 		if (toolInvocation.pastTenseMessage) {
@@ -450,7 +481,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		elements.message.append(this.markdownPart.domNode);
 		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, this.getIcon(), terminalData.autoApproveInfo));
+		progressPart.domNode.classList.add('chat-terminal-progress-row');
 		this._decoration.update();
+		if (toolInvocation.kind === 'toolInvocation') {
+			this._register(autorun(reader => {
+				toolInvocation.state.read(reader);
+				this._decoration.update();
+			}));
+		}
 
 		// Keep thinking-container semantics separate from wrapper semantics.
 		const terminalToolsInThinking = this._configurationService.getValue<boolean>(ChatConfiguration.TerminalToolsInThinking);
@@ -469,7 +507,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		// Only auto-expand in thinking containers if there's actual output to show
 		const hasStoredOutput = !!terminalData.terminalCommandOutput;
-		if (expandedStateByInvocation.get(toolInvocation) || (this._isInThinkingContainer && IChatToolInvocation.isComplete(toolInvocation) && hasStoredOutput)) {
+		const storedExpandedState = expandedStateByInvocation.get(toolInvocation);
+		const hasStoredExpandedState = expandedStateByInvocation.has(toolInvocation);
+		if (storedExpandedState || (!hasStoredExpandedState && this._forceExpandTerminalOutput) || (this._isInThinkingContainer && IChatToolInvocation.isComplete(toolInvocation) && hasStoredOutput)) {
 			void this._toggleOutput(true);
 		}
 		this._register(this._terminalChatService.registerProgressPart(this));
@@ -493,7 +533,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				return;
 			}
 
-			const widget = this._register(this._instantiationService.createInstance(ChatResourceGroupWidget, imageParts));
+			const widget = this._register(this._instantiationService.createInstance(ChatResourceGroupWidget, imageParts, undefined));
 
 			if (this._thinkingCollapsibleWrapper) {
 				// Reparent the single widget between inner (expanded) and outer (collapsed)
@@ -532,21 +572,29 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			? commandText.substring(0, MAX_COMMAND_TITLE_LENGTH) + '...'
 			: commandText;
 
-		const isComplete = IChatToolInvocation.isComplete(toolInvocation);
+		// A background terminal may have its tool invocation marked complete (the
+		// tool returned) while the terminal command is still running. Detect this
+		// so the wrapper shows "Running … in background" instead of "Ran …".
+		const toolInvocationComplete = IChatToolInvocation.isComplete(toolInvocation);
+		const isRunningInBackground = toolInvocationComplete && this._isInvocationRunning();
+		const isComplete = toolInvocationComplete && !isRunningInBackground;
 		const isSkipped = IChatToolInvocation.executionConfirmedOrDenied(toolInvocation)?.type === ToolConfirmKind.Skipped;
 		const autoExpandFailures = this._configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures);
 		const hasError = autoExpandFailures && this._terminalData.terminalCommandState?.exitCode !== undefined && this._terminalData.terminalCommandState.exitCode !== 0;
-		const initialExpanded = !isComplete || hasError;
+		const initialExpanded = !isComplete || hasError || this._forceExpandTerminalOutput;
 
 		const wrapper = this._register(this._instantiationService.createInstance(
 			ChatTerminalThinkingCollapsibleWrapper,
 			truncatedCommand,
+			this._terminalData.intention,
 			this._terminalData.commandLine.isSandboxWrapped === true,
 			contentElement,
 			context,
 			initialExpanded,
 			isComplete,
-			isSkipped
+			isSkipped,
+			isRunningInBackground,
+			this._terminalData.isPty === false ? undefined : () => this.focusTerminal(),
 		));
 		this._thinkingCollapsibleWrapper = wrapper;
 
@@ -580,6 +628,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const terminalToolSessionId = this._terminalData.terminalToolSessionId;
 		if (!terminalToolSessionId) {
 			this._updateToolbarContextKeys();
+			return;
+		}
+		if (this._terminalData.isPty === false) {
+			this._attachOutputSource();
+			this._updateToolbarContextKeys(undefined, terminalToolSessionId);
 			return;
 		}
 
@@ -655,14 +708,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		// Show output action (only when NOT using collapsible wrapper)
 		if (!this._usesCollapsibleWrapper) {
-			const hasSnapshot = !!this._terminalData.terminalCommandOutput;
+			const hasSnapshot = !!this._terminalData.terminalCommandOutput || !!this._outputSource?.output;
 			const hasOutput = !!resolvedCommand || hasSnapshot;
 			this._toolbarHasOutput = hasOutput;
 
 			// Auto-expand on first detection of failed output
 			if (hasOutput && !this._outputView.isExpanded) {
 				const autoExpandFailures = this._configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures);
-				const exitCode = resolvedCommand?.exitCode ?? this._terminalData.terminalCommandState?.exitCode;
+				const exitCode = resolvedCommand?.exitCode ?? this._outputSource?.exitCode ?? this._terminalData.terminalCommandState?.exitCode;
 				if (exitCode !== undefined && exitCode !== 0 && autoExpandFailures) {
 					this._toggleOutput(true);
 				}
@@ -687,7 +740,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			const action = new Action(
 				TerminalContribCommandId.ContinueInBackground,
 				localize('continueInBackground', 'Continue in Background'),
-				ThemeIcon.asClassName(Codicon.debugContinue),
+				ThemeIcon.asClassName(Codicon.debugContinueSmall),
 				true,
 				() => this.continueInBackground()
 			);
@@ -734,6 +787,33 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		return this._resolveCommand(target);
 	}
 
+	private _isInvocationRunning(): boolean {
+		const currentTerminalData = this.toolInvocation.toolSpecificData?.kind === 'terminal'
+			? migrateLegacyTerminalToolSpecificData(this.toolInvocation.toolSpecificData)
+			: this._terminalData;
+		if (currentTerminalData.isPty === false) {
+			if (this._outputSource?.exitCode !== undefined || currentTerminalData.terminalCommandState?.exitCode !== undefined) {
+				return false;
+			}
+			if (!IChatToolInvocation.isComplete(this.toolInvocation)) {
+				return true;
+			}
+			return currentTerminalData.isBackground === true || currentTerminalData.didContinueInBackground === true;
+		}
+		const commandExitCode = this._getResolvedCommand()?.exitCode;
+		if (commandExitCode !== undefined) {
+			return false;
+		}
+		const storedExitCode = currentTerminalData.terminalCommandState?.exitCode;
+		if (storedExitCode !== undefined) {
+			return false;
+		}
+		if (!IChatToolInvocation.isComplete(this.toolInvocation)) {
+			return true;
+		}
+		return currentTerminalData.isBackground === true || currentTerminalData.didContinueInBackground === true;
+	}
+
 	private _clearCommandAssociation(options?: { clearPersistentData?: boolean }): void {
 		this._terminalCommandUri = undefined;
 		if (options?.clearPersistentData) {
@@ -756,6 +836,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		return !this._outputView.isExpanded &&
 			!this._userToggledOutput &&
 			!this._store.isDisposed &&
+			(!this._forceExpandTerminalOutput || !expandedStateByInvocation.has(this.toolInvocation)) &&
 			!expandedStateByInvocation.get(this.toolInvocation);
 	}
 
@@ -918,6 +999,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				this._terminalData.terminalCommandId = cmd.id;
 				this._updateToolbarContextKeys(terminalInstance, this._terminalData.terminalToolSessionId);
 			}
+			if (this._outputView.isExpanded) {
+				void this._toggleOutput(true);
+			}
 		}));
 
 		store.add(ahpSource.onCommandFinished(cmd => {
@@ -949,7 +1033,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this.markCollapsibleWrapperComplete();
 
 		// Auto-collapse on success (exit code 0)
-		if (resolvedCommand?.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput) {
+		if (resolvedCommand?.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput && !this._forceExpandTerminalOutput) {
 			this._toggleOutput(false);
 		}
 
@@ -963,7 +1047,13 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private async _toggleOutput(expanded: boolean): Promise<boolean> {
 		const didChange = await this._outputView.toggle(expanded);
 		const isExpanded = this._outputView.isExpanded;
-		this._titleElement.classList.toggle('chat-terminal-content-title-no-bottom-radius', isExpanded);
+		// Only drop the title's bottom border/radius when the output section is
+		// actually rendered below the title to visually close the box. Display-only
+		// invocations (e.g. a denied command with no terminal session or output) never
+		// append the output section (see constructor), so removing the title's bottom
+		// border here would leave an open-bottomed box.
+		const hasOutputSection = !!this._outputView.domNode.parentElement;
+		this._titleElement.classList.toggle('chat-terminal-content-title-no-bottom-radius', isExpanded && hasOutputSection);
 		this._toolbarOutputExpanded = isExpanded;
 		this._updateToolbarActions();
 		if (didChange) {
@@ -973,6 +1063,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	private async _ensureTerminalInstance(): Promise<ITerminalInstance | undefined> {
+		if (this._terminalData.isPty === false) {
+			return undefined;
+		}
 		if (this._terminalInstance?.isDisposed) {
 			this._terminalInstance = undefined;
 		}
@@ -983,6 +1076,53 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			}
 		}
 		return this._terminalInstance;
+	}
+
+	public didRegisterOutputSource(terminalToolSessionId: string): void {
+		if (this._terminalData.isPty === false && this._terminalData.terminalToolSessionId === terminalToolSessionId) {
+			this._attachOutputSource();
+		}
+	}
+
+	private _attachOutputSource(): void {
+		const source = this._terminalChatService.getOutputSource(this._terminalData.terminalToolSessionId);
+		if (!source || source === this._outputSource) {
+			return;
+		}
+		this._outputSource = source;
+		const store = new DisposableStore();
+		const onCommandExecuted = store.add(new Emitter<void>());
+		const onCommandFinished = store.add(new Emitter<void>());
+		const autoExpand = store.add(new TerminalToolAutoExpand({
+			onCommandExecuted: onCommandExecuted.event,
+			onCommandFinished: onCommandFinished.event,
+			onWillData: source.onDidChange,
+			shouldAutoExpand: () => this._shouldAutoExpand(),
+			hasRealOutput: () => !!source.output,
+		}));
+		store.add(autoExpand.onDidRequestExpand(() => {
+			if (this._usesCollapsibleWrapper) {
+				this.expandCollapsibleWrapper();
+			}
+			void this._toggleOutput(true);
+		}));
+		store.add(source.onDidChange(() => {
+			this._decoration.update();
+			this._updateToolbarContextKeys(undefined, this._terminalData.terminalToolSessionId);
+			void this._outputView.refresh();
+			if (source.hasExited) {
+				onCommandFinished.fire();
+				this.markCollapsibleWrapperComplete();
+			}
+		}));
+		this._outputSourceListener.value = store;
+		onCommandExecuted.fire();
+		if (source.hasExited) {
+			onCommandFinished.fire();
+		}
+		this._decoration.update();
+		this._updateToolbarContextKeys(undefined, this._terminalData.terminalToolSessionId);
+		void this._outputView.refresh();
 	}
 
 	private _handleOutputFocus(): void {
@@ -1019,7 +1159,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	public async focusTerminal(): Promise<void> {
-		const instance = this._terminalInstance;
+		if (this._terminalData.isPty === false) {
+			return;
+		}
+		const instance = await this._ensureTerminalInstance();
 
 		type FocusChatInstanceTelemetryEvent = {
 			target: 'instance' | 'commandUri' | 'none';
@@ -1069,6 +1212,12 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (sessionId) {
 			this._terminalChatService.continueInBackground(sessionId);
 		}
+	}
+
+	public markContinuedInBackground(): void {
+		this._terminalData.didContinueInBackground = true;
+		this._toolbarCanContinueInBackground = false;
+		this._updateToolbarActions();
 	}
 
 	public async toggleOutputFromAction(): Promise<void> {
@@ -1166,7 +1315,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
  * - Accessibility: proper ARIA labels and accessible view support
  * - Theme-aware background color that adapts to panel vs editor context
  */
-class ChatTerminalToolOutputSection extends Disposable {
+export class ChatTerminalToolOutputSection extends Disposable {
 	public readonly domNode: HTMLElement;
 
 	public get isExpanded(): boolean {
@@ -1192,14 +1341,15 @@ class ChatTerminalToolOutputSection extends Disposable {
 	constructor(
 		private readonly _ensureTerminalInstance: () => Promise<ITerminalInstance | undefined>,
 		private readonly _resolveCommand: () => ITerminalCommand | undefined,
+		private readonly _getOutputSource: () => IChatTerminalOutputSource | undefined,
 		private readonly _getTerminalCommandOutput: () => IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined,
 		private readonly _getCommandText: () => string,
 		private readonly _getStoredTheme: () => IChatTerminalToolInvocationData['terminalTheme'] | undefined,
+		private readonly _isInvocationRunning: () => boolean,
 		private readonly _hasTerminalSession: boolean,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
-		@IThemeService private readonly _themeService: IThemeService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
@@ -1227,8 +1377,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatTerminalToolProgressPart.handleResize', () => this._handleResize()));
 		this._register(resizeObserver.observe(this.domNode));
 
-		this._applyBackgroundColor();
-		this._register(this._themeService.onDidColorThemeChange(() => this._applyBackgroundColor()));
+		const backgroundColor = ChatContextKeys.inChatEditor.getValue(this._contextKeyService) ? editorBackground : PANEL_BACKGROUND;
+		this.domNode.style.backgroundColor = asCssVariable(backgroundColor);
 	}
 
 	public async toggle(expanded: boolean): Promise<boolean> {
@@ -1253,10 +1403,17 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 		// Only now show the expanded state (after content is ready)
 		this._setExpanded(true);
+		await this._layoutMirrorWidth();
 		this._layoutOutput();
 		this._scrollOutputToBottom();
 		this._scheduleOutputRelayout();
 		return true;
+	}
+
+	public async refresh(): Promise<void> {
+		if (this.isExpanded) {
+			await this._updateTerminalContent();
+		}
 	}
 
 	public focus(): void {
@@ -1302,7 +1459,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 			return `${commandHeader}\n${lines.join('\n').trimEnd()}`;
 		}
 
-		const snapshot = this._getTerminalCommandOutput();
+		const source = this._getOutputSource();
+		const snapshot = source ? { text: source.output } : this._getTerminalCommandOutput();
 		if (!snapshot) {
 			return `${commandHeader}\n${localize('chatTerminalOutputUnavailable', 'Command output is no longer available.')}`;
 		}
@@ -1357,6 +1515,20 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private async _updateTerminalContent(): Promise<void> {
+		const outputSource = this._getOutputSource();
+		if (outputSource) {
+			this._disposeLiveMirror();
+			if (outputSource.output) {
+				await this._renderSnapshotOutput({ text: outputSource.output });
+			} else if (!outputSource.hasExited) {
+				this._hideEmptyMessage();
+				this._layoutOutput(0);
+			} else {
+				this._showEmptyMessage(localize('chat.terminalOutputEmpty', 'No output was produced by the command.'));
+				this._layoutOutput(0);
+			}
+			return;
+		}
 		const liveTerminalInstance = await this._resolveLiveTerminal();
 		const command = liveTerminalInstance ? this._resolveCommand() : undefined;
 		const snapshot = this._getTerminalCommandOutput();
@@ -1379,6 +1551,12 @@ class ChatTerminalToolOutputSection extends Disposable {
 			return;
 		}
 
+		if (this._isInvocationRunning()) {
+			this._hideEmptyMessage();
+			this._layoutOutput(0);
+			return;
+		}
+
 		this._renderUnavailableMessage(liveTerminalInstance);
 	}
 
@@ -1393,6 +1571,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		}
 		const mirror = this._register(this._instantiationService.createInstance(DetachedTerminalCommandMirror, liveTerminalInstance.xterm, command));
 		this._mirror = mirror;
+		this._register(mirror.onDidChangeRowHeight(() => this._handleMirrorRowHeightChange()));
 		this._register(mirror.onDidUpdate(result => {
 			// Hide empty message as soon as we get output
 			if (result.lineCount && result.lineCount > 0) {
@@ -1410,6 +1589,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 			}
 		}));
 		await mirror.attach(this._terminalContainer);
+		await this._layoutMirrorWidth(mirror);
 		let result = await mirror.renderCommand();
 		// Only show "No output" message if:
 		// 1. Command has finished (has endMarker), AND
@@ -1452,7 +1632,10 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 	private async _renderSnapshotOutput(snapshot: NonNullable<IChatTerminalToolInvocationData['terminalCommandOutput']>): Promise<void> {
 		if (this._snapshotMirror) {
-			this._layoutOutput(snapshot.lineCount ?? this._lastRenderedLineCount ?? 0);
+			this._snapshotMirror.setOutput(snapshot);
+			await this._layoutMirrorWidth(this._snapshotMirror);
+			const result = await this._snapshotMirror.render();
+			this._layoutOutput(result?.lineCount ?? snapshot.lineCount ?? this._lastRenderedLineCount ?? 0);
 			return;
 		}
 		if (this._store.isDisposed) {
@@ -1460,8 +1643,10 @@ class ChatTerminalToolOutputSection extends Disposable {
 		}
 		dom.clearNode(this._terminalContainer);
 		this._snapshotMirror = this._register(this._instantiationService.createInstance(DetachedTerminalSnapshotMirror, snapshot, this._getStoredTheme));
+		this._register(this._snapshotMirror.onDidChangeRowHeight(() => this._handleMirrorRowHeightChange()));
 		await this._snapshotMirror.attach(this._terminalContainer);
 		this._snapshotMirror.setOutput(snapshot);
+		await this._layoutMirrorWidth(this._snapshotMirror);
 		const result = await this._snapshotMirror.render();
 		const hasText = !!snapshot.text && snapshot.text.length > 0;
 		if (hasText) {
@@ -1508,10 +1693,20 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private _scheduleOutputRelayout(): void {
-		dom.getActiveWindow().requestAnimationFrame(() => {
+		dom.getWindow(this.domNode).requestAnimationFrame(() => {
 			this._layoutOutput();
 			this._scrollOutputToBottom();
 		});
+	}
+
+	/**
+	 * The mirror's painted cell metrics changed: the first render replaces the pre-render
+	 * font estimate, and later renders can reflect DPR changes. Re-run layout so the box
+	 * height and wrap width match what xterm actually painted.
+	 */
+	private _handleMirrorRowHeightChange(): void {
+		void this._layoutMirrorWidth();
+		this._layoutOutput();
 	}
 
 	private _handleResize(): void {
@@ -1519,10 +1714,31 @@ class ChatTerminalToolOutputSection extends Disposable {
 			return;
 		}
 		if (this.isExpanded) {
+			void this._layoutMirrorWidth();
 			this._layoutOutput();
 			this._scrollOutputToBottom();
 		} else {
 			this._scrollableContainer.scanDomNode();
+		}
+	}
+
+	/**
+	 * Resizes the mirror's column count to fill the currently available width. No-op while the
+	 * width is unmeasurable (e.g. collapsed); the mirror keeps its current cols until the next
+	 * layout opportunity.
+	 */
+	private async _layoutMirrorWidth(mirror: DetachedTerminalCommandMirror | DetachedTerminalSnapshotMirror | undefined = this._snapshotMirror ?? this._mirror): Promise<void> {
+		if (!mirror) {
+			return;
+		}
+		const width = this._terminalContainer.clientWidth || this._outputBody.clientWidth || this.domNode.clientWidth || (this.domNode.parentElement?.clientWidth ?? 0);
+		if (width <= 0) {
+			return;
+		}
+		const result = await mirror.layout(width);
+		if (!this._store.isDisposed && result?.lineCount !== undefined) {
+			// Re-wrapping can change the number of rendered rows, so refresh the box height
+			this._layoutOutput(result.lineCount);
 		}
 	}
 
@@ -1545,17 +1761,22 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const scrollableDomNode = this._scrollableContainer.getDomNode();
 		const rowHeight = this._computeRowHeightPx();
 		const padding = this._getOutputPadding();
-		const maxHeight = rowHeight * MAX_OUTPUT_ROWS + padding;
-		const contentHeight = this._getOutputContentHeight(lineCount, rowHeight, padding);
-		const clampedHeight = Math.min(contentHeight, maxHeight);
+		// The container carries a CSS max-height with overflow: hidden; keep the row cap
+		// under it so the CSS limit can never slice a row that the height math allowed.
+		let maxRows = MAX_OUTPUT_ROWS;
+		const containerMaxHeight = Number.parseFloat(dom.getComputedStyle(this.domNode).maxHeight);
+		if (!Number.isNaN(containerMaxHeight)) {
+			maxRows = Math.max(Math.min(maxRows, Math.floor((containerMaxHeight - padding) / rowHeight)), MIN_OUTPUT_ROWS);
+		}
+		const contentRows = Math.min(Math.max(lineCount, MIN_OUTPUT_ROWS), maxRows);
 		// Use the line-count-based calculation directly rather than constraining by
 		// _outputBody.clientHeight. The DOM measurement races with xterm's async
 		// rendering — when new lines arrive, clientHeight reflects the stale
 		// (pre-render) size, causing the viewport to be too short and clipping the
-		// last line. The calculated height still has enough headroom because it
-		// includes the output padding and may round slightly differently from
-		// xterm's actual rendered cell height.
-		scrollableDomNode.style.height = clampedHeight < maxHeight ? `${clampedHeight}px` : '';
+		// last line. The height is an exact multiple of the mirror's painted row
+		// height (plus the output padding) with no rounding slack, so the box always
+		// ends on a whole row.
+		scrollableDomNode.style.height = `${contentRows * rowHeight + padding}px`;
 		this._scrollableContainer.scanDomNode();
 	}
 
@@ -1580,11 +1801,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this._isProgrammaticScroll = false;
 	}
 
-	private _getOutputContentHeight(lineCount: number, rowHeight: number, padding: number): number {
-		const contentRows = Math.max(lineCount, MIN_OUTPUT_ROWS);
-		return (contentRows * rowHeight) + padding;
-	}
-
 	private _getOutputPadding(): number {
 		const style = dom.getComputedStyle(this._outputBody);
 		const paddingTop = Number.parseFloat(style.paddingTop || '0');
@@ -1593,7 +1809,14 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private _computeRowHeightPx(): number {
-		const window = dom.getActiveWindow();
+		// Prefer the mirror's own row height: once its renderer has initialized this is the
+		// exact cell height xterm paints, so the box ends on a whole row instead of slicing
+		// the last one via the config-based estimate below.
+		const mirrorRowHeight = (this._snapshotMirror ?? this._mirror)?.getRowHeightPx();
+		if (mirrorRowHeight !== undefined) {
+			return mirrorRowHeight;
+		}
+		const window = dom.getWindow(this.domNode);
 		const font = this._terminalConfigurationService.getFont(window);
 		const hasCharHeight = isNumber(font.charHeight) && font.charHeight > 0;
 		const hasFontSize = isNumber(font.fontSize) && font.fontSize > 0;
@@ -1604,46 +1827,62 @@ class ChatTerminalToolOutputSection extends Disposable {
 		return Math.max(rowHeight, 1);
 	}
 
-	private _applyBackgroundColor(): void {
-		const theme = this._themeService.getColorTheme();
-		const isInEditor = ChatContextKeys.inChatEditor.getValue(this._contextKeyService);
-		const backgroundColor = theme.getColor(isInEditor ? editorBackground : PANEL_BACKGROUND);
-		if (backgroundColor) {
-			this.domNode.style.backgroundColor = backgroundColor.toString();
-		}
-	}
 }
 
 export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart {
 	private readonly _terminalContentElement: HTMLElement;
 	private readonly _commandText: string;
+	private readonly _intention: string | undefined;
 	private readonly _isSandboxWrapped: boolean;
 	private _isComplete: boolean;
 	private readonly _isSkipped: boolean;
+	private _isRunningInBackground: boolean;
+	private readonly _onFocusTerminal: (() => void) | undefined;
+	private readonly _showLinkDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private _showLinkElement: HTMLElement | undefined;
 
 	constructor(
 		commandText: string,
+		intention: string | undefined,
 		isSandboxWrapped: boolean,
 		contentElement: HTMLElement,
 		context: IChatContentPartRenderContext,
 		initialExpanded: boolean,
 		isComplete: boolean,
 		isSkipped: boolean,
+		isRunningInBackground: boolean,
+		onFocusTerminal: (() => void) | undefined,
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		const title = isSkipped
+		// When the model supplied an intention (why it's running the command),
+		// use it as the descriptive text instead of the generic verb. Skipped
+		// commands keep the explicit "Skipped" wording since they never ran.
+		// The intention and command are not localizable, so they are combined
+		// directly; only the state suffix is externalized.
+		const intentionText = intention && !isSkipped ? intention : undefined;
+		const stateTitle = isSkipped
 			? localize('chat.terminal.skipped.plain', "Skipped {0}", commandText)
-			: isComplete
-				? localize('chat.terminal.ran.plain', "Ran {0}", commandText)
-				: localize('chat.terminal.running.plain', "Running {0}", commandText);
+			: isRunningInBackground
+				? localize('chat.terminal.runningInBackground.plain', "Running {0} in background", commandText)
+				: isComplete
+					? localize('chat.terminal.ran.plain', "Ran {0}", commandText)
+					: localize('chat.terminal.running.plain', "Running {0}", commandText);
+		const title = intentionText
+			? isRunningInBackground
+				? `${intentionText} ${commandText}${localize('chat.terminal.backgroundSuffix', " in background")}`
+				: `${intentionText} ${commandText}`
+			: stateTitle;
 		super(title, context, undefined, hoverService, configurationService);
 
 		this._terminalContentElement = contentElement;
 		this._commandText = commandText;
+		this._intention = intentionText;
 		this._isSandboxWrapped = isSandboxWrapped;
 		this._isComplete = isComplete;
 		this._isSkipped = isSkipped;
+		this._isRunningInBackground = isRunningInBackground;
+		this._onFocusTerminal = onFocusTerminal;
 
 		this.domNode.classList.add('chat-terminal-thinking-collapsible');
 
@@ -1652,7 +1891,12 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 		}
 
 		this._setCodeFormattedTitle();
+		this._updateShowLink();
 		this.setExpanded(initialExpanded);
+	}
+
+	protected override shouldAnimateContent(): boolean {
+		return true;
 	}
 
 	private _setCodeFormattedTitle(): void {
@@ -1663,32 +1907,87 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 		const labelElement = this._collapseButton.labelElement;
 		labelElement.textContent = '';
 
-		if (this._isSandboxWrapped) {
-			const prefixText = this._isSkipped
-				? localize('chat.terminal.skippedInSandbox.prefix', "Skipped ")
-				: this._isComplete
-					? localize('chat.terminal.ranInSandbox.prefix', "Ran ")
-					: localize('chat.terminal.runningInSandbox.prefix', "Running ");
-			const suffixText = localize('chat.terminal.sandbox.suffix', " in sandbox");
-			labelElement.appendChild(document.createTextNode(prefixText));
+		const suffixText = this._isSandboxWrapped
+			? this._isRunningInBackground
+				? localize('chat.terminal.sandbox.backgroundSuffix', " in sandbox (background)")
+				: localize('chat.terminal.sandbox.suffix', " in sandbox")
+			: this._isRunningInBackground
+				? localize('chat.terminal.backgroundSuffix', " in background")
+				: undefined;
+
+		// Intention layout: the intention and the command share the row as two
+		// flex cells that stay on one line and each ellipsis-truncate, splitting
+		// the available width equally when the content overflows.
+		this.domNode.classList.toggle('chat-terminal-has-intention', !!this._intention);
+		if (this._intention) {
+			const row = dom.$('span.chat-terminal-label-flex');
+			const intentionElement = dom.$('span.chat-terminal-intention');
+			intentionElement.textContent = this._intention;
+			const commandElement = dom.$('span.chat-terminal-command');
 			const codeElement = document.createElement('code');
 			codeElement.textContent = this._commandText;
-			labelElement.appendChild(codeElement);
-			labelElement.appendChild(document.createTextNode(suffixText));
+			commandElement.appendChild(codeElement);
+			row.appendChild(intentionElement);
+			row.appendChild(commandElement);
+			if (suffixText) {
+				const suffixElement = dom.$('span.chat-terminal-label-suffix');
+				suffixElement.textContent = suffixText;
+				row.appendChild(suffixElement);
+			}
+			labelElement.appendChild(row);
 			return;
 		}
 
-		const prefixText = this._isSkipped
-			? localize('chat.terminal.skipped.prefix', "Skipped ")
-			: this._isComplete
-				? localize('chat.terminal.ran.prefix', "Ran ")
-				: localize('chat.terminal.running.prefix', "Running ");
-		const ranText = document.createTextNode(prefixText);
+		const prefixText = this._isSandboxWrapped
+			? this._isSkipped
+				? localize('chat.terminal.skippedInSandbox.prefix', "Skipped ")
+				: this._isComplete
+					? localize('chat.terminal.ranInSandbox.prefix', "Ran ")
+					: localize('chat.terminal.runningInSandbox.prefix', "Running ")
+			: this._isSkipped
+				? localize('chat.terminal.skipped.prefix', "Skipped ")
+				: this._isComplete
+					? localize('chat.terminal.ran.prefix', "Ran ")
+					: localize('chat.terminal.running.prefix', "Running ");
+		labelElement.appendChild(document.createTextNode(prefixText));
 		const codeElement = document.createElement('code');
 		codeElement.textContent = this._commandText;
-
-		labelElement.appendChild(ranText);
 		labelElement.appendChild(codeElement);
+		if (suffixText) {
+			labelElement.appendChild(document.createTextNode(suffixText));
+		}
+	}
+
+	private _updateShowLink(): void {
+		this._showLinkElement?.remove();
+		this._showLinkElement = undefined;
+		this._showLinkDisposables.value = undefined;
+		if (!this._isRunningInBackground || !this._onFocusTerminal || !this._collapseButton) {
+			return;
+		}
+		const labelElement = this._collapseButton.labelElement;
+		const store = new DisposableStore();
+		this._showLinkDisposables.value = store;
+		const container = dom.$('span.chat-terminal-show-link-container');
+		container.appendChild(document.createTextNode(' \u2014 '));
+		const showLink = dom.$('span.chat-terminal-show-link');
+		showLink.textContent = localize('chat.terminal.showTerminal', "Show");
+		showLink.role = 'button';
+		showLink.tabIndex = 0;
+		store.add(dom.addDisposableListener(showLink, dom.EventType.CLICK, (e) => {
+			dom.EventHelper.stop(e, true);
+			this._onFocusTerminal?.();
+		}));
+		store.add(dom.addDisposableListener(showLink, dom.EventType.KEY_DOWN, (e) => {
+			const keyboardEvent = new StandardKeyboardEvent(e);
+			if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
+				dom.EventHelper.stop(e, true);
+				this._onFocusTerminal?.();
+			}
+		}));
+		container.appendChild(showLink);
+		labelElement.appendChild(container);
+		this._showLinkElement = container;
 	}
 
 	public markComplete(): void {
@@ -1696,8 +1995,10 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 			return;
 		}
 		this._isComplete = true;
+		this._isRunningInBackground = false;
 		this.icon = Codicon.check;
 		this._setCodeFormattedTitle();
+		this._updateShowLink();
 	}
 
 	protected override initContent(): HTMLElement {

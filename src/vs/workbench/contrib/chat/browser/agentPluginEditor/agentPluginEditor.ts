@@ -24,6 +24,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IRequestService, asText } from '../../../../../platform/request/common/request.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -42,7 +43,7 @@ import { AgentPluginEditorInput } from './agentPluginEditorInput.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem } from './agentPluginItems.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { EnablementStatusWidget, pluginEnablementLabels } from '../enablementStatusWidget.js';
-import { InstallPluginAction, UninstallPluginAction, createEnablePluginDropDown, createDisablePluginDropDown, EnablementDropDownAction, EnablementDropdownActionViewItem } from '../agentPluginActions.js';
+import { InstallPluginAction, createUninstallPluginAction, createEnablePluginDropDown, createDisablePluginDropDown, createPolicyBlockedEnableAction, isPluginPolicyBlocked, EnablementDropDownAction, EnablementDropdownActionViewItem } from '../agentPluginActions.js';
 import './media/agentPluginEditor.css';
 
 interface IAgentPluginEditorTemplate {
@@ -223,7 +224,7 @@ export class AgentPluginEditor extends EditorPane {
 				const expectedUri = this.pluginInstallService.getPluginInstallUri({
 					name: item.name,
 					description: item.description,
-					version: '',
+					version: item.version ?? '',
 					source: item.source,
 					sourceDescriptor: item.sourceDescriptor,
 					marketplace: item.marketplace,
@@ -245,6 +246,7 @@ export class AgentPluginEditor extends EditorPane {
 							kind: AgentPluginItemKind.Marketplace,
 							name: item.name,
 							description: mp.description,
+							version: mp.version,
 							source: mp.source,
 							sourceDescriptor: mp.sourceDescriptor,
 							marketplace: mp.marketplace,
@@ -331,9 +333,17 @@ export class AgentPluginEditor extends EditorPane {
 			}
 		}
 
-		actions.push(createEnablePluginDropDown(item.plugin, this.agentPluginService.enablementModel, workspaceService));
-		actions.push(createDisablePluginDropDown(item.plugin, this.agentPluginService.enablementModel, workspaceService));
-		actions.push(new UninstallPluginAction(item.plugin));
+		if (isPluginPolicyBlocked(item.plugin)) {
+			const notificationService = this.instantiationService.invokeFunction(a => a.get(INotificationService));
+			actions.push(createPolicyBlockedEnableAction(item.plugin, notificationService));
+		} else {
+			actions.push(createEnablePluginDropDown(item.plugin, this.agentPluginService.enablementModel, workspaceService));
+			actions.push(createDisablePluginDropDown(item.plugin, this.agentPluginService.enablementModel, workspaceService));
+		}
+		const uninstallAction = createUninstallPluginAction(item.plugin);
+		if (uninstallAction) {
+			actions.push(uninstallAction);
+		}
 		return actions;
 	}
 

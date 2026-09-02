@@ -12,7 +12,7 @@ import { Emitter, Event } from '../../../../common/event.js';
 import { DisposableStore } from '../../../../common/lifecycle.js';
 import { isEqual } from '../../../../common/resources.js';
 import { URI } from '../../../../common/uri.js';
-import { BufferReader, BufferWriter, ClientConnectionEvent, deserialize, IChannel, IMessagePassingProtocol, IPCClient, IPCServer, IServerChannel, ProxyChannel, serialize } from '../../common/ipc.js';
+import { BufferReader, BufferWriter, ChannelClient, ChannelServer, ClientConnectionEvent, deserialize, getDelayedChannel, IChannel, IMessagePassingProtocol, IPCClient, IPCServer, IServerChannel, ProxyChannel, serialize } from '../../common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../test/common/utils.js';
 
 class QueueProtocol implements IMessagePassingProtocol {
@@ -117,6 +117,7 @@ class TestService implements ITestService {
 
 	private readonly _onPong = new Emitter<string>();
 	readonly onPong = this._onPong.event;
+	get hasPongListeners(): boolean { return this._onPong.hasListeners(); }
 
 	marco(): Promise<string> {
 		return Promise.resolve('polo');
@@ -223,6 +224,15 @@ suite('Base IPC', function () {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('delayed channel handles rejected listeners', async () => {
+		const error = new Error('Channel unavailable');
+		const channel = getDelayedChannel<IChannel>(Promise.reject(error));
+		store.add(channel.listen('event')(() => { }));
+
+		await assert.rejects(channel.call('command'), error);
+		await timeout(0);
+	});
+
 	test('createProtocolPair', async function () {
 		const [clientProtocol, serverProtocol] = createProtocolPair();
 
@@ -320,6 +330,48 @@ suite('Base IPC', function () {
 			assert.deepStrictEqual(messages, ['hello', 'world']);
 		});
 
+		test('unbuffered events subscribe lazily', function () {
+			const service = store.add(new TestService());
+			const channelDisposables = store.add(new DisposableStore());
+			const channel = ProxyChannel.fromService(service, channelDisposables, { unbufferedEvents: ['onPong'] });
+			const onPong = channel.listen<string>('context', 'onPong');
+			const messages: string[] = [];
+
+			service.ping('before');
+			assert.strictEqual(service.hasPongListeners, false);
+
+			const listener = channelDisposables.add(onPong(message => messages.push(message)));
+			assert.strictEqual(service.hasPongListeners, true);
+			service.ping('after');
+			channelDisposables.delete(listener);
+
+			assert.deepStrictEqual({ messages, hasPongListeners: service.hasPongListeners }, {
+				messages: ['after'],
+				hasPongListeners: false
+			});
+		});
+
+		test('listen to events (resubscribe)', async function () {
+			const onPong = ipcService.onPong;
+			const messages: string[] = [];
+
+			const disposable1 = onPong(msg => messages.push(msg));
+			await timeout(0);
+			assert.deepStrictEqual(messages, []);
+			service.ping('hello');
+			await timeout(0);
+			assert.deepStrictEqual(messages, ['hello']);
+			disposable1.dispose();
+
+			const disposable2 = onPong(msg => (messages as string[]).push(msg));
+			await timeout(0);
+			assert.deepStrictEqual(messages, ['hello']);
+			service.ping('world');
+			await timeout(0);
+			assert.deepStrictEqual(messages, ['hello', 'world']);
+			disposable2.dispose();
+		});
+
 		test('buffers in arrays', async function () {
 			const r = await ipcService.buffersLength([VSBuffer.alloc(2), VSBuffer.alloc(3)]);
 			return assert.strictEqual(r, 5);
@@ -339,6 +391,53 @@ suite('Base IPC', function () {
 			const writer = new BufferWriter();
 			serialize(writer, input);
 			assert.deepStrictEqual(deserialize(new BufferReader(writer.buffer)), input);
+		});
+
+		test('BufferWriter releases its buffers on dispose', () => {
+			const writer = new BufferWriter();
+			serialize(writer, ['a', 'b', 'c']);
+			assert.ok(writer.buffer.byteLength > 0);
+
+			writer.dispose();
+
+			// After dispose the writer no longer retains the serialized buffers, so
+			// `buffer` is empty. This guards against a thrown error's captured stack
+			// pinning large intermediate buffers (see ChannelClient/ChannelServer.send).
+			assert.strictEqual(writer.buffer.byteLength, 0);
+		});
+
+		test('request rejects (and cleans up) when serialization throws on the deferred path', async function () {
+			// Reproduces the leak where a synchronous serialization failure left a
+			// dangling entry in `ChannelClient.handlers` (and, on the uninitialized
+			// path, a permanently pending promise). We make a call *before* the
+			// client is initialized so the request is deferred until init; when it
+			// finally serializes, a circular argument makes `JSON.stringify` throw.
+			const clientIncoming = store.add(new Emitter<VSBuffer>());
+			const clientProtocol: IMessagePassingProtocol = {
+				onMessage: clientIncoming.event,
+				send: () => { /* client outbound is irrelevant to this test */ }
+			};
+			const serverOutbox: VSBuffer[] = [];
+			const serverProtocol: IMessagePassingProtocol = {
+				onMessage: Event.None,
+				send: buffer => serverOutbox.push(buffer)
+			};
+
+			const channelClient = store.add(new ChannelClient(clientProtocol));
+			// Constructing the server emits an Initialize message into its outbox.
+			store.add(new ChannelServer(serverProtocol, 'ctx'));
+
+			// Issue the call while the client is still uninitialized: it is queued
+			// behind `whenInitialized()` rather than serialized immediately.
+			const circular: Record<string, unknown> = {};
+			circular.self = circular;
+			const resultPromise = channelClient.getChannel('testchannel').call('cmd', circular);
+
+			// Deliver the server's Initialize so the deferred request runs and throws.
+			assert.strictEqual(serverOutbox.length, 1);
+			clientIncoming.fire(serverOutbox[0]);
+
+			await assert.rejects(resultPromise);
 		});
 	});
 
@@ -396,6 +495,27 @@ suite('Base IPC', function () {
 			assert.deepStrictEqual(messages, ['hello', 'world']);
 		});
 
+		test('listen to events (resubscribe)', async function () {
+			const onPong = ipcService.onPong;
+			const messages: string[] = [];
+
+			const disposable1 = onPong(msg => messages.push(msg));
+			await timeout(0);
+			assert.deepStrictEqual(messages, []);
+			service.ping('hello');
+			await timeout(0);
+			assert.deepStrictEqual(messages, ['hello']);
+			disposable1.dispose();
+
+			const disposable2 = onPong(msg => (messages as string[]).push(msg));
+			await timeout(0);
+			assert.deepStrictEqual(messages, ['hello']);
+			service.ping('world');
+			await timeout(0);
+			assert.deepStrictEqual(messages, ['hello', 'world']);
+			disposable2.dispose();
+		});
+
 		test('marshalling uri', async function () {
 			const uri = URI.file('foobar');
 			const r = await ipcService.marshall(uri);
@@ -406,6 +526,14 @@ suite('Base IPC', function () {
 		test('buffers in arrays', async function () {
 			const r = await ipcService.buffersLength([VSBuffer.alloc(2), VSBuffer.alloc(3)]);
 			return assert.strictEqual(r, 5);
+		});
+
+		test('proxy is not a thenable', async function () {
+			// A thenable proxy would forward `then` over the channel and never settle.
+			assert.strictEqual((ipcService as unknown as { then?: unknown }).then, undefined);
+
+			const awaited = await (async () => ipcService)();
+			assert.strictEqual(await awaited.marco(), 'polo');
 		});
 	});
 

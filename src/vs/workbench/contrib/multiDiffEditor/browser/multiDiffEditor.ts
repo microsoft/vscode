@@ -7,7 +7,8 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
-import { IResourceLabel, IWorkbenchUIElementFactory } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
+import { MultiDiffEditorLogger } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorLogging.js';
+import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -27,13 +28,14 @@ import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/com
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
-import { IMultiDiffEditorOptions, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorOptions, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
-import { autorun, derived, observableValue } from '../../../../base/common/observable.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { FloatingEditorToolbarWidget } from '../../../../editor/contrib/floatingMenu/browser/floatingMenu.js';
 
 export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
@@ -42,6 +44,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 	private _multiDiffEditorWidget: MultiDiffEditorWidget | undefined = undefined;
 	private _viewModel: MultiDiffEditorViewModel | undefined;
 	private _contentOverlay: MultiDiffEditorContentMenuOverlay | undefined;
+	private readonly _logger: MultiDiffEditorLogger;
 
 	public get viewModel(): MultiDiffEditorViewModel | undefined {
 		return this._viewModel;
@@ -56,7 +59,8 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IEditorProgressService private editorProgressService: IEditorProgressService
+		@IEditorProgressService private editorProgressService: IEditorProgressService,
+		@ILogService logService: ILogService
 	) {
 		super(
 			MultiDiffEditor.ID,
@@ -70,6 +74,8 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 			editorService,
 			editorGroupService
 		);
+
+		this._logger = this._register(new MultiDiffEditorLogger(logService));
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -77,6 +83,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 			MultiDiffEditorWidget,
 			parent,
 			this.instantiationService.createInstance(WorkbenchUIElementFactory),
+			undefined,
 		));
 
 		this._register(this._multiDiffEditorWidget.onDidChangeActiveControl(() => {
@@ -94,12 +101,19 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		await super.setInput(input, options, context, token);
 		this._viewModel = await input.getViewModel();
 		this._contentOverlay?.updateResource(input.resource);
-		this._multiDiffEditorWidget!.setViewModel(this._viewModel);
 
+		// Apply the view model and any restored view state together so the widget's
+		// automatic first-change navigation sees the restored state instead of
+		// navigating to the first file.
 		const viewState = this.loadEditorViewState(input, context);
-		if (viewState) {
-			this._multiDiffEditorWidget!.setViewState(viewState);
-		}
+		this._logger.log('editor set input', {
+			resource: input.resource,
+			preserveFocus: !!options?.preserveFocus,
+			hasPersistedViewState: !!viewState,
+			reveal: options?.viewState?.revealData?.resource.modified ?? options?.viewState?.revealData?.resource.original,
+		});
+		this._multiDiffEditorWidget!.setViewModel(this._viewModel, { preserveFocus: options?.preserveFocus, viewState });
+
 		this._applyOptions(options);
 	}
 
@@ -119,6 +133,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 	}
 
 	override async clearInput(): Promise<void> {
+		this._logger.log('editor clear input');
 		await super.clearInput();
 		this._contentOverlay?.updateResource(undefined);
 		this._multiDiffEditorWidget!.setViewModel(undefined);
@@ -171,6 +186,10 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 
 	public goToPreviousChange(): void {
 		this._multiDiffEditorWidget?.goToPreviousChange();
+	}
+
+	public getLayoutDebugState(): IObservable<IMultiDiffEditorLayoutDebugState> {
+		return this._multiDiffEditorWidget!.getLayoutDebugState();
 	}
 
 	public async showWhile(promise: Promise<unknown>): Promise<void> {
@@ -233,7 +252,7 @@ class WorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
 		this.headerClickToCollapse = IsSessionsWindowContext.getValue(contextKeyService) === true;
 	}
 
-	createResourceLabel(element: HTMLElement): IResourceLabel {
+	createResourceLabel(element: HTMLElement, _kind: MultiDiffEditorItemLabelKind): IResourceLabel {
 		const label = this._instantiationService.createInstance(ResourceLabel, element, {});
 		return {
 			setUri(uri, options = {}) {

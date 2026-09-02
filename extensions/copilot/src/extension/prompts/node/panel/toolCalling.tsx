@@ -15,7 +15,7 @@ import { CompactionDataContainer } from '../../../../platform/endpoint/common/co
 import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
 import { CacheType } from '../../../../platform/endpoint/common/endpointTypes';
 import { PhaseDataContainer } from '../../../../platform/endpoint/common/phaseDataContainer';
-import { StatefulMarkerContainer } from '../../../../platform/endpoint/common/statefulMarkerContainer';
+import { MISSING_STATEFUL_TOOL_RESULT, StatefulMarkerContainer } from '../../../../platform/endpoint/common/statefulMarkerContainer';
 import { ThinkingDataContainer } from '../../../../platform/endpoint/common/thinkingDataContainer';
 import { IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
 import { IIgnoreService } from '../../../../platform/ignore/common/ignoreService';
@@ -35,7 +35,7 @@ import { ServiceCollection } from '../../../../util/vs/platform/instantiation/co
 import { LanguageModelDataPart, LanguageModelDataPart2, LanguageModelPartAudience, LanguageModelPromptTsxPart, LanguageModelTextPart, LanguageModelTextPart2, LanguageModelToolMCPSource, LanguageModelToolResult } from '../../../../vscodeTypes';
 import { isImageDataPart } from '../../../conversation/common/languageModelChatMessageHelpers';
 import { IResultMetadata } from '../../../prompt/common/conversation';
-import { IBuildPromptContext, IToolCall, IToolCallRound } from '../../../prompt/common/intents';
+import { getSubAgentInvocationId, IBuildPromptContext, IToolCall, IToolCallRound } from '../../../prompt/common/intents';
 import { toJsonSchema } from '../../../tools/common/toJsonSchema';
 import { ToolName } from '../../../tools/common/toolNames';
 import { CopilotToolMode } from '../../../tools/common/toolsRegistry';
@@ -104,8 +104,13 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 	 */
 	private renderOneToolCallRound(round: IToolCallRound, index: number, total: number, hydratedInstantiationService: IInstantiationService, sharedImageBudget: SharedImageBudget, token?: CancellationToken): PromptElement[] {
 		let fixedNameToolCalls = round.toolCalls.map(tc => ({ ...tc, name: this.toolsService.validateToolName(tc.name) ?? tc.name }));
+		// A Responses marker retains every function call server-side. Close calls whose local
+		// results were lost so the next request can safely reuse previous_response_id.
+		const shouldSynthesizeMissingToolResults = this.props.isHistorical
+			&& this.promptEndpoint.apiType === 'responses'
+			&& !!round.statefulMarker;
 		if (this.props.isHistorical) {
-			fixedNameToolCalls = fixedNameToolCalls.filter(tc => tc.id && this.props.toolCallResults?.[tc.id]);
+			fixedNameToolCalls = fixedNameToolCalls.filter(tc => tc.id && (this.props.toolCallResults?.[tc.id] || shouldSynthesizeMissingToolResults));
 		}
 
 		if (round.toolCalls.length && !fixedNameToolCalls.length) {
@@ -121,13 +126,21 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 		const children: PromptElement[] = [];
 
 		// Don't include this when rendering and triggering summarization
-		const statefulMarker = round.statefulMarker && <StatefulMarkerContainer statefulMarker={{ modelId: this.promptEndpoint.model, marker: round.statefulMarker }} />;
+		const statefulMarker = round.statefulMarker && <StatefulMarkerContainer statefulMarker={{
+			modelId: this.promptEndpoint.model,
+			marker: round.statefulMarker,
+			summarizedAtRoundId: round.statefulMarkerSummarizedAtRoundId,
+		}} />;
 		// Backward compat: older persisted rounds use `phaseModelId` instead of `modelId`. Read both.
 		const roundModelId = round.modelId ?? (round as IToolCallRound & { phaseModelId?: string }).phaseModelId;
 		const sameModelAsEndpoint = roundModelId === this.promptEndpoint.model;
-		const apiSupportsHistoricalThinking = this.promptEndpoint.apiType === 'responses' || this.promptEndpoint.apiType === 'messages';
-		const includeThinking = !this.props.isHistorical
-			|| (apiSupportsHistoricalThinking && sameModelAsEndpoint);
+		// Replaying historical thinking preserves the prompt-cache prefix on the
+		// Messages API, but only adaptive-thinking models accept replayed blocks —
+		// budget-mode models (e.g. Haiku 4.5) 400 on them (#318076).
+		const modelSupportsHistoricalThinking = !!this.promptEndpoint.supportsAdaptiveThinking;
+		const apiSupportsHistoricalThinking = this.promptEndpoint.apiType === 'responses'
+			|| (this.promptEndpoint.apiType === 'messages' && modelSupportsHistoricalThinking);
+		const includeThinking = sameModelAsEndpoint && (!this.props.isHistorical || apiSupportsHistoricalThinking);
 		const thinking = includeThinking && round.thinking && <ThinkingDataContainer thinking={round.thinking} />;
 		const phase = (round.phase && roundModelId === this.promptEndpoint.model) ? <PhaseDataContainer phase={round.phase} /> : undefined;
 		const compaction = round.compaction && <CompactionDataContainer compaction={round.compaction} />;
@@ -152,7 +165,8 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 					{hydratedInstantiationService.invokeFunction(buildToolResultElement, {
 						toolCall: toolCall,
 						toolInvocationToken: this.props.promptContext.tools!.toolInvocationToken,
-						toolCallResult: this.props.toolCallResults?.[toolCall.id!],
+						toolCallResult: this.props.toolCallResults?.[toolCall.id!]
+							?? (shouldSynthesizeMissingToolResults ? textToolResult(MISSING_STATEFUL_TOOL_RESULT) : undefined),
 						allowInvokingTool: !this.props.isHistorical,
 						validateInput: round.toolInputRetry < MAX_INPUT_VALIDATION_RETRIES,
 						requestId: this.props.promptContext.requestId,
@@ -287,7 +301,7 @@ function buildToolResultElement(accessor: ServicesAccessor, props: ToolResultOpt
 						inputObj = hookResult.updatedInput;
 					}
 
-					const subAgentInvocationId = promptContext.request?.subAgentInvocationId;
+					const subAgentInvocationId = getSubAgentInvocationId(promptContext);
 					// Capture the active trace context (from the invoke_agent span) so that
 					// the execute_tool span is properly parented even when async context
 					// propagation doesn't carry the active span.
@@ -318,7 +332,10 @@ function buildToolResultElement(accessor: ServicesAccessor, props: ToolResultOpt
 					}
 
 					toolResult = await toolsService.invokeToolWithEndpoint(props.toolCall.name, invocationOptions, promptEndpoint, props.token);
-					sendInvokedToolTelemetry(instantiationService, promptEndpoint, telemetryService, props.toolCall.name, toolResult);
+					sendInvokedToolTelemetry(instantiationService, promptEndpoint, telemetryService, props.toolCall.name, toolResult, {
+						conversationId: promptContext.conversation?.sessionId,
+						requestId: props.requestId,
+					});
 
 					// Run hook context handling after tool execution
 					appendHookContext(toolResult, hookResult, chatHookService, props, inputObj, promptContext);
@@ -379,7 +396,6 @@ const toolsCalledInParallel = new Set<ToolName>([
 	ToolName.GetErrors,
 	ToolName.GetScmChanges,
 	ToolName.GetNotebookSummary,
-	ToolName.ReadCellOutput,
 	ToolName.InstallExtension,
 	ToolName.FetchWebPage,
 ]);
@@ -490,7 +506,12 @@ class ToolResultElement extends PromptElement<IToolResultElementActualProps & Ba
 	}
 }
 
-export function sendInvokedToolTelemetry(instantiationService: IInstantiationService, endpoint: IChatEndpoint, telemetry: ITelemetryService, toolName: string, toolResult: LanguageModelToolResult2) {
+interface InvokedToolTelemetryProperties {
+	readonly conversationId?: string;
+	readonly requestId?: string;
+}
+
+export function sendInvokedToolTelemetry(instantiationService: IInstantiationService, endpoint: IChatEndpoint, telemetry: ITelemetryService, toolName: string, toolResult: LanguageModelToolResult2, properties?: InvokedToolTelemetryProperties) {
 	// Override the token budget to Infinity for telemetry counting to avoid truncation,
 	// matching the prior behavior with modelMaxPromptTokens: Infinity
 	const endpointWithUnlimitedBudget: IChatEndpoint = {
@@ -513,11 +534,14 @@ export function sendInvokedToolTelemetry(instantiationService: IInstantiationSer
 			"agent.tool.responseLength" : {
 				"owner": "connor4312",
 				"comment": "Counts the number of tokens generated by tools",
+				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
+				"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat request." },
+				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model that invoked the tool." },
 				"toolName": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The name of the tool being invoked." },
 				"tokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of tokens used.", "isMeasurement": true }
 			}
 		*/
-		telemetry.sendMSFTTelemetryEvent('agent.tool.responseLength', { toolName }, { tokenCount });
+		telemetry.sendMSFTTelemetryEvent('agent.tool.responseLength', { ...properties, model: endpoint.model, toolName }, { tokenCount });
 	});
 }
 
@@ -595,6 +619,11 @@ async function appendHookContext(
 
 	// Skip postToolUse hook if preToolUse denied the tool — no tool actually ran
 	if (preHookResult?.permissionDecision === 'deny') {
+		return;
+	}
+
+	// Skip postToolUse hook if the request was cancelled - the response stream is closed
+	if (props.token.isCancellationRequested) {
 		return;
 	}
 
@@ -728,12 +757,11 @@ class PrimitiveToolResult<T extends IPrimitiveToolResultProps> extends PromptEle
 
 	constructor(
 		props: T,
-		@IPromptEndpoint protected readonly endpoint: IPromptEndpoint,
-		@IAuthenticationService private readonly authService: IAuthenticationService,
+		@IPromptEndpoint protected readonly endpoint?: IPromptEndpoint,
+		@IAuthenticationService private readonly authService?: IAuthenticationService,
 		@ILogService private readonly logService?: ILogService,
 		@IImageService private readonly imageService?: IImageService,
-		@IConfigurationService private readonly configurationService?: IConfigurationService,
-		@IExperimentationService private readonly experimentationService?: IExperimentationService
+		@IConfigurationService private readonly configurationService?: IConfigurationService
 	) {
 		super(props);
 		this.linkedResources = this.props.content.filter((c): c is LanguageModelDataPart => c instanceof LanguageModelDataPart && c.mimeType === McpLinkedResourceToolResult.mimeType);
@@ -780,16 +808,16 @@ class PrimitiveToolResult<T extends IPrimitiveToolResultProps> extends PromptEle
 	}
 
 	protected async onImage(part: LanguageModelDataPart, _imageIndex?: number) {
-		if (!this.endpoint.supportsVision) {
-			return '[Image content is not available because vision is not supported by the current model or is disabled by your organization.]';
+		if (!this.endpoint?.supportsVision) {
+			return '[Image content is not available because vision is not supported by the current model.]';
 		}
 
-		const uploadsEnabled = this.configurationService && this.experimentationService
-			? this.configurationService.getExperimentBasedConfig(ConfigKey.EnableChatImageUpload, this.experimentationService)
+		const uploadsEnabled = this.configurationService
+			? this.configurationService.getConfig(ConfigKey.EnableChatImageUpload)
 			: false;
 
 		// Anthropic (from CAPI) currently does not support image uploads from tool calls.
-		const canUpload = uploadsEnabled && modelCanUseMcpResultImageURL(this.endpoint);
+		const canUpload = uploadsEnabled && !!this.endpoint && modelCanUseMcpResultImageURL(this.endpoint);
 
 		// Enforce image budgets only when images will be inlined as base64.
 		// When uploads are available, the request body stays small (URL reference).
@@ -820,10 +848,10 @@ class PrimitiveToolResult<T extends IPrimitiveToolResultProps> extends PromptEle
 		// Only call getGitHubSession when uploads are potentially available
 		let uploadToken: string | undefined;
 		if (canUpload) {
-			uploadToken = (await this.authService.getGitHubSession('any', { silent: true }))?.accessToken;
+			uploadToken = (await this.authService?.getGitHubSession('any', { silent: true }))?.accessToken;
 		}
 
-		return Promise.resolve(imageDataPartToTSX(part, uploadToken, this.endpoint.urlOrRequestMetadata, this.logService, this.imageService));
+		return Promise.resolve(imageDataPartToTSX(part, uploadToken, this.endpoint?.urlOrRequestMetadata, this.logService, this.imageService));
 	}
 
 	protected onTSX(part: JSONTree.PromptElementJSON) {
@@ -878,7 +906,7 @@ export class ToolResult extends PrimitiveToolResult<IToolResultProps> {
 		@IExperimentationService private readonly _experimentationService: IExperimentationService,
 		@IChatDiskSessionResources private readonly diskSessionResources: IChatDiskSessionResources,
 	) {
-		super(props, endpoint, authService, _logService, imageService, _configurationService, _experimentationService);
+		super(props, endpoint, authService, _logService, imageService, _configurationService);
 	}
 
 	protected override async onTSX(part: JSONTree.PromptElementJSON): Promise<any> {
@@ -956,8 +984,8 @@ export class ToolResult extends PrimitiveToolResult<IToolResultProps> {
 			return content;
 		}
 
-		const tokens = await this.endpoint.acquireTokenizer().tokenLength(content);
-		if (tokens < truncateAtTokens) {
+		const tokens = await this.endpoint?.acquireTokenizer().tokenLength(content);
+		if (!tokens || tokens < truncateAtTokens) {
 			return content;
 		}
 

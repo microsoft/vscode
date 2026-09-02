@@ -95,8 +95,14 @@ async function createWorkspace(logService: ILogService, workspaceRoot: Uri | und
 	try {
 		await window.withProgress({ location: ProgressLocation.Notification, cancellable: true }, async (progress, token) => {
 			for (const file of files) {
-				const relativeFilePath = path.relative(projectRoot, file);
-				const fileUri = Uri.joinPath(workspaceUri, relativeFilePath);
+				const fileUri = resolveProjectFileUri(workspaceUri, projectRoot, file);
+				// Guard against path traversal: a malicious or prompt-injected file tree
+				// can contain `..` segments that escape the generated workspace folder.
+				// Skip any file whose resolved destination is not contained within it.
+				if (!isUriContained(workspaceUri, fileUri)) {
+					logService.warn(`[newIntent] Skipping file outside of workspace: ${file}`);
+					continue;
+				}
 				progress.report({ message: l10n.t(`Creating file {0}...`, fileUri.fsPath) });
 				const content = await workspace.fs.readFile(Uri.joinPath(fileTreePart.baseUri, file));
 				await workspace.fs.createDirectory(Uri.joinPath(fileUri, '..'));
@@ -134,6 +140,56 @@ async function createWorkspace(logService: ILogService, workspaceRoot: Uri | und
 	}
 }
 
+/**
+ * Resolves the destination URI for a file emitted by `listFilesInResponseFileTree`
+ * inside a generated workspace.
+ *
+ * The emitted shape depends on the source flow:
+ *  - Copilot new-workspace flow: `<projectName>/<inside>` (no leading slash).
+ *  - GitHub repo-template flow:  `/<inside>` (leading slash; the repo-name
+ *    level has been collapsed out of the tree).
+ *  - GitHub subdir/non-repo-root: `<subdir>/<inside>`.
+ *
+ * In every case the part *inside the project* is what we want to join with
+ * `workspaceUri`. We compute it by stripping any leading `/` and any leading
+ * `<projectRoot>/` prefix. Any remaining `..` segments are preserved so the
+ * downstream `isUriContained` check can reject traversal attempts.
+ *
+ * Using a string-strip (rather than the platform-aware `path.relative` against
+ * `cwd`) avoids the Windows-only failure mode where the relative `projectRoot`
+ * gets resolved against `process.cwd()` and produces a nonsense `..`-laden
+ * traversal that escapes the workspace.
+ *
+ * Exported for tests only.
+ */
+export function resolveProjectFileUri(workspaceUri: Uri, projectRoot: string, file: string): Uri {
+	let rel = file.startsWith('/') ? file.slice(1) : file;
+	const prefix = projectRoot + '/';
+	if (rel === projectRoot) {
+		rel = '';
+	} else if (rel.startsWith(prefix)) {
+		rel = rel.slice(prefix.length);
+	}
+	return Uri.joinPath(workspaceUri, rel);
+}
+
+/**
+ * Returns `true` if `child` resolves to a location at or within `parent`.
+ * Used to prevent path traversal (`..`) from escaping the generated workspace folder.
+ * Note: `Uri.joinPath` normalizes `..` segments, so `child.path` is already resolved here.
+ *
+ * Exported for tests only.
+ */
+export function isUriContained(parent: Uri, child: Uri): boolean {
+	if (parent.scheme !== child.scheme || parent.authority !== child.authority) {
+		return false;
+	}
+	if (child.path === parent.path) {
+		return true;
+	}
+	const parentPath = parent.path.endsWith('/') ? parent.path : parent.path + '/';
+	return child.path.startsWith(parentPath);
+}
 
 async function getUniqueProjectName(projectFolder: Uri, projectName: string): Promise<string> {
 	let i = 0;

@@ -11,7 +11,7 @@ import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { TextModel } from '../../../../common/model/textModel.js';
-import { SnippetParser } from '../../browser/snippetParser.js';
+import { SnippetParser, Variable, type TextmateSnippet } from '../../browser/snippetParser.js';
 import { SnippetSession } from '../../browser/snippetSession.js';
 import { createTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { TestLanguageConfigurationService } from '../../../../test/common/modes/testLanguageConfigurationService.js';
@@ -487,6 +487,34 @@ suite('SnippetSession', function () {
 		assert.doesNotThrow(() => session.next());
 	});
 
+	test('snippets, deep merge does not produce phantom cursors (#279349)', function () {
+		// Recursively expanding a snippet (e.g. \sin\left(${1:x}\right)) used to assign
+		// fractional placeholder indicies. After ~16 nestings, double-precision rounding
+		// collapsed distinct placeholders onto the same index, producing a phantom cursor.
+		editor.getModel().setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+		const session = new SnippetSession(editor, '\\sin\\left(${1:x}\\right) ', undefined, languageConfigurationService);
+		session.insert();
+		for (let i = 0; i < 25; i++) {
+			session.merge('\\sin\\left(${1:x}\\right) ');
+			assert.strictEqual(editor.getSelections()!.length, 1, `selection count after ${i + 1} merges`);
+		}
+	});
+
+	test('snippets, merge preserves mirrors in nested snippet', function () {
+		// Nested snippets that themselves contain mirrors ($1...$1) must still
+		// produce multi-cursor selections after renormalization of placeholder
+		// indicies, since the renormalize step maps each unique old index to a
+		// single new index.
+		editor.getModel().setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+		const session = new SnippetSession(editor, '(${1:x})', undefined, languageConfigurationService);
+		session.insert();
+		session.merge('${1:y}-${1}');
+		assert.strictEqual(editor.getModel().getValue(), '(y-y)');
+		assert.strictEqual(editor.getSelections()!.length, 2);
+	});
+
 	test('snippets, merge does not throw when placeholder occurrences collapse to same position', function () {
 		// $1$1 places two zero-width occurrences of the same placeholder at the same position;
 		// the editor's cursor normalization collapses these into one selection. Previously this
@@ -832,6 +860,110 @@ suite('SnippetSession', function () {
 
 			assert.strictEqual(result.snippets.length, 1);
 			assert.strictEqual(result.snippets[0].isTrivialSnippet, true);
+		});
+
+		test('$TM_SELECTED_TEXT resolves per edit, not the primary selection #206121', function () {
+			editor.getModel().setValue('aaa\nbbb\nccc');
+			// primary selection covers "aaa", but the edits target other lines
+			editor.setSelections([new Selection(1, 1, 1, 4)]);
+
+			const result = SnippetSession.createEditsAndSnippetsFromEdits(
+				editor,
+				[
+					{ range: new Range(2, 1, 2, 4), template: '[$TM_SELECTED_TEXT]' },
+					{ range: new Range(3, 1, 3, 4), template: '[$TM_SELECTED_TEXT]' },
+				],
+				true, true, undefined, undefined, languageConfigurationService
+			);
+
+			assert.strictEqual(result.edits.length, 2);
+			assert.deepStrictEqual(result.edits[0].range, new Range(2, 1, 2, 4));
+			assert.deepStrictEqual(result.edits[0].text, '[bbb]');
+			assert.deepStrictEqual(result.edits[1].range, new Range(3, 1, 3, 4));
+			assert.deepStrictEqual(result.edits[1].text, '[ccc]');
+		});
+
+		test('$TM_LINE_NUMBER resolves per edit', function () {
+			editor.getModel().setValue('a\nb\nc');
+			editor.setSelections([new Selection(1, 1, 1, 1)]);
+
+			const result = SnippetSession.createEditsAndSnippetsFromEdits(
+				editor,
+				[
+					{ range: new Range(1, 2, 1, 2), template: '$TM_LINE_NUMBER' },
+					{ range: new Range(3, 2, 3, 2), template: '$TM_LINE_NUMBER' },
+				],
+				true, true, undefined, undefined, languageConfigurationService
+			);
+
+			assert.strictEqual(result.edits.length, 2);
+			assert.deepStrictEqual(result.edits[0].text, '1');
+			assert.deepStrictEqual(result.edits[1].text, '3');
+		});
+
+		test('per-edit resolution does not corrupt earlier edits when value lengths differ', function () {
+			// 100 lines so $TM_LINE_NUMBER produces values of differing widths (1 vs 100)
+			editor.getModel().setValue(Array.from({ length: 100 }, (_, i) => `line${i + 1}`).join('\n'));
+			editor.setSelections([new Selection(1, 1, 1, 1)]);
+
+			const result = SnippetSession.createEditsAndSnippetsFromEdits(
+				editor,
+				[
+					{ range: new Range(1, 2, 1, 2), template: '$TM_LINE_NUMBER' },
+					{ range: new Range(100, 2, 100, 2), template: '$TM_LINE_NUMBER' },
+				],
+				true, true, undefined, undefined, languageConfigurationService
+			);
+
+			assert.strictEqual(result.edits.length, 2);
+			assert.deepStrictEqual(result.edits[0].text, '1');
+			assert.deepStrictEqual(result.edits[1].text, '100');
+		});
+
+		test('$CURSOR_NUMBER uses caller-supplied edit order, not range-sorted order', function () {
+			editor.getModel().setValue('xx\nyy');
+			editor.setSelections([new Selection(1, 1, 1, 1)]);
+
+			const result = SnippetSession.createEditsAndSnippetsFromEdits(
+				editor,
+				[
+					{ range: new Range(2, 3, 2, 3), template: '$CURSOR_NUMBER' },
+					{ range: new Range(1, 3, 1, 3), template: '$CURSOR_NUMBER' },
+				],
+				true, true, undefined, undefined, languageConfigurationService
+			);
+
+			assert.strictEqual(result.edits.length, 2);
+			assert.deepStrictEqual(result.edits[0].range, new Range(1, 3, 1, 3));
+			assert.deepStrictEqual(result.edits[0].text, '2');
+			assert.deepStrictEqual(result.edits[1].range, new Range(2, 3, 2, 3));
+			assert.deepStrictEqual(result.edits[1].text, '1');
+		});
+
+		test('cross-edit placeholder backfill resolves variables in earlier edit', function () {
+			// parseFragment backfills the earlier $1 with a clone of the later default;
+			// the cloned $TM_LINE_NUMBER lives outside the second edit's newNodes
+			editor.getModel().setValue('aaa\nbbb');
+			editor.setSelections([new Selection(1, 1, 1, 1)]);
+
+			const result = SnippetSession.createEditsAndSnippetsFromEdits(
+				editor,
+				[
+					{ range: new Range(1, 2, 1, 2), template: '$1' },
+					{ range: new Range(2, 2, 2, 2), template: '${1:$TM_LINE_NUMBER}' },
+				],
+				true, true, undefined, undefined, languageConfigurationService
+			);
+
+			let hasUnresolvedVariable = false;
+			const innerSnippet = (result.snippets[0] as unknown as { _snippet: TextmateSnippet })._snippet;
+			innerSnippet.walk(marker => {
+				if (marker instanceof Variable && marker.children.length === 0) {
+					hasUnresolvedVariable = true;
+				}
+				return true;
+			});
+			assert.strictEqual(hasUnresolvedVariable, false, 'backfilled $TM_LINE_NUMBER in earlier edit should be resolved');
 		});
 	});
 });

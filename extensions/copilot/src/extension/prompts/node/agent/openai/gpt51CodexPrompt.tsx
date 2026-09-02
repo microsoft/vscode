@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PromptElement, PromptSizing } from '@vscode/prompt-tsx';
-import { isGpt52CodexFamily } from '../../../../../platform/endpoint/common/chatModelCapabilities';
+import { isGpt51Family, isGpt52CodexFamily, isGptCodexFamily } from '../../../../../platform/endpoint/common/chatModelCapabilities';
 import { IChatEndpoint } from '../../../../../platform/networking/common/networking';
 import { ToolName } from '../../../../tools/common/toolNames';
 import { GPT5CopilotIdentityRule } from '../../base/copilotIdentity';
 import { InstructionMessage } from '../../base/instructionMessage';
 import { Gpt5SafetyRule } from '../../base/safetyRules';
 import { Tag } from '../../base/tag';
-import { MathIntegrationRules } from '../../panel/editorIntegrationRules';
+import { ResponseRenderingRules } from '../../panel/editorIntegrationRules';
 import { DefaultAgentPromptProps, detectToolCapabilities } from '../defaultAgentInstructions';
 import { FileLinkificationInstructions } from '../fileLinkificationInstructions';
 import { CopilotIdentityRulesConstructor, IAgentPrompt, PromptRegistry, SafetyRulesConstructor, SystemPrompt } from '../promptRegistry';
@@ -114,7 +114,7 @@ class Gpt51CodexPrompt extends PromptElement<DefaultAgentPromptProps> {
 				- Wrap symbol names (classes, methods, variables) in backticks: `MyClass`, `handleClick()`<br />
 				- When mentioning files or line numbers, always follow the rules in fileLinkification section below:
 				<FileLinkificationInstructions />
-				<MathIntegrationRules />
+				<ResponseRenderingRules />
 			</Tag>
 		</InstructionMessage>;
 	}
@@ -125,7 +125,7 @@ class Gpt51CodexResolver implements IAgentPrompt {
 	static readonly familyPrefixes = [];
 
 	static async matchesModel(endpoint: IChatEndpoint): Promise<boolean> {
-		return (endpoint.family.startsWith('gpt-5.1') && endpoint.family.includes('-codex'))
+		return (isGpt51Family(endpoint) && isGptCodexFamily(endpoint))
 			|| isGpt52CodexFamily(endpoint);
 	}
 

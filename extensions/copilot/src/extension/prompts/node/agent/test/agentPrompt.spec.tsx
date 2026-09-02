@@ -18,6 +18,7 @@ import { createTextDocumentData } from '../../../../../util/common/test/shims/te
 import { URI } from '../../../../../util/vs/base/common/uri';
 import { SyncDescriptor } from '../../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
+import type { LanguageModelToolInformation } from 'vscode';
 import { ChatRequestEditedFileEventKind, LanguageModelTextPart, LanguageModelToolResult } from '../../../../../vscodeTypes';
 import { addCacheBreakpoints } from '../../../../intents/node/cacheBreakpoints';
 import { ChatVariablesCollection } from '../../../../prompt/common/chatVariablesCollection';
@@ -89,7 +90,7 @@ testFamilies.forEach(family => {
 			accessor.dispose();
 		});
 
-		async function agentPromptToString(accessor: ITestingServicesAccessor, promptContext: IBuildPromptContext, otherProps?: Partial<AgentPromptProps>): Promise<string> {
+		async function agentPromptToString(accessor: ITestingServicesAccessor, promptContext: IBuildPromptContext, otherProps?: Partial<AgentPromptProps>, includeMemoryTool = true): Promise<string> {
 			const instaService = accessor.get(IInstantiationService);
 			const endpoint = family === 'default'
 				? instaService.createInstance(MockEndpoint, undefined)
@@ -97,6 +98,24 @@ testFamilies.forEach(family => {
 			const isMessagesApi = family.startsWith('claude-');
 			if (!promptContext.conversation) {
 				promptContext = { ...promptContext, conversation };
+			}
+
+			// Real agent requests always advertise the non-deferred memory tool, which gates
+			// the memory instructions/context blocks. Advertise it here so scenarios that don't
+			// otherwise pass tools still exercise the memory-enabled prompt by default; the
+			// `memory tool disabled` test opts out to cover the gated-off behavior.
+			if (includeMemoryTool && !promptContext.tools?.availableTools.some(t => t.name === ToolName.Memory)) {
+				const memoryTool = accessor.get(IToolsService).tools.find(t => t.name === ToolName.Memory);
+				if (memoryTool) {
+					promptContext = {
+						...promptContext,
+						tools: {
+							toolInvocationToken: promptContext.tools?.toolInvocationToken ?? (null as never),
+							toolReferences: promptContext.tools?.toolReferences ?? [],
+							availableTools: [...(promptContext.tools?.availableTools ?? []), memoryTool],
+						}
+					};
+				}
 			}
 
 			const customizations = await PromptRegistry.resolveAllCustomizations(instaService, endpoint);
@@ -114,7 +133,7 @@ testFamilies.forEach(family => {
 
 			const r = await renderer.render();
 			if (!isMessagesApi) {
-				addCacheBreakpoints(r.messages);
+				addCacheBreakpoints(r.messages, 'chatCompletions');
 			}
 			return r.messages
 				.map(m => messageToMarkdown(m))
@@ -149,6 +168,35 @@ testFamilies.forEach(family => {
 			}, undefined)).toMatchFileSnapshot(getSnapshotFile('simple_case'));
 		});
 
+		if (family === 'default') {
+			test('voice progress guidance appears only for top-level voice requests', async () => {
+				const promptContext = {
+					chatVariables: new ChatVariablesCollection(),
+					history: [],
+					query: 'hello',
+				};
+				const topLevelVoicePrompt = await agentPromptToString(accessor, {
+					...promptContext,
+					request: { isVoiceModeInput: true } as IBuildPromptContext['request'],
+				});
+				const subagentVoicePrompt = await agentPromptToString(accessor, {
+					...promptContext,
+					request: { isVoiceModeInput: true, subAgentInvocationId: 'subagent' } as IBuildPromptContext['request'],
+				});
+				const typedPrompt = await agentPromptToString(accessor, promptContext);
+
+				expect({
+					topLevelVoice: topLevelVoicePrompt.includes('You MUST call the report_voice_progress tool in the same response as your first real work tool calls'),
+					subagentVoice: subagentVoicePrompt.includes('You MUST call the report_voice_progress tool in the same response as your first real work tool calls'),
+					typed: typedPrompt.includes('You MUST call the report_voice_progress tool in the same response as your first real work tool calls'),
+				}).toEqual({
+					topLevelVoice: true,
+					subagentVoice: false,
+					typed: false,
+				});
+			});
+		}
+
 		test('all tools', async () => {
 			const toolsService = accessor.get(IToolsService);
 			await expect(await agentPromptToString(accessor, {
@@ -176,6 +224,24 @@ testFamilies.forEach(family => {
 					toolReferences: [],
 				}
 			}, undefined)).toMatchFileSnapshot(getSnapshotFile('all_non_edit_tools'));
+		});
+
+		test('memory tool disabled omits memory instructions and context', async () => {
+			const toolsService = accessor.get(IToolsService);
+			const rendered = await agentPromptToString(accessor, {
+				chatVariables: new ChatVariablesCollection(),
+				history: [],
+				query: 'hello',
+				tools: {
+					availableTools: toolsService.tools.filter(t => t.name !== ToolName.Memory),
+					toolInvocationToken: null as never,
+					toolReferences: [],
+				}
+			}, undefined, /* includeMemoryTool */ false);
+			expect(rendered).not.toContain('memoryInstructions');
+			expect(rendered).not.toContain('userMemory');
+			expect(rendered).not.toContain('sessionMemory');
+			expect(rendered).not.toContain('repoMemory');
 		});
 
 		test('one attachment', async () => {
@@ -318,5 +384,92 @@ testFamilies.forEach(family => {
 				],
 			}, undefined))).toMatchFileSnapshot(getSnapshotFile('edited_file_events_grouped_by_kind'));
 		});
+	});
+});
+
+suite('AgentPrompt - Gemini Flash prompt additions experiment', () => {
+	let accessor: ITestingServicesAccessor;
+
+	beforeAll(() => {
+		const services = createExtensionUnitTestingServices();
+		services.define(IWorkspaceService, new SyncDescriptor(TestWorkspaceService, [[URI.file('/workspace')]]));
+		services.define(IChatMLFetcher, new StaticChatMLFetcher([]));
+		accessor = services.createTestingAccessor();
+	});
+
+	afterAll(() => {
+		accessor.dispose();
+	});
+
+	async function renderForFamily(family: string, includeToolSpecificTools = true): Promise<string> {
+		const instaService = accessor.get(IInstantiationService);
+		const endpoint = instaService.createInstance(MockEndpoint, family);
+		const toolsService = accessor.get(IToolsService);
+		const turn = new Turn('turnId', { type: 'user', message: 'hello' });
+		const conversation = new Conversation('sessionId', [turn]);
+		const customizations = await PromptRegistry.resolveAllCustomizations(instaService, endpoint);
+		const syntheticTool = (name: ToolName): LanguageModelToolInformation => ({
+			name,
+			description: '',
+			inputSchema: undefined,
+			tags: [],
+			source: undefined,
+		});
+		const availableTools = includeToolSpecificTools
+			? [...toolsService.tools, syntheticTool(ToolName.CoreRunInTerminal), syntheticTool(ToolName.FindTextInFiles)]
+			: toolsService.tools.filter(t => t.name !== ToolName.CoreRunInTerminal && t.name !== ToolName.FindTextInFiles);
+		const props: AgentPromptProps = {
+			priority: 1,
+			endpoint,
+			location: ChatLocation.Panel,
+			promptContext: {
+				chatVariables: new ChatVariablesCollection(),
+				history: [],
+				query: 'hello',
+				conversation,
+				tools: {
+					availableTools,
+					toolInvocationToken: null as never,
+					toolReferences: [],
+				},
+			},
+			customizations,
+		};
+		const renderer = PromptRenderer.create(instaService, endpoint, AgentPrompt, props);
+		const r = await renderer.render();
+		return r.messages.map(m => messageToMarkdown(m)).join('\n\n');
+	}
+
+	function assertAdditions(rendered: string, expected: { readAst: boolean; toolBatching: boolean; searchPrecision: boolean }) {
+		expect({
+			readAst: rendered.includes('Read ast/definitions first'),
+			toolBatching: rendered.includes('**Tool Batching**'),
+			searchPrecision: rendered.includes('**Search Precision**'),
+		}).toEqual(expected);
+	}
+
+	test('additions appear for Gemini Flash 3.6 when experiment is enabled', async () => {
+		accessor.get(IConfigurationService).setConfig(ConfigKey.EnableGeminiFlashPromptAdditions, true);
+		assertAdditions(await renderForFamily('gemini-3.6-flash'), { readAst: true, toolBatching: true, searchPrecision: true });
+	});
+
+	test('additions appear for Gemini Flash 3.7 when experiment is enabled', async () => {
+		accessor.get(IConfigurationService).setConfig(ConfigKey.EnableGeminiFlashPromptAdditions, true);
+		assertAdditions(await renderForFamily('gemini-3.7-flash'), { readAst: true, toolBatching: true, searchPrecision: true });
+	});
+
+	test('tool-specific additions are gated on tool availability', async () => {
+		accessor.get(IConfigurationService).setConfig(ConfigKey.EnableGeminiFlashPromptAdditions, true);
+		assertAdditions(await renderForFamily('gemini-3.6-flash', /* includeToolSpecificTools */ false), { readAst: true, toolBatching: false, searchPrecision: false });
+	});
+
+	test('additions are omitted for Gemini Flash 3.6 when experiment is disabled', async () => {
+		accessor.get(IConfigurationService).setConfig(ConfigKey.EnableGeminiFlashPromptAdditions, false);
+		assertAdditions(await renderForFamily('gemini-3.6-flash'), { readAst: false, toolBatching: false, searchPrecision: false });
+	});
+
+	test('additions are omitted for other Gemini families even when experiment is enabled', async () => {
+		accessor.get(IConfigurationService).setConfig(ConfigKey.EnableGeminiFlashPromptAdditions, true);
+		assertAdditions(await renderForFamily('gemini-2.0-flash'), { readAst: false, toolBatching: false, searchPrecision: false });
 	});
 });

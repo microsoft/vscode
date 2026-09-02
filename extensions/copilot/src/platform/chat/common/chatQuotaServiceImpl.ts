@@ -29,7 +29,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 	) {
 		super();
 		this._rateLimitInfo = { session: undefined, weekly: undefined };
-		this._register(this._authService.onDidAuthenticationChange(() => {
+		this._register(this._authService.onDidCopilotTokenChange(() => {
 			this._processUserInfoQuotaSnapshot(this._authService.copilotToken?.quotaInfo);
 		}));
 	}
@@ -46,7 +46,14 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 		if (!this._quotaInfo) {
 			return false;
 		}
-		return this._quotaInfo.percentRemaining <= 0 && !this._quotaInfo.additionalUsageEnabled && !this._quotaInfo.unlimited;
+		if (this._quotaInfo.additionalUsageEnabled) {
+			return false;
+		}
+		// For pooled entitlements (unlimited per-user), has_quota being false signals exhaustion
+		if (this._quotaInfo.unlimited) {
+			return !this._quotaInfo.hasQuota;
+		}
+		return this._quotaInfo.percentRemaining <= 0;
 	}
 
 	get additionalUsageEnabled(): boolean {
@@ -63,7 +70,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 	setLastCopilotUsage(totalNanoAiu: number, turnId: string): void {
 		// Convert nano-AIUs to AIC credits: 1 AIC = 1_000_000_000 nano-AIU
 		const aic = totalNanoAiu / 1_000_000_000;
-		if (aic > 0) {
+		if (aic >= 0) {
 			this._turnCredits.set(turnId, (this._turnCredits.get(turnId) ?? 0) + aic);
 		}
 	}
@@ -109,6 +116,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 			this._quotaInfo = {
 				quota: entitlement,
 				unlimited: entitlement === -1,
+				hasQuota: snapshot.has_quota ?? true,
 				percentRemaining: snapshot.percent_remaining,
 				additionalUsageUsed: snapshot.overage_count,
 				additionalUsageEnabled: snapshot.overage_permitted,
@@ -169,6 +177,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 			return {
 				quota: entitlement,
 				unlimited: entitlement === -1,
+				hasQuota: true,
 				percentRemaining,
 				additionalUsageUsed,
 				additionalUsageEnabled,
@@ -189,6 +198,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 			: quotaInfo.quota_snapshots.premium_interactions;
 		this._quotaInfo = {
 			unlimited: snapshot.unlimited,
+			hasQuota: snapshot.has_quota ?? true,
 			additionalUsageEnabled: snapshot.overage_permitted,
 			additionalUsageUsed: snapshot.overage_count,
 			quota: snapshot.entitlement,

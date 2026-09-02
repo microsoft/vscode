@@ -78,6 +78,21 @@
 	min-width: 0;
 }
 
+.extensions-viewlet .notification-container .message-container .message-text .message p {
+	margin: 0;
+	display: inline;
+}
+
+.extensions-viewlet .notification-container .message-container .message-text .message a {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.extensions-viewlet .notification-container .message-container .message-text .message a:hover,
+.extensions-viewlet .notification-container .message-container .message-text .message a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
 .extensions-viewlet .notification-container .message-text-action {
 	cursor: pointer;
 	margin-left: 5px;
@@ -109,6 +124,17 @@
 	align-items: center;
 	gap: 4px;
 	margin-left: 24px;
+}
+
+.extensions-viewlet .notification-container .notification-actions .dismiss-action {
+	cursor: pointer;
+	color: var(--vscode-icon-foreground);
+	padding: 2px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.extensions-viewlet .notification-container .notification-actions .dismiss-action:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .extensions-viewlet > .extensions {

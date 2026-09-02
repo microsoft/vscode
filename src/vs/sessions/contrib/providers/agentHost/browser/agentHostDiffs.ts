@@ -5,10 +5,14 @@
 
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { SessionStatus as ProtocolSessionStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { SessionStatus as ProtocolSessionStatus, type ChangesetFile } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ISessionFileDiff } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { normalizeFileEdit } from '../../../../../platform/agentHost/common/fileEditDiff.js';
+import { canonicalizeSessionDbUri } from '../../../../../platform/agentHost/common/sessionDbUri.js';
 import { IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { readChangesetFileMeta } from '../../../../../platform/agentHost/common/meta/agentChangesetFileMeta.js';
+import type { AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 
 /**
  * Maps the protocol-layer session status bitset to the UI-layer
@@ -29,50 +33,84 @@ export function mapProtocolStatus(protocol: ProtocolSessionStatus): SessionStatu
 }
 
 /**
+ * Converts a single agent host diff into the chat session file change
+ * format, or `undefined` when the diff carries no usable URI.
+ *
+ * @param mapUri Optional URI mapper applied after parsing. The remote agent
+ *   host provider uses this to rewrite `file:` URIs into agent-host URIs.
+ */
+export function diffToChange(file: ChangesetFile, mapUri?: AgentHostUriMapper): IChatSessionFileChange2 | undefined {
+	const normalized = normalizeFileEdit(file.edit);
+	if (!normalized) {
+		return undefined;
+	}
+
+	const map = (uri: URI): URI => mapUri ? mapUri(uri) : uri;
+
+	const uri = map(normalized.resource);
+
+	// For deletions (no `after`), `modifiedUri` is `undefined` so the
+	// renderer treats the entry as a deletion and doesn't try to open the
+	// (now-missing) file as the "modified" side of the diff editor.
+	const modifiedUri = normalized.afterUri ? map(normalized.afterUri) : undefined;
+
+	// Use the before-content reference URI so the diff editor can
+	// fetch the snapshot of the file *before* the session's edits.
+	const originalUri = normalized.beforeContentUri
+		? (mapUri ? mapUri(normalized.beforeContentUri, { contentRef: true }) : normalized.beforeContentUri)
+		: undefined;
+
+	// Extract reviewed status from meta. We
+	// do this for backward compatibility.
+	const meta = readChangesetFileMeta(file);
+
+	return {
+		uri,
+		modifiedUri,
+		originalUri,
+		insertions: file.edit?.diff?.added ?? 0,
+		deletions: file.edit?.diff?.removed ?? 0,
+		reviewed: file.reviewed ?? meta?.reviewed
+	} satisfies IChatSessionFileChange2;
+}
+
+/**
+ * Converts a single {@link ChangesetFile} into a {@link IChatSessionFileChange2},
+ * or `undefined` when the underlying diff has no usable URI.
+ */
+export function changesetFileToChange(file: ChangesetFile, mapUri?: AgentHostUriMapper): IChatSessionFileChange2 | undefined {
+	return diffToChange(file, mapUri);
+}
+
+/**
  * Converts agent host diffs to the chat session file change format.
  *
  * @param mapUri Optional URI mapper applied after parsing. The remote agent
  *   host provider uses this to rewrite `file:` URIs into agent-host URIs.
  */
-export function diffsToChanges(diffs: readonly ISessionFileDiff[], mapUri?: (uri: URI) => URI): IChatSessionFileChange2[] {
-	return diffs.map(d => {
-		const rawUri = d.after?.uri ?? d.before?.uri;
-		if (!rawUri) {
-			return undefined;
-		}
+export function diffsToChanges(files: readonly ChangesetFile[], mapUri?: AgentHostUriMapper): IChatSessionFileChange2[] {
+	return files.map(d => diffToChange(d, mapUri)).filter(isDefined);
+}
 
-		const uri = mapUri ? mapUri(URI.parse(rawUri)) : URI.parse(rawUri);
-
-		// For deletions (no `after`), `modifiedUri` is `undefined` so the
-		// renderer treats the entry as a deletion and doesn't try to open the
-		// (now-missing) file as the "modified" side of the diff editor.
-		const modifiedUri = d.after
-			? (mapUri ? mapUri(URI.parse(d.after.uri)) : URI.parse(d.after.uri))
-			: undefined;
-
-		// Use the before-content reference URI so the diff editor can
-		// fetch the snapshot of the file *before* the session's edits.
-		let originalUri: URI | undefined;
-		if (d.before?.content?.uri) {
-			const parsed = URI.parse(d.before.content.uri);
-			originalUri = mapUri ? mapUri(parsed) : parsed;
-		}
-
-		return {
-			uri,
-			modifiedUri,
-			originalUri,
-			insertions: d.diff?.added ?? 0,
-			deletions: d.diff?.removed ?? 0,
-		} satisfies IChatSessionFileChange2;
-	}).filter(isDefined);
+/**
+ * Converts a {@link ChangesetFile | changeset file list} (the post-0.2.0
+ * shape produced by `changeset/fileSet` actions) into the
+ * {@link IChatSessionFileChange2 | chat session file change} format used by
+ * the changes view.
+ *
+ * Each entry's underlying {@link ISessionFileDiff} is forwarded straight to
+ * {@link diffsToChanges}; the wrapping `id` and `_meta` fields don't carry
+ * additional information the UI needs.
+ */
+export function changesetFilesToChanges(files: readonly ChangesetFile[], mapUri?: AgentHostUriMapper): IChatSessionFileChange2[] {
+	return diffsToChanges(files, mapUri);
 }
 
 /**
  * Returns `true` when the current file changes already
  * match the incoming diffs, avoiding unnecessary observable updates.
  */
-export function diffsEqual(current: readonly ISessionFileChange[], diffs: readonly ISessionFileDiff[], mapUri?: (uri: URI) => URI): boolean {
+export function diffsEqual(current: readonly ISessionFileChange[], diffs: readonly ISessionFileDiff[], mapUri?: AgentHostUriMapper): boolean {
 	if (current.length !== diffs.length) {
 		return false;
 	}
@@ -91,9 +129,10 @@ export function diffsEqual(current: readonly ISessionFileChange[], diffs: readon
 		}
 
 		const beforeContentUri = d.before?.content?.uri;
+		const beforeUri = d.before?.uri;
 		const currentOriginal = c.originalUri?.toString();
-		if (beforeContentUri) {
-			const parsedBefore = URI.parse(beforeContentUri);
+		if (beforeContentUri && beforeUri) {
+			const parsedBefore = canonicalizeSessionDbUri(URI.parse(beforeContentUri), URI.parse(beforeUri));
 			const mappedBefore = mapUri ? mapUri(parsedBefore) : parsedBefore;
 			if (currentOriginal !== mappedBefore.toString()) {
 				return false;
@@ -103,4 +142,12 @@ export function diffsEqual(current: readonly ISessionFileChange[], diffs: readon
 		}
 	}
 	return true;
+}
+
+/**
+ * Same as {@link diffsEqual} but compares against a {@link ChangesetFile}
+ * list (the post-0.2.0 producer output).
+ */
+export function changesetFilesEqual(current: readonly ISessionFileChange[], files: readonly ChangesetFile[], mapUri?: AgentHostUriMapper): boolean {
+	return diffsEqual(current, files.map(f => f.edit), mapUri);
 }

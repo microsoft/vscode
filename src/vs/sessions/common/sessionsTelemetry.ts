@@ -3,7 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isCancellationError } from '../../base/common/errors.js';
+import { StringSHA1 } from '../../base/common/hash.js';
+import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
+import { isSSHHostKeyDeniedError } from '../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { PROTOCOL_VERSION } from '../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from './agentHostSessionsProvider.js';
+
+/** Bounded provider categories emitted by Agents window telemetry. */
+export type SessionsTelemetryProviderId = 'default-copilot' | 'local-agent-host' | 'remote-agent-host' | 'other';
+
+/** Removes connection-specific details from a sessions provider identifier. */
+export function getSessionsTelemetryProviderId(providerId: string): SessionsTelemetryProviderId {
+	if (providerId === 'default-copilot' || providerId === LOCAL_AGENT_HOST_PROVIDER_ID) {
+		return providerId;
+	}
+	if (providerId === 'remote-agent-host' || providerId.startsWith(REMOTE_AGENT_HOST_PROVIDER_PREFIX)) {
+		return 'remote-agent-host';
+	}
+	return 'other';
+}
+
+/** Hashes a session identifier while preserving deterministic event correlation. */
+export function hashSessionIdForTelemetry(sessionId: string): string {
+	const sha1 = new StringSHA1();
+	sha1.update(sessionId);
+	return sha1.digest();
+}
 
 // --- Titlebar button interactions ---
 
@@ -15,7 +42,7 @@ export type SessionsInteractionButton =
 	| 'openTerminal'
 	| 'openInVSCode';
 
-export type SessionsInteractionSource = 'menu' | 'actionWidget';
+export type SessionsInteractionSource = 'menu' | 'actionWidget' | 'titleBar' | 'sidebar';
 
 type SessionsInteractionEvent = {
 	button: string;
@@ -26,7 +53,7 @@ type SessionsInteractionClassification = {
 	owner: 'osortega';
 	comment: 'Tracks user interactions with buttons in the Agents window';
 	button: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the button that was clicked' };
-	source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The UI surface that triggered the interaction (menu or actionWidget)' };
+	source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The UI surface that triggered the interaction (menu, actionWidget, titleBar or sidebar)' };
 };
 
 /**
@@ -38,18 +65,18 @@ export function logSessionsInteraction(telemetryService: ITelemetryService, butt
 
 // --- Changes panel interactions ---
 
-type ChangesViewTogglePanelEvent = {
+type SidePanelToggleEvent = {
 	visible: boolean;
 };
 
-type ChangesViewTogglePanelClassification = {
-	owner: 'osortega';
-	comment: 'Tracks when the user toggles the Changes panel open or closed.';
-	visible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the Changes panel is now visible.' };
+type SidePanelToggleClassification = {
+	owner: 'sandy081';
+	comment: 'Tracks when the user toggles the Agents window side panel (editor area + auxiliary bar) open or closed.';
+	visible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the side panel is now visible.' };
 };
 
-export function logChangesViewToggle(telemetryService: ITelemetryService, visible: boolean): void {
-	telemetryService.publicLog2<ChangesViewTogglePanelEvent, ChangesViewTogglePanelClassification>('vscodeAgents.changesView/togglePanel', { visible });
+export function logSidePanelToggle(telemetryService: ITelemetryService, visible: boolean): void {
+	telemetryService.publicLog2<SidePanelToggleEvent, SidePanelToggleClassification>('vscodeAgents.layout/toggleSidePanel', { visible });
 }
 
 type ChangesViewVersionModeChangeEvent = {
@@ -58,7 +85,7 @@ type ChangesViewVersionModeChangeEvent = {
 
 type ChangesViewVersionModeChangeClassification = {
 	owner: 'osortega';
-	comment: 'Tracks when the user switches the version mode in the Changes panel (Branch Changes, All Changes, Last Turn).';
+	comment: 'Tracks when the user switches the version mode in the Changes panel (Branch Changes, Session Changes, Last Turn).';
 	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version mode selected by the user.' };
 };
 
@@ -94,22 +121,85 @@ export function logChangesViewViewModeChange(telemetryService: ITelemetryService
 	telemetryService.publicLog2<ChangesViewViewModeChangeEvent, ChangesViewViewModeChangeClassification>('vscodeAgents.changesView/viewModeChange', { mode });
 }
 
-type ChangesViewReviewCommentAddedEvent = {
-	hasExistingFeedback: boolean;
-	hasSuggestion: boolean;
-	isFromPRReview: boolean;
+// --- Shared multi-root topology helpers ---
+
+/**
+ * The browser-projected git/non-git shape of a session's workspace folders,
+ * used for telemetry. These counts come from workspace *metadata*
+ * (`folder.gitRepository`), distinct from the agent host's Node-side git probe;
+ * `folderCount === gitFolderCount + nonGitFolderCount`.
+ */
+export interface ISessionWorkspaceTopology {
+	readonly folderCount: number;
+	readonly gitFolderCount: number;
+	readonly nonGitFolderCount: number;
+	readonly isMultiRoot: boolean;
+}
+
+/**
+ * Derives the reconcilable {@link ISessionWorkspaceTopology} from a session's
+ * total and git-backed folder counts (`isMultiRoot` uses the folder-count
+ * convention shared across sessions telemetry).
+ */
+export function classifySessionWorkspaceTopology(folderCount: number, gitFolderCount: number): ISessionWorkspaceTopology {
+	return {
+		folderCount: folderCount,
+		gitFolderCount,
+		nonGitFolderCount: folderCount - gitFolderCount,
+		isMultiRoot: folderCount > 1,
+	};
+}
+
+// --- Tunnel agent host discovery ---
+
+export type TunnelDiscoveryTrigger =
+	| 'startup'
+	| 'rediscover'
+	| 'sessionChange';
+
+type TunnelDiscoveryResultEvent = {
+	trigger: string;
+	totalFound: number;
+	withActiveHost: number;
+	cachedBefore: number;
+	autoConnectEnabled: boolean;
+	hostsEnabled: boolean;
+	success: boolean;
 };
 
-type ChangesViewReviewCommentAddedClassification = {
+type TunnelDiscoveryResultClassification = {
 	owner: 'osortega';
-	comment: 'Tracks when a user adds a review comment (feedback) to a file in the Changes panel.';
-	hasExistingFeedback: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether there was already feedback on this file.' };
-	hasSuggestion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the feedback includes a code suggestion.' };
-	isFromPRReview: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the feedback was converted from a PR review comment.' };
+	comment: 'Tracks the outcome of agent-host tunnel discovery so we can diagnose stuck-after-discovery scenarios where tunnels are found but no providers ever appear.';
+	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What initiated the discovery (startup, rediscover, sessionChange).' };
+	totalFound: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of tunnels returned by the embedder after the protocol-version filter.' };
+	withActiveHost: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of discovered tunnels that have a host process currently connected (hostConnectionCount > 0).' };
+	cachedBefore: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of tunnels in the local recent-tunnels cache before this discovery run.' };
+	autoConnectEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether chat.remoteAgentHostsAutoConnect is enabled.' };
+	hostsEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether chat.remoteAgentHostsEnabled is enabled.' };
+	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the discovery call itself completed (false when listTunnels threw).' };
 };
 
-export function logChangesViewReviewCommentAdded(telemetryService: ITelemetryService, data: { hasExistingFeedback: boolean; hasSuggestion: boolean; isFromPRReview: boolean }): void {
-	telemetryService.publicLog2<ChangesViewReviewCommentAddedEvent, ChangesViewReviewCommentAddedClassification>('vscodeAgents.changesView/reviewCommentAdded', data);
+export function logTunnelDiscoveryResult(
+	telemetryService: ITelemetryService,
+	data: {
+		trigger: TunnelDiscoveryTrigger;
+		totalFound: number;
+		withActiveHost: number;
+		cachedBefore: number;
+		autoConnectEnabled: boolean;
+		hostsEnabled: boolean;
+		success: boolean;
+	},
+): void {
+	telemetryService.publicLog2<TunnelDiscoveryResultEvent, TunnelDiscoveryResultClassification>('vscodeAgents.tunnelDiscovery/result', {
+		trigger: data.trigger,
+		totalFound: data.totalFound,
+		withActiveHost: data.withActiveHost,
+		cachedBefore: data.cachedBefore,
+		autoConnectEnabled: data.autoConnectEnabled,
+		hostsEnabled: data.hostsEnabled,
+		success: data.success,
+	});
 }
 
 // --- Tunnel agent host connect ---
@@ -180,6 +270,73 @@ export function logTunnelConnectResolved(telemetryService: ITelemetryService, da
 		totalDurationMs: data.totalDurationMs,
 		success: data.success,
 		failureReason: data.failureReason ?? '',
+	});
+}
+
+// --- SSH agent host connect ---
+
+export type SSHConnectErrorCategory =
+	| 'authentication'
+	| 'cancelled'
+	| 'hostKeyDenied'
+	| 'incompatible'
+	| 'network'
+	| 'other';
+
+export function categorizeSSHConnectError(err: unknown): SSHConnectErrorCategory {
+	if (isCancellationError(err)) {
+		return 'cancelled';
+	}
+	if (isSSHHostKeyDeniedError(err)) {
+		return 'hostKeyDenied';
+	}
+	if (RemoteAgentHostConnectionStatus.fromConnectError(err, [PROTOCOL_VERSION])) {
+		return 'incompatible';
+	}
+	const message = err instanceof Error ? err.message : String(err);
+	if (/authenticat|permission denied|no supported authentication methods|all configured authentication methods failed/i.test(message)) {
+		return 'authentication';
+	}
+	if (/ECONN|ENETUNREACH|EHOSTUNREACH|ENOTFOUND|ETIMEDOUT|network|handshake.*timed out|closed before the handshake completed/i.test(message)) {
+		return 'network';
+	}
+	return 'other';
+}
+
+type SSHConnectAttemptEvent = {
+	operation: string;
+	userInitiated: boolean;
+	attempt: number;
+	durationMs: number;
+	success: boolean;
+	willRetry: boolean;
+	errorCategory: string;
+};
+
+type SSHConnectAttemptClassification = {
+	owner: 'roblourens';
+	comment: 'Tracks SSH agent-host connection attempts so connection and reconnection reliability can be measured.';
+	operation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether this was an explicit connection or a reconnect using a stored SSH config host.' };
+	userInitiated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the attempt was initiated by an explicit user action rather than automatic connection or reconnection.' };
+	attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Attempt number within the current connection cycle, starting at one.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Duration of the complete SSH and Agent Host protocol connection attempt in milliseconds.' };
+	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the connection completed through Agent Host protocol initialization.' };
+	willRetry: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether another automatic retry was scheduled after this failed attempt.' };
+	errorCategory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded failure category (authentication, cancelled, hostKeyDenied, incompatible, network, or other); empty on success.' };
+};
+
+export function logSSHConnectAttempt(telemetryService: ITelemetryService, data: {
+	operation: 'connect' | 'reconnect';
+	userInitiated: boolean;
+	attempt: number;
+	durationMs: number;
+	success: boolean;
+	willRetry: boolean;
+	errorCategory?: SSHConnectErrorCategory;
+}): void {
+	telemetryService.publicLog2<SSHConnectAttemptEvent, SSHConnectAttemptClassification>('vscodeAgents.sshConnect/attempt', {
+		...data,
+		errorCategory: data.errorCategory ?? '',
 	});
 }
 

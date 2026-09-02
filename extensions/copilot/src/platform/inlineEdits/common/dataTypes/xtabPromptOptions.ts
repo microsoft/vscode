@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Result } from '../../../../util/common/result';
 import { assertNever } from '../../../../util/vs/base/common/assert';
-import { IValidator, vBoolean, vEnum, vNumber, vObj, vRequired, vString, vUndefined, vUnion } from '../../../configuration/common/validator';
+import { IValidator, vArray, vBoolean, vEnum, vNumber, vObj, vRequired, vString, vUndefined, vUnion } from '../../../configuration/common/validator';
+import { ImportChanges } from './importFilteringOptions';
 
 export enum IncludeLineNumbersOption {
 	WithSpaceAfter = 'withSpaceAfter',
@@ -29,6 +31,13 @@ export type RecentlyViewedDocumentsOptions = {
 	readonly includeViewedFiles: boolean;
 	readonly includeLineNumbers: IncludeLineNumbersOption;
 	readonly clippingStrategy: RecentFileClippingStrategy;
+	/**
+	 * When clipping a file around its focal range, the budget is split evenly
+	 * between the lines above and below the focal range. When `true`, any budget
+	 * left unused by the lines above the focal range is donated to the lines
+	 * below it instead of being discarded.
+	 */
+	readonly useLeftoverBudgetFromAbove: boolean;
 };
 
 export namespace RecentlyViewedDocumentsOptions {
@@ -38,6 +47,7 @@ export namespace RecentlyViewedDocumentsOptions {
 		'includeViewedFiles': vBoolean(),
 		'includeLineNumbers': vEnum(IncludeLineNumbersOption.WithSpaceAfter, IncludeLineNumbersOption.WithoutSpace, IncludeLineNumbersOption.None),
 		'clippingStrategy': vEnum(RecentFileClippingStrategy.AroundEditRange, RecentFileClippingStrategy.Proportional),
+		'useLeftoverBudgetFromAbove': vBoolean(),
 	});
 }
 
@@ -56,12 +66,20 @@ export type LanguageContextOptions = {
 export type NeighborFilesOptions = {
 	readonly enabled: boolean;
 	readonly maxTokens: number;
+	/**
+	 * Whether to include language-service "related" (non-open-tab) files in the
+	 * neighbor-files context. NES has its own language-context implementation, so
+	 * this can be turned off to avoid redundant context. When `false`, only
+	 * open-tab neighbors are considered.
+	 */
+	readonly includeRelatedFiles: boolean;
 };
 
 export namespace NeighborFilesOptions {
 	export const VALIDATOR: IValidator<Partial<NeighborFilesOptions>> = vObj({
 		'enabled': vBoolean(),
 		'maxTokens': vNumber(),
+		'includeRelatedFiles': vBoolean(),
 	});
 }
 
@@ -72,9 +90,29 @@ export type DiffHistoryOptions = {
 	readonly useRelativePaths: boolean;
 };
 
+export enum RejectedEditsMemoryMode {
+	DiffWithTags = 'diffWithTags', // This is currently the only mode, so it is used by default but defined as a string for future extensibility.
+}
+
+export type PromptMemoryOptions = {
+	readonly rejectedEdits?: RejectedEditsMemoryMode;
+};
+
+export namespace PromptMemoryOptions {
+	export const VALIDATOR: IValidator<PromptMemoryOptions> = vObj({
+		'rejectedEdits': vUnion(vEnum(RejectedEditsMemoryMode.DiffWithTags), vUndefined()),
+	});
+}
+
 /**
- * Parts that participate in the global-budget cascade. `currentFile` and lint
- * output are intentionally excluded and continue to use their own per-part caps.
+ * Parts that are rendered by the global-budget cascade and listed in `order`.
+ * Lint output is intentionally excluded and keeps its own per-part shape.
+ *
+ * `currentFile` is NOT in this set: it is clipped outside the cascade (around the
+ * cursor) but still draws an allocation from the pool via {@link GlobalBudgetSharePart}.
+ * It is clipped LAST (after the cascade) to its share plus whatever budget the
+ * cascade left unused, so it only ever receives leftover and never donates into
+ * the cascade.
  */
 export type GlobalBudgetPart =
 	| 'recentlyViewedDocuments'
@@ -83,29 +121,42 @@ export type GlobalBudgetPart =
 	| 'diffHistory';
 
 /**
+ * Parts that receive a `shares` allocation from the pool: every rendered
+ * {@link GlobalBudgetPart} plus `currentFile`, which is sized from the pool but
+ * clipped externally (see {@link GlobalBudgetOptions.currentFileBudget}).
+ */
+export type GlobalBudgetSharePart = GlobalBudgetPart | 'currentFile';
+
+/**
  * Opt-in global-budget allocation modelled after the cascade in
  * `CascadingPromptFactory` (completions-core): every participating part gets a
- * percentage share of a single `totalTokens` pool, parts are rendered in
- * `order`, and any unused tokens in one part cascade as surplus to the next.
+ * percentage share of a single `totalTokens` pool, the rendered parts are emitted
+ * in `order`, and any unused tokens in one part cascade as surplus to the next.
+ *
+ * `currentFile` participates through `shares` only: it is clipped LAST, after the
+ * cascade runs, to its share of the pool plus whatever budget the cascade left
+ * unused (its `finalSurplus`), so it reuses the leftover and trims less.
  *
  * When `undefined` (the default), each part uses its own `maxTokens` cap as
  * before and no cross-part budget reuse happens.
  */
 export type GlobalBudgetOptions = {
 	readonly totalTokens: number;
-	/** Cascade order. Earlier parts get budget first; their surplus flows to later parts. */
+	/** Cascade render order. Earlier parts get budget first; their surplus flows to later parts. `currentFile` is not listed here. */
 	readonly order: readonly GlobalBudgetPart[];
-	/** Share of `totalTokens` allocated to each part. Must sum to 1 across `order`. */
-	readonly shares: Readonly<Record<GlobalBudgetPart, number>>;
+	/** Share of `totalTokens` allocated to each part. Must sum to ~1 across `order` plus `currentFile`. */
+	readonly shares: Readonly<Record<GlobalBudgetSharePart, number>>;
 };
 
 export namespace GlobalBudgetOptions {
 	/**
-	 * Default cascade: language context donates first (often disabled), then
-	 * recently-viewed documents (always-on, accepts most of the surplus), then
-	 * neighbor files (must run after recently-viewed because it consults
-	 * `docsInPrompt` to avoid duplicating recently-viewed documents), then
-	 * diff history.
+	 * Default render order: language context first (often disabled, donates its
+	 * share onward), then recently-viewed documents (always-on, accepts most of
+	 * the surplus), then neighbor files (must run after recently-viewed because it
+	 * consults `docsInPrompt` to avoid duplicating recently-viewed documents),
+	 * then diff history. `currentFile` is sized from the pool but clipped last
+	 * (after the cascade, so it can reuse the cascade's leftover), so it is not
+	 * part of this order.
 	 */
 	export const DEFAULT_ORDER: readonly GlobalBudgetPart[] = [
 		'languageContext',
@@ -114,15 +165,149 @@ export namespace GlobalBudgetOptions {
 		'diffHistory',
 	];
 
-	/** Shares matching today's per-part `maxTokens` ratios (volume-neutral baseline). */
-	export const DEFAULT_SHARES: Readonly<Record<GlobalBudgetPart, number>> = {
-		recentlyViewedDocuments: 2 / 6,
-		languageContext: 2 / 6,
-		neighborFiles: 1 / 6,
-		diffHistory: 1 / 6,
+	/**
+	 * Shares matching today's per-part `maxTokens` ratios (volume-neutral
+	 * baseline): each part's share is its legacy cap divided by the pool total
+	 * ({@link DEFAULT_TOTAL_TOKENS}), so `floor(totalTokens * share)` reproduces
+	 * that cap exactly. Sum to 1 across all parts.
+	 */
+	export const DEFAULT_SHARES: Readonly<Record<GlobalBudgetSharePart, number>> = {
+		currentFile: 1500 / 7500,
+		recentlyViewedDocuments: 2000 / 7500,
+		languageContext: 2000 / 7500,
+		neighborFiles: 1000 / 7500,
+		diffHistory: 1000 / 7500,
 	};
 
-	export const DEFAULT_TOTAL_TOKENS = 6000;
+	/**
+	 * The pool size: the sum of today's per-part `maxTokens` caps
+	 * (`currentFile` 1500 + `recentlyViewedDocuments` 2000 + `languageContext`
+	 * 2000 + `neighborFiles` 1000 + `diffHistory` 1000), so the default global
+	 * budget neither grows nor shrinks the total available budget.
+	 */
+	export const DEFAULT_TOTAL_TOKENS = 7500;
+
+	/**
+	 * The token budget allotted to `currentFile` from the pool: `floor(totalTokens
+	 * * shares.currentFile)`. Used to override the per-part `currentFile.maxTokens`
+	 * cap when clipping the current file under a global budget.
+	 */
+	export function currentFileBudget(globalBudget: GlobalBudgetOptions): number {
+		return Math.max(0, Math.floor(globalBudget.totalTokens * (globalBudget.shares.currentFile ?? 0)));
+	}
+
+	/**
+	 * Validate {@link GlobalBudgetOptions} since it is runtime-configurable
+	 * (e.g. via experiments). Catches misconfigurations that would otherwise
+	 * cause silent, hard-to-debug behavior:
+	 *  - `totalTokens` not a finite, non-negative number
+	 *  - duplicate parts in `order` (would render the same part twice)
+	 *  - missing share for any part in `order` or for `currentFile`
+	 *  - any share not a finite, non-negative number (negative shares would break
+	 *    budget conservation: a negative allocation clamps to 0 yet still counts
+	 *    toward the share sum, letting the remaining parts over-allocate past the pool)
+	 *  - shares not summing to ~1 across `order` plus `currentFile` (would over/under-allocate)
+	 *  - `neighborFiles` ordered before `recentlyViewedDocuments` (the former
+	 *    consults `docsInPrompt` populated by the latter)
+	 */
+	export function validate(globalBudget: GlobalBudgetOptions): void {
+		if (!Number.isFinite(globalBudget.totalTokens) || globalBudget.totalTokens < 0) {
+			throw new Error(`globalBudget.totalTokens must be a finite, non-negative number, got ${globalBudget.totalTokens}`);
+		}
+
+		const seen = new Set<string>();
+		for (const part of globalBudget.order) {
+			if (seen.has(part)) {
+				throw new Error(`globalBudget.order contains duplicate part '${part}'`);
+			}
+			seen.add(part);
+			if (typeof globalBudget.shares[part] !== 'number') {
+				throw new Error(`globalBudget.shares is missing entry for '${part}'`);
+			}
+			if (!Number.isFinite(globalBudget.shares[part]) || globalBudget.shares[part] < 0) {
+				throw new Error(`globalBudget.shares['${part}'] must be a finite, non-negative number, got ${globalBudget.shares[part]}`);
+			}
+		}
+
+		if (typeof globalBudget.shares.currentFile !== 'number') {
+			throw new Error(`globalBudget.shares is missing entry for 'currentFile'`);
+		}
+		if (!Number.isFinite(globalBudget.shares.currentFile) || globalBudget.shares.currentFile < 0) {
+			throw new Error(`globalBudget.shares['currentFile'] must be a finite, non-negative number, got ${globalBudget.shares.currentFile}`);
+		}
+
+		const recentIdx = globalBudget.order.indexOf('recentlyViewedDocuments');
+		const neighborIdx = globalBudget.order.indexOf('neighborFiles');
+		if (recentIdx !== -1 && neighborIdx !== -1 && neighborIdx < recentIdx) {
+			throw new Error(`globalBudget.order must place 'recentlyViewedDocuments' before 'neighborFiles'`);
+		}
+
+		const sharesSum = globalBudget.order.reduce((sum, part) => sum + globalBudget.shares[part], 0) + globalBudget.shares.currentFile;
+		const epsilon = 1e-3;
+		if (Math.abs(sharesSum - 1) > epsilon) {
+			throw new Error(`globalBudget.shares across order must sum to ~1, got ${sharesSum}`);
+		}
+	}
+
+	/**
+	 * Structural validator for the experiment-driven JSON config string. Every
+	 * top-level field is optional; omitted fields fall back to the defaults in
+	 * {@link fromConfigString}. When `shares` is provided it must list every
+	 * part (the rendered cascade parts plus `currentFile`) so the pool stays
+	 * fully allocated; partial `shares` objects are rejected.
+	 */
+	export const VALIDATOR = vObj({
+		'totalTokens': vUnion(vNumber(), vUndefined()),
+		'order': vUnion(vArray(vEnum<GlobalBudgetPart[]>('languageContext', 'recentlyViewedDocuments', 'neighborFiles', 'diffHistory')), vUndefined()),
+		'shares': vUnion(vObj({
+			'currentFile': vRequired(vNumber()),
+			'recentlyViewedDocuments': vRequired(vNumber()),
+			'languageContext': vRequired(vNumber()),
+			'neighborFiles': vRequired(vNumber()),
+			'diffHistory': vRequired(vNumber()),
+		}), vUndefined()),
+	});
+
+	/**
+	 * Parse the single experiment-driven JSON config string (modelled after
+	 * `modelConfigurationString`) into a fully-populated {@link GlobalBudgetOptions}.
+	 *
+	 * Any field absent from the JSON falls back to its `DEFAULT_*` value, so
+	 * `'{}'` enables the global budget with the volume-neutral defaults and
+	 * `'{"totalTokens":6000}'` only overrides the pool size. The merged result is
+	 * then run through {@link validate} so semantic misconfigurations (bad share
+	 * sums, duplicate/misordered parts) are reported.
+	 *
+	 * Returns a {@link Result.error} (never throws) so callers can fall back to a
+	 * disabled global budget and report the error via telemetry.
+	 */
+	export function fromConfigString(configString: string): Result<GlobalBudgetOptions, string> {
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(configString);
+		} catch (e) {
+			return Result.error(`Failed to parse globalBudget config string: ${e instanceof Error ? e.message : String(e)}`);
+		}
+
+		const { content, error } = VALIDATOR.validate(parsed);
+		if (error) {
+			return Result.error(`globalBudget config validation failed: ${error.message}`);
+		}
+
+		const options: GlobalBudgetOptions = {
+			totalTokens: content.totalTokens ?? DEFAULT_TOTAL_TOKENS,
+			order: content.order ?? DEFAULT_ORDER,
+			shares: content.shares ?? DEFAULT_SHARES,
+		};
+
+		try {
+			validate(options);
+		} catch (e) {
+			return Result.error(e instanceof Error ? e.message : String(e));
+		}
+
+		return Result.ok(options);
+	}
 }
 
 export type PagedClipping = { pageSize: number };
@@ -133,6 +318,13 @@ export type CurrentFileOptions = {
 	readonly includeLineNumbers: IncludeLineNumbersOption;
 	readonly includeCursorTag: boolean;
 	readonly prioritizeAboveCursor: boolean;
+	/**
+	 * When clipping the current file, the budget is split evenly between the
+	 * lines above and below the cursor (only when `prioritizeAboveCursor` is
+	 * `false`). When `true`, any budget left unused by the lines above the cursor
+	 * is donated to the lines below it instead of being discarded.
+	 */
+	readonly useLeftoverBudgetFromAbove: boolean;
 };
 
 export namespace CurrentFileOptions {
@@ -142,6 +334,7 @@ export namespace CurrentFileOptions {
 		'includeLineNumbers': vEnum(IncludeLineNumbersOption.WithSpaceAfter, IncludeLineNumbersOption.WithoutSpace, IncludeLineNumbersOption.None),
 		'includeCursorTag': vBoolean(),
 		'prioritizeAboveCursor': vBoolean(),
+		'useLeftoverBudgetFromAbove': vBoolean(),
 	});
 }
 
@@ -299,6 +492,8 @@ export namespace EditIntent {
 	}
 }
 
+export type EagernessPrompt = 'aggressionHighLow';
+
 export type PromptOptions = {
 	readonly promptingStrategy: PromptingStrategy | undefined /* default */;
 	readonly currentFile: CurrentFileOptions;
@@ -307,8 +502,10 @@ export type PromptOptions = {
 	readonly languageContext: LanguageContextOptions;
 	readonly neighborFiles: NeighborFilesOptions;
 	readonly diffHistory: DiffHistoryOptions;
+	readonly memory: PromptMemoryOptions | undefined;
 	readonly includePostScript: boolean;
 	readonly lintOptions: LintOptions | undefined;
+	readonly eagernessPrompt: EagernessPrompt | undefined;
 	/**
 	 * When set, parts share a single pool of `totalTokens` and unused budget from
 	 * earlier parts in `order` cascades to later parts. When `undefined`, each
@@ -335,9 +532,23 @@ export enum PromptingStrategy {
 	 * Xtab275 prompt + aggressiveness level tag.
 	 */
 	Xtab275Aggressiveness = 'xtab275Aggressiveness',
+	/**
+	 * Xtab275 prompt + aggressiveness level tag only for high/low.
+	 * Medium uses the plain xtab275 prompt (no tag).
+	 */
+	Xtab275AggressivenessHighLow = 'xtab275AggressivenessHighLow',
 	PatchBased = 'patchBased',
 	PatchBased01 = 'patchBased01',
 	PatchBased02 = 'patchBased02',
+	/** PatchBased02 variant: line numbers on recent docs. */
+	PatchBased02WithRecentLineNumbers = 'patchBased02WithRecentLineNumbers',
+	/**
+	 * PatchBased02 variant, with line numbers on recent docs, for a model that also handles inline
+	 * completions itself: it bakes in the client and latency knobs that treatment was tuned for.
+	 */
+	PatchBased02Unified = 'patchBased02Unified',
+	/** PatchBased02 variant: no line numbers on recent docs. */
+	PatchBased02WithoutRecentLineNumbers = 'patchBased02WithoutRecentLineNumbers',
 	/**
 	 * Xtab275-based strategy with edit intent tag parsing.
 	 * Response format: <|edit_intent|>low|medium|high|no_edit<|/edit_intent|>
@@ -356,11 +567,25 @@ export function isPromptingStrategy(value: string): value is PromptingStrategy {
 	return (Object.values(PromptingStrategy) as string[]).includes(value);
 }
 
-export function isAggressivenessStrategy(strategy: PromptingStrategy | undefined): boolean {
-	return strategy === PromptingStrategy.XtabAggressiveness
-		|| strategy === PromptingStrategy.Xtab275Aggressiveness
-		|| strategy === PromptingStrategy.Xtab275EditIntent
-		|| strategy === PromptingStrategy.Xtab275EditIntentShort;
+export function isEagernessPrompt(options: PromptOptions): boolean {
+	if (options.promptingStrategy === undefined) {
+		return false;
+	}
+	return (options.eagernessPrompt !== undefined && [
+		PromptingStrategy.PatchBased02,
+		PromptingStrategy.PatchBased02WithRecentLineNumbers,
+		PromptingStrategy.PatchBased02WithoutRecentLineNumbers,
+	].includes(options.promptingStrategy)) // eagerness prompt option is only supported for patch-based strategies
+		|| [PromptingStrategy.XtabAggressiveness,
+		PromptingStrategy.Xtab275Aggressiveness,
+		PromptingStrategy.Xtab275AggressivenessHighLow,
+		PromptingStrategy.Xtab275EditIntent,
+		PromptingStrategy.Xtab275EditIntentShort,
+		].includes(options.promptingStrategy); // first-class aggressiveness strategies
+}
+
+export function isRejectedEditMemoryEnabled(options: { readonly memory?: PromptMemoryOptions }): boolean {
+	return options.memory?.rejectedEdits === RejectedEditsMemoryMode.DiffWithTags;
 }
 
 export enum ResponseFormat {
@@ -382,10 +607,14 @@ export namespace ResponseFormat {
 			case PromptingStrategy.Xtab275:
 			case PromptingStrategy.XtabAggressiveness:
 			case PromptingStrategy.Xtab275Aggressiveness:
+			case PromptingStrategy.Xtab275AggressivenessHighLow:
 				return ResponseFormat.EditWindowOnly;
 			case PromptingStrategy.PatchBased:
 			case PromptingStrategy.PatchBased01:
 			case PromptingStrategy.PatchBased02:
+			case PromptingStrategy.PatchBased02WithRecentLineNumbers:
+			case PromptingStrategy.PatchBased02Unified:
+			case PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
 				return ResponseFormat.CustomDiffPatch;
 			case PromptingStrategy.Xtab275EditIntent:
 				return ResponseFormat.EditWindowWithEditIntent;
@@ -403,12 +632,14 @@ export namespace ResponseFormat {
 
 export const DEFAULT_OPTIONS: PromptOptions = {
 	promptingStrategy: undefined,
+	eagernessPrompt: undefined,
 	currentFile: {
-		maxTokens: 2000,
+		maxTokens: 1500,
 		includeTags: true,
 		includeLineNumbers: IncludeLineNumbersOption.None,
 		includeCursorTag: false,
 		prioritizeAboveCursor: false,
+		useLeftoverBudgetFromAbove: true,
 	},
 	pagedClipping: {
 		pageSize: 10,
@@ -419,6 +650,7 @@ export const DEFAULT_OPTIONS: PromptOptions = {
 		includeViewedFiles: false,
 		includeLineNumbers: IncludeLineNumbersOption.None,
 		clippingStrategy: RecentFileClippingStrategy.AroundEditRange,
+		useLeftoverBudgetFromAbove: false,
 	},
 	languageContext: {
 		enabled: false,
@@ -428,6 +660,7 @@ export const DEFAULT_OPTIONS: PromptOptions = {
 	neighborFiles: {
 		enabled: false,
 		maxTokens: 1000,
+		includeRelatedFiles: true,
 	},
 	diffHistory: {
 		nEntries: 25,
@@ -435,6 +668,7 @@ export const DEFAULT_OPTIONS: PromptOptions = {
 		onlyForDocsInPrompt: false,
 		useRelativePaths: false,
 	},
+	memory: undefined,
 	lintOptions: undefined,
 	includePostScript: true,
 };
@@ -455,15 +689,166 @@ export const LANGUAGE_CONTEXT_ENABLED_LANGUAGES: LanguageContextLanguages = {
 	'chatagent': true,
 };
 
+/**
+ * Shape of the predicted output we send to the patch-based model along with the prompt.
+ * In every example below, `{currentLineNumber}` is 0-based — matching `Patch.lineNumZeroBased`
+ * parsed by `XtabCustomDiffPatchResponseHandler`.
+ */
+export enum PatchModelPrediction {
+	/**
+	 * Expects changes in the current file but doesn't expect where (line number is not specified).
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * path/to/file:
+	 * ```
+	 */
+	FilePath = 'filePath',
+	/**
+	 * Predicts the file path, cursor line number, and a deletion of the current line.
+	 * The model is free to follow with further `-`/`+` lines as needed.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * path/to/file:{currentLineNumber}
+	 * -	class Foo {
+	 * ```
+	 */
+	CurrentLine = 'currentLine',
+	/**
+	 * Expects the current line to be replaced.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * path/to/file:{currentLineNumber}
+	 * -	class Foo {
+	 * +
+	 * ```
+	 */
+	CurrentLineReplaced = 'currentLineReplaced',
+	/**
+	 * Expects the current line to be completed.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * path/to/file:{currentLineNumber}
+	 * -	class Foo
+	 * +	class Foo
+	 * ```
+	 */
+	CurrentLineCompleted = 'currentLineCompleted',
+}
+
+export namespace PatchModelPrediction {
+	export const VALIDATOR = vEnum(
+		PatchModelPrediction.FilePath,
+		PatchModelPrediction.CurrentLine,
+		PatchModelPrediction.CurrentLineReplaced,
+		PatchModelPrediction.CurrentLineCompleted
+	);
+}
+
 export interface ModelConfiguration {
 	modelName: string;
 	promptingStrategy: PromptingStrategy | undefined /* default */;
+	eagernessPrompt?: EagernessPrompt;
 	includeTagsInCurrentFile: boolean;
 	includePostScript?: boolean;
 	currentFile?: Partial<CurrentFileOptions>;
 	recentlyViewedDocuments?: Partial<RecentlyViewedDocumentsOptions>;
+	memory?: PromptMemoryOptions;
 	lintOptions: Partial<LintOptions> | undefined;
 	supportsNextCursorLinePrediction?: boolean;
+	/** Whether import-only edits are allowed. `undefined` is treated as {@link ImportChanges.None}. */
+	allowImportChanges?: ImportChanges;
+	/** Shape of the predicted output for patch-based responses. `undefined` falls back to the experiment default. */
+	patchModelPredictionKind?: PatchModelPrediction;
+	/** Whether to split patches on diff boundaries. `undefined` falls back to the experiment default. */
+	splitPatchOnDiff?: boolean;
+	/** Whether to fast-yield the line containing the cursor when parsing patches. `undefined` falls back to the experiment default. */
+	patchFastYieldLineWithCursor?: boolean;
+	/** Extra debounce (ms) applied when the cursor is at the end of a line. `undefined` falls back to the experiment default. */
+	extraDebounceEndOfLine?: number;
+	/** Whether cached suggestions should mimic ghost-text rendering behavior. `undefined` falls back to the experiment default. */
+	nesMimicGhostTextBehavior?: boolean;
+	/** Minimum response delay (ms) enforced for cached edits. `undefined` falls back to the experiment default. */
+	cacheDelay?: number;
+	/** Minimum response delay (ms) enforced for rebased cached edits. `undefined` falls back to the experiment default. */
+	rebasedCacheDelay?: number;
+	/** Base debounce (ms) applied before issuing a request. `undefined` falls back to the experiment default. */
+	debounce?: number;
+	/**
+	 * Whether this model handles inline completions itself, so the separate completions provider
+	 * should be suppressed and the client should run as the single unified provider. `undefined`
+	 * falls back to the experiment/deployment toggles.
+	 */
+	supportsUnifiedCompletions?: boolean;
+}
+
+/**
+ * Per-strategy configuration baked into the strategy itself. When a strategy
+ * declares values here, those values override anything provided by the upstream
+ * model configuration. A strategy without an entry contributes no overrides.
+ */
+const PATCH_BASED_02_WITH_RECENT_LINE_NUMBERS_CONFIG: Partial<ModelConfiguration> = {
+	includeTagsInCurrentFile: false,
+	includePostScript: true,
+	currentFile: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
+	recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
+	supportsNextCursorLinePrediction: false,
+	allowImportChanges: ImportChanges.All,
+};
+
+const STRATEGY_CONFIG: Partial<Record<PromptingStrategy, Partial<ModelConfiguration>>> = {
+	// proxy /models doesn't know about includeTagsInCurrentFile field as of now, so hard-code it for CopilotNesXtab
+	[PromptingStrategy.CopilotNesXtab]: {
+		includeTagsInCurrentFile: true,
+	},
+	[PromptingStrategy.PatchBased02WithRecentLineNumbers]: PATCH_BASED_02_WITH_RECENT_LINE_NUMBERS_CONFIG,
+	// Inherits everything from PatchBased02WithRecentLineNumbers and additionally bakes in the
+	// client/latency knobs that this unified model was tuned to run with.
+	[PromptingStrategy.PatchBased02Unified]: {
+		...PATCH_BASED_02_WITH_RECENT_LINE_NUMBERS_CONFIG,
+		patchModelPredictionKind: PatchModelPrediction.CurrentLineCompleted,
+		splitPatchOnDiff: true,
+		patchFastYieldLineWithCursor: true,
+		extraDebounceEndOfLine: 0,
+		nesMimicGhostTextBehavior: true,
+		cacheDelay: 200,
+		rebasedCacheDelay: 0,
+		debounce: 0,
+		supportsUnifiedCompletions: true,
+	},
+	[PromptingStrategy.PatchBased02WithoutRecentLineNumbers]: {
+		includeTagsInCurrentFile: false,
+		includePostScript: true,
+		currentFile: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
+		recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.None },
+		supportsNextCursorLinePrediction: false,
+		allowImportChanges: ImportChanges.All,
+	},
+};
+
+/** Apply per-strategy baked-in config; strategy values override `config`. */
+export function applyStrategyConfig(config: ModelConfiguration): ModelConfiguration {
+	const overrides = config.promptingStrategy === undefined ? undefined : STRATEGY_CONFIG[config.promptingStrategy];
+	if (!overrides) {
+		return config;
+	}
+	const hasCurrentFile = config.currentFile !== undefined || overrides.currentFile !== undefined;
+	const hasRecentlyViewed = config.recentlyViewedDocuments !== undefined || overrides.recentlyViewedDocuments !== undefined;
+	const hasLintOptions = config.lintOptions !== undefined || overrides.lintOptions !== undefined;
+	return {
+		...config,
+		...overrides,
+		currentFile: hasCurrentFile ? { ...config.currentFile, ...overrides.currentFile } : undefined,
+		recentlyViewedDocuments: hasRecentlyViewed ? { ...config.recentlyViewedDocuments, ...overrides.recentlyViewedDocuments } : undefined,
+		lintOptions: hasLintOptions ? { ...config.lintOptions, ...overrides.lintOptions } : undefined,
+	};
 }
 
 export const LINT_OPTIONS_VALIDATOR: IValidator<Partial<LintOptions>> = vObj({
@@ -478,12 +863,24 @@ export const LINT_OPTIONS_VALIDATOR: IValidator<Partial<LintOptions>> = vObj({
 export const MODEL_CONFIGURATION_VALIDATOR: IValidator<ModelConfiguration> = vObj({
 	'modelName': vRequired(vString()),
 	'promptingStrategy': vUnion(vEnum(...Object.values(PromptingStrategy)), vUndefined()),
+	'eagernessPrompt': vUnion(vEnum<EagernessPrompt[]>('aggressionHighLow'), vUndefined()),
 	'includeTagsInCurrentFile': vRequired(vBoolean()),
 	'includePostScript': vUnion(vBoolean(), vUndefined()),
 	'currentFile': vUnion(CurrentFileOptions.VALIDATOR, vUndefined()),
 	'recentlyViewedDocuments': vUnion(RecentlyViewedDocumentsOptions.VALIDATOR, vUndefined()),
+	'memory': vUnion(PromptMemoryOptions.VALIDATOR, vUndefined()),
 	'lintOptions': vUnion(LINT_OPTIONS_VALIDATOR, vUndefined()),
 	'supportsNextCursorLinePrediction': vUnion(vBoolean(), vUndefined()),
+	'allowImportChanges': vUnion(ImportChanges.VALIDATOR, vUndefined()),
+	'patchModelPredictionKind': vUnion(PatchModelPrediction.VALIDATOR, vUndefined()),
+	'splitPatchOnDiff': vUnion(vBoolean(), vUndefined()),
+	'patchFastYieldLineWithCursor': vUnion(vBoolean(), vUndefined()),
+	'extraDebounceEndOfLine': vUnion(vNumber(), vUndefined()),
+	'nesMimicGhostTextBehavior': vUnion(vBoolean(), vUndefined()),
+	'cacheDelay': vUnion(vNumber(), vUndefined()),
+	'rebasedCacheDelay': vUnion(vNumber(), vUndefined()),
+	'debounce': vUnion(vNumber(), vUndefined()),
+	'supportsUnifiedCompletions': vUnion(vBoolean(), vUndefined()),
 });
 
 export function parseLintOptionString(optionString: string, defaults: LintOptions): LintOptions {
@@ -664,7 +1061,6 @@ export namespace SpeculativeRequestsEnablement {
  */
 export enum DuplicateAdditionsMode {
 	Off = 'off',
-	Log = 'log',
 	DropPatch = 'dropPatch',
 	DropAllRemaining = 'dropAllRemaining',
 	TrimDuplicate = 'trimDuplicate',
@@ -673,7 +1069,6 @@ export enum DuplicateAdditionsMode {
 export namespace DuplicateAdditionsMode {
 	export const VALIDATOR = vEnum(
 		DuplicateAdditionsMode.Off,
-		DuplicateAdditionsMode.Log,
 		DuplicateAdditionsMode.DropPatch,
 		DuplicateAdditionsMode.DropAllRemaining,
 		DuplicateAdditionsMode.TrimDuplicate,

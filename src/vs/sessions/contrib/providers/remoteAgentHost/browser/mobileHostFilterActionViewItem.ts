@@ -14,7 +14,7 @@ import { DisposableStore, MutableDisposable } from '../../../../../base/common/l
 import { localize } from '../../../../../nls.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../common/agentHostFilter.js';
+import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { HostFilterActionViewItem } from './hostFilterActionViewItem.js';
 import './media/hostPickerSheet.css';
 
@@ -50,6 +50,14 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 	 */
 	protected override _isInteractive(): boolean {
 		return true;
+	}
+
+	/**
+	 * Tapping always opens the sheet, which carries its own "Re-discover
+	 * hosts" action, so the pill never reads as a re-discovery trigger.
+	 */
+	protected override _retriesOnClick(): boolean {
+		return false;
 	}
 
 	protected override _showMenu(_e: Event): void {
@@ -177,7 +185,7 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 
 	private _renderHostList(disposables: DisposableStore, body: HTMLElement, finish: () => void, focusRefs: { firstHost?: HTMLButtonElement; firstCheckedHost?: HTMLButtonElement }): void {
 		const hosts = this._filterService.hosts;
-		const selectedId = this._filterService.selectedProviderId;
+		const selectedId = this._filterService.selectedHostId;
 
 		if (hosts.length === 0) {
 			const empty = dom.append(body, $('div.host-picker-sheet-empty'));
@@ -191,9 +199,9 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 			localize('agentHostFilter.sheet.available', "Available");
 
 		for (const host of hosts) {
-			const row = this._renderHostItem(disposables, body, host, selectedId === host.providerId, finish);
+			const row = this._renderHostItem(disposables, body, host, selectedId === host.id, finish);
 			focusRefs.firstHost ??= row;
-			if (selectedId === host.providerId) {
+			if (selectedId === host.id) {
 				focusRefs.firstCheckedHost ??= row;
 			}
 		}
@@ -207,23 +215,26 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 			row.classList.add('checked');
 		}
 
-		// Icon + small status dot in the bottom-right.
+		// Icon, plus a status dot only where the user drives the connection.
 		const iconWrap = dom.append(row, $('span.host-picker-sheet-item-icon'));
-		iconWrap.append(...renderLabelWithIcons(`$(${Codicon.remote.id})`));
-		const status = dom.append(iconWrap, $('span.host-picker-sheet-item-status'));
-		switch (host.status) {
-			case AgentHostFilterConnectionStatus.Connected:
-				status.classList.add('connected');
-				break;
-			case AgentHostFilterConnectionStatus.Connecting:
-				status.classList.add('connecting');
-				break;
+		iconWrap.append(...renderLabelWithIcons(`$(${host.icon.id})`));
+		if (host.connectable) {
+			const status = dom.append(iconWrap, $('span.host-picker-sheet-item-status'));
+			switch (host.status) {
+				case AgentHostFilterConnectionStatus.Connected:
+					status.classList.add('connected');
+					break;
+				case AgentHostFilterConnectionStatus.Connecting:
+					status.classList.add('connecting');
+					break;
+			}
 		}
 
-		// Name + status sub-line.
 		const text = dom.append(row, $('span.host-picker-sheet-item-text'));
 		dom.append(text, $('span.host-picker-sheet-item-name')).textContent = host.label;
-		dom.append(text, $('span.host-picker-sheet-item-sub')).textContent = this._statusLabel(host.status);
+		if (host.connectable) {
+			dom.append(text, $('span.host-picker-sheet-item-sub')).textContent = this._statusLabel(host.status);
+		}
 
 		if (checked) {
 			const check = dom.append(row, $('span.host-picker-sheet-item-check'));
@@ -234,7 +245,7 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 			if (e) {
 				dom.EventHelper.stop(e, true);
 			}
-			this._filterService.setSelectedProviderId(host.providerId);
+			this._filterService.setSelectedHostId(host.id);
 			finish();
 		};
 

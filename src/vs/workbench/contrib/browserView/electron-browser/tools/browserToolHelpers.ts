@@ -6,13 +6,17 @@
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { isBrowserViewAssociatedResourceNavigation } from '../../../../../platform/browserView/common/browserView.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { IInvokeFunctionResult, IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IToolInvocation, IToolResult } from '../../../chat/common/tools/languageModelToolsService.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
-import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { browserViewUrlMatches, BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { IRemoteExplorerService } from '../../../../services/remote/common/remoteExplorerService.js';
+import { mapHasAddressLocalhostOrAllInterfaces } from '../../../../services/remote/common/tunnelModel.js';
+import { extractLocalHostUriMetaDataForPortMapping } from '../../../../../platform/tunnel/common/tunnel.js';
 
 // eslint-disable-next-line local/code-import-patterns
 import type { Page } from 'playwright-core';
@@ -59,13 +63,58 @@ export function formatBrowserEditorList(editorService: IEditorService, editors: 
 
 		const title = blocked ? localize('browser.blockedByPolicy', "Blocked by network domain policy") : (editor.title || 'Untitled');
 		const displayUrl = blocked ? '' : ` (${url})`;
+		const resourceNavigationHint = editor.associatedResource ? ' (resource-backed; navigation is limited to this resource)' : '';
 		const hint = editor === activeEditor ? ' (active)' : visibleEditors.has(editor) ? ' (visible)' : ' (not visible)';
 		const id = options?.excludeIds ? '' : `[${editor.id}] `;
 
 		// By default, use numbers only if we're excluding IDs, so models don't get confused about which ID to use.
 		const bullet = (options?.numbered ?? options?.excludeIds) ? `${index + 1}. ` : '- ';
-		return `${indent}${bullet}${id}${title}${displayUrl}${hint}`;
+		return `${indent}${bullet}${id}${title}${displayUrl}${resourceNavigationHint}${hint}`;
 	}).join('\n');
+}
+
+export function getBrowserPageResourceNavigationError(editor: BrowserEditorInput | undefined, target: string): string | undefined {
+	if (!editor?.associatedResource || isBrowserViewAssociatedResourceNavigation(editor.associatedResource, target)) {
+		return undefined;
+	}
+
+	return 'This browser page is associated with a resource and cannot be navigated to a different resource. Only query and fragment changes are allowed. Use a different page or open a new one with the open_browser_page tool.';
+}
+
+export function getBrowserPagesContext(
+	editorService: IEditorService,
+	browserViewService: IBrowserViewWorkbenchService,
+	agentNetworkFilterService: IAgentNetworkFilterService,
+	options?: {
+		activeSessionId?: string;
+		canPromptUser?: boolean;
+	},
+): string | undefined {
+	const views = [...browserViewService.getContextualBrowserViews({ activeSessionId: options?.activeSessionId }).values()];
+	const sharedViews = views.filter(view => view.model?.sharingState === BrowserViewSharingState.Shared);
+	const unsharedCount = views.length - sharedViews.length;
+
+	if (sharedViews.length === 0 && unsharedCount === 0) {
+		return undefined;
+	}
+
+	let value: string;
+	if (sharedViews.length > 0) {
+		value = 'The following browser pages are currently shared with you and can be interacted with using the browser tools:';
+		value += '\n' + formatBrowserEditorList(editorService, sharedViews, { agentNetworkFilterService });
+	} else {
+		value = 'No browser pages are currently shared with you.';
+	}
+
+	if (unsharedCount > 0) {
+		value += '\n\n';
+		value += `${unsharedCount} ${unsharedCount === 1 ? 'page is' : 'pages are'} open but not shared.`;
+		value += options?.canPromptUser
+			? `\nUse the 'open_browser_page' tool to open a new page or to help the user share an existing page.`
+			: `\nUse the 'open_browser_page' tool to open a new page.`;
+	}
+
+	return value;
 }
 
 /**
@@ -114,6 +163,17 @@ export async function playwrightInvoke<TArgs extends unknown[], TReturn>(
 }
 
 /**
+ * Past-tense label for a browser tool call that failed.
+ *
+ * These tools declare only an `invocationMessage`, so on completion the
+ * present-tense label is reused verbatim and a failed call reads as a
+ * successful one ("Capturing browser screenshot"). Naming the failure keeps
+ * the completed state honest, as the agent host already does for client tool
+ * calls and the codex mapper does for its own results.
+ */
+const failedMessage = localize('browser.actionFailed', "Browser action failed");
+
+/**
  * Convert an {@link IInvokeFunctionResult} to an {@link IToolResult},
  * including any {@link IInvokeFunctionResult.deferredResultId}.
  */
@@ -131,6 +191,7 @@ export function invokeFunctionResultToToolResult(result: IInvokeFunctionResult, 
 	content.push({ kind: 'text', value: result.summary });
 	return {
 		content,
+		...(result.error !== undefined ? { toolResultError: result.error || failedMessage, toolResultMessage: failedMessage } : {}),
 		...(code ? {
 			toolResultDetails: {
 				input: code,
@@ -138,7 +199,7 @@ export function invokeFunctionResultToToolResult(result: IInvokeFunctionResult, 
 				output: result.result || result.error
 					? [{ type: 'embed' as const, isText: true, value: JSON.stringify(result.result ?? result.error, null, 2) }]
 					: [],
-				isError: !!result.error,
+				isError: result.error !== undefined,
 			},
 		} : {}),
 	};
@@ -148,6 +209,65 @@ export function errorResult(message: string): IToolResult {
 	return {
 		content: [{ kind: 'text', value: message }],
 		toolResultError: message,
+		toolResultMessage: failedMessage,
+	};
+}
+
+/**
+ * In a remote workspace where remote proxying is not enabled, the integrated
+ * browser runs on the local machine and cannot reach the remote's localhost
+ * directly. This rewrites a remote localhost URL to the local address of an
+ * already-forwarded port so the browser can reach it.
+ *
+ * Returns the original URL and `rewritten: false` when not applicable (remote
+ * proxying is enabled, the URL is not a localhost URL, or the remote port has
+ * not been forwarded).
+ */
+export function rewriteRemoteLocalhostUrl(
+	url: string,
+	browserViewService: IBrowserViewWorkbenchService,
+	remoteExplorerService: IRemoteExplorerService,
+): { url: string; rewritten: boolean } {
+	// When proxying is enabled (or we are not in a remote workspace) the browser
+	// can reach the remote host directly, so no rewriting is needed.
+	if (browserViewService.willUseRemoteProxy()) {
+		return { url, rewritten: false };
+	}
+
+	let uri = URI.parse(url);
+
+	// Hostnames are case-insensitive, but the localhost port-mapping matcher is
+	// case-sensitive. Normalize the authority so e.g. `http://LOCALHOST:3000` matches.
+	if (uri.authority) {
+		uri = uri.with({ authority: uri.authority.toLowerCase() });
+	}
+
+	const portMapping = extractLocalHostUriMetaDataForPortMapping(uri);
+	if (!portMapping) {
+		return { url, rewritten: false }; // Not a localhost http(s) URL
+	}
+
+	const tunnelModel = remoteExplorerService.tunnelModel;
+	const forwarded = mapHasAddressLocalhostOrAllInterfaces(tunnelModel.forwarded, portMapping.address, portMapping.port)
+		?? mapHasAddressLocalhostOrAllInterfaces(tunnelModel.detected, portMapping.address, portMapping.port);
+	if (!forwarded?.localUri) {
+		return { url, rewritten: false }; // The remote port has not been forwarded; leave the URL as-is
+	}
+
+	// The forwarded tunnel's `localUri` carries the configured scheme (e.g. https)
+	// and local authority; keep the original request's path, query and fragment.
+	const rewritten = forwarded.localUri.with({ path: uri.path, query: uri.query, fragment: uri.fragment });
+	return { url: rewritten.toString(), rewritten: true };
+}
+
+/**
+ * Builds a text tool-result item informing the agent that a remote localhost
+ * URL was rewritten to its forwarded local address.
+ */
+export function remoteUrlRewriteNotice(originalUrl: string, rewrittenUrl: string): { kind: 'text'; value: string } {
+	return {
+		kind: 'text',
+		value: `Note: \`${originalUrl}\` was rewritten to \`${rewrittenUrl}\` because this is a remote workspace and the remote port is forwarded to a local address.`,
 	};
 }
 
@@ -162,31 +282,18 @@ export function findExistingPagesByHost(
 	options?: {
 		includeBlank?: boolean;
 		sharingState?: BrowserViewSharingState;
+		activeSessionId?: string;
 	}
 ): BrowserEditorInput[] {
-	const parsed = URL.parse(url);
-	if (!parsed || (parsed.protocol !== 'file:' && !parsed.host)) {
-		return [];
-	}
-
 	const results: BrowserEditorInput[] = [];
-	for (const editor of browserViewService.getKnownBrowserViews().values()) {
+	for (const editor of browserViewService.getContextualBrowserViews({ activeSessionId: options?.activeSessionId }).values()) {
 		if (!(editor instanceof BrowserEditorInput)) {
 			continue;
 		}
 		if (options?.sharingState && editor.model?.sharingState !== options.sharingState) {
 			continue;
 		}
-		const editorUrl = URL.parse(editor.url || '');
-		if (
-			options?.includeBlank && (!editor.url || editor.url === 'about:blank') ||
-			editorUrl?.host === parsed.host ||
-			(parsed.protocol === 'file:' && editorUrl?.protocol === 'file:') ||
-			(editorUrl?.host && parsed.host && (
-				editorUrl.host.endsWith('.' + parsed.host) ||
-				parsed.host.endsWith('.' + editorUrl.host)
-			))
-		) {
+		if (browserViewUrlMatches(editor.url, url, options?.includeBlank)) {
 			results.push(editor);
 		}
 	}

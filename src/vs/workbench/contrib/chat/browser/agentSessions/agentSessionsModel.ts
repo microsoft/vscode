@@ -29,7 +29,8 @@ import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../
 import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsService, isSessionInProgressStatus, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
-import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, isBuiltInAgentSessionProvider } from './agentSessions.js';
+import { dedupeMigratedCopilotCliSessions } from '../copilotCliEventsUri.js';
+import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, isAgentHostTarget, isBuiltInAgentSessionProvider } from './agentSessions.js';
 
 //#region Interfaces, Types
 
@@ -64,7 +65,7 @@ export interface IAgentSessionsModel {
 	resolve(provider: string | string[] | undefined): Promise<void>;
 }
 
-interface IAgentSessionData extends Omit<IChatSessionItem, 'archived' | 'iconPath'> {
+interface IAgentSessionData extends Omit<IChatSessionItem, 'archived' | 'iconPath' | 'isRead'> {
 
 	readonly providerType: string;
 	readonly providerLabel: string;
@@ -144,12 +145,61 @@ interface IInternalAgentSessionData extends IAgentSessionData {
 	 * and `setArchived()` methods instead.
 	 */
 	readonly archived: boolean | undefined;
+
+	/**
+	 * Read state as reported by the session's provider, authoritative for
+	 * providers that own it (see {@link ownsReadState}). Kept internal — use
+	 * `isRead()` / `setRead()`.
+	 */
+	readonly providerIsRead: boolean | undefined;
 }
 
 interface IInternalAgentSession extends IAgentSession, IInternalAgentSessionData { }
 
 export function isLocalAgentSessionItem(session: IAgentSession): boolean {
 	return session.providerType === AgentSessionProviders.Local;
+}
+
+/**
+ * Resolves the pull request associated with an agent session from its provider metadata,
+ * preferring an explicit `pullRequestUrl` and falling back to `pullRequestNumber` combined
+ * with `owner`/`name`. Returns `undefined` when the session has no associated pull request.
+ */
+export function getAgentSessionPullRequestUri(session: Pick<IAgentSession, 'metadata'>): URI | undefined {
+	const metadata = session.metadata;
+	if (!metadata) {
+		return undefined;
+	}
+
+	const url = metadata.pullRequestUrl;
+	if (typeof url === 'string' && url) {
+		try {
+			return URI.parse(url);
+		} catch {
+			// Fall through to the number based lookup below.
+		}
+	}
+
+	const prNumber = metadata.pullRequestNumber;
+	const owner = metadata.owner;
+	const name = metadata.name;
+	if (typeof prNumber === 'number' && typeof owner === 'string' && owner && typeof name === 'string' && name) {
+		return URI.parse(`https://github.com/${owner}/${name}/pull/${prNumber}`);
+	}
+
+	return undefined;
+}
+
+/**
+ * The value for the `chatSessionPullRequest` context key for a session. Never returns an
+ * "unknown" value: callers here always have the session's metadata in hand.
+ */
+export function getAgentSessionPullRequestContextValue(session: Pick<IAgentSession, 'metadata'>): 'available' | 'none' {
+	return getAgentSessionPullRequestUri(session) ? 'available' : 'none';
+}
+
+export function isAgentHostAgentSessionItem(session: IAgentSession): boolean {
+	return isAgentHostTarget(session.providerType);
 }
 
 export function isAgentSession(obj: unknown): obj is IAgentSession {
@@ -464,7 +514,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	get resolved(): boolean { return this._resolved; }
 
 	private _sessions: ResourceMap<IInternalAgentSession>;
-	get sessions(): IAgentSession[] { return Array.from(this._sessions.values()); }
+	get sessions(): IAgentSession[] { return this._dedupeMigratedCopilotCliSessions(Array.from(this._sessions.values())); }
 
 	private readonly resolvers = this._register(new DisposableMap<string, ThrottledDelayer<void>>());
 
@@ -503,6 +553,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		this.logger.logAllStatsIfTrace('Loaded cached sessions');
 
 		this.readDateBaseline = this.resolveReadDateBaseline(); // we use this to account for bugfixes in the read/unread tracking
+		this.loadMigratedReadResources();
 
 		this.registerListeners();
 	}
@@ -539,6 +590,20 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 	getSession(resource: URI): IAgentSession | undefined {
 		return this._sessions.get(resource);
+	}
+
+	/**
+	 * Hide the extension-host `copilotcli:` row when its agent-host
+	 * `agent-host-copilotcli:` twin is present, so the list shows a single entry
+	 * per legacy Copilot CLI session — the agent-host one.
+	 *
+	 * A legacy row with no twin yet stays visible: opening it redirects through the
+	 * agent host and adopts it, so it is never a dead end.
+	 *
+	 * Only display is deduped; {@link getSession} and the cache use the full map.
+	 */
+	private _dedupeMigratedCopilotCliSessions(sessions: IAgentSession[]): IAgentSession[] {
+		return dedupeMigratedCopilotCliSessions(sessions, session => session.resource);
 	}
 
 	private _changedSignal: IObservable<void> | undefined;
@@ -633,6 +698,12 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
 			mapSessionContributionToType.set(contribution.type, contribution);
 		}
+		// Providers that register their session items dynamically (notably the
+		// agent host, e.g. `agent-host-copilotcli` and remote `remote-<auth>-…`)
+		// are neither built-in nor static contributions, so they are preserved
+		// via the live registration signal — otherwise a sibling provider's
+		// partial refresh would drop their rows (sessions vanishing mid-migration).
+		const registeredProviders = new Set(this.chatSessionsService.getRegisteredChatSessionItemProviders());
 
 		// Phase 1: Fetch new items for this provider (async, may interleave with other providers)
 		const sessions = new ResourceMap<IInternalAgentSession>();
@@ -653,10 +724,22 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					icon = session.iconPath ?? Codicon.terminal;
 				}
 
-				const changes = session.changes;
+				// A lazy provider refresh omits changes. Keep only the previous aggregate
+				// summary so cached counts survive without retaining hydrated file arrays.
+				const changes = session.changes ?? getAgentChangesSummary(this._sessions.get(session.resource)?.changes);
 				const normalizedChanges = changes && !(changes instanceof Array)
 					? { files: changes.files, insertions: changes.insertions, deletions: changes.deletions }
 					: changes;
+				const shouldKeepOpenSessionRead = session.isRead === false
+					&& this.chatSessionsService.canSetChatSessionItemRead(session.resource)
+					&& !this.explicitlyMarkedUnreadSessions.has(session.resource)
+					&& !!this.chatWidgetService.getWidgetBySessionResource(session.resource);
+				if (shouldKeepOpenSessionRead) {
+					this.chatSessionsService.setChatSessionItemRead(session.resource, true);
+				}
+				if (session.isRead) {
+					this.explicitlyMarkedUnreadSessions.delete(session.resource);
+				}
 
 				sessions.set(session.resource, this.toAgentSession({
 					providerType: chatSessionType,
@@ -669,9 +752,11 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					tooltip: session.tooltip,
 					status: session.status ?? AgentSessionStatus.Completed,
 					archived: session.archived,
+					providerIsRead: shouldKeepOpenSessionRead ? true : session.isRead,
 					timing: session.timing,
 					changes: normalizedChanges,
 					metadata: session.metadata,
+					legacyResource: session.legacyResource,
 				}));
 			}
 		}
@@ -679,21 +764,48 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		// Phase 2: Atomically update sessions (sync - reads latest this._sessions
 		// so concurrent updateItems calls for other providers don't lose data)
 
+		let preservedViaRegistration = 0;
 		for (const [, session] of this._sessions) {
-			if (
-				session.providerType !== provider &&
-				!sessions.has(session.resource) &&
-				(isBuiltInAgentSessionProvider(session.providerType) || mapSessionContributionToType.has(session.providerType))
-			) {
-				sessions.set(session.resource, session);
+			if (session.providerType !== provider && !sessions.has(session.resource)) {
+				const knownProvider = isBuiltInAgentSessionProvider(session.providerType) || mapSessionContributionToType.has(session.providerType);
+				if (knownProvider || registeredProviders.has(session.providerType)) {
+					sessions.set(session.resource, session);
+					// Count rows kept only because their provider is live-registered
+					// (e.g. agent-host): the old condition dropped these, causing the
+					// mid-migration vanish. A non-zero count means the fix engaged.
+					if (!knownProvider) {
+						preservedViaRegistration++;
+					}
+				}
+			}
+		}
+		if (preservedViaRegistration > 0) {
+			this.logger.logIfTrace(`doResolveProvider(${provider}): preserved ${preservedViaRegistration} live-registered session(s) across a sibling refresh (would have dropped before the preservation fix)`);
+		}
+		for (const resource of this.explicitlyMarkedUnreadSessions) {
+			if (!sessions.has(resource)) {
+				this.explicitlyMarkedUnreadSessions.delete(resource);
+			}
+		}
+
+		const sessionsWithChangedArchivedState: IInternalAgentSession[] = [];
+		for (const [, session] of sessions) {
+			const previousSession = this._sessions.get(session.resource);
+			if (previousSession && this.isArchived(previousSession) !== this.isArchived(session)) {
+				sessionsWithChangedArchivedState.push(session);
 			}
 		}
 
 		this._sessions = sessions;
 		this._resolved = true;
 
+		this.migrateReadStateToProvider(sessions.values());
+
 		this.logger.logAllStatsIfTrace('Sessions resolved from providers');
 
+		for (const session of sessionsWithChangedArchivedState) {
+			this._onDidChangeSessionArchivedState.fire(session);
+		}
 		this._onDidChangeSessions.fire();
 	}
 
@@ -715,9 +827,42 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	private static readonly UNREAD_MARKER = -1;
 
 	private readonly sessionStates: ResourceMap<IAgentSessionState>;
+	private readonly explicitlyMarkedUnreadSessions = new ResourceSet();
+
+	/**
+	 * Resolve the state entry for a session, honoring a one-way migration from
+	 * {@link IAgentSessionData.legacyResource} when no entry yet exists for the
+	 * session's current resource. Adopts the legacy entry forward (copies it onto
+	 * the current resource key and removes the legacy entry). Returns undefined if
+	 * neither a current nor a legacy entry exists.
+	 */
+	private resolveStateEntry(session: IInternalAgentSessionData): IAgentSessionState | undefined {
+		const own = this.sessionStates.get(session.resource);
+		if (own !== undefined) {
+			return own;
+		}
+		const legacy = session.legacyResource;
+		if (!legacy) {
+			return undefined;
+		}
+		// Cross-scheme and self-referential mappings are rejected defensively.
+		if (legacy.scheme !== session.resource.scheme || legacy.toString() === session.resource.toString()) {
+			return undefined;
+		}
+		const prev = this.sessionStates.get(legacy);
+		if (prev === undefined) {
+			return undefined;
+		}
+		this.sessionStates.set(session.resource, { ...prev });
+		this.sessionStates.delete(legacy);
+		return this.sessionStates.get(session.resource);
+	}
 
 	private isArchived(session: IInternalAgentSessionData): boolean {
-		return this.sessionStates.get(session.resource)?.archived ?? Boolean(session.archived);
+		if (this.chatSessionsService.canSetChatSessionItemArchived(session.resource)) {
+			return Boolean(session.archived);
+		}
+		return this.resolveStateEntry(session)?.archived ?? Boolean(session.archived);
 	}
 
 	private setArchived(session: IInternalAgentSessionData, archived: boolean): void {
@@ -729,7 +874,12 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			return; // no change
 		}
 
-		const state = this.sessionStates.get(session.resource) ?? {};
+		if (this.chatSessionsService.canSetChatSessionItemArchived(session.resource)) {
+			this.chatSessionsService.setChatSessionItemArchived(session.resource, archived);
+			return;
+		}
+
+		const state = this.resolveStateEntry(session) ?? {};
 		this.sessionStates.set(session.resource, { ...state, archived });
 
 		const agentSession = this._sessions.get(session.resource);
@@ -741,7 +891,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	private isPinned(session: IInternalAgentSessionData): boolean {
-		return this.sessionStates.get(session.resource)?.pinned ?? false;
+		return this.resolveStateEntry(session)?.pinned ?? false;
 	}
 
 	private setPinned(session: IInternalAgentSessionData, pinned: boolean): void {
@@ -749,14 +899,28 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			return; // no change
 		}
 
-		const state = this.sessionStates.get(session.resource) ?? {};
+		const state = this.resolveStateEntry(session) ?? {};
 		this.sessionStates.set(session.resource, { ...state, pinned });
 
 		this._onDidChangeSessions.fire();
 	}
 
 	private isMarkedUnread(session: IInternalAgentSessionData): boolean {
-		return this.sessionStates.get(session.resource)?.read === AgentSessionsModel.UNREAD_MARKER;
+		if (this.ownsReadState(session)) {
+			return !this.isRead(session);
+		}
+
+		return this.resolveStateEntry(session)?.read === AgentSessionsModel.UNREAD_MARKER;
+	}
+
+	/**
+	 * Whether the session's provider owns read state. When it does the value is
+	 * shared with every other client on the same backend (the agent window, or
+	 * another window on the same agent host), so the local heuristics below must
+	 * not second-guess it.
+	 */
+	private ownsReadState(session: IInternalAgentSessionData): boolean {
+		return this.chatSessionsService.canSetChatSessionItemRead(session.resource);
 	}
 
 	private isRead(session: IInternalAgentSessionData): boolean {
@@ -764,18 +928,17 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			return true; // archived sessions are always read
 		}
 
-		const storedReadDate = this.sessionStates.get(session.resource)?.read;
+		if (this.ownsReadState(session)) {
+			// Not yet reported (e.g. just created in this window): treat as read.
+			return session.providerIsRead ?? true;
+		}
+
+		const storedReadDate = this.resolveStateEntry(session)?.read;
 		if (storedReadDate === AgentSessionsModel.UNREAD_MARKER) {
 			return false;
 		}
 
-		const readDate = Math.max(storedReadDate ?? 0, this.readDateBaseline /* Use read date baseline when no read date is stored */);
-
-		// Install a heuristic to reduce false positives: a user might observe
-		// the output of a session and quickly click on another session before
-		// it is finished. Strictly speaking the session is unread, but we
-		// allow a certain threshold of time to count as read to accommodate.
-		if (readDate >= this.sessionTimeForReadStateTracking(session) - 2000) {
+		if (this.localReadDateCoversActivity(session, storedReadDate)) {
 			return true;
 		}
 
@@ -783,12 +946,41 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		return !!this.chatWidgetService.getWidgetBySessionResource(session.resource);
 	}
 
+	/** Grace window absorbing a click away from a session just before it finishes. */
+	private static readonly READ_GRACE_WINDOW = 2000;
+
+	/**
+	 * Whether the locally-stored read timestamp covers the session's last
+	 * activity. Falls back to the read-date baseline when nothing is stored.
+	 */
+	private localReadDateCoversActivity(session: IInternalAgentSessionData, storedReadDate: number | undefined): boolean {
+		const readDate = Math.max(storedReadDate ?? 0, this.readDateBaseline);
+		return readDate >= this.sessionTimeForReadStateTracking(session) - AgentSessionsModel.READ_GRACE_WINDOW;
+	}
+
 	private sessionTimeForReadStateTracking(session: IInternalAgentSessionData): number {
 		return session.timing.lastRequestEnded ?? session.timing.created;
 	}
 
 	private setRead(session: IInternalAgentSessionData, read: boolean, skipEvent?: boolean): void {
-		const state = this.sessionStates.get(session.resource) ?? {};
+		if (this.ownsReadState(session)) {
+			if (read) {
+				this.explicitlyMarkedUnreadSessions.delete(session.resource);
+			} else {
+				this.explicitlyMarkedUnreadSessions.add(session.resource);
+			}
+			if (read === (session.providerIsRead ?? true)) {
+				return; // no change
+			}
+			// The provider echoes the value back through a session-item change
+			// event, so there is no local state to write and no event to fire.
+			this.chatSessionsService.setChatSessionItemRead(session.resource, read);
+			return;
+		}
+
+		// Adopt any legacy state forward first so we don't establish an own entry
+		// under the current resource and orphan the legacy one.
+		const state = this.resolveStateEntry(session) ?? {};
 
 		let newRead: number;
 		if (read) {
@@ -808,6 +1000,75 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 		if (!skipEvent) {
 			this._onDidChangeSessions.fire();
+		}
+	}
+
+	private static readonly READ_MIGRATION_DONE_KEY = 'agentSessions.providerReadMigration';
+
+	private readonly migratedReadResources = new ResourceSet();
+
+	/**
+	 * One-time hand-off of locally-tracked read state to providers that own it,
+	 * so sessions read before the provider took ownership don't all resurface as
+	 * unread. Only ever promotes to read, and runs at most once per session so a
+	 * later "Mark as Unread" is not undone on the next refresh.
+	 *
+	 * The ledger is application-scoped even though the local state it hands off
+	 * is per-workspace: the provider-owned state it writes to is global, so a
+	 * second workspace that can see the same session (an empty window lists them
+	 * all) must not migrate it again and re-promote a deliberate "Mark as Unread".
+	 */
+	private migrateReadStateToProvider(sessions: Iterable<IInternalAgentSessionData>): void {
+		let changed = false;
+		for (const session of sessions) {
+			if (this.migratedReadResources.has(session.resource) || !this.ownsReadState(session)) {
+				continue;
+			}
+
+			// Not reported yet (e.g. carried over from a cache predating this
+			// field). Consuming the one-shot flag now would drop the hand-off when
+			// the real value arrives.
+			if (session.providerIsRead === undefined) {
+				continue;
+			}
+
+			this.migratedReadResources.add(session.resource);
+			changed = true;
+
+			if (session.providerIsRead) {
+				continue; // already read on the backend — nothing to hand off
+			}
+
+			// `isRead()` can't be used here — it already defers to the provider.
+			const storedReadDate = this.resolveStateEntry(session)?.read;
+			if (storedReadDate === AgentSessionsModel.UNREAD_MARKER) {
+				continue; // explicitly marked unread locally — leave it unread
+			}
+			if (this.localReadDateCoversActivity(session, storedReadDate)) {
+				this.chatSessionsService.setChatSessionItemRead(session.resource, true);
+			}
+		}
+
+		if (changed) {
+			this.storageService.store(
+				AgentSessionsModel.READ_MIGRATION_DONE_KEY,
+				JSON.stringify(Array.from(this.migratedReadResources).map(resource => resource.toString())),
+				StorageScope.APPLICATION,
+				StorageTarget.MACHINE);
+		}
+	}
+
+	private loadMigratedReadResources(): void {
+		const raw = this.storageService.get(AgentSessionsModel.READ_MIGRATION_DONE_KEY, StorageScope.APPLICATION);
+		if (!raw) {
+			return;
+		}
+		try {
+			for (const entry of JSON.parse(raw) as string[]) {
+				this.migratedReadResources.add(URI.parse(entry));
+			}
+		} catch {
+			// Ignore a corrupt entry: the worst case is re-running an additive migration.
 		}
 	}
 
@@ -855,7 +1116,11 @@ interface ISerializedAgentSession {
 
 	readonly archived: boolean | undefined;
 
+	readonly isRead?: boolean;
+
 	readonly metadata: { [key: string]: unknown } | undefined;
+
+	readonly legacyResource?: string;
 
 	readonly timing: {
 		readonly created: number;
@@ -874,7 +1139,7 @@ interface ISerializedAgentSessionState extends IAgentSessionState {
 	readonly resource: UriComponents /* old shape */ | string /* new shape that is more compact */;
 }
 
-class AgentSessionsCache {
+export class AgentSessionsCache {
 
 	private static readonly SESSIONS_STORAGE_KEY = 'agentSessions.model.cache';
 	private static readonly STATE_STORAGE_KEY = 'agentSessions.state.cache';
@@ -900,11 +1165,13 @@ class AgentSessionsCache {
 
 			status: isSessionInProgressStatus(session.status) ? AgentSessionStatus.Completed : session.status, // never cache sessions as in progress, this needs to be live state
 			archived: session.archived,
+			isRead: session.providerIsRead,
 
 			timing: session.timing,
 
-			changes: session.changes,
-			metadata: session.metadata
+			changes: getAgentChangesSummary(session.changes),
+			metadata: session.metadata,
+			legacyResource: session.legacyResource?.toString()
 		} satisfies ISerializedAgentSession));
 
 		this.storageService.store(AgentSessionsCache.SESSIONS_STORAGE_KEY, safeStringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -932,6 +1199,7 @@ class AgentSessionsCache {
 
 				status: session.status,
 				archived: session.archived,
+				providerIsRead: session.isRead,
 
 				timing: {
 					created: session.timing.created ?? 0,
@@ -939,13 +1207,9 @@ class AgentSessionsCache {
 					lastRequestEnded: session.timing.lastRequestEnded,
 				},
 
-				changes: Array.isArray(session.changes) ? session.changes.map((change: IChatSessionFileChange) => ({
-					modifiedUri: URI.revive(change.modifiedUri),
-					originalUri: change.originalUri ? URI.revive(change.originalUri) : undefined,
-					insertions: change.insertions,
-					deletions: change.deletions,
-				})) : session.changes,
+				changes: getAgentChangesSummary(session.changes),
 				metadata: session.metadata,
+				legacyResource: session.legacyResource ? URI.parse(session.legacyResource) : undefined,
 			}));
 		} catch {
 			return []; // invalid data in storage, fallback to empty sessions list

@@ -6,7 +6,11 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -18,8 +22,9 @@ import { resolveCommandsContext } from '../../../browser/parts/editor/editorComm
 import { MultiDiffEditor } from './multiDiffEditor.js';
 import { MultiDiffEditorInput } from './multiDiffEditorInput.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { ActiveEditorContext } from '../../../common/contextkeys.js';
+import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { ActiveEditorContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
+import { createMultiDiffEditorLayoutDebugModel, isMultiDiffEditorLayoutDebugStateProvider } from './multiDiffEditorLayoutDebug.js';
 
 export class GoToFileAction extends Action2 {
 	constructor() {
@@ -65,6 +70,44 @@ export class GoToFileAction extends Action2 {
 				selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport,
 			} satisfies ITextEditorOptions,
 		});
+	}
+}
+
+export class OpenMultiDiffEditorLayoutDebugAction extends Action2 {
+	constructor() {
+		super({
+			id: 'multiDiffEditor.openLayoutDebug',
+			title: localize2('openMultiDiffEditorLayoutDebug', 'Open Multi Diff Editor Layout Debug State'),
+			category: Categories.Developer,
+			precondition: ContextKeyExpr.or(ActiveEditorContext.isEqualTo(MultiDiffEditor.ID), EditorContextKeys.inMultiDiffEditor),
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const activeEditorPane = editorService.activeEditorPane;
+		if (!isMultiDiffEditorLayoutDebugStateProvider(activeEditorPane)) {
+			return;
+		}
+
+		const model = createMultiDiffEditorLayoutDebugModel(
+			activeEditorPane.getLayoutDebugState(),
+			accessor.get(IModelService),
+			accessor.get(ILanguageService),
+		);
+		try {
+			const editor = await editorService.openEditor(
+				{ resource: model.uri, options: { pinned: true } },
+				SIDE_GROUP,
+			);
+			if (!editor) {
+				model.dispose();
+			}
+		} catch (error) {
+			model.dispose();
+			throw error;
+		}
 	}
 }
 
@@ -143,12 +186,28 @@ export class CollapseAllAction extends Action2 {
 			title: localize2('collapseAllDiffs', 'Collapse All Diffs'),
 			icon: Codicon.collapseAll,
 			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed')),
-			menu: [MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
-				id,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed')),
-				group: 'navigation',
-				order: 100
-			})),
+			menu: [
+				// In the agents window this action lives in the editor header overflow (...) menu instead of as a primary toolbar icon.
+				{
+					id: MenuId.EditorTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed'), IsSessionsWindowContext.toNegated()),
+					group: 'navigation',
+					order: 100
+				},
+				// The compact window editor title has no overflow menu, so keep the primary toolbar icon there.
+				{
+					id: MenuId.CompactWindowEditorTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed')),
+					group: 'navigation',
+					order: 100
+				},
+				{
+					id: MenuId.EditorTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed'), IsSessionsWindowContext),
+					group: '4_collapse',
+					order: 10
+				}
+			],
 			f1: true,
 		});
 	}
@@ -176,12 +235,28 @@ export class ExpandAllAction extends Action2 {
 			title: localize2('ExpandAllDiffs', 'Expand All Diffs'),
 			icon: Codicon.expandAll,
 			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed')),
-			menu: [MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
-				id,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed')),
-				group: 'navigation',
-				order: 100
-			})),
+			menu: [
+				// In the agents window this action lives in the editor header overflow (...) menu instead of as a primary toolbar icon.
+				{
+					id: MenuId.EditorTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed'), IsSessionsWindowContext.toNegated()),
+					group: 'navigation',
+					order: 100
+				},
+				// The compact window editor title has no overflow menu, so keep the primary toolbar icon there.
+				{
+					id: MenuId.CompactWindowEditorTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed')),
+					group: 'navigation',
+					order: 100
+				},
+				{
+					id: MenuId.EditorTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed'), IsSessionsWindowContext),
+					group: '4_collapse',
+					order: 10
+				}
+			],
 			f1: true,
 		});
 	}

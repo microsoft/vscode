@@ -31,6 +31,7 @@ const SESSIONS_WINDOW_ALLOWED_CONTRIBUTION_POINTS: ReadonlySet<keyof IExtensionC
 	'colors',
 	'keybindings',
 	'jsonValidation',
+	'jsonValidationRegistry',
 	'localizations',
 	'grammars',
 	'languages',
@@ -97,6 +98,13 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		const configuredSessionsWindowSupport = this.getConfiguredSessionsWindowSupport(manifest);
 		if (configuredSessionsWindowSupport !== undefined) {
 			return configuredSessionsWindowSupport;
+		}
+
+		if (manifest.enabledApiProposals?.includes('agentsWindowActivation')) {
+			const declaredSessionsWindowSupport = manifest.capabilities?.agentsWindow?.supported;
+			if (declaredSessionsWindowSupport !== undefined) {
+				return declaredSessionsWindowSupport;
+			}
 		}
 
 		// In the sessions window only extensions that have no code are currently allowed to run

@@ -14,11 +14,11 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
-import { JSON_RPC_PARSE_ERROR, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../common/state/sessionProtocol.js';
+import { AgentHostTransportKind } from '../common/agentHostTelemetry.js';
+import { JSON_RPC_PARSE_ERROR, type AhpServerNotification, type JsonRpcNotification, type JsonRpcParseErrorResponse, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import type * as wsTypes from 'ws';
 import type * as httpTypes from 'http';
-import type * as urlTypes from 'url';
 
 /**
  * Options for creating a {@link WebSocketProtocolServer}.
@@ -45,6 +45,7 @@ export interface IWebSocketServerOptions {
  * Messages are serialized as JSON with URI revival.
  */
 export class WebSocketProtocolTransport extends Disposable implements IProtocolTransport {
+	readonly transportKind = AgentHostTransportKind.WebSocket;
 
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
@@ -69,7 +70,7 @@ export class WebSocketProtocolTransport extends Disposable implements IProtocolT
 				this._ahpLogger?.log(message, 'c2s', getAhpLogByteLength(text));
 				this._onMessage.fire(message);
 			} catch {
-				this.send({ jsonrpc: '2.0', id: null!, error: { code: JSON_RPC_PARSE_ERROR, message: 'Parse error' } });
+				this.send({ jsonrpc: '2.0', id: null, error: { code: JSON_RPC_PARSE_ERROR, message: 'Parse error' } });
 			}
 		});
 
@@ -83,7 +84,7 @@ export class WebSocketProtocolTransport extends Disposable implements IProtocolT
 		});
 	}
 
-	send(message: ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest): void {
+	send(message: ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcParseErrorResponse | JsonRpcResponse | JsonRpcRequest): void {
 		if (this._ws.readyState === this._WebSocket.OPEN) {
 			const text = JSON.stringify(message);
 			this._ahpLogger?.log(message, 's2c', getAhpLogByteLength(text));
@@ -104,7 +105,7 @@ export class WebSocketProtocolTransport extends Disposable implements IProtocolT
  * as an {@link IProtocolTransport}.
  *
  * Use the static {@link create} method to construct — it dynamically imports
- * `ws` and `http`/`url` so the modules are only loaded when needed.
+ * `ws` and `http` so the modules are only loaded when needed.
  */
 export class WebSocketProtocolServer extends Disposable implements IProtocolServer {
 
@@ -116,6 +117,14 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 	private readonly _onConnection = this._register(new Emitter<IProtocolTransport>());
 	readonly onConnection = this._onConnection.event;
 
+	/**
+	 * Resolves once the underlying TCP / socket listener has bound, or
+	 * rejects with the bind error. Use this before reading {@link address}
+	 * or {@link boundPort} — querying the address synchronously after
+	 * construction races against the listener bind.
+	 */
+	readonly whenListening: Promise<void>;
+
 	get address(): string | undefined {
 		const addr = this._wss.address();
 		if (!addr || typeof addr === 'string') {
@@ -125,20 +134,32 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 	}
 
 	/**
-	 * Creates a new WebSocket protocol server. Dynamically imports `ws`,
-	 * `http`, and `url` so callers don't pay the cost when unused.
+	 * The actual TCP port the server is bound to. `undefined` when the
+	 * listener has not bound yet (await {@link whenListening} first) or
+	 * when the server is bound to a unix socket / named pipe.
+	 */
+	get boundPort(): number | undefined {
+		const addr = this._wss.address();
+		if (!addr || typeof addr === 'string') {
+			return undefined;
+		}
+		return addr.port;
+	}
+
+	/**
+	 * Creates a new WebSocket protocol server. Dynamically imports `ws` and
+	 * `http` so callers don't pay the cost when unused.
 	 */
 	static async create(
 		options: IWebSocketServerOptions | number,
 		logService: ILogService,
 		ahpLogOptions?: { readonly instantiationService: IInstantiationService; readonly logsHome: URI },
 	): Promise<WebSocketProtocolServer> {
-		const [ws, http, url] = await Promise.all([
+		const [ws, http] = await Promise.all([
 			import('ws'),
 			import('http'),
-			import('url'),
 		]);
-		return new WebSocketProtocolServer(options, logService, ahpLogOptions, ws, http, url);
+		return new WebSocketProtocolServer(options, logService, ahpLogOptions, ws, http);
 	}
 
 	private constructor(
@@ -147,7 +168,6 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 		private readonly _ahpLogOptions: { readonly instantiationService: IInstantiationService; readonly logsHome: URI } | undefined,
 		ws: typeof wsTypes,
 		http: typeof httpTypes,
-		url: typeof urlTypes,
 	) {
 		super();
 
@@ -159,8 +179,15 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 
 		const verifyClient = opts.connectionTokenValidate
 			? (info: { req: httpTypes.IncomingMessage }, cb: (res: boolean, code?: number, message?: string) => void) => {
-				const parsedUrl = url.parse(info.req.url ?? '', true);
-				const token = parsedUrl.query[connectionTokenQueryName];
+				let tokens: string[];
+				try {
+					tokens = new URL(info.req.url ?? '', 'http://localhost').searchParams.getAll(connectionTokenQueryName);
+				} catch {
+					this._logService.warn('[WebSocketProtocol] Connection rejected: invalid request URL');
+					cb(false, 400, 'Bad Request');
+					return;
+				}
+				const token = tokens.length > 1 ? tokens : tokens[0];
 				if (!opts.connectionTokenValidate!(token)) {
 					this._logService.warn('[WebSocketProtocol] Connection rejected: invalid connection token');
 					cb(false, 403, 'Forbidden');
@@ -175,12 +202,27 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 			// and attach the WebSocket server to it.
 			this._httpServer = http.createServer();
 			this._wss = new ws.WebSocketServer({ server: this._httpServer, verifyClient });
-			this._httpServer.listen(opts.socketPath, () => {
-				this._logService.info(`[WebSocketProtocol] Server listening on socket ${opts.socketPath}`);
+			const httpServer = this._httpServer;
+			this.whenListening = new Promise<void>((resolve, reject) => {
+				httpServer.once('listening', () => {
+					this._logService.info(`[WebSocketProtocol] Server listening on socket ${opts.socketPath}`);
+					resolve();
+				});
+				httpServer.once('error', reject);
 			});
+			this._httpServer.listen(opts.socketPath);
 		} else {
 			this._wss = new ws.WebSocketServer({ port: opts.port, host, verifyClient });
-			this._logService.info(`[WebSocketProtocol] Server listening on ${host}:${opts.port}`);
+			const wss = this._wss;
+			this.whenListening = new Promise<void>((resolve, reject) => {
+				wss.once('listening', () => {
+					const addr = wss.address();
+					const bound = !addr || typeof addr === 'string' ? `${host}:${opts.port}` : `${addr.address}:${addr.port}`;
+					this._logService.info(`[WebSocketProtocol] Server listening on ${bound}`);
+					resolve();
+				});
+				wss.once('error', reject);
+			});
 		}
 
 		this._wss.on('connection', (wsConn) => {

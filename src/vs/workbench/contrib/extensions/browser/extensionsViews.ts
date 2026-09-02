@@ -1680,7 +1680,7 @@ export class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {
 		// Skip first page as the preferred extensions are always in the first page
 		if (pageIndex !== 0 && adjustIndexOfNextPagesBy) {
 			const nextPageStartIndex = (pageIndex + 1) * this.pager.pageSize;
-			const indices = [...this.resolved.keys()].sort();
+			const indices = [...this.resolved.keys()].sort((a, b) => a - b);
 			for (const index of indices) {
 				if (index >= nextPageStartIndex) {
 					const e = this.resolved.get(index);

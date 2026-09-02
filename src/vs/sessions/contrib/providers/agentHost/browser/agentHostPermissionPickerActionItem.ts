@@ -3,19 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, ISettableObservable } from '../../../../../base/common/observable.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
+import { IChatInputPickerResponsiveState } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { PermissionPickerActionItem } from '../../../../../workbench/contrib/chat/browser/widget/input/permissionPickerActionItem.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { AgentHostPermissionPickerDelegate } from './agentHostPermissionPickerDelegate.js';
 
 /**
@@ -26,13 +29,15 @@ import { AgentHostPermissionPickerDelegate } from './agentHostPermissionPickerDe
  * the active session's `autoApprove` schema doesn't match the well-known
  * shape.
  */
-export class AgentHostPermissionPickerActionItem extends PermissionPickerActionItem {
+export class AgentHostPermissionPickerActionItem extends PermissionPickerActionItem implements IChatInputPickerResponsiveState {
 
 	private readonly _delegate: AgentHostPermissionPickerDelegate;
+	private readonly _compact: ISettableObservable<boolean>;
 
 	constructor(
 		action: MenuItemAction,
-		pickerOptions: IChatInputPickerOptions,
+		pickerOptions: IChatInputPickerOptions & { readonly compact: ISettableObservable<boolean> },
+		session: IObservable<IActiveSession | undefined>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -42,8 +47,9 @@ export class AgentHostPermissionPickerActionItem extends PermissionPickerActionI
 		@IDialogService dialogService: IDialogService,
 		@IOpenerService openerService: IOpenerService,
 		@IStorageService storageService: IStorageService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		const delegate = instantiationService.createInstance(AgentHostPermissionPickerDelegate);
+		const delegate = instantiationService.createInstance(AgentHostPermissionPickerDelegate, session);
 		super(
 			action,
 			delegate,
@@ -56,8 +62,10 @@ export class AgentHostPermissionPickerActionItem extends PermissionPickerActionI
 			dialogService,
 			openerService,
 			storageService,
+			hoverService,
 		);
 		this._delegate = this._register(delegate);
+		this._compact = pickerOptions.compact;
 
 		// The base widget's label is rendered on demand via `refresh()`. Keep it
 		// in sync with the delegate's level observable.
@@ -67,6 +75,14 @@ export class AgentHostPermissionPickerActionItem extends PermissionPickerActionI
 		}));
 	}
 
+	isCompact(): boolean {
+		return this._compact.get();
+	}
+
+	setCompact(compact: boolean): void {
+		this._compact.set(compact, undefined);
+	}
+
 	override render(container: HTMLElement): void {
 		super.render(container);
 		// The active session can change while this view item is alive (the
@@ -74,9 +90,31 @@ export class AgentHostPermissionPickerActionItem extends PermissionPickerActionI
 		// visibility reactively rather than at construction time.
 		this._register(autorun(reader => {
 			const visible = this._delegate.isApplicable.read(reader);
-			if (this.element) {
-				this.element.style.display = visible ? '' : 'none';
+			container.style.display = visible ? '' : 'none';
+		}));
+
+		// Reflect the resolving state. The underlying ActionWidgetDropdown
+		// still handles Enter/Space on its label and pointer-events: none
+		// doesn't block keyboard, so the delegate also bails at the
+		// provider boundary.
+		this._register(autorun(reader => {
+			const isResolving = this._delegate.isResolving.read(reader);
+			const element = this.element;
+			if (!element) {
+				return;
+			}
+			element.classList.toggle('sessions-chat-config-resolving', isResolving);
+			this.setDropdownEnabled(!isResolving);
+			if (isResolving) {
+				element.setAttribute('aria-disabled', 'true');
+			} else {
+				element.removeAttribute('aria-disabled');
 			}
 		}));
+	}
+
+	protected override updateEnabled(): void {
+		super.updateEnabled();
+		this.setDropdownEnabled(!this._delegate.isResolving.get());
 	}
 }

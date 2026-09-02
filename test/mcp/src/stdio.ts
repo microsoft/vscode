@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { getServer } from './automation';
-import { ApplicationService } from './application';
-import { opts } from './options';
+import { ApplicationService, opts } from '../../scenario';
 
 const transport: StdioServerTransport = new StdioServerTransport();
 (async () => {

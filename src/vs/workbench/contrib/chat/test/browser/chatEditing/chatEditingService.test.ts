@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { waitForState } from '../../../../../../base/common/observable.js';
+import { autorun, IReader, observableValue, waitForState } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { assertType } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -22,6 +22,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
@@ -36,8 +37,8 @@ import { INotebookService } from '../../../../notebook/common/notebookService.js
 import { ChatEditingService } from '../../../browser/chatEditing/chatEditingServiceImpl.js';
 import { ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
 import { ChatAgentService, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
-import { ChatModel } from '../../../common/model/chatModel.js';
+import { ChatEditingSessionState, IChatEditReviewSession, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
+import { ChatModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { ChatService } from '../../../common/chatService/chatServiceImpl.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
@@ -46,12 +47,14 @@ import { ChatTransferService, IChatTransferService } from '../../../common/model
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { NullLanguageModelsService } from '../../common/languageModels.js';
 import { MockChatVariablesService } from '../../common/mockChatVariables.js';
 import { MockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 
 function getAgentData(id: string): IChatAgentData {
 	return {
@@ -90,8 +93,10 @@ suite('ChatEditingService', function () {
 		collection.set(IChatService, new SyncDescriptor(ChatService));
 		collection.set(IMcpService, new TestMcpService());
 		collection.set(IPromptsService, new MockPromptsService());
+		collection.set(ICustomizationMigrationService, new class extends mock<ICustomizationMigrationService>() { });
 		collection.set(ILanguageModelsService, new SyncDescriptor(NullLanguageModelsService));
-		collection.set(IChatDebugService, new ChatDebugServiceImpl());
+		const contextKeyService = store.add(new MockContextKeyService());
+		collection.set(IChatDebugService, store.add(new ChatDebugServiceImpl(new TestConfigurationService(), contextKeyService)));
 		collection.set(IMultiDiffSourceResolverService, new class extends mock<IMultiDiffSourceResolverService>() {
 			override registerResolver(_resolver: IMultiDiffSourceResolver): IDisposable {
 				return Disposable.None;
@@ -147,6 +152,42 @@ suite('ChatEditingService', function () {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	function createReviewSession(entry: IModifiedFileEntry): IChatEditReviewSession {
+		return store.add(new class extends Disposable implements IChatEditReviewSession {
+			private readonly onDidDisposeEmitter = this._register(new Emitter<void>());
+
+			readonly isGlobalEditingSession = false;
+			readonly chatSessionResource = URI.parse('test://review-session');
+			readonly onDidDispose = this.onDidDisposeEmitter.event;
+			readonly entries = observableValue<readonly IModifiedFileEntry[]>('entries', [entry]);
+
+			override dispose(): void {
+				this.onDidDisposeEmitter.fire();
+				super.dispose();
+			}
+
+			getEntry(uri: URI): IModifiedFileEntry | undefined {
+				return isEqual(uri, entry.modifiedURI) ? entry : undefined;
+			}
+
+			readEntry(uri: URI, _reader: IReader): IModifiedFileEntry | undefined {
+				return this.getEntry(uri);
+			}
+
+			async accept(..._uris: URI[]): Promise<void> { }
+
+			async reject(..._uris: URI[]): Promise<void> { }
+		});
+	}
+
+	function createReviewEntry(uri: URI): IModifiedFileEntry {
+		return new class extends mock<IModifiedFileEntry>() {
+			override readonly modifiedURI = uri;
+			override readonly isCurrentlyBeingModifiedBy = observableValue<{ responseModel: IChatResponseModel; undoStopId: string | undefined } | undefined>('isCurrentlyBeingModifiedBy', undefined);
+			override readonly state = observableValue('state', ModifiedFileEntryState.Modified);
+		};
+	}
+
 	test('create session', async function () {
 		assert.ok(editingService);
 
@@ -164,6 +205,39 @@ suite('ChatEditingService', function () {
 
 		session.dispose();
 		modelRef.dispose();
+	});
+
+	test('register edit review session', () => {
+		const entry = createReviewEntry(URI.parse('test://review-entry'));
+		const session = createReviewSession(entry);
+		const registration = store.add(editingService.registerEditReviewSession(session));
+
+		assert.deepStrictEqual(editingService.editingSessionsObs.get(), [session]);
+
+		registration.dispose();
+
+		assert.deepStrictEqual(editingService.editingSessionsObs.get(), []);
+	});
+
+	test('registered edit review session is not returned as an editing session', () => {
+		const session = createReviewSession(createReviewEntry(URI.parse('test://review-entry')));
+		store.add(editingService.registerEditReviewSession(session));
+
+		assert.strictEqual(editingService.getEditingSession(session.chatSessionResource), undefined);
+	});
+
+	test('registered edit review entries are discoverable', () => {
+		const entry = createReviewEntry(URI.parse('test://review-entry'));
+		store.add(editingService.registerEditReviewSession(createReviewSession(entry)));
+
+		let discoveredEntry: IModifiedFileEntry | undefined;
+		store.add(autorun(reader => {
+			discoveredEntry = editingService.editingSessionsObs.read(reader)
+				.find(session => session.getEntry(entry.modifiedURI))
+				?.readEntry(entry.modifiedURI, reader);
+		}));
+
+		assert.strictEqual(discoveredEntry, entry);
 	});
 
 	test('create session, file entry & isCurrentlyBeingModifiedBy', async function () {

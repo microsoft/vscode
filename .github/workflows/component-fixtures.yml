@@ -26,31 +26,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Need enough history for the merge-base lookup below to succeed even
           # when the target branch has advanced since the PR was opened. Full
-          # clone would be wasteful for this large repo, so cap at 50.
-          fetch-depth: 50
+          # clone would be wasteful for this large repo, so cap at 150.
+          fetch-depth: 150
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
 
-      - name: Prepare node_modules cache key
-        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts compile $(node -p process.arch) > .build/packagelockhash
-
       - name: Restore node_modules cache
         id: cache-node-modules
-        uses: actions/cache@v5
+        uses: ./.github/actions/restore-node-modules
         with:
-          path: .build/node_modules_cache
-          key: "node_modules-component-fixtures-${{ hashFiles('.build/packagelockhash') }}"
-
-      - name: Extract node_modules cache
-        if: steps.cache-node-modules.outputs.cache-hit == 'true'
-        run: tar -xzf .build/node_modules_cache/cache.tgz
+          key-prefix: node_modules-component-fixtures
+          key-args: "compile $(node -p process.arch)"
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -70,19 +63,25 @@ jobs:
         run: npm ci
         working-directory: build/rspack
 
-      - name: Create node_modules archive
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: |
-          set -e
-          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
-          mkdir -p .build/node_modules_cache
-          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+      - name: Save node_modules cache
+        # Only seed the cache on branch pushes — PR-scoped caches are not shared with other refs.
+        if: github.event_name != 'pull_request' && steps.cache-node-modules.outputs.cache-hit != 'true'
+        uses: ./.github/actions/save-node-modules
 
       - name: Copy codicons
         run: cp node_modules/@vscode/codicons/dist/codicon.ttf src/vs/base/browser/ui/codicons/codicon/codicon.ttf
 
-      - name: Transpile source
-        run: npm run transpile-client
+      - name: Build component explorer
+        run: npx rspack build --config rspack.serve-out.config.mts
+        working-directory: build/rspack
+        env:
+          COMPONENT_EXPLORER_STATIC_BUILD: 1
+
+      - name: Upload component explorer
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: component-explorer
+          path: .build/rspack-serve-out/
 
       - name: Install Playwright Chromium
         run: npx playwright install chromium
@@ -101,7 +100,7 @@ jobs:
 
       - name: Upload Playwright test results
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: playwright-test-results
           path: test/componentFixtures/playwright/test-results/
@@ -112,6 +111,8 @@ jobs:
       - name: Check fixture errors
         id: fixture_errors
         if: always()
+        # TODO: "render" should just return a non-zero exit code if any fixture had an error (and print the errors), so we don't need to parse the manifest here.
+        # Then we can remove this step.
         run: |
           MANIFEST="test/componentFixtures/.screenshots/current/manifest.json"
           if [ ! -f "$MANIFEST" ]; then
@@ -146,6 +147,7 @@ jobs:
 
       - name: Check blocks-ci screenshots
         id: blocks-ci
+        if: always()
         # The service URL is baked into the committed blocks-ci-screenshots.md
         # as `![screenshot](<service-url>/images/<hash>)` (see
         # build/lib/screenshotBlocksCi.ts). It is passed here so the script
@@ -162,36 +164,37 @@ jobs:
             || {
               echo "match=false" >> "$GITHUB_OUTPUT"
               cat /tmp/blocks-ci-stderr.txt >&2
-              CONTENT=$(cat /tmp/blocks-ci-updated.md)
-              echo "content<<BLOCKS_CI_EOF" >> "$GITHUB_OUTPUT"
-              echo "$CONTENT" >> "$GITHUB_OUTPUT"
-              echo "BLOCKS_CI_EOF" >> "$GITHUB_OUTPUT"
+              diff -u test/componentFixtures/blocks-ci-screenshots.md /tmp/blocks-ci-updated.md \
+                > /tmp/blocks-ci.patch || true
             }
 
       - name: Upload screenshots as artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
         with:
           name: screenshots
           path: test/componentFixtures/.screenshots/current/
 
       - name: Determine base SHA
         id: base
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          EVENT_SHA: ${{ github.sha }}
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             # For PRs, diff against the merge-base with the target branch.
-            # This isolates the visual effect of just this PR's divergence
-            # from target. Using pull_request.base.sha would be wrong: it's
-            # the target-branch tip at PR creation time and can be stale,
-            # causing unrelated target-branch commits to show up as diffs.
-            TARGET_REF="origin/${{ github.event.pull_request.base.ref }}"
-            git fetch --no-tags --depth=50 origin "${{ github.event.pull_request.base.ref }}"
-            BASE_SHA=$(git merge-base "${{ github.sha }}" "$TARGET_REF")
+            TARGET_REF="origin/$BASE_REF"
+            git fetch --no-tags --depth=150 origin "$BASE_REF"
+            if ! BASE_SHA=$(git merge-base "$EVENT_SHA" "$TARGET_REF"); then
+              echo "::warning::Unable to find a merge base between $EVENT_SHA and $TARGET_REF. The depth-150 shallow history may not contain their common ancestor; skipping screenshot comparison."
+              exit 0
+            fi
           else
             # For push events, diff against the parent commit.
-            BASE_SHA=$(git rev-parse "${{ github.sha }}^")
+            BASE_SHA=$(git rev-parse "$EVENT_SHA^")
           fi
           echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
-          echo "Using base SHA: $BASE_SHA (base for ${{ github.sha }})"
+          echo "Using base SHA: $BASE_SHA (base for $EVENT_SHA)"
 
       - name: Get OIDC token (non-fork only)
         id: oidc
@@ -208,9 +211,6 @@ jobs:
         run: |
           cd test/componentFixtures/.screenshots/current
           zip -qr "$GITHUB_WORKSPACE/screenshots.zip" .
-          # Tolerate service outages: warn instead of failing the step so the
-          # rest of the workflow (and CI) is not blocked when the screenshot
-          # service is unreachable.
           set +e
           STATUS=$(curl -sS -o /tmp/screenshot-upload.out -w '%{http_code}' \
             -X POST "https://hediet-screenshots.azurewebsites.net/upload" \
@@ -232,15 +232,12 @@ jobs:
 
       - name: Fetch base commit manifest
         id: base_manifest
+        if: steps.base.outputs.base_sha != ''
         env:
           BASE_SHA: ${{ steps.base.outputs.base_sha }}
         run: |
           BASE_MANIFEST=/tmp/base-manifest.json
           URL="https://hediet-screenshots.azurewebsites.net/commits/${{ github.repository_owner }}/${{ github.event.repository.name }}/$BASE_SHA"
-          # Tolerate service outages: bash `set -e` would otherwise abort this
-          # step if curl can't connect (since the `STATUS=$(...)` substitution
-          # propagates the non-zero exit). Capture the exit code explicitly
-          # and emit a warning instead.
           set +e
           STATUS=$(curl -sS -o "$BASE_MANIFEST" -w '%{http_code}' "$URL")
           CURL_EXIT=$?
@@ -257,19 +254,17 @@ jobs:
 
       - name: Diff screenshots
         id: diff
-        if: steps.base_manifest.outputs.path
+        if: always() && steps.base.outputs.base_sha != ''
         run: |
-          BODY=$(node build/lib/screenshotDiffReport.ts \
+          node build/lib/screenshotDiffReport.ts \
             https://hediet-screenshots.azurewebsites.net \
             "${{ steps.base.outputs.base_sha }}" \
             ${{ github.sha }} \
             "${{ steps.base_manifest.outputs.path }}" \
-            test/componentFixtures/.screenshots/current/manifest.json)
-          if [ -n "$BODY" ]; then
+            test/componentFixtures/.screenshots/current/manifest.json \
+            > /tmp/screenshot-diff-comment.md
+          if [ -s /tmp/screenshot-diff-comment.md ]; then
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
-            echo "body<<SCREENSHOT_EOF" >> "$GITHUB_OUTPUT"
-            echo "$BODY" >> "$GITHUB_OUTPUT"
-            echo "SCREENSHOT_EOF" >> "$GITHUB_OUTPUT"
           else
             echo "No screenshot changes to report."
           fi
@@ -278,44 +273,55 @@ jobs:
             cat .tmp/screenshotDiffReport.json
             echo "::endgroup::"
           fi
-        continue-on-error: true
+
+      - name: Build comment body
+        id: comment_body
+        if: always() && (steps.diff.outputs.has_changes == 'true' || steps.blocks-ci.outputs.match == 'false')
+        # Single source of truth for the markdown body shared by the job
+        # summary (the only surface fork PRs see) and the non-fork PR comment.
+        # Fixture rendering errors are already part of the screenshot diff via the
+        # "Errored" section emitted by screenshotDiffReport.ts, so reporting
+        # errors is not tied to blocks-ci here.
+        run: |
+          {
+            if [ -s /tmp/screenshot-diff-comment.md ]; then
+              cat /tmp/screenshot-diff-comment.md
+            fi
+            if [ -s /tmp/blocks-ci-updated.md ]; then
+              if [ -s /tmp/screenshot-diff-comment.md ]; then printf '\n---\n\n'; fi
+              printf '### blocks-ci screenshots changed\n\n'
+              printf 'Replace the contents of `test/componentFixtures/blocks-ci-screenshots.md` with:\n\n'
+              printf '<details>\n<summary>Updated blocks-ci-screenshots.md</summary>\n\n'
+              printf '```md\n'
+              cat /tmp/blocks-ci-updated.md
+              printf '```\n\n'
+              printf '</details>\n'
+              if [ -s /tmp/blocks-ci.patch ]; then
+                printf '\n<details open>\n<summary>Patch</summary>\n\n'
+                printf '```diff\n'
+                cat /tmp/blocks-ci.patch
+                printf '```\n\n'
+                printf '</details>\n'
+              fi
+            fi
+          } > /tmp/comment-body.md
+          echo "path=/tmp/comment-body.md" >> "$GITHUB_OUTPUT"
 
       - name: Write job summary
-        if: steps.diff.outputs.has_changes == 'true' || steps.blocks-ci.outputs.match == 'false'
-        run: |
-          BODY="${COMMENT_BODY}"
-          if [ -n "$BLOCKS_CI_CONTENT" ]; then
-            if [ -n "$BODY" ]; then BODY+=$'\n\n---\n\n'; fi
-            BODY+="### blocks-ci screenshots changed"$'\n\n'
-            BODY+="Replace the contents of \`test/componentFixtures/blocks-ci-screenshots.md\` with:"$'\n\n'
-            BODY+="<details>"$'\n'"<summary>Updated blocks-ci-screenshots.md</summary>"$'\n\n'
-            BODY+="\`\`\`md"$'\n'"${BLOCKS_CI_CONTENT}"$'\n'"\`\`\`"$'\n\n'
-            BODY+="</details>"
-          fi
-          echo "$BODY" >> "$GITHUB_STEP_SUMMARY"
-        env:
-          COMMENT_BODY: ${{ steps.diff.outputs.body }}
-          BLOCKS_CI_CONTENT: ${{ steps.blocks-ci.outputs.content }}
+        if: always() && steps.comment_body.outputs.path
+        run: cat "${{ steps.comment_body.outputs.path }}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Post PR comment (non-fork PR only)
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        uses: actions/github-script@v9
+        if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
+            const fs = require('fs');
             const marker = '<!-- screenshot-diff-report -->';
-            let body = process.env.COMMENT_BODY || '';
-            const blocksCiContent = process.env.BLOCKS_CI_CONTENT;
-
-            if (blocksCiContent) {
-              if (body) { body += '\n\n---\n\n'; }
-              body += '### blocks-ci screenshots changed\n\n';
-              body += 'Replace the contents of `test/componentFixtures/blocks-ci-screenshots.md` with:\n\n';
-              body += '<details>\n<summary>Updated blocks-ci-screenshots.md</summary>\n\n';
-              body += '```md\n' + blocksCiContent + '\n```\n\n';
-              body += '</details>';
-            }
-
-            const hasContent = body || blocksCiContent;
+            const bodyPath = process.env.COMMENT_BODY_PATH;
+            let body = bodyPath && fs.existsSync(bodyPath)
+              ? fs.readFileSync(bodyPath, 'utf8').replace(/\s+$/, '')
+              : '';
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
@@ -325,7 +331,7 @@ jobs:
             });
             const existing = comments.find(c => c.body?.startsWith(marker));
 
-            if (!hasContent) {
+            if (!body) {
               // No changes to report — update existing comment if present, otherwise do nothing
               if (existing) {
                 const baseSha = (process.env.BASE_SHA || '').slice(0, 8);
@@ -362,8 +368,7 @@ jobs:
               });
             }
         env:
-          COMMENT_BODY: ${{ steps.diff.outputs.body }}
-          BLOCKS_CI_CONTENT: ${{ steps.blocks-ci.outputs.content }}
+          COMMENT_BODY_PATH: ${{ steps.comment_body.outputs.path }}
           BASE_SHA: ${{ steps.base.outputs.base_sha }}
           CURRENT_SHA: ${{ github.sha }}
 
@@ -381,23 +386,6 @@ jobs:
         run: |
           echo "::error::One or more component fixtures failed to render. See the 'Check fixture errors' step for details."
           exit 1
-
-
-      # - name: Prepare explorer artifact
-      #   run: |
-      #     mkdir -p /tmp/explorer-artifact/screenshot-report
-      #     cp -r build/vite/dist/* /tmp/explorer-artifact/
-      #     if [ -d test/componentFixtures/.screenshots/report ]; then
-      #       cp -r test/componentFixtures/.screenshots/report/* /tmp/explorer-artifact/screenshot-report/
-      #     fi
-
-      # - name: Upload explorer artifact
-      #   uses: actions/upload-artifact@v7
-      #   with:
-      #     name: component-explorer
-      #     path: /tmp/explorer-artifact/
-
-
       # - name: Set check title
       #   env:
       #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

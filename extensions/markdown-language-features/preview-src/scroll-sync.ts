@@ -56,7 +56,7 @@ const getCodeLineElements = (() => {
 					continue;
 				}
 
-				if (element.tagName === 'CODE' && element.parentElement && element.parentElement.tagName === 'PRE') {
+				if (element.tagName === 'CODE' && element.parentElement?.tagName === 'PRE') {
 					// Fenced code blocks are a special case since the `code-line` can only be marked on
 					// the `<code>` element and not the parent `<pre>` element.
 					// Calculate the end line by counting newlines in the code block
@@ -97,6 +97,29 @@ export function getElementsForSourceLine(targetLine: number, documentVersion: nu
 		previous = entry;
 	}
 	return { previous };
+}
+
+export function getElementsForSourceLineRange(startLine: number, endLine: number, documentVersion: number): readonly CodeLineElement[] {
+	const rangeStart = Math.floor(startLine);
+	const rangeEnd = Math.max(rangeStart + 1, Math.ceil(endLine));
+	const lines = getCodeLineElements(documentVersion).filter(element => element.line >= 0);
+	const elements: CodeLineElement[] = [];
+	for (let i = 0; i < lines.length; i++) {
+		const element = lines[i];
+		const next = lines[i + 1];
+		const elementStart = element.line;
+		const elementEnd = element.endLine !== undefined
+			? element.endLine + 1
+			: (next && next.line > element.line ? next.line : element.line + 1);
+		if (rangesIntersect(rangeStart, rangeEnd, elementStart, elementEnd)) {
+			elements.push(element);
+		}
+	}
+	return elements;
+}
+
+function rangesIntersect(startA: number, endA: number, startB: number, endB: number): boolean {
+	return startA < endB && startB < endA;
 }
 
 /**
