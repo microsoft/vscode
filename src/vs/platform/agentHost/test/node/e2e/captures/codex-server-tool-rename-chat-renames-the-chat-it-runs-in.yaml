@@ -13,8 +13,8 @@ exchanges:
           id: toolcall_0
           name: rename_chat
           input:
-            automatic: true
             title: Coverage audit
+            automatic: false
       stopReason: tool_use
   - request:
       model: gpt-5.3-codex
@@ -27,13 +27,13 @@ exchanges:
             - type: tool_use
               name: rename_chat
               input:
-                automatic: true
                 title: Coverage audit
+                automatic: false
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: Renaming chat.
+              content: Renamed chat to "Coverage audit".
     response:
       content: renamed
       stopReason: end_turn

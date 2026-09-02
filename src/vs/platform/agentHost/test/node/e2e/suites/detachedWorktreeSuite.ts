@@ -207,20 +207,10 @@ export function defineDetachedWorktreeTests(context: IAgentHostE2ETestContext): 
 		const droppedPath = URI.parse(dropped.resource).fsPath;
 		await claimDetachedWorktree(held.handle);
 
-		// Reconciliation is the client telling the host which handles it still
-		// knows about after a reconnect. It is deliberately NOT a synchronous
-		// garbage collector: a worktree is only ever reclaimed once it has aged
-		// past the host's retention window, because the alternative is deleting a
-		// checkout a user is about to be handed — or is already working in — just
-		// because a client raced a restart.
-		//
-		// This scenario therefore pins the data-loss guard: a handle the client no
-		// longer lists survives, and its record stays usable. Reclamation itself
-		// is not asserted here because it cannot happen within a test run.
+		// Omitted handles remain claimable until the retention grace period expires.
 		await reconcileDetachedWorktrees(getComparisonKey(URI.parse(held.resource)), [held.handle]);
 		await reconcileDetachedWorktrees(getComparisonKey(URI.parse(dropped.resource)), []);
 
-		// A dropped handle whose record was discarded would fail this claim.
 		await claimDetachedWorktree(dropped.handle);
 
 		assert.deepStrictEqual({

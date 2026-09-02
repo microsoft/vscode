@@ -281,6 +281,13 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			const session = await createSession('rename-chat', false, () => setRootConfig({
 				[AgentHostActiveAgentTitleGenerationConfigKey]: true,
 			}));
+			await driveTurnToCompletion(
+				context.client,
+				session.sessionUri,
+				'turn-rename-chat-seed',
+				'/rename Seeded Chat',
+				reserveClientSequenceBlock(),
+			);
 			const { tool } = await driveServerTool(
 				session,
 				'turn-rename-chat',
