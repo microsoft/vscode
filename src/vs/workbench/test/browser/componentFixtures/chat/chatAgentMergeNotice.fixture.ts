@@ -118,12 +118,12 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 		),
 	}),
 
-	DisabledByMerge: defineComponentFixture({
+	PullRequestMerged: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (ctx) => renderNotice(
 			ctx,
-			agentMergeDisableReasons.pullRequestMerged().notice,
-			AgentSystemNotificationKind.AgentMergeDisabled,
+			agentMergeDisableReasons.pullRequestMerged(123, 'https://github.com/microsoft/vscode/pull/123').notice,
+			AgentSystemNotificationKind.AgentMergePullRequestMerged,
 		),
 	}),
 

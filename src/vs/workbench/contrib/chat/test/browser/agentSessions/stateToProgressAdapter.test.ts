@@ -2564,6 +2564,7 @@ suite('stateToProgressAdapter', () => {
 				enabled: notice(AgentSystemNotificationKind.AgentMergeEnabled),
 				configurationChanged: notice(AgentSystemNotificationKind.AgentMergeConfigurationChanged),
 				disabled: notice(AgentSystemNotificationKind.AgentMergeDisabled),
+				pullRequestMerged: notice(AgentSystemNotificationKind.AgentMergePullRequestMerged),
 				// An unrecognized kind must still render, using the default check.
 				unknown: activeTurnToProgress(URI.file('/'), createActiveTurnState([{
 					kind: ResponsePartKind.SystemNotification,
@@ -2571,9 +2572,10 @@ suite('stateToProgressAdapter', () => {
 					_meta: { kind: 'somethingNewer' },
 				}]), undefined)[0],
 			}, {
-				enabled: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.gitMerge, collapsible: true },
-				configurationChanged: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.settingsGear, collapsible: true },
-				disabled: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.circleSlash },
+				enabled: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.gitMerge, collapsible: true, renderInlineTiming: true },
+				configurationChanged: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.settingsGear, collapsible: true, renderInlineTiming: true },
+				disabled: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.circleSlash, renderInlineTiming: true },
+				pullRequestMerged: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.gitMerge, renderInlineTiming: true },
 				unknown: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state') },
 			});
 		});

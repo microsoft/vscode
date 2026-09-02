@@ -18,7 +18,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { AgentSystemNotificationKind } from '../../common/meta/agentSystemNotificationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { SessionStatus, buildDefaultChatUri, MessageKind, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { SessionStatus, buildDefaultChatUri, MessageKind, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { IGitHubService } from '../../../github/common/githubService.js';
 import { PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -450,6 +450,7 @@ suite('AgentMergeController', () => {
 		const gitStateService = new class extends mock<IAgentHostGitStateService>() {
 			override readonly onDidRefreshSessionGitState = Event.None;
 			override readonly onDidChangeSessionGitHubState = Event.None;
+			override async attachSessionGitHubPullRequest(): Promise<void> { }
 		}();
 		const endpointService = disposables.add(new AgentHostGitHubEndpointService(configurationService, logService));
 		const notices: { kind: AgentSystemNotificationKind; content: string }[] = [];
@@ -515,7 +516,13 @@ suite('AgentMergeController', () => {
 			schema: platformSessionSchema.toProtocol(),
 			values: {},
 		});
-		stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'feature', baseBranchName: 'main' }));
+		stateManager.setSessionMeta(session, withSessionGitHubState(
+			withSessionGitState(undefined, { branchName: 'feature', baseBranchName: 'main' }),
+			{
+				pullRequestUrls: ['https://github.com/octo/repo/pull/1'],
+				pullRequestBranchName: 'other',
+			},
+		));
 		const captured = new Promise<void>(resolve => {
 			disposables.add(stateManager.onDidChangeSessionConfig(event => {
 				if (event.session.toString() === session && readAgentMergeSessionState(event.current?.values)?.target) {
@@ -548,9 +555,54 @@ suite('AgentMergeController', () => {
 					kind: AgentSystemNotificationKind.AgentMergeEnabled,
 					content: agentMergeEnabledNotice({ branchName: 'feature' }, defaultAgentMergeConfiguration),
 				},
-				{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was turned off because the checked-out branch changed from `feature` to `main`.' },
+				{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was disabled because the checked-out branch changed from `feature` to `main`.' },
 			],
 			enabled: false,
+		});
+	});
+
+	test('announces a known pull request when it captures the Agent Merge target', async () => {
+		const { stateManager, configurationService, session, notices } = createControllerHarness(disposables);
+		const pullRequestUrl = 'https://github.com/octo/repo/pull/1';
+		stateManager.setSessionMeta(session, withSessionGitHubState(
+			withSessionGitState(undefined, { branchName: 'feature', baseBranchName: 'main' }),
+			{
+				pullRequestUrls: [pullRequestUrl],
+				pullRequestBranchName: 'feature',
+			},
+		));
+		const captured = new Promise<void>(resolve => {
+			disposables.add(stateManager.onDidChangeSessionConfig(event => {
+				if (event.session.toString() === session && readAgentMergeSessionState(event.current?.values)?.target) {
+					resolve();
+				}
+			}));
+		});
+
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: true } });
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		await captured;
+		const target = readAgentMergeSessionState(configurationService.getSessionConfigValues(session))?.target;
+
+		assert.deepStrictEqual({
+			target: target ? {
+				branchName: target.branchName,
+				pullRequestUrl: target.pullRequestUrl,
+				hasEnabledAt: target.enabledAt.length > 0,
+				watermarkMatchesEnablement: target.commentWatermark === target.enabledAt,
+			} : undefined,
+			notices,
+		}, {
+			target: {
+				branchName: 'feature',
+				pullRequestUrl,
+				hasEnabledAt: true,
+				watermarkMatchesEnablement: true,
+			},
+			notices: [{
+				kind: AgentSystemNotificationKind.AgentMergeEnabled,
+				content: agentMergeEnabledNotice({ branchName: 'feature', pullRequestUrl }, defaultAgentMergeConfiguration),
+			}],
 		});
 	});
 
@@ -637,10 +689,10 @@ suite('AgentMergeController', () => {
 		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: false } });
 
 		assert.deepStrictEqual({ afterSelfDisable, notices }, {
-			afterSelfDisable: [{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was turned off because this session was archived.' }],
+			afterSelfDisable: [{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was disabled because this session was archived.' }],
 			notices: [
-				{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was turned off because this session was archived.' },
-				{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was turned off for this session.' },
+				{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was disabled because this session was archived.' },
+				{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was disabled for this session.' },
 			],
 		});
 	});
@@ -672,7 +724,7 @@ suite('AgentMergeController', () => {
 
 		assert.deepStrictEqual(notices, [{
 			kind: AgentSystemNotificationKind.AgentMergeDisabled,
-			content: 'Agent Merge was turned off for this session.',
+			content: 'Agent Merge was disabled for this session.',
 		}, {
 			kind: AgentSystemNotificationKind.AgentMergeEnabled,
 			content: agentMergeEnabledNotice({ branchName: 'feature' }, defaultAgentMergeConfiguration),
