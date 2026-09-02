@@ -58,3 +58,25 @@ export function migrateLegacyAutomationSessionConfig(provider: string | undefine
 	migrated[SessionConfigKey.AutoApprove] = 'assisted';
 	return migrated;
 }
+
+/** Applies the legacy flattened Automation values to provider configuration. */
+export function applyLegacyAutomationSessionConfig(provider: string | undefined, config: Readonly<Record<string, unknown>> | undefined, mode: string | undefined, permissionLevel: string | undefined): Record<string, unknown> {
+	const result = { ...config };
+	if (!supportsLegacyAutomationSessionConfig(provider)) {
+		if (permissionLevel === undefined || permissionLevel === 'default') {
+			delete result[SessionConfigKey.AutoApprove];
+		}
+		return result;
+	}
+	if (mode === undefined) {
+		delete result[SessionConfigKey.Mode];
+	} else if (KNOWN_MODE_VALUES.has(mode)) {
+		result[SessionConfigKey.Mode] = mode;
+	}
+	if (permissionLevel === undefined) {
+		delete result[SessionConfigKey.AutoApprove];
+	} else {
+		result[SessionConfigKey.AutoApprove] = permissionLevel;
+	}
+	return migrateLegacyAutomationSessionConfig(provider, result);
+}

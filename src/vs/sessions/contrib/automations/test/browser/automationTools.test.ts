@@ -230,6 +230,7 @@ function editableAutomationKey(automation: IAutomationDescriptor): string {
 		target: automation.target.kind === 'workspace'
 			? { ...automation.target, folderUri: automation.target.folderUri.toString() }
 			: automation.target,
+		sessionTemplate: automation.sessionTemplate,
 		modelId: automation.modelId,
 		mode: automation.mode,
 		permissionLevel: automation.permissionLevel,
@@ -239,7 +240,7 @@ function editableAutomationKey(automation: IAutomationDescriptor): string {
 
 function serializeAutomationLedger(automations: readonly IAutomationDescriptor[], revision = 1): string {
 	return JSON.stringify({
-		schemaVersion: 3,
+		schemaVersion: 4,
 		revision,
 		automations: automations.map(automation => ({
 			...automation,

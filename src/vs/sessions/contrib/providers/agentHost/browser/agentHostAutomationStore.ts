@@ -12,9 +12,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY, migrateLegacyAutomationSessionConfig, supportsLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationMigration.js';
+import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY, applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationMigration.js';
 import { isAgentHostAutomationCatalogMigrated, isAgentHostLegacyAutomationImport, isAgentHostLegacyAutomationImportPending } from '../../../../../platform/agentHost/common/meta/automationMeta.js';
-import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { type IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationDefinition, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -22,7 +22,7 @@ import { AUTOMATION_CATALOG_URI, isAhpAutomationCatalogChannel, ROOT_STATE_URI, 
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import type { AutomationRunTrigger, AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import type { AutomationRunTrigger, AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationActiveRunError, type AutomationMutationGuard, type IAutomationRunClaim, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, isAutomationActiveRunError, serializeAutomationEditableState, type IUpdateAutomationOptions, type IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { publishAutomationMigration } from '../../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
 import type { IAutomation, IAutomationSnapshotImportResult, IGuardedAutomationSnapshotRemovalResult, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -204,6 +204,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			prompt: options.prompt,
 			schedule: options.schedule,
 			target: options.target,
+			sessionTemplate: options.sessionTemplate,
 			modelId: options.modelId,
 			mode: options.mode,
 			permissionLevel: options.permissionLevel,
@@ -664,6 +665,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			return undefined;
 		}
 		const config = state.definition.session.config;
+		const modelId = this._projectModelId(state.definition.session.model?.id, state.definition.session.provider);
 		const newestRun = state.runs[0];
 		return {
 			id: automationId(state.resource),
@@ -671,7 +673,8 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			prompt: state.definition.message.text,
 			schedule: projectSchedule(state.definition.triggers),
 			target,
-			modelId: this._projectModelId(state.definition.session.model?.id, state.definition.session.provider),
+			sessionTemplate: projectAutomationSessionTemplate(state.definition, modelId),
+			modelId,
 			mode: readString(config?.[SessionConfigKey.Mode]),
 			permissionLevel: readString(config?.[SessionConfigKey.AutoApprove]),
 			enabled: state.definition.enabled,
@@ -830,14 +833,18 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	}
 
 	private _definitionFromDescriptor(descriptor: IAutomationDescriptor, existing?: AutomationDefinition, imported = false, importPending?: boolean): AutomationDefinition {
-		const provider = descriptor.target.sessionTypeId ?? this._providerFromModelId(descriptor.modelId);
+		const sessionTemplate = descriptor.sessionTemplate;
+		const modelId = sessionTemplate ? sessionTemplate.modelId : descriptor.modelId;
+		const provider = descriptor.target.sessionTypeId ?? this._providerFromModelId(modelId);
 		const existingSession = existing && existing.session.provider === provider ? existing.session : undefined;
-		const config = applyLegacyAutomationDescriptorConfig(
-			{ ...existingSession?.config },
-			provider,
-			descriptor.mode,
-			descriptor.permissionLevel,
-		);
+		const config = sessionTemplate
+			? { ...sessionTemplate.config }
+			: applyLegacyAutomationSessionConfig(
+				provider,
+				existingSession?.config,
+				descriptor.mode,
+				descriptor.permissionLevel,
+			);
 		if (descriptor.target.kind === 'workspace') {
 			setOptional(config, SessionConfigKey.Isolation, descriptor.target.isolation.kind === 'default' ? undefined : descriptor.target.isolation.kind);
 			setOptional(config, SessionConfigKey.Branch, descriptor.target.isolation.kind === 'worktree' ? descriptor.target.isolation.branch : undefined);
@@ -859,8 +866,8 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			message: { text: descriptor.prompt, origin: { kind: MessageKind.Automation } },
 			session: {
 				provider,
-				model: descriptor.modelId ? { id: this._toHostModelId(descriptor.modelId, provider) } : undefined,
-				agent: existingSession?.agent,
+				model: modelId ? { id: this._toHostModelId(modelId, provider) } : undefined,
+				agent: sessionTemplate ? sessionTemplate.agent : existingSession?.agent,
 				workingDirectories: descriptor.target.kind === 'workspace'
 					? [(this._boundaryMapper?.toHost(descriptor.target.folderUri) ?? descriptor.target.folderUri).toString()]
 					: undefined,
@@ -911,17 +918,27 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		const target = patch.target ?? current.target;
 		const targetAuthorityChanged = patch.target !== undefined
 			&& (patch.target.providerId !== current.target.providerId || patch.target.sessionTypeId !== current.target.sessionTypeId);
+		const modelId = patch.modelId === null
+			? undefined
+			: patch.modelId ?? (targetAuthorityChanged ? undefined : current.modelId);
+		const mode = patch.mode === null ? undefined : patch.mode ?? (targetAuthorityChanged ? undefined : current.mode);
+		const permissionLevel = patch.permissionLevel === null ? undefined : patch.permissionLevel ?? (targetAuthorityChanged ? undefined : current.permissionLevel);
+		const provider = target.sessionTypeId ?? this._providerFromModelId(modelId);
+		const sessionTemplate = patch.sessionTemplate === null
+			? undefined
+			: patch.sessionTemplate ?? (targetAuthorityChanged
+				? undefined
+				: synchronizeAutomationSessionTemplate(current.sessionTemplate, provider, modelId, mode, permissionLevel));
 		return {
 			...current,
 			...(patch.name !== undefined ? { name: patch.name } : {}),
 			...(patch.prompt !== undefined ? { prompt: patch.prompt } : {}),
 			schedule,
 			target,
-			modelId: patch.modelId === null
-				? undefined
-				: patch.modelId ?? (targetAuthorityChanged ? undefined : current.modelId),
-			mode: patch.mode === null ? undefined : patch.mode ?? (targetAuthorityChanged ? undefined : current.mode),
-			permissionLevel: patch.permissionLevel === null ? undefined : patch.permissionLevel ?? (targetAuthorityChanged ? undefined : current.permissionLevel),
+			sessionTemplate,
+			modelId,
+			mode,
+			permissionLevel,
 			enabled,
 			updatedAt: now.toISOString(),
 		};
@@ -1230,20 +1247,30 @@ function readString(value: unknown): string | undefined {
 	return typeof value === 'string' ? value : undefined;
 }
 
-function applyLegacyAutomationDescriptorConfig(config: Record<string, unknown>, provider: string | undefined, mode: string | undefined, permissionLevel: string | undefined): Record<string, unknown> {
-	if (!supportsLegacyAutomationSessionConfig(provider)) {
-		if (permissionLevel === undefined || permissionLevel === 'default') {
-			delete config[SessionConfigKey.AutoApprove];
-		}
-		return config;
+function projectAutomationSessionTemplate(definition: AutomationDefinition, modelId: string | undefined): IAutomationSessionTemplate | undefined {
+	const config = { ...definition.session.config };
+	delete config[SessionConfigKey.Isolation];
+	delete config[SessionConfigKey.Branch];
+	return createAutomationSessionTemplate(modelId, definition.session.agent, config);
+}
+
+function synchronizeAutomationSessionTemplate(template: IAutomationSessionTemplate | undefined, provider: string | undefined, modelId: string | undefined, mode: string | undefined, permissionLevel: string | undefined): IAutomationSessionTemplate | undefined {
+	if (!template) {
+		return undefined;
 	}
-	if (mode === undefined) {
-		delete config[SessionConfigKey.Mode];
-	} else if (KNOWN_MODE_VALUES.has(mode)) {
-		config[SessionConfigKey.Mode] = mode;
+	const config = applyLegacyAutomationSessionConfig(provider, template.config, mode, permissionLevel);
+	return createAutomationSessionTemplate(modelId, template.agent, config);
+}
+
+function createAutomationSessionTemplate(modelId: string | undefined, agent: IAutomationSessionTemplate['agent'], config: Readonly<Record<string, unknown>>): IAutomationSessionTemplate | undefined {
+	if (!modelId && !agent && Object.keys(config).length === 0) {
+		return undefined;
 	}
-	setOptional(config, SessionConfigKey.AutoApprove, permissionLevel);
-	return migrateLegacyAutomationSessionConfig(provider, config);
+	return {
+		...(modelId ? { modelId } : {}),
+		...(agent ? { agent: { uri: agent.uri } } : {}),
+		...(Object.keys(config).length > 0 ? { config } : {}),
+	};
 }
 
 function setOptional(target: Record<string, unknown>, key: string, value: unknown): void {

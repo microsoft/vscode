@@ -560,7 +560,7 @@ suite('ProviderAutomationService', () => {
 			},
 			acknowledgedAutomationIds: ['automation-1'],
 			runIds: ['run-1'],
-			legacy: { schemaVersion: 3, revision: 2, automations: [], runs: [] },
+			legacy: { schemaVersion: 4, revision: 2, automations: [], runs: [] },
 		});
 	});
 

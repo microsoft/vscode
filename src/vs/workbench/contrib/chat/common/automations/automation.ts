@@ -52,6 +52,16 @@ export type AutomationTarget =
 		readonly sessionTypeId: string;
 	};
 
+/** Provider-owned values used to create each Automation run session. */
+export interface IAutomationSessionTemplate {
+	/** Optional language model identifier. */
+	readonly modelId?: string;
+	/** Optional custom agent selection. */
+	readonly agent?: { readonly uri: string };
+	/** Provider-owned session configuration values. */
+	readonly config?: Readonly<Record<string, unknown>>;
+}
+
 /**
  * A single scheduled automation. Identity is the immutable `id`; everything
  * else may be edited by the user.
@@ -64,6 +74,9 @@ export interface IAutomationDescriptor {
 
 	/** Explicit workspace-backed or workspace-less execution target. */
 	readonly target: AutomationTarget;
+
+	/** Complete provider-owned session template. */
+	readonly sessionTemplate?: IAutomationSessionTemplate;
 
 	/** Optional language model identifier to seed the new session with. */
 	readonly modelId?: string;

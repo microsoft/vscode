@@ -664,6 +664,102 @@ suite('AgentHostAutomationStore', () => {
 		);
 	});
 
+	test('round-trips the complete Agent Host session template', async () => {
+		const connection = disposables.add(new TestAutomationConnection(true));
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, {
+			toHost: resource => resource,
+			fromHost: resource => resource,
+			resourceSchemeForProvider: provider => `agent-host-${provider}`,
+		}, new NullLogService(), storage, NullTelemetryService, new TestAutomationStorageService(storage)));
+		const sessionTemplate = {
+			modelId: 'agent-host-copilotcli:auto',
+			agent: { uri: 'file:///agents/reviewer.agent.md' },
+			config: {
+				mode: 'plan',
+				autoApprove: 'assisted',
+				providerOption: { enabled: true },
+			},
+		};
+
+		const automation = await store.createAutomation({
+			name: 'Review changes',
+			prompt: 'Review the current changes.',
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+			target: {
+				kind: 'workspace',
+				folderUri: URI.file('/workspace'),
+				providerId: 'local-agent-host',
+				sessionTypeId: 'copilotcli',
+				isolation: { kind: 'folder' },
+			},
+			sessionTemplate,
+		});
+		await store.updateAutomation(automation.id, {
+			name: 'Review renamed changes',
+			modelId: 'agent-host-copilotcli:gpt-5',
+			mode: 'agent',
+			permissionLevel: 'autoApprove',
+		});
+
+		const update = connection.dispatched.at(-1)?.action;
+		assert.deepStrictEqual({
+			projected: store.getAutomation(automation.id)?.sessionTemplate,
+			updatedSession: update?.type === ActionType.AutomationUpdateRequested ? update.changes.session : undefined,
+		}, {
+			projected: {
+				modelId: 'agent-host-copilotcli:gpt-5',
+				agent: { uri: 'file:///agents/reviewer.agent.md' },
+				config: {
+					mode: 'plan',
+					autoApprove: 'autoApprove',
+					providerOption: { enabled: true },
+				},
+			},
+			updatedSession: {
+				provider: 'copilotcli',
+				model: { id: 'gpt-5' },
+				agent: { uri: 'file:///agents/reviewer.agent.md' },
+				workingDirectories: ['file:///workspace'],
+				config: {
+					mode: 'plan',
+					autoApprove: 'autoApprove',
+					providerOption: { enabled: true },
+					isolation: 'folder',
+				},
+			},
+		});
+	});
+
+	test('applies the first flat permission update when the projected session template is empty', async () => {
+		const connection = disposables.add(new TestAutomationConnection(true));
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore(
+			'local-agent-host',
+			connection,
+			undefined,
+			undefined,
+			new NullLogService(),
+			storage,
+			NullTelemetryService,
+			new TestAutomationStorageService(storage),
+		));
+		const automation = await store.createAutomation({
+			name: 'Review changes',
+			prompt: 'Review the current changes.',
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+		});
+
+		await store.updateAutomation(automation.id, { permissionLevel: 'autoApprove' });
+
+		const update = connection.dispatched.at(-1)?.action;
+		assert.deepStrictEqual(
+			update?.type === ActionType.AutomationUpdateRequested ? update.changes.session?.config : undefined,
+			{ autoApprove: 'autoApprove' },
+		);
+	});
+
 	test('switches authority only after host migration completion is verified', async () => {
 		const connection = new TestAutomationConnection(false);
 		disposables.add(connection);

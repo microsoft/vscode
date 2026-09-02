@@ -118,6 +118,66 @@ suite('AutomationService', () => {
 		assert.strictEqual(a.enabled, true);
 	});
 
+	test('round-trips the provider session template through persistence', async () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
+		const sessionTemplate = {
+			modelId: 'agent-host-copilotcli:auto',
+			agent: { uri: 'file:///agents/reviewer.agent.md' },
+			config: {
+				mode: 'plan',
+				autoApprove: 'assisted',
+				providerOption: { enabled: true },
+			},
+		};
+
+		await service.createAutomation({
+			name: 'Daily review',
+			prompt: 'Summarize what changed',
+			schedule: dailySchedule(),
+			target: workspaceTarget(),
+			sessionTemplate,
+		});
+		const restored = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
+		const persisted = JSON.parse(storage.get('chat.automations.ledger', StorageScope.APPLICATION)!);
+
+		assert.deepStrictEqual({
+			schemaVersion: persisted.schemaVersion,
+			template: restored.automations.get()[0].sessionTemplate,
+		}, {
+			schemaVersion: 4,
+			template: sessionTemplate,
+		});
+	});
+
+	test('folds legacy field updates into an existing session template', async () => {
+		const { service } = createService();
+		const automation = await service.createAutomation({
+			name: 'Daily review',
+			prompt: 'Summarize what changed',
+			schedule: dailySchedule(),
+			target: workspaceTarget(),
+			sessionTemplate: {
+				modelId: 'old-model',
+				config: { mode: 'autopilot', autoApprove: 'assisted', providerOption: true },
+			},
+			modelId: 'old-model',
+			mode: 'autopilot',
+			permissionLevel: 'assisted',
+		});
+
+		const updated = await service.updateAutomation(automation.id, {
+			modelId: 'new-model',
+			mode: 'agent',
+			permissionLevel: 'autoApprove',
+		});
+
+		assert.deepStrictEqual(updated.sessionTemplate, {
+			modelId: 'new-model',
+			config: { mode: 'autopilot', autoApprove: 'autoApprove', providerOption: true },
+		});
+	});
+
 	test('createAutomation with manual schedule leaves nextRunAt undefined', async () => {
 		const { service } = createService();
 		const a = await service.createAutomation({
@@ -208,16 +268,18 @@ suite('AutomationService', () => {
 		assert.strictEqual(b.name, 'B');
 	});
 
-	test('updateAutomation can clear modelId/mode/permissionLevel by passing null but keeps folderUri', async () => {
+	test('updateAutomation can clear the session template and legacy fields by passing null but keeps folderUri', async () => {
 		const { service } = createService();
 		const a = await service.createAutomation({
 			name: 'A', prompt: 'p', schedule: dailySchedule(),
 			target: workspaceTarget(),
+			sessionTemplate: { config: { mode: 'autopilot' } },
 			modelId: 'gpt-4',
 			mode: 'agent',
 			permissionLevel: 'autopilot',
 		});
-		const b = await service.updateAutomation(a.id, { modelId: null, mode: null, permissionLevel: null });
+		const b = await service.updateAutomation(a.id, { sessionTemplate: null, modelId: null, mode: null, permissionLevel: null });
+		assert.strictEqual(b.sessionTemplate, undefined);
 		assert.strictEqual(b.modelId, undefined);
 		assert.strictEqual(b.mode, undefined);
 		assert.strictEqual(b.permissionLevel, undefined);
@@ -230,6 +292,36 @@ suite('AutomationService', () => {
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
 		const b = await service.updateAutomation(a.id, { target: workspaceTarget(other) });
 		assert.strictEqual(b.target.kind === 'workspace' ? b.target.folderUri.toString() : undefined, other.toString());
+	});
+
+	test('updateAutomation clears provider configuration when the target authority changes', async () => {
+		const { service } = createService();
+		const a = await service.createAutomation({
+			name: 'A',
+			prompt: 'p',
+			schedule: dailySchedule(),
+			target: { ...workspaceTarget(), providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+			sessionTemplate: { config: { mode: 'autopilot', autoApprove: 'assisted' } },
+			modelId: 'gpt-4',
+			mode: 'autopilot',
+			permissionLevel: 'assisted',
+		});
+
+		const b = await service.updateAutomation(a.id, {
+			target: { ...workspaceTarget(), providerId: 'local-agent-host', sessionTypeId: 'claude' },
+		});
+
+		assert.deepStrictEqual({
+			sessionTemplate: b.sessionTemplate,
+			modelId: b.modelId,
+			mode: b.mode,
+			permissionLevel: b.permissionLevel,
+		}, {
+			sessionTemplate: undefined,
+			modelId: undefined,
+			mode: undefined,
+			permissionLevel: 'default',
+		});
 	});
 
 	test('updateAutomation rejects incomplete workspace-less targets', async () => {
@@ -668,7 +760,7 @@ suite('AutomationService', () => {
 	test('successful CAS accepts a restored lower revision without accepting stale notifications', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		storage.store('chat.automations.ledger', JSON.stringify({
-			schemaVersion: 3,
+			schemaVersion: 4,
 			revision: 40,
 			automations: [serializeLedgerAutomation('newer', 'Before restore')],
 			runs: [],
@@ -796,7 +888,7 @@ suite('AutomationService', () => {
 			runIds: persisted.runs.map((run: { id: string }) => run.id),
 			canCompleteMigration: service.canCompleteMigration(),
 		}, {
-			schemaVersion: 3,
+			schemaVersion: 4,
 			automationIds: ['keep', 'quick'],
 			keepName: 'Updated',
 			runIds: ['r-keep', 'r-quick'],
@@ -804,7 +896,7 @@ suite('AutomationService', () => {
 		});
 	});
 
-	test('migrates schema v2 flat targets to schema v3 target unions', async () => {
+	test('migrates schema v2 flat targets to the current target union', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const common = {
 			prompt: 'p',
@@ -832,7 +924,7 @@ suite('AutomationService', () => {
 
 		await service.updateAutomation('workspace', { name: 'Updated' });
 		const migrated = JSON.parse(storage.get('chat.automations.ledger', -1)!);
-		assert.strictEqual(migrated.schemaVersion, 3);
+		assert.strictEqual(migrated.schemaVersion, 4);
 	});
 
 	test('round-trips a folderUri through persistence', async () => {

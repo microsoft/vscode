@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../../base/common/observable.js';
+import { stableStringify } from '../../../../../base/common/objects.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatPermissionLevel } from '../constants.js';
-import { IAutomationDescriptor, IAutomationRun, AutomationRunTrigger, IAutomationSchedule, AutomationTarget } from './automation.js';
+import { IAutomationDescriptor, IAutomationRun, AutomationRunTrigger, IAutomationSchedule, IAutomationSessionTemplate, AutomationTarget } from './automation.js';
 
 export const IAutomationService = createDecorator<IAutomationService>('automationService');
 export const ConfigureAutomationToolReferenceName = 'configureAutomation';
@@ -39,6 +40,7 @@ export interface ICreateAutomationOptions {
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
 	readonly target: AutomationTarget;
+	readonly sessionTemplate?: IAutomationSessionTemplate;
 	readonly modelId?: string;
 	readonly mode?: string;
 	readonly permissionLevel?: string;
@@ -54,6 +56,7 @@ export interface IUpdateAutomationOptions {
 	readonly prompt?: string;
 	readonly schedule?: IAutomationSchedule;
 	readonly target?: AutomationTarget;
+	readonly sessionTemplate?: IAutomationSessionTemplate | null;
 	readonly modelId?: string | null;
 	readonly mode?: string | null;
 	readonly permissionLevel?: string | null;
@@ -89,7 +92,7 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 				? { kind: automation.target.isolation.kind, branch: automation.target.isolation.branch }
 				: { kind: automation.target.isolation.kind },
 		};
-	return JSON.stringify({
+	return stableStringify({
 		name: automation.name,
 		prompt: automation.prompt,
 		schedule: {
@@ -99,6 +102,7 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 			scheduleDay: automation.schedule.scheduleDay,
 		},
 		target,
+		sessionTemplate: automation.sessionTemplate,
 		modelId: automation.modelId,
 		mode: automation.mode,
 		permissionLevel: automation.permissionLevel ?? ChatPermissionLevel.Default,
