@@ -14,7 +14,6 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentHostCopilotMultiRootEnabledConfigKey } from '../../../../common/agentHostSchema.js';
 import { CompletionItemKind, type CompletionsResult, type InitializeResult, type ResolveSessionConfigResult, type SessionConfigCompletionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { ActionType } from '../../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, MessageAttachmentKind, ROOT_STATE_URI, ToolCallConfirmationReason, type TerminalState, type ToolResultContent } from '../../../../common/state/sessionState.js';
 import {
 	createRealSession,
@@ -24,6 +23,7 @@ import {
 	textFromContent,
 	initTestGitRepo,
 	resolveGitHubToken,
+	setRootConfigValues,
 } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
@@ -52,16 +52,7 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 
 	async function setRootConfig(configValues: Readonly<Record<string, unknown>>): Promise<void> {
 		const clientSeq = rootConfigClientSeq++;
-		context.client.dispatch({
-			channel: ROOT_STATE_URI,
-			clientSeq,
-			action: { type: ActionType.RootConfigChanged, config: configValues },
-		});
-		await context.client.waitForNotification(notification =>
-			isActionNotification(notification, ActionType.RootConfigChanged)
-			&& getActionEnvelope(notification).channel === ROOT_STATE_URI
-			&& getActionEnvelope(notification).origin?.clientSeq === clientSeq,
-		);
+		await setRootConfigValues(context.client, { ...configValues }, clientSeq);
 	}
 
 	async function createSessionWithWorkingDirectories(prefix: string, workingDirectories: readonly URI[]): Promise<string> {

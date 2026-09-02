@@ -13,6 +13,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathS
 import { homedir, tmpdir, userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { timeout } from '../../../../../../base/common/async.js';
+import { equals } from '../../../../../../base/common/objects.js';
 import { join } from '../../../../../../base/common/path.js';
 import { removeAnsiEscapeCodes } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -20,8 +21,9 @@ import {
 	ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind,
 	ChatInputResponseKind, ToolResultContentType, ToolCallConfirmationReason, ToolCallCancellationReason, buildDefaultChatUri,
 	getInlineToolInput, MessageKind, ROOT_STATE_URI, type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type RootState, type TerminalState,
-	type ToolResultContent,
+	type ToolDefinition, type ToolResultContent,
 } from '../../../../common/state/sessionState.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../../../common/toolSearchConstants.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { TerminalClaimKind } from '../../../../common/state/protocol/channels-terminal/state.js';
 import {
@@ -435,6 +437,145 @@ export async function createRealSession(
 	c.clearAhpSnapshot();
 
 	return sessionUri;
+}
+
+/**
+ * Pushes root config as the product client does on connect; the host applies
+ * no schema defaults to unpushed keys. May be called after initialization,
+ * including before session creation. The state check avoids waiting for an
+ * echo the server deliberately suppresses when the patch is already applied.
+ */
+export async function setRootConfigValues(c: TestProtocolClient, config: Record<string, unknown>, clientSeq: number): Promise<void> {
+	const satisfied = (bag: Readonly<Record<string, unknown>> | undefined) =>
+		Object.entries(config).every(([key, value]) => equals(bag?.[key], value));
+	const subscribed = await c.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+	if (satisfied((subscribed.snapshot?.state as RootState | undefined)?.config?.values)) {
+		return;
+	}
+	const afterServerSeq = latestReceivedServerSeq(c);
+	c.dispatch({ channel: ROOT_STATE_URI, clientSeq, action: { type: ActionType.RootConfigChanged, config } });
+	const notification = await c.waitForNotification(n => {
+		if (!isActionNotification(n, ActionType.RootConfigChanged)) {
+			return false;
+		}
+		const envelope = getActionEnvelope(n);
+		return envelope.serverSeq > afterServerSeq
+			&& envelope.channel === ROOT_STATE_URI
+			&& envelope.origin?.clientSeq === clientSeq;
+	}, 30_000);
+	throwIfRejected(notification, ActionType.RootConfigChanged);
+}
+
+/**
+ * Stable representative client-contract data from the default product tool
+ * sets (`semanticSearch` is absent: its setting defaults to off). Includes
+ * non-deferred core tools plus a deferred browser pair, so prompt snapshots
+ * exercise both deferral and tool-gated guidance without copying the product's
+ * dynamic, extension-dependent tool inventory. Not derived from host internals;
+ * update deliberately when these product contracts change.
+ */
+function canonicalClientTools(): ToolDefinition[] {
+	const plain = (name: string): ToolDefinition =>
+		({ name, description: `Client-provided ${name} tool.`, inputSchema: { type: 'object', properties: {} } });
+	return [
+		{
+			// The Copilot extension publishes ToolSearchTool over AHP by its
+			// toolReferenceName; its internal `tool_search` name does not cross this boundary.
+			name: CLIENT_TOOL_SEARCH_REFERENCE_NAME,
+			description: 'Search for relevant tools by describing what you need. Returns tool references for tools matching your query. Use this when you need to find a tool but aren\'t sure of its exact name. Check the deferred tools list in your instructions for the full set of deferred tools, and include relevant tool names from that list in your query for more accurate results. Use broad queries to find all related tools in a single call rather than making multiple narrow searches.',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					query: {
+						type: 'string',
+						description: 'Natural language description of what tool capability you are looking for. Use broad queries to cover related tools in one search (e.g., "github" instead of separate searches for issues and PRs).',
+					},
+				},
+				required: ['query'],
+			},
+		},
+		plain('runTests'),
+		plain('rename'),
+		plain('usages'),
+		{
+			name: 'openBrowserPage',
+			description: `Open a new browser page in the integrated browser at the given URL.
+May prompt the user to share a page if there is a similar one already open, unless "forceNew" is true.
+Returns a page ID that must be used with other browser tools to interact with the page, as well as an accessibility snapshot of the page.
+
+Important: Prefer to reuse existing pages whenever possible and only call this tool if you do not already have access to a tab you can reuse.`,
+			inputSchema: {
+				type: 'object',
+				properties: {
+					url: {
+						type: 'string',
+						description: 'The URL to open in the browser. Must be an absolute URI with a scheme such as file:, http:, or https:. For local files, use the canonical absolute form, for example file:///path/to/file.',
+					},
+					forceNew: {
+						type: 'boolean',
+						description: 'Whether to force opening a new page even if a page with the same host already exists. Default is false.',
+					},
+				},
+			},
+		},
+		{
+			name: 'readPage',
+			description: 'Get a snapshot of the current browser page state. This is better than screenshot.',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					pageId: {
+						type: 'string',
+						description: 'The browser page ID to read, acquired from context or the open tool.',
+					},
+				},
+				required: ['pageId'],
+			},
+		},
+	];
+}
+
+/**
+ * Publishes the canonical active client onto `sessionUri`. Must complete
+ * before the first turn: the chat freezes its client snapshot at
+ * materialization, and a session with no client tools silently disables
+ * client-tool-gated launch features.
+ */
+export async function registerCanonicalActiveClient(c: TestProtocolClient, sessionUri: string, clientId: string, extraTools: readonly ToolDefinition[] = []): Promise<void> {
+	const clientSeq = 1;
+	const afterServerSeq = latestReceivedServerSeq(c);
+	c.dispatch({
+		channel: sessionUri,
+		clientSeq,
+		action: {
+			type: ActionType.SessionActiveClientSet,
+			activeClient: { clientId, tools: [...canonicalClientTools(), ...extraTools] },
+		},
+	});
+	const notification = await c.waitForNotification(n => {
+		if (!isActionNotification(n, ActionType.SessionActiveClientSet)) {
+			return false;
+		}
+		const envelope = getActionEnvelope(n);
+		const action = envelope.action as { readonly activeClient?: { readonly clientId?: string } };
+		return envelope.serverSeq > afterServerSeq
+			&& envelope.channel === sessionUri
+			&& envelope.origin?.clientSeq === clientSeq
+			&& action.activeClient?.clientId === clientId;
+	}, 30_000);
+	throwIfRejected(notification, ActionType.SessionActiveClientSet);
+}
+
+function latestReceivedServerSeq(c: TestProtocolClient): number {
+	return c.receivedNotifications(n => n.method === 'action')
+		.reduce((latest, notification) => Math.max(latest, getActionEnvelope(notification).serverSeq), 0);
+}
+
+function throwIfRejected(notification: Parameters<typeof getActionEnvelope>[0], actionType: string): void {
+	const rejectionReason = getActionEnvelope(notification).rejectionReason;
+	if (rejectionReason) {
+		throw new Error(`Agent Host rejected ${actionType}: ${rejectionReason}`);
+	}
 }
 
 export async function runAhpSnapshotTest(

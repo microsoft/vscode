@@ -14,13 +14,10 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult } from '../../../../common/agentService.js';
 import { AgentHostProxyConfigKey } from '../../../../common/agentHostSchema.js';
 import { CollectAgentHostDebugLogsExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, type IAgentHostExtensionCommandMap } from '../../../../common/agentHostExtensionProtocol.js';
-import { type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { ActionType } from '../../../../common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../../../../common/state/sessionState.js';
-import { createRealSession, driveTurnToCompletion } from '../harness/agentHostE2ETestHarness.js';
+import { createRealSession, driveTurnToCompletion, setRootConfigValues } from '../harness/agentHostE2ETestHarness.js';
 import { vscodeAgentHostTarget } from '../harness/agentHostTarget.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 type DebugLogsArtifactResult = IAgentHostExtensionCommandMap[typeof CollectAgentHostDebugLogsExtensionMethod]['result'];
@@ -121,17 +118,7 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 	}
 
 	async function setRootConfig(values: Readonly<Record<string, unknown>>, clientSeq: number): Promise<void> {
-		await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
-		context.client.clearReceived();
-		context.client.dispatch({
-			channel: ROOT_STATE_URI,
-			clientSeq,
-			action: { type: ActionType.RootConfigChanged, config: values },
-		});
-		await context.client.waitForNotification(notification =>
-			isActionNotification(notification, ActionType.RootConfigChanged)
-			&& getActionEnvelope(notification).origin?.clientSeq === clientSeq,
-		);
+		await setRootConfigValues(context.client, { ...values }, clientSeq);
 	}
 
 	conformanceTest(context, 'host-wide debug archive has a readable manifest and zip payload', async function () {
