@@ -317,7 +317,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			if (e.hasChanged(EditorOption.fontSize)) {
 				this._domElement.style.setProperty('--editor-font-size', options.get(EditorOption.fontSize) + 'px');
 			}
-			if (e.hasChanged(EditorOption.hideMouseCursorOnTyping) && !options.get(EditorOption.hideMouseCursorOnTyping)) {
+			if ((e.hasChanged(EditorOption.hideMouseCursorOnTyping) && !options.get(EditorOption.hideMouseCursorOnTyping))
+				|| (e.hasChanged(EditorOption.readOnly) && options.get(EditorOption.readOnly))) {
 				this._showMouseCursor();
 			}
 		}));
