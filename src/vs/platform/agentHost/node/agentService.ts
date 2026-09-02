@@ -5745,6 +5745,7 @@ export class AgentService extends Disposable implements IAgentService {
 		]);
 		if (restoredConfig) {
 			this._stateManager.setSessionConfig(sessionStr, restoredConfig);
+			this._changesetCoordinator.onSessionConfigRestored(sessionStr);
 			// Seeded config bypasses `onDidChangeSessionConfig`, so heal the
 			// index for a session enabled before it was introduced.
 			this._syncAgentMergeIndex(session, undefined, restoredConfig);

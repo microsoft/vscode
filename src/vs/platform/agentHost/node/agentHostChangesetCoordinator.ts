@@ -93,6 +93,11 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		this._changesetFileMonitor.onSessionRestored(sessionStr);
 	}
 
+	/** Refreshes config-dependent catalogue entries after restored session config is seeded. */
+	onSessionConfigRestored(sessionStr: string): void {
+		this._changesets.refreshChangesetCatalog(sessionStr);
+	}
+
 	/**
 	 * Called when a provisional session is materialized (working directory
 	 * becomes known). Recomputes every current changeset subscription.
