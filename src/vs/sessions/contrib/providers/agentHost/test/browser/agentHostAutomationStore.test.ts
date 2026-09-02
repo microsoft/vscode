@@ -405,6 +405,7 @@ suite('AgentHostAutomationStore', () => {
 			prompt: 'Review the current changes.',
 			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
 			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+			mode: 'agent',
 			permissionLevel: 'autopilot',
 		});
 		const create = connection.dispatched[0].action;
@@ -427,7 +428,7 @@ suite('AgentHostAutomationStore', () => {
 			subscribedChannel: URI.parse(AUTOMATION_CATALOG_URI).toString(),
 			dispatchChannel: AUTOMATION_CATALOG_URI,
 			definitionMeta: undefined,
-			sessionConfig: { autoApprove: 'assisted' },
+			sessionConfig: { mode: 'autopilot', autoApprove: 'assisted' },
 			triggerExpression: '30 9 * * *',
 			automation: {
 				name: 'Review changes',
@@ -437,6 +438,36 @@ suite('AgentHostAutomationStore', () => {
 				enabled: true,
 			},
 		});
+	});
+
+	test('does not forward generic chat modes to Agent Host session config', async () => {
+		const connection = disposables.add(new TestAutomationConnection(true));
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore(
+			'local-agent-host',
+			connection,
+			undefined,
+			undefined,
+			new NullLogService(),
+			storage,
+			NullTelemetryService,
+			new TestAutomationStorageService(storage),
+		));
+
+		await store.createAutomation({
+			name: 'Review changes',
+			prompt: 'Review the current changes.',
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+			mode: 'agent',
+			permissionLevel: 'default',
+		});
+
+		const create = connection.dispatched[0].action;
+		assert.deepStrictEqual(
+			create.type === ActionType.AutomationCreateRequested ? create.definition.session.config : undefined,
+			{ autoApprove: 'default' },
+		);
 	});
 
 	test('switches authority only after host migration completion is verified', async () => {

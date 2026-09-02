@@ -4044,7 +4044,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// Isolation / branch are contributed by the host (see
 		// AgentService._withHostSessionConfigContributions); this agent only owns its platform
 		// session config (auto-approve / mode / permissions).
-		const values = platformSessionSchema.validateOrDefault(migrateLegacyAutopilotConfig(params.config), {
+		const migratedConfig = migrateLegacyAutopilotConfig(params.config);
+		const policyRestricted = this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true;
+		const config = policyRestricted && migratedConfig?.[SessionConfigKey.AutoApprove] !== undefined && migratedConfig[SessionConfigKey.AutoApprove] !== 'default'
+			? { ...migratedConfig, [SessionConfigKey.AutoApprove]: 'default' satisfies AutoApproveLevel }
+			: migratedConfig;
+		const values = platformSessionSchema.validateOrDefault(config, {
 			[SessionConfigKey.AutoApprove]: 'default' satisfies AutoApproveLevel,
 			[SessionConfigKey.Mode]: 'interactive' satisfies SessionMode,
 			// Permissions intentionally omitted — leave unset so auto-approval
