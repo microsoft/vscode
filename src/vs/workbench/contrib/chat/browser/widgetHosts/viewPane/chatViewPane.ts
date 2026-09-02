@@ -1060,6 +1060,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		return this.sessionsControl?.getFocus() ?? [];
 	}
 
+	getSelectedSessions(): IAgentSession[] {
+		return this.sessionsControl?.getSelection() ?? [];
+	}
+
 	//#endregion
 
 	//#region Chat Control

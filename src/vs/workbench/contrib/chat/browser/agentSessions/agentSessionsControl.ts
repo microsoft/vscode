@@ -34,6 +34,7 @@ import { IStyleOverride } from '../../../../../platform/theme/browser/defaultSty
 import { IAgentSessionsControl } from './agentSessions.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { resolveContextMenuSessions } from './agentSessionMultiSelect.js';
 import { ISessionOpenOptions, openSession } from './agentSessionsOpener.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
@@ -715,10 +716,11 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		const menu = this.menuService.createMenu(MenuId.AgentSessionsContext, this.contextKeyService.createOverlay(contextOverlay));
 
-		const selection = this.sessionsList?.getSelection().filter(isAgentSession) ?? [];
+		const selection = this.getSelection();
+		// Match by resource URI: list selection can hold different object instances for the same session.
 		const marshalledContext: IMarshalledAgentSessionContext = {
 			session,
-			sessions: selection.length > 1 && selection.includes(session) ? selection : [session],
+			sessions: resolveContextMenuSessions(session, selection),
 			$mid: MarshalledId.AgentSessionContext
 		};
 
@@ -883,9 +885,15 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	}
 
 	getFocus(): IAgentSession[] {
-		const focused = this.sessionsList?.getFocus() ?? [];
+		return this.getAgentSessionsFromList(this.sessionsList?.getFocus() ?? []);
+	}
 
-		return focused.filter(e => isAgentSession(e));
+	getSelection(): IAgentSession[] {
+		return this.getAgentSessionsFromList(this.sessionsList?.getSelection() ?? []);
+	}
+
+	private getAgentSessionsFromList(elements: readonly unknown[]): IAgentSession[] {
+		return elements.filter(e => isAgentSession(e));
 	}
 
 	reveal(sessionResource: URI): boolean {
