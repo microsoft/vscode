@@ -133,8 +133,13 @@ export class DocumentDiffItemViewModel extends Disposable {
 		{ expandedContentHeight: 500, selections: undefined, }
 	);
 
-	public get originalUri(): URI | undefined { return this.documentDiffItem.originalUri ?? this.documentDiffItem.original?.uri; }
-	public get modifiedUri(): URI | undefined { return this.documentDiffItem.modifiedUri ?? this.documentDiffItem.modified?.uri; }
+	public get originalUri(): URI | undefined { return this.documentDiffItem.original?.uri; }
+	public get modifiedUri(): URI | undefined { return this.documentDiffItem.modified?.uri; }
+	public get isBinary(): boolean {
+		const { original, modified } = this.documentDiffItem;
+		return (original !== undefined && original.textModel === undefined)
+			|| (modified !== undefined && modified.textModel === undefined);
+	}
 
 	public readonly isActive: IObservable<boolean> = derived(this, reader => this._editorViewModel.activeDiffItem.read(reader) === this);
 	public readonly isFirst: IObservable<boolean> = derived(this, reader => this._editorViewModel.items.read(reader)[0] === this);
@@ -188,8 +193,8 @@ export class DocumentDiffItemViewModel extends Disposable {
 		}
 
 		const diffEditorViewModelStore = new DisposableStore();
-		const originalTextModel = this.documentDiffItem.original ?? diffEditorViewModelStore.add(this._modelService.createModel('', null));
-		const modifiedTextModel = this.documentDiffItem.modified ?? diffEditorViewModelStore.add(this._modelService.createModel('', null));
+		const originalTextModel = this.documentDiffItem.original?.textModel ?? diffEditorViewModelStore.add(this._modelService.createModel('', null));
+		const modifiedTextModel = this.documentDiffItem.modified?.textModel ?? diffEditorViewModelStore.add(this._modelService.createModel('', null));
 		diffEditorViewModelStore.add(this._documentDiffItemRef.createNewRef(this));
 
 		this.diffEditorViewModelRef = this._register(RefCounted.createWithDisposable(

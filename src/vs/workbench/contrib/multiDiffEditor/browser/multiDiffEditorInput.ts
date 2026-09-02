@@ -16,7 +16,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isDefined, isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { RefCounted } from '../../../../editor/browser/widget/diffEditor/utils.js';
-import { IDocumentDiffItem, IMultiDiffEditorModel } from '../../../../editor/browser/widget/multiDiffEditor/model.js';
+import { DiffItemSource, IDocumentDiffItem, IMultiDiffEditorModel } from '../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IDiffEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -189,7 +189,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		const activeDiffItem = this._viewModel.requireValue().activeDiffItem.get();
 		const value = activeDiffItem?.documentDiffItem;
 		if (!value) { return; }
-		const target = value.modified ?? value.original;
+		const target = (value.modified ?? value.original)?.textModel;
 		if (!target) { return; }
 		target.setLanguage(languageId, source);
 	}
@@ -250,11 +250,8 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			const uri = (r.modifiedUri ?? r.originalUri)!;
 			const result: IDocumentDiffItemWithMultiDiffEditorItem = {
 				multiDiffEditorItem: r,
-				originalUri: r.originalUri,
-				modifiedUri: r.modifiedUri,
-				original: original?.object.textEditorModel,
-				modified: modified?.object.textEditorModel,
-				isBinary,
+				original: r.originalUri ? new DiffItemSource(r.originalUri, original?.object.textEditorModel) : undefined,
+				modified: r.modifiedUri ? new DiffItemSource(r.modifiedUri, modified?.object.textEditorModel) : undefined,
 				contextKeys: r.contextKeys,
 				get options() {
 					return {
@@ -331,7 +328,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		const items = this._viewModel.currentValue?.items.get();
 		if (items) {
 			await Promise.all(items.map(async item => {
-				if (item.documentDiffItem.isBinary) {
+				if (item.isBinary) {
 					return;
 				}
 				const model = item.diffEditorViewModel.model;

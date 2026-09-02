@@ -15,20 +15,26 @@ export interface IMultiDiffEditorModel {
 	readonly contextKeys?: Record<string, ContextKeyValue>;
 }
 
-export interface IDocumentDiffItem {
-	readonly originalUri?: URI;
-	readonly modifiedUri?: URI;
+/**
+ * A resource participating on one side of a document diff.
+ */
+export class DiffItemSource {
+	constructor(
+		public readonly uri: URI,
+		public readonly textModel: ITextModel | undefined,
+	) { }
+}
 
+export interface IDocumentDiffItem {
 	/**
 	 * undefined if the file was created.
 	 */
-	readonly original: ITextModel | undefined;
+	readonly original: DiffItemSource | undefined;
 
 	/**
 	 * undefined if the file was deleted.
 	 */
-	readonly modified: ITextModel | undefined;
-	readonly isBinary?: boolean;
+	readonly modified: DiffItemSource | undefined;
 	readonly options?: IDiffEditorOptions;
 	readonly onOptionsDidChange?: Event<void>;
 	readonly contextKeys?: Record<string, ContextKeyValue>;
