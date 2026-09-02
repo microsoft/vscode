@@ -7,6 +7,7 @@ import { open, unlink, type FileHandle } from 'fs/promises';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Barrier, DeferredPromise, disposableTimeout, Limiter, ResourceQueue } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { structuralEquals } from '../../../base/common/equals.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { getExtensionForMimeType, getMediaMime, getMediaOrTextMime } from '../../../base/common/mime.js';
@@ -4776,13 +4777,18 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			const editorClient = clientContext.clientType === AgentHostClientType.EditorWindow;
 			const writesShellInit = Object.hasOwn(configAction.config, SessionConfigKey.ShellInitSnippets);
-			const shellInitWriteError = getShellInitScriptConfigWriteError(configAction.config, clientContext.clientType);
+			const existingShellInit = this._stateManager.getSessionState(sessionChannel)?.config?.values[SessionConfigKey.ShellInitSnippets];
+			const carriesExistingShellInit = !editorClient
+				&& configAction.replace
+				&& writesShellInit
+				&& existingShellInit !== undefined
+				&& structuralEquals(configAction.config[SessionConfigKey.ShellInitSnippets], existingShellInit);
+			const shellInitWriteError = carriesExistingShellInit ? undefined : getShellInitScriptConfigWriteError(configAction.config, clientContext.clientType);
 			if (shellInitWriteError) {
 				this._stateManager.rejectClientAction(channel, action, origin, shellInitWriteError);
 				return;
 			}
 			if (!editorClient && configAction.replace && !writesShellInit) {
-				const existingShellInit = this._stateManager.getSessionState(sessionChannel)?.config?.values[SessionConfigKey.ShellInitSnippets];
 				if (existingShellInit !== undefined) {
 					configAction = {
 						...configAction,

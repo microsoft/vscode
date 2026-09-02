@@ -2076,6 +2076,11 @@ suite('AgentService (node dispatcher)', () => {
 							title: 'Shell Init Script',
 							sessionMutable: true,
 						},
+						[SessionConfigKey.AutoApprove]: {
+							type: 'string',
+							title: 'Auto Approve',
+							sessionMutable: true,
+						},
 					},
 				},
 				values: {},
@@ -2118,18 +2123,34 @@ suite('AgentService (node dispatcher)', () => {
 			}, 'agents-window-client', 5, AgentHostClientType.AgentsWindow);
 			const replacement = await fifth;
 
+			const sixth = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 6));
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: {
+					[SessionConfigKey.AutoApprove]: 'autoApprove',
+					[SessionConfigKey.ShellInitSnippets]: script,
+				},
+				replace: true,
+			}, 'agents-window-client', 6, AgentHostClientType.AgentsWindow);
+			const carriedReplacement = await sixth;
+
+			const values = getStateManager(svc).getSessionState(session.toString())?.config?.values;
 			assert.deepStrictEqual({
 				acceptedReason: accepted.rejectionReason,
 				rejectedReason: rejected.rejectionReason,
 				clearedReason: cleared.rejectionReason,
 				replacementReason: replacement.rejectionReason,
-				value: getStateManager(svc).getSessionState(session.toString())?.config?.values[SessionConfigKey.ShellInitSnippets],
+				carriedReplacementReason: carriedReplacement.rejectionReason,
+				shellInit: values?.[SessionConfigKey.ShellInitSnippets],
+				autoApprove: values?.[SessionConfigKey.AutoApprove],
 			}, {
 				acceptedReason: undefined,
 				rejectedReason: 'Shell init script config can only be set by an Editor Window client.',
 				clearedReason: undefined,
 				replacementReason: undefined,
-				value: script,
+				carriedReplacementReason: undefined,
+				shellInit: script,
+				autoApprove: 'autoApprove',
 			});
 		});
 
