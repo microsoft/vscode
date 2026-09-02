@@ -12,6 +12,7 @@ import { IChatModelInformation } from '../../../../platform/endpoint/common/endp
 import { ChatEndpoint } from '../../../../platform/endpoint/node/chatEndpoint';
 import { SEARCH_AGENT_FAMILY, SearchAgentChatEndpoint } from '../../../../platform/endpoint/node/searchAgentChatEndpoint';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
+import { mock } from '../../../../util/common/test/simpleMock';
 import { CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
@@ -27,6 +28,18 @@ import {
 } from '../../../prompt/node/searchSubagentToolCallingLoop';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import { ToolName } from '../../../tools/common/toolNames';
+import { IToolsService } from '../../../tools/common/toolsService';
+
+class TestToolsService extends mock<IToolsService>() {
+	override getEnabledTools(): LanguageModelToolInformation[] {
+		return [
+			{ name: ToolName.Codebase },
+			{ name: ToolName.FindFiles },
+			{ name: ToolName.FindTextInFiles },
+			{ name: ToolName.ReadFile },
+		] as LanguageModelToolInformation[];
+	}
+}
 
 class TestSearchSubagentToolCallingLoop extends SearchSubagentToolCallingLoop {
 	public buildPromptCalls = 0;
@@ -329,6 +342,7 @@ describe('SearchSubagentToolCallingLoop.getAvailableTools', () => {
 		disposables = new DisposableStore();
 		const serviceCollection = disposables.add(createExtensionUnitTestingServices());
 		serviceCollection.define(IChatHookService, new MockChatHookService());
+		serviceCollection.define(IToolsService, new TestToolsService());
 		const accessor = serviceCollection.createTestingAccessor();
 		instantiationService = accessor.get(IInstantiationService);
 		configurationService = accessor.get(IConfigurationService);
@@ -347,14 +361,7 @@ describe('SearchSubagentToolCallingLoop.getAvailableTools', () => {
 			promptText: 'find things',
 		};
 		const loop = instantiationService.createInstance(TestSearchSubagentToolCallingLoop, options);
-		const tools = [
-			{ name: ToolName.Codebase },
-			{ name: ToolName.FindFiles },
-			{ name: ToolName.FindTextInFiles },
-			{ name: ToolName.ReadFile },
-		] as LanguageModelToolInformation[];
 		(loop as any).getEndpoint = async () => loop.fakeEndpoint;
-		(loop as any).toolsService = { getEnabledTools: () => tools };
 		disposables.add(loop);
 		return loop;
 	}
