@@ -203,12 +203,6 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			telemetrySource: 'titlePart.left',
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: { primaryGroup: () => true },
-			// The sidebar toggle's icon must track `SideBarVisibleContext` the
-			// instant the sidebar's own visibility changes; the default 50ms menu
-			// debounce (see `MenuService.createMenu`) otherwise leaves the button
-			// showing its previous open/closed glyph after the sidebar has already
-			// toggled, reading as the action's icon jumping once it catches up.
-			eventDebounceDelay: 0,
 		}));
 
 		// Center section: [nav toolbar] [command center box] [actions toolbar]
