@@ -17,6 +17,7 @@ import {
 	makeAssistantMessage,
 	makeContentBlockStartText,
 	makeContentBlockStartToolUse,
+	makeResultSuccess,
 	makeStreamEvent,
 	makeUserToolResultMessage,
 } from './claudeMapSessionEventsTestUtils.js';
@@ -421,6 +422,30 @@ suite('claudeSubagentSignals — Phase 12 emission', () => {
 			spawnRecorded: 'toolu_bad',
 			spawnSubagentType: undefined,
 			spawnDescription: undefined,
+		});
+	});
+
+	test('a background subagent known only from the transcript still completes after a turn ends', () => {
+		const state = new ClaudeMapperState();
+		const log = new NullLogService();
+		const registry = r();
+		const PARENT = 'toolu_bg_restored';
+
+		// After a restart no `task_started` arrives to mark the spawn background.
+		registry.cacheAgentId(PARENT, 'agentbg');
+		mapSDKMessageToAgentSignals(makeResultSuccess(SESSION_ID), SESSION, TURN_ID, state, log, registry);
+
+		const signals = mapSDKMessageToAgentSignals(
+			{ type: 'system', subtype: 'task_notification', task_id: 't1', tool_use_id: PARENT, status: 'completed', output_file: 'o', summary: 's' } as unknown as SDKMessage,
+			SESSION, TURN_ID, state, log, registry,
+		);
+
+		assert.deepStrictEqual({
+			signals,
+			spawnRemoved: registry.getSpawn(PARENT),
+		}, {
+			signals: [{ kind: 'subagent_completed', chat: SESSION, toolCallId: PARENT }],
+			spawnRemoved: undefined,
 		});
 	});
 
