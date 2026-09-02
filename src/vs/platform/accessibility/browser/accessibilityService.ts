@@ -154,6 +154,7 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 		};
 
 		updateFocusClasses();
+
 		this._register(this.onDidChangeEnhancedFocus(() => updateFocusClasses()));
 	}
 
@@ -161,8 +162,8 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 		return this._onDidChangeLinkUnderline.event(listener);
 	}
 
-	public onDidChangeEnhancedFocus(listener: () => void) {
-		return this._onDidChangeEnhancedFocus.event(listener);
+	get onDidChangeEnhancedFocus(): Event<void> {
+		return this._onDidChangeEnhancedFocus.event;
 	}
 
 	get onDidChangeScreenReaderOptimized(): Event<void> {
