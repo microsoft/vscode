@@ -176,7 +176,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const currentConnections = this._remoteAgentHostService.connections;
 		const connectedAddresses = new Set(
 			currentConnections
-				.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status))
+				.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status) && c.clientId !== undefined)
 				.map(c => c.address)
 		);
 		const allAddresses = new Set(currentConnections.map(c => c.address));
@@ -195,7 +195,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		// Add or update connections
 		for (const connectionInfo of currentConnections) {
 			// Only set up contribution state for connected entries
-			if (!RemoteAgentHostConnectionStatus.isConnected(connectionInfo.status)) {
+			if (!RemoteAgentHostConnectionStatus.isConnected(connectionInfo.status) || connectionInfo.clientId === undefined) {
 				continue;
 			}
 			const existing = this._connections.get(connectionInfo.address);

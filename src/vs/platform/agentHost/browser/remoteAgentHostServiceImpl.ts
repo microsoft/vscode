@@ -40,7 +40,7 @@ import {
 	RemoteAgentHostEntryType,
 } from '../common/remoteAgentHostService.js';
 import { computeReconnectDelay, hasExhaustedReconnectAttempts } from '../common/reconnectPolicy.js';
-import { NonReconnectableTransportError } from '../common/state/sessionTransport.js';
+import { AgentHostTransportFailureReason, NonReconnectableTransportError } from '../common/state/sessionTransport.js';
 import { AgentHostProtocolClient, InitialAuthenticationError } from './agentHostProtocolClient.js';
 import { WebSocketClientTransport } from './webSocketClientTransport.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, normalizeRemoteAgentHostAddress } from '../common/agentHostUri.js';
@@ -51,7 +51,7 @@ import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from
 /** Tracks a single remote connection through its lifecycle. */
 interface IConnectionEntry {
 	readonly store: DisposableStore;
-	readonly client: IRemoteAgentHostProtocolClient;
+	client?: IRemoteAgentHostProtocolClient;
 	/**
 	 * Optional teardown for the shared-process tunnel that this entry's
 	 * transport is using (SSH or dev-tunnels). Tracked separately from
@@ -234,8 +234,8 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			result.push({
 				address,
 				name: this._names.get(address) ?? address,
-				clientId: entry.client.clientId,
-				defaultDirectory: entry.client.defaultDirectory,
+				clientId: entry.client?.clientId,
+				defaultDirectory: entry.client?.defaultDirectory,
 				status: entry.status,
 			});
 		}
@@ -285,9 +285,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 	async triggerServerUpgrade(address: string, method: string): Promise<IVscodeUpgradeResult> {
 		const normalized = normalizeRemoteAgentHostAddress(address);
-		const entry = this._entries.get(normalized);
-		if (!entry) {
-			throw new Error(`No remote agent host entry found for ${address}.`);
+		const client = this._entries.get(normalized)?.client;
+		if (!client) {
+			throw new Error(`No usable remote agent host client found for ${address}.`);
 		}
 		// The protocol client may be in any state: it might have completed
 		// the handshake (Connected) or it might be sitting on an
@@ -296,7 +296,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// method name the host advertised in its `_meta` payload; the
 		// server handler allows it pre-`initialize`.
 		const result = await raceTimeout(
-			entry.client.triggerVscodeUpgrade(method),
+			client.triggerVscodeUpgrade(method),
 			RemoteAgentHostService.UpgradeRequestTimeout,
 		);
 		if (result === undefined) {
@@ -438,11 +438,11 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	notifyConnectionClosed(address: string): void {
 		const normalized = normalizeRemoteAgentHostAddress(address);
 		const entry = this._entries.get(normalized);
-		if (entry) {
+		if (entry?.client) {
 			this._logService.info(`[RemoteAgentHost] notifyConnectionClosed: notifying protocol client for ${normalized}`);
 			entry.client.notifyTransportClosed();
 		} else {
-			this._logService.info(`[RemoteAgentHost] notifyConnectionClosed: no entry found for ${normalized} (already removed?)`);
+			this._logService.info(`[RemoteAgentHost] notifyConnectionClosed: no active client found for ${normalized}`);
 		}
 	}
 
@@ -576,7 +576,20 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			createdConnection = await factory.createConnection(entryToCreate, options);
 		} catch (err) {
 			this._logService.error(`[RemoteAgentHost] Failed to create a connection to ${address}. Verify address and connectionToken`, err);
+			// A factory can fail before any client exists — a stopped WSL distro is
+			// rejected by its precondition check, never reaching the handshake below.
+			// Retain the entry so its status remains visible to consumers.
+			const disconnectReason = err instanceof NonReconnectableTransportError ? err.reason : AgentHostTransportFailureReason.Unknown;
+			this._entries.set(address, {
+				store: new DisposableStore(),
+				connected: false,
+				status: RemoteAgentHostConnectionStatus.disconnectedBecause(disconnectReason),
+				reconnectTransfersTransportOwnership: false,
+			});
 			this._rejectPendingConnectionWait(address, err);
+			// Nothing else reports this failure: no entry was created, so consumers
+			// only learn the address became unavailable from this notification.
+			this._onDidChangeConnections.fire();
 			if (!isTerminalConnectError(err) && !this._store.isDisposed && this._remoteAgentHostsEnabled.get()) {
 				this._scheduleReconnect(address, entryToCreate.connectionToken);
 			}
@@ -611,13 +624,15 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// current entry for this address is still the one we created.
 		const isCurrentEntry = () => this._entries.get(address) === entry;
 
-		store.add(client.onDidClose(() => {
+		store.add(client.onDidClose(reason => {
 			if (!isCurrentEntry()) {
 				return;
 			}
 			this._logService.warn(`[RemoteAgentHost] Connection closed: ${address}`);
 			entry.connected = false;
-			entry.status = RemoteAgentHostConnectionStatus.disconnected;
+			entry.status = RemoteAgentHostConnectionStatus.disconnectedBecause(reason ?? AgentHostTransportFailureReason.Unknown);
+			entry.client = undefined;
+			disposeEntry(entry);
 			this._onDidChangeConnections.fire();
 			// Schedule reconnect if the address is still configured. This is
 			// the "fatal" path — the protocol client already gave up its own
@@ -715,9 +730,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				return;
 			}
 
-			entry.status = RemoteAgentHostConnectionStatus.disconnected;
-			// Clean up the failed entry
-			this._entries.delete(address);
+			const disconnectReason = err instanceof NonReconnectableTransportError ? err.reason : AgentHostTransportFailureReason.Unknown;
+			entry.status = RemoteAgentHostConnectionStatus.disconnectedBecause(disconnectReason);
+			entry.client = undefined;
+			// Clean up the failed client while retaining its entry and status.
 			disposeEntry(entry);
 			this._rejectPendingConnectionWait(address, err);
 			this._onDidChangeConnections.fire();

@@ -8,7 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -150,12 +150,22 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	private readonly _readOnly = observableValue<boolean>('providerReadOnly', false);
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
 
+	protected override get remoteConnectionStatus(): IObservable<RemoteAgentHostConnectionStatus> {
+		return this.connectionStatus;
+	}
+
 	/**
 	 * `true` while we are still resolving and pushing tokens for the host's
 	 * `protectedResources`. Defaults to `true` so that sessions surface as
 	 * loading until the first authentication pass settles.
 	 */
 	private readonly _authenticationPending = observableValue('authenticationPending', true);
+	private readonly _effectiveAuthenticationPending = derived(this, reader => {
+		const status = this._connectionStatus.read(reader);
+		return this._authenticationPending.read(reader)
+			&& !RemoteAgentHostConnectionStatus.isDisconnected(status)
+			&& !RemoteAgentHostConnectionStatus.isIncompatible(status);
+	});
 	private _authenticationSettled = false;
 
 	private readonly _onDidDisconnect = this._register(new Emitter<void>());
@@ -382,7 +392,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 
 	protected get connection(): IAgentConnection | undefined { return this._connection; }
 
-	protected get authenticationPending(): IObservable<boolean> { return this._authenticationPending; }
+	protected get authenticationPending(): IObservable<boolean> { return this._effectiveAuthenticationPending; }
 
 	/**
 	 * Suspend cache-change tracking while sessions are unpublished (offline) so

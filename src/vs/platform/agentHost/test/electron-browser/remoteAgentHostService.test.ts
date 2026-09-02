@@ -26,6 +26,7 @@ import type { Implementation } from '../../common/state/protocol/common/commands
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { computeReconnectDelay } from '../../common/reconnectPolicy.js';
+import { AgentHostTransportFailureReason, NonReconnectableTransportError } from '../../common/state/sessionTransport.js';
 
 interface IRemoteAgentHostServiceTestAccess {
 	readonly _reconnectAttempts: Map<string, number>;
@@ -51,7 +52,7 @@ class MockProtocolClient extends Disposable {
 	private static _nextId = 1;
 	readonly clientId = `mock-client-${MockProtocolClient._nextId++}`;
 
-	private readonly _onDidClose = this._register(new Emitter<void>());
+	private readonly _onDidClose = this._register(new Emitter<AgentHostTransportFailureReason | undefined>());
 	readonly onDidClose = this._onDidClose.event;
 	readonly onDidAction = Event.None;
 	readonly onDidNotification = Event.None;
@@ -78,8 +79,8 @@ class MockProtocolClient extends Disposable {
 		return { ok: true, upgradeStarted: true };
 	}
 
-	fireClose(): void {
-		this._onDidClose.fire();
+	fireClose(reason?: AgentHostTransportFailureReason): void {
+		this._onDidClose.fire(reason);
 	}
 
 	fireConnectionState(state: 'connecting' | 'reconnecting' | 'connected' | 'incompatible' | 'closed'): void {
@@ -92,6 +93,7 @@ class TestConnectionFactory extends Disposable implements IRemoteAgentHostConnec
 
 	private readonly _entries = observableValue<readonly IRemoteAgentHostEntry[]>(this, []);
 	private readonly _createdConnections = new Map<string, IRemoteAgentHostCreatedConnection[]>();
+	private readonly _failures = new Map<string, Error[]>();
 	private readonly _onDidCreateConnection = this._register(new Emitter<void>());
 	readonly onDidCreateConnection = this._onDidCreateConnection.event;
 	createdConnectionCount = 0;
@@ -113,11 +115,22 @@ class TestConnectionFactory extends Disposable implements IRemoteAgentHostConnec
 		this._entries.set([...this._entries.get(), entry], undefined);
 	}
 
+	/** Stages a factory-level rejection, as a failed precondition check would produce. */
+	stageFailure(entry: IRemoteAgentHostEntry, error: Error): void {
+		const address = getEntryAddress(entry);
+		this._failures.set(address, [...(this._failures.get(address) ?? []), error]);
+		this._entries.set([...this._entries.get(), entry], undefined);
+	}
+
 	createConnection(entry: IRemoteAgentHostEntry): Promise<IRemoteAgentHostCreatedConnection> {
 		if (entry.connection.type !== this.kind) {
 			return Promise.reject(new Error(`Test factory cannot create a ${entry.connection.type} connection.`));
 		}
 		const address = getEntryAddress(entry);
+		const failure = this._failures.get(address)?.shift();
+		if (failure) {
+			return Promise.reject(failure);
+		}
 		const connection = this._createdConnections.get(address)?.shift();
 		if (!connection) {
 			return Promise.reject(new Error(`No test connection staged for ${address}.`));
@@ -406,10 +419,10 @@ suite('RemoteAgentHostService', () => {
 		assert.strictEqual(service.getConnection('ws://host1:8080'), undefined);
 		const entry = service.connections.find(c => c.address === 'host1:8080');
 		assert.ok(entry);
-		assert.strictEqual(entry.status, RemoteAgentHostConnectionStatus.disconnected);
+		assert.deepStrictEqual(entry.status, RemoteAgentHostConnectionStatus.disconnected);
 	});
 
-	test('removes connection on connect failure', async () => {
+	test('retains an unknown disconnected entry on connect failure', async () => {
 		configService.setEntries([{ name: 'Bad', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://bad:9999' } }]);
 		await waitForCreatedClients(1);
 		assert.strictEqual(createdClients.length, 1);
@@ -419,8 +432,15 @@ suite('RemoteAgentHostService', () => {
 		createdClients[0].connectDeferred.error(new Error('Connection refused'));
 		await connectionChanged;
 
-		assert.strictEqual(service.connections.length, 0);
-		assert.strictEqual(service.getConnection('ws://bad:9999'), undefined);
+		assert.deepStrictEqual({
+			connection: service.getConnection('ws://bad:9999'),
+			clientId: service.connections.find(connection => connection.address === 'bad:9999')?.clientId,
+			status: service.connections.find(connection => connection.address === 'bad:9999')?.status,
+		}, {
+			connection: undefined,
+			clientId: undefined,
+			status: RemoteAgentHostConnectionStatus.disconnected,
+		});
 	});
 
 	test('manages multiple connections independently', async () => {
@@ -826,6 +846,62 @@ suite('RemoteAgentHostService', () => {
 				connectedConnection: undefined,
 				upgradeCalls: ['_vscodeUpgrade'],
 				upgradeResult: { ok: true, upgradeStarted: true },
+			});
+		});
+
+		test('retains a client-less disconnected entry when the factory rejects before a client exists', async () => {
+			const factory = createFactory(RemoteAgentHostEntryType.WSL);
+			const entry: IRemoteAgentHostEntry = {
+				name: 'Ubuntu',
+				connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' },
+			};
+			const address = getEntryAddress(entry);
+
+			// A stopped distro is rejected by the factory's precondition check before
+			// any protocol client exists — the path a real WSL outage actually takes.
+			// The status must survive with no client, or the UI cannot tell a
+			// resolvable outage from a generic one and offers no recovery action.
+			factory.stageFailure(entry, new NonReconnectableTransportError(`WSL distro 'Ubuntu' is not running.`, AgentHostTransportFailureReason.HostNotRunning));
+			while (service.connections.find(connection => connection.address === address)?.status.kind !== 'disconnected') {
+				await Event.toPromise(service.onDidChangeConnections);
+			}
+
+			const info = service.connections.find(connection => connection.address === address);
+			assert.deepStrictEqual({
+				connection: service.getConnection(address),
+				clientId: info?.clientId,
+				status: info?.status,
+			}, {
+				connection: undefined,
+				clientId: undefined,
+				status: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.HostNotRunning),
+			});
+		});
+
+		test('surfaces a stopped WSL distro as a host-not-running disconnect and clears the reason once it reconnects', async () => {
+			const factory = createFactory(RemoteAgentHostEntryType.WSL);
+			const entry: IRemoteAgentHostEntry = {
+				name: 'Ubuntu',
+				connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' },
+			};
+			const client = new MockProtocolClient('wsl:Ubuntu');
+			await reconnectStagedConnection(factory, entry, client);
+
+			const changed = Event.toPromise(service.onDidChangeConnections);
+			client.fireClose(AgentHostTransportFailureReason.HostNotRunning);
+			await changed;
+
+			const afterClose = service.connections.find(connection => connection.address === 'wsl:Ubuntu')?.status;
+
+			// A host that comes back must stop claiming it is not running.
+			await reconnectStagedConnection(factory, entry, new MockProtocolClient('wsl:Ubuntu'));
+
+			assert.deepStrictEqual({
+				afterClose,
+				statusAfterReconnect: service.connections.find(connection => connection.address === 'wsl:Ubuntu')?.status,
+			}, {
+				afterClose: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.HostNotRunning),
+				statusAfterReconnect: RemoteAgentHostConnectionStatus.connected,
 			});
 		});
 

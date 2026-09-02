@@ -31,7 +31,7 @@ import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, ty
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, customizationId, withSessionExternal, withSessionWorkspaceless } from '../../common/state/sessionState.js';
-import { NonReconnectableTransportError, type IClientTransport, type IProtocolTransport } from '../../common/state/sessionTransport.js';
+import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -2340,6 +2340,7 @@ suite('AgentHostProtocolClient', () => {
 		test('does not retry a non-reconnectable initial transport failure', async () => {
 			const { client, transports } = createFactoryClient();
 			const fatalErrors: string[] = [];
+			const closeReason = Event.toPromise(client.onDidClose);
 			disposables.add(client.onDidFatalClose(error => fatalErrors.push(error.message)));
 			const connectPromise = client.connect();
 			transports[0].connectDeferred.error(new NonReconnectableTransportError('terminal failure'));
@@ -2350,10 +2351,29 @@ suite('AgentHostProtocolClient', () => {
 				state: client.connectionState,
 				transportCount: transports.length,
 				fatalErrors,
+				closeReason: await closeReason,
 			}, {
 				state: AgentHostClientState.Closed,
 				transportCount: 1,
 				fatalErrors: ['terminal failure'],
+				closeReason: AgentHostTransportFailureReason.Unknown,
+			});
+		});
+
+		test('reports a host-not-running terminal transport failure when it closes', async () => {
+			const { client, transports } = createFactoryClient();
+			const closeReason = Event.toPromise(client.onDidClose);
+			const connectPromise = client.connect();
+			transports[0].connectDeferred.error(new NonReconnectableTransportError('WSL distro is not running.', AgentHostTransportFailureReason.HostNotRunning));
+
+			await assert.rejects(connectPromise, /not running/);
+
+			assert.deepStrictEqual({
+				state: client.connectionState,
+				closeReason: await closeReason,
+			}, {
+				state: AgentHostClientState.Closed,
+				closeReason: AgentHostTransportFailureReason.HostNotRunning,
 			});
 		});
 

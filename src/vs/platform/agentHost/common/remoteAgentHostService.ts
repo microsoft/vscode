@@ -13,6 +13,7 @@ import { StorageScope, StorageTarget, type IStorageService } from '../../storage
 import type { IAgentConnection } from './agentService.js';
 import type { UnsupportedProtocolVersionErrorData } from './state/protocol/errors.js';
 import { AHP_UNSUPPORTED_PROTOCOL_VERSION, ProtocolError } from './state/sessionProtocol.js';
+import { AgentHostTransportFailureReason } from './state/sessionTransport.js';
 import { readUnsupportedProtocolVersionErrorMeta, type IVscodeUpgradeResult } from './state/protocolUpgrade.js';
 import { TUNNEL_ADDRESS_PREFIX } from './tunnelAgentHost.js';
 import { DEFAULT_RECONNECT_POLICY, type IRemoteAgentHostReconnectPolicy } from './reconnectPolicy.js';
@@ -36,7 +37,7 @@ export type RemoteAgentHostConnectionStatus =
 	 * `disconnected` (no connection, nothing in flight).
 	 */
 	| { readonly kind: 'reconnecting' }
-	| { readonly kind: 'disconnected' }
+	| { readonly kind: 'disconnected'; readonly reason: AgentHostTransportFailureReason }
 	| {
 		readonly kind: 'incompatible';
 		/** Human-readable reason from the host (or a synthesised one when the host did not send one). */
@@ -62,7 +63,13 @@ export namespace RemoteAgentHostConnectionStatus {
 	/** Singleton "reconnecting" status. */
 	export const reconnecting: RemoteAgentHostConnectionStatus = Object.freeze({ kind: 'reconnecting' });
 	/** Singleton "disconnected" status. */
-	export const disconnected: RemoteAgentHostConnectionStatus = Object.freeze({ kind: 'disconnected' });
+	export const disconnected: RemoteAgentHostConnectionStatus = Object.freeze({ kind: 'disconnected', reason: AgentHostTransportFailureReason.Unknown });
+	/** Build a disconnected status with a machine-readable reason. */
+	export function disconnectedBecause(reason: AgentHostTransportFailureReason): RemoteAgentHostConnectionStatus {
+		return reason === AgentHostTransportFailureReason.Unknown
+			? disconnected
+			: Object.freeze({ kind: 'disconnected', reason });
+	}
 	/** Build an "incompatible" status from a host-supplied message and the versions involved. */
 	export function incompatible(message: string, supportedByClient: readonly string[], offeredByServer?: readonly string[], vscodeUpgradeMethod?: string): RemoteAgentHostConnectionStatus {
 		return Object.freeze({ kind: 'incompatible', message, supportedByClient, offeredByServer, vscodeUpgradeMethod });
@@ -243,7 +250,7 @@ export type RemoteAgentHostProtocolClientState = 'connecting' | 'incompatible' |
  */
 export interface IRemoteAgentHostProtocolClient extends IAgentConnection, IDisposable {
 	readonly defaultDirectory: string | undefined;
-	readonly onDidClose: Event<void>;
+	readonly onDidClose: Event<AgentHostTransportFailureReason | undefined>;
 	readonly onDidChangeConnectionState: Event<RemoteAgentHostProtocolClientState>;
 	connect(): Promise<void>;
 	notifyTransportClosed(): void;
@@ -662,6 +669,10 @@ export interface IRemoteAgentHostService {
 	/** Currently connected remote addresses with metadata. */
 	readonly connections: readonly IRemoteAgentHostConnectionInfo[];
 
+	/**
+	 * Returns the last machine-readable disconnect reason for an address whose
+	 * failed connection is no longer represented in {@link connections}.
+	 */
 	/** All remote agent host entries exposed by registered factories, regardless of connection status. */
 	readonly configuredEntries: readonly IRemoteAgentHostEntry[];
 
@@ -743,7 +754,8 @@ export interface IRemoteAgentHostService {
 export interface IRemoteAgentHostConnectionInfo {
 	readonly address: string;
 	readonly name: string;
-	readonly clientId: string;
+	/** Identifier of the backing protocol client, when one exists. */
+	readonly clientId?: string;
 	readonly defaultDirectory?: string;
 	readonly status: RemoteAgentHostConnectionStatus;
 }

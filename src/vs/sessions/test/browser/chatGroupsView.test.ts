@@ -5,26 +5,31 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../base/browser/window.js';
-import { DeferredPromise } from '../../../base/common/async.js';
-import { Event } from '../../../base/common/event.js';
+import { DeferredPromise, timeout } from '../../../base/common/async.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../base/common/errors.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { AbstractChatView, ChatViewKind } from '../../browser/parts/chatView.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
+import { type IAgentHostConnectProgress, IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvider } from '../../services/sessions/common/sessionsProvider.js';
 
 class TestChatView extends AbstractChatView {
 	private readonly _focusTarget = mainWindow.document.createElement('button');
+	override readonly hasVisibleTranscriptContent = observableValue(this, false);
 	layoutCount = 0;
 
 	constructor(readonly kind: ChatViewKind) {
@@ -64,22 +69,33 @@ class TestChatViewFactory extends mock<IChatViewFactory>() {
 	}
 }
 
-function createChat(id: string, status: SessionStatus = SessionStatus.Completed, parentChat?: URI): IChat {
-	const resource = URI.parse(`test-chat://${id}`);
-	return new class extends mock<IChat>() {
-		override readonly resource = resource;
-		override readonly origin = parentChat ? { kind: ChatOriginKind.Tool, parentChat } : undefined;
-		override readonly title: IObservable<string> = constObservable(id);
-		override readonly status: IObservable<SessionStatus> = constObservable(status);
-		override readonly isRead: IObservable<boolean> = constObservable(true);
-		override readonly interactivity: IObservable<ChatInteractivity> = constObservable(ChatInteractivity.Full);
-	}();
+class TestChat extends mock<IChat>() {
+	override readonly resource: URI;
+	override readonly origin: IChat['origin'];
+	override readonly title: IObservable<string>;
+	override readonly status: ISettableObservable<SessionStatus>;
+	override readonly isRead: IObservable<boolean> = constObservable(true);
+	override readonly interactivity: ISettableObservable<ChatInteractivity>;
+
+	constructor(id: string, status = SessionStatus.Completed, parentChat?: URI) {
+		super();
+		this.resource = URI.parse(`test-chat://${id}`);
+		this.origin = parentChat ? { kind: ChatOriginKind.Tool, parentChat } : undefined;
+		this.title = constObservable(id);
+		this.status = observableValue(this, status);
+		this.interactivity = observableValue(this, ChatInteractivity.Full);
+	}
+}
+
+function createChat(id: string, status: SessionStatus = SessionStatus.Completed, parentChat?: URI): TestChat {
+	return new TestChat(id, status, parentChat);
 }
 
 class TestActiveSession extends mock<IActiveSession>() {
 	override readonly sessionId = 'session';
 	override readonly resource = URI.parse('test-session://session');
-	override readonly providerId = 'test';
+	override readonly providerId: string;
+	override readonly remoteConnectionStatus: ISettableObservable<SessionRemoteConnectionStatus> | undefined;
 	readonly allChats: ISettableObservable<readonly IChat[]>;
 	override readonly visibleChatTabs: ISettableObservable<readonly IChat[]>;
 	override readonly activeChat: ISettableObservable<IChat>;
@@ -91,11 +107,13 @@ class TestActiveSession extends mock<IActiveSession>() {
 	override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: true });
 	override readonly isCreated: IObservable<boolean>;
 	override readonly isNewSessionRequestInProgress = observableValue(this, false);
-	override readonly isArchived: IObservable<boolean> = constObservable(false);
+	override readonly isArchived = observableValue(this, false);
 	override readonly loading: IObservable<boolean> = constObservable(false);
 
-	constructor(chats: readonly IChat[], visibleChats: readonly IChat[] = chats, isCreated = true) {
+	constructor(chats: readonly IChat[], visibleChats: readonly IChat[] = chats, isCreated = true, providerId = 'test', remoteConnectionStatus?: SessionRemoteConnectionStatus) {
 		super();
+		this.providerId = providerId;
+		this.remoteConnectionStatus = remoteConnectionStatus && observableValue(this, remoteConnectionStatus);
 		const mainChat = chats[0];
 		if (!mainChat) {
 			throw new Error('A test session requires a main chat');
@@ -141,9 +159,42 @@ class TestSessionsService extends mock<ISessionsService>() {
 
 }
 
+class TestSessionsProvidersService extends mock<ISessionsProvidersService>() {
+	override readonly onDidChangeProviders = Event.None;
+	provider: ISessionsProvider | undefined;
+
+	override getProvider<T extends ISessionsProvider>(_providerId: string): T | undefined {
+		return this.provider as T | undefined;
+	}
+}
+
+class TestAgentHostProvider extends mock<IAgentHostSessionsProvider>() {
+	override readonly id = 'agenthost-test';
+	override readonly label = 'WSL: Ubuntu';
+	override readonly remoteAddress = 'wsl:Ubuntu';
+	private readonly _onDidReportConnectProgress = new Emitter<IAgentHostConnectProgress>();
+	override readonly onDidReportConnectProgress = this._onDidReportConnectProgress.event;
+	connectCalls = 0;
+	connectGate: Promise<void> | undefined;
+
+	override async connect(): Promise<void> {
+		this.connectCalls++;
+		await this.connectGate;
+	}
+
+	reportConnectProgress(connectionKey: string, message: string): void {
+		this._onDidReportConnectProgress.fire({ connectionKey, message });
+	}
+
+	get hasProgressListener(): boolean {
+		return this._onDidReportConnectProgress.hasListeners();
+	}
+}
+
 interface IChatGroupsHarness {
 	readonly instantiationService: TestInstantiationService;
 	readonly sessionsService: TestSessionsService;
+	readonly sessionsProvidersService: TestSessionsProvidersService;
 	readonly chatViewFactory: TestChatViewFactory;
 	readonly view: ChatGroupsView;
 }
@@ -153,22 +204,43 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	const sessionsService = new TestSessionsService();
 	const chatViewFactory = new TestChatViewFactory();
+	const sessionsProvidersService = new TestSessionsProvidersService();
 	instantiationService.stub(IChatViewFactory, chatViewFactory);
 	instantiationService.stub(ISessionsService, sessionsService);
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 		override readonly onDidChangeSessions = Event.None;
 	}());
 	instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { });
-	instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
-		override readonly onDidChangeProviders = Event.None;
-		override getProvider() { return undefined; }
-	}());
+	instantiationService.stub(ISessionsProvidersService, sessionsProvidersService);
 
 	const view = store.add(instantiationService.createInstance(ChatGroupsView));
 	view.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
 	mainWindow.document.body.appendChild(view.element);
 	store.add(toDisposable(() => view.element.remove()));
-	return { instantiationService, sessionsService, chatViewFactory, view };
+	return { instantiationService, sessionsService, sessionsProvidersService, chatViewFactory, view };
+}
+
+function readBanner(view: ChatGroupsView): { readonly visible: boolean; readonly message: string | undefined; readonly action: string | undefined } {
+	const banner = view.element.querySelector<HTMLElement>('.session-readonly-banner');
+	return {
+		visible: !banner?.classList.contains('hidden'),
+		message: banner?.querySelector('.session-readonly-banner-text')?.textContent ?? undefined,
+		action: banner?.querySelector('.session-readonly-banner-action-link')?.textContent ?? undefined,
+	};
+}
+
+function readRemoteHostUnavailableState(view: ChatGroupsView): { readonly visible: boolean; readonly title: string | undefined; readonly description: string | undefined; readonly progress: string | undefined; readonly action: string | undefined } {
+	const state = view.element.querySelector<HTMLElement>('.remote-host-unavailable-empty-state');
+	// The action container is always present and hidden when there is no action,
+	// so report the label only while it is actually offered.
+	const action = state?.querySelector<HTMLElement>('.remote-host-unavailable-empty-state-action');
+	return {
+		visible: !state?.classList.contains('hidden'),
+		title: state?.querySelector('.remote-host-unavailable-empty-state-title')?.textContent ?? undefined,
+		description: state?.querySelector('.remote-host-unavailable-empty-state-description')?.textContent ?? undefined,
+		progress: state?.querySelector('.remote-host-unavailable-empty-state-progress:not(.hidden)')?.textContent ?? undefined,
+		action: action && !action.classList.contains('hidden') ? action.textContent ?? undefined : undefined,
+	};
 }
 
 suite('Sessions - ChatGroupsView', () => {
@@ -558,6 +630,277 @@ suite('Sessions - ChatGroupsView', () => {
 		view.setSession(new TestActiveSession([main, secondary]), options);
 
 		assert.strictEqual(view.element.querySelector<HTMLElement>('.session-chat-tabs-actions')?.classList.contains('hidden'), true);
+	});
+
+	test('hides the remote host banner when connected or when no remote host backs the session', () => {
+		const { view } = createHarness(disposables);
+		view.setSession(new TestActiveSession([createChat('main')]), options);
+		const withoutRemoteHost = readBanner(view);
+
+		view.setSession(new TestActiveSession([createChat('connected')], undefined, true, 'agenthost-test', { kind: 'connected' }), options);
+
+		assert.deepStrictEqual({ withoutRemoteHost, connected: readBanner(view) }, {
+			withoutRemoteHost: { visible: false, message: 'This chat is read-only', action: undefined },
+			connected: { visible: false, message: 'This chat is read-only', action: undefined },
+		});
+	});
+
+	test('presents host-not-running and unknown remote host disconnections distinctly', () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		sessionsProvidersService.provider = provider;
+		const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.HostNotRunning });
+		const remoteConnectionStatus = session.remoteConnectionStatus;
+		assert.ok(remoteConnectionStatus);
+		view.setSession(session, options);
+		chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
+		const hostNotRunning = readBanner(view);
+
+		view.element.querySelector<HTMLElement>('.session-readonly-banner-action-link')?.click();
+		remoteConnectionStatus.set({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown }, undefined);
+
+		assert.deepStrictEqual({
+			hostNotRunning,
+			unknownDisconnected: readBanner(view),
+			connectCalls: provider.connectCalls,
+		}, {
+			hostNotRunning: { visible: true, message: 'WSL: Ubuntu is not running.', action: 'Start WSL: Ubuntu' },
+			unknownDisconnected: { visible: true, message: 'Cannot reach WSL: Ubuntu.', action: undefined },
+			connectCalls: 1,
+		});
+	});
+
+	test('uses a centered recovery state for an unloaded remote session and a banner for a chat transcript', () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		sessionsProvidersService.provider = provider;
+		// Cached metadata produces an existing chat tab, but no chat model or
+		// rendered transcript until the remote host can be reached.
+		const unloaded = new TestActiveSession([createChat('cached')], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.HostNotRunning });
+		const status = unloaded.remoteConnectionStatus;
+		assert.ok(status);
+		view.setSession(unloaded, options);
+		const hostNotRunning = {
+			state: readRemoteHostUnavailableState(view),
+			banner: readBanner(view).visible,
+		};
+
+		view.element.querySelector<HTMLElement>('.remote-host-unavailable-empty-state-action .monaco-button')?.click();
+		status.set({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown }, undefined);
+		const unknownDisconnected = {
+			state: readRemoteHostUnavailableState(view),
+			banner: readBanner(view).visible,
+		};
+
+		const existing = new TestActiveSession([createChat('existing')], undefined, true, provider.id, { kind: 'connected' });
+		const existingStatus = existing.remoteConnectionStatus;
+		assert.ok(existingStatus);
+		view.setSession(existing, options);
+		// Model a transcript already rendered before the transport drops. The
+		// second session creates its own view, so target the current one rather
+		// than the view left over from the unloaded session above.
+		chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
+		existingStatus.set({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.HostNotRunning }, undefined);
+		const chatWithContent = {
+			state: readRemoteHostUnavailableState(view).visible,
+			banner: readBanner(view),
+		};
+
+		assert.deepStrictEqual({
+			hostNotRunning,
+			unknownDisconnected,
+			chatWithContent,
+			connectCalls: provider.connectCalls,
+		}, {
+			hostNotRunning: {
+				state: {
+					visible: true,
+					title: 'Unable to Connect to WSL: Ubuntu',
+					description: 'WSL: Ubuntu is not running.',
+					progress: undefined,
+					action: 'Start WSL: Ubuntu',
+				},
+				banner: false,
+			},
+			unknownDisconnected: {
+				state: {
+					visible: true,
+					title: 'Cannot Connect to WSL: Ubuntu',
+					description: 'Cannot reach WSL: Ubuntu.',
+					progress: undefined,
+					action: undefined,
+				},
+				banner: false,
+			},
+			chatWithContent: {
+				state: false,
+				banner: {
+					visible: true,
+					message: 'WSL: Ubuntu is not running.',
+					action: 'Start WSL: Ubuntu',
+				},
+			},
+			connectCalls: 1,
+		});
+	});
+
+	test('shows only its host connection progress and disposes listeners with its session and view', async () => {
+		const { sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		const firstConnect = new DeferredPromise<void>();
+		provider.connectGate = firstConnect.p;
+		sessionsProvidersService.provider = provider;
+		const firstSession = new TestActiveSession([createChat('first')], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.HostNotRunning });
+		view.setSession(firstSession, options);
+
+		view.element.querySelector<HTMLElement>('.remote-host-unavailable-empty-state-action .monaco-button')?.click();
+		provider.reportConnectProgress('wsl:Debian', 'Downloading server (24%)');
+		const otherHostProgress = readRemoteHostUnavailableState(view);
+		provider.reportConnectProgress('wsl:Ubuntu', 'Downloading server (80%)');
+		const ownHostProgress = readRemoteHostUnavailableState(view);
+		firstConnect.complete();
+		await Promise.resolve();
+		await Promise.resolve();
+		const completedAttempt = readRemoteHostUnavailableState(view);
+		const listenerAfterAttempt = provider.hasProgressListener;
+
+		const secondConnect = new DeferredPromise<void>();
+		provider.connectGate = secondConnect.p;
+		view.element.querySelector<HTMLElement>('.remote-host-unavailable-empty-state-action .monaco-button')?.click();
+		const secondSession = new TestActiveSession([createChat('second')], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.HostNotRunning });
+		view.setSession(secondSession, options);
+		const listenerAfterSessionChange = provider.hasProgressListener;
+		view.element.querySelector<HTMLElement>('.remote-host-unavailable-empty-state-action .monaco-button')?.click();
+		const listenerBeforeDispose = provider.hasProgressListener;
+		view.dispose();
+		const listenerAfterDispose = provider.hasProgressListener;
+		secondConnect.complete();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			otherHostProgress,
+			ownHostProgress,
+			completedAttempt,
+			listenerAfterAttempt,
+			listenerAfterSessionChange,
+			listenerBeforeDispose,
+			listenerAfterDispose,
+		}, {
+			otherHostProgress: {
+				visible: true,
+				title: 'Unable to Connect to WSL: Ubuntu',
+				description: 'WSL: Ubuntu is not running.',
+				progress: undefined,
+				action: 'Start WSL: Ubuntu',
+			},
+			ownHostProgress: {
+				visible: true,
+				title: 'Connecting to WSL: Ubuntu',
+				description: 'Starting WSL: Ubuntu.',
+				progress: 'Downloading server (80%)',
+				action: undefined,
+			},
+			completedAttempt: {
+				visible: true,
+				title: 'Unable to Connect to WSL: Ubuntu',
+				description: 'WSL: Ubuntu is not running.',
+				progress: undefined,
+				action: 'Start WSL: Ubuntu',
+			},
+			listenerAfterAttempt: false,
+			listenerAfterSessionChange: false,
+			listenerBeforeDispose: true,
+			listenerAfterDispose: false,
+		});
+	});
+
+	test('preserves the archived-session banner when its remote host is unavailable', () => {
+		const { sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		sessionsProvidersService.provider = provider;
+		const chat = createChat('main');
+		chat.interactivity.set(ChatInteractivity.ReadOnly, undefined);
+		const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.HostNotRunning });
+		session.isArchived.set(true, undefined);
+
+		view.setSession(session, options);
+
+		assert.deepStrictEqual(readBanner(view), {
+			visible: true,
+			message: 'Archived sessions are read-only.',
+			action: 'Unarchive',
+		});
+	});
+
+	test('does not show a reconnecting banner when the connection settles before its delay', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionsProvidersService, view } = createHarness(disposables);
+			const provider = new TestAgentHostProvider();
+			sessionsProvidersService.provider = provider;
+			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'connected' });
+			const remoteConnectionStatus = session.remoteConnectionStatus;
+			assert.ok(remoteConnectionStatus);
+			view.setSession(session, options);
+
+			remoteConnectionStatus.set({ kind: 'reconnecting' }, undefined);
+			remoteConnectionStatus.set({ kind: 'connected' }, undefined);
+			await timeout(1_000);
+
+			assert.deepStrictEqual(readBanner(view), { visible: false, message: 'This chat is read-only', action: undefined });
+		});
+	});
+
+	test('shows the reconnecting banner after its delay despite unrelated observable updates', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionsProvidersService, view } = createHarness(disposables);
+			const provider = new TestAgentHostProvider();
+			sessionsProvidersService.provider = provider;
+			const chat = createChat('main');
+			const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'reconnecting' });
+			view.setSession(session, options);
+
+			await timeout(500);
+			chat.status.set(SessionStatus.Error, undefined);
+			await timeout(500);
+
+			assert.deepStrictEqual(readBanner(view), {
+				visible: true,
+				message: 'Reconnecting to WSL: Ubuntu...',
+				action: undefined,
+			});
+		});
+	});
+
+	test('shows the reconnecting banner after a failed connect attempt', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionsProvidersService, view } = createHarness(disposables);
+			const provider = new TestAgentHostProvider();
+			const failedConnect = new DeferredPromise<void>();
+			provider.connectGate = failedConnect.p;
+			sessionsProvidersService.provider = provider;
+			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.HostNotRunning });
+			const remoteConnectionStatus = session.remoteConnectionStatus!;
+			view.setSession(session, options);
+
+			const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
+			setUnexpectedErrorHandler(() => { });
+			try {
+				view.element.querySelector<HTMLElement>('.remote-host-unavailable-empty-state-action .monaco-button')?.click();
+				failedConnect.error(new Error('Expected connect failure'));
+				await Promise.resolve();
+				await Promise.resolve();
+			} finally {
+				setUnexpectedErrorHandler(originalErrorHandler);
+			}
+
+			remoteConnectionStatus.set({ kind: 'reconnecting' }, undefined);
+			await timeout(1_000);
+
+			assert.deepStrictEqual({ connectCalls: provider.connectCalls, banner: readBanner(view) }, {
+				connectCalls: 1,
+				banner: { visible: true, message: 'Reconnecting to WSL: Ubuntu...', action: undefined },
+			});
+		});
 	});
 
 });

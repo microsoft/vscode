@@ -31,7 +31,7 @@ import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCom
 import { SUPPORTED_PROTOCOL_VERSIONS } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
-import { isClientTransport, NonReconnectableTransportError, type IProtocolTransport } from '../common/state/sessionTransport.js';
+import { isClientTransport, NonReconnectableTransportError, type AgentHostTransportFailureReason, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../common/state/protocol/errors.js';
 import { ChatSourceKind, ContentEncoding, ResourceRequestParams, type CompletionsParams, type CompletionsResult, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
@@ -248,7 +248,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _onDidReceiveOtlpLogs = this._register(new Emitter<OtlpExportLogsParams>());
 	readonly onDidReceiveOtlpLogs = this._onDidReceiveOtlpLogs.event;
 
-	private readonly _onDidClose = this._register(new Emitter<void>());
+	private readonly _onDidClose = this._register(new Emitter<AgentHostTransportFailureReason | undefined>());
 	readonly onDidClose = this._onDidClose.event;
 
 	private readonly _onDidFatalClose = this._register(new Emitter<ProtocolError>());
@@ -555,7 +555,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				throw error;
 			}
 			if (error instanceof NonReconnectableTransportError) {
-				this._handleFatalClose(protocolError);
+				this._handleFatalClose(protocolError, error.reason);
 				throw error;
 			}
 			if (this._state.kind === AgentHostClientState.Reconnecting) {
@@ -779,7 +779,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 			if (err instanceof NonReconnectableTransportError) {
 				const protocolError = new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, err.message);
-				this._handleFatalClose(protocolError);
+				this._handleFatalClose(protocolError, err.reason);
 				return;
 			}
 			if (err instanceof InitialAuthenticationError) {
@@ -1684,12 +1684,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 	}
 
-	private _handleFatalClose(error: ProtocolError): void {
+	private _handleFatalClose(error: ProtocolError, reason?: AgentHostTransportFailureReason): void {
 		this._onDidFatalClose.fire(error);
-		this._handleClose(error);
+		this._handleClose(error, reason);
 	}
 
-	private _handleClose(error: ProtocolError): void {
+	private _handleClose(error: ProtocolError, reason?: AgentHostTransportFailureReason): void {
 		if (this._state.kind === AgentHostClientState.Closed) {
 			return;
 		}
@@ -1715,7 +1715,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._implicitReadGrants.clear();
 		this._resourceService.connectionClosed(this._resourceIdentity);
 		this._transitionTo({ kind: AgentHostClientState.Closed, error });
-		this._onDidClose.fire();
+		this._onDidClose.fire(reason);
 	}
 
 	private async _raceClose<T>(promise: Promise<T>): Promise<T> {

@@ -62,14 +62,6 @@ export abstract class EntryDrivenProviderContribution extends Disposable {
 	/** Supplies kind-specific on-demand behavior for an entry's provider. */
 	protected abstract _getProviderOptions(entry: IRemoteAgentHostEntry): IEntryDrivenProviderOptions;
 
-	/**
-	 * Whether a vanished connection should clear the provider's active
-	 * connection. Defaults to false to preserve existing WSL behavior.
-	 */
-	protected get _clearConnectionOnRemoval(): boolean {
-		return false;
-	}
-
 	protected _reconcile(): void {
 		this._reconcileProviders();
 		this._wireConnections();
@@ -131,11 +123,9 @@ export abstract class EntryDrivenProviderContribution extends Disposable {
 				const connection = this._remoteAgentHostService.getConnection(address);
 				if (connection) {
 					provider.setConnection(connection, connectionInfo.defaultDirectory);
-					if (this._clearConnectionOnRemoval) {
-						this._wiredAddresses.add(address);
-					}
+					this._wiredAddresses.add(address);
 				}
-			} else if (this._clearConnectionOnRemoval && !connectionInfo && this._wiredAddresses.delete(address)) {
+			} else if (this._wiredAddresses.delete(address)) {
 				provider.clearConnection();
 			}
 		}
@@ -146,8 +136,6 @@ export abstract class EntryDrivenProviderContribution extends Disposable {
 			const connectionInfo = this._remoteAgentHostService.connections.find(connection => connection.address === address);
 			if (connectionInfo) {
 				provider.setConnectionStatus(connectionInfo.status);
-			} else if (!RemoteAgentHostConnectionStatus.isIncompatible(provider.connectionStatus.get())) {
-				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
 			}
 		}
 	}
