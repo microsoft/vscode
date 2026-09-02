@@ -142,6 +142,10 @@ export class AgentPluginManager implements IAgentPluginManager {
 		if (ref.nonce && this._findEntry(ref.uri, ref.nonce) && await this._fileService.exists(destDir)) {
 			this._touchLru(ref.uri, ref.nonce);
 			this._logService.trace(`[AgentPluginManager] Nonce match for ${ref.uri}, skipping copy`);
+			// Persist the reordering: retention now keeps several revisions per
+			// plugin, so an unpersisted touch would reload in the pre-hit order
+			// and evict the revision that was most recently used.
+			await this._persistCache();
 			return destDir;
 		}
 
@@ -311,8 +315,18 @@ export class AgentPluginManager implements IAgentPluginManager {
 	 * against the global cap.
 	 */
 	private async _pruneMissingEntries(): Promise<void> {
-		const present = await Promise.all(this._lru.map(entry =>
-			this._fileService.exists(this._dirFor(entry.uri, entry.nonce)).then(exists => exists, () => true)));
+		const present = await Promise.all(this._lru.map(async entry => {
+			try {
+				await this._fileService.stat(this._dirFor(entry.uri, entry.nonce));
+				return true;
+			} catch (err) {
+				// Only a confirmed absence justifies dropping the entry.
+				// `exists()` reports false for transient I/O and permission
+				// failures too, which would evict a still-valid revision and
+				// force a full re-copy of the bundle later.
+				return toFileOperationResult(err) !== FileOperationResult.FILE_NOT_FOUND;
+			}
+		}));
 		for (let i = this._lru.length - 1; i >= 0; i--) {
 			if (!present[i]) {
 				this._logService.trace(`[AgentPluginManager] Dropping cache entry with no directory: ${this._lru[i].uri}`);

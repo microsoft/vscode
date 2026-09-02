@@ -3356,15 +3356,60 @@ suite('AgentHostProtocolClient', () => {
 
 					readDeferred.complete({ bytes: VSBuffer.fromString('{}') });
 					await flushMicrotasks();
-					await timeout(5_000);
-					await timeout(20_000);
 
+					// The window now runs from the moment the response was handed
+					// to the transport, so it expires at ~t+25s rather than at the
+					// next 5s poll plus 25s.
+					await timeout(20_000);
 					assert.strictEqual(client.connectionState, AgentHostClientState.Connected,
 						'watchdog must grant a full liveness window once the pending reverse request is answered');
 
-					await timeout(5_000);
+					await timeout(10_000);
 					assert.strictEqual(client.connectionState, AgentHostClientState.Reconnecting,
 						'watchdog must close after the fresh liveness window expires without inbound traffic');
+				} finally {
+					client.dispose();
+				}
+			});
+		});
+
+		test('watchdog grants a full liveness window when a reverse request is answered before the first close tick', async function () {
+			this.timeout(60_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const readDeferred = new DeferredPromise<{ bytes: VSBuffer }>();
+				const { client, transports } = createFactoryClient(createResourceServiceStub({
+					onRead: () => readDeferred.p,
+				}), undefined, NullTelemetryService, undefined, { hasHighLoad: () => false });
+				try {
+					const connectPromise = client.connect();
+					await completeHandshake(transports[0], connectPromise);
+
+					transports[0].fireMessage({
+						jsonrpc: '2.0',
+						id: 1,
+						method: 'resourceRead',
+						params: { channel: 'ahp-root://', uri: URI.file('/workspace/customization.json').toString() },
+					});
+
+					// Answer just before the close timer armed by the inbound
+					// request fires, so no deferral is ever observed. The peer is
+					// still owed the drain plus its own post-response work, so the
+					// close must not fire moments later.
+					await timeout(24_000);
+					readDeferred.complete({ bytes: VSBuffer.fromString('{}') });
+					await flushMicrotasks();
+
+					await timeout(5_000);
+					assert.strictEqual(client.connectionState, AgentHostClientState.Connected,
+						'watchdog must not close right after a response it never observed as deferred');
+
+					await timeout(15_000);
+					assert.strictEqual(client.connectionState, AgentHostClientState.Connected,
+						'the granted window must run from the response, not from the last inbound message');
+
+					await timeout(10_000);
+					assert.strictEqual(client.connectionState, AgentHostClientState.Reconnecting,
+						'watchdog must still close once the granted window expires');
 				} finally {
 					client.dispose();
 				}
@@ -3396,13 +3441,14 @@ suite('AgentHostProtocolClient', () => {
 
 					secondRead.complete({ bytes: VSBuffer.fromString('{}') });
 					await flushMicrotasks();
-					await timeout(5_000);
-					await timeout(20_000);
 
+					// The window runs from the final response, so it expires ~25s
+					// after this point rather than after the next poll.
+					await timeout(20_000);
 					assert.strictEqual(client.connectionState, AgentHostClientState.Connected,
 						'watchdog must grant a fresh liveness window after the final reverse request completes');
 
-					await timeout(5_000);
+					await timeout(10_000);
 					assert.strictEqual(client.connectionState, AgentHostClientState.Reconnecting,
 						'watchdog must close once every concurrent reverse request has completed and the fresh window expires');
 				} finally {

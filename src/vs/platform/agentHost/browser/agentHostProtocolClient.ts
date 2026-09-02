@@ -1757,6 +1757,15 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				const pending = this._pendingReverseRequests.get(transport);
 				if (pending === 1) {
 					this._pendingReverseRequests.delete(transport);
+					// The peer now waits on bytes that still drain plus its own
+					// post-response work, and a close timer armed before this
+					// request arrived could fire moments from now. Grant a full
+					// window from this point instead. Guarded on the transport
+					// still being current so a late response cannot extend the
+					// life of timers that belong to a replacement transport.
+					if (transport === this._transport) {
+						this._resetLivenessTimers();
+					}
 				} else if (pending !== undefined) {
 					this._pendingReverseRequests.set(transport, pending - 1);
 				}
