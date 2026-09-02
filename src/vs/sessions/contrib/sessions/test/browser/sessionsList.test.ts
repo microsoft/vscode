@@ -118,6 +118,7 @@ suite('Sessions - SessionsList', () => {
 				contextKeyService,
 				automationService,
 				constObservable([]),
+				constObservable(false),
 				new class extends mock<IUriIdentityService>() {
 					override readonly extUri = new ExtUri(() => true);
 				},
@@ -170,6 +171,7 @@ suite('Sessions - SessionsList', () => {
 				contextKeyService,
 				automationService,
 				constObservable([]),
+				constObservable(false),
 				new class extends mock<IUriIdentityService>() {
 					override readonly extUri = new ExtUri(() => true);
 				},
@@ -197,6 +199,72 @@ suite('Sessions - SessionsList', () => {
 				watchIcon: false,
 				spinnerParent: 'session-section-icon',
 				trailingStatusIndicator: false,
+			});
+		});
+
+		test('renders the new badge only on the Automations section when templates are recycled', () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
+				override set context(_context: unknown) { }
+				override dispose(): void { }
+			});
+			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return false; }
+			}());
+			instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() { });
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const automationService = new class extends mock<IAutomationService>() {
+				override readonly runs = constObservable<readonly IAutomationRun[]>([]);
+			};
+			const renderer = new SessionSectionRenderer(
+				true,
+				() => { },
+				instantiationService,
+				contextKeyService,
+				automationService,
+				constObservable([]),
+				constObservable(true),
+				new class extends mock<IUriIdentityService>() {
+					override readonly extUri = new ExtUri(() => true);
+				},
+				new class extends mock<ICustomViewService>() {
+					override readonly activeCustomView = constObservable(undefined);
+				},
+				new class extends mock<IMenuService>() { },
+			);
+			const container = document.createElement('div');
+			const template = renderer.renderTemplate(container);
+			disposables.add(template.disposables);
+
+			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
+				element: { id: 'automations', label: 'Automations', sessions: [] },
+				collapsible: false,
+				collapsed: false,
+			}), 0, template);
+			const automationSnapshot = {
+				text: template.newBadge.textContent,
+				display: template.newBadge.style.display,
+				ariaHidden: template.newBadge.getAttribute('aria-hidden'),
+			};
+
+			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
+				element: { id: 'workspace:test', label: 'Test', sessions: [] },
+				collapsible: true,
+				collapsed: false,
+			}), 0, template);
+
+			assert.deepStrictEqual({
+				automationSnapshot,
+				recycledDisplay: template.newBadge.style.display,
+				recycledShortcutClass: template.container.classList.contains('session-section-shortcut'),
+			}, {
+				automationSnapshot: {
+					text: 'New',
+					display: 'inline-flex',
+					ariaHidden: 'true',
+				},
+				recycledDisplay: 'none',
+				recycledShortcutClass: false,
 			});
 		});
 
@@ -233,6 +301,7 @@ suite('Sessions - SessionsList', () => {
 				new class extends mock<IContextKeyService>() { },
 				automationService,
 				automationSessions,
+				constObservable(false),
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
 				new class extends mock<IMenuService>() { },
@@ -290,6 +359,7 @@ suite('Sessions - SessionsList', () => {
 				new class extends mock<IContextKeyService>() { },
 				automationService,
 				constObservable([runningSession, needsInputSession]),
+				constObservable(false),
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
 				new class extends mock<IMenuService>() { },

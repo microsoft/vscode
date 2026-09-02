@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import * as DOM from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -45,6 +46,8 @@ import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionAppro
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentSession, IAgentSessionsModel } from '../../../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAutomationService } from '../../../../contrib/chat/common/automations/automationService.js';
+import type { IAutomationRun } from '../../../../contrib/chat/common/automations/automation.js';
+import { ChatAutomationsEnabledContext } from '../../../../contrib/chat/common/automations/automationsEnabled.js';
 import { IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { IChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../../contrib/chat/common/voicePlaybackService.js';
@@ -53,6 +56,10 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../sessions/contrib/sessions/browser/media/sessionsList.css';
+// eslint-disable-next-line local/code-import-patterns
+import '../../../../../sessions/contrib/sessions/browser/media/sessionsViewPane.css';
+// eslint-disable-next-line local/code-import-patterns
+import '../../../../../sessions/contrib/sessions/browser/media/newSessionActionViewItem.css';
 
 interface IChatSpec {
 	readonly id: string;
@@ -170,6 +177,8 @@ interface IRenderOptions {
 	readonly width?: number;
 	readonly phone?: boolean;
 	readonly revealHierarchyGuides?: boolean;
+	readonly showAutomations?: boolean;
+	readonly automationRunStatus?: IAutomationRun['status'];
 }
 
 function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOptions): void {
@@ -178,6 +187,7 @@ function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOption
 	const sessions = options.sessions.map(spec => createSession(spec, approvals));
 	const approvalModel = createApprovalModel(approvals);
 	const groups = options.groups ?? [];
+	const automationRuns = observableValue<readonly IAutomationRun[]>(disposableStore, []);
 	const membership = new Map<string, string>();
 	for (const spec of options.sessions) {
 		if (spec.group) {
@@ -257,7 +267,8 @@ function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOption
 				override hasPendingResponse() { return false; }
 			}());
 			reg.defineInstance(IAutomationService, new class extends mock<IAutomationService>() {
-				override readonly runs = constObservable([]);
+				override readonly automations = constObservable([]);
+				override readonly runs = automationRuns;
 			}());
 			reg.defineInstance(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() {
 				override readonly onDidRefetchAssignments = Event.None;
@@ -266,7 +277,9 @@ function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOption
 			reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() {
 				override readonly extUri = new ExtUri(() => true);
 			}());
-			reg.defineInstance(ICustomViewService, new class extends mock<ICustomViewService>() { }());
+			reg.defineInstance(ICustomViewService, new class extends mock<ICustomViewService>() {
+				override readonly activeCustomView = constObservable(undefined);
+			}());
 		},
 	});
 
@@ -281,6 +294,9 @@ function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOption
 	if (options.phone) {
 		IsPhoneLayoutContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
 	}
+	if (options.showAutomations) {
+		ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
+	}
 
 	const width = options.width ?? 340;
 	container.style.width = `${width}px`;
@@ -290,15 +306,37 @@ function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOption
 		container.classList.add('agent-sessions-workbench', 'phone-layout');
 	}
 
-	const listHost = container.ownerDocument.createElement('div');
-	container.appendChild(listHost);
+	let listParent = container;
+	if (options.showAutomations) {
+		container.classList.add('agent-sessions-viewpane', 'agent-sessions-section');
+		const content = DOM.append(container, DOM.$('.agent-sessions-content'));
+		const header = DOM.append(content, DOM.$('.agent-sessions-header-row'));
+		DOM.append(header, DOM.$('.agent-sessions-header-label', undefined, 'Sessions'));
+		const actions = DOM.append(header, DOM.$('.agent-sessions-header-actions'));
+		const newButton = DOM.append(actions, DOM.$<HTMLButtonElement>('button.monaco-button.agent-sessions-compact-new-button.default-colors'));
+		newButton.type = 'button';
+		DOM.append(newButton, DOM.$('span.new-session-button-label', undefined, 'New'));
+		listParent = content;
+	}
+	const listHost = DOM.append(listParent, DOM.$(options.showAutomations ? '.agent-sessions-control-container' : 'div'));
 	const list = disposableStore.add(instantiationService.createInstance(SessionsList, listHost, {
 		grouping: () => options.grouping ?? SessionsGrouping.Workspace,
 		sorting: () => SessionsSorting.Created,
 		onSessionOpen: () => { },
 		approvalModel,
 	}));
-	list.layout(options.phone ? 260 : 220, width);
+	list.layout(options.phone ? 260 : options.showAutomations ? 180 : 220, width);
+
+	if (options.automationRunStatus) {
+		automationRuns.set([{
+			id: 'fixture-run',
+			automationId: 'fixture-automation',
+			status: options.automationRunStatus,
+			trigger: 'schedule',
+			startedAt: new Date().toISOString(),
+			leaderWindowId: 1,
+		}], undefined);
+	}
 
 	if (options.revealHierarchyGuides) {
 		const sessionItem = listHost.querySelector<HTMLElement>('.session-item');
@@ -343,6 +381,35 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionsList_WorkspaceSection: defineComponentFixture({
 		render: ctx => renderSessionsList(ctx, {
 			sessions: [{ id: 'c', title: 'Update onboarding copy', workspace: 'vscode-docs', minutesAgo: 180 }],
+		}),
+	}),
+	SessionsList_AutomationsNewBadge: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The Sessions header has an outlined New button. Directly below it, the Automations row has a smaller right-aligned outlined NEW capsule that reads as a non-interactive feature badge rather than a second button.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [],
+			showAutomations: true,
+		}),
+	}),
+	SessionsList_AutomationsNewBadge_Narrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['At the 170px minimum sidebar width, the Automations label remains readable and the outlined NEW capsule stays right-aligned without changing the row height.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [],
+			showAutomations: true,
+			width: 170,
+		}),
+	}),
+	SessionsList_AutomationsNewBadge_Running: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The Automations row shows its running status icon and the outlined NEW capsule together without overlap or layout shift.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [],
+			showAutomations: true,
+			automationRunStatus: 'running',
 		}),
 	}),
 	SessionsList_CustomGroup_Phone: defineComponentFixture({
