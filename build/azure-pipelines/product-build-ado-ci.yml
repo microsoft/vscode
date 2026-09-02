@@ -297,7 +297,7 @@ extends:
 
                   if [ "${#trailer_values[@]}" = "0" ]; then
                     echo "##vso[task.logissue type=error]Commit $head_sha is missing the required 'Msrc-Case-Id' trailer."
-                    printf "Add a trailer to the commit message, for example:\n\n    Msrc-Case-Id: 12345\n\n"
+                    printf "Add a trailer to the commit message, for example:\n\n    Msrc-Case-Id: 12345\n\nIf there is no associated case ID, use N/A:\n\n    Msrc-Case-Id: N/A\n\n"
                     exit 1
                   fi
 

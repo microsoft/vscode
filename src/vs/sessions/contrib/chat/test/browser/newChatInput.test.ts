@@ -43,6 +43,8 @@ const saveState = Reflect.get(NewChatInputWidget.prototype, 'saveState') as (thi
 const clearDraftState = Reflect.get(NewChatInputWidget.prototype, '_clearDraftState') as (this: IDraftStateHarness) => void;
 const updateDraftState = Reflect.get(NewChatInputWidget.prototype, '_updateDraftState') as (this: IUpdateDraftStateHarness) => void;
 const updateAndSaveDraftState = Reflect.get(NewChatInputWidget.prototype, '_updateAndSaveDraftState') as (this: IUpdateAndSaveDraftStateHarness) => void;
+const syncInputGitHubContext = Reflect.get(NewChatInputWidget.prototype, '_syncInputGitHubContext') as (this: ISyncInputGitHubContextHarness) => void;
+const attachTextContext = Reflect.get(NewChatInputWidget.prototype, 'attachTextContext') as (this: IAttachTextContextHarness, name: string, content: string, icon: ThemeIcon, id: string) => void;
 const updateSendButtonState = Reflect.get(NewChatInputWidget.prototype, '_updateSendButtonState') as (this: IUpdateSendButtonStateHarness) => void;
 const setInputEditorFocused = Reflect.get(NewChatInputWidget.prototype, '_setInputEditorFocused') as (container: HTMLElement, focused: boolean) => void;
 const updateAttachmentRendering = Reflect.get(NewChatContextAttachments.prototype, '_updateRendering') as (this: IAttachmentRenderingHarness) => void;
@@ -63,6 +65,7 @@ interface IRestoreStateHarness {
 	readonly _contextAttachments: {
 		setAttachments(entries: readonly IChatRequestVariableEntry[]): void;
 	};
+	_syncInputGitHubContext(): void;
 	_updateSendButtonState(): void;
 }
 
@@ -79,6 +82,24 @@ interface IUpdateAndSaveDraftStateHarness extends IUpdateDraftStateHarness {
 	readonly _sending: boolean;
 	_updateDraftState(): void;
 	saveState(): void;
+}
+
+interface ISyncInputGitHubContextHarness {
+	readonly _editor: {
+		getValue(): string;
+	};
+	readonly _contextAttachments: {
+		attachments: readonly IChatRequestVariableEntry[];
+		setAttachments(entries: readonly IChatRequestVariableEntry[]): void;
+	};
+}
+
+interface IAttachTextContextHarness {
+	readonly _contextAttachments: {
+		attachments: readonly IChatRequestVariableEntry[];
+		addAttachments(...entries: IChatRequestVariableEntry[]): void;
+		setAttachments(entries: readonly IChatRequestVariableEntry[]): void;
+	};
 }
 
 interface IUpdateSendButtonStateHarness {
@@ -278,6 +299,7 @@ suite('NewChatInputWidget', () => {
 			_getDraftState: () => draft,
 			_editor: { getModel: () => ({ setValue: value => restored.inputText = value }) },
 			_contextAttachments: { setAttachments: entries => restored.attachments = entries },
+			_syncInputGitHubContext: () => { },
 			_updateSendButtonState: () => { },
 		});
 
@@ -371,6 +393,7 @@ suite('NewChatInputWidget', () => {
 			},
 			options: {},
 			_canSendRequest: { get: () => true },
+			_syncInputGitHubContext: () => { },
 			_updateSendButtonState() {
 				updateSendButtonState.call(this);
 			},
@@ -379,6 +402,89 @@ suite('NewChatInputWidget', () => {
 		restoreState.call(harness);
 
 		assert.strictEqual(sendButton.enabled, true);
+	});
+
+	test('synchronizes GitHub context attachments with issue and pull request links in the input', () => {
+		let input = 'Fix https://github.com/microsoft/vscode/issues/333845 and review https://www.github.com/microsoft/vscode/pull/333575#discussion.';
+		const manualAttachment = toPasteVariableEntry('Manually attached', 'Manual context', {
+			id: 'github-context:https://github.com/microsoft/vscode/issues/1',
+		});
+		let attachments: readonly IChatRequestVariableEntry[] = [manualAttachment];
+		const harness: ISyncInputGitHubContextHarness = {
+			_editor: { getValue: () => input },
+			_contextAttachments: {
+				get attachments() { return attachments; },
+				setAttachments: entries => attachments = entries,
+			},
+		};
+		const snapshot = () => attachments.map(attachment => ({
+			id: attachment.id,
+			name: attachment.name,
+			icon: ThemeIcon.isThemeIcon(attachment.icon) ? attachment.icon.id : undefined,
+		}));
+
+		syncInputGitHubContext.call(harness);
+		const withLinks = snapshot();
+		input = 'Review https://github.com/microsoft/vscode/pull/333575.';
+		syncInputGitHubContext.call(harness);
+		const afterRemovingIssueLink = snapshot();
+		input = '';
+		syncInputGitHubContext.call(harness);
+
+		assert.deepStrictEqual({
+			withLinks,
+			afterRemovingIssueLink,
+			afterRemovingAllLinks: snapshot(),
+		}, {
+			withLinks: [
+				{ id: manualAttachment.id, name: 'Manually attached', icon: undefined },
+				{ id: 'github-context:https://github.com/microsoft/vscode/issues/333845', name: 'microsoft/vscode#333845', icon: Codicon.issues.id },
+				{ id: 'github-context:https://github.com/microsoft/vscode/pull/333575', name: 'microsoft/vscode#333575', icon: Codicon.gitPullRequest.id },
+			],
+			afterRemovingIssueLink: [
+				{ id: manualAttachment.id, name: 'Manually attached', icon: undefined },
+				{ id: 'github-context:https://github.com/microsoft/vscode/pull/333575', name: 'microsoft/vscode#333575', icon: Codicon.gitPullRequest.id },
+			],
+			afterRemovingAllLinks: [
+				{ id: manualAttachment.id, name: 'Manually attached', icon: undefined },
+			],
+		});
+	});
+
+	test('preserves pasted GitHub context after the same target is explicitly attached', () => {
+		const uri = 'https://github.com/microsoft/vscode/issues/333845';
+		let input = `Fix ${uri}`;
+		let attachments: readonly IChatRequestVariableEntry[] = [];
+		const contextAttachments = {
+			get attachments() { return attachments; },
+			addAttachments: (...entries: IChatRequestVariableEntry[]) => attachments = [...attachments, ...entries],
+			setAttachments: (entries: readonly IChatRequestVariableEntry[]) => attachments = entries,
+		};
+		const syncHarness: ISyncInputGitHubContextHarness = {
+			_editor: { getValue: () => input },
+			_contextAttachments: contextAttachments,
+		};
+
+		syncInputGitHubContext.call(syncHarness);
+		attachTextContext.call(
+			{ _contextAttachments: contextAttachments },
+			'microsoft/vscode#333845',
+			`GitHub context: ${uri}`,
+			Codicon.issues,
+			`github-context:${uri}`,
+		);
+		input = '';
+		syncInputGitHubContext.call(syncHarness);
+
+		assert.deepStrictEqual(attachments.map(attachment => ({
+			id: attachment.id,
+			name: attachment.name,
+			icon: ThemeIcon.isThemeIcon(attachment.icon) ? attachment.icon.id : undefined,
+		})), [{
+			id: `github-context:${uri}`,
+			name: 'microsoft/vscode#333845',
+			icon: Codicon.issues.id,
+		}]);
 	});
 
 	test('renders GitHub context pills as openable with a keyboard-reachable remove button', async () => {

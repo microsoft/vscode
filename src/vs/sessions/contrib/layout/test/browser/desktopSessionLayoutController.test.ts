@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
+import { errorHandler } from '../../../../../base/common/errors.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ISettableObservable, transaction } from '../../../../../base/common/observable.js';
@@ -35,6 +36,7 @@ import '../../../changes/browser/changesActions.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { NewChangesTabAction, NewFileTabAction } from '../../../editor/browser/addTabActions.js';
 import { createTestHarness, ICreateOptions, ITestLayoutHarness, makeChange, makeSession, TestStubEditorInput } from './layoutControllerTestUtils.js';
+import '../../../editor/browser/editor.contribution.js';
 
 suite('LayoutController (desktop)', () => {
 
@@ -1471,7 +1473,7 @@ suite('LayoutController (desktop)', () => {
 		assert.ok(!harness.openedViews.includes(CHANGES_VIEW_ID), 'untitled sessions are governed by D3b/D4, not D8');
 	});
 
-	test('[single-pane] entering a new-session view hides only Editor when Empty Files is the only input', async () => {
+	test('[single-pane] entering a new-session view shows Files Details and hides Editor when Empty Files is the only input', async () => {
 		createSinglePaneController({ activateAux: true });
 		await timeout(0);
 		const existing = makeSession(URI.parse('session:existing'));
@@ -1494,8 +1496,9 @@ suite('LayoutController (desktop)', () => {
 				call.part === Parts.EDITOR_PART || call.part === Parts.AUXILIARYBAR_PART),
 		}, {
 			editorVisible: false,
-			detailVisible: false,
+			detailVisible: true,
 			visibilityRestores: [
+				{ part: Parts.AUXILIARYBAR_PART, hidden: false },
 				{ part: Parts.EDITOR_PART, hidden: true },
 			],
 		});
@@ -1550,7 +1553,7 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[single-pane] closing the last non-Empty editor while Editor is hidden opens Empty Files', async () => {
+	test('[single-pane] closing the last non-Empty editor while Editor is hidden closes the side pane', async () => {
 		createSinglePaneController({ activateAux: true, singlePaneLayoutEnabled: true });
 		await settle();
 		harness.activeSessionObs.set(makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false }), undefined);
@@ -1573,13 +1576,13 @@ suite('LayoutController (desktop)', () => {
 			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
 			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
 		}, {
-			hasFilesTab: true,
+			hasFilesTab: false,
 			editorVisible: false,
-			auxiliaryBarVisible: true,
+			auxiliaryBarVisible: false,
 		});
 	});
 
-	test('[single-pane] closing the last visible file editor opens Empty Files and keeps Editor visible', async () => {
+	test('[single-pane] closing the last visible file editor closes the side pane without opening Empty Files', async () => {
 		createSinglePaneController({ activateAux: true, singlePaneLayoutEnabled: true });
 		await settle();
 		harness.activeSessionObs.set(makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false }), undefined);
@@ -1602,9 +1605,9 @@ suite('LayoutController (desktop)', () => {
 			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
 			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
 		}, {
-			hasFilesTab: true,
-			editorVisible: true,
-			auxiliaryBarVisible: true,
+			hasFilesTab: false,
+			editorVisible: false,
+			auxiliaryBarVisible: false,
 		});
 	});
 
@@ -2479,26 +2482,32 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[D7 single-pane] contributes Toggle Details with the editor title layout actions', () => {
+	test('[D7 single-pane] contributes Toggle Details before Maximize with the editor title layout actions', () => {
 		createSinglePaneController();
 
 		const items = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === TOGGLE_DETAILS_COMMAND_ID);
+		const maximizeItem = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === 'workbench.action.agentSessions.maximizeMainEditorPart');
 
 		assert.strictEqual(items.length, 1, 'exactly one Toggle Details item on the editor header');
+		assert.ok(maximizeItem, 'Maximize item should be registered');
 		const when = items[0].when?.serialize() ?? '';
 		assert.deepStrictEqual({
 			group: items[0].group,
 			icon: ThemeIcon.isThemeIcon(items[0].command.icon) ? items[0].command.icon.id : undefined,
 			order: items[0].order,
+			beforeMaximize: (items[0].order ?? 0) < (maximizeItem.order ?? 0),
 			hasToggled: !!items[0].command.toggled,
 			gatedOnEditorArea: when.includes(MainEditorAreaVisibleContext.key),
 			gatedOnDockedDetails: when.includes(HasDockedDetailsContext.key),
 		}, {
 			group: 'navigation',
 			icon: Codicon.listSelection.id,
-			order: 10,
+			order: 9,
+			beforeMaximize: true,
 			hasToggled: true,
 			gatedOnEditorArea: true,
 			gatedOnDockedDetails: true,
@@ -2978,6 +2987,126 @@ suite('LayoutController (desktop)', () => {
 		await settle();
 
 		assert.deepStrictEqual(publishedWorkspaces, ['c']);
+	});
+
+	test('[managed tabs / dispose] a reconcile stalled mid-open opens no further editors once the controller is disposed', async () => {
+		const controller = createSinglePaneController({ activateAux: true });
+		await settle();
+
+		// Pause the reconcile at the first Changes open so it stalls before the Files tab opens.
+		let releaseChangesOpen!: () => void;
+		const changesOpenGate = new Promise<void>(resolve => { releaseChangesOpen = resolve; });
+		let gateArmed = true;
+		harness.onOpenChangesEditor = () => {
+			if (gateArmed) {
+				gateArmed = false;
+				return changesOpenGate;
+			}
+			return undefined;
+		};
+
+		// The created session's reconcile stalls awaiting the gated Changes open before the Files tab.
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1'), { isCreated: true, changes: [makeChange('/file.ts')] }), undefined);
+		await settle();
+		assert.strictEqual(hasFilesTab(), false, 'reconcile should be stalled before opening the Files tab');
+
+		// Dispose while stalled: the generation bump on dispose must make the resumed reconcile bail before any later editor open.
+		controller.dispose();
+		releaseChangesOpen();
+		await settle();
+
+		assert.strictEqual(hasFilesTab(), false, 'a reconcile resumed after dispose must not open further editors');
+	});
+
+	test('[managed tabs / dispose] ignores an in-flight editor replacement failure after the controller is disposed', async () => {
+		const originalUnexpectedErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		const unexpectedErrors: Error[] = [];
+		errorHandler.setUnexpectedErrorHandler(error => unexpectedErrors.push(error));
+		try {
+			const controller = createSinglePaneController({ activateAux: true });
+			await settle();
+			harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
+			await settle();
+
+			let replaceStarted = false;
+			let rejectReplace!: (error: Error) => void;
+			const replaceGate = new Promise<void>((_, reject) => { rejectReplace = reject; });
+			harness.onReplaceEditors = replacements => {
+				replaceStarted = true;
+				store.add(replacements[0].replacement);
+				return replaceGate;
+			};
+
+			harness.activeSessionObs.set(makeSession(URI.parse('session:b')), undefined);
+			await settle();
+			assert.strictEqual(replaceStarted, true, 'the reconcile should be stalled replacing the outgoing Changes editor');
+
+			controller.dispose();
+			rejectReplace(new Error('InstantiationService has been disposed'));
+			await settle();
+
+			assert.deepStrictEqual(unexpectedErrors, []);
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(originalUnexpectedErrorHandler);
+		}
+	});
+
+	test('[managed tabs / dispose] ignores an in-flight editor replacement failure after the target group is disposed', async () => {
+		const originalUnexpectedErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		const unexpectedErrors: Error[] = [];
+		errorHandler.setUnexpectedErrorHandler(error => unexpectedErrors.push(error));
+		try {
+			createSinglePaneController({ activateAux: true });
+			await settle();
+			harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
+			await settle();
+
+			let replaceStarted = false;
+			let rejectReplace!: (error: Error) => void;
+			const replaceGate = new Promise<void>((_, reject) => { rejectReplace = reject; });
+			harness.onReplaceEditors = replacements => {
+				replaceStarted = true;
+				store.add(replacements[0].replacement);
+				return replaceGate;
+			};
+
+			harness.activeSessionObs.set(makeSession(URI.parse('session:b')), undefined);
+			await settle();
+			assert.strictEqual(replaceStarted, true, 'the reconcile should be stalled replacing the outgoing Changes editor');
+
+			harness.onWillDisposeActiveGroup.fire();
+			rejectReplace(new Error('InstantiationService has been disposed'));
+			await settle();
+
+			assert.deepStrictEqual(unexpectedErrors, []);
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(originalUnexpectedErrorHandler);
+		}
+	});
+
+	test('[managed tabs / errors] reports an editor replacement failure while the reconcile is active', async () => {
+		const originalUnexpectedErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		const unexpectedErrors: Error[] = [];
+		errorHandler.setUnexpectedErrorHandler(error => unexpectedErrors.push(error));
+		try {
+			createSinglePaneController({ activateAux: true });
+			await settle();
+			harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
+			await settle();
+
+			const failure = new Error('replace failed');
+			harness.onReplaceEditors = replacements => {
+				store.add(replacements[0].replacement);
+				throw failure;
+			};
+
+			harness.activeSessionObs.set(makeSession(URI.parse('session:b')), undefined);
+			await settle();
+
+			assert.deepStrictEqual(unexpectedErrors, [failure]);
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(originalUnexpectedErrorHandler);
+		}
 	});
 
 	test('[managed tabs / details-only] always restores both docked inputs while only details are visible', async () => {

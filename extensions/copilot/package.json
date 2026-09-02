@@ -5242,16 +5242,6 @@
               "onExp"
             ]
           },
-          "github.copilot.chat.agentDebugLog.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%github.copilot.config.chat.agentDebugLog.enabled%",
-            "deprecationMessage": "%github.copilot.config.chat.agentDebugLog.enabled.deprecated%",
-            "tags": [
-              "advanced",
-              "experimental"
-            ]
-          },
           "github.copilot.chat.agentDebugLog.fileLogging.enabled": {
             "type": "boolean",
             "default": false,
