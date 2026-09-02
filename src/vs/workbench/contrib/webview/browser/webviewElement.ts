@@ -12,7 +12,7 @@ import { disposableTimeout, promiseWithResolvers, ThrottledDelayer } from '../..
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { COI } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import Severity from '../../../../base/common/severity.js';
@@ -471,10 +471,21 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		this.element!.setAttribute('src', `${this.webviewContentEndpoint(encodedWebviewOrigin)}/${fileName}?${queryString}`);
 	}
 
+	/**
+	 * Listeners that are scoped to a single mount. `mountTo` can be called
+	 * repeatedly over the lifetime of the webview (e.g. when retrying a
+	 * failed service worker registration), so these are replaced on each
+	 * mount instead of accumulating.
+	 */
+	private readonly _mountListeners = this._register(new DisposableStore());
+
 	public mountTo(element: HTMLElement, targetWindow: CodeWindow) {
 		if (!this.element) {
 			return;
 		}
+
+		// Drop listeners from any previous mount before re-registering them
+		this._mountListeners.clear();
 
 		this._windowId = targetWindow.vscodeWindowId;
 		this._encodedWebviewOriginPromise = parentOriginHash(targetWindow.origin, this.origin).then(id => this._encodedWebviewOrigin = id);
@@ -490,13 +501,13 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}
 
 		for (const eventName of [EventType.MOUSE_DOWN, EventType.MOUSE_MOVE, EventType.DROP]) {
-			this._register(addDisposableListener(element, eventName, () => {
+			this._mountListeners.add(addDisposableListener(element, eventName, () => {
 				this._stopBlockingIframeDragEvents();
 			}));
 		}
 
 		for (const node of [element, targetWindow]) {
-			this._register(addDisposableListener(node, EventType.DRAG_END, () => {
+			this._mountListeners.add(addDisposableListener(node, EventType.DRAG_END, () => {
 				this._stopBlockingIframeDragEvents();
 			}));
 		}
@@ -636,6 +647,14 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	 */
 	private handleFatalError(message: string): void {
 		if (/^Could not register service worker:/.test(message)) {
+			// A failed document reports the registration failure for every
+			// content event, so ignore duplicates while a reload is already
+			// scheduled. Otherwise each report would replace the pending
+			// reload and exhaust the retry budget without ever reloading.
+			if (this._serviceWorkerReloadTimeout.value) {
+				return;
+			}
+
 			// If the webview has been working since the last failure, start a
 			// fresh retry cycle so that sporadic failures keep self-healing
 			if (Date.now() - this._serviceWorkerLastFailureTime > 60_000) {
@@ -660,6 +679,12 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 				[{
 					label: localize('reloadWebview', "Reload Webview"),
 					run: () => {
+						// The notification can outlive the webview, e.g. when
+						// its editor gets closed. Do not act on a disposed or
+						// detached webview.
+						if (this._disposed || !this.element?.parentElement) {
+							return;
+						}
 						this._serviceWorkerReloadAttempt = 0;
 						this.reinitializeAfterDismount();
 					}

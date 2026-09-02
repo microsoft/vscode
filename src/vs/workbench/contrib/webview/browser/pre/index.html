@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-NzhQp9y6/PwqdjTbET5hRTrvFKhwC+4AXQUQzhkJq7s=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-NNdJ1w/1OhDB+Yqygljb50rTjilG9d2HbsG3IwgpzK4=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -252,6 +252,14 @@
 		 * before retrying the registration.
 		 */
 		const cleanupServiceWorkerState = async () => {
+			// On desktop, each webview is served from its own origin, so it is
+			// safe to clear caches and unregister the broken worker. In the
+			// browser, webviews share an origin, service worker, and cache
+			// storage, so none of them must be touched or we would evict
+			// resources for every other open webview.
+			if (!onElectron) {
+				return;
+			}
 			try {
 				if (typeof caches !== 'undefined') {
 					const keys = await caches.keys();
@@ -260,17 +268,11 @@
 			} catch (e) {
 				console.warn(`Failed to clear webview caches: ${e}`);
 			}
-
-			// On desktop, each webview is served from its own origin, so it is
-			// safe to unregister the broken worker. In the browser, service
-			// workers are shared across webviews, so we must not unregister.
-			if (onElectron) {
-				try {
-					const registrations = await navigator.serviceWorker.getRegistrations();
-					await Promise.all(registrations.map(registration => registration.unregister()));
-				} catch (e) {
-					console.warn(`Failed to unregister webview service workers: ${e}`);
-				}
+			try {
+				const registrations = await navigator.serviceWorker.getRegistrations();
+				await Promise.all(registrations.map(registration => registration.unregister()));
+			} catch (e) {
+				console.warn(`Failed to unregister webview service workers: ${e}`);
 			}
 		};
 
