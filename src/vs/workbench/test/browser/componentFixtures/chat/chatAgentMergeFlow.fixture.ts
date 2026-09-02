@@ -110,11 +110,23 @@ async function renderAgentMergeFlow(context: ComponentFixtureContext, hoverMerge
 		if (!row.querySelector('.chat-system-notification-timing .chat-response-timing')) {
 			throw new Error('Agent Merge notification is missing inline response timing');
 		}
+		const layout = row.querySelector<HTMLElement>('.chat-system-notification-layout')!;
+		const timing = row.querySelector<HTMLElement>('.chat-system-notification-timing')!;
+		if (targetWindow.getComputedStyle(layout).alignItems !== 'last baseline') {
+			throw new Error('Agent Merge notification timing is not baseline-aligned');
+		}
+		if (Math.abs(layout.getBoundingClientRect().right - timing.getBoundingClientRect().right) > 1) {
+			throw new Error('Agent Merge notification timing is not right-aligned');
+		}
 	}
 
 	if (hoverMergedNotice) {
 		notificationRows.at(-1)?.querySelector<HTMLElement>(':scope > .value')?.dispatchEvent(new targetWindow.MouseEvent('mouseenter'));
 		await nextFrame();
+		const timing = notificationRows.at(-1)?.querySelector<HTMLElement>('.chat-system-notification-timing');
+		if (!timing || Number(targetWindow.getComputedStyle(timing).opacity) === 0) {
+			throw new Error('Agent Merge notification timing did not appear on hover');
+		}
 	}
 }
 

@@ -63,16 +63,15 @@
 
 .chat-system-notification-layout {
 	display: flex;
-	align-items: flex-end;
+	align-items: last baseline;
 	gap: var(--vscode-spacing-size80);
 	margin-bottom: var(--vscode-spacing-size160);
 }
 
 .chat-system-notification-layout > .progress-container,
 .chat-system-notification-layout > .chat-system-notification-disclosure {
-	flex: 0 1 auto;
+	flex: 1;
 	min-width: 0;
-	max-width: 100%;
 	margin-bottom: 0;
 }
 
