@@ -188,12 +188,12 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 	}
 
 	private async getSystemPrompt(customizations: AgentPromptCustomizations) {
-		const modelFamily = this.props.endpoint.family ?? 'unknown';
+		const modelFamily = customizations.fallbackModelFamily ?? this.props.endpoint.family ?? 'unknown';
 
 		if (this.props.endpoint.family.startsWith('gpt-') && this.configurationService.getExperimentBasedConfig(ConfigKey.EnableAlternateGptPrompt, this.experimentationService)) {
 			return <AlternateGPTPrompt
 				availableTools={this.props.promptContext.tools?.availableTools}
-				modelFamily={this.props.endpoint.family}
+				modelFamily={modelFamily}
 				codesearchMode={this.props.codesearchMode}
 			/>;
 		}
