@@ -9,6 +9,7 @@ import { defineFixture, defineFixtureGroup, defineFixtureVariants } from '@vscod
 // eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
 import { z } from 'zod';
 import { DisposableStore, DisposableTracker, IDisposable, IReference, MutableDisposable, setDisposableTracker, toDisposable } from '../../../../base/common/lifecycle.js';
+import { basename, dirname, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ModifierKeyEmitter } from '../../../../base/browser/dom.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -25,6 +26,7 @@ import { IEnvironmentService } from '../../../../platform/environment/common/env
 import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 import { ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { FileIconThemeData, FileIconThemeLoader } from '../../../services/themes/browser/fileIconThemeData.js';
 import { ColorThemeData } from '../../../services/themes/common/colorThemeData.js';
 import { ExtensionData } from '../../../services/themes/common/workbenchThemeService.js';
 import { ensureGlobalStylesInstalled, getStylesheetDocumentFiles, overrideStylesheetOrder, ReverseStylesheetsOption } from './fixtureUtilsCss.js';
@@ -253,8 +255,8 @@ class NullStorageService implements IStorageService {
 // Themes
 // ============================================================================
 
-// Eagerly bundle all built-in theme JSON files so they can be served to
-// `_loadColorTheme` via the IExtensionResourceLoaderService code path. The
+// Eagerly bundle the built-in color and file icon theme JSON files so they can
+// be served through the IExtensionResourceLoaderService code path. The
 // rspack config maps these JSON files to `asset/source`, so they are imported
 // as raw text (not parsed JSON) — this lets VS Code's JSONC parser handle
 // comments and trailing commas the way it does in the real product.
@@ -266,16 +268,32 @@ import hc_black from '../../../../../../extensions/theme-defaults/themes/hc_blac
 import light_modern from '../../../../../../extensions/theme-defaults/themes/light_modern.json' with { type: 'json' };
 import light_plus from '../../../../../../extensions/theme-defaults/themes/light_plus.json' with { type: 'json' };
 import light_vs from '../../../../../../extensions/theme-defaults/themes/light_vs.json' with { type: 'json' };
+import vsSetiIconTheme from '../../../../../../extensions/theme-seti/icons/vs-seti-icon-theme.json' with { type: 'json' };
 /* eslint-enable local/code-import-patterns */
 
+function toThemeJsonText(theme: string | object): string {
+	return typeof theme === 'string' ? theme : JSON.stringify(theme);
+}
+
+// Keep the synthetic theme beside the emitted font so its relative asset URL resolves in every build mode.
+const setiFontResource = URI.parse(new URL('../../../../../../extensions/theme-seti/icons/seti.woff', import.meta.url).href);
+const setiFileIconThemeLocation = joinPath(dirname(setiFontResource), 'vs-seti-icon-theme.json');
+const setiFontSource = JSON.stringify('./seti.woff');
+const setiFontTarget = JSON.stringify(`./${basename(setiFontResource)}`);
+const setiFileIconThemeJson = toThemeJsonText(vsSetiIconTheme);
+if (!setiFileIconThemeJson.includes(setiFontSource)) {
+	throw new Error('Seti file icon theme does not reference its expected font.');
+}
+
 const themeJsonModules: Record<string, string> = {
-	'/extensions/theme-defaults/themes/dark_modern.json': dark_modern as unknown as string,
-	'/extensions/theme-defaults/themes/dark_plus.json': dark_plus as unknown as string,
-	'/extensions/theme-defaults/themes/dark_vs.json': dark_vs as unknown as string,
-	'/extensions/theme-defaults/themes/hc_black.json': hc_black as unknown as string,
-	'/extensions/theme-defaults/themes/light_modern.json': light_modern as unknown as string,
-	'/extensions/theme-defaults/themes/light_plus.json': light_plus as unknown as string,
-	'/extensions/theme-defaults/themes/light_vs.json': light_vs as unknown as string,
+	'/extensions/theme-defaults/themes/dark_modern.json': toThemeJsonText(dark_modern),
+	'/extensions/theme-defaults/themes/dark_plus.json': toThemeJsonText(dark_plus),
+	'/extensions/theme-defaults/themes/dark_vs.json': toThemeJsonText(dark_vs),
+	'/extensions/theme-defaults/themes/hc_black.json': toThemeJsonText(hc_black),
+	'/extensions/theme-defaults/themes/light_modern.json': toThemeJsonText(light_modern),
+	'/extensions/theme-defaults/themes/light_plus.json': toThemeJsonText(light_plus),
+	'/extensions/theme-defaults/themes/light_vs.json': toThemeJsonText(light_vs),
+	[setiFileIconThemeLocation.path]: setiFileIconThemeJson.replaceAll(setiFontSource, setiFontTarget),
 };
 
 const fixtureExtensionResourceLoaderService = new class implements IExtensionResourceLoaderService {
@@ -304,6 +322,11 @@ function createBuiltInTheme(themePath: string, uiTheme: ThemeTypeSelector): Colo
 export const darkTheme = createBuiltInTheme('/extensions/theme-defaults/themes/dark_modern.json', ThemeTypeSelector.VS_DARK);
 export const lightTheme = createBuiltInTheme('/extensions/theme-defaults/themes/light_modern.json', ThemeTypeSelector.VS);
 const darkHighContrastTheme = createBuiltInTheme('/extensions/theme-defaults/themes/hc_black.json', ThemeTypeSelector.HC_BLACK);
+const defaultFileIconTheme = FileIconThemeData.fromExtensionTheme(
+	{ id: 'vs-seti', path: './vs-seti-icon-theme.json', _watch: false },
+	setiFileIconThemeLocation,
+	ExtensionData.fromName('vscode', 'vscode-theme-seti', true)
+);
 
 type ComponentFixtureThemeVariant = {
 	readonly label: string;
@@ -330,10 +353,29 @@ function ensureThemeLoaded(theme: ColorThemeData): Promise<void> {
 	return themeLoadedPromise;
 }
 
+let defaultFileIconThemeLoadedPromise: Promise<string> | undefined;
+function ensureDefaultFileIconThemeLoaded(): Promise<string> {
+	return defaultFileIconThemeLoadedPromise ??= (async () => {
+		const languageService = new LanguageService();
+		try {
+			const styleSheetContent = await defaultFileIconTheme.ensureLoaded(new FileIconThemeLoader(fixtureExtensionResourceLoaderService, languageService));
+			if (styleSheetContent === undefined) {
+				throw new Error('Seti file icon theme did not produce a stylesheet.');
+			}
+			return styleSheetContent;
+		} finally {
+			languageService.dispose();
+		}
+	})();
+}
+
 export async function setupTheme(container: HTMLElement, theme: ColorThemeData, scopeThemingParticipants = false): Promise<void> {
-	await ensureThemeLoaded(theme);
-	await ensureGlobalStylesInstalled(theme, scopeThemingParticipants);
-	container.classList.add('component-fixture', 'monaco-workbench', getPlatformClass(), 'disable-animations', ...theme.classNames);
+	const [, fileIconThemeStyleSheetContent] = await Promise.all([
+		ensureThemeLoaded(theme),
+		ensureDefaultFileIconThemeLoaded(),
+	]);
+	await ensureGlobalStylesInstalled(theme, scopeThemingParticipants, fileIconThemeStyleSheetContent);
+	container.classList.add('component-fixture', 'monaco-workbench', 'file-icons-enabled', getPlatformClass(), 'disable-animations', ...theme.classNames);
 }
 
 /**
@@ -546,11 +588,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 	define(IConfigurationService, TestConfigurationService);
 	define(ITextResourcePropertiesService, TestTextResourcePropertiesService);
 	defineInstance(IStorageService, new NullStorageService());
-	if (options?.colorTheme) {
-		defineInstance(IThemeService, new TestThemeService(options.colorTheme));
-	} else {
-		define(IThemeService, TestThemeService);
-	}
+	defineInstance(IThemeService, new TestThemeService(options?.colorTheme, defaultFileIconTheme));
 	define(ILogService, FixtureLogService);
 	define(IModelService, FixtureModelService);
 	define(ICodeEditorService, TestCodeEditorService);

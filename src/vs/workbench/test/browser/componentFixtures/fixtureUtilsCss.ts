@@ -25,6 +25,7 @@ const activeOverrides: {
 }[] = [];
 let originalDisabledStates: readonly boolean[] | undefined;
 let iconsStyleSheetCache: CSSStyleSheet | undefined;
+let fileIconThemeStyleSheetCache: CSSStyleSheet | undefined;
 const themeStyleSheetCache = new WeakMap<ColorThemeData, CSSStyleSheet>();
 const installedThemes = new WeakSet<ColorThemeData>();
 
@@ -175,6 +176,14 @@ function getIconsStyleSheetCached(): CSSStyleSheet {
 	return iconsStyleSheetCache;
 }
 
+function getFileIconThemeStyleSheetCached(styleSheetContent: string): CSSStyleSheet {
+	if (!fileIconThemeStyleSheetCache) {
+		fileIconThemeStyleSheetCache = new CSSStyleSheet();
+		fileIconThemeStyleSheetCache.replaceSync(styleSheetContent);
+	}
+	return fileIconThemeStyleSheetCache;
+}
+
 function createScopedThemingParticipant(scopeSelector: string, scopeRootSelector: string, participants: readonly IThemingParticipant[]): IThemingParticipant {
 	return (theme, collector, environment) => {
 		const rules = new Set<string>();
@@ -212,7 +221,7 @@ function getThemeStyleSheet(theme: ColorThemeData, scopeThemingParticipants: boo
  * Installs shared global styles once and appends a scoped stylesheet for each newly requested theme.
  * The reversal overlay keeps a stable identity and position for {@link overrideStylesheetOrder}.
  */
-export async function ensureGlobalStylesInstalled(theme: ColorThemeData, scopeThemingParticipants: boolean): Promise<void> {
+export async function ensureGlobalStylesInstalled(theme: ColorThemeData, scopeThemingParticipants: boolean, fileIconThemeStyleSheetContent: string): Promise<void> {
 	baseStylesInstalledPromise ??= (async () => {
 		await readBundle();
 		const overlay = overlaySheet = new CSSStyleSheet();
@@ -220,6 +229,7 @@ export async function ensureGlobalStylesInstalled(theme: ColorThemeData, scopeTh
 			...document.adoptedStyleSheets,
 			overlay,
 			getIconsStyleSheetCached(),
+			getFileIconThemeStyleSheetCached(fileIconThemeStyleSheetContent),
 		];
 	})();
 	await baseStylesInstalledPromise;
