@@ -10,6 +10,7 @@ import { getErrorCode, isCancellationError } from '../../../../../../base/common
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { getChatErrorDetailsFromMeta, getCopilotPlanFromEntitlement, IChatErrorContext } from '../../../common/chatErrorMessages.js';
+import { IJSONSchema } from '../../../../../../base/common/jsonSchema.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IReference, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -522,6 +523,18 @@ function metaWithoutToolSearchCandidates(source: { readonly _meta?: Record<strin
 	const meta = { ...source._meta };
 	delete meta['toolSearchCandidates'];
 	return meta;
+}
+
+/**
+ * Required properties the tool declares that the parsed input does not supply.
+ * A call whose arguments never streamed arrives as `{}`, which would otherwise
+ * reach the tool as valid-looking parameters.
+ */
+function missingRequiredToolInput(schema: IJSONSchema | undefined, parameters: Record<string, unknown>): string[] {
+	if (schema?.type !== 'object' || !schema.required) {
+		return [];
+	}
+	return schema.required.filter(key => parameters[key] === undefined);
 }
 
 async function resolveToolInput(connection: IAgentConnection, toolInput: ToolInput | undefined): Promise<string> {
@@ -2822,6 +2835,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			parameters = parsed as Record<string, unknown>;
 		} catch {
 			fail(localize('agentHost.clientTool.badInput', "Invalid tool input for \"{0}\": expected JSON object parameters.", toolName), 'invalidInput');
+			return;
+		}
+
+		const missing = missingRequiredToolInput(toolData.inputSchema, parameters);
+		if (missing.length > 0) {
+			fail(localize('agentHost.clientTool.missingInput', "Invalid tool input for \"{0}\": missing required {1}.", toolName, missing.join(', ')), 'invalidInput');
 			return;
 		}
 
