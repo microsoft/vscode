@@ -479,6 +479,9 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 	private readonly _commands = new Map<string, ICommandAction>();
 	private readonly _menuItems = new Map<MenuId, LinkedList<IMenuItem | ISubmenuItem>>();
 	private readonly _onDidChangeMenu = new MicrotaskEmitter<IMenuRegistryChangeEvent>({
+		// Large workbench sessions can have hundreds of active menu instances.
+		leakWarningThreshold: 500,
+		leakWarningName: 'MenuRegistry.onDidChangeMenu',
 		merge: MenuRegistryChangeEvent.merge
 	});
 
