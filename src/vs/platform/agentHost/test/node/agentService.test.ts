@@ -15128,7 +15128,7 @@ suite('AgentService (node dispatcher)', () => {
 				state: TurnState.Complete,
 				responseParts: [{
 					kind: ResponsePartKind.SystemNotification,
-					content: 'Agent Merge was turned off for this session.',
+					content: 'Agent Merge was disabled for this session.',
 					_meta: { kind: 'agentMergeDisabled' },
 				}],
 				sentToAgent: 0,
@@ -15211,7 +15211,7 @@ suite('AgentService (node dispatcher)', () => {
 				afterTurn: {
 					responseParts: [{
 						kind: ResponsePartKind.SystemNotification,
-						content: 'Agent Merge was turned off for this session.',
+						content: 'Agent Merge was disabled for this session.',
 						_meta: { kind: 'agentMergeDisabled' },
 					}],
 					anchoredTo: ['agent-turn'],

@@ -206,6 +206,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				uri: this.toRemoteUri(customization.uri),
 				label: customization.name,
 				source,
+				destinationGroupId: dirname(this.toRemoteUri(customization.uri)).toString(),
 			});
 		}
 		return folders;
