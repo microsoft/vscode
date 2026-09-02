@@ -147,9 +147,15 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		}
 
 		// 1. Recent workspaces across every provider the entry scopes to.
-		const isGitHubCategory = this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB;
+		const isConsolidatedWorkspacePicker = this._useConsolidatedRemoteWorkspaces()
+			&& this._directPickerGroup === undefined
+			&& this._directPickerAttachesContext !== true;
+		const includeGitHub = this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB || isConsolidatedWorkspacePicker;
+		const gitHubGroupAction = isConsolidatedWorkspacePicker
+			? this.options.getWorkspaceGroupAction?.(SESSION_WORKSPACE_GROUP_GITHUB)
+			: undefined;
 		const recents = this._getRecentWorkspaces().filter(w =>
-			(scopedProviderIds.has(w.providerId) || isGitHubCategory)
+			(scopedProviderIds.has(w.providerId) || (includeGitHub && w.workspace.group === SESSION_WORKSPACE_GROUP_GITHUB))
 			&& this._directPickerAttachesContext !== true
 			&& (this._directPickerGroup === undefined || w.workspace.group === this._directPickerGroup)
 		);
@@ -176,10 +182,20 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		const allBrowseActions = this._getAllBrowseActions();
 		const browseActions = allBrowseActions
 			.map((action, index) => ({ action, index }))
-			.filter(({ action }) => (!scoped.grouped && scopedProviderIds.has(action.providerId)) || this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB);
-		if (browseActions.length > 0) {
+			.filter(({ action }) => (!scoped.grouped && scopedProviderIds.has(action.providerId))
+				|| (includeGitHub && action.group === SESSION_WORKSPACE_GROUP_GITHUB));
+		if (gitHubGroupAction || browseActions.length > 0) {
 			if (items.length > 0) {
 				items.push({ kind: ActionListItemKind.Separator, label: '' });
+			}
+			if (gitHubGroupAction) {
+				items.push({
+					kind: ActionListItemKind.Action,
+					label: gitHubGroupAction.label,
+					description: gitHubGroupAction.description,
+					group: { title: '', icon: gitHubGroupAction.icon },
+					item: { commandId: gitHubGroupAction.commandId },
+				});
 			}
 			for (const { action, index } of browseActions) {
 				items.push({
@@ -193,7 +209,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			}
 		}
 
-		if (items.length === 0 && this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB) {
+		if (items.length === 0 && includeGitHub) {
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: localize('scopedWorkspacePicker.githubLoading', "GitHub repositories are still loading"),

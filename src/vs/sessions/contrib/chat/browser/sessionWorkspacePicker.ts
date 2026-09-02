@@ -79,6 +79,7 @@ export interface IWorkspacePickerItem {
 	/** The resolved workspace (used for unavailable-provider checks). */
 	readonly providerId?: string;
 	readonly browseActionIndex?: number;
+	readonly browseAction?: ISessionWorkspaceBrowseAction;
 	readonly attachAsContext?: boolean;
 	readonly checked?: boolean;
 	/** Command to execute when this item is selected. */
@@ -115,6 +116,14 @@ export interface IWorkspacePickerTrigger {
 	readonly hideWhenWorkspaceSelected?: boolean;
 	readonly hideWhenNoWorkspaceSelected?: boolean;
 	readonly hideWhenNoGitHubRepository?: boolean;
+	readonly hideWhenConsolidatedRemoteWorkspaces?: boolean;
+}
+
+export interface IWorkspacePickerContextAction {
+	readonly label: string;
+	readonly description?: string;
+	readonly icon: ThemeIcon;
+	readonly run: () => Promise<void>;
 }
 
 export interface IResolvedBrowseSelection {
@@ -347,7 +356,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	constructor(
-		private readonly options: IWorkspacePickerOptions,
+		protected readonly options: IWorkspacePickerOptions,
 		@IActionWidgetService protected readonly actionWidgetService: IActionWidgetService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ISessionsProvidersService protected readonly sessionsProvidersService: ISessionsProvidersService,
@@ -370,6 +379,11 @@ export class WorkspacePicker extends Disposable {
 		this._register(this._tabbedWidget.onDidChangeTab(tab => this._selectWorkspaceGroup(tab)));
 		this._register(this._tabbedWidget.onDidHide(() => {
 			this._pickerGroupContext.reset();
+		}));
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(AGENT_SESSIONS_CONSOLIDATED_REMOTE_WORKSPACES_SETTING)) {
+				this._updateTriggerLabel();
+			}
 		}));
 
 		this._sessionWorkspaceFallback = this.options.restoreFromSessions === false
@@ -490,6 +504,24 @@ export class WorkspacePicker extends Disposable {
 
 	getChatPetPlatformElements(): readonly HTMLElement[] {
 		return Array.from(this._triggerElements);
+	}
+
+	getContextPickerActions(): readonly IWorkspacePickerContextAction[] {
+		if (!this._useConsolidatedRemoteWorkspaces()) {
+			return [];
+		}
+
+		return this.sessionsProvidersService.getProviders()
+			.flatMap(provider => provider.browseActions)
+			.filter(action => action.attachesContext === true)
+			.map(action => ({
+				label: action.label,
+				description: action.description,
+				icon: action.icon,
+				run: async () => {
+					await this._dispatchPickerItem({ browseAction: action });
+				},
+			}));
 	}
 
 	/**
@@ -693,10 +725,11 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	protected _buildListOptions(items: readonly IActionListItem<IWorkspacePickerItem>[], pickerWidth: number | undefined): IActionListOptions {
-		const showFilter = (this._useConsolidatedRemoteWorkspaces() && this._directPickerAttachesContext !== true)
+		const isConsolidatedWorkspacePicker = this._useConsolidatedRemoteWorkspaces() && this._directPickerAttachesContext !== true;
+		const showFilter = isConsolidatedWorkspacePicker
 			|| items.filter(i => i.kind === ActionListItemKind.Action).length > FILTER_THRESHOLD;
 		return showFilter
-			? { showFilter: true, filterPlaceholder: localize('workspacePicker.filter', "Search Workspaces..."), reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true }
+			? { showFilter: true, focusFilterOnOpen: isConsolidatedWorkspacePicker, filterPlaceholder: localize('workspacePicker.filter', "Search Workspaces..."), reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true }
 			: { reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true };
 	}
 
@@ -785,8 +818,8 @@ export class WorkspacePicker extends Disposable {
 			// Workspace belongs to an unavailable remote — ignore selection
 			return false;
 		}
-		if (item.browseActionIndex !== undefined) {
-			const selection = await this._executeBrowseAction(item.browseActionIndex);
+		if (item.browseActionIndex !== undefined || item.browseAction) {
+			const selection = await this._executeBrowseAction(item.browseActionIndex, item.browseAction);
 			const folderUri = selection?.workspace.folders[0]?.root;
 			if (!folderUri || generation !== this._selectionGeneration) {
 				return false;
@@ -1152,11 +1185,10 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	/**
-	 * Executes a browse action from a provider, identified by index.
+	 * Executes a provider browse action referenced directly or by picker index.
 	 */
-	private async _executeBrowseAction(actionIndex: number): Promise<IBrowsedWorkspaceSelection | undefined> {
-		const allActions = this._getAllBrowseActions();
-		const action = allActions[actionIndex];
+	private async _executeBrowseAction(actionIndex: number | undefined, browseAction?: ISessionWorkspaceBrowseAction): Promise<IBrowsedWorkspaceSelection | undefined> {
+		const action = browseAction ?? (actionIndex !== undefined ? this._getAllBrowseActions()[actionIndex] : undefined);
 		if (!action) {
 			return undefined;
 		}
@@ -1500,7 +1532,9 @@ export class WorkspacePicker extends Disposable {
 			const hideForMissingWorkspace = workspace === undefined && options.hideWhenNoWorkspaceSelected === true;
 			const hideForMissingGitHubRepository = options.hideWhenNoGitHubRepository === true
 				&& this._getCurrentRepositoryId() === undefined;
-			trigger.parentElement?.toggleAttribute('hidden', hideForSelectedWorkspace || hideForMissingWorkspace || hideForMissingGitHubRepository);
+			const hideForConsolidatedRemoteWorkspaces = options.hideWhenConsolidatedRemoteWorkspaces === true
+				&& this._useConsolidatedRemoteWorkspaces();
+			trigger.parentElement?.toggleAttribute('hidden', hideForSelectedWorkspace || hideForMissingWorkspace || hideForMissingGitHubRepository || hideForConsolidatedRemoteWorkspaces);
 			trigger.classList.toggle('selected', (reflectsWorkspace && workspace !== undefined) || isSelectedCategory || badgeCount > 0 || relatedGitHubInfo !== undefined);
 			const icon = (reflectsWorkspace ? workspace?.icon : undefined)
 				?? (relatedGitHubInfo ? Codicon.repo : (isSelectedCategory && workspace ? workspace.icon : options.icon));

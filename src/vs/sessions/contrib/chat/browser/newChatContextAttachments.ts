@@ -44,6 +44,7 @@ import { imageToHash, isImage } from '../../../../workbench/contrib/chat/browser
 import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '../../../../workbench/services/search/common/search.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
 import { ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX } from '../common/newChatContextIds.js';
+import type { IWorkspacePickerContextAction } from './sessionWorkspacePicker.js';
 
 /**
  * The attachment surface of the composer, as seen by its input plumbing
@@ -59,6 +60,7 @@ export interface INewChatAttachments {
 }
 
 const GITHUB_CONTEXT_ID_PREFIX = 'github-context:';
+type IContextQuickPickItem = IQuickPickItem & { readonly contextAction?: IWorkspacePickerContextAction };
 
 /**
  * Manages context attachments for the sessions new-chat widget.
@@ -257,14 +259,21 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 
 	// --- Picker ---
 
-	showPicker(folderUri?: URI): void {
-		const picker = this.quickInputService.createQuickPick<IQuickPickItem>({ useSeparators: true });
+	showPicker(folderUri?: URI, contextActions: readonly IWorkspacePickerContextAction[] = []): void {
+		const picker = this.quickInputService.createQuickPick<IContextQuickPickItem>({ useSeparators: true });
 		const disposables = new DisposableStore();
 		picker.placeholder = localize('chatContext.attach.placeholder', "Attach as context...");
 		picker.matchOnDescription = true;
 		picker.sortByLabel = false;
 
-		const staticPicks: (IQuickPickItem | IQuickPickSeparator)[] = [
+		const staticPicks: (IContextQuickPickItem | IQuickPickSeparator)[] = [
+			...contextActions.map(action => ({
+				label: action.label,
+				description: action.description,
+				iconClass: ThemeIcon.asClassName(action.icon),
+				contextAction: action,
+			})),
+			...(contextActions.length > 0 ? [{ type: 'separator' as const }] : []),
 			{
 				label: localize('files', "Files..."),
 				iconClass: ThemeIcon.asClassName(Codicon.file),
@@ -330,7 +339,9 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 
 			picker.hide();
 
-			if (selected.id === 'sessions.filesAndFolders') {
+			if (selected.contextAction) {
+				await selected.contextAction.run();
+			} else if (selected.id === 'sessions.filesAndFolders') {
 				await this._handleFileDialog();
 			} else if (selected.id === 'sessions.imageFromClipboard') {
 				await this._handleClipboardImage();
