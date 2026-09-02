@@ -75,6 +75,33 @@ suite('Agent Merge gate', () => {
 		});
 	});
 
+	test('repairs draft pull requests without merging them', () => {
+		const asDraft = (snapshot: PullRequestSnapshot): PullRequestSnapshot => ({
+			...snapshot,
+			core: {
+				...snapshot.core,
+				value: snapshot.core.value ? { ...snapshot.core.value, draft: true } : undefined,
+			},
+		});
+		const repair = evaluateAgentMerge(asDraft(readySnapshot({
+			reviewThreads: [{
+				id: 'thread-1',
+				isResolved: false,
+				comments: [{ id: 'comment-1', author: { login: 'maintainer', association: 'MEMBER' }, body: 'Please fix this' }],
+			}],
+			checks: [{ id: 'required', type: 'checkRun', name: 'Build', required: true, status: 'COMPLETED', conclusion: 'FAILURE' }],
+		})), configuration, '2026-08-02T00:00:00.000Z');
+		const ready = evaluateAgentMerge(asDraft(readySnapshot()), configuration, '2026-08-02T00:00:00.000Z');
+
+		assert.deepStrictEqual({
+			repair: repair.kind === 'prompt' ? repair.actions : repair.kind,
+			ready: ready.kind,
+		}, {
+			repair: ['addressReviews', 'fixCI'],
+			ready: 'noWork',
+		});
+	});
+
 	test('merges only from complete ready state', () => {
 		assert.deepStrictEqual(evaluateAgentMerge(readySnapshot(), configuration, '2026-08-02T00:00:00.000Z').kind, 'merge');
 	});

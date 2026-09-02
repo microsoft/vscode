@@ -113,12 +113,20 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		assert.deepStrictEqual(operations?.map(op => op.id), ['create-pr', 'create-pr-auto-merge', 'create-pr-auto-squash', 'create-pr-auto-rebase', 'create-draft-pr']);
 	});
 
-	test('advertises Create PR and Enable Agent Merge as the last Create PR option when Agent Merge is enabled', () => {
+	test('advertises Agent Merge variants as the last ready and draft Create PR options when Agent Merge is enabled', () => {
 		const provider = createContribution(undefined, undefined, Event.None, true);
 
 		const operations = provider.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges, changesetKind: ChangesetKind.Session, changesetUri: '' });
 
-		assert.deepStrictEqual(operations?.map(op => op.id), ['create-pr', 'create-pr-auto-merge', 'create-pr-auto-squash', 'create-pr-auto-rebase', 'create-pr-agent-merge', 'create-draft-pr']);
+		assert.deepStrictEqual(operations?.map(({ id, label }) => ({ id, label })), [
+			{ id: 'create-pr', label: 'Create PR' },
+			{ id: 'create-pr-auto-merge', label: 'Create PR (Auto-Merge)' },
+			{ id: 'create-pr-auto-squash', label: 'Create PR (Auto-Squash)' },
+			{ id: 'create-pr-auto-rebase', label: 'Create PR (Auto-Rebase)' },
+			{ id: 'create-pr-agent-merge', label: 'Create PR & Agent Merge' },
+			{ id: 'create-draft-pr', label: 'Create Draft PR' },
+			{ id: 'create-draft-pr-agent-merge', label: 'Create Draft PR & Agent Merge' },
+		]);
 	});
 
 	test('does not advertise PR operations for folder sessions with outgoing changes', () => {
