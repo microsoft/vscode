@@ -200,7 +200,7 @@ export class ChatEndpoint implements IChatEndpoint {
 	public readonly maxPromptImages?: number | undefined;
 	public readonly warningText?: Record<string, string> | undefined;
 	public readonly infoText?: Record<string, string> | undefined;
-	public readonly promo?: { id: string; discountPercent: number; endsAt?: string; message: string } | undefined;
+	public readonly promo?: { id: string; discountPercent: number; endsAt?: string; message: string; showBanner?: boolean } | undefined;
 
 	private readonly _supportsStreaming: boolean;
 
@@ -259,6 +259,7 @@ export class ChatEndpoint implements IChatEndpoint {
 			discountPercent: modelMetadata.billing.promo.discount_percent,
 			endsAt: modelMetadata.billing.promo.ends_at,
 			message: modelMetadata.billing.promo.message,
+			showBanner: modelMetadata.billing.promo.show_banner,
 		} : undefined;
 	}
 
@@ -344,7 +345,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		return this.modelMetadata.warning_messages?.at(0)?.message;
 	}
 
-	public get apiType(): string {
+	public get apiType(): 'responses' | 'messages' | 'chatCompletions' {
 		return this.useResponsesApi ? 'responses' :
 			this.useMessagesApi ? 'messages' : 'chatCompletions';
 	}
@@ -359,6 +360,18 @@ export class ChatEndpoint implements IChatEndpoint {
 		// If the model doesn't support streaming, don't ask for a streamed request
 		if (body && !this._supportsStreaming) {
 			body.stream = false;
+		}
+
+		if (body && this.customModel && this.apiType === 'chatCompletions') {
+			// Server-provided custom-model metadata does not reliably identify the underlying OpenAI-compatible provider.
+			const tokenParameter = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ChatCompletionsTokenParameter, this._expService);
+			if (tokenParameter === 'max_tokens' && body.max_completion_tokens !== undefined) {
+				body.max_tokens = body.max_completion_tokens;
+				delete body.max_completion_tokens;
+			} else if (tokenParameter === 'max_completion_tokens' && body.max_tokens !== undefined) {
+				body.max_completion_tokens = body.max_tokens;
+				delete body.max_tokens;
+			}
 		}
 
 		// If it's o1 we must modify the body significantly as the request is very different

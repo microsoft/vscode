@@ -16,7 +16,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, IHarnessDescriptor, isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
@@ -107,6 +107,8 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 	 * present in `availableHarnesses`.
 	 */
 	private readonly sourceCache = this._register(new MutableDisposable<IAICustomizationItemSource>());
+	/** The descriptor bound to `sourceCache`'s current source, used to detect a late-registering harness. */
+	private sourceDescriptor: IHarnessDescriptor | undefined;
 	private pendingRefetchSource: IAICustomizationItemSource | undefined;
 	private readonly refetchObservedScheduler = this._register(new RunOnceScheduler(() => {
 		const source = this.pendingRefetchSource;
@@ -171,9 +173,16 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		// harnesses changes (a new external provider may have registered for the already-
 		// active id), prune the source cache, and refetch any observed sections.
 		const sourceChangeListener = this._register(new MutableDisposable());
+		let currentSource: IAICustomizationItemSource | undefined;
 		this._register(autorun(reader => {
 			const activeSessionResource = this.harnessService.activeSessionResource.read(reader);
-			const source = this.getOrCreateSource(activeSessionResource);
+			const availableHarnesses = this.harnessService.availableHarnesses.read(reader);
+			const descriptor = availableHarnesses.find(harness => harness.id === getChatSessionType(activeSessionResource));
+			const source = this.getOrCreateSource(activeSessionResource, descriptor);
+			if (source === currentSource) {
+				return;
+			}
+			currentSource = source;
 			sourceChangeListener.value = source.onDidAICustomizationItemsChange(() => {
 				this.scheduleRefetchObserved(source);
 			});
@@ -205,7 +214,9 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 	}
 
 	getActiveItemSource(): IAICustomizationItemSource {
-		return this.getOrCreateSource(this.harnessService.activeSessionResource.get());
+		const activeSessionResource = this.harnessService.activeSessionResource.get();
+		const descriptor = this.harnessService.findHarnessById(getChatSessionType(activeSessionResource));
+		return this.getOrCreateSource(activeSessionResource, descriptor);
 	}
 
 	whenSectionLoaded(section: ItemsModelSection): Promise<void> {
@@ -229,13 +240,12 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		this.refetchPluginCount(this.getActiveItemSource());
 	}
 
-	private getOrCreateSource(sessionResource: URI): IAICustomizationItemSource {
+	private getOrCreateSource(sessionResource: URI, descriptor: IHarnessDescriptor | undefined): IAICustomizationItemSource {
 		const cached = this.sourceCache.value;
-		if (cached && isEqual(sessionResource, cached.sessionResource) && !(cached instanceof EmptyItemProviderItemSource)) {
+		if (cached && isEqual(sessionResource, cached.sessionResource) && descriptor === this.sourceDescriptor) {
 			return cached;
 		}
 		const sessionType = getChatSessionType(sessionResource);
-		const descriptor = this.harnessService.findHarnessById(sessionType);
 
 		const getItemSource = () => {
 			if (!descriptor) {
@@ -247,7 +257,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 					this.logService.warn(`Agent-host session type ${sessionType} has no item provider`);
 					return new EmptyItemProviderItemSource(sessionResource);
 				}
-				return new PureItemProviderItemSource(sessionResource, descriptor.itemProvider, this.itemNormalizer, this.promptsService, this.workspaceService);
+				return new PureItemProviderItemSource(sessionResource, descriptor.itemProvider, this.itemNormalizer);
 			} else {
 				const itemProvider = descriptor.itemProvider ?? this.instantiationService.createInstance(PromptsServiceCustomizationItemProvider);
 				return new ItemProviderItemSource(
@@ -262,6 +272,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 			}
 		};
 		const source = getItemSource();
+		this.sourceDescriptor = descriptor;
 		this.sourceCache.value = source;
 		return source;
 	}

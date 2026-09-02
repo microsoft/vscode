@@ -405,7 +405,7 @@ class ProxyRoundTripSdkService implements IClaudeAgentSdkService {
 		return true;
 	}
 
-	async ensureAvailableForDiscovery(): Promise<void> { }
+	async ensureAvailable(): Promise<void> { }
 
 	async getSessionInfo(_sessionId: string): Promise<SDKSessionInfo | undefined> {
 		return undefined;
@@ -523,7 +523,7 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 				if (!startup?.onElicitation) {
 					throw new Error('integration test: elicitation marker but Options.onElicitation not wired');
 				}
-				const result = await startup.onElicitation(item.request, { signal: new AbortController().signal });
+				const result = await startup.onElicitation(item.request, { signal: new AbortController().signal, requestId: 'integration-elicitation' });
 				this._sdk.elicitationResults.push(result);
 				continue;
 			}
@@ -669,7 +669,7 @@ async function createSession(agent: ClaudeAgent, config: IAgentCreateSessionConf
 		workingDirectories: config.workingDirectories,
 		config: config.config,
 		activeClient: config.activeClient,
-		deferBacking: !config.fork && !config.importConversation,
+		deferBacking: !config.importConversation,
 		importConversation: config.importConversation,
 	});
 	if (!created?.backingSession) {

@@ -46,11 +46,11 @@ export interface IChatGroupContext {
 	/** Whether the group's tab strip should be shown. */
 	readonly tabsVisible: IObservable<boolean>;
 
+	/** Whether this group's tab row replaces the session header and shows its actions. */
+	readonly showSessionActions: IObservable<boolean>;
+
 	/** Activate (show + focus) the given chat within this group. */
 	openChat(resource: URI): void;
-
-	/** Start a new chat within this group. */
-	newChat(): void;
 
 	/** A chat tab drag has started for the given chat. */
 	onTabDragStart(resource: URI): void;
@@ -121,7 +121,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._barContainer = $('.chat-group-view-bar');
 		this.element.appendChild(this._barContainer);
 
-		this._compositeBar = this._register(instantiationService.createInstance(ChatCompositeBar));
+		this._compositeBar = this._register(instantiationService.createInstance(ChatCompositeBar, undefined));
 		this._barContainer.appendChild(this._compositeBar.element);
 
 		// Read-only status banner, shown flush below this group's tab bar when the
@@ -170,8 +170,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			activeChatResource: context.activeChatResource,
 			mainChatResource: context.mainChatResource,
 			visible: context.tabsVisible,
+			showSessionActions: context.showSessionActions,
 			openChat: resource => context.openChat(resource),
-			newChat: () => context.newChat(),
 			onTabDragStart: resource => context.onTabDragStart(resource),
 			onTabDragEnd: () => context.onTabDragEnd(),
 		};
@@ -188,7 +188,9 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 			let desiredKind: ChatViewKind;
 			if (session.isCreated.read(reader) === false) {
-				desiredKind = 'newSession';
+				desiredKind = session.isNewSessionRequestInProgress?.read(reader) === true
+					? 'chat'
+					: 'newSession';
 			} else if (!chat || (chat.status.read(reader) === SessionStatus.Untitled && chat.interactivity.read(reader) === ChatInteractivity.Full)) {
 				desiredKind = 'newChatInSession';
 			} else {
@@ -265,6 +267,9 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		}
 		this._sessionVisible = visible;
 		this._currentView.value?.setVisible(visible);
+		if (visible) {
+			this._layoutChildren();
+		}
 	}
 
 	submitInput(): Promise<boolean> {
@@ -294,7 +299,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	}
 
 	private _layoutChildren(): void {
-		if (!this._lastLayout) {
+		if (!this._lastLayout || !this._sessionVisible) {
 			return;
 		}
 		const { width, height, top, left } = this._lastLayout;

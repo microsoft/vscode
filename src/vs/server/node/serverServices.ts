@@ -60,7 +60,7 @@ import { IServerTelemetryService, ServerNullTelemetryService, ServerTelemetrySer
 import { RemoteTerminalChannel } from './remoteTerminalChannel.js';
 import { createURITransformer } from '../../base/common/uriTransformer.js';
 import { ServerConnectionToken, ServerConnectionTokenType } from './serverConnectionToken.js';
-import { ServerEnvironmentService, ServerParsedArgs } from './serverEnvironmentService.js';
+import { getRedactedServerParsedArgs, ServerEnvironmentService, ServerParsedArgs } from './serverEnvironmentService.js';
 import { REMOTE_TERMINAL_CHANNEL_NAME } from '../../workbench/contrib/terminal/common/remote/remoteTerminalChannel.js';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from '../../workbench/services/remote/common/remoteFileSystemProviderClient.js';
 import { ExtensionHostStatusService, IExtensionHostStatusService } from './extensionHostStatusService.js';
@@ -109,7 +109,7 @@ import { SandboxHelperService } from '../../platform/sandbox/node/sandboxHelper.
 
 const eventPrefix = 'monacoworkbench';
 
-export async function setupServerServices(connectionToken: ServerConnectionToken, args: ServerParsedArgs, REMOTE_DATA_FOLDER: string, disposables: DisposableStore) {
+export async function setupServerServices(connectionToken: ServerConnectionToken, args: ServerParsedArgs, REMOTE_DATA_FOLDER: string, agentHostBridgeConnectionToken: string | undefined, disposables: DisposableStore) {
 	const services = new ServiceCollection();
 	const socketServer = new SocketServer<RemoteAgentConnectionContext>();
 
@@ -131,7 +131,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	disposables.add(logService.onDidChangeLogLevel(logLevel => log(logService, logLevel, `Log level changed to ${LogLevelToString(logService.getLevel())}`)));
 
 	logService.trace(`Remote configuration data at ${REMOTE_DATA_FOLDER}`);
-	logService.trace('process arguments:', environmentService.args);
+	logService.trace('process arguments:', getRedactedServerParsedArgs(environmentService.args));
 	if (Array.isArray(productService.serverGreeting)) {
 		logService.info(`\n\n${productService.serverGreeting.join('\n')}\n\n`);
 	}
@@ -292,6 +292,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		const bridgePath = args['agent-host-bridge-path'] ?? spawnPath;
 		const bridgeHost = args['agent-host-bridge-host'] ?? args.host ?? 'localhost';
 		const bridgeToken = args['agent-host-bridge-connection-token']
+			?? agentHostBridgeConnectionToken
 			?? ((bridgePort || bridgePath) && connectionToken.type === ServerConnectionTokenType.Mandatory
 				? connectionToken.value
 				: undefined);
@@ -312,11 +313,11 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 			socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, new UnavailableAgentHostChannel<RemoteAgentConnectionContext>());
 			logService.info(`[AgentHostChannel] Registered unavailable IPC channel '${AgentHostIpcChannels.RemoteProxy}': no --agent-host-bridge-port / --agent-host-bridge-path set.`);
 		}
-	} else if (args['agent-host-bridge-port'] || args['agent-host-bridge-path'] || args['agent-host-bridge-host'] || args['agent-host-bridge-connection-token']) {
+	} else if (args['agent-host-bridge-port'] || args['agent-host-bridge-path'] || args['agent-host-bridge-host'] || args['agent-host-bridge-connection-token'] || agentHostBridgeConnectionToken) {
 		const bridgePort = args['agent-host-bridge-port'];
 		const bridgePath = args['agent-host-bridge-path'];
 		const bridgeHost = args['agent-host-bridge-host'] ?? args.host ?? 'localhost';
-		const bridgeToken = args['agent-host-bridge-connection-token'];
+		const bridgeToken = args['agent-host-bridge-connection-token'] ?? agentHostBridgeConnectionToken;
 		if (bridgePort || bridgePath) {
 			const agentHostBridge = disposables.add(new AgentHostChannel<RemoteAgentConnectionContext>(
 				socketServer,

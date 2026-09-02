@@ -5,6 +5,9 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
@@ -20,6 +23,122 @@ suite('AgentHostLanguageModelProvider', () => {
 	function createProvider(): AgentHostLanguageModelProvider {
 		return store.add(new AgentHostLanguageModelProvider('agent-host-copilotcli', 'copilotcli'));
 	}
+
+	test('groups the Auto routing-profile picker where thinking level renders for other models', async () => {
+		const provider = createProvider();
+		provider.updateModels([
+			{
+				...makeModel('auto'),
+				configSchema: {
+					type: 'object',
+					properties: { tier: { type: 'string', title: 'Optimize for', enum: ['efficiency', 'balance', 'intelligence'], default: 'balance' } },
+				},
+			},
+			{
+				...makeModel('gpt-5'),
+				configSchema: {
+					type: 'object',
+					properties: {
+						thinkingLevel: { type: 'string', title: 'Thinking Level', enum: ['low', 'high'] },
+						contextSize: { type: 'number', title: 'Context Size', enum: [200_000, 1_000_000] },
+						somethingElse: { type: 'string', title: 'Something Else' },
+					},
+				},
+			},
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(
+			infos.map(info => Object.fromEntries(Object.entries(info.metadata.configurationSchema?.properties ?? {}).map(([key, property]) => [key, property.group]))),
+			[
+				// The Auto model has no thinking level, so its profile takes that slot.
+				{ tier: 'navigation' },
+				{ thinkingLevel: 'navigation', contextSize: 'tokens', somethingElse: undefined },
+			]
+		);
+	});
+
+	test('groups the config keys the Copilot agent host names, so a sandbox session can configure its model', async () => {
+		const provider = createProvider();
+		provider.updateModels([
+			{
+				...makeModel('claude-sonnet-4.6'),
+				configSchema: {
+					type: 'object',
+					properties: {
+						reasoningEffort: { type: 'string', title: 'Reasoning effort', enum: ['low', 'high'] },
+						contextTier: { type: 'string', title: 'Context tier', enum: ['default', 'long_context'], enumLabels: ['Default', 'Long context'], default: 'default' },
+					},
+				},
+			},
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(
+			Object.fromEntries(Object.entries(infos[0].metadata.configurationSchema?.properties ?? {}).map(([key, property]) => [key, property.group])),
+			// `contextTier` needs token counts from the catalogue to be worth showing, and there is
+			// none here; see the context-tier tests below.
+			{ reasoningEffort: 'navigation' }
+		);
+	});
+
+	test('derives reasoning-effort display text only when the host supplied none', async () => {
+		const provider = createProvider();
+		provider.updateModels([
+			{
+				...makeModel('claude-sonnet-4.6'),
+				configSchema: {
+					type: 'object',
+					properties: { reasoningEffort: { type: 'string', title: 'Reasoning effort', enum: ['minimal', 'xhigh'] } },
+				},
+			},
+			{
+				...makeModel('gpt-5'),
+				configSchema: {
+					type: 'object',
+					properties: { reasoningEffort: { type: 'string', title: 'Reasoning effort', enum: ['minimal'], enumLabels: ['Host Wins'], enumDescriptions: ['Host description'] } },
+				},
+			},
+			{
+				// Labels but no descriptions: the producer described its values by omission, so
+				// neither half is replaced.
+				...makeModel('gemini-3-pro'),
+				configSchema: {
+					type: 'object',
+					properties: { reasoningEffort: { type: 'string', title: 'Reasoning effort', enum: ['minimal'], enumLabels: ['Host Wins'] } },
+				},
+			},
+			{
+				// Non-string values cannot be labelled as effort levels, so they are left alone.
+				...makeModel('numeric'),
+				configSchema: {
+					type: 'object',
+					properties: { reasoningEffort: { type: 'number', title: 'Reasoning effort', enum: [1, 2] } },
+				},
+			},
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(
+			infos.map(info => {
+				const property = info.metadata.configurationSchema?.properties?.reasoningEffort;
+				return { id: info.metadata.id, labels: property?.enumItemLabels, descriptions: property?.enumDescriptions, default: property?.default };
+			}),
+			[
+				{
+					id: 'claude-sonnet-4.6',
+					labels: ['Minimal', 'Extra High'],
+					descriptions: ['Minimal reasoning for fastest responses', 'Highest reasoning depth but slowest'],
+					// No default is invented: schema defaults are sent, and the host expects the
+					// value omitted so the backend can choose.
+					default: undefined,
+				},
+				{ id: 'gpt-5', labels: ['Host Wins'], descriptions: ['Host description'], default: undefined },
+				{ id: 'gemini-3-pro', labels: ['Host Wins'], descriptions: undefined, default: undefined },
+				{ id: 'numeric', labels: undefined, descriptions: undefined, default: undefined },
+			]
+		);
+	});
 
 	test('renders the auto-mode discount as the Auto model detail (and a tooltip)', async () => {
 		const provider = createProvider();
@@ -100,6 +219,178 @@ suite('AgentHostLanguageModelProvider', () => {
 				promo: { id: 'featured', discountPercent: 0, message: 'Now available' },
 			},
 		]);
+	});
+
+	test('reads the capability category from the namespaced key the Copilot agent host uses', async () => {
+		const provider = createProvider();
+		provider.updateModels([
+			makeModel('claude-sonnet-4.6', { 'copilot.modelPickerCategory': 'powerful' }),
+			// A flat key still wins, so a host publishing both is not overridden.
+			makeModel('gpt-5', { category: 'versatile', 'copilot.modelPickerCategory': 'powerful' }),
+			makeModel('gemini', { 'copilot.modelPickerCategory': 42 }),
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(
+			infos.map(info => ({ id: info.metadata.id, category: info.metadata.category })),
+			[
+				{ id: 'claude-sonnet-4.6', category: 'powerful' },
+				{ id: 'gpt-5', category: 'versatile' },
+				{ id: 'gemini', category: undefined },
+			]
+		);
+	});
+
+	/** A catalogue stub standing in for the workbench's CAPI-backed Copilot models. */
+	function catalogue(models: readonly { id: string; maxInputTokens?: number; maxOutputTokens?: number; multiplierNumeric?: number; category?: string; contextSizes?: number[]; vendor?: string }[]) {
+		const onDidChange = store.add(new Emitter<string>());
+		const byIdentifier = new Map<string, ILanguageModelChatMetadata>(models.map(model => [
+			`catalogue:${model.vendor ?? 'copilot'}:${model.id}`,
+			upcastPartial<ILanguageModelChatMetadata>({
+				id: model.id,
+				name: model.id,
+				vendor: model.vendor ?? 'copilot',
+				maxInputTokens: model.maxInputTokens,
+				maxOutputTokens: model.maxOutputTokens,
+				multiplierNumeric: model.multiplierNumeric,
+				category: model.category,
+				...(model.contextSizes ? {
+					configurationSchema: { properties: { contextSize: { type: 'number', enum: model.contextSizes } } },
+				} : {}),
+			}),
+		]));
+		return {
+			fire: (vendor: string = 'copilot') => onDidChange.fire(vendor),
+			catalogue: {
+				getLanguageModelIds: () => [...byIdentifier.keys()],
+				lookupLanguageModel: (identifier: string) => byIdentifier.get(identifier),
+				onDidChangeLanguageModels: onDidChange.event,
+			},
+		};
+	}
+
+	test('labels the host context tiers with the token counts from the workbench catalogue', async () => {
+		// The host names its tiers because the SDK gives it no per-model windows. The workbench
+		// already knows them, so the picker shows the numbers while the wire value stays the tier.
+		const { catalogue: known } = catalogue([{ id: 'claude-opus-5', contextSizes: [264_000, 1_000_000] }]);
+		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'copilot', known));
+		provider.updateModels([
+			{
+				...makeModel('claude-opus-5'),
+				provider: 'copilot',
+				configSchema: {
+					type: 'object',
+					properties: { contextTier: { type: 'string', title: 'Context tier', enum: ['default', 'long_context'], enumLabels: ['Default', 'Long context'], default: 'default' } },
+				},
+			},
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		const tier = infos[0].metadata.configurationSchema?.properties?.contextTier;
+		assert.deepStrictEqual(
+			{ enum: tier?.enum, labels: tier?.enumItemLabels, group: tier?.group },
+			{ enum: ['default', 'long_context'], labels: ['264K', '1M'], group: 'tokens' }
+		);
+	});
+
+	test('drops the context tier when there is no distinct long-context window to choose', async () => {
+		// Matches how the GitHub desktop app suppresses the picker: an unknown model, or one whose
+		// tiers are the same size, offers a choice the user cannot act on.
+		const { catalogue: known } = catalogue([{ id: 'known-single-tier', contextSizes: [200_000] }]);
+		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'copilot', known));
+		const contextTierOnly = {
+			type: 'object' as const,
+			properties: { contextTier: { type: 'string' as const, title: 'Context tier', enum: ['default', 'long_context'] } },
+		};
+		provider.updateModels([
+			{ ...makeModel('known-single-tier'), provider: 'copilot', configSchema: contextTierOnly },
+			{ ...makeModel('unknown-to-catalogue'), provider: 'copilot', configSchema: contextTierOnly },
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(
+			infos.map(info => ({ id: info.metadata.id, properties: Object.keys(info.metadata.configurationSchema?.properties ?? {}) })),
+			[
+				{ id: 'known-single-tier', properties: [] },
+				{ id: 'unknown-to-catalogue', properties: [] },
+			]
+		);
+	});
+
+	test('fills token counts and pricing from the catalogue, but never over the host', async () => {
+		const { catalogue: known } = catalogue([
+			{ id: 'claude-opus-5', maxInputTokens: 264_000, maxOutputTokens: 64_000, multiplierNumeric: 5, category: 'powerful' },
+			{ id: 'host-wins', maxInputTokens: 111, multiplierNumeric: 9, category: 'lightweight' },
+			// A model reached over a direct third-party transport must not take Copilot's prices.
+			{ id: 'claude-opus-5', vendor: 'anthropic', maxInputTokens: 999, multiplierNumeric: 42 },
+		]);
+		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'copilot', known));
+		provider.updateModels([
+			{ ...makeModel('claude-opus-5'), provider: 'copilot' },
+			{ ...makeModel('host-wins'), provider: 'copilot', maxPromptTokens: 222, _meta: { multiplierNumeric: 1, category: 'versatile' } },
+			{ ...makeModel('claude-opus-5'), provider: 'anthropic', _meta: { modelGroupId: 'anthropic' } },
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(
+			infos.map(info => ({
+				group: info.metadata.modelGroup?.id,
+				maxInputTokens: info.metadata.maxInputTokens,
+				maxOutputTokens: info.metadata.maxOutputTokens,
+				multiplierNumeric: info.metadata.multiplierNumeric,
+				category: info.metadata.category,
+			})),
+			[
+				{ group: 'copilot', maxInputTokens: 264_000, maxOutputTokens: 64_000, multiplierNumeric: 5, category: 'powerful' },
+				{ group: 'copilot', maxInputTokens: 222, maxOutputTokens: 0, multiplierNumeric: 1, category: 'versatile' },
+				{ group: 'anthropic', maxInputTokens: 0, maxOutputTokens: 0, multiplierNumeric: undefined, category: undefined },
+			]
+		);
+	});
+
+	test('republishes on a catalogue change, ignoring changes from other vendors', async () => {
+		// The service fires this event for every provider that publishes, including this one. Its
+		// own vendor is a session-type id, so scoping to the enriched-from vendor also breaks the
+		// loop — while still picking up a later CAPI refresh of prices or windows.
+		const { catalogue: known, fire } = catalogue([{ id: 'claude-opus-5', contextSizes: [264_000, 1_000_000] }]);
+		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'agent-host-copilot', known));
+		let changes = 0;
+		store.add(provider.onDidChange(() => changes++));
+
+		fire('agent-host-copilot');
+		const afterOwnVendor = changes;
+		fire('copilot');
+		const afterCatalogue = changes;
+		fire('copilot');
+
+		assert.deepStrictEqual(
+			{ afterOwnVendor, afterCatalogue, afterSecondCatalogueChange: changes },
+			// Every catalogue change republishes: a price refresh that leaves ids and windows
+			// untouched still has to reach the picker.
+			{ afterOwnVendor: 0, afterCatalogue: 1, afterSecondCatalogueChange: 2 }
+		);
+	});
+
+	test('carries model notices and flags row warnings', async () => {
+		const provider = createProvider();
+		provider.updateModels([makeModel('gpt-5', {
+			warningText: { model_degraded: 'GPT-5 is currently degraded.' },
+			infoText: { model_relocated: 'GPT-5 now serves from a new region.' },
+			rowWarning: 'GPT-5 is currently degraded.',
+		})]);
+
+		const metadata = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0].metadata;
+		assert.deepStrictEqual({
+			tooltip: metadata.tooltip,
+			statusIcon: metadata.statusIcon?.id,
+			warningText: metadata.warningText,
+			infoText: metadata.infoText,
+		}, {
+			tooltip: 'GPT-5 is currently degraded.',
+			statusIcon: Codicon.warning.id,
+			warningText: { model_degraded: 'GPT-5 is currently degraded.' },
+			infoText: { model_relocated: 'GPT-5 now serves from a new region.' },
+		});
 	});
 
 	test('derives the picker group from the model-id prefix, not the harness provider', async () => {

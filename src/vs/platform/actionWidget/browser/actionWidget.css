@@ -110,7 +110,7 @@
 
 .action-widget .monaco-list-row.group-header {
 	color: var(--vscode-descriptionForeground) !important;
-	font-weight: 500;
+	font-weight: var(--vscode-fontWeight-semiBold);
 	font-size: 11px;
 }
 
@@ -315,15 +315,13 @@
 }
 
 /* Items with detail — show detail as subtext below the title */
-.action-widget .monaco-list .monaco-list-row.action {
-	&:has(.detail:not([style*="display: none"])) {
-		flex-wrap: wrap;
-		align-content: center;
-		padding-right: 6px;
+.action-widget .monaco-list .monaco-list-row.action.has-detail {
+	flex-wrap: wrap;
+	align-content: center;
+	padding-right: 6px;
 
-		.title {
-			line-height: 14px;
-		}
+	.title {
+		line-height: 14px;
 	}
 }
 
@@ -467,9 +465,16 @@
 	display: none;
 }
 
+.action-widget .monaco-list-row.action.has-detail.has-toolbar .action-list-item-toolbar {
+	display: flex;
+	visibility: hidden;
+	margin-right: 10px;
+}
+
 .action-widget .monaco-list-row.focused.action.has-toolbar .action-list-item-toolbar,
 .action-widget .monaco-list-row:hover.action.has-toolbar .action-list-item-toolbar {
 	display: flex;
+	visibility: visible;
 }
 
 .action-widget .monaco-list-row .action-list-item-toolbar .monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover {

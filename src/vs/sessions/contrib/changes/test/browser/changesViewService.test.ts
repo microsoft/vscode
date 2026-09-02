@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -23,8 +24,8 @@ suite('ChangesViewService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSession(id: string, options?: { readonly changesets?: readonly ISessionChangeset[]; readonly baseBranchProtected?: boolean }): IActiveSession {
-		const workspace = options?.baseBranchProtected === undefined
+	function createSession(id: string, options?: { readonly changesets?: readonly ISessionChangeset[]; readonly baseBranchProtected?: boolean; readonly pullRequestState?: 'open' | 'closed' | 'merged'; readonly livePullRequestState?: 'open' | 'closed' | 'merged'; readonly pullRequestIcon?: { readonly id: string } }): IActiveSession {
+		const workspace = options?.baseBranchProtected === undefined && options?.pullRequestState === undefined && options?.livePullRequestState === undefined && options?.pullRequestIcon === undefined
 			? undefined
 			: upcastPartial<ISessionWorkspace>({
 				folders: [upcastPartial<ISessionFolder>({
@@ -35,7 +36,17 @@ suite('ChangesViewService', () => {
 						workTreeUri: URI.file('/repo.worktrees/session'),
 						baseBranchName: 'main',
 						baseBranchProtected: options.baseBranchProtected,
-						gitHubInfo: constObservable(undefined),
+						gitHubInfo: constObservable(options.pullRequestState || options.livePullRequestState || options.pullRequestIcon ? {
+							owner: 'microsoft',
+							repo: 'vscode',
+							pullRequest: {
+								number: 1,
+								uri: URI.parse('https://github.com/microsoft/vscode/pull/1'),
+								icon: options.pullRequestIcon ?? Codicon.gitPullRequest,
+								state: options.pullRequestState,
+								liveState: options.livePullRequestState,
+							},
+						} : undefined),
 					}),
 				})],
 			});
@@ -44,6 +55,7 @@ suite('ChangesViewService', () => {
 			providerId: 'local-agent-host',
 			sessionType: 'test',
 			loading: constObservable(false),
+			changes: constObservable([]),
 			changesets: constObservable(options?.changesets ?? []),
 			workspace: constObservable(workspace),
 		});
@@ -116,7 +128,6 @@ suite('ChangesViewService', () => {
 		const { activeSession, service } = createHarness(sessionA);
 
 		const states = [service.activeSessionSectionCollapseStateObs.get()];
-		service.setSectionCollapsed(sessionA.resource, 'otherFiles', true);
 		service.setSectionCollapsed(sessionA.resource, 'checks', false);
 		states.push(service.activeSessionSectionCollapseStateObs.get());
 		activeSession.set(sessionB, undefined);
@@ -127,11 +138,11 @@ suite('ChangesViewService', () => {
 		states.push(service.activeSessionSectionCollapseStateObs.get());
 
 		assert.deepStrictEqual(states, [
-			{ otherFiles: false, checks: true },
-			{ otherFiles: true, checks: false },
-			{ otherFiles: false, checks: true },
-			{ otherFiles: false, checks: false },
-			{ otherFiles: true, checks: false },
+			{ checks: true },
+			{ checks: false },
+			{ checks: true },
+			{ checks: false },
+			{ checks: false },
 		]);
 	});
 
@@ -146,7 +157,7 @@ suite('ChangesViewService', () => {
 			scrollTop: 40,
 		};
 
-		service.setSectionCollapsed(draft.resource, 'otherFiles', true);
+		service.setSectionCollapsed(draft.resource, 'checks', false);
 		service.setDetailsViewState(draft.resource, ChangesViewMode.List, detailsViewState);
 		activeSession.set(committed, undefined);
 		onDidReplaceSession.fire({ from: draft, to: committed });
@@ -158,10 +169,10 @@ suite('ChangesViewService', () => {
 		const detailsAfterDeletion = service.getDetailsViewState(committed.resource, ChangesViewMode.List);
 
 		assert.deepStrictEqual({ afterReplacement, detailsAfterReplacement, detailsViewStateTransfer, afterDeletion, detailsAfterDeletion }, {
-			afterReplacement: { otherFiles: true, checks: true },
+			afterReplacement: { checks: false },
 			detailsAfterReplacement: detailsViewState,
 			detailsViewStateTransfer: { from: draft.resource, to: committed.resource },
-			afterDeletion: { otherFiles: false, checks: true },
+			afterDeletion: { checks: true },
 			detailsAfterDeletion: undefined,
 		});
 	});
@@ -171,17 +182,17 @@ suite('ChangesViewService', () => {
 		const secondDraft = createSession('second-draft');
 		const { activeSession, onDidDiscardNewSession, onDidReplaceNewDraftSession, service } = createHarness(firstDraft);
 
-		service.setSectionCollapsed(firstDraft.resource, 'otherFiles', true);
+		service.setSectionCollapsed(firstDraft.resource, 'checks', false);
 		activeSession.set(secondDraft, undefined);
 		onDidReplaceNewDraftSession.fire({ from: firstDraft, to: secondDraft });
 		const afterReplacement = service.activeSessionSectionCollapseStateObs.get();
-		service.setSectionCollapsed(secondDraft.resource, 'otherFiles', true);
+		service.setSectionCollapsed(secondDraft.resource, 'checks', false);
 		onDidDiscardNewSession.fire(secondDraft);
 		const afterDiscard = service.activeSessionSectionCollapseStateObs.get();
 
 		assert.deepStrictEqual({ afterReplacement, afterDiscard }, {
-			afterReplacement: { otherFiles: false, checks: true },
-			afterDiscard: { otherFiles: false, checks: true },
+			afterReplacement: { checks: true },
+			afterDiscard: { checks: true },
 		});
 	});
 
@@ -337,5 +348,23 @@ suite('ChangesViewService', () => {
 			['create-pr'],
 			['merge', 'create-pr'],
 		]);
+	});
+
+	test('reconciles host pull request state with the live icon', () => {
+		const openSession = createSession('open', { pullRequestState: 'open' });
+		const mergedSession = createSession('merged', { pullRequestState: 'merged', livePullRequestState: 'open' });
+		const cachedTerminalSession = createSession('cached-terminal', { pullRequestState: 'open', pullRequestIcon: Codicon.gitPullRequestDone });
+		const liveTerminalSession = createSession('live-terminal', { pullRequestState: 'open', livePullRequestState: 'merged', pullRequestIcon: Codicon.gitPullRequestDone });
+		const { activeSession, service } = createHarness(openSession);
+
+		const hasOpenPullRequest = [service.activeSessionStateObs.get()?.hasOpenPullRequest];
+		activeSession.set(mergedSession, undefined);
+		hasOpenPullRequest.push(service.activeSessionStateObs.get()?.hasOpenPullRequest);
+		activeSession.set(cachedTerminalSession, undefined);
+		hasOpenPullRequest.push(service.activeSessionStateObs.get()?.hasOpenPullRequest);
+		activeSession.set(liveTerminalSession, undefined);
+		hasOpenPullRequest.push(service.activeSessionStateObs.get()?.hasOpenPullRequest);
+
+		assert.deepStrictEqual(hasOpenPullRequest, [true, false, true, false]);
 	});
 });

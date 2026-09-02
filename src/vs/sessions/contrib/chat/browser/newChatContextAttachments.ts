@@ -5,13 +5,15 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { isDark } from '../../../../platform/theme/common/theme.js';
+import { FileThemeIcon, FolderThemeIcon, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { registerOpenEditorListeners } from '../../../../platform/editor/browser/editor.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -31,14 +33,17 @@ import { ILanguageService } from '../../../../editor/common/languages/language.j
 import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
 import { basename } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../workbench/browser/labels.js';
 
-import { IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, isPastedTextArtifact, OmittedState } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, isPastedTextArtifact, isStringVariableEntry, OmittedState, resolveChatContextIcon } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { isLocation } from '../../../../editor/common/languages.js';
 import { resizeImage } from '../../../../workbench/contrib/chat/browser/chatImageUtils.js';
 import { createImageHoverContent, openPastedTextArtifact } from '../../../../workbench/contrib/chat/browser/attachments/chatAttachmentWidgets.js';
 import { imageToHash, isImage } from '../../../../workbench/contrib/chat/browser/widget/input/editor/chatPasteProviders.js';
 import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '../../../../workbench/services/search/common/search.js';
+import { createFileIconThemableTreeContainerScope } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
+import { ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX } from '../common/newChatContextIds.js';
 
 /**
  * The attachment surface of the composer, as seen by its input plumbing
@@ -52,6 +57,8 @@ export interface INewChatAttachments {
 	addAttachments(...entries: IChatRequestVariableEntry[]): void;
 	removeAttachment(id: string): void;
 }
+
+const GITHUB_CONTEXT_ID_PREFIX = 'github-context:';
 
 /**
  * Manages context attachments for the sessions new-chat widget.
@@ -67,6 +74,7 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 	private readonly _attachedContext: IChatRequestVariableEntry[] = [];
 	private _container: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
+	private readonly _fileIconThemeScope = this._register(new MutableDisposable());
 
 	private readonly _onDidChangeContext = this._register(new Emitter<void>());
 	readonly onDidChangeContext = this._onDidChangeContext.event;
@@ -98,15 +106,18 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IChatImageCarouselService private readonly chatImageCarouselService: IChatImageCarouselService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 		this._resourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+		this._register(this.themeService.onDidFileIconThemeChange(() => this._updateRendering()));
 	}
 
 	// --- Rendering ---
 
 	renderAttachedContext(container: HTMLElement): void {
 		this._container = container;
+		this._fileIconThemeScope.value = createFileIconThemableTreeContainerScope(container, this.themeService);
 		this._updateRendering();
 	}
 
@@ -126,48 +137,105 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 		}
 
 		this._container.style.display = '';
-		this._container.classList.add('show-file-icons');
 
 		for (const entry of visibleAttachments) {
 			const pill = dom.append(this._container, dom.$('.sessions-chat-attachment-pill'));
+			const removeButton = dom.append(pill, dom.$<HTMLButtonElement>('button.sessions-chat-attachment-remove'));
+			removeButton.type = 'button';
+			removeButton.title = localize('removeAttachment', "Remove");
+			removeButton.setAttribute('aria-label', localize('removeNamedAttachment', "Remove {0}", entry.name));
+			const removeIcon = dom.append(removeButton, renderIcon(Codicon.closeCompact));
+			removeIcon.setAttribute('aria-hidden', 'true');
+			this._renderDisposables.add(dom.addDisposableListener(removeButton, dom.EventType.KEY_DOWN, e => e.stopPropagation()));
+			this._renderDisposables.add(dom.addDisposableListener(removeButton, dom.EventType.CLICK, e => {
+				e.stopPropagation();
+				this.removeAttachment(entry.id);
+			}));
+
 			const resource = URI.isUri(entry.value) ? entry.value : isLocation(entry.value) ? entry.value.uri : undefined;
+			const githubContextResource = entry.id.startsWith(GITHUB_CONTEXT_ID_PREFIX)
+				? URI.parse(entry.id.slice(GITHUB_CONTEXT_ID_PREFIX.length))
+				: undefined;
+			const openResource = resource ?? githubContextResource;
+			const imageData = entry.kind === 'image' ? coerceImageBuffer(entry.value) : undefined;
+			const canOpen = Boolean(imageData || openResource || isPastedTextArtifact(entry));
+			let content: HTMLElement;
+			if (canOpen) {
+				const openButton = dom.append(pill, dom.$<HTMLButtonElement>('button.sessions-chat-attachment-open'));
+				openButton.type = 'button';
+				openButton.setAttribute('aria-label', localize('openNamedAttachment', "Open {0}", entry.name));
+				content = openButton;
+				pill.classList.add('openable');
+			} else {
+				content = dom.append(pill, dom.$('span.sessions-chat-attachment-content'));
+			}
 			if (entry.kind === 'image') {
-				const icon = dom.append(pill, renderIcon(Codicon.fileMedia));
-				dom.append(pill, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
-				const buffer = coerceImageBuffer(entry.value);
-				if (buffer) {
+				const icon = dom.append(content, renderIcon(Codicon.fileMediaCompact));
+				dom.append(content, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
+				if (imageData) {
 					// Swap the generic icon for a thumbnail once the shared helper
 					// has decoded one, matching the workbench attachment pill.
-					const preview = createImageHoverContent(resource, entry.name, buffer, entry.id, undefined, undefined, (url, isThumbnail) => {
+					const preview = createImageHoverContent(resource, entry.name, imageData, entry.id, undefined, undefined, (url, isThumbnail) => {
 						if (isThumbnail) {
 							icon.replaceWith(dom.$('img.sessions-chat-attachment-image', { src: url, alt: '' }));
 						}
 					});
 					this._renderDisposables.add(preview.disposable);
 				}
+			} else if (entry.id.startsWith(ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX)) {
+				const icon = dom.append(content, renderIcon(Codicon.repoCompact));
+				icon.setAttribute('aria-hidden', 'true');
+				dom.append(content, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
+			} else if (entry.icon) {
+				const icon = dom.append(content, renderIcon(entry.icon));
+				icon.setAttribute('aria-hidden', 'true');
+				if (entry.icon.color) {
+					icon.style.color = asCssVariable(entry.icon.color.id);
+				}
+				dom.append(content, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
 			} else {
-				const label = this._resourceLabels.create(pill, { supportIcons: true });
+				const label = this._resourceLabels.create(content);
 				this._renderDisposables.add(label);
-				if (resource) {
+				if (resource && (entry.kind === 'file' || entry.kind === 'directory')) {
+					const fileIconTheme = this.themeService.getFileIconTheme();
 					label.setFile(resource, {
 						fileKind: entry.kind === 'directory' ? FileKind.FOLDER : FileKind.FILE,
 						hidePath: true,
+						icon: entry.kind === 'directory'
+							? (!fileIconTheme.hasFolderIcons ? FolderThemeIcon : undefined)
+							: (!fileIconTheme.hasFileIcons ? FileThemeIcon : undefined),
 					});
 				} else if (isPastedTextArtifact(entry)) {
 					// Matches the workbench paste pill: a file icon for the artifact's
 					// language, and how much text it stands in for.
-					label.setLabel(entry.fileName, undefined, { extraClasses: ['file-icon', `${entry.language}-lang-file-icon`] });
-					dom.append(pill, dom.$('span.sessions-chat-attachment-info', undefined, localize('pastedLines', "Pasted {0}", entry.pastedLines)));
+					label.setLabel(entry.fileName, undefined, this.themeService.getFileIconTheme().hasFileIcons
+						? { extraClasses: ['file-icon', `${entry.language}-lang-file-icon`] }
+						: { extraClasses: getIconClasses(this.modelService, this.languageService, undefined, FileKind.FILE, FileThemeIcon) });
+					dom.append(content, dom.$('span.sessions-chat-attachment-info', undefined, localize('pastedLines', "Pasted {0}", entry.pastedLines)));
 				} else {
-					label.setLabel(entry.name);
+					const iconPath = (isStringVariableEntry(entry) || entry.kind === 'generic') ? entry.iconPath : undefined;
+					const attachmentLabel = entry.fullName ?? entry.name;
+					const updateLabel = () => {
+						if (isStringVariableEntry(entry) && ThemeIcon.isThemeIcon(iconPath) && (ThemeIcon.isFile(iconPath) || ThemeIcon.isFolder(iconPath)) && entry.resourceUri) {
+							const fileKind = ThemeIcon.isFolder(iconPath) ? FileKind.FOLDER : FileKind.FILE;
+							label.setLabel(attachmentLabel, undefined, { extraClasses: getIconClasses(this.modelService, this.languageService, entry.resourceUri, fileKind) });
+						} else {
+							const icon = iconPath
+								? resolveChatContextIcon(iconPath, isDark(this.themeService.getColorTheme().type))
+								: entry.icon ?? Codicon.attachCompact;
+							label.setLabel(attachmentLabel, undefined, { iconPath: icon });
+						}
+					};
+					updateLabel();
+					if (iconPath && !ThemeIcon.isThemeIcon(iconPath) && !URI.isUri(iconPath)) {
+						this._renderDisposables.add(this.themeService.onDidColorThemeChange(updateLabel));
+					}
 				}
 			}
 
 			// Click to open the resource or image
-			const imageData = entry.kind === 'image' ? coerceImageBuffer(entry.value) : undefined;
 			if (imageData) {
-				pill.style.cursor = 'pointer';
-				this._renderDisposables.add(registerOpenEditorListeners(pill, async () => {
+				this._renderDisposables.add(registerOpenEditorListeners(content, async () => {
 					if (this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
 						const imageResource = resource ?? URI.from({ scheme: 'data', path: entry.name });
 						await this.chatImageCarouselService.openCarouselAtResource(imageResource, imageData);
@@ -175,34 +243,15 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 						await this.openerService.open(resource, { fromUserGesture: true });
 					}
 				}));
-			} else if (resource) {
-				pill.style.cursor = 'pointer';
-				this._renderDisposables.add(registerOpenEditorListeners(pill, async () => {
-					await this.openerService.open(resource, { fromUserGesture: true });
+			} else if (openResource) {
+				this._renderDisposables.add(registerOpenEditorListeners(content, async () => {
+					await this.openerService.open(openResource, { fromUserGesture: true });
 				}));
 			} else if (isPastedTextArtifact(entry)) {
-				pill.style.cursor = 'pointer';
-				this._renderDisposables.add(registerOpenEditorListeners(pill, async () => {
+				this._renderDisposables.add(registerOpenEditorListeners(content, async () => {
 					await this.instantiationService.invokeFunction(openPastedTextArtifact, entry);
 				}));
 			}
-
-			// Only expose the pill itself as a focusable button when it has an open
-			// action; reference pills without a resource (e.g. `#session`) would
-			// otherwise be a focusable control that does nothing.
-			if (imageData || resource || isPastedTextArtifact(entry)) {
-				pill.tabIndex = 0;
-				pill.role = 'button';
-			}
-
-			const removeButton = dom.append(pill, dom.$('.sessions-chat-attachment-remove'));
-			removeButton.title = localize('removeAttachment', "Remove");
-			removeButton.tabIndex = -1;
-			dom.append(removeButton, renderIcon(Codicon.closeCompact));
-			this._renderDisposables.add(dom.addDisposableListener(removeButton, dom.EventType.CLICK, (e) => {
-				e.stopPropagation();
-				this.removeAttachment(entry.id);
-			}));
 		}
 	}
 

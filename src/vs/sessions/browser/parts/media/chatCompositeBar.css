@@ -12,20 +12,15 @@
 	overflow: hidden;
 }
 
-/* Header host: title row + meta row, with the top padding for the whole bar area */
+/* Header host. */
 .chat-composite-bar.session-header-bar {
-	padding: 6px 10px 0;
+	padding: 0 var(--vscode-spacing-size100);
 	box-sizing: border-box;
 }
 
-/* Tabs host: the chat tab strip, shown only when the session has multiple chats.
-	It lives in the same centered session-view content host as the header.
-	Symmetric 10px gutter on both sides, matching the small, even inset editor
-	tabs use — the tab strip no longer tries to align its first tab under the
-	header's status-icon column, since that produced a much larger left gutter
-	than the shared modern-tab convention. */
+/* Tabs host: the chat tab strip, shown only when the session has multiple chats. */
 .chat-composite-bar.session-chat-tabs-bar {
-	padding: 0 10px;
+	padding: 0 var(--vscode-spacing-size100);
 	box-sizing: border-box;
 	container-type: inline-size;
 
@@ -34,18 +29,16 @@
 	--chat-tab-max-width: min(200px, 40cqi);
 }
 
-/* Header: a status icon column next to a main column (title row + meta row).
-	Mirrors the sessions list so the meta row aligns under the title. */
+/* Header: a status icon column next to the title row. */
 .chat-composite-bar-header {
 	display: flex;
 	flex-direction: row;
 	align-items: flex-start;
 	gap: 6px;
-	padding-bottom: 6px;
-	border-bottom: 1px solid color-mix(in srgb, var(--session-view-foreground) 12%, transparent);
+	border-bottom: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--session-view-foreground, var(--chat-tab-active-foreground)) 12%, transparent);
 }
 
-/* Main column stacks the title row and the meta row */
+/* Main column hosts the title row. */
 .chat-composite-bar-header-main {
 	display: flex;
 	flex-direction: column;
@@ -59,7 +52,7 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	height: 26px;
+	height: 34px;
 }
 
 /* Status icon column — sits beside the main column, centered on the title line.
@@ -70,7 +63,7 @@
 	align-items: center;
 	justify-content: center;
 	flex-shrink: 0;
-	height: 26px;
+	height: 34px;
 	font-size: var(--vscode-codiconFontSize, 16px);
 	color: var(--session-view-foreground);
 }
@@ -81,8 +74,8 @@
 	overflow: hidden;
 	display: flex;
 	align-items: center;
-	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
-	font-size: var(--vscode-agents-fontSize-heading3, 13px);
+	font-weight: var(--vscode-fontWeight-regular, 400);
+	font-size: var(--vscode-fontSize-heading3, 13px);
 	color: var(--chat-tab-active-foreground, var(--session-view-foreground));
 	border-radius: var(--vscode-cornerRadius-small);
 	min-height: 22px;
@@ -94,45 +87,6 @@
 
 .chat-composite-bar-session-title-text {
 	flex: 0 1 auto;
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.chat-composite-bar-workspace-meta {
-	display: inline-flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size40);
-	flex: 0 1 auto;
-	min-width: 0;
-	max-width: 40%;
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-regular);
-	white-space: nowrap;
-}
-
-.chat-composite-bar-workspace-meta.hidden {
-	display: none;
-}
-
-/* Compact glyph at the compact size. The compound selector outranks the base
-	`.codicon` font shorthand; the clamped box keeps combined glyphs (wider
-	advance) tight against the label, and the padding optically centers it. */
-.monaco-workbench .chat-composite-bar-workspace-meta-icon.codicon[class*='codicon-'] {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: var(--vscode-codiconFontSize-compact);
-	height: var(--vscode-codiconFontSize-compact);
-	margin: 0;
-	padding: 3px 1px 0 2px;
-	font-size: var(--vscode-codiconFontSize-compact);
-	flex-shrink: 0;
-}
-
-.chat-composite-bar-workspace-meta-label {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -191,25 +145,10 @@
 	margin-left: auto;
 }
 
-/* Meta row: workspace + contributed changes / pull request buttons.
-	No `overflow: hidden` here — it would clip the meta buttons' focus ring at the
-	row's 22px height. The workspace label self-truncates via its own containers. */
-.chat-composite-bar-meta-row {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	height: 22px;
-	font-size: var(--vscode-agents-fontSize-label1, 12px);
-	font-weight: var(--vscode-agents-fontWeight-regular, 400);
-	line-height: 18px;
-	color: var(--chat-tab-inactive-foreground, var(--session-view-foreground));
-	white-space: nowrap;
-}
-
-/* Session header meta toolbar */
-.chat-composite-bar-meta-toolbar,
-.chat-composite-bar-meta-toolbar .monaco-action-bar,
-.chat-composite-bar-meta-toolbar .actions-container {
+/* Metadata action fixture host. */
+.session-metadata-pill-toolbar,
+.session-metadata-pill-toolbar .monaco-action-bar,
+.session-metadata-pill-toolbar .actions-container {
 	display: inline-flex;
 	align-items: center;
 	height: 100%;
@@ -217,8 +156,8 @@
 	max-width: 100%;
 }
 
-/* Spacing between the contributed meta buttons (e.g. changes · pull request). */
-.chat-composite-bar-meta-toolbar .actions-container {
+/* Spacing between contributed metadata buttons. */
+.session-metadata-pill-toolbar .actions-container {
 	gap: 6px;
 }
 
@@ -227,7 +166,16 @@
 	display: flex;
 	align-items: center;
 	height: 35px;
+	box-sizing: border-box;
 	overflow: hidden;
+}
+
+.session-view.tabs-replace-header .chat-groups-view.single-group .chat-composite-bar-tabs-row {
+	border-bottom: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--session-view-foreground, var(--chat-tab-active-foreground)) 12%, transparent);
+}
+
+:is(.hc-black, .hc-light) .session-view.tabs-replace-header .chat-groups-view.single-group .chat-composite-bar-tabs-row {
+	border-bottom-color: var(--vscode-contrastBorder);
 }
 
 /* The ScrollableElement wrapper holding the tabs is the shrinkable flex item */
@@ -237,47 +185,23 @@
 	height: 100%;
 }
 
+.session-chat-tabs-actions {
+	display: flex;
+	align-items: center;
+	margin-left: auto;
+	padding-right: var(--vscode-spacing-size40);
+	flex-shrink: 0;
+}
+
+.session-chat-tabs-actions.hidden {
+	display: none;
+}
+
 .chat-composite-bar-tabs {
 	display: flex;
 	align-items: center;
 	height: 100%;
 	min-height: calc(var(--vscode-spacing-size240) + var(--vscode-spacing-size40) * 2);
-}
-
-/* "New Chat" button pinned at the end of the tab strip, after the Conversations menu. */
-.chat-composite-bar-tabs-row > .chat-composite-bar-new-chat {
-	flex-shrink: 0;
-	display: flex;
-	align-items: center;
-	margin-left: 4px;
-}
-
-.chat-composite-bar-tabs-row > .chat-composite-bar-new-chat.hidden {
-	display: none;
-}
-
-/* Include the tab-row owner to outrank `.monaco-action-bar .action-item .codicon`,
- * which otherwise resets this button's width and height from 26px to 16px. */
-.chat-composite-bar-tabs-row > .chat-composite-bar-new-chat .action-item .action-label {
-	box-sizing: border-box;
-	width: 26px;
-	height: 26px;
-	padding: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	border-radius: var(--vscode-cornerRadius-small);
-	color: var(--chat-tab-inactive-foreground, currentColor);
-}
-
-.chat-composite-bar-new-chat .action-item .action-label:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--chat-tab-active-foreground);
-}
-
-.chat-composite-bar-new-chat .action-item .action-label:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
 }
 
 .chat-composite-bar-toolbar {
@@ -322,6 +246,16 @@
 	user-select: none;
 	flex-shrink: 0;
 	max-width: var(--chat-tab-max-width);
+}
+
+/* Keep keyboard focus on the rounded fill; high-contrast styling is provided by the shared tab styles. */
+.monaco-workbench .session-chat-tabs-bar .chat-composite-bar-tab:focus {
+	outline: none;
+}
+
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-chat-tabs-bar .chat-composite-bar-tab:focus-visible > .chat-composite-bar-tab-fill {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .session-chat-tabs-bar .chat-composite-bar-tab-fill {

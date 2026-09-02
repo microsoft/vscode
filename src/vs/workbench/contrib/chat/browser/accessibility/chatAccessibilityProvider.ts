@@ -21,6 +21,7 @@ import { isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentT
 import { CancelChatActionId } from '../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../actions/chatToolActions.js';
 import { ChatTreeItem } from '../chat.js';
+import { getChatRequestText } from '../chatRequestText.js';
 
 export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocation: IChatToolInvocation[]) => {
 	const keybindingService = accessor.get(IKeybindingService);
@@ -112,7 +113,9 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 
 	getAriaLabel(element: ChatTreeItem): string {
 		if (isRequestVM(element)) {
-			return element.messageText.trim() || getExplicitFileOrImageAttachmentSummary(element.variables) || '';
+			return getChatRequestText(element).trim()
+				|| getExplicitFileOrImageAttachmentSummary(element.variables)
+				|| '';
 		}
 
 		if (isResponseVM(element)) {

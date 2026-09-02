@@ -30,28 +30,40 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 suite('ChatTurnPills', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('uses the package icon for artifacts', () => {
+		assert.strictEqual(chatArtifactPillOptions.icon, Codicon.package);
+	});
+
 	test('renders an observable set of generic chat pills', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const action = disposables.add(new Action('test.chatPill', 'Session Changes'));
 		const pills = observableValue<readonly IChatPill[]>(disposables, []);
 		const widget = disposables.add(instantiationService.createInstance(ChatPillsWidget, { pills }, undefined));
+		let pillChangeCount = 0;
+		disposables.add(widget.onDidChangePills(() => pillChangeCount++));
 
 		pills.set([{ action }], undefined);
 		const visible = {
 			hidden: widget.element.classList.contains('hidden'),
 			labels: [...widget.element.querySelectorAll<HTMLElement>('.chat-pill-label')].map(element => element.textContent),
+			platformElementCount: widget.getPillElements().length,
 		};
 		pills.set([], undefined);
 
 		assert.deepStrictEqual({
 			visible,
 			hiddenAfterClear: widget.element.classList.contains('hidden'),
+			platformElementCountAfterClear: widget.getPillElements().length,
+			pillChangeCount,
 		}, {
 			visible: {
 				hidden: false,
 				labels: ['Session Changes'],
+				platformElementCount: 1,
 			},
 			hiddenAfterClear: true,
+			platformElementCountAfterClear: 0,
+			pillChangeCount: 2,
 		});
 	});
 
@@ -84,6 +96,34 @@ suite('ChatTurnPills', () => {
 			['resource', 'chat-pill-item chat-resource-pill', 'chat-pill-button chat-resource-pill-button'],
 			['dropdown', 'chat-pill-item chat-dropdown-pill', 'chat-pill-button chat-dropdown-pill-button'],
 		]);
+	});
+
+	test('keeps an actionable accessible name when a single entry has a location tooltip', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const action = disposables.add(new Action('test.pill', 'Artifact'));
+		const resourceLabels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+		const entry: IChatPillEntry = {
+			id: 'plan',
+			label: 'plan.md',
+			resource: URI.file('/repo/plan.md'),
+			ariaLabel: 'Open plan.md',
+			tooltip: 'file:///repo/plan.md',
+			open: () => { },
+		};
+		const items: readonly IActionViewItem[] = [
+			disposables.add(new ChatResourcePillActionViewItem(action, {}, constObservable(entry), resourceLabels)),
+			disposables.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, action, {}, constObservable<readonly IChatPillSection[]>([{ title: 'Files', entries: [entry] }]), chatArtifactPillOptions)),
+		];
+
+		const ariaLabels = items.map(item => {
+			const container = document.createElement('div');
+			mainWindow.document.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
+			item.render(container);
+			return container.querySelector('.monaco-button')?.getAttribute('aria-label');
+		});
+
+		assert.deepStrictEqual(ariaLabels, ['Open plan.md', 'Open plan.md']);
 	});
 
 	test('focusing a pill restores its tab stop, so the row stays reachable by Tab', () => {
@@ -168,18 +208,18 @@ suite('ChatTurnPills', () => {
 
 	test('summarizes multiple artifacts and groups the dropdown by section', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
-		let shownItems: readonly { readonly kind: ActionListItemKind; readonly label: string | undefined }[] = [];
+		let shownItems: readonly { readonly kind: ActionListItemKind; readonly label: string | undefined; readonly ariaDescription: string | undefined; readonly hover: string | undefined }[] = [];
 		instantiationService.stub(IActionWidgetService, new class extends mock<IActionWidgetService>() {
 			override get isVisible(): boolean { return false; }
 			override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[]): void {
-				shownItems = items.map(item => ({ kind: item.kind, label: item.label }));
+				shownItems = items.map(item => ({ kind: item.kind, label: item.label, ariaDescription: item.ariaDescription, hover: typeof item.hover?.content === 'string' ? item.hover.content : undefined }));
 			}
 		});
 		const opened: string[] = [];
 		const widget = disposables.add(instantiationService.createInstance(ChatTurnPillsWidget, {
 			stats: constObservable(EMPTY_DIFF_STATS),
 			artifacts: constObservable<readonly IChatPillSection[]>([
-				{ title: 'Pull Requests', entries: [{ id: 'pr', label: '#12', icon: Codicon.gitPullRequest, open: () => opened.push('pr') }] },
+				{ title: 'Pull Requests', entries: [{ id: 'pr', label: '#12', icon: Codicon.gitPullRequest, ariaDescription: 'Pull request URL', hover: { content: 'https://github.com/microsoft/vscode/pull/12' }, open: () => opened.push('pr') }] },
 				{ title: 'Files', entries: [{ id: 'file', label: 'plan.md', resource: URI.file('/artifacts/plan.md'), open: () => opened.push('file') }] },
 			]),
 			changesEnabled: constObservable(false),
@@ -200,17 +240,49 @@ suite('ChatTurnPills', () => {
 			dropdownItems: shownItems.map(item => ({
 				kind: item.kind,
 				label: item.label,
+				ariaDescription: item.ariaDescription,
+				hover: item.hover,
 			})),
 		}, {
 			label: '2 Artifacts',
 			ariaLabel: 'Show 2 artifacts',
 			dropdownItems: [
-				{ kind: ActionListItemKind.Header, label: 'Pull Requests' },
-				{ kind: ActionListItemKind.Action, label: '#12' },
-				{ kind: ActionListItemKind.Separator, label: '' },
-				{ kind: ActionListItemKind.Header, label: 'Files' },
-				{ kind: ActionListItemKind.Action, label: 'plan.md' },
+				{ kind: ActionListItemKind.Header, label: 'Pull Requests', ariaDescription: undefined, hover: undefined },
+				{ kind: ActionListItemKind.Action, label: '#12', ariaDescription: 'Pull request URL', hover: 'https://github.com/microsoft/vscode/pull/12' },
+				{ kind: ActionListItemKind.Separator, label: '', ariaDescription: undefined, hover: undefined },
+				{ kind: ActionListItemKind.Header, label: 'Files', ariaDescription: undefined, hover: undefined },
+				{ kind: ActionListItemKind.Action, label: 'plan.md', ariaDescription: undefined, hover: undefined },
 			],
+		});
+	});
+
+	test('summarizes a lone artifact, keeping only a file artifact inline', () => {
+		const renderArtifact = (section: IChatPillSection) => {
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			const widget = disposables.add(instantiationService.createInstance(ChatTurnPillsWidget, {
+				stats: constObservable(EMPTY_DIFF_STATS),
+				artifacts: constObservable<readonly IChatPillSection[]>([section]),
+				changesEnabled: constObservable(false),
+				artifactsEnabled: constObservable(true),
+				openChanges() { },
+			}));
+			mainWindow.document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+
+			const button = widget.element.querySelector<HTMLElement>('.chat-pill-button');
+			return {
+				rendering: button?.classList.contains('chat-resource-pill-button') ? 'resource' : 'dropdown',
+				label: button?.querySelector<HTMLElement>('.chat-pill-label')?.textContent,
+				ariaLabel: button?.getAttribute('aria-label'),
+			};
+		};
+
+		assert.deepStrictEqual({
+			pullRequest: renderArtifact({ title: 'Pull Requests', entries: [{ id: 'pr', label: '#12', icon: Codicon.gitPullRequest, ariaLabel: 'Open #12', open: () => { } }] }),
+			file: renderArtifact({ title: 'Files', entries: [{ id: 'file', label: 'plan.md', resource: URI.file('/artifacts/plan.md'), ariaLabel: 'Open plan.md', open: () => { } }] }),
+		}, {
+			pullRequest: { rendering: 'dropdown', label: '1 Artifact', ariaLabel: 'Show 1 artifact' },
+			file: { rendering: 'resource', label: undefined, ariaLabel: 'Open plan.md' },
 		});
 	});
 

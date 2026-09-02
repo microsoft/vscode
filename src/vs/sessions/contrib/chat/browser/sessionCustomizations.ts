@@ -4,15 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { isMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { derivedOpts, IObservable } from '../../../../base/common/observable.js';
+import { isEqualOrParent, relativePath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import type { IChatDropdownPillOptions } from '../../../../workbench/browser/chatDropdownPill.js';
+import { ChatPillSingleEntry, type IChatDropdownPillOptions } from '../../../../workbench/browser/chatDropdownPill.js';
 import { type IChatPillEntry, type IChatPillSection } from '../../../../workbench/browser/chatPills.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
-import { ISessionChatCustomization, SessionCustomizationKind, type IChat } from '../../../services/sessions/common/session.js';
+import { ISessionChatCustomization, ISessionFolder, SessionCustomizationKind, type IChat } from '../../../services/sessions/common/session.js';
+import type { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 
 /** Action id of the customizations pill. */
 export const SESSION_CUSTOMIZATIONS_PILL_ID = 'sessions.chatPills.customizations';
@@ -28,7 +33,7 @@ export const chatCustomizationPillOptions: IChatDropdownPillOptions = {
 	summaryAriaLabel: count => count === 1
 		? localize('chatCustomizations.showSingle', "Show 1 customization")
 		: localize('chatCustomizations.show', "Show {0} customizations", count),
-	alwaysSummarize: true,
+	singleEntry: ChatPillSingleEntry.Summary,
 };
 
 const customizationIcons: ReadonlyMap<SessionCustomizationKind, ThemeIcon> = new Map([
@@ -66,15 +71,19 @@ const sectionOrder: readonly { readonly kind: SessionCustomizationKind; readonly
 /** Builds the dropdown sections, preserving the order customizations appeared in. */
 export function buildSessionCustomizationSections(
 	customizations: readonly ISessionChatCustomization[],
+	sessionFolders: readonly ISessionFolder[],
 	reveal: (customization: ISessionChatCustomization) => void,
 ): readonly IChatPillSection[] {
 	const entriesByKind = new Map<SessionCustomizationKind, IChatPillEntry[]>();
 	for (const customization of customizations) {
 		const entries = entriesByKind.get(customization.kind) ?? [];
+		const path = customization.uri ? getCustomizationPath(customization.uri, sessionFolders) : undefined;
 		entries.push({
 			id: customization.id,
 			label: customization.name,
 			icon: customizationIcons.get(customization.kind) ?? Codicon.bookmark,
+			ariaDescription: path,
+			hover: path ? { content: new MarkdownString().appendText(path) } : undefined,
 			open: () => reveal(customization),
 		});
 		entriesByKind.set(customization.kind, entries);
@@ -90,19 +99,42 @@ export function buildSessionCustomizationSections(
 	return sections;
 }
 
+/**
+ * The path shown beside a customization: relative to the session folder holding
+ * it (prefixed with the folder name when the session spans several), else absolute.
+ */
+function getCustomizationPath(uri: URI, sessionFolders: readonly ISessionFolder[]): string {
+	for (const folder of sessionFolders) {
+		if (!isEqualOrParent(uri, folder.workingDirectory)) {
+			continue;
+		}
+		const path = relativePath(folder.workingDirectory, uri);
+		if (path === undefined) {
+			continue;
+		}
+		if (!path) {
+			return folder.name;
+		}
+		return sessionFolders.length > 1 ? `${folder.name}/${path}` : path;
+	}
+	return uri.scheme === Schemas.file ? uri.fsPath : uri.toString(true);
+}
+
 /** Publishes the active chat's customization sections for the chat input pill. */
 export class SessionCustomizations extends Disposable {
 	readonly sections: IObservable<readonly IChatPillSection[]>;
 
 	constructor(
 		chat: IObservable<IChat | undefined>,
+		session: IObservable<IActiveSession | undefined>,
 		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 
 		this.sections = derivedOpts({ owner: this, equalsFn: sectionsEqual }, reader => {
 			const customizations = chat.read(reader)?.customizations?.read(reader) ?? [];
-			return buildSessionCustomizationSections(customizations, customization => this._reveal(customization));
+			const sessionFolders = session.read(reader)?.workspace.read(reader)?.folders ?? [];
+			return buildSessionCustomizationSections(customizations, sessionFolders, customization => this._reveal(customization));
 		});
 	}
 
@@ -121,5 +153,15 @@ export class SessionCustomizations extends Disposable {
 function sectionsEqual(a: readonly IChatPillSection[], b: readonly IChatPillSection[]): boolean {
 	return a.length === b.length && a.every((section, i) => section.title === b[i].title
 		&& section.entries.length === b[i].entries.length
-		&& section.entries.every((entry, j) => entry.id === b[i].entries[j].id && entry.label === b[i].entries[j].label));
+		&& section.entries.every((entry, j) => entry.id === b[i].entries[j].id
+			&& entry.label === b[i].entries[j].label
+			&& hoverContentEqual(entry, b[i].entries[j])));
+}
+
+function hoverContentEqual(a: IChatPillEntry, b: IChatPillEntry): boolean {
+	const aContent = a.hover?.content;
+	const bContent = b.hover?.content;
+	return isMarkdownString(aContent) && isMarkdownString(bContent)
+		? aContent.value === bContent.value
+		: aContent === bContent;
 }

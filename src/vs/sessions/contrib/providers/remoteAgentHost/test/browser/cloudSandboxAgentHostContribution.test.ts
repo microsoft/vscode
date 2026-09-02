@@ -31,16 +31,20 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IAgentHostGroup } from '../../../../../common/agentHostSessionsProvider.js';
 import { IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISession } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { CloudSandboxAgentHostContribution } from '../../browser/cloudSandboxAgentHostContribution.js';
 import { IRemoteAgentHostConnectionCustomizationService } from '../../browser/remoteAgentHostConnectionCustomization.js';
-import { IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider } from '../../browser/remoteAgentHostSessionsProvider.js';
+import { IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
+import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
 
-class StubProvider extends mock<RemoteAgentHostSessionsProvider>() {
+class StubProvider extends mock<CloudSandboxSessionsProvider>() {
 	readonly seeded: IAgentSessionMetadata[] = [];
+	/** Raw ids seeded as provisional, mirroring the real provider's listing gate. */
+	readonly withheld = new Set<string>();
 	disposed = false;
 
 	override readonly id: string;
@@ -63,11 +67,35 @@ class StubProvider extends mock<RemoteAgentHostSessionsProvider>() {
 		}
 	}
 
+	override seedProvisionalSession(meta: IAgentSessionMetadata): void {
+		if (this.seeded.some(seen => seen.session.toString() === meta.session.toString())) {
+			return;
+		}
+		this.seeded.push(meta);
+		this.withheld.add(AgentSession.id(meta.session));
+	}
+
 	/** Surfaces each seed under the UI resource scheme, which is what keys the raw session id. */
 	override getSessions(): ISession[] {
-		return this.seeded.map(meta => upcastPartial<ISession>({
+		return this.seeded
+			.filter(meta => !this.withheld.has(AgentSession.id(meta.session)))
+			.map(meta => this._toSession(meta));
+	}
+
+	/** Reaches withheld seeds too, which is the whole point of the cache accessor. */
+	override getCachedSession(rawId: string): ISession | undefined {
+		const meta = this.seeded.find(seen => AgentSession.id(seen.session) === rawId);
+		return meta ? this._toSession(meta) : undefined;
+	}
+
+	override publishWithheldSession(rawId: string): void {
+		this.withheld.delete(rawId);
+	}
+
+	private _toSession(meta: IAgentSessionMetadata): ISession {
+		return upcastPartial<ISession>({
 			resource: URI.from({ scheme: 'agent-host-copilot', path: `/${AgentSession.id(meta.session)}` }),
-		}));
+		});
 	}
 
 	override setConnectionStatus(): void { }
@@ -82,10 +110,10 @@ class StubProvider extends mock<RemoteAgentHostSessionsProvider>() {
 class TestCloudSandboxContribution extends CloudSandboxAgentHostContribution {
 	readonly stubProviders = new Map<string, StubProvider>();
 
-	protected override _instantiateProvider(config: IRemoteAgentHostSessionsProviderConfig): RemoteAgentHostSessionsProvider {
+	protected override _instantiateProvider(config: IRemoteAgentHostSessionsProviderConfig): CloudSandboxSessionsProvider {
 		const stub = new StubProvider(config);
 		this.stubProviders.set(config.address, stub);
-		return stub as unknown as RemoteAgentHostSessionsProvider;
+		return stub as unknown as CloudSandboxSessionsProvider;
 	}
 }
 
@@ -95,6 +123,14 @@ class StubSessionsProvidersService extends Disposable {
 	registerProvider(_provider: ISessionsProvider): IDisposable { return toDisposable(() => { }); }
 	getProviders(): ISessionsProvider[] { return []; }
 }
+
+/** The single host filter entry every sandbox environment folds into. */
+const GITHUB_SANDBOX_GROUP: IAgentHostGroup = {
+	id: 'githubsandbox',
+	label: 'GitHub Sandboxes',
+	order: 1,
+	connectable: false,
+};
 
 interface ITestHarness {
 	readonly contribution: TestCloudSandboxContribution;
@@ -107,17 +143,23 @@ interface ITestHarness {
 	onConnect?: () => Promise<void>;
 	readonly created: ICloudSandboxCreateSessionRequest[];
 	readonly connectedTo: string[];
+	/** Host groups currently declared to the filter service. */
+	readonly hostGroups: IAgentHostGroup[];
 }
 
 /**
  * Creates the contribution with a discovery result, and resolves once the constructor's eager
- * `_discoverAndSeed()` pass has committed its seeds.
+ * `_discoverAndSeed()` pass has committed its seeds. `hostGroups` holds the groups currently
+ * declared to the host filter, so tests can assert the entry's presence and its teardown.
  */
 async function createContribution(store: Pick<DisposableStore, 'add'>, sessions: readonly ICloudSandboxDiscoveredSession[], options?: {
 	/** Task Mission Control returns from `createSession`, or a rejection. */
 	readonly createSession?: () => Promise<ICloudSandboxCreatedSession>;
+	/** Whether the sandbox feature settings start on. Defaults to `true`. */
+	readonly enabled?: boolean;
 }): Promise<ITestHarness> {
 	const discoveryHandlers: (() => Promise<void>)[] = [];
+	const hostGroups: IAgentHostGroup[] = [];
 	const instantiationService = store.add(new TestInstantiationService());
 	const created: ICloudSandboxCreateSessionRequest[] = [];
 	const connectedTo: string[] = [];
@@ -125,6 +167,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 		discovered: sessions,
 		created,
 		connectedTo,
+		hostGroups,
 		runDiscovery: async () => { await Promise.all(discoveryHandlers.map(handler => handler())); },
 	} as ITestHarness;
 
@@ -160,10 +203,19 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 			discoveryHandlers.push(handler);
 			return toDisposable(() => { });
 		}
+		override registerHostGroup(group: IAgentHostGroup): IDisposable {
+			hostGroups.push(group);
+			return toDisposable(() => {
+				const index = hostGroups.indexOf(group);
+				if (index >= 0) {
+					hostGroups.splice(index, 1);
+				}
+			});
+		}
 	}());
 	const configurationService = new TestConfigurationService({
-		[CloudSandboxEnabledSettingId]: true,
-		[RemoteAgentHostsEnabledSettingId]: true,
+		[CloudSandboxEnabledSettingId]: options?.enabled ?? true,
+		[RemoteAgentHostsEnabledSettingId]: options?.enabled ?? true,
 	});
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
@@ -237,6 +289,31 @@ suite('CloudSandboxAgentHostContribution', () => {
 			{ name: 'hi', omitHostFromWorkspaceLabel: true },
 		]);
 	});
+
+	test('folds every sandbox into one non-connectable host filter group', async () => {
+		const { contribution } = await createContribution(store, [
+			discoveredSession(),
+			discoveredSession({ environmentId: 'env-2', sessionId: 'sess-2', taskId: 'task-2', name: 'hi' }),
+		]);
+
+		assert.deepStrictEqual([...contribution.stubProviders.values()].map(p => p.config.hostGroup), [
+			GITHUB_SANDBOX_GROUP,
+			GITHUB_SANDBOX_GROUP,
+		]);
+	});
+
+	test('declares the host filter group even with no sandbox sessions', async () => {
+		const { contribution, hostGroups } = await createContribution(store, []);
+
+		assert.deepStrictEqual([...contribution.stubProviders.keys()], []);
+		assert.deepStrictEqual([...hostGroups], [GITHUB_SANDBOX_GROUP]);
+	});
+
+	test('declares no host filter group while the feature is disabled', async () => {
+		const { hostGroups } = await createContribution(store, [discoveredSession()], { enabled: false });
+
+		assert.deepStrictEqual([...hostGroups], []);
+	});
 });
 
 suite('CloudSandboxAgentHostContribution provisioning', () => {
@@ -279,6 +356,26 @@ suite('CloudSandboxAgentHostContribution provisioning', () => {
 		}, {
 			disposed: false,
 			returnedLiveProvider: true,
+		});
+	});
+
+	test('publishes the seeded session when connecting fails, so it is not withheld forever', async () => {
+		// The task exists remotely once `createSession` returns, and nothing else clears a
+		// withheld seed.
+		const harness = await createContribution(store, []);
+		harness.onConnect = async () => {
+			throw new Error('relay unavailable');
+		};
+
+		await assert.rejects(() => harness.contribution.provisionSession({ prompt: 'fix it' }, CancellationToken.None));
+
+		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-new'));
+		assert.deepStrictEqual({
+			withheld: [...(provider?.withheld ?? [])],
+			listed: provider?.getSessions().map(s => AgentSession.id(s.resource)),
+		}, {
+			withheld: [],
+			listed: ['sess-new'],
 		});
 	});
 

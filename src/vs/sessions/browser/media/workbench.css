@@ -10,6 +10,9 @@
 .monaco-workbench.agent-sessions-workbench {
 	background-color: var(--vscode-agents-background);
 	--model-hover-surface-background: var(--vscode-agentsPanel-background);
+	--modern-ui-notifications-inline-inset: var(--vscode-spacing-size80);
+	--modern-ui-notifications-block-end-inset: var(--vscode-spacing-size80);
+	--modern-ui-notifications-block-start-inset: var(--vscode-spacing-size400);
 }
 
 /* ---- Workbench Shell ---- */
@@ -22,10 +25,6 @@
 	margin: 0 var(--vscode-agents-layout-floatingPanelGap) var(--vscode-agents-layout-floatingPanelGap) 0;
 	width: auto;
 	height: calc(100% - var(--vscode-agents-layout-floatingPanelGap));
-}
-
-.monaco-workbench.agent-sessions-workbench.nosidebar > .monaco-grid-view {
-	margin-left: var(--vscode-agents-layout-floatingPanelGap);
 }
 
 .monaco-workbench.agent-sessions-workbench.shell-gradient-background {
@@ -84,12 +83,6 @@
 	display: none;
 }
 
-.monaco-workbench.agent-sessions-workbench > .notifications-center,
-.monaco-workbench.agent-sessions-workbench > .notifications-toasts {
-	right: 15px;
-	bottom: 15px;
-}
-
 .monaco-workbench.agent-sessions-workbench .monaco-dialog-modal-block.sessions-signing-in-dialog-modal-block {
 	z-index: 2570; /* below sign-in notifications and Quick Input (2571), and normal dialogs (2575) */
 }
@@ -97,22 +90,6 @@
 .monaco-workbench.agent-sessions-workbench.sessions-signing-in-dialog-visible > .notifications-toasts,
 .monaco-workbench.agent-sessions-workbench.sessions-signing-in-dialog-visible .quick-input-widget {
 	z-index: 2571; /* above the sign-in dialog (2570), below normal dialogs (2575) */
-}
-
-.monaco-workbench.agent-sessions-workbench.nostatusbar > .notifications-center,
-.monaco-workbench.agent-sessions-workbench.nostatusbar > .notifications-toasts {
-	bottom: 15px;
-}
-
-.monaco-workbench.agent-sessions-workbench > .notifications-center.bottom-left,
-.monaco-workbench.agent-sessions-workbench > .notifications-toasts.bottom-left {
-	right: auto;
-	left: 15px;
-}
-
-.monaco-workbench.agent-sessions-workbench > .notifications-center.top-right {
-	top: 40px;
-	bottom: auto;
 }
 
 .agent-sessions-workbench.shell-gradient-background .part.titlebar,
@@ -166,7 +143,7 @@
 
 .agent-sessions-workbench:not(.dock-detail-panel) .part.auxiliarybar {
 	margin: 0 0 0 0;
-	padding-left: 5px;
+	padding-left: var(--vscode-spacing-size60);
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-top-left-radius: 0;
@@ -310,8 +287,19 @@
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor:not(.modal-editor-part) .editor-group-container > .title {
-	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	box-sizing: border-box;
+	position: relative;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor:not(.modal-editor-part) .editor-group-container > .title::after {
+	content: '';
+	position: absolute;
+	right: var(--vscode-spacing-size100);
+	bottom: 0;
+	left: var(--vscode-spacing-size100);
+	height: var(--vscode-strokeThickness);
+	background: var(--vscode-agentsPanel-border);
+	pointer-events: none;
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar > .content .pane-body,

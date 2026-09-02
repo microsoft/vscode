@@ -6,7 +6,7 @@
 /** Local mock and passthrough proxy for the Copilot policy endpoints. */
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { EndpointDef } from './endpoints';
+import type { EndpointDef, EndpointResponseMode } from './endpoints';
 
 const http = require('node:http') as typeof import('node:http');
 const https = require('node:https') as typeof import('node:https');
@@ -19,9 +19,6 @@ const { stripTypeScriptTypes } = require('node:module') as typeof import('node:m
 const endpoints: EndpointDef[] = require('./endpoints.ts');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-const PRODUCT_JSON = path.join(ROOT, 'product.json');
-const PRODUCT_OVERRIDES_JSON = path.join(ROOT, 'product.overrides.json');
-const PRODUCT_OVERRIDES_BACKUP = path.join(ROOT, 'product.overrides.json.pre-mock-server');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
 const DEFAULT_SCHEMA_RELATIVE_PATH = 'copilot-agent-runtime/schema/managed-settings-schema.json';
@@ -29,12 +26,17 @@ const DEFAULT_SCHEMA_SOURCE = resolveDefaultSchemaSource();
 
 /** Real API that un-mocked requests are forwarded to. */
 const DEFAULT_UPSTREAM = 'https://api.github.com';
-const PORT = 3000;
+const DEFAULT_PORT = 3000;
+const DEFAULT_STATE_FILE = path.join(os.homedir(), '.mock-policy-server', 'state.json');
+const SETUP_PROBE_PARAM = 'mockPolicySetupProbe';
+const MOCK_SERVER_HEADER = 'X-Mock-Policy-Server';
 
 const args = parseArgs(process.argv.slice(2));
+const PORT = args.port ?? DEFAULT_PORT;
 const HOST = args.host || '127.0.0.1';
 const SCHEMA_SOURCE = args.schema || process.env.MANAGED_SETTINGS_SCHEMA || DEFAULT_SCHEMA_SOURCE;
 const UPSTREAM = stripTrailingSlash(args.upstream || process.env.MOCK_POLICY_UPSTREAM || DEFAULT_UPSTREAM);
+const STATE_FILE = path.resolve(args.stateFile || process.env.MOCK_POLICY_STATE_FILE || DEFAULT_STATE_FILE);
 
 if (args.help) {
 	printHelp();
@@ -54,18 +56,21 @@ const GUI_ASSETS = new Map<string, string>([
 interface EndpointState {
 	status: number;
 	body: unknown;
+	mode: EndpointResponseMode;
 	/** When false the endpoint is proxied upstream instead of mocked. */
 	active: boolean;
 }
 
 const state = new Map<string, EndpointState>();
-resetEndpointState();
+let hasPersistedState = false;
+initializeEndpointState();
 
 interface EndpointUpdate {
 	endpoint: string;
 	preset?: string;
 	status?: number;
 	body?: unknown;
+	mode?: EndpointResponseMode;
 	active?: boolean;
 }
 
@@ -77,6 +82,18 @@ interface LogEntry {
 	status: number;
 }
 
+const CONTROL_ROUTES = [
+	{ method: 'GET', path: '/api', purpose: 'Discover request shapes, response contracts, routes, and side effects.', returns: 'This discovery document.', sideEffects: 'none' },
+	{ method: 'GET', path: '/api/state', purpose: 'Read endpoint definitions, presets, and current state.', returns: 'Server state with endpoint definitions and configuration.', sideEffects: 'none' },
+	{ method: 'POST', path: '/api/state', purpose: 'Apply and persist one update or an atomic endpoints array.', returns: 'Updated server state.', sideEffects: 'server-state,filesystem' },
+	{ method: 'POST', path: '/api/reset', purpose: 'Restore and persist default endpoint state.', returns: 'Reset server state.', sideEffects: 'server-state,filesystem' },
+	{ method: 'GET', path: '/api/schema', purpose: 'Read the managed-settings schema.', returns: 'Schema source, resolved location, load status, and schema or error.', sideEffects: 'none' },
+	{ method: 'GET', path: '/api/file-deployment', purpose: 'Generate install and removal commands for the current Managed Settings body.', returns: 'Source body and per-platform paths, install commands, and removal commands.', sideEffects: 'none' },
+	{ method: 'GET', path: '/api/log', purpose: 'Read the request log.', returns: 'Object containing the newest-first entries array.', sideEffects: 'none' },
+	{ method: 'DELETE', path: '/api/log', purpose: 'Clear the request log.', returns: 'Object containing an empty entries array.', sideEffects: 'server-state' },
+	{ method: 'DELETE', path: '/api/cache', purpose: 'Clear the managed-settings disk cache on the server machine.', returns: 'Cleared directories with file counts and missing directories.', sideEffects: 'filesystem' }
+] as const;
+
 /** Rolling log of what this server has served, newest first. Shown in the GUI. */
 let requestLog: LogEntry[] = [];
 const REQUEST_LOG_LIMIT = 200;
@@ -87,8 +104,7 @@ const server = http.createServer((req, res) => {
 
 	try {
 		// Control API and GUI assets are same-origin only — no CORS headers — so
-		// an unrelated website cannot drive /api/wire and rewrite the local
-		// product.overrides.json from the user's browser.
+		// an unrelated website cannot drive filesystem control routes.
 		if (pathname === '/api' || pathname.startsWith('/api/')) {
 			if (!isAllowedControlOrigin(req)) {
 				return sendJson(res, 403, { error: 'Cross-origin control API requests are not allowed.' });
@@ -109,22 +125,31 @@ const server = http.createServer((req, res) => {
 			return;
 		}
 
+		// A credential-free browser probe to the upstream URL is redirected here
+		// by a correctly configured system proxy. Keep it out of the request log
+		// so setup checks are not mistaken for real client traffic.
+		const endpoint = endpoints.find(endpoint => pathname === endpoint.path);
+		if (endpoint && url.searchParams.has(SETUP_PROBE_PARAM)) {
+			setMockResponseHeaders(res);
+			if (req.method === 'OPTIONS' || req.method === 'GET') {
+				res.writeHead(204);
+				res.end();
+				return;
+			}
+		}
+
 		// Mocked Copilot endpoints. Only these get permissive CORS, so the web
 		// build (browser) of Code OSS can call them cross-origin.
-		const endpoint = endpoints.find(endpoint => pathname === endpoint.path);
 		if (endpoint && state.get(endpoint.id)?.active) {
 			const entry = state.get(endpoint.id)!;
-			res.setHeader('Access-Control-Allow-Origin', '*');
-			res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-			res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Editor-Version, Copilot-Runtime-Version');
+			setMockResponseHeaders(res);
 			if (req.method === 'OPTIONS') {
 				res.writeHead(204);
 				res.end();
 				return;
 			}
 			if (req.method === 'GET') {
-				record(req, pathname, 'mocked', entry.status);
-				return sendJson(res, entry.status, entry.body);
+				return sendMockedResponse(req, res, pathname, entry);
 			}
 		}
 
@@ -136,6 +161,14 @@ const server = http.createServer((req, res) => {
 	}
 });
 
+function setMockResponseHeaders(res: ServerResponse): void {
+	res.setHeader(MOCK_SERVER_HEADER, 'true');
+	res.setHeader('Access-Control-Allow-Origin', '*');
+	res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+	res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Editor-Version, Copilot-Runtime-Version');
+	res.setHeader('Access-Control-Expose-Headers', MOCK_SERVER_HEADER);
+}
+
 /** Same-origin control API used by the GUI. */
 function handleControlApi(req: IncomingMessage, res: ServerResponse, pathname: string): void {
 	if (pathname === '/api/state' && req.method === 'GET') {
@@ -145,21 +178,40 @@ function handleControlApi(req: IncomingMessage, res: ServerResponse, pathname: s
 	if ((pathname === '/api' || pathname === '/api/') && req.method === 'GET') {
 		return sendJson(res, 200, {
 			name: 'Mock Policy Server Control API',
+			version: 1,
+			discovery: '/api',
+			errorResponse: {
+				error: 'Human-readable error message.',
+				discovery: 'Routing and method errors also include discovery: "/api".'
+			},
+			persistence: {
+				stateFile: STATE_FILE,
+				description: 'Valid endpoint bodies and response configuration are written atomically after every update and restored at server startup. The GUI also keeps response-body drafts in browser storage.'
+			},
+			recommendedWorkflow: [
+				'GET /api/state and choose endpoint and preset ids from the response.',
+				'POST /api/state with one update or an endpoints array.',
+				'Trigger the client policy request.',
+				'GET /api/log to confirm how the request was handled.'
+			],
 			stateUpdate: {
-				single: { endpoint: 'managedSettings', preset: 'empty', status: 200, body: {}, active: true },
+				fields: {
+					endpoint: { type: 'string', required: true, source: 'Use an endpoint id returned by GET /api/state.' },
+					preset: { type: 'string', source: 'Use a preset id for the selected endpoint from GET /api/state.' },
+					status: { type: 'integer', minimum: 200, maximum: 599 },
+					body: { type: 'any JSON value' },
+					mode: { type: 'string', enum: ['json', 'malformed-json', 'disconnect', 'timeout'] },
+					active: { type: 'boolean', description: 'true mocks the endpoint; false proxies it upstream.' }
+				},
+				semantics: [
+					'A preset sets status and body and enables mocking.',
+					'Explicit status, body, mode, and active values override preset values.',
+					'Bulk updates are validated first and applied atomically.'
+				],
+				single: { endpoint: 'managedSettings', preset: 'empty', status: 200, body: {}, mode: 'json', active: true },
 				bulk: { endpoints: [{ endpoint: 'managedSettings', active: true }, { endpoint: 'entitlements', active: false }] }
 			},
-			routes: [
-				{ method: 'GET', path: '/api/state', purpose: 'Read endpoint definitions, presets, and current state.' },
-				{ method: 'POST', path: '/api/state', purpose: 'Apply one update or an atomic endpoints array.' },
-				{ method: 'POST', path: '/api/reset', purpose: 'Restore startup endpoint state.' },
-				{ method: 'GET', path: '/api/schema', purpose: 'Read the managed-settings schema.' },
-				{ method: 'GET', path: '/api/log', purpose: 'Read the request log.' },
-				{ method: 'DELETE', path: '/api/log', purpose: 'Clear the request log.' },
-				{ method: 'DELETE', path: '/api/cache', purpose: 'Clear the managed-settings disk cache.' },
-				{ method: 'POST', path: '/api/wire', purpose: 'Apply product.overrides.json.' },
-				{ method: 'POST', path: '/api/unwire', purpose: 'Restore product.overrides.json.' }
-			]
+			routes: CONTROL_ROUTES
 		});
 	}
 
@@ -174,7 +226,12 @@ function handleControlApi(req: IncomingMessage, res: ServerResponse, pathname: s
 			} catch (e) {
 				return sendJson(res, 400, { error: `Invalid JSON: ${errorMessage(e)}` });
 			}
-			const result = applyEndpointUpdates(payload);
+			let result: ReturnType<typeof applyEndpointUpdates>;
+			try {
+				result = applyEndpointUpdates(payload);
+			} catch (e) {
+				return sendJson(res, 500, { error: `Failed to persist server state: ${errorMessage(e)}` });
+			}
 			if (!result.ok) {
 				return sendJson(res, 400, { error: result.error });
 			}
@@ -183,7 +240,11 @@ function handleControlApi(req: IncomingMessage, res: ServerResponse, pathname: s
 	}
 
 	if (pathname === '/api/reset' && req.method === 'POST') {
-		resetEndpointState();
+		try {
+			resetEndpointState();
+		} catch (e) {
+			return sendJson(res, 500, { error: `Failed to persist reset state: ${errorMessage(e)}` });
+		}
 		return sendJson(res, 200, getState());
 	}
 
@@ -191,6 +252,10 @@ function handleControlApi(req: IncomingMessage, res: ServerResponse, pathname: s
 		return void loadSchema()
 			.then(result => sendJson(res, 200, result))
 			.catch(e => sendJson(res, 500, { error: errorMessage(e) }));
+	}
+
+	if (pathname === '/api/file-deployment' && req.method === 'GET') {
+		return sendJson(res, 200, getFileDeployment());
 	}
 
 	if (pathname === '/api/cache' && req.method === 'DELETE') {
@@ -210,28 +275,21 @@ function handleControlApi(req: IncomingMessage, res: ServerResponse, pathname: s
 		return sendJson(res, 200, { entries: requestLog });
 	}
 
-	if (pathname === '/api/wire' && req.method === 'POST') {
-		try {
-			wireOverrides();
-			return sendJson(res, 200, getState());
-		} catch (e) {
-			return sendJson(res, 500, { error: errorMessage(e) });
-		}
+	const canonicalPath = pathname === '/api/' ? '/api' : pathname;
+	const allowedMethods = CONTROL_ROUTES
+		.filter(route => route.path === canonicalPath)
+		.map(route => route.method);
+	if (allowedMethods.length > 0) {
+		res.setHeader('Allow', allowedMethods.join(', '));
+		return sendJson(res, 405, {
+			error: `${req.method ?? 'Unknown method'} is not allowed for ${canonicalPath}. Allowed methods: ${allowedMethods.join(', ')}.`,
+			discovery: '/api'
+		});
 	}
-
-	if (pathname === '/api/unwire' && req.method === 'POST') {
-		try {
-			unwireOverrides();
-			return sendJson(res, 200, getState());
-		} catch (e) {
-			return sendJson(res, 500, { error: errorMessage(e) });
-		}
-	}
-
-	return sendJson(res, 404, { error: 'Not found' });
+	return sendJson(res, 404, { error: `Unknown control API route "${pathname}".`, discovery: '/api' });
 }
 
-function applyEndpointUpdates(payload: unknown): { ok: true } | { ok: false; error: string } {
+function applyEndpointUpdates(payload: unknown, persist = true): { ok: true } | { ok: false; error: string } {
 	if (!isRecord(payload)) {
 		return { ok: false, error: 'Request body must be a JSON object.' };
 	}
@@ -258,7 +316,7 @@ function applyEndpointUpdates(payload: unknown): { ok: true } | { ok: false; err
 			return { ok: false, error: `${prefix} must be a JSON object.` };
 		}
 
-		const unknownKeys = Object.keys(rawUpdate).filter(key => !['endpoint', 'preset', 'status', 'body', 'active'].includes(key));
+		const unknownKeys = Object.keys(rawUpdate).filter(key => !['endpoint', 'preset', 'status', 'body', 'mode', 'active'].includes(key));
 		if (unknownKeys.length) {
 			return { ok: false, error: `${prefix} has unknown field${unknownKeys.length > 1 ? 's' : ''}: ${unknownKeys.join(', ')}.` };
 		}
@@ -274,8 +332,8 @@ function applyEndpointUpdates(payload: unknown): { ok: true } | { ok: false; err
 		if (!def) {
 			return { ok: false, error: `Unknown endpoint "${rawUpdate.endpoint}". Valid endpoints: ${endpoints.map(endpoint => endpoint.id).join(', ')}.` };
 		}
-		if (!['preset', 'status', 'body', 'active'].some(key => Object.hasOwn(rawUpdate, key))) {
-			return { ok: false, error: `${prefix} must include preset, status, body, or active.` };
+		if (!['preset', 'status', 'body', 'mode', 'active'].some(key => Object.hasOwn(rawUpdate, key))) {
+			return { ok: false, error: `${prefix} must include preset, status, body, mode, or active.` };
 		}
 		if (Object.hasOwn(rawUpdate, 'preset')) {
 			if (typeof rawUpdate.preset !== 'string') {
@@ -293,6 +351,9 @@ function applyEndpointUpdates(payload: unknown): { ok: true } | { ok: false; err
 		if (Object.hasOwn(rawUpdate, 'active') && typeof rawUpdate.active !== 'boolean') {
 			return { ok: false, error: `${prefix}.active must be a boolean.` };
 		}
+		if (Object.hasOwn(rawUpdate, 'mode') && !isEndpointResponseMode(rawUpdate.mode)) {
+			return { ok: false, error: `${prefix}.mode must be one of: json, malformed-json, disconnect, timeout.` };
+		}
 
 		const update: EndpointUpdate = { endpoint: rawUpdate.endpoint };
 		if (typeof rawUpdate.preset === 'string') {
@@ -304,6 +365,9 @@ function applyEndpointUpdates(payload: unknown): { ok: true } | { ok: false; err
 		if (Object.hasOwn(rawUpdate, 'body')) {
 			update.body = rawUpdate.body;
 		}
+		if (isEndpointResponseMode(rawUpdate.mode)) {
+			update.mode = rawUpdate.mode;
+		}
 		if (typeof rawUpdate.active === 'boolean') {
 			update.active = rawUpdate.active;
 		}
@@ -312,7 +376,7 @@ function applyEndpointUpdates(payload: unknown): { ok: true } | { ok: false; err
 
 	const nextState = new Map<string, EndpointState>();
 	for (const [id, entry] of state) {
-		nextState.set(id, { status: entry.status, body: clone(entry.body), active: entry.active });
+		nextState.set(id, { status: entry.status, body: clone(entry.body), mode: entry.mode, active: entry.active });
 	}
 
 	for (const update of updates) {
@@ -330,26 +394,87 @@ function applyEndpointUpdates(payload: unknown): { ok: true } | { ok: false; err
 		if (Object.hasOwn(update, 'body')) {
 			entry.body = clone(update.body);
 		}
+		if (update.mode !== undefined) {
+			entry.mode = update.mode;
+		}
 		if (update.active !== undefined) {
 			entry.active = update.active;
 		}
 	}
 
-	for (const [id, entry] of nextState) {
-		state.set(id, entry);
+	if (persist) {
+		persistEndpointState(nextState);
 	}
+	replaceEndpointState(nextState);
 	return { ok: true };
 }
 
 function resetEndpointState(): void {
-	state.clear();
+	const nextState = createDefaultEndpointState();
+	persistEndpointState(nextState);
+	replaceEndpointState(nextState);
+}
+
+function createDefaultEndpointState(): Map<string, EndpointState> {
+	const result = new Map<string, EndpointState>();
 	for (const endpoint of endpoints) {
 		const preset = endpoint.presets[0];
-		state.set(endpoint.id, {
+		result.set(endpoint.id, {
 			status: preset?.status ?? 200,
 			body: preset ? clone(preset.body) : {},
+			mode: 'json',
 			active: endpoint.mockedByDefault === true
 		});
+	}
+	return result;
+}
+
+function replaceEndpointState(nextState: Map<string, EndpointState>): void {
+	state.clear();
+	for (const [id, entry] of nextState) {
+		state.set(id, entry);
+	}
+}
+
+function initializeEndpointState(): void {
+	replaceEndpointState(createDefaultEndpointState());
+	if (!fs.existsSync(STATE_FILE)) {
+		return;
+	}
+	try {
+		const payload: unknown = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+		const result = applyEndpointUpdates(payload, false);
+		if (!result.ok) {
+			console.error(`  Ignoring invalid persisted state at ${STATE_FILE}: ${result.error}`);
+		} else {
+			hasPersistedState = true;
+		}
+	} catch (e) {
+		console.error(`  Ignoring unreadable persisted state at ${STATE_FILE}: ${errorMessage(e)}`);
+	}
+}
+
+function persistEndpointState(endpointState: Map<string, EndpointState>): void {
+	const payload = {
+		endpoints: endpoints.map(endpoint => {
+			const entry = endpointState.get(endpoint.id)!;
+			return {
+				endpoint: endpoint.id,
+				status: entry.status,
+				body: entry.body,
+				mode: entry.mode,
+				active: entry.active
+			};
+		})
+	};
+	const temporaryFile = `${STATE_FILE}.${process.pid}.tmp`;
+	fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true });
+	try {
+		fs.writeFileSync(temporaryFile, `${JSON.stringify(payload, null, '\t')}\n`, { encoding: 'utf8', mode: 0o600 });
+		fs.renameSync(temporaryFile, STATE_FILE);
+		hasPersistedState = true;
+	} finally {
+		fs.rmSync(temporaryFile, { force: true });
 	}
 }
 
@@ -443,6 +568,7 @@ server.listen(PORT, HOST, () => {
 	console.log('');
 	console.log(`  Upstream  ${UPSTREAM}  (anything not mocked is proxied here)`);
 	console.log(`  Schema    ${SCHEMA_SOURCE}`);
+	console.log(`  State     ${STATE_FILE}`);
 	console.log('');
 });
 
@@ -455,10 +581,13 @@ function printHelp(): void {
 	console.log('');
 	console.log('  Options:');
 	console.log('    --host <addr>     Address to bind (default 127.0.0.1)');
+	console.log(`    --port <number>   Port to bind (default ${DEFAULT_PORT})`);
 	console.log('    --upstream <url>  Real API that un-mocked requests are proxied to');
 	console.log(`                      (default ${DEFAULT_UPSTREAM}, env MOCK_POLICY_UPSTREAM)`);
 	console.log('    --schema <src>    Managed-settings schema path, file: URI, or URL');
 	console.log(`                      (default ${DEFAULT_SCHEMA_SOURCE}, env MANAGED_SETTINGS_SCHEMA)`);
+	console.log('    --state-file <path> Persisted endpoint state file');
+	console.log(`                        (default ${DEFAULT_STATE_FILE}, env MOCK_POLICY_STATE_FILE)`);
 	console.log('    --help            Show this message');
 	console.log('');
 }
@@ -633,136 +762,51 @@ function getState() {
 			presets: e.presets,
 			status: state.get(e.id)!.status,
 			body: state.get(e.id)!.body,
+			mode: state.get(e.id)!.mode,
 			active: state.get(e.id)!.active
 		})),
-		wired: isWired(),
-		overridesPath: PRODUCT_OVERRIDES_JSON,
-		overridesSnippet: buildOverridesSnippet(),
 		baseUrl: `http://${HOST}:${PORT}`,
 		upstream: UPSTREAM,
+		stateFile: STATE_FILE,
+		hasPersistedState,
 		cacheDirs: managedSettingsCacheDirs()
 	};
 }
 
-/** Build the full overrides JSON a user would paste into product.overrides.json. */
-function buildOverridesSnippet() {
-	const product = JSON.parse(fs.readFileSync(PRODUCT_JSON, 'utf8'));
-	const baseAgent = product?.defaultChatAgent ?? {};
-	return JSON.stringify({ defaultChatAgent: { ...baseAgent, ...overrideUrls() } }, null, '\t');
-}
-
-/** The `defaultChatAgent` URL overrides this server provides. */
-function overrideUrls(): Record<string, string> {
-	const urls: Record<string, string> = {};
-	for (const endpoint of endpoints) {
-		urls[endpoint.productKey] = endpointUrl(endpoint);
-	}
-	return urls;
-}
-
-/** Whether `product.overrides.json` currently points every endpoint at this server. */
-function isWired(): boolean {
-	let overrides;
-	try {
-		overrides = JSON.parse(fs.readFileSync(PRODUCT_OVERRIDES_JSON, 'utf8'));
-	} catch {
-		return false;
-	}
-	const agent = overrides?.defaultChatAgent;
-	if (!agent) {
-		return false;
-	}
-	const urls = overrideUrls();
-	return Object.keys(urls).every(key => agent[key] === urls[key]);
-}
-
-/**
- * Write `product.overrides.json` so Code OSS calls this server for every policy
- * endpoint.
- *
- * `src/bootstrap-meta.ts` merges overrides via `Object.assign` (shallow,
- * top-level), so overriding nested keys requires writing back the whole
- * `defaultChatAgent` object. We seed it from `product.json` and flip only the
- * endpoint URLs, preserving every other key. Any other top-level overrides
- * already present are kept untouched.
- */
-function wireOverrides(): void {
-	const product = JSON.parse(fs.readFileSync(PRODUCT_JSON, 'utf8'));
-	const baseAgent = product?.defaultChatAgent ?? {};
-
-	// Back up existing overrides before touching them.
-	if (fs.existsSync(PRODUCT_OVERRIDES_JSON)) {
-		fs.copyFileSync(PRODUCT_OVERRIDES_JSON, PRODUCT_OVERRIDES_BACKUP);
-		console.log(`  Backed up ${PRODUCT_OVERRIDES_JSON} -> ${PRODUCT_OVERRIDES_BACKUP}`);
-	}
-
-	let overrides = {};
-	try {
-		overrides = JSON.parse(fs.readFileSync(PRODUCT_OVERRIDES_JSON, 'utf8'));
-	} catch {
-		overrides = {};
-	}
-
-	const existingAgent = overrides.defaultChatAgent ?? baseAgent;
-	overrides.defaultChatAgent = {
-		...baseAgent,
-		...existingAgent,
-		...overrideUrls()
-	};
-
-	fs.writeFileSync(PRODUCT_OVERRIDES_JSON, JSON.stringify(overrides, null, '\t') + '\n');
-	console.log(`  Wired ${PRODUCT_OVERRIDES_JSON} -> ${HOST}:${PORT}`);
-}
-
-/**
- * Revert the endpoint overrides: restore each URL to its `product.json` value
- * (or drop the key if absent). If `defaultChatAgent` ends up identical to
- * `product.json`, drop it; if the overrides file ends up empty, remove it.
- */
-function unwireOverrides(): void {
-	// If we have a backup, restore it wholesale instead of surgically reverting.
-	if (fs.existsSync(PRODUCT_OVERRIDES_BACKUP)) {
-		fs.copyFileSync(PRODUCT_OVERRIDES_BACKUP, PRODUCT_OVERRIDES_JSON);
-		fs.rmSync(PRODUCT_OVERRIDES_BACKUP, { force: true });
-		console.log(`  Restored ${PRODUCT_OVERRIDES_JSON} from backup`);
-		return;
-	}
-
-	let overrides;
-	try {
-		overrides = JSON.parse(fs.readFileSync(PRODUCT_OVERRIDES_JSON, 'utf8'));
-	} catch {
-		return; // nothing to unwire
-	}
-	if (!overrides.defaultChatAgent) {
-		return;
-	}
-
-	const product = JSON.parse(fs.readFileSync(PRODUCT_JSON, 'utf8'));
-	const baseAgent = product?.defaultChatAgent ?? {};
-
-	const agent = { ...overrides.defaultChatAgent };
-	for (const endpoint of endpoints) {
-		if (baseAgent[endpoint.productKey] === undefined) {
-			delete agent[endpoint.productKey];
-		} else {
-			agent[endpoint.productKey] = baseAgent[endpoint.productKey];
+function getFileDeployment() {
+	const body = JSON.stringify(state.get('managedSettings')?.body ?? {}, null, '\t');
+	const macOsPath = '/Library/Application Support/GitHubCopilot/managed-settings.json';
+	const windowsPath = '%ProgramFiles%\\GitHubCopilot\\managed-settings.json';
+	const linuxPath = '/etc/github-copilot/managed-settings.json';
+	return {
+		sourceEndpoint: 'managedSettings',
+		body: state.get('managedSettings')?.body ?? {},
+		note: 'Run one installCommand on the client machine, then restart the client. Delete the file or run removeCommand to unset file-based Managed Settings.',
+		platforms: {
+			macos: {
+				path: macOsPath,
+				installCommand: `sudo mkdir -p "/Library/Application Support/GitHubCopilot" && sudo tee "${macOsPath}" >/dev/null <<'JSON'\n${body}\nJSON`,
+				removeCommand: `sudo rm -f -- "${macOsPath}"`
+			},
+			windows: {
+				path: windowsPath,
+				installCommand: [
+					'$dir = Join-Path $env:ProgramFiles \'GitHubCopilot\'',
+					'New-Item -ItemType Directory -Force -Path $dir | Out-Null',
+					'$json = @\'',
+					body,
+					'\'@',
+					'[System.IO.File]::WriteAllText((Join-Path $dir \'managed-settings.json\'), $json)'
+				].join('\n'),
+				removeCommand: '$path = Join-Path $env:ProgramFiles \'GitHubCopilot\\managed-settings.json\'; Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue'
+			},
+			linux: {
+				path: linuxPath,
+				installCommand: `sudo mkdir -p /etc/github-copilot && sudo tee ${linuxPath} >/dev/null <<'JSON'\n${body}\nJSON`,
+				removeCommand: `sudo rm -f -- ${linuxPath}`
+			}
 		}
-	}
-
-	if (shallowEqual(agent, baseAgent)) {
-		delete overrides.defaultChatAgent;
-	} else {
-		overrides.defaultChatAgent = agent;
-	}
-
-	if (Object.keys(overrides).length === 0) {
-		fs.rmSync(PRODUCT_OVERRIDES_JSON, { force: true });
-		console.log(`  Removed ${PRODUCT_OVERRIDES_JSON} (no overrides left)`);
-	} else {
-		fs.writeFileSync(PRODUCT_OVERRIDES_JSON, JSON.stringify(overrides, null, '\t') + '\n');
-		console.log(`  Unwired ${PRODUCT_OVERRIDES_JSON}`);
-	}
+	};
 }
 
 /**
@@ -808,6 +852,35 @@ function sendJson(res: ServerResponse, status: number, obj: unknown): void {
 	res.end(JSON.stringify(obj, null, 2));
 }
 
+function sendMockedResponse(req: IncomingMessage, res: ServerResponse, pathname: string, entry: EndpointState): void {
+	switch (entry.mode) {
+		case 'json':
+			record(req, pathname, 'mocked', entry.status);
+			sendJson(res, entry.status, entry.body);
+			return;
+		case 'malformed-json':
+			record(req, pathname, 'mocked', entry.status);
+			res.writeHead(entry.status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+			res.end('{"unterminated":');
+			return;
+		case 'disconnect':
+			record(req, pathname, 'mocked', 0);
+			res.destroy();
+			return;
+		case 'timeout': {
+			record(req, pathname, 'mocked', 0);
+			const timer = setTimeout(() => res.destroy(), 10_000);
+			timer.unref();
+			res.on('close', () => clearTimeout(timer));
+			return;
+		}
+	}
+}
+
+function isEndpointResponseMode(value: unknown): value is EndpointResponseMode {
+	return value === 'json' || value === 'malformed-json' || value === 'disconnect' || value === 'timeout';
+}
+
 function readBody(req: IncomingMessage, cb: (err: Error | null, raw: string) => void): void {
 	let raw = '';
 	req.on('data', chunk => { raw += chunk; if (raw.length > 1_000_000) { req.destroy(); } });
@@ -817,15 +890,6 @@ function readBody(req: IncomingMessage, cb: (err: Error | null, raw: string) => 
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function shallowEqual(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
-	const ak = Object.keys(a);
-	const bk = Object.keys(b);
-	if (ak.length !== bk.length) {
-		return false;
-	}
-	return ak.every(k => JSON.stringify(a[k]) === JSON.stringify(b[k]));
 }
 
 function clone(value: unknown): unknown {
@@ -842,8 +906,10 @@ function stripTrailingSlash(value: string): string {
 
 interface ServerArgs {
 	host?: string;
+	port?: number;
 	schema?: string;
 	upstream?: string;
+	stateFile?: string;
 	help: boolean;
 }
 
@@ -860,7 +926,7 @@ function parseArgs(argv: string[]): ServerArgs {
 		}
 
 		const [key, inline] = argument.slice(2).split('=', 2);
-		if (key !== 'host' && key !== 'schema' && key !== 'upstream') {
+		if (key !== 'host' && key !== 'port' && key !== 'schema' && key !== 'upstream' && key !== 'state-file') {
 			failArgument(`Unknown option "--${key}".`);
 		}
 
@@ -869,7 +935,17 @@ function parseArgs(argv: string[]): ServerArgs {
 		if (!value) {
 			failArgument(`Option "--${key}" requires a value.`);
 		}
-		out[key] = value;
+		if (key === 'port') {
+			const port = Number(value);
+			if (!Number.isInteger(port) || port < 1 || port > 65535) {
+				failArgument('--port requires an integer from 1 to 65535.');
+			}
+			out.port = port;
+		} else if (key === 'state-file') {
+			out.stateFile = value;
+		} else {
+			out[key] = value;
+		}
 		if (inline === undefined) {
 			i++;
 		}

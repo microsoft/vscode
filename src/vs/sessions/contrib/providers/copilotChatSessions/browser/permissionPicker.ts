@@ -86,6 +86,7 @@ export interface IPermissionPickerDelegate {
 	readonly isSandboxToggleApplicable?: () => boolean;
 	readonly sandboxTogglePresentation?: 'standalone';
 	readonly getSandboxToggleSettingId?: () => string | undefined;
+	readonly managedSandboxEnforced?: IObservable<boolean>;
 	readonly sandboxToggleConfigurationKeys?: readonly string[];
 }
 
@@ -194,14 +195,14 @@ export class PermissionPicker extends Disposable {
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
 			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, (e) => {
 				dom.EventHelper.stop(e, true);
-				this.showPicker();
+				this._showPicker();
 			}));
 		}
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				dom.EventHelper.stop(e, true);
-				this.showPicker();
+				this._showPicker();
 			}
 		}));
 
@@ -240,6 +241,13 @@ export class PermissionPicker extends Disposable {
 				trigger.setAttribute('aria-disabled', resolving ? 'true' : 'false');
 			}));
 		}
+		const managedSandboxEnforced = this._delegate.managedSandboxEnforced;
+		if (managedSandboxEnforced) {
+			this._renderDisposables.add(autorun(reader => {
+				managedSandboxEnforced.read(reader);
+				this._updateTriggerLabel(trigger);
+			}));
+		}
 		this._renderDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (this._affectsSandboxToggle(e)) {
 				this._updateTriggerLabel(trigger);
@@ -250,6 +258,10 @@ export class PermissionPicker extends Disposable {
 	}
 
 	showPicker(): void {
+		this._showPicker();
+	}
+
+	protected _showPicker(): void {
 		if (!this._triggerElement || this.actionWidgetService.isVisible || this._isResolving()) {
 			return;
 		}
@@ -283,6 +295,7 @@ export class PermissionPicker extends Disposable {
 
 		const sandboxToggle = this._getSandboxStandaloneToggle();
 		if (sandboxToggle) {
+			const disabled = sandboxToggle.disabled === true;
 			items.push({
 				kind: ActionListItemKind.Separator,
 				label: '',
@@ -299,7 +312,8 @@ export class PermissionPicker extends Disposable {
 				},
 				label: sandboxToggle.label,
 				standaloneToggle: sandboxToggle,
-				disabled: false,
+				...(disabled ? { hover: { content: localize('permissions.policyDescription', "Disabled by enterprise policy") } } : {}),
+				disabled,
 			});
 		}
 
@@ -332,7 +346,9 @@ export class PermissionPicker extends Disposable {
 					await this.openerService.open(URI.parse('https://aka.ms/vscode/docs/permissions'));
 				}
 			},
-			onHide: () => { triggerElement.focus(); },
+			onHide: () => {
+				triggerElement.focus();
+			},
 		};
 
 		const listOptions: IActionListOptions = { minWidth: 255 };
@@ -415,11 +431,18 @@ export class PermissionPicker extends Disposable {
 		if (!this._isSandboxToggleAvailable()) {
 			return undefined;
 		}
+		const managed = this._isSandboxManaged();
 		return {
 			label: localize('permissionPicker.sandboxToggle', "Sandboxing for terminal"),
-			title: localize('permissionPicker.sandboxToggleTitle', "Run terminal commands inside a sandbox that restricts file system and network access"),
+			title: managed
+				? localize('permissionPicker.managedSandboxToggleTitle', "Sandboxing is managed by your organization")
+				: localize('permissionPicker.sandboxToggleTitle', "Run terminal commands inside a sandbox that restricts file system and network access"),
 			checked: this._isSandboxingEnabled(),
+			disabled: managed,
 			onChange: (checked: boolean) => {
+				if (this._isSandboxManaged()) {
+					return;
+				}
 				const settingId = this._delegate.getSandboxToggleSettingId?.();
 				if (settingId) {
 					const target = checked ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;
@@ -437,9 +460,16 @@ export class PermissionPicker extends Disposable {
 	}
 
 	private _isSandboxingEnabled(): boolean {
+		if (this._isSandboxManaged()) {
+			return true;
+		}
 		const settingId = this._delegate.getSandboxToggleSettingId?.();
 		return settingId !== undefined
 			&& isAgentSandboxEnabledValue(this.configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId));
+	}
+
+	private _isSandboxManaged(): boolean {
+		return this._delegate.managedSandboxEnforced?.get() === true;
 	}
 
 	private _affectsSandboxToggle(event: IConfigurationChangeEvent): boolean {

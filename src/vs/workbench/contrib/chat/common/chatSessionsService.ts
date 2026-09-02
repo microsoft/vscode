@@ -313,6 +313,7 @@ export type IChatSessionHistoryItem = {
 	modeInstructions?: IChatRequestModeInstructions;
 	isSystemInitiated?: boolean;
 	isHidden?: boolean;
+	isRequestHidden?: boolean;
 	systemInitiatedLabel?: string;
 	isTerminalRequest?: boolean;
 	origin?: IChatRequestOrigin;
@@ -343,8 +344,11 @@ export interface IChatSessionServerRequest {
 	readonly timestamp?: number;
 	readonly isSystemInitiated?: boolean;
 	readonly isHidden?: boolean;
+	readonly isRequestHidden?: boolean;
 	readonly systemInitiatedLabel?: string;
 	readonly isTerminalRequest?: boolean;
+	/** Reopen the existing request with this id instead of adding another request. */
+	readonly resume?: boolean;
 	readonly origin?: IChatRequestOrigin;
 }
 
@@ -398,6 +402,10 @@ export function isRemoteAgentHostTarget(target: string): boolean {
  */
 export function isAgentHostTarget(target: string): boolean {
 	return isLocalAgentHostTarget(target) || isRemoteAgentHostTarget(target);
+}
+
+export function isAgentHostSessionResource(resource: URI): boolean {
+	return isAgentHostTarget(resource.scheme);
 }
 
 /**
@@ -556,6 +564,7 @@ export interface IChatInputCompletionResourceAttachment {
 export interface IChatInputCompletionCommandAttachment {
 	readonly kind: 'command';
 	readonly command: string;
+	readonly isSkill?: true;
 	readonly description: string;
 	/**
 	 * Implementation-defined metadata that MUST be preserved by the
@@ -648,6 +657,7 @@ export interface IChatNewSessionRequest {
 
 export interface IChatSessionItemsDelta {
 	readonly addedOrUpdated?: readonly IChatSessionItem[];
+	/** Sessions no longer provided by the controller. Retained content is disposed and pending resolutions are cancelled. */
 	readonly removed?: readonly URI[];
 }
 
