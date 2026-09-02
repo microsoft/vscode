@@ -89,13 +89,8 @@ function main(): void {
 		return;
 	}
 
-	console.error(`Found unreviewed install scripts in ${results.length} package.json files:`);
-	for (const result of results) {
-		console.error(`\n${path.relative(root, result.directory) || '.'}/package.json`);
-		for (const pending of result.pending) {
-			console.error(`  - ${pending.package} (${pending.scripts})`);
-		}
-	}
 	console.error('\nRun `npm approve-scripts <pkg>` in each directory to review the pending install scripts.');
 	process.exitCode = 1;
 }
+
+main(); 
