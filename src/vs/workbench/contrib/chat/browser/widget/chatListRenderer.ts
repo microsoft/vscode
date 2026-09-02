@@ -338,12 +338,18 @@ export function moveResponseOutcomeToolsAfterFinalResponse(content: ReadonlyArra
 	const responseLinkTargets = outcomeTools.some(part => getSessionCreatedOutcomeLink(part) !== undefined)
 		? getFinalResponseLinkTargets(content)
 		: undefined;
-	const uniqueOutcomeTools = responseLinkTargets
-		? outcomeTools.filter(part => {
-			const openLink = getSessionCreatedOutcomeLink(part);
-			return openLink === undefined || !responseLinkTargets.has(openLink);
-		})
-		: outcomeTools;
+	const seenSessionLinks = new Set<string>();
+	const uniqueOutcomeTools = outcomeTools.filter(part => {
+		const openLink = getSessionCreatedOutcomeLink(part);
+		if (openLink === undefined) {
+			return true;
+		}
+		if (responseLinkTargets?.has(openLink) || seenSessionLinks.has(openLink)) {
+			return false;
+		}
+		seenSessionLinks.add(openLink);
+		return true;
+	});
 
 	const finalResponseStartIndex = getFinalResponseStartIndexAfterMovingResponseOutcomeTools(content);
 	if (finalResponseStartIndex === undefined) {
