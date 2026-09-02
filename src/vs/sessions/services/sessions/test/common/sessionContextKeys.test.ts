@@ -249,4 +249,26 @@ suite('setSessionContextKeys - side chat', () => {
 			withToolChatHasSideChats: false,
 		});
 	});
+
+	test('a reopenable closed chat keeps the Chats picker available beside a lone untitled draft', () => {
+		const contextKeyService = disposables.add(new MockContextKeyService());
+		const mainChat = { ...stubChat, resource: URI.parse('test:///chat/main'), status: constObservable(SessionStatus.Completed) };
+		const draft = { ...stubChat, resource: URI.parse('test:///chat/draft'), status: constObservable(SessionStatus.Untitled) };
+
+		// The main chat is closed and the only visible tab is an untitled draft,
+		// which never counts towards the picker's population. The closed main
+		// chat has no tab to click, so the picker is its only route back.
+		const session = upcastPartial<IActiveSession>({
+			...stubSession({ sessionId: 'draft', chats: constObservable([mainChat, draft]), mainChat: constObservable(mainChat) }),
+			isCreated: constObservable(true),
+			sticky: constObservable(false),
+			activeChat: constObservable(draft),
+			visibleChatTabs: constObservable([draft]),
+			closedChats: constObservable([mainChat]),
+			shouldShowChatTabs: constObservable(true),
+		});
+		setActiveSessionContextKeys(session, contextKeyService, undefined);
+
+		assert.strictEqual(SessionHasMultipleCommittedChatsContext.getValue(contextKeyService), true);
+	});
 });

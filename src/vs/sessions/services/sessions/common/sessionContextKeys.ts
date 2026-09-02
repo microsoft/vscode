@@ -211,7 +211,10 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	const visibleChatCount = session?.visibleChatTabs.read(reader).filter(isCommitted).length ?? 0;
 	const reopenableChatCount = session?.closedChats.read(reader)
 		.filter(chat => isCommitted(chat) && chat.origin?.kind !== ChatOriginKind.Tool).length ?? 0;
-	keys.hasMultipleCommittedChats.set(visibleChatCount + reopenableChatCount > 1);
+	// A reopenable chat alone is enough: it has no tab to click, so the picker is
+	// its only route back — as when the main chat is closed beside a lone
+	// untitled draft, which does not count towards the visible total.
+	keys.hasMultipleCommittedChats.set(reopenableChatCount > 0 || visibleChatCount > 1);
 
 	// The tab strip is shown when more than one chat is visible, or when the
 	// single visible chat is not the main chat (the session header it replaces
