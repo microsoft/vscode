@@ -8,7 +8,7 @@ import TelemetryReporter from '@vscode/extension-telemetry';
 import { IRepositoryResolver, Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
 import { dispose, anyEvent, filterEvent, isDescendant, Limiter, pathEquals, toDisposable, eventToPromise } from './util';
-import { getSubmoduleDisplayNameForPath, Git, Repository as GitRepository } from './git';
+import { getSubmoduleDisplayName, getSubmoduleDisplayNameForPath, Git, Repository as GitRepository } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
 import { fromGitUri } from './uri';
@@ -715,6 +715,12 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		const parentRepository = await this.getRepositoryExact(repository.dotGit.superProjectPath);
 		if (!parentRepository) {
 			return undefined;
+		}
+
+		const submodule = parentRepository.submodules
+			.find(submodule => pathEquals(path.join(parentRepository.root, submodule.path), repository.root));
+		if (submodule) {
+			return getSubmoduleDisplayName(submodule);
 		}
 
 		try {
