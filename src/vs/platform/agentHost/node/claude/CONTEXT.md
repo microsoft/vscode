@@ -1420,7 +1420,7 @@ sees the deltas it can act on.
 | IAgent surface | SDK primitive(s) | What it does |
 |---|---|---|
 | `setPendingMessages?(chat, steeringMessage, queuedMessages)` (optional) | Yield an `SDKUserMessage` with `priority: 'now'` into the prompt iterable that was passed to `query()` ([sdk.d.ts:3067-3086](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L3067-L3086)) | Notifies the agent that the chat's pending-message state changed. The agent reacts by yielding the steering content as an `SDKUserMessage` whose `priority` is `'now'`, which the SDK treats as "preempt the current turn and run me first." |
-| (outbound signal) `AgentSignal { kind: 'steering_consumed', session, id }` | n/a (host-emitted) | Fallback for a steering message the SDK accepted but never echoed (abort, dispose). Host dispatches `SessionPendingMessageRemoved` so the client clears the pending pill. On the normal path the echo promotes the message to its own turn and `ChatTurnStarted.queuedMessageId` clears the pill instead. |
+| (outbound signal) `AgentSignal { kind: 'steering_consumed', session, id }` | n/a (host-emitted) | Fallback for a steering message the SDK accepted but never ran (abort, dispose). Host dispatches `SessionPendingMessageRemoved` so the client clears the pending pill. On the normal path the intermediate `result` that ends the preempted turn promotes the message to its own turn, and `ChatTurnStarted.queuedMessageId` clears the pill instead. |
 
 ##### Pending-message taxonomy (locked at the protocol layer)
 
@@ -1570,9 +1570,10 @@ This is the second of the three steering touchpoints on the host:
 
 1. Client writes `SessionPendingMessageSet { kind: Steering, ... }`.
 2. Host forwards the new state to `IAgent.setPendingMessages`.
-3. On the SDK echo the agent promotes the steer to its own turn, and
+3. On the intermediate `result` that ends the preempted turn, the agent
+   promotes the steer to its own turn, and
    `ChatTurnStarted.queuedMessageId` clears the pending message.
-4. Without an echo (abort, dispose) the agent emits `steering_consumed`
+4. If that never arrives (abort, dispose) the agent emits `steering_consumed`
    and the host dispatches `SessionPendingMessageRemoved { kind: Steering, id }`.
 
 ##### Steering vs `sendMessage` boundary
@@ -1673,7 +1674,7 @@ otherwise compose with fork at the UI layer.
 | `truncateSession` | Implemented; serializes through `_sessionSequencer`; protocol→SDK eventId translation | Not implemented (deliberate; SDK has no in-place truncate) |
 | `setPendingMessages` (steering) | Implemented; injects via Copilot SDK's `send({ mode: 'immediate' })` | Implemented (planned Phase 9); yields `SDKUserMessage` with `priority: 'now'` into the existing prompt iterable |
 | `setPendingMessages` (queued) | n/a — server consumes server-side | n/a — server consumes server-side |
-| `IAgentSteeringConsumedSignal` | Emitted on SDK ack | Emitted when the SDK echoes the `'now'`-priority message on the event stream after preempting the in-flight turn |
+| `IAgentSteeringConsumedSignal` | Emitted on SDK ack | Cleanup only: emitted for a steer the SDK accepted but never ran. The normal path promotes the steer to its own turn on the intermediate `result`, which clears the pill via `queuedMessageId` |
 
 The two SDKs land on the **same conceptual primitive** — a
 per-message hint that means "preempt the current turn and serve
@@ -1706,7 +1707,7 @@ me first" — via different transports:
   steering Turn, whose id is the steer's pending-message id. UIs that
   key off Turn boundaries see the steer as its own row.
 - **The pending pill clears at model visibility, not queue
-  acceptance.** On the normal path the SDK echo promotes the steer to
+  acceptance.** On the normal path the intermediate `result` promotes the steer to
   its own turn and `ChatTurnStarted.queuedMessageId` clears the pill.
   `steering_consumed` is the cleanup fallback for a steer that is never
   echoed (abort, dispose, or a turn that ends without it), so the pill

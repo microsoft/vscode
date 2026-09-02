@@ -7599,15 +7599,49 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 			preemptedTurnCompleted: turnActions.some(a => a.type === ActionType.ChatTurnComplete && a.turnId === 'turn-2'),
 			startedMessage: started?.message?.text,
 			clearsPendingBubble: started?.queuedMessageId,
-			startedTurnId: started?.turnId,
+			startedTurnIdIsFresh: Boolean(started?.turnId) && started?.turnId !== 'pending-9',
 			finalCompleteTargetsSteeringTurn: turnActions.at(-1)?.type === ActionType.ChatTurnComplete && turnActions.at(-1)?.turnId === started?.turnId,
 		}, {
 			preemptedTurnCompleted: true,
 			startedMessage: 'switch topic',
 			clearsPendingBubble: 'pending-9',
-			startedTurnId: 'pending-9',
+			startedTurnIdIsFresh: true,
 			finalCompleteTargetsSteeringTurn: true,
 		});
+	});
+
+	test('aborting after a steer was promoted cancels the promoted turn', async () => {
+		const { ctx, sessionUri, query, advance } = await materialize();
+		const sid = AgentSession.id(sessionUri);
+
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidChatProgress(s => signals.push(s)));
+
+		const longSend = ctx.agent.chats.sendMessage(defaultChatUri(sessionUri), 'long task', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(sessionUri)));
+		await tick();
+		ctx.agent.setPendingMessages!(defaultChatUri(sessionUri), { id: 'pending-11', message: { text: 'switch topic', origin: { kind: MessageKind.User } } }, []);
+		await tick();
+		await tick();
+		assert.ok(query.drainedPrompts.some(p => p.priority === 'now'), 'the steer reached the SDK');
+
+		// One result ends the preempted turn, promoting the steer; the abort abandons it.
+		ctx.sdk.nextQueryMessages.push(makeResultSuccess(sid));
+		await tick();
+		await ctx.agent.chats.abort(defaultChatUri(sessionUri), chatContext(defaultChatUri(sessionUri)));
+		advance.complete();
+		await longSend.catch(() => { /* cancelled */ });
+
+		const actions = signals
+			.filter(s => s.kind === 'action')
+			.map(s => (s as { action: { type: string; turnId: string } }).action);
+		const promoted = actions.find(a => a.type === ActionType.ChatTurnStarted && a.turnId !== 'turn-2');
+
+		// The client never dispatched this turn id, so only the host can close it.
+		assert.ok(promoted, 'the steer was promoted to its own turn');
+		assert.ok(
+			actions.some(a => a.type === ActionType.ChatTurnCancelled && a.turnId === promoted.turnId),
+			'the promoted turn is cancelled when the pipeline aborts',
+		);
 	});
 
 	test('a steering message the SDK never runs still clears its pending bubble', async () => {

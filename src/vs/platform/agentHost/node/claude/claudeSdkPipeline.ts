@@ -9,6 +9,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ClaudeRuntimeEffortLevel } from '../../common/claudeModelConfig.js';
@@ -275,6 +276,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		this._register(this._router.onDidProduceSignal(s => this._onDidProduceSignal.fire(s)));
 		// Dispose chain → abort → SDK cleanup. Reads the *current*
 		// `_abortController` so a swap aborts the live subprocess.
+		this._register(toDisposable(() => this._cancelPromotedTurn()));
 		this._register(toDisposable(() => this._drainPendingSteeringFlips()));
 		this._register(toDisposable(() => this._abortController.abort()));
 		this._register(toDisposable(() => {
@@ -451,6 +453,15 @@ export class ClaudeSdkPipeline extends Disposable {
 	private readonly _pendingSteeringFlips = new Map<string, PendingMessage>();
 
 	/**
+	 * The promoted steering turn, while one is open.
+	 *
+	 * The client never dispatched this turn, so its own cancel path does not
+	 * target it. Without this the turn survives an abort and the chat shows it
+	 * running forever.
+	 */
+	private _promotedTurnId: string | undefined;
+
+	/**
 	 * Promotes a steer to its own turn, completing the one it interrupted.
 	 * Mirrors the Copilot agent host so both harnesses surface steering the same way.
 	 */
@@ -465,7 +476,8 @@ export class ClaudeSdkPipeline extends Disposable {
 				duration: Math.max(0, interrupted.stopWatch.elapsed()),
 			},
 		});
-		const turnId = steering.id;
+		// Fresh id: `queuedMessageId` already links the steer to its pending message.
+		const turnId = generateUuid();
 		this._onDidProduceSignal.fire({
 			kind: 'action',
 			resource: this.chatChannelUri,
@@ -477,6 +489,7 @@ export class ClaudeSdkPipeline extends Disposable {
 				queuedMessageId: steering.id,
 			},
 		});
+		this._promotedTurnId = turnId;
 		this._queue.retargetTurn(turnId, StopWatch.create(false));
 		this._logService.info(`[Claude:${this.sessionId}] steering promoted to turn ${turnId} (pendingId=${steering.id})`);
 	}
@@ -496,6 +509,25 @@ export class ClaudeSdkPipeline extends Disposable {
 		this._beginSteeringTurn(steering, completed);
 	}
 
+	/**
+	 * Ends a promoted steering turn that will never finish.
+	 *
+	 * Only the host can: the client did not mint this turn id, so nothing on
+	 * its side will close it.
+	 */
+	private _cancelPromotedTurn(): void {
+		const turnId = this._promotedTurnId;
+		if (turnId === undefined) {
+			return;
+		}
+		this._promotedTurnId = undefined;
+		this._onDidProduceSignal.fire({
+			kind: 'action',
+			resource: this.chatChannelUri,
+			action: { type: ActionType.ChatTurnCancelled, turnId, duration: 0 },
+		});
+	}
+
 	/** Clears steers the SDK accepted but never ran, so no pending bubble is left behind. */
 	private _drainPendingSteeringFlips(): void {
 		if (this._pendingSteeringFlips.size === 0) {
@@ -511,6 +543,7 @@ export class ClaudeSdkPipeline extends Disposable {
 	/** Fails every queued entry and clears the steering messages that went with them. */
 	private _failQueue(error: Error): void {
 		this._queue.failAll(error);
+		this._cancelPromotedTurn();
 		this._drainPendingSteeringFlips();
 	}
 
@@ -768,6 +801,9 @@ export class ClaudeSdkPipeline extends Disposable {
 								duration: Math.max(0, completed.stopWatch.elapsed()),
 							},
 						});
+						if (this._promotedTurnId === completed.turnId) {
+							this._promotedTurnId = undefined;
+						}
 					} else if (completed) {
 						this._promoteSteeringAtHead(completed);
 					}
