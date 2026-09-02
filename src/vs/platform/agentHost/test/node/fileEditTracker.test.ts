@@ -114,6 +114,43 @@ suite('FileEditTracker', () => {
 		});
 	});
 
+	test('discard during completion prevents repopulating completed state', async () => {
+		const afterReadStarted = new DeferredPromise<void>();
+		const releaseAfterRead = new DeferredPromise<void>();
+		let content = 'before';
+		let readCount = 0;
+		const services = new ServiceCollection();
+		services.set(ILogService, new NullLogService());
+		services.set(IFileService, {
+			_serviceBrand: undefined,
+			readFile: async () => {
+				readCount++;
+				if (readCount === 2) {
+					afterReadStarted.complete();
+					await releaseAfterRead.p;
+				}
+				return { value: VSBuffer.fromString(content) };
+			},
+		} as IFileService);
+		services.set(IDiffComputeService, new TestDiffComputeService());
+		services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());
+		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
+		services.set(IEditArcReporterService, new NullEditArcReporterService());
+		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
+		const localTracker = instantiationService.createInstance(FileEditTracker, 'copilot:/discard-race', db);
+
+		await localTracker.trackEditStart('/workspace/race.txt', undefined, 'tc-race');
+		content = 'after';
+		const completion = localTracker.completeEdit('/workspace/race.txt', 'tc-race');
+		await afterReadStarted.p;
+		localTracker.discardEdit('/workspace/race.txt', 'tc-race');
+		releaseAfterRead.complete();
+		await completion;
+
+		const result = await localTracker.takeCompletedEdit('turn-1', 'tc-race', '/workspace/race.txt', '', undefined, undefined, undefined, 'tc-race');
+		assert.strictEqual(result, undefined);
+	});
+
 	test('replaces an orphaned pending snapshot by default', async () => {
 		await fileService.writeFile(URI.file('/workspace/replaced.txt'), VSBuffer.fromString('original'));
 

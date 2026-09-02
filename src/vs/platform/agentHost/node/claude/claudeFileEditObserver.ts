@@ -129,6 +129,10 @@ export class ClaudeFileEditObserver extends Disposable {
 				continue;
 			}
 			this._editToolPaths.delete(block.tool_use_id);
+			if (block.is_error === true) {
+				this._editTracker.discardEdit(tracked.filePath, block.tool_use_id);
+				continue;
+			}
 			try {
 				await this._editTracker.completeEdit(tracked.filePath, block.tool_use_id);
 				const fileEdit = await this._editTracker.takeCompletedEdit(turnId, block.tool_use_id, tracked.filePath, tracked.toolName, tracked.toolInput, tracked.modelId, tracked.clientContext, block.tool_use_id);

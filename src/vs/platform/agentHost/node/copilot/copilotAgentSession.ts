@@ -5087,6 +5087,8 @@ export class CopilotAgentSession extends Disposable {
 			const parentToolCallId = tracked.parentToolCallId ?? this._parentToolCallIdForSubagentEvent(e);
 			if (!parentToolCallId && e.agentId) {
 				this._logService.warn(`[Copilot:${this.sessionId}] Dropping tool.execution_complete for unknown subagent agentId=${e.agentId}`);
+				this._discardToolCallEdits(e.data.toolCallId, tracked);
+				this._activeToolCalls.delete(e.data.toolCallId);
 				return;
 			}
 			if (e.data.success && tracked.contributor === undefined) {
@@ -5097,11 +5099,12 @@ export class CopilotAgentSession extends Disposable {
 			}
 			this._logService.info(`[Copilot:${sessionId}] Tool completed: ${e.data.toolCallId}`);
 			this._reportToolApprovalIfNoPermission(e.data.toolCallId);
-			this._activeToolCalls.delete(e.data.toolCallId);
 			this._autoApprovals.delete(e.data.toolCallId);
 			this._toolApprovalRecords.delete(e.data.toolCallId);
 			this._pendingAutoApprovals.respond(e.data.toolCallId, undefined);
 			if (!parentToolCallId && !e.agentId && this._shouldDropLateRootTurnEvent('tool.execution_complete')) {
+				this._discardToolCallEdits(e.data.toolCallId, tracked);
+				this._activeToolCalls.delete(e.data.toolCallId);
 				return;
 			}
 			const displayName = tracked.displayName;
@@ -5116,6 +5119,7 @@ export class CopilotAgentSession extends Disposable {
 						part: { kind: ResponsePartKind.Markdown, id: generateUuid(), content: summary },
 					});
 				}
+				this._activeToolCalls.delete(e.data.toolCallId);
 				return;
 			}
 
@@ -5167,11 +5171,19 @@ export class CopilotAgentSession extends Disposable {
 			for (const filePath of tracked.editFilePaths) {
 				try {
 					await tracked.editSnapshot;
+					if (this._abortToken.isCancellationRequested) {
+						this._editTracker.discardEdit(filePath, e.data.toolCallId);
+						continue;
+					}
 					if (!e.data.success) {
 						this._editTracker.discardEdit(filePath, e.data.toolCallId);
 						continue;
 					}
 					await this._editTracker.completeEdit(filePath, e.data.toolCallId);
+					if (this._abortToken.isCancellationRequested) {
+						this._editTracker.discardEdit(filePath, e.data.toolCallId);
+						continue;
+					}
 					const fileEdit = await this._editTracker.takeCompletedEdit(this._turnId, e.data.toolCallId, filePath, tracked.toolName, tracked.parameters, this._lastSeenModelId, this._currentTurn.value?.clientContext, e.data.toolCallId);
 					if (fileEdit) {
 						content.push(fileEdit);
@@ -5181,6 +5193,10 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 
+			this._activeToolCalls.delete(e.data.toolCallId);
+			if (!parentToolCallId && !e.agentId && this._shouldDropLateRootTurnEvent('tool.execution_complete')) {
+				return;
+			}
 			this._emitAction({
 				type: ActionType.ChatToolCallComplete,
 				turnId: this._turnId,

@@ -89,11 +89,14 @@ export class FileEditTracker {
 		if (!pending) {
 			return;
 		}
-		this._pendingEdits.delete(editKey);
 		await pending.snapshotDone;
 
 		const afterContent = await this._readFile(filePath);
+		if (this._pendingEdits.get(editKey) !== pending) {
+			return;
+		}
 
+		this._pendingEdits.delete(editKey);
 		this._completedEdits.set(editKey, {
 			beforeContent: pending.beforeContent,
 			beforeExisted: pending.beforeExisted,

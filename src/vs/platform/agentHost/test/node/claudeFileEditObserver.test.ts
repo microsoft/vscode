@@ -161,6 +161,29 @@ suite('ClaudeFileEditObserver', () => {
 		});
 	});
 
+	test('discards failed tool results without caching file edits', async () => {
+		const { observer, db, fileService, mapperState } = createObserver(disposables);
+		const resource = URI.file('/work/failed.txt');
+		await fileService.writeFile(resource, VSBuffer.fromString('before'));
+
+		observer.observeAssistant(assistantMessage([
+			{ type: 'tool_use', id: 'tu-failed', name: 'Write', input: { file_path: resource.fsPath, content: 'after' } },
+		]));
+		await timeout(0);
+		await fileService.writeFile(resource, VSBuffer.fromString('partial'));
+		await observer.observeUser(userMessage([
+			{ type: 'tool_result', tool_use_id: 'tu-failed', content: 'failed', is_error: true },
+		]), 'turn-1', mapperState);
+
+		assert.deepStrictEqual({
+			cached: mapperState.takeFileEdit('tu-failed'),
+			persisted: await db.readFileEditContent('tu-failed', resource.fsPath),
+		}, {
+			cached: undefined,
+			persisted: undefined,
+		});
+	});
+
 	test('observeAssistant ignores non-edit tools and tools with no path', () => {
 		const { observer, mapperState } = createObserver(disposables);
 

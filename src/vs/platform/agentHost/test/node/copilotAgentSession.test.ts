@@ -7947,14 +7947,22 @@ Use the attached image as context.
 			});
 		});
 
-		test('aborting a turn discards active edit snapshots', async () => {
+		test('aborting while edit finalization is suspended prevents completion', async () => {
 			const workingDirectory = URI.file('/repo/project');
 			const filePath = join(workingDirectory.fsPath, 'edit.ts');
-			const { session, mockSession } = await createAgentSession(disposables, { workingDirectory, resume: true });
+			const { session, mockSession, signals } = await createAgentSession(disposables, { workingDirectory, resume: true });
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const releaseSnapshot = new DeferredPromise<void>();
+			const completed: Array<{ path: string; operationId: string | undefined }> = [];
 			const discarded: Array<{ path: string; operationId: string | undefined }> = [];
-			sessionInternals._editTracker.trackEditStart = async () => { };
+			const taken: string[] = [];
+			sessionInternals._editTracker.trackEditStart = async () => releaseSnapshot.p;
+			sessionInternals._editTracker.completeEdit = async (path, operationId) => { completed.push({ path, operationId }); };
 			sessionInternals._editTracker.discardEdit = (path, operationId) => { discarded.push({ path, operationId }); };
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, _toolCallId, path) => {
+				taken.push(path);
+				return undefined;
+			};
 			session.resetTurnState('turn-aborted-edit');
 
 			mockSession.fire('tool.execution_start', {
@@ -7970,9 +7978,34 @@ Use the attached image as context.
 				].join('\n'),
 			} as unknown as SessionEventPayload<'tool.execution_start'>['data']);
 			await timeout(0);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-aborted-edit',
+				success: true,
+				result: { content: 'Done' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			await timeout(0);
 			await session.abort();
+			releaseSnapshot.complete();
+			await timeout(0);
 
-			assert.deepStrictEqual(discarded, [{ path: filePath, operationId: 'tc-aborted-edit' }]);
+			assert.deepStrictEqual({
+				completed,
+				discarded,
+				taken,
+				fileEditCompletions: getActions(signals).filter(action =>
+					action.type === ActionType.ChatToolCallComplete
+					&& action.toolCallId === 'tc-aborted-edit'
+					&& action.result.content?.some(content => content.type === ToolResultContentType.FileEdit) === true
+				).length,
+			}, {
+				completed: [],
+				discarded: [
+					{ path: filePath, operationId: 'tc-aborted-edit' },
+					{ path: filePath, operationId: 'tc-aborted-edit' },
+				],
+				taken: [],
+				fileEditCompletions: 0,
+			});
 		});
 
 		test('hidden tools are not emitted as tool_start', async () => {
