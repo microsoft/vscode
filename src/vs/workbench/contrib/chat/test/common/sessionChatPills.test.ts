@@ -23,10 +23,10 @@ suite('SessionChatPills', () => {
 				{ kind: SessionChatPillKind.Subagents, label: 'Subagents', checked: true },
 			],
 			withoutData: [
+				{ kind: SessionChatPillKind.Issues, label: 'Issues', checked: true },
 				{ kind: SessionChatPillKind.Artifacts, label: 'Artifacts', checked: true },
 				{ kind: SessionChatPillKind.References, label: 'References', checked: true },
 				{ kind: SessionChatPillKind.Customizations, label: 'Customizations', checked: true },
-				{ kind: SessionChatPillKind.Issues, label: 'Issues', checked: true },
 				{ kind: SessionChatPillKind.Browsers, label: 'Browsers', checked: true },
 			],
 		});

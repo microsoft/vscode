@@ -5,10 +5,12 @@
 
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { defaultAgentMergeConfiguration } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
@@ -19,6 +21,12 @@ import { SessionHasPullRequestContext } from '../../../../common/contextkeys.js'
 import { IGitHubPullRequestRef, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import '../../browser/pullRequestActions.js';
+import { SessionPullRequestPresentationModel } from '../../browser/pullRequestIconStatus.js';
+import { IGitHubService } from '../../browser/githubService.js';
+import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest } from '../../common/types.js';
+import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
+import { GitHubPullRequestCIModel } from '../../browser/models/githubPullRequestCIModel.js';
+import { GitHubPullRequestReviewThreadsModel } from '../../browser/models/githubPullRequestReviewThreadsModel.js';
 
 function createSessionWithPullRequest(pullRequestUri: URI | undefined, pullRequestRefs?: readonly IGitHubPullRequestRef[]): ISession {
 	const workspaceUri = URI.from({ scheme: 'test', path: '/workspace' });
@@ -66,7 +74,108 @@ class TestOpenerService extends mock<IOpenerService>() {
 
 suite('Pull Request Actions', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shared presentation model applies Agent Merge to live pull request status', () => {
+		const pullRequest = upcastPartial<IGitHubPullRequest>({
+			number: 1,
+			title: 'Fix pills',
+			state: GitHubPullRequestState.Open,
+			headSha: 'abc123',
+			isDraft: false,
+		});
+		const pullRequestModel = upcastPartial<GitHubPullRequestModel>({
+			pullRequest: constObservable(pullRequest),
+			refresh: async () => { },
+			startPolling: () => Disposable.None,
+		});
+		const ciModel = upcastPartial<GitHubPullRequestCIModel>({
+			overallStatus: constObservable(GitHubCIOverallStatus.Failure),
+			refresh: async () => { },
+			startPolling: () => Disposable.None,
+		});
+		const reviewThreadsModel = upcastPartial<GitHubPullRequestReviewThreadsModel>({
+			reviewThreads: constObservable([]),
+			refresh: async () => { },
+			startPolling: () => Disposable.None,
+		});
+		const gitHubService = upcastPartial<IGitHubService>({
+			createPullRequestModelReference: () => ({ object: pullRequestModel, dispose: () => { } }),
+			createPullRequestCIModelReference: () => ({ object: ciModel, dispose: () => { } }),
+			createPullRequestReviewThreadsModelReference: () => ({ object: reviewThreadsModel, dispose: () => { } }),
+		});
+		const model = store.add(new SessionPullRequestPresentationModel(
+			constObservable([{
+				owner: 'microsoft',
+				repo: 'vscode',
+				number: 1,
+				uri: URI.parse('https://github.com/microsoft/vscode/pull/1'),
+			}]),
+			constObservable({
+				enabled: true,
+				actions: {
+					...defaultAgentMergeConfiguration,
+					fixCI: true,
+					resolveConflicts: false,
+					addressReviews: false,
+				},
+			}),
+			gitHubService,
+		));
+
+		assert.deepStrictEqual({
+			entryIcon: model.pullRequests.get()[0].icon?.id,
+			summaryIcon: model.icon.get().id,
+		}, {
+			entryIcon: Codicon.gitPullRequest.id,
+			summaryIcon: Codicon.gitPullRequest.id,
+		});
+	});
+
+	test('shared presentation model does not own polling', () => {
+		let refreshCount = 0;
+		let pollingStartCount = 0;
+		let pollingStopCount = 0;
+		const pullRequestModel = upcastPartial<GitHubPullRequestModel>({
+			pullRequest: constObservable(undefined),
+			refresh: async () => { refreshCount++; },
+			startPolling: () => {
+				pollingStartCount++;
+				return toDisposable(() => pollingStopCount++);
+			},
+		});
+		const gitHubService = upcastPartial<IGitHubService>({
+			createPullRequestModelReference: () => ({ object: pullRequestModel, dispose: () => { } }),
+		});
+		const pullRequestRefs = observableValue<readonly IGitHubPullRequestRef[]>('pullRequestActions.refs', [{
+			owner: 'microsoft',
+			repo: 'vscode',
+			number: 1,
+			uri: URI.parse('https://github.com/microsoft/vscode/pull/1'),
+			icon: Codicon.gitPullRequest,
+		}]);
+		const model = store.add(new SessionPullRequestPresentationModel(pullRequestRefs, constObservable(undefined), gitHubService));
+
+		model.pullRequests.get();
+		pullRequestRefs.set([{
+			...pullRequestRefs.get()[0],
+			icon: Codicon.gitPullRequestDone,
+			title: 'Updated title',
+		}], undefined);
+		model.pullRequests.get();
+
+		assert.deepStrictEqual({
+			refreshCount,
+			pollingStartCount,
+			pollingStopCount,
+			entryIcon: model.pullRequests.get()[0].icon?.id,
+		}, {
+			refreshCount: 0,
+			pollingStartCount: 0,
+			pollingStopCount: 0,
+			entryIcon: Codicon.gitPullRequestDone.id,
+		});
+	});
 
 	test('Open Pull Request and Copy Pull Request URL are contributed to a dedicated context menu group', () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu)

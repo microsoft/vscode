@@ -3,14 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, EventType, getWindow } from '../../../../../../base/browser/dom.js';
-import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
-import { IActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { Action, IAction, Separator, toAction } from '../../../../../../base/common/actions.js';
+import { getWindow } from '../../../../../../base/browser/dom.js';
+import { toAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, derivedOpts, IObservable, observableFromEvent, observableSignal, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { constObservable, derived, derivedObservableWithCache, derivedOpts, observableFromEvent, observableSignal, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../../base/common/types.js';
@@ -21,33 +18,25 @@ import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agen
 import { resolveChangesetUriTemplate, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifacts, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { Changeset, ChangesetState, ChatOriginKind, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, parseChatUri, readSessionGitHubState, SessionState, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, parseChatUri, readSessionGitHubState, SessionState, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { CHAT_INPUT_PILLS_ROW_HEIGHT, ChatPillsRow, ChatPillsWidget, getChatPillEntries, getChatPillResourceLocation, IChatPill, IChatPillEntry, IChatPillSection, IChatPillsModel, type ChatPillsCompactMode } from '../../../../../browser/chatPills.js';
-import { ChatChangesPillActionViewItem, chatChangesStatsEqual, EMPTY_CHAT_CHANGES_STATS, IChatChangesStats } from '../../../../../browser/chatChangesPill.js';
-import { ChatPillSingleEntry, createChatSectionPill, IChatDropdownPillOptions } from '../../../../../browser/chatDropdownPill.js';
-import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../browser/labels.js';
+import { CHAT_INPUT_PILLS_ROW_HEIGHT, getChatPillEntries, getChatPillResourceLocation, IChatPillEntry, IChatPillSection, type ChatPillsCompactMode } from '../../../../../browser/chatPills.js';
+import { chatChangesStatsEqual, EMPTY_CHAT_CHANGES_STATS, IChatChangesStats } from '../../../../../browser/chatChangesPill.js';
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
 import { browserViewUrlMatches, BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { getSessionChatPillMenu, ISessionChatPillMenuEntry, ISessionChatPillVisibilityService, SessionChatPillKind } from '../../../common/sessionChatPills.js';
+import { computePullRequestIcon, getHighestPriorityPullRequestIcon } from '../../../../../common/chatPullRequest.js';
+import { ISessionChatPillVisibilityService, SessionChatPillKind } from '../../../common/sessionChatPills.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { chatPersistentContentVisibleClass, type ChatWidget } from '../../widget/chatWidget.js';
-import { chatArtifactPillOptions, observeTurnStatusPillsEnabled, openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
+import { observeTurnStatusPillsEnabled, openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
 import { openChatFileChanges } from '../../editorChatResponseFileChangesService.js';
+import { ChatInputPills, StandardChatInputPillSources } from '../../chatInputPills.js';
 import { agentHostChangesetFileToEntryDiff } from './agentHostResponseFileChanges.js';
-
-const AGENT_HOST_SESSION_CHANGES_PILL_ID = 'chat.agentHost.sessionPills.changes';
-const AGENT_HOST_SESSION_ARTIFACTS_PILL_ID = 'chat.agentHost.sessionPills.artifacts';
-const AGENT_HOST_SESSION_REFERENCES_PILL_ID = 'chat.agentHost.sessionPills.references';
-const AGENT_HOST_SESSION_PULL_REQUESTS_PILL_ID = 'chat.agentHost.sessionPills.pullRequests';
-const AGENT_HOST_SESSION_ISSUES_PILL_ID = 'chat.agentHost.sessionPills.issues';
-const AGENT_HOST_SESSION_BROWSERS_PILL_ID = 'chat.agentHost.sessionPills.browsers';
 
 const offeredPillKinds: readonly SessionChatPillKind[] = [
 	SessionChatPillKind.Changes,
@@ -57,55 +46,6 @@ const offeredPillKinds: readonly SessionChatPillKind[] = [
 	SessionChatPillKind.References,
 	SessionChatPillKind.Browsers,
 ];
-
-const pullRequestsPillOptions: IChatDropdownPillOptions = {
-	widgetId: 'agentHostSessionPullRequests',
-	icon: Codicon.gitPullRequest,
-	title: localize('agentHostSessionPills.pullRequests.title', "Pull Requests"),
-	summaryLabel: count => count === 1
-		? localize('agentHostSessionPills.pullRequests.countSingle', "1 Pull Request")
-		: localize('agentHostSessionPills.pullRequests.count', "{0} Pull Requests", count),
-	summaryAriaLabel: count => count === 1
-		? localize('agentHostSessionPills.pullRequests.showSingle', "Show 1 pull request")
-		: localize('agentHostSessionPills.pullRequests.show', "Show {0} pull requests", count),
-};
-
-const issuesPillOptions: IChatDropdownPillOptions = {
-	widgetId: 'agentHostSessionIssues',
-	icon: Codicon.issues,
-	title: localize('agentHostSessionPills.issues.title', "Issues"),
-	summaryLabel: count => count === 1
-		? localize('agentHostSessionPills.issues.countSingle', "1 Issue")
-		: localize('agentHostSessionPills.issues.count', "{0} Issues", count),
-	summaryAriaLabel: count => count === 1
-		? localize('agentHostSessionPills.issues.showSingle', "Show 1 issue")
-		: localize('agentHostSessionPills.issues.show', "Show {0} issues", count),
-};
-
-const referencesPillOptions: IChatDropdownPillOptions = {
-	widgetId: 'agentHostSessionReferences',
-	icon: Codicon.bookmark,
-	title: localize('agentHostSessionPills.references.title', "References"),
-	summaryLabel: count => count === 1
-		? localize('agentHostSessionPills.references.countSingle', "1 Reference")
-		: localize('agentHostSessionPills.references.count', "{0} References", count),
-	summaryAriaLabel: count => count === 1
-		? localize('agentHostSessionPills.references.showSingle', "Show 1 reference")
-		: localize('agentHostSessionPills.references.show', "Show {0} references", count),
-	singleEntry: ChatPillSingleEntry.Summary,
-};
-
-const browsersPillOptions: IChatDropdownPillOptions = {
-	widgetId: 'agentHostSessionBrowsers',
-	icon: Codicon.globe,
-	title: localize('agentHostSessionPills.browsers.title', "Browsers"),
-	summaryLabel: count => count === 1
-		? localize('agentHostSessionPills.browsers.countSingle', "1 Active Browser")
-		: localize('agentHostSessionPills.browsers.count', "{0} Active Browsers", count),
-	summaryAriaLabel: count => count === 1
-		? localize('agentHostSessionPills.browsers.showSingle', "Show 1 browser")
-		: localize('agentHostSessionPills.browsers.show', "Show {0} browsers", count),
-};
 
 const artifactIcons: ReadonlyMap<SessionArtifactType, ThemeIcon> = new Map([
 	[SessionArtifactType.PullRequest, Codicon.gitPullRequest],
@@ -148,6 +88,10 @@ function dedupeLinks(...groups: readonly (readonly string[] | undefined)[]): str
 		}
 	}
 	return result;
+}
+
+function setsEqual<T>(first: ReadonlySet<T>, second: ReadonlySet<T>): boolean {
+	return first === second || (first.size === second.size && [...first].every(value => second.has(value)));
 }
 
 function isPromotedArtifact(artifact: ISessionArtifact, type: SessionArtifactType): artifact is ISessionArtifact & { readonly link: string } {
@@ -224,6 +168,17 @@ function resolutionEquals(first: IAgentHostSessionResolution | undefined, second
 		&& isEqual(first.backendSession, second.backendSession));
 }
 
+function changesetTargetEquals(
+	first: { readonly changeset: Changeset; readonly resource: URI } | undefined,
+	second: { readonly changeset: Changeset; readonly resource: URI } | undefined,
+): boolean {
+	return first === second || (!!first && !!second
+		&& first.changeset.changeKind === second.changeset.changeKind
+		&& first.changeset.label === second.changeset.label
+		&& first.changeset.uriTemplate === second.changeset.uriTemplate
+		&& isEqual(first.resource, second.resource));
+}
+
 function parseUri(value: string | undefined): URI | undefined {
 	if (!value) {
 		return undefined;
@@ -237,7 +192,7 @@ function parseUri(value: string | undefined): URI | undefined {
 
 function referenceLabel(link: string, kind: 'pullRequest' | 'issue'): string {
 	const resource = parseUri(link);
-	const number = resource?.path.split('/').filter(Boolean).at(-1);
+	const number = resource ? githubReferenceNumber(resource, kind) : undefined;
 	if (kind === 'pullRequest') {
 		return number
 			? localize('agentHostSessionPills.pullRequest.number', "Pull Request #{0}", number)
@@ -248,6 +203,11 @@ function referenceLabel(link: string, kind: 'pullRequest' | 'issue'): string {
 		: localize('agentHostSessionPills.issue', "Issue");
 }
 
+function githubReferenceNumber(resource: URI, kind: 'pullRequest' | 'issue'): string | undefined {
+	const segment = kind === 'pullRequest' ? 'pull' : 'issues';
+	return new RegExp(`/${segment}/(?<number>\\d+)(?:/|$)`).exec(resource.path)?.groups?.number;
+}
+
 function websiteKey(url: string): string | undefined {
 	const parsed = URL.parse(url);
 	if (!parsed) {
@@ -255,18 +215,6 @@ function websiteKey(url: string): string | undefined {
 	}
 	const path = parsed.pathname.length > 1 && parsed.pathname.endsWith('/') ? parsed.pathname.slice(0, -1) : parsed.pathname;
 	return `${parsed.protocol}//${parsed.host}${path}${parsed.search}${parsed.hash}`;
-}
-
-function getPillKind(actionId: string): SessionChatPillKind | undefined {
-	switch (actionId) {
-		case AGENT_HOST_SESSION_CHANGES_PILL_ID: return SessionChatPillKind.Changes;
-		case AGENT_HOST_SESSION_ARTIFACTS_PILL_ID: return SessionChatPillKind.Artifacts;
-		case AGENT_HOST_SESSION_REFERENCES_PILL_ID: return SessionChatPillKind.References;
-		case AGENT_HOST_SESSION_PULL_REQUESTS_PILL_ID: return SessionChatPillKind.PullRequests;
-		case AGENT_HOST_SESSION_ISSUES_PILL_ID: return SessionChatPillKind.Issues;
-		case AGENT_HOST_SESSION_BROWSERS_PILL_ID: return SessionChatPillKind.Browsers;
-		default: return undefined;
-	}
 }
 
 /** Adds Agent Host session metadata pills to a workbench chat input. */
@@ -282,21 +230,12 @@ export class AgentHostSessionInputPills extends Disposable {
 		@IBrowserViewWorkbenchService private readonly _browserViewService: IBrowserViewWorkbenchService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ISessionChatPillVisibilityService visibility: ISessionChatPillVisibilityService,
 	) {
 		super();
-
-		const row = this._register(new ChatPillsRow('AgentHostSessionInputPills.content', {
-			compact,
-			targetWindow: getWindow(this._widget.inputPart.persistentContentContainerElement),
-		}));
-		row.element.classList.add('agent-host-session-input-pills', 'hidden');
-		this._widget.inputPart.persistentContentContainerElement.appendChild(row.element);
-		this._register(toDisposable(() => row.element.remove()));
 
 		const pillsEnabled = observeTurnStatusPillsEnabled(this._configurationService);
 		const sessionResource = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.sessionResource);
@@ -315,7 +254,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			return observableFromSubscription(this, subscription.object);
 		});
 		const sessionState = derived(this, reader => sessionStateSource.read(reader).read(reader));
-		const changesetTarget = derived(this, reader => {
+		const changesetTarget = derivedOpts({ owner: this, equalsFn: changesetTargetEquals }, reader => {
 			const currentResolution = resolution.read(reader);
 			return currentResolution
 				? resolveAgentHostSessionChangeset(currentResolution.backendSession, sessionState.read(reader)?.changesets, currentResolution.defaultChangesetKind)
@@ -330,13 +269,28 @@ export class AgentHostSessionInputPills extends Disposable {
 			const subscription = reader.store.add(currentResolution.connection.getSubscription(StateComponents.Changeset, resource, 'AgentHostSessionInputPills'));
 			return observableFromSubscription(this, subscription.object);
 		});
+		const changesetFiles = derivedObservableWithCache<{ readonly connectionAuthority: string; readonly resource: URI; readonly files: ChangesetState['files'] } | undefined>(this, (reader, lastValue) => {
+			const currentResolution = resolution.read(reader);
+			const target = changesetTarget.read(reader);
+			if (!currentResolution || !target) {
+				return undefined;
+			}
+			const state = changesetStateSource.read(reader).read(reader);
+			if (!state) {
+				return lastValue?.connectionAuthority === currentResolution.connectionAuthority && isEqual(lastValue.resource, target.resource) ? lastValue : undefined;
+			}
+			if (state.status !== ChangesetStatus.Ready && lastValue?.connectionAuthority === currentResolution.connectionAuthority && isEqual(lastValue.resource, target.resource)) {
+				return lastValue;
+			}
+			return { connectionAuthority: currentResolution.connectionAuthority, resource: target.resource, files: state.files };
+		});
 		const changes = derived<readonly IEditSessionEntryDiff[]>(this, reader => {
 			const currentResolution = resolution.read(reader);
-			const state = changesetStateSource.read(reader).read(reader);
-			if (!currentResolution || !state) {
+			const files = changesetFiles.read(reader)?.files;
+			if (!currentResolution || !files) {
 				return [];
 			}
-			return state.files
+			return files
 				.map(file => agentHostChangesetFileToEntryDiff(file, currentResolution.connectionAuthority))
 				.filter(isDefined);
 		});
@@ -351,6 +305,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				};
 		});
 		const metadata = derived(this, reader => getAgentHostSessionPillMetadata(sessionState.read(reader)?._meta));
+		const gitHubState = derived(this, reader => readSessionGitHubState(sessionState.read(reader)?._meta));
 
 		this._register(this._browserViewService.onDidChangeBrowserViews(() => this._refreshBrowserListeners()));
 		this._refreshBrowserListeners();
@@ -364,13 +319,17 @@ export class AgentHostSessionInputPills extends Disposable {
 			return [...this._browserViewService.getKnownBrowserViews().values()]
 				.filter(input => input.model?.owner.type === 'agent' && ownerIds.has(input.model.owner.sessionId));
 		});
-		const browserUrls = derivedOpts<ReadonlySet<string>>({ owner: this, equalsFn: (first, second) => first.size === second.size && [...first].every(value => second.has(value)) }, reader => {
+		const browserUrls = derivedOpts<ReadonlySet<string>>({ owner: this, equalsFn: setsEqual }, reader => {
 			return visibility.isVisible(SessionChatPillKind.Browsers, reader)
 				? new Set(browserInputs.read(reader).map(input => input.url).filter(isDefined))
 				: new Set();
 		});
 
-		const pullRequestSections = derived(this, reader => this._buildReferenceSections(metadata.read(reader).pullRequestUrls, 'pullRequest'));
+		const pullRequestSections = derived(this, reader => this._buildReferenceSections(metadata.read(reader).pullRequestUrls, 'pullRequest', gitHubState.read(reader)));
+		const pullRequestIcon = derived(this, reader => {
+			const icons = getChatPillEntries(pullRequestSections.read(reader)).map(entry => entry.icon);
+			return getHighestPriorityPullRequestIcon(icons) ?? computePullRequestIcon('open');
+		});
 		const issueSections = derived(this, reader => this._buildReferenceSections(metadata.read(reader).issueUrls, 'issue'));
 		const artifactSections = derived(this, reader => {
 			const currentResolution = resolution.read(reader);
@@ -389,170 +348,69 @@ export class AgentHostSessionInputPills extends Disposable {
 			return entries.length > 0 ? [{ title: localize('agentHostSessionPills.browsers.section', "Browsers"), entries }] : [];
 		});
 
-		const visibleSections = (kind: SessionChatPillKind, sections: IObservable<readonly IChatPillSection[]>) => derived(
-			this,
-			reader => pillsEnabled.read(reader) && visibility.isVisible(kind, reader) ? sections.read(reader) : [],
-		);
-		const resourceLabels = this._register(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
-		const sectionPill = (id: string, label: string, sections: IObservable<readonly IChatPillSection[]>, options: IChatDropdownPillOptions) => {
-			const action = this._register(new Action(id, label));
-			return createChatSectionPill(action, sections, options, resourceLabels, instantiationService);
-		};
-
-		const changesAction = this._register(new Action(
-			AGENT_HOST_SESSION_CHANGES_PILL_ID,
-			localize('agentHostSessionPills.changes', "Changes"),
-			undefined,
-			true,
-			() => this._openChanges(changesetTarget.get()?.changeset.label ?? localize('agentHostSessionPills.changesEditor', "Session Changes"), changes.get()),
-		));
-		this._register(autorun(reader => {
-			const label = changesetTarget.read(reader)?.changeset.label ?? localize('agentHostSessionPills.changes', "Changes");
-			changesAction.label = label;
-			changesAction.tooltip = localize('agentHostSessionPills.viewChanges', "View {0}", label);
-		}));
-		const changesPill: IChatPill = {
-			action: changesAction,
-			createActionViewItem: (options: IActionViewItemOptions) => new ChatChangesPillActionViewItem(changesAction, options, changeStats, instantiationService),
-		};
-		const pullRequestPill = sectionPill(
-			AGENT_HOST_SESSION_PULL_REQUESTS_PILL_ID,
-			localize('agentHostSessionPills.pullRequests', "Pull Requests"),
-			visibleSections(SessionChatPillKind.PullRequests, pullRequestSections),
-			pullRequestsPillOptions,
-		);
-		const issuePill = sectionPill(
-			AGENT_HOST_SESSION_ISSUES_PILL_ID,
-			localize('agentHostSessionPills.issues', "Issues"),
-			visibleSections(SessionChatPillKind.Issues, issueSections),
-			issuesPillOptions,
-		);
-		const artifactPill = sectionPill(
-			AGENT_HOST_SESSION_ARTIFACTS_PILL_ID,
-			localize('agentHostSessionPills.artifacts', "Artifacts"),
-			visibleSections(SessionChatPillKind.Artifacts, artifactSections),
-			chatArtifactPillOptions,
-		);
-		const referencePill = sectionPill(
-			AGENT_HOST_SESSION_REFERENCES_PILL_ID,
-			localize('agentHostSessionPills.references', "References"),
-			visibleSections(SessionChatPillKind.References, referenceSections),
-			referencesPillOptions,
-		);
-		const browserPill = sectionPill(
-			AGENT_HOST_SESSION_BROWSERS_PILL_ID,
-			localize('agentHostSessionPills.browsers', "Browsers"),
-			visibleSections(SessionChatPillKind.Browsers, browserSections),
-			browsersPillOptions,
-		);
-
-		const kindsWithData = derived(this, reader => {
-			const kinds = new Set<SessionChatPillKind>();
-			if (!pillsEnabled.read(reader)) {
-				return kinds;
-			}
-			if (changeStats.read(reader).files > 0) {
-				kinds.add(SessionChatPillKind.Changes);
-			}
-			if (getChatPillEntries(pullRequestSections.read(reader)).length > 0) {
-				kinds.add(SessionChatPillKind.PullRequests);
-			}
-			if (getChatPillEntries(issueSections.read(reader)).length > 0) {
-				kinds.add(SessionChatPillKind.Issues);
-			}
-			if (getChatPillEntries(artifactSections.read(reader)).length > 0) {
-				kinds.add(SessionChatPillKind.Artifacts);
-			}
-			if (getChatPillEntries(referenceSections.read(reader)).length > 0) {
-				kinds.add(SessionChatPillKind.References);
-			}
-			if (getChatPillEntries(browserSections.read(reader)).length > 0) {
-				kinds.add(SessionChatPillKind.Browsers);
-			}
-			return kinds;
-		});
-		const pillsModel: IChatPillsModel = {
-			pills: derived(this, reader => {
-				if (!pillsEnabled.read(reader)) {
-					return [];
-				}
-				const pills: IChatPill[] = [];
-				if (changeStats.read(reader).files > 0) {
-					pills.push(changesPill);
-				}
-				if (visibility.isVisible(SessionChatPillKind.PullRequests, reader) && getChatPillEntries(pullRequestSections.read(reader)).length > 0) {
-					pills.push(pullRequestPill.read(reader));
-				}
-				if (visibility.isVisible(SessionChatPillKind.Issues, reader) && getChatPillEntries(issueSections.read(reader)).length > 0) {
-					pills.push(issuePill.read(reader));
-				}
-				if (visibility.isVisible(SessionChatPillKind.Artifacts, reader) && getChatPillEntries(artifactSections.read(reader)).length > 0) {
-					pills.push(artifactPill.read(reader));
-				}
-				if (visibility.isVisible(SessionChatPillKind.References, reader) && getChatPillEntries(referenceSections.read(reader)).length > 0) {
-					pills.push(referencePill.read(reader));
-				}
-				if (visibility.isVisible(SessionChatPillKind.Browsers, reader) && getChatPillEntries(browserSections.read(reader)).length > 0) {
-					pills.push(browserPill.read(reader));
-				}
-				return pills;
-			}),
-		};
-		const pills = this._register(instantiationService.createInstance(ChatPillsWidget, pillsModel, {
+		const sources = this._register(instantiationService.createInstance(StandardChatInputPillSources, {
+			changes: {
+				stats: changeStats,
+				label: derived(this, reader => changesetTarget.read(reader)?.changeset.label ?? localize('agentHostSessionPills.changes', "Changes")),
+				open: () => this._openChanges(changesetTarget.get()?.changeset.label ?? localize('agentHostSessionPills.changesEditor', "Session Changes"), changes.get()),
+			},
+			pullRequests: { sections: pullRequestSections, icon: pullRequestIcon },
+			issues: { sections: issueSections },
+			artifacts: { sections: artifactSections },
+			references: { sections: referenceSections },
+			browsers: { sections: browserSections },
+		}, offeredPillKinds));
+		const inputPills = this._register(instantiationService.createInstance(ChatInputPills, this._widget.inputPart.persistentContentContainerElement, {
+			debugName: 'AgentHostSessionInputPills.content',
+			compact,
+			targetWindow: getWindow(this._widget.inputPart.persistentContentContainerElement),
+			enabled: pillsEnabled,
+			sources: constObservable(sources.sources),
+			offeredKinds: offeredPillKinds,
 			ariaLabel: localize('agentHostSessionPills.ariaLabel', "Session status"),
-			allowContextMenu: true,
+			focusFallback: () => this._widget.focusInput(),
 		}));
-		pills.element.classList.add('show-file-icons');
-		row.content.appendChild(pills.element);
-		row.observe(pills.element);
+		inputPills.element.classList.add('agent-host-session-input-pills');
 
 		this._register(this._widget.inputPart.registerChatPetHorizontalPlatformProvider({
-			onDidChange: Event.any(row.onDidChangeLayout, pills.onDidChangePills),
-			getElements: () => pills.getPillElements(),
+			onDidChange: inputPills.onDidChange,
+			getElements: () => inputPills.getPillElements(),
 		}));
-		const showContextMenu = (anchor: HTMLElement | StandardMouseEvent, targetKind?: SessionChatPillKind) => {
-			const kinds = kindsWithData.get();
-			if (kinds.size === 0) {
-				return;
-			}
-			this._contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
-				getActions: () => this._getVisibilityActions(kinds, visibility, targetKind, () => row.restoreFocus(() => pills.getPillElements())),
-			});
+		const updateVisibility = (visible: boolean) => {
+			this._widget.inputPart.persistentContentContainerElement.classList.toggle(chatPersistentContentVisibleClass, visible);
+			this._widget.setPersistentContentHeight(visible ? CHAT_INPUT_PILLS_ROW_HEIGHT : undefined);
 		};
-		this._register(addDisposableListener(row.content, EventType.CONTEXT_MENU, (event: MouseEvent) => {
-			event.preventDefault();
-			event.stopPropagation();
-			const targetPill = pills.getPill(event.target as HTMLElement | null);
-			const targetKind = targetPill ? getPillKind(targetPill.action.id) : undefined;
-			showContextMenu(new StandardMouseEvent(getWindow(row.content), event), targetKind);
-		}));
-		this._register(row.onDidRequestContextMenu(anchor => {
-			const targetPill = pills.getPill(anchor);
-			showContextMenu(anchor, targetPill ? getPillKind(targetPill.action.id) : undefined);
-		}));
-		this._register(autorun(reader => {
-			const hasData = kindsWithData.read(reader).size > 0;
-			const anyVisible = pills.isVisible.read(reader);
-			row.element.classList.toggle('hidden', !hasData);
-			row.setEmpty(hasData && !anyVisible, localize('agentHostSessionPills.configure', "Configure Session Status Pills"));
-			this._widget.inputPart.persistentContentContainerElement.classList.toggle(chatPersistentContentVisibleClass, hasData);
-			this._widget.setPersistentContentHeight(hasData ? CHAT_INPUT_PILLS_ROW_HEIGHT : undefined);
-			row.scanDomNode();
-		}));
+		this._register(inputPills.onDidChangeVisibility(updateVisibility));
+		updateVisibility(inputPills.visible);
 	}
 
-	private _buildReferenceSections(links: readonly string[], kind: 'pullRequest' | 'issue'): readonly IChatPillSection[] {
+	private _buildReferenceSections(links: readonly string[], kind: 'pullRequest' | 'issue', gitHubState?: ReturnType<typeof readSessionGitHubState>): readonly IChatPillSection[] {
 		const entries = links.map(link => {
 			const resource = parseUri(link);
 			if (!resource) {
 				return undefined;
 			}
+			const number = githubReferenceNumber(resource, kind);
 			const label = referenceLabel(link, kind);
+			const pullRequestState = kind === 'pullRequest'
+				&& gitHubState?.pullRequestState
+				&& gitHubState.pullRequestStateUrl
+				&& linkKey(gitHubState.pullRequestStateUrl) === linkKey(link)
+				? gitHubState.pullRequestState
+				: 'open';
 			return {
 				id: linkKey(link),
 				label,
-				icon: kind === 'pullRequest' ? Codicon.gitPullRequest : Codicon.issues,
+				...(kind === 'pullRequest' && number ? { pillLabel: `#${number}` } : {}),
+				icon: kind === 'pullRequest' ? computePullRequestIcon(pullRequestState) : Codicon.issues,
+				toolbarActions: [toAction({
+					id: `chatInputPills.copy.${kind}.${linkKey(link)}`,
+					label: kind === 'pullRequest'
+						? localize('agentHostSessionPills.copyPullRequest', "Copy Pull Request URL")
+						: localize('agentHostSessionPills.copyIssue', "Copy Issue URL"),
+					class: ThemeIcon.asClassName(Codicon.copy),
+					run: () => this._clipboardService.writeText(resource.toString(true)),
+				})],
 				...getChatPillResourceLocation(resource, label),
 				open: () => this._openExternal(resource),
 			} satisfies IChatPillEntry;
@@ -680,33 +538,6 @@ export class AgentHostSessionInputPills extends Disposable {
 			return;
 		}
 		void this._openerService.open(resource, { fromUserGesture: true });
-	}
-
-	private _getVisibilityActions(kindsWithData: ReadonlySet<SessionChatPillKind>, visibility: ISessionChatPillVisibilityService, targetKind: SessionChatPillKind | undefined, restoreFocus: () => void): readonly IAction[] {
-		const menu = getSessionChatPillMenu(kindsWithData, visibility.readHiddenKinds(undefined), targetKind, offeredPillKinds);
-		const toggleAction = (entry: ISessionChatPillMenuEntry) => toAction({
-			id: `chat.agentHost.sessionPills.toggle.${entry.kind}`,
-			label: entry.label,
-			checked: entry.checked,
-			run: () => {
-				visibility.toggle(entry.kind);
-				restoreFocus();
-			},
-		});
-		const groups: IAction[][] = [];
-		if (menu.hide) {
-			const hide = menu.hide;
-			groups.push([toAction({
-				id: `chat.agentHost.sessionPills.hide.${hide.kind}`,
-				label: hide.label,
-				run: () => {
-					visibility.hide(hide.kind);
-					restoreFocus();
-				},
-			})]);
-		}
-		groups.push(menu.withData.map(toggleAction), menu.withoutData.map(toggleAction));
-		return Separator.join(...groups);
 	}
 
 	private _refreshBrowserListeners(): void {

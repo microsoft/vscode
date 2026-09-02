@@ -25,11 +25,11 @@ export const enum SessionChatPillKind {
 /** All pill kinds, in the order they are offered in the visibility menu. */
 export const SESSION_CHAT_PILL_KINDS: readonly SessionChatPillKind[] = [
 	SessionChatPillKind.Changes,
+	SessionChatPillKind.PullRequests,
+	SessionChatPillKind.Issues,
 	SessionChatPillKind.Artifacts,
 	SessionChatPillKind.References,
 	SessionChatPillKind.Customizations,
-	SessionChatPillKind.PullRequests,
-	SessionChatPillKind.Issues,
 	SessionChatPillKind.Browsers,
 	SessionChatPillKind.Subagents,
 ];
@@ -85,10 +85,11 @@ export function getSessionChatPillMenu(
 	targetKind?: SessionChatPillKind,
 	offeredKinds: readonly SessionChatPillKind[] = SESSION_CHAT_PILL_KINDS,
 ): ISessionChatPillMenu {
+	const offered = new Set(offeredKinds);
 	const withData: ISessionChatPillMenuEntry[] = [];
 	const withoutData: ISessionChatPillMenuEntry[] = [];
-	for (const kind of offeredKinds) {
-		if (!isSessionChatPillHideable(kind)) {
+	for (const kind of SESSION_CHAT_PILL_KINDS) {
+		if (!offered.has(kind) || !isSessionChatPillHideable(kind)) {
 			continue;
 		}
 		(kindsWithData.has(kind) ? withData : withoutData).push({

@@ -44,6 +44,11 @@ export class ChatResourcePillActionViewItem extends ChatPillActionViewItemBase {
 			}
 			this.updateTooltip();
 			this.updateAriaLabel();
+			if (entry?.ariaDescription) {
+				button.element.setAttribute('aria-description', entry.ariaDescription);
+			} else {
+				button.element.removeAttribute('aria-description');
+			}
 		}));
 	}
 

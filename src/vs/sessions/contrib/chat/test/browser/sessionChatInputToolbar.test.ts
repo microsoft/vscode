@@ -4,36 +4,53 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { constObservable, derived } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CHAT_TURN_ARTIFACT_PILL_ID, CHAT_TURN_CHANGES_PILL_ID } from '../../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
-import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../../../changes/common/changes.js';
-import { OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID } from '../../../github/common/types.js';
-import { SessionChatPillKind } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
-import { getSessionChatPillKindForAction, SESSION_BROWSERS_PILL_ID, SESSION_SUBAGENTS_PILL_ID } from '../../browser/sessionChatInputToolbar.js';
-import { SESSION_CUSTOMIZATIONS_PILL_ID } from '../../browser/sessionCustomizations.js';
+import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
+import { type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { computeSessionInputPillStats } from '../../browser/sessionChatInputToolbar.js';
 
 suite('SessionChatInputToolbar', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('maps turn-status and hosted pill actions onto togglable pill kinds', () => {
-		assert.deepStrictEqual([
-			getSessionChatPillKindForAction(CHAT_TURN_CHANGES_PILL_ID),
-			getSessionChatPillKindForAction(VIEW_SESSION_CHANGES_COMMAND_ID),
-			getSessionChatPillKindForAction(CHAT_TURN_ARTIFACT_PILL_ID),
-			getSessionChatPillKindForAction(SESSION_CUSTOMIZATIONS_PILL_ID),
-			getSessionChatPillKindForAction(OPEN_PULL_REQUEST_ACTION_ID),
-			getSessionChatPillKindForAction(OPEN_ISSUE_ACTION_ID),
-			getSessionChatPillKindForAction(SESSION_BROWSERS_PILL_ID),
-			getSessionChatPillKindForAction(SESSION_SUBAGENTS_PILL_ID),
-		], [
-			SessionChatPillKind.Changes,
-			SessionChatPillKind.Changes,
-			SessionChatPillKind.Artifacts,
-			SessionChatPillKind.Customizations,
-			SessionChatPillKind.PullRequests,
-			SessionChatPillKind.Issues,
-			SessionChatPillKind.Browsers,
-			SessionChatPillKind.Subagents,
-		]);
+	test('uses session-scoped changes rather than the last turn', () => {
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'provider:session',
+			workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
+			changesets: constObservable([]),
+			changes: constObservable([{
+				modifiedUri: URI.file('/session-change.ts'),
+				insertions: 10,
+				deletions: 4,
+			}]),
+		});
+		const cache = upcastPartial<ISessionChangesStatsCache>({
+			get: () => ({ files: 2, insertions: 8, deletions: 3 }),
+		});
+		const stats = derived(reader => computeSessionInputPillStats(session, cache, reader));
+		const pendingSession = upcastPartial<IActiveSession>({
+			...session,
+			worktreePending: constObservable(true),
+		});
+		const pendingStats = derived(reader => computeSessionInputPillStats(pendingSession, cache, reader));
+
+		assert.deepStrictEqual({
+			session: stats.get(),
+			pendingWorktree: pendingStats.get(),
+		}, {
+			session: {
+				files: 1,
+				insertions: 10,
+				deletions: 4,
+			},
+			pendingWorktree: {
+				files: 0,
+				insertions: 0,
+				deletions: 0,
+			},
+		});
 	});
 });

@@ -48,6 +48,8 @@ export interface IChatPillsModel {
 export interface IChatPillEntry {
 	readonly id: string;
 	readonly label: string;
+	/** Short label used when this entry renders as the pill itself. */
+	readonly pillLabel?: string;
 	readonly icon?: ThemeIcon;
 	/** Renders the entry with its resource's themed file icon. */
 	readonly resource?: URI;
@@ -119,6 +121,7 @@ export class ChatPillsRow extends Disposable {
 	private readonly _scrollable: DomScrollableElement;
 	private readonly _resizeObserver: DisposableResizeObserver;
 	private readonly _mutationObserver: MutationObserver | undefined;
+	private _expandedContentWidth: number | undefined;
 	private _isLayouting = false;
 	private readonly _onDidChangeLayout = this._register(new Emitter<void>());
 	readonly onDidChangeLayout: Event<void> = this._onDidChangeLayout.event;
@@ -142,10 +145,18 @@ export class ChatPillsRow extends Disposable {
 		const compactMode = options?.compact ?? false;
 		this.element.classList.toggle('compact', compactMode === true);
 
-		this._resizeObserver = this._register(new DisposableResizeObserver(debugName, () => this.layout(), targetWindow));
+		this._resizeObserver = this._register(new DisposableResizeObserver(debugName, entries => {
+			if (entries.some(entry => entry.target !== this.content)) {
+				this._expandedContentWidth = undefined;
+			}
+			this.layout();
+		}, targetWindow));
 		this._register(this._resizeObserver.observe(this.content));
 		if (compactMode === 'auto') {
-			this._mutationObserver = new targetWindow.MutationObserver(() => this.layout());
+			this._mutationObserver = new targetWindow.MutationObserver(() => {
+				this._expandedContentWidth = undefined;
+				this.layout();
+			});
 			this._observeMutations();
 			this._register({ dispose: () => this._mutationObserver?.disconnect() });
 		} else {
@@ -184,9 +195,19 @@ export class ChatPillsRow extends Disposable {
 		this._mutationObserver?.disconnect();
 		try {
 			if (this._mutationObserver) {
-				this.element.classList.remove('compact');
 				const availableWidth = this.element.getBoundingClientRect().width;
-				this.element.classList.toggle('compact', availableWidth > 0 && this.content.scrollWidth > availableWidth + 1);
+				if (this._expandedContentWidth === undefined || !this.element.classList.contains('compact')) {
+					const wasCompact = this.element.classList.contains('compact');
+					this.element.classList.remove('compact');
+					const expandedContentWidth = [...this.content.children].reduce((width, child) => {
+						return isHTMLElement(child) ? Math.max(width, child.offsetLeft + child.offsetWidth) : width;
+					}, 0);
+					if (expandedContentWidth > 0 || this.content.children.length === 0) {
+						this._expandedContentWidth = expandedContentWidth;
+					}
+					this.element.classList.toggle('compact', wasCompact);
+				}
+				this.element.classList.toggle('compact', availableWidth > 0 && this._expandedContentWidth !== undefined && this._expandedContentWidth > availableWidth + 1);
 			}
 			this.scanDomNode();
 			this._onDidChangeLayout.fire();
@@ -225,13 +246,15 @@ export class ChatPillsRow extends Disposable {
 		}
 	}
 
-	restoreFocus(getPillElements: () => readonly HTMLElement[]): void {
+	restoreFocus(getPillElements: () => readonly HTMLElement[], fallback?: () => void): void {
 		this._pendingFocus.value = disposableTimeout(() => {
 			const pill = getPillElements().at(0);
 			if (pill) {
 				pill.focus();
 			} else if (this.element.classList.contains('empty')) {
 				this.content.focus();
+			} else {
+				fallback?.();
 			}
 		});
 	}
@@ -246,12 +269,12 @@ export class ChatPillsWidget extends Disposable {
 	readonly isVisible: IObservable<boolean>;
 	private readonly _onDidChangePills = this._register(new Emitter<void>());
 	readonly onDidChangePills: Event<void> = this._onDidChangePills.event;
+	private readonly _onDidRemoveFocusedPill = this._register(new Emitter<void>());
+	readonly onDidRemoveFocusedPill: Event<void> = this._onDidRemoveFocusedPill.event;
 
-	private readonly _toolbar: ToolBar;
+	private readonly _toolbar: ChatPillsToolBar;
 	private _pillByAction = new Map<IAction, IChatPill>();
 	private _pills: readonly IChatPill[] = [];
-	private _pillViewItems: ChatPillActionViewItemBase[] = [];
-
 	constructor(
 		model: IChatPillsModel,
 		options: IChatPillsWidgetOptions | undefined,
@@ -260,15 +283,12 @@ export class ChatPillsWidget extends Disposable {
 		super();
 
 		this.element = $('.chat-pills.hidden');
-		this._toolbar = this._register(new ToolBar(this.element, contextMenuService, {
+		this._toolbar = this._register(new ChatPillsToolBar(this.element, contextMenuService, {
 			ariaLabel: options?.ariaLabel ?? localize('chatPills.ariaLabel', "Chat status"),
 			actionRunner: options?.actionRunner,
 			allowContextMenu: options?.allowContextMenu,
 			actionViewItemProvider: (action, viewItemOptions) => {
 				const viewItem = this._pillByAction.get(action)?.createActionViewItem?.(viewItemOptions) ?? new ChatPillActionViewItem(undefined, action, viewItemOptions);
-				if (viewItem instanceof ChatPillActionViewItemBase) {
-					this._pillViewItems.push(viewItem);
-				}
 				return viewItem;
 			},
 		}));
@@ -280,9 +300,32 @@ export class ChatPillsWidget extends Disposable {
 			this._toolbar.context = model.context?.read(reader);
 			const pillsChanged = pills.length !== this._pills.length || pills.some((pill, index) => pill !== this._pills[index]);
 			if (pillsChanged) {
+				const focusedPill = this._pills.find((_pill, index) => {
+					const viewItem = this._toolbar.getItemViewItem(index);
+					return viewItem instanceof ChatPillActionViewItemBase && viewItem.isFocused();
+				});
+				const expandedPill = focusedPill ? undefined : this._pills.find((_pill, index) => {
+					const viewItem = this._toolbar.getItemViewItem(index);
+					return viewItem instanceof ChatPillActionViewItemBase && viewItem.buttonElement?.getAttribute('aria-expanded') === 'true';
+				});
+				const focusOwner = focusedPill ?? expandedPill;
+				const focusedAction = focusOwner?.action;
+				const focusedIndexBeforeUpdate = focusOwner ? this._pills.indexOf(focusOwner) : -1;
+				const previousPills = this._pills;
 				this._pills = pills;
-				this._pillViewItems = [];
-				this._toolbar.setActions(pills.map(pill => pill.action));
+				this._toolbar.setPills(previousPills, pills);
+				const expandedPillPreserved = expandedPill && pills.includes(expandedPill);
+				if (!expandedPillPreserved) {
+					let focusedIndex = focusedAction ? pills.findIndex(pill => pill.action === focusedAction) : -1;
+					if (focusedIndex < 0 && focusedIndexBeforeUpdate >= 0 && pills.length > 0) {
+						focusedIndex = Math.min(focusedIndexBeforeUpdate, pills.length - 1);
+					}
+					if (focusedIndex >= 0) {
+						this._toolbar.focus(focusedIndex);
+					} else if (focusedIndexBeforeUpdate >= 0) {
+						this._onDidRemoveFocusedPill.fire();
+					}
+				}
 			}
 			this.element.classList.toggle('hidden', pills.length === 0);
 			if (pillsChanged) {
@@ -293,7 +336,14 @@ export class ChatPillsWidget extends Disposable {
 
 	/** Returns the rendered button for each pill. */
 	getPillElements(): readonly HTMLElement[] {
-		return this._pillViewItems.flatMap(viewItem => viewItem.buttonElement ? [viewItem.buttonElement] : []);
+		const elements: HTMLElement[] = [];
+		for (let index = 0; index < this._toolbar.getItemsLength(); index++) {
+			const viewItem = this._toolbar.getItemViewItem(index);
+			if (viewItem instanceof ChatPillActionViewItemBase && viewItem.buttonElement) {
+				elements.push(viewItem.buttonElement);
+			}
+		}
+		return elements;
 	}
 
 	/**
@@ -307,6 +357,48 @@ export class ChatPillsWidget extends Disposable {
 			return undefined;
 		}
 		return this._pills[[...item.parentElement.children].indexOf(item)];
+	}
+}
+
+/** Updates only the changed middle of a pill toolbar so stable pills keep their DOM and focus. */
+class ChatPillsToolBar extends ToolBar {
+	setPills(previous: readonly IChatPill[], next: readonly IChatPill[]): void {
+		let prefix = 0;
+		while (prefix < previous.length && prefix < next.length && previous[prefix] === next[prefix]) {
+			prefix++;
+		}
+
+		let suffix = 0;
+		while (suffix < previous.length - prefix
+			&& suffix < next.length - prefix
+			&& previous[previous.length - 1 - suffix] === next[next.length - 1 - suffix]) {
+			suffix++;
+		}
+
+		for (let index = previous.length - suffix - 1; index >= prefix; index--) {
+			this.actionBar.pull(index);
+		}
+		for (let index = prefix; index < next.length - suffix; index++) {
+			this.actionBar.push(next[index].action, { icon: true, label: false, index });
+		}
+		let focusedIndex = -1;
+		for (let index = 0; index < this.getItemsLength(); index++) {
+			const viewItem = this.getItemViewItem(index);
+			if (viewItem instanceof ChatPillActionViewItemBase && viewItem.isFocused()) {
+				focusedIndex = index;
+				break;
+			}
+		}
+		let focusableSet = false;
+		for (let index = 0; index < this.getItemsLength(); index++) {
+			const viewItem = this.getItemViewItem(index);
+			if (!(viewItem instanceof BaseActionViewItem)) {
+				continue;
+			}
+			const focusable: boolean = focusedIndex >= 0 ? index === focusedIndex : !focusableSet && viewItem.isEnabled();
+			viewItem.setFocusable(focusable);
+			focusableSet ||= focusable;
+		}
 	}
 }
 
