@@ -122,10 +122,18 @@ npm 7+ installs `peerDependencies` automatically, so claude's lockfile carries
 `ajv` and their transitive graph. The SDK inlines all of that into `sdk.mjs` at
 publish time. `sdk.mjs` statically imports node builtins and nothing else, and
 the one external module it resolves at runtime is its own native binary
-package. On the VS Code side, every reference to those packages is an
-`import type`, which TypeScript erases. With the peers omitted, a claude
-tarball is exactly two packages — `@anthropic-ai/claude-agent-sdk` and the one
-`claude-agent-sdk-<target>` binary package — both pinned to the SDK version.
+package.
+
+On the VS Code side, `@modelcontextprotocol/sdk` is only ever `import type`, so
+TypeScript erases it. `zod` is not: `claudeJsonSchemaToZod.ts` imports `z` at
+runtime to build the raw shapes it hands to `sdk.tool()`. That zod is VS Code's
+own dependency (root `package.json`, shipped in the product), and the objects
+flow *into* the SDK. Nothing resolves zod out of the downloaded tree. That is
+the invariant `--omit=peer` needs, and it is weaker than "unused".
+
+With the peers omitted, a claude tarball is exactly two packages,
+`@anthropic-ai/claude-agent-sdk` and the one `claude-agent-sdk-<target>` binary
+package, both pinned to the SDK version.
 
 The point isn't size (the peers are ~4% of a ~90MB tarball). It's that the
 tarball becomes a function of `(SDK version, target)` and nothing else. Before
@@ -158,22 +166,25 @@ with nothing checking it. The `default` branch is a build failure, not a skip.
 What gets checked is per-SDK, because the two are shaped differently and a
 check copied from one to the other would assert something we don't depend on:
 
-- **claude** — the agent host dynamic-imports `sdk.mjs` out of the tarball, so
-  the build imports it too, in a child process, and builds an MCP server from
-  it with the peers absent. If a future SDK stops inlining a peer, the build
-  fails there instead of on a user's machine months later, against a tarball
-  that is already immutable on the CDN. Then the native binary at
-  `claude-agent-sdk-<target>/claude[.exe]` is asserted present and executable.
-- **codex** — the agent host never loads JS from that tarball; it spawns
+- **claude.** The agent host dynamic-imports `sdk.mjs` out of the tarball, so
+  the build imports it too, in a child process and under a timeout. It then
+  repeats the production call shape from `buildClientToolMcpServer`: a zod raw
+  shape into `sdk.tool()`, the result into `sdk.createSdkMcpServer()`. Checking
+  that the exports merely exist would miss a peer resolved lazily inside
+  `tool()`, which is the shipped path. If a future SDK stops inlining a peer,
+  the build fails here instead of on a user's machine months later, against a
+  tarball that is already immutable on the CDN. The native binary at
+  `claude-agent-sdk-<target>/claude[.exe]` is then asserted present and
+  executable.
+- **codex.** The agent host never loads JS from that tarball; it spawns
   `codex-<target>/vendor/<rust-triple>/bin/codex[.exe]` directly. So the check
   is that the platform package vendors exactly one triple and that triple holds
   a runnable binary. The `sdkTarget → triple` table is deliberately *not*
-  copied out of `codexAgent.ts` — a second copy could drift and then validate a
+  copied out of `codexAgent.ts`. A second copy could drift and then validate a
   path nothing uses, so a renamed triple stays the runtime's to catch.
 
-Both run in a child process only where they need to; the file checks are
-cross-target safe, and the claude probe is too, since `sdk.mjs` is
-platform-independent JS and the probed calls never spawn the native binary.
+The file checks are cross-target safe, and so is the claude probe: `sdk.mjs` is
+platform-independent JS and none of the probed calls spawn the native binary.
 
 ## Bumping an SDK version
 

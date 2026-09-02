@@ -287,25 +287,42 @@ function verifyCodexBinaryLayout(nodeModulesDir: string, sdkTarget: string, sdkV
 }
 
 /**
+ * How long `verifyClaudeSdkLoads` gives its child before killing it. Generous,
+ * because the point is to bound a hang, not to measure anything.
+ */
+const PROBE_TIMEOUT_MS = 2 * 60 * 1000;
+
+/**
  * Smoke-checks the packaged claude tree before it is tarred: imports the SDK's
  * ESM entry point and builds an in-process MCP server out of it, with the
  * peerDependencies absent (see `npmCi`).
  *
  * This is the guard on the assumption `--omit=peer` rests on. Today the SDK
- * inlines MCP, zod and ajv into `sdk.mjs`, so nothing resolves them from disk —
- * but that is an implementation detail Anthropic never promised, and the
+ * inlines MCP, zod and ajv into `sdk.mjs`, so nothing resolves them from disk.
+ * That is an implementation detail Anthropic never promised, and the
  * `peerDependencies` block says the opposite. If a future version starts
  * importing a peer for real, this fails the build with a plain
- * ERR_MODULE_NOT_FOUND rather than failing on a user's machine, long after the
+ * ERR_MODULE_NOT_FOUND instead of failing on a user's machine long after the
  * tarball has become immutable on the CDN.
  *
- * Runs in a child process so a stray top-level timer in the SDK can't wedge the
- * build and so the module never enters this process's cache. Safe for
- * cross-target builds: `sdk.mjs` is platform-independent JS, and the calls it
- * makes here never reach for the native binary.
+ * It mirrors `buildClientToolMcpServer` rather than only checking that the
+ * exports exist, because `tool()` is where a lazily-resolved peer would
+ * surface: a zod raw shape goes into `tool()`, and the result into
+ * `createSdkMcpServer()`. The zod is VS Code's own copy, which is what the
+ * agent host passes across the SDK boundary at runtime. Nothing here resolves
+ * zod from the tarball.
+ *
+ * Runs in a child process so the module never enters this process's cache, and
+ * under a timeout so a stray top-level handle fails the build rather than
+ * hanging the release job. Safe for cross-target builds: `sdk.mjs` is
+ * platform-independent JS, and none of these calls reach for the native binary.
  */
 function verifyClaudeSdkLoads(stagingDir: string, sdkVersion: string): void {
 	const entry = path.join(stagingDir, 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'sdk.mjs');
+	// Resolves from this file, so it lands on the repo's own node_modules (the
+	// same place the `tar` import above comes from) and never on the staged
+	// tree, which has no zod in it at all.
+	const zodUrl = import.meta.resolve('zod');
 	// Lives at the staging root rather than inside `node_modules`, so it is
 	// outside what `buildTarball` collects.
 	const probePath = path.join(stagingDir, 'sdk-load-probe.mjs');
@@ -313,22 +330,31 @@ function verifyClaudeSdkLoads(stagingDir: string, sdkVersion: string): void {
 		// Dynamic import against a file URL, matching how the agent host loads
 		// the downloaded SDK (`claudeAgentSdkService.ts`).
 		`const sdk = await import(${JSON.stringify(pathToFileURL(entry).href)});`,
-		// The exports that would reach for a peer if any of them did:
-		// `createSdkMcpServer` and `tool` are the MCP + zod surface, `query` is
-		// the main entry point. Drift across the *full* binding surface is a
-		// separate concern, caught at compile time by the mapped-type assertion
-		// in `claudeAgentSdkService.ts`.
+		`const { z } = await import(${JSON.stringify(zodUrl)});`,
+		// The three exports that would reach for a peer. Drift across the *full*
+		// binding surface is a separate concern, caught at compile time by the
+		// mapped-type assertion in `claudeAgentSdkService.ts`.
 		`for (const name of ['query', 'tool', 'createSdkMcpServer']) {`,
 		`	if (typeof sdk[name] !== 'function') { throw new Error('SDK export missing or not callable: ' + name); }`,
 		`}`,
-		// Constructs the bundled MCP server — the path that would need
-		// `@modelcontextprotocol/sdk` on disk if it were no longer inlined.
-		`sdk.createSdkMcpServer({ name: 'agent-sdk-package-probe', version: '1.0.0', tools: [] });`,
+		// The production call shape, copied from `buildClientToolMcpServer`.
+		// Both calls would need `zod` or `@modelcontextprotocol/sdk` on disk if
+		// the SDK ever stopped inlining them.
+		`const probeTool = sdk.tool(`,
+		`	'agent_sdk_package_probe',`,
+		`	'Exercises tool() during packaging; never bound to a real session.',`,
+		`	{ query: z.string(), limit: z.number().optional() },`,
+		`	async () => ({ content: [{ type: 'text', text: 'ok' }] }),`,
+		`);`,
+		`sdk.createSdkMcpServer({ name: 'agent-sdk-package-probe', tools: [probeTool] });`,
 		'',
 	].join('\n'));
 
 	console.log(`[${SCRIPT}] Verifying the SDK loads without its peerDependencies…`);
-	const result = spawnSync(process.execPath, [probePath], { cwd: stagingDir, stdio: 'inherit' });
+	const result = spawnSync(process.execPath, [probePath], { cwd: stagingDir, stdio: 'inherit', timeout: PROBE_TIMEOUT_MS });
+	if (result.signal) {
+		throw new Error(`[${SCRIPT}] SDK load probe was killed by ${result.signal}. For SIGTERM that means it hit the ${PROBE_TIMEOUT_MS}ms timeout, so claude-agent-sdk@${sdkVersion} left a timer or handle open instead of exiting.`);
+	}
 	if (result.error) {
 		throw new Error(`[${SCRIPT}] SDK load probe failed to spawn: ${result.error.message}`);
 	}
@@ -344,12 +370,13 @@ function npmCi(workDir: string, env: NodeJS.ProcessEnv): void {
 	// `--ignore-scripts` blocks any postinstall/preinstall the SDK or its
 	// transitive deps might ship.
 	// `--omit=peer` drops the auto-installed peerDependencies. The agent host
-	// never loads them out of the tarball: the SDK's own entry points inline
-	// everything they need (MCP, zod, ajv) at bundle time, and the workbench
-	// passes its own zod / MCP types across the boundary. Omitting them keeps
-	// the tarball a pure function of (SDK version, target), so a transitive
-	// peer bump can no longer change the bytes at a CDN path that is already
-	// published — the failure mode of https://github.com/microsoft/vscode/pull/334094.
+	// never loads them out of the tarball: the SDK inlines what it needs (MCP,
+	// zod, ajv) at bundle time, VS Code's `@modelcontextprotocol/sdk` use is
+	// type-only, and the zod it does use at runtime is its own copy, whose
+	// objects it passes *into* the SDK. Omitting them keeps the tarball a pure
+	// function of (SDK version, target), so a transitive peer bump can no
+	// longer change the bytes at a CDN path that is already published. That was
+	// the failure mode of https://github.com/microsoft/vscode/pull/334094.
 	// Unlike `--omit=optional`, this does not touch the native binary package.
 	// `verifyClaudeSdkLoads` below is what keeps the "never loads them" claim
 	// honest as the SDK version moves.
