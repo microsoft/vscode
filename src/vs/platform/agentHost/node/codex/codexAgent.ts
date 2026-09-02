@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { CCAModel } from '@vscode/copilot-api';
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -239,6 +240,17 @@ const CODEX_COPILOT_MODEL_PROVIDER = 'vscode-proxy';
 const CODEX_COPILOT_MODEL_GROUP = 'copilot';
 const CODEX_OPENAI_MODEL_PROVIDER = 'openai';
 const CODEX_MODEL_SELECTION_PREFIX = '@provider=';
+
+/**
+ * The Codex harness relies on OpenAI Responses semantics beyond the endpoint
+ * shape. Other vendors can advertise `/responses` without supporting the full
+ * Codex request lifecycle, so only publish OpenAI's picker-eligible models.
+ */
+function isCodexCompatibleCopilotModel(model: CCAModel): boolean {
+	return model.vendor.toLowerCase() === CODEX_OPENAI_MODEL_PROVIDER
+		&& !!model.model_picker_enabled
+		&& !!model.supported_endpoints?.includes(CODEX_RESPONSES_ENDPOINT);
+}
 
 export function toCodexModelSelectionId(modelProvider: string, modelId: string): string {
 	return `${CODEX_MODEL_SELECTION_PREFIX}${encodeURIComponent(modelProvider)}:${encodeURIComponent(modelId)}`;
@@ -1984,7 +1996,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			// OpenAI-shaped Responses endpoint. The chosen id is forwarded straight
 			// through; CAPI remains the authority on what the token may actually use.
 			const models = all
-				.filter(m => m.model_picker_enabled && m.supported_endpoints?.includes(CODEX_RESPONSES_ENDPOINT))
+				.filter(isCodexCompatibleCopilotModel)
 				.sort((a, b) => Number(b.is_chat_default) - Number(a.is_chat_default))
 				.map((m): IAgentModelInfo => ({
 					provider: CODEX_AGENT_PROVIDER_ID,
