@@ -151,6 +151,16 @@ suite('Chat Paste Providers', () => {
 		const htmlSession = await pasteInto(transferOf({ [Mimes.text]: longText, [Mimes.html]: `<strong>${longText}</strong>` }));
 		const shortHtmlSession = await pasteInto(transferOf({ [Mimes.text]: 'hi', [Mimes.html]: '<strong>hi</strong>' }));
 		const attachmentSession = await pasteInto(transferOf({ [Mimes.text]: longText, [CHAT_ATTACHMENT_MIME_TYPE]: '{}' }));
+		const githubIssueSession = await pasteInto(transferOf({
+			[Mimes.text]: 'https://github.com/microsoft/vscode/issues/334061',
+			[Mimes.uriList]: 'https://github.com/microsoft/vscode/issues/334061',
+		}));
+		const githubPullRequestSession = await pasteInto(transferOf({
+			[Mimes.text]: 'https://github.com/microsoft/vscode/pull/333953#issuecomment-123',
+		}));
+		const nonGitHubSession = await pasteInto(transferOf({
+			[Mimes.text]: 'https://example.com/microsoft/vscode/issues/334061',
+		}));
 		const multiCursorSession = await pasteInto(plainText, [new Range(1, 1, 1, 1), new Range(1, 2, 1, 2)]);
 		isTerminalCommandPaste = true;
 		const terminalCommandSession = await pasteInto(plainText);
@@ -160,6 +170,9 @@ suite('Chat Paste Providers', () => {
 			longHtmlStillBecomesAnArtifact: htmlSession?.edits[0]?.title,
 			leavesShortHtmlToHtmlPaste: shortHtmlSession,
 			leavesCopiedChatAttachmentsToAttachmentPaste: attachmentSession,
+			githubIssue: githubIssueSession?.edits[0],
+			githubPullRequest: githubPullRequestSession?.edits[0],
+			leavesOtherUrlsToDefaultPaste: nonGitHubSession,
 			leavesMultipleCursorsToPlainTextPaste: multiCursorSession,
 			leavesTerminalCommandsAsText: terminalCommandSession,
 			insertText: edit?.insertText,
@@ -180,6 +193,19 @@ suite('Chat Paste Providers', () => {
 			longHtmlStillBecomesAnArtifact: 'Pasted Text Attachment',
 			leavesShortHtmlToHtmlPaste: undefined,
 			leavesCopiedChatAttachmentsToAttachmentPaste: undefined,
+			githubIssue: {
+				insertText: '[microsoft/vscode#334061](<https://github.com/microsoft/vscode/issues/334061>)',
+				title: 'Paste GitHub Link',
+				kind: provider.kind,
+				handledMimeType: Mimes.text,
+			},
+			githubPullRequest: {
+				insertText: '[microsoft/vscode#333953](<https://github.com/microsoft/vscode/pull/333953#issuecomment-123>)',
+				title: 'Paste GitHub Link',
+				kind: provider.kind,
+				handledMimeType: Mimes.text,
+			},
+			leavesOtherUrlsToDefaultPaste: undefined,
 			leavesMultipleCursorsToPlainTextPaste: undefined,
 			leavesTerminalCommandsAsText: undefined,
 			insertText: '#attachment:Pasted text #1 ',

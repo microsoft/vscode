@@ -368,6 +368,16 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 		}
 
 		const textdata = await text.asString();
+		const githubLink = getGitHubIssueOrPullRequestLink(textdata);
+		if (githubLink) {
+			return createEditSession({
+				insertText: `[${githubLink.label}](<${githubLink.url}>)`,
+				title: localize('pasteGitHubLink', "Paste GitHub Link"),
+				kind: this.kind,
+				handledMimeType: Mimes.text,
+			});
+		}
+
 		const target = this.pasteTargetService.getTarget(model.uri);
 		if (!target) {
 			return;
@@ -454,6 +464,19 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 		edit.yieldTo = [{ kind: HierarchicalKind.Empty.append('text', 'plain') }];
 		return createEditSession(edit);
 	}
+}
+
+function getGitHubIssueOrPullRequestLink(text: string): { readonly label: string; readonly url: string } | undefined {
+	const url = text.trim();
+	const match = /^https:\/\/github\.com\/(?<owner>[a-z\d](?:[a-z\d-]{0,38}))\/(?<repository>[a-z\d._-]+)\/(?:issues|pull)\/(?<number>\d+)(?:[/?#][^\s]*)?$/i.exec(url);
+	if (!match?.groups) {
+		return undefined;
+	}
+
+	return {
+		label: `${match.groups.owner}/${match.groups.repository}#${match.groups.number}`,
+		url,
+	};
 }
 
 export function createPastedTextArtifact(
