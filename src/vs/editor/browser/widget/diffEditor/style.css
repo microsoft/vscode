@@ -32,32 +32,40 @@
 	/*cursor: n-resize;*/
 }
 
-.monaco-editor.draggingUnchangedRegion.canMoveTop:not(.canMoveBottom) *,
+/*
+ * The resize cursors of the idle unchanged region controls. Nothing else declares a cursor for
+ * these elements, so they must not use `!important`: that would outrank rules which hide the
+ * mouse pointer over the whole editor, such as `.monaco-editor-hide-mouse-cursor` in `editor.css`.
+ */
 .monaco-editor .diff-hidden-lines .top.canMoveTop:not(.canMoveBottom),
 .monaco-editor .diff-hidden-lines .bottom.canMoveTop:not(.canMoveBottom) {
-	cursor: n-resize !important;
+	cursor: n-resize;
 }
 
-.monaco-editor.draggingUnchangedRegion:not(.canMoveTop).canMoveBottom *,
 .monaco-editor .diff-hidden-lines .top:not(.canMoveTop).canMoveBottom,
 .monaco-editor .diff-hidden-lines .bottom:not(.canMoveTop).canMoveBottom {
-	cursor: s-resize !important;
+	cursor: s-resize;
 }
 
-.monaco-editor.draggingUnchangedRegion.canMoveTop.canMoveBottom *,
 .monaco-editor .diff-hidden-lines .top.canMoveTop.canMoveBottom,
 .monaco-editor .diff-hidden-lines .bottom.canMoveTop.canMoveBottom {
-	cursor: ns-resize !important;
+	cursor: ns-resize;
 }
 
 /*
- * The unchanged region controls above declare `cursor` with `!important` even while idle, which
- * outranks the generic rule in `editor.css` that hides the mouse pointer while typing. These
- * selectors match that specificity and come later in the same file, so they win the cascade.
+ * While a region is dragged, the whole editor shows the resize cursor. Here `!important` is
+ * required to override the cursors which the individual descendants declare for themselves.
  */
-.monaco-editor-hide-mouse-cursor .monaco-editor .diff-hidden-lines :is(.top, .bottom):is(.canMoveTop, .canMoveBottom),
-.monaco-editor-hide-mouse-cursor .monaco-editor.draggingUnchangedRegion:is(.canMoveTop, .canMoveBottom) * {
-	cursor: none !important;
+.monaco-editor.draggingUnchangedRegion.canMoveTop:not(.canMoveBottom) * {
+	cursor: n-resize !important;
+}
+
+.monaco-editor.draggingUnchangedRegion:not(.canMoveTop).canMoveBottom * {
+	cursor: s-resize !important;
+}
+
+.monaco-editor.draggingUnchangedRegion.canMoveTop.canMoveBottom * {
+	cursor: ns-resize !important;
 }
 
 .monaco-editor .diff-hidden-lines .top {
