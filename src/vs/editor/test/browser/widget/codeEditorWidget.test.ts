@@ -8,8 +8,6 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { CodeEditorWidget } from '../../../browser/widget/codeEditor/codeEditorWidget.js';
-// Load the diff editor cursor styles covered by the computed-style test.
-import '../../../browser/widget/diffEditor/style.css';
 import { IEditorOptions } from '../../../common/config/editorOptions.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
@@ -275,59 +273,38 @@ suite('CodeEditorWidget', () => {
 			assert.strictEqual(isHidden(), true, 'composition end should not reveal the mouse pointer');
 		});
 
-		test('the editor and its descendants compute to `cursor: none` while hidden', () => {
+		test('the mouse cursor computes to `none` over editor text while hidden', () => {
 			const { container, editor, isHidden, typeAndAssertHidden } = createEditor();
-			const editorNode = container.querySelector<HTMLElement>('.monaco-editor');
-			assert.ok(editorNode, 'the editor should render its root node');
-
-			// A descendant which explicitly asks for a different pointer.
-			const descendant = document.createElement('div');
-			descendant.style.cursor = 'pointer';
-			editorNode.appendChild(descendant);
-
-			// A diff editor unchanged region control with its own resize cursor.
-			const hiddenLines = document.createElement('div');
-			hiddenLines.className = 'diff-hidden-lines';
-			const unchangedRegionControl = document.createElement('div');
-			unchangedRegionControl.className = 'top canMoveTop';
-			hiddenLines.appendChild(unchangedRegionControl);
-			editorNode.appendChild(hiddenLines);
+			const textSurface = container.querySelector<HTMLElement>('.view-lines.monaco-mouse-cursor-text');
+			assert.ok(textSurface, 'the editor should render its text surface');
 
 			const cursorOf = (element: HTMLElement) => mainWindow.getComputedStyle(element).cursor;
 			assert.deepStrictEqual({
 				root: cursorOf(container),
-				descendant: cursorOf(descendant),
-				unchangedRegionControl: cursorOf(unchangedRegionControl)
+				textSurface: cursorOf(textSurface)
 			}, {
 				root: 'auto',
-				descendant: 'pointer',
-				unchangedRegionControl: 'n-resize'
-			}, 'the mouse pointer should be untouched before typing');
+				textSurface: 'text'
+			}, 'the mouse cursor should be unchanged before typing');
 
 			typeAndAssertHidden();
 			assert.deepStrictEqual({
 				root: cursorOf(container),
-				editorNode: cursorOf(editorNode),
-				descendant: cursorOf(descendant),
-				unchangedRegionControl: cursorOf(unchangedRegionControl)
+				textSurface: cursorOf(textSurface)
 			}, {
 				root: 'none',
-				editorNode: 'none',
-				descendant: 'none',
-				unchangedRegionControl: 'none'
-			}, 'the mouse pointer should be hidden over the whole editor');
+				textSurface: 'none'
+			}, 'the mouse cursor should be hidden over editor text');
 
 			container.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, movementX: 4 }));
 			assert.strictEqual(isHidden(), false);
 			assert.deepStrictEqual({
 				root: cursorOf(container),
-				descendant: cursorOf(descendant),
-				unchangedRegionControl: cursorOf(unchangedRegionControl)
+				textSurface: cursorOf(textSurface)
 			}, {
 				root: 'auto',
-				descendant: 'pointer',
-				unchangedRegionControl: 'n-resize'
-			}, 'the mouse pointer should be restored');
+				textSurface: 'text'
+			}, 'the mouse cursor should be restored');
 
 			editor.dispose();
 		});

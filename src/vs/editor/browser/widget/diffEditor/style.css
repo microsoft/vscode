@@ -32,31 +32,21 @@
 	/*cursor: n-resize;*/
 }
 
+.monaco-editor.draggingUnchangedRegion.canMoveTop:not(.canMoveBottom) *,
 .monaco-editor .diff-hidden-lines .top.canMoveTop:not(.canMoveBottom),
 .monaco-editor .diff-hidden-lines .bottom.canMoveTop:not(.canMoveBottom) {
-	cursor: n-resize;
-}
-
-.monaco-editor .diff-hidden-lines .top:not(.canMoveTop).canMoveBottom,
-.monaco-editor .diff-hidden-lines .bottom:not(.canMoveTop).canMoveBottom {
-	cursor: s-resize;
-}
-
-.monaco-editor .diff-hidden-lines .top.canMoveTop.canMoveBottom,
-.monaco-editor .diff-hidden-lines .bottom.canMoveTop.canMoveBottom {
-	cursor: ns-resize;
-}
-
-/* Active drags override cursor styles declared by descendants. */
-.monaco-editor.draggingUnchangedRegion.canMoveTop:not(.canMoveBottom) * {
 	cursor: n-resize !important;
 }
 
-.monaco-editor.draggingUnchangedRegion:not(.canMoveTop).canMoveBottom * {
+.monaco-editor.draggingUnchangedRegion:not(.canMoveTop).canMoveBottom *,
+.monaco-editor .diff-hidden-lines .top:not(.canMoveTop).canMoveBottom,
+.monaco-editor .diff-hidden-lines .bottom:not(.canMoveTop).canMoveBottom {
 	cursor: s-resize !important;
 }
 
-.monaco-editor.draggingUnchangedRegion.canMoveTop.canMoveBottom * {
+.monaco-editor.draggingUnchangedRegion.canMoveTop.canMoveBottom *,
+.monaco-editor .diff-hidden-lines .top.canMoveTop.canMoveBottom,
+.monaco-editor .diff-hidden-lines .bottom.canMoveTop.canMoveBottom {
 	cursor: ns-resize !important;
 }
 
