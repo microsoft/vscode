@@ -31,6 +31,9 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 	private _linkUnderlinesEnabled: boolean;
 	protected readonly _onDidChangeLinkUnderline = this._register(new Emitter<void>());
 
+	private _enhancedFocusEnabled: boolean;
+	protected readonly _onDidChangeEnhancedFocus = this._register(new Emitter<void>());
+
 	constructor(
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
@@ -66,10 +69,12 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 		this._configTransparencyReduced = this._configurationService.getValue<'auto' | 'on' | 'off'>('workbench.reduceTransparency');
 
 		this._linkUnderlinesEnabled = this._configurationService.getValue('accessibility.underlineLinks');
+		this._enhancedFocusEnabled = this._configurationService.getValue('accessibility.enhancedFocus');
 
 		this.initReducedMotionListeners(reduceMotionMatcher);
 		this.initReducedTransparencyListeners(reduceTransparencyMatcher);
 		this.initLinkUnderlineListeners();
+		this.initEnhancedFocusListeners();
 	}
 
 	private initReducedMotionListeners(reduceMotionMatcher: MediaQueryList) {
@@ -134,8 +139,30 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 		this._register(this.onDidChangeLinkUnderlines(() => updateLinkUnderlineClasses()));
 	}
 
+	private initEnhancedFocusListeners() {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('accessibility.enhancedFocus')) {
+				const enhancedFocus = this._configurationService.getValue<boolean>('accessibility.enhancedFocus');
+				this._enhancedFocusEnabled = enhancedFocus;
+				this._onDidChangeEnhancedFocus.fire();
+			}
+		}));
+
+		const updateFocusClasses = () => {
+			const enhanced = this._enhancedFocusEnabled;
+			this._layoutService.mainContainer.classList.toggle('enhanced-focus', enhanced);
+		};
+
+		updateFocusClasses();
+		this._register(this.onDidChangeEnhancedFocus(() => updateFocusClasses()));
+	}
+
 	public onDidChangeLinkUnderlines(listener: () => void) {
 		return this._onDidChangeLinkUnderline.event(listener);
+	}
+
+	public onDidChangeEnhancedFocus(listener: () => void) {
+		return this._onDidChangeEnhancedFocus.event(listener);
 	}
 
 	get onDidChangeScreenReaderOptimized(): Event<void> {
@@ -150,8 +177,6 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 	private getAccessibilitySupportConfigurationValue(): 'auto' | 'off' | 'on' {
 		const inspectedValue = this._configurationService.inspect<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
 
-		// Resolve the setting explicitly in scope precedence order to avoid relying on
-		// resource-dependent resolution in this global service.
 		return inspectedValue.policyValue
 			?? inspectedValue.memoryValue
 			?? inspectedValue.workspaceFolderValue
