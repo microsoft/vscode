@@ -39,8 +39,8 @@ export const enum SessionConfigKey {
 	AgentMerge = 'agentMerge',
 	/** `'agentMerge.controller'` — host-owned Agent Merge lifecycle state. */
 	AgentMergeController = 'agentMerge.controller',
-	/** `'shellInitSnippets'` — host-generated scripts sourced before built-in shell tool commands. */
-	ShellInitSnippets = 'shellInitSnippets',
+	/** `'shellInitScripts'` — scripts a client generated for the session, sourced before built-in shell tool commands. */
+	ShellInitScripts = 'shellInitScripts',
 }
 
 /**
@@ -67,6 +67,6 @@ export const KNOWN_MODE_VALUES: ReadonlySet<string> = new Set(['interactive', 'p
  */
 export function omitTransientSessionConfigValues<T>(values: Record<string, T>): Record<string, T> {
 	const result = { ...values };
-	delete result[SessionConfigKey.ShellInitSnippets];
+	delete result[SessionConfigKey.ShellInitScripts];
 	return result;
 }

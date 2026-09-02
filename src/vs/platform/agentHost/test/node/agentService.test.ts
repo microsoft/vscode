@@ -14059,7 +14059,7 @@ suite('AgentService (node dispatcher)', () => {
 				provider: 'copilot',
 				config: {
 					autoApprove: 'autoApprove',
-					[SessionConfigKey.ShellInitSnippets]: [{ shell: 'bash', script: 'export TRANSIENT=1' }],
+					[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'export TRANSIENT=1' }],
 				},
 			});
 
@@ -14110,7 +14110,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			await sessionDb.setMetadata('configValues', JSON.stringify({
 				autoApprove: 'autoApprove',
-				[SessionConfigKey.ShellInitSnippets]: [{ shell: 'bash', script: 'export STALE=1' }],
+				[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'export STALE=1' }],
 			}));
 			const { session } = await createAgentSession(localAgent);
 			localAgent.sessionMessages = [
@@ -14124,11 +14124,11 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				isolation: values?.[SessionConfigKey.Isolation],
 				autoApprove: values?.autoApprove,
-				shellInitSnippets: values?.[SessionConfigKey.ShellInitSnippets],
+				shellInitScripts: values?.[SessionConfigKey.ShellInitScripts],
 			}, {
 				isolation: 'folder',
 				autoApprove: 'autoApprove',
-				shellInitSnippets: undefined,
+				shellInitScripts: undefined,
 			});
 		});
 

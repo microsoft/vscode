@@ -125,12 +125,12 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 	}
 
 	private _supportsShellInit(state: SessionState | Error | undefined): state is SessionState {
-		return !!state && !(state instanceof Error) && !!state.config?.schema.properties[SessionConfigKey.ShellInitSnippets];
+		return !!state && !(state instanceof Error) && !!state.config?.schema.properties[SessionConfigKey.ShellInitScripts];
 	}
 
 	private _publish(key: string): void {
 		const state = this._registrations.get(key)?.subscription.value;
-		if (!state || state instanceof Error || !state.config?.schema.properties[SessionConfigKey.ShellInitSnippets]) {
+		if (!state || state instanceof Error || !state.config?.schema.properties[SessionConfigKey.ShellInitScripts]) {
 			return;
 		}
 
@@ -145,14 +145,14 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 			return;
 		}
 		const desired = enabled && folder ? [createShellInitScript(TOOL_SHELL, this._readPythonActivation(folder))] : [];
-		const current = state.config.values[SessionConfigKey.ShellInitSnippets] as readonly IShellInitScript[] | undefined;
+		const current = state.config.values[SessionConfigKey.ShellInitScripts] as readonly IShellInitScript[] | undefined;
 		if (structuralEquals(current, desired) || (!desired.length && current === undefined)) {
 			return;
 		}
 
 		this._agentHostService.dispatch(key, {
 			type: ActionType.SessionConfigChanged,
-			config: { [SessionConfigKey.ShellInitSnippets]: desired },
+			config: { [SessionConfigKey.ShellInitScripts]: desired },
 		});
 	}
 

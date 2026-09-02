@@ -8,7 +8,7 @@ import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 export type ShellInitScriptShell = 'bash' | 'powershell';
 
 /**
- * One host-generated script sourced before every SDK built-in shell command.
+ * One client-generated script sourced before every SDK built-in shell command.
  * The array-valued session config carries either no script (`[]`) or this one
  * script, so clearing a previously applied script is explicit.
  */

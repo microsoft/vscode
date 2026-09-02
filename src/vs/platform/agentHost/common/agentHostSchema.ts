@@ -311,22 +311,22 @@ const permissionsProperty = schemaProperty<IPermissionsValue>({
  * Deliberately has no `default`: an absent value means "nothing to apply",
  * which must stay distinguishable from an explicit empty array (clear).
  */
-const shellInitSnippetsProperty = schemaProperty<readonly IShellInitScript[]>({
+const shellInitScriptsProperty = schemaProperty<readonly IShellInitScript[]>({
 	type: 'array',
-	title: localize('agentHost.sessionConfig.shellInitSnippets', "Shell Init Script"),
-	description: localize('agentHost.sessionConfig.shellInitSnippetsDescription', "A script sourced before each built-in shell tool command."),
+	title: localize('agentHost.sessionConfig.shellInitScripts', "Shell Init Script"),
+	description: localize('agentHost.sessionConfig.shellInitScriptsDescription', "A script sourced before each built-in shell tool command."),
 	items: {
 		type: 'object',
-		title: localize('agentHost.sessionConfig.shellInitSnippets.item', "Shell Init Script"),
+		title: localize('agentHost.sessionConfig.shellInitScripts.item', "Shell Init Script"),
 		properties: {
 			shell: {
 				type: 'string',
-				title: localize('agentHost.sessionConfig.shellInitSnippets.shell', "Shell"),
+				title: localize('agentHost.sessionConfig.shellInitScripts.shell', "Shell"),
 				enum: ['bash', 'powershell'],
 			},
 			script: {
 				type: 'string',
-				title: localize('agentHost.sessionConfig.shellInitSnippets.script', "Script"),
+				title: localize('agentHost.sessionConfig.shellInitScripts.script', "Script"),
 			},
 		},
 		required: ['shell', 'script'],
@@ -381,7 +381,7 @@ export const platformSessionSchema = createSchema({
 		default: 'interactive',
 		sessionMutable: true,
 	}),
-	[SessionConfigKey.ShellInitSnippets]: shellInitSnippetsProperty,
+	[SessionConfigKey.ShellInitScripts]: shellInitScriptsProperty,
 });
 
 /**

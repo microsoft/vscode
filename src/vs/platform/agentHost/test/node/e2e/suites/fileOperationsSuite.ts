@@ -291,7 +291,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 				clientSeq: 1,
 				action: {
 					type: ActionType.SessionConfigChanged,
-					config: { [SessionConfigKey.ShellInitSnippets]: [{ shell: 'bash', script: 'export AHP_E2E_INIT_MARKER=init_marker_91\nbuiltin true\n' }] },
+					config: { [SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'export AHP_E2E_INIT_MARKER=init_marker_91\nbuiltin true\n' }] },
 				},
 			});
 

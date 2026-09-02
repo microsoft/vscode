@@ -75,7 +75,7 @@ suite('AgentHostShellInitSynchronizer', () => {
 			config: {
 				schema: {
 					type: 'object',
-					properties: options?.schema === false ? {} : { [SessionConfigKey.ShellInitSnippets]: { type: 'array' } },
+					properties: options?.schema === false ? {} : { [SessionConfigKey.ShellInitScripts]: { type: 'array' } },
 				},
 				values: options?.values ?? {},
 			},
@@ -140,7 +140,7 @@ suite('AgentHostShellInitSynchronizer', () => {
 	}
 
 	function scripts(dispatched: readonly Record<string, unknown>[]): readonly IShellInitScript[] {
-		return dispatched.at(-1)?.[SessionConfigKey.ShellInitSnippets] as readonly IShellInitScript[];
+		return dispatched.at(-1)?.[SessionConfigKey.ShellInitScripts] as readonly IShellInitScript[];
 	}
 
 	test('publishes one combined script with the folder-scoped Python activation', async () => {
@@ -271,9 +271,9 @@ suite('AgentHostShellInitSynchronizer', () => {
 	test('the single setting clears the script when disabled', async () => {
 		const { synchronizer, dispatched } = create({ enabled: false });
 		await register(synchronizer, state({
-			values: { [SessionConfigKey.ShellInitSnippets]: [{ shell: 'bash', script: 'old' }] },
+			values: { [SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'old' }] },
 		}));
-		assert.deepStrictEqual(dispatched, [{ [SessionConfigKey.ShellInitSnippets]: [] }]);
+		assert.deepStrictEqual(dispatched, [{ [SessionConfigKey.ShellInitScripts]: [] }]);
 	});
 
 	test('the experimental setting is disabled by default', async () => {
@@ -285,9 +285,9 @@ suite('AgentHostShellInitSynchronizer', () => {
 	test('a non-owning local window can clear the script when disabled', async () => {
 		const { synchronizer, dispatched } = create({ enabled: false, folders: [folderB] });
 		await register(synchronizer, state({
-			values: { [SessionConfigKey.ShellInitSnippets]: [{ shell: 'bash', script: 'old' }] },
+			values: { [SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'old' }] },
 		}));
-		assert.deepStrictEqual(dispatched, [{ [SessionConfigKey.ShellInitSnippets]: [] }]);
+		assert.deepStrictEqual(dispatched, [{ [SessionConfigKey.ShellInitScripts]: [] }]);
 	});
 
 	test('does not publish a script from the Agents window even when it owns the session folder', async () => {
@@ -306,9 +306,9 @@ suite('AgentHostShellInitSynchronizer', () => {
 	test('the Agents window can clear a stale script when disabled', async () => {
 		const { synchronizer, dispatched } = create({ enabled: false, sessionsWindow: true, folders: [] });
 		await register(synchronizer, state({
-			values: { [SessionConfigKey.ShellInitSnippets]: [{ shell: 'bash', script: 'old' }] },
+			values: { [SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'old' }] },
 		}));
-		assert.deepStrictEqual(dispatched, [{ [SessionConfigKey.ShellInitSnippets]: [] }]);
+		assert.deepStrictEqual(dispatched, [{ [SessionConfigKey.ShellInitScripts]: [] }]);
 	});
 
 	test('does not publish when the Agent Host can run on a remote OS', async () => {

@@ -345,38 +345,38 @@ suite('agentHostSchema', () => {
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, 42), false);
 		});
 
-		test('validates the shellInitSnippets shape', () => {
+		test('validates the shellInitScripts shape', () => {
 			assert.deepStrictEqual([
-				platformSessionSchema.validate(SessionConfigKey.ShellInitSnippets, []),
-				platformSessionSchema.validate(SessionConfigKey.ShellInitSnippets, [{ shell: 'bash', script: 'x' }]),
-				platformSessionSchema.validate(SessionConfigKey.ShellInitSnippets, [{ shell: 'zsh', script: 'x' }]),
-				platformSessionSchema.validate(SessionConfigKey.ShellInitSnippets, [{ shell: 'bash' }]),
-				platformSessionSchema.validate(SessionConfigKey.ShellInitSnippets, [{ shell: 'bash', script: 1 }]),
-				platformSessionSchema.validate(SessionConfigKey.ShellInitSnippets, 'nope'),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitScripts, []),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitScripts, [{ shell: 'bash', script: 'x' }]),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitScripts, [{ shell: 'zsh', script: 'x' }]),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitScripts, [{ shell: 'bash' }]),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitScripts, [{ shell: 'bash', script: 1 }]),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitScripts, 'nope'),
 			], [true, true, false, false, false, false]);
 		});
 
 		test('is marked read-only so it stays out of the session settings file', () => {
-			const property = platformSessionSchema.toProtocol().properties[SessionConfigKey.ShellInitSnippets];
+			const property = platformSessionSchema.toProtocol().properties[SessionConfigKey.ShellInitScripts];
 			assert.deepStrictEqual({ readOnly: property.readOnly, type: property.type }, { readOnly: true, type: 'array' });
 		});
 
-		test('keeps a pushed shellInitSnippets value and has no default of its own', () => {
-			const snippets = [{ shell: 'bash', script: 'x' }];
+		test('keeps a pushed shellInitScripts value and has no default of its own', () => {
+			const scripts = [{ shell: 'bash', script: 'x' }];
 			// Mirrors `resolveChatConfig`, which supplies defaults only for
 			// autoApprove and mode. An absent value must stay absent so it is
 			// distinguishable from an explicit empty array (clear).
-			const defaults: { [SessionConfigKey.AutoApprove]: AutoApproveLevel;[SessionConfigKey.Mode]: SessionMode;[SessionConfigKey.ShellInitSnippets]?: readonly IShellInitScript[] } = {
+			const defaults: { [SessionConfigKey.AutoApprove]: AutoApproveLevel;[SessionConfigKey.Mode]: SessionMode;[SessionConfigKey.ShellInitScripts]?: readonly IShellInitScript[] } = {
 				[SessionConfigKey.AutoApprove]: 'default',
 				[SessionConfigKey.Mode]: 'interactive',
 			};
-			assert.deepStrictEqual(platformSessionSchema.validateOrDefault({ [SessionConfigKey.ShellInitSnippets]: snippets }, defaults), {
+			assert.deepStrictEqual(platformSessionSchema.validateOrDefault({ [SessionConfigKey.ShellInitScripts]: scripts }, defaults), {
 				...defaults,
-				[SessionConfigKey.ShellInitSnippets]: snippets,
+				[SessionConfigKey.ShellInitScripts]: scripts,
 			});
 			assert.deepStrictEqual(platformSessionSchema.validateOrDefault({}, defaults), defaults);
 			// An invalid pushed value must not survive into the resolved config.
-			assert.deepStrictEqual(platformSessionSchema.validateOrDefault({ [SessionConfigKey.ShellInitSnippets]: 'nope' }, defaults), defaults);
+			assert.deepStrictEqual(platformSessionSchema.validateOrDefault({ [SessionConfigKey.ShellInitScripts]: 'nope' }, defaults), defaults);
 		});
 	});
 

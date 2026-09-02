@@ -12337,7 +12337,7 @@ Use the attached image as context.
 		test('grants sandbox access before initial SDK registration', async () => {
 			const { mockSession } = await createEnabledSession({
 				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
-				configValues: { [SessionConfigKey.ShellInitSnippets]: [initScript] },
+				configValues: { [SessionConfigKey.ShellInitScripts]: [initScript] },
 			});
 
 			assert.ok(
@@ -12348,7 +12348,7 @@ Use the attached image as context.
 
 		test('does not apply a session script while the host flag is off', async () => {
 			const { session, mockSession, storedFileContents, setConfigValue } = await createAgentSession(disposables);
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
 
 			await session.send('go', undefined, 'turn-1', 'interactive');
 
@@ -12364,7 +12364,7 @@ Use the attached image as context.
 
 		test('unregisters when the host flag turns off', async () => {
 			const { session, mockSession, setConfigValue, setRootValue, fireRootConfigChange } = await createEnabledSession();
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
 			await session.send('go', undefined, 'turn-1', 'interactive');
 
 			setRootValue(CopilotCliConfigKey.EnableShellInitScript, false);
@@ -12376,11 +12376,11 @@ Use the attached image as context.
 
 		test('unregisters when the host flag turns off even if the session value became malformed', async () => {
 			const { session, mockSession, setConfigValue, setRootValue, fireRootConfigChange } = await createEnabledSession();
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
 			await session.send('go', undefined, 'turn-1', 'interactive');
 
 			// The off state is decided before the payload is validated.
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript, { ...initScript, script: 'second' }]);
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript, { ...initScript, script: 'second' }]);
 			setRootValue(CopilotCliConfigKey.EnableShellInitScript, false);
 			fireRootConfigChange();
 			await timeout(0);
@@ -12390,7 +12390,7 @@ Use the attached image as context.
 
 		test('unregisters when the custom terminal tool replaces the SDK shell mid-session', async () => {
 			const { session, mockSession, setConfigValue, setRootValue, fireRootConfigChange } = await createEnabledSession();
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
 			await session.send('go', undefined, 'turn-1', 'interactive');
 
 			setRootValue(CopilotCliConfigKey.EnableCustomTerminalTool, true);
@@ -12403,7 +12403,7 @@ Use the attached image as context.
 		test('ignores a script that only exists in inherited config', async () => {
 			// Root and parent-session values must never reach the shell.
 			const { session, mockSession, storedFileContents } = await createEnabledSession({
-				inheritedConfigValues: { [SessionConfigKey.ShellInitSnippets]: [initScript] },
+				inheritedConfigValues: { [SessionConfigKey.ShellInitScripts]: [initScript] },
 			});
 
 			await session.send('go', undefined, 'turn-1', 'interactive');
@@ -12420,7 +12420,7 @@ Use the attached image as context.
 		test('does not register a shell init script when the sandbox update fails', async () => {
 			const { session, mockSession, storedFileContents, setConfigValue } = await createEnabledSession();
 			mockSession.sandboxConfigUpdateSuccess = false;
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
 
 			await session.send('go', undefined, 'turn-1', 'interactive');
 
@@ -12439,7 +12439,7 @@ Use the attached image as context.
 
 		test('retries materialization after a write failure', async () => {
 			const { session, mockSession, setConfigValue } = await createEnabledSession({ shellInitWriteFailures: 1 });
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
 
 			await session.send('go', undefined, 'turn-1', 'interactive');
 			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, []);
@@ -12450,7 +12450,7 @@ Use the attached image as context.
 
 		test('uses atomic writes when the file provider supports them', async () => {
 			const { mockSession, fileWriteOptions } = await createEnabledSession({
-				configValues: { [SessionConfigKey.ShellInitSnippets]: [initScript] },
+				configValues: { [SessionConfigKey.ShellInitScripts]: [initScript] },
 				fileAtomicWrite: true,
 			});
 			const scriptPath = (mockSession.shellInitScriptUpdates.at(-1) as Array<{ path: string }>)?.[0]?.path;
@@ -12460,7 +12460,7 @@ Use the attached image as context.
 
 		test('materializes, registers, rewrites in place, and clears', async () => {
 			const { session, mockSession, storedFileContents, setConfigValue, fireSessionConfigChange } = await createEnabledSession();
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
 
 			await session.send('go', undefined, 'turn-1', 'interactive');
 			const scriptPath = (mockSession.shellInitScriptUpdates.at(-1) as Array<{ path: string }>)?.[0]?.path;
@@ -12471,8 +12471,8 @@ Use the attached image as context.
 
 			// Changed content is rewritten at the registered path. The runtime
 			// re-reads the file before each command, so no RPC is needed.
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [{ ...initScript, script: 'changed' }]);
-			fireSessionConfigChange({ [SessionConfigKey.ShellInitSnippets]: [{ ...initScript, script: 'changed' }] });
+			setConfigValue(SessionConfigKey.ShellInitScripts, [{ ...initScript, script: 'changed' }]);
+			fireSessionConfigChange({ [SessionConfigKey.ShellInitScripts]: [{ ...initScript, script: 'changed' }] });
 			await timeout(0);
 			assert.deepStrictEqual({
 				updates: mockSession.shellInitScriptUpdates.length,
@@ -12484,7 +12484,7 @@ Use the attached image as context.
 
 			// Clearing unregisters but keeps the file until dispose, so a command
 			// already holding the path can still source it.
-			setConfigValue(SessionConfigKey.ShellInitSnippets, []);
+			setConfigValue(SessionConfigKey.ShellInitScripts, []);
 			await session.send('go', undefined, 'turn-3', 'interactive');
 			assert.deepStrictEqual({
 				updates: mockSession.shellInitScriptUpdates,
@@ -12501,13 +12501,13 @@ Use the attached image as context.
 
 		test('keeps the last valid registration when config becomes malformed', async () => {
 			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createEnabledSession();
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
 			await session.send('go', undefined, 'turn-1', 'interactive');
 			const registered = mockSession.shellInitScriptUpdates.at(-1);
 
 			const malformed = [initScript, { ...initScript, script: 'second' }];
-			setConfigValue(SessionConfigKey.ShellInitSnippets, malformed);
-			fireSessionConfigChange({ [SessionConfigKey.ShellInitSnippets]: malformed });
+			setConfigValue(SessionConfigKey.ShellInitScripts, malformed);
+			fireSessionConfigChange({ [SessionConfigKey.ShellInitScripts]: malformed });
 			await timeout(0);
 			await session.send('go', undefined, 'turn-2', 'interactive');
 
@@ -12519,8 +12519,8 @@ Use the attached image as context.
 			// replacement for the same SDK session may register its script first.
 			const first = await createEnabledSession();
 			const second = await createEnabledSession();
-			first.setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
-			second.setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+			first.setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+			second.setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
 
 			await first.session.send('go', undefined, 'turn-1', 'interactive');
 			await second.session.send('go', undefined, 'turn-1', 'interactive');
@@ -12534,7 +12534,7 @@ Use the attached image as context.
 			const { session, mockSession, setConfigValue } = await createEnabledSession({
 				rootValues: { [CopilotCliConfigKey.EnableCustomTerminalTool]: true },
 			});
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
 
 			await session.send('go', undefined, 'turn-1', 'interactive');
 
@@ -12546,7 +12546,7 @@ Use the attached image as context.
 			const { session, storedFileContents, setConfigValue } = await createEnabledSession({
 				fileContents: { [successorScript]: 'successor' },
 			});
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
 			await session.send('go', undefined, 'turn-1', 'interactive');
 			assert.strictEqual([...storedFileContents.keys()].filter(key => key.includes('/test-session-1/') && key.endsWith('.sh')).length, 2);
 
@@ -12570,7 +12570,7 @@ Use the attached image as context.
 		test('grants the shell init directory read access while a script is configured', async () => {
 			const { session, mockSession, setConfigValue, setRootValue } = await createEnabledSession();
 			setRootValue(AgentHostSandboxConfigKey.Sandbox, { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On });
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
 
 			await session.send('go', undefined, 'turn-1', 'interactive');
 
@@ -12586,12 +12586,12 @@ Use the attached image as context.
 		test('unregisters on clear and keeps the file and sandbox grant until dispose', async () => {
 			const { session, mockSession, storedFileContents, setConfigValue, setRootValue } = await createEnabledSession();
 			setRootValue(AgentHostSandboxConfigKey.Sandbox, { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On });
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
 			await session.send('go', undefined, 'turn-1', 'interactive');
 			const scriptPath = (mockSession.shellInitScriptUpdates.at(-1) as Array<{ path: string }>)[0].path;
 
 			mockSession.operationLog.length = 0;
-			setConfigValue(SessionConfigKey.ShellInitSnippets, []);
+			setConfigValue(SessionConfigKey.ShellInitScripts, []);
 			await session.send('go', undefined, 'turn-2', 'interactive');
 
 			// A command that already captured the path can still read the file.
@@ -12622,7 +12622,7 @@ Use the attached image as context.
 				shellInitWriteGate: writeGate.p,
 				onShellInitWrite: () => writeStarted.complete(),
 			});
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
 			const send = session.send('go', undefined, 'turn-1', 'interactive');
 			await writeStarted.p;
 
@@ -12637,7 +12637,7 @@ Use the attached image as context.
 		test('a failed registration is logged without aborting the turn', async () => {
 			const { session, mockSession, setConfigValue } = await createEnabledSession();
 			mockSession.shellInitScriptUpdateSuccess = false;
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
 
 			await session.send('go', undefined, 'turn-1', 'interactive');
 
@@ -12652,7 +12652,7 @@ Use the attached image as context.
 
 		test('removes the script on dispose even when disconnect fails', async () => {
 			const { session, mockSession, storedFileContents, setConfigValue } = await createEnabledSession();
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
 			await session.send('go', undefined, 'turn-1', 'interactive');
 			mockSession.disconnectError = new Error('disconnect failed');
 

@@ -289,7 +289,7 @@ export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema
  *
  * Host-owned worktree configuration also has no chip. Including those properties
  * here keeps the generic lane from surfacing them in the chat input. The same
- * applies to `ShellInitSnippets`, which is generated rather than user-edited:
+ * applies to `ShellInitScripts`, which is generated rather than user-edited:
  * `readOnly` keeps it out of the session-settings file but does not by itself
  * suppress the generic chip.
  */
@@ -303,7 +303,7 @@ export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>
 	SessionConfigKey.WorktreeBranchTrack,
 	SessionConfigKey.WorktreeCreateNewBranch,
 	SessionConfigKey.WorktreeIncludeFiles,
-	SessionConfigKey.ShellInitSnippets,
+	SessionConfigKey.ShellInitScripts,
 	ClaudeSessionConfigKey.PermissionMode,
 	CodexSessionConfigKey.PermissionsPreset,
 ]);

@@ -1553,7 +1553,7 @@ suite('AgentHostChatContributions', () => {
 		const config = {
 			mode: 'plan',
 			autoApprove: 'default',
-			[SessionConfigKey.ShellInitSnippets]: [{ shell: 'bash', script: 'export TRANSIENT=1' }],
+			[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'export TRANSIENT=1' }],
 		};
 		contributions.stateManager.setSessionConfig(contributions.session, {
 			schema: { type: 'object', properties: {} },

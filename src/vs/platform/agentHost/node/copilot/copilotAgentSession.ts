@@ -3778,7 +3778,7 @@ export class CopilotAgentSession extends Disposable {
 			if (Object.hasOwn(event.config, SessionConfigKey.AutoApprove)) {
 				void this._syncPermissionModeAfterConfigChange();
 			}
-			if (Object.hasOwn(event.config, SessionConfigKey.ShellInitSnippets)) {
+			if (Object.hasOwn(event.config, SessionConfigKey.ShellInitScripts)) {
 				void this._syncShellInitScript();
 			}
 		}));
@@ -3897,18 +3897,18 @@ export class CopilotAgentSession extends Disposable {
 				&& !this._isCustomTerminalToolEnabled();
 			// Session-only by construction: root and parent-session values are
 			// never consulted.
-			const own = enabled ? this._configurationService.getSessionConfigValues(this._ownerSessionUri.toString())?.[SessionConfigKey.ShellInitSnippets] : undefined;
+			const own = enabled ? this._configurationService.getSessionConfigValues(this._ownerSessionUri.toString())?.[SessionConfigKey.ShellInitScripts] : undefined;
 			if (own !== undefined && !isShellInitScriptList(own)) {
 				// Keep the last valid registration rather than clearing it.
 				this._logService.warn(`[Copilot:${this.sessionId}] Ignoring malformed shell init script config`);
 				return;
 			}
-			const snippets = own ?? [];
-			const serialized = JSON.stringify(snippets);
+			const scripts = own ?? [];
+			const serialized = JSON.stringify(scripts);
 			if (this._lastAppliedShellInitScripts === serialized) {
 				return;
 			}
-			if (snippets.length === 0) {
+			if (scripts.length === 0) {
 				// The file and its sandbox grant stay until dispose, so a command
 				// that already captured the path can still source it.
 				if (this._registeredShellInitScriptPath) {
@@ -3923,7 +3923,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 
 			this._shellInitScriptMaterialized = true;
-			const ref = await this._materializeShellInitScript(snippets[0]);
+			const ref = await this._materializeShellInitScript(scripts[0]);
 			if (!ref) {
 				// Leave the cache unchanged so the next turn retries.
 				return;
