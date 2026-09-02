@@ -606,6 +606,7 @@ suite('DefaultAccountProvider', () => {
 		accountService.setDefaultAccountProvider(provider);
 		await accountService.refresh();
 		const gateService = disposables.add(new AccountPolicyService(new NullLogService(), accountService));
+		await timeout(0);
 
 		assert.deepStrictEqual({
 			managedSettingsRequestCount,
