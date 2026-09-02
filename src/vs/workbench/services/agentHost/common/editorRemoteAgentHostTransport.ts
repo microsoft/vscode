@@ -11,7 +11,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createURITransformer } from '../../../../base/common/uriTransformer.js';
 import { ActionType, type StateAction } from '../../../../platform/agentHost/common/state/protocol/actions.js';
-import type { Snapshot } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import type { ProjectInfo, Snapshot } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ReconnectResultType, type CommandMap, type ProtocolMessage } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { readSessionFolderPickerDecision, withSessionFolderPickerDecision } from '../../../../platform/agentHost/common/state/sessionState.js';
 import type { IClientTransport } from '../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -28,10 +28,11 @@ type DirectoryMap<T extends HostDirectoryUri | ClientDirectoryUri> = (uri: strin
 /** Protocol payload carrying the directory identities this transport maps. */
 interface IDirectoryBearingPayload {
 	workingDirectories?: string[];
+	project?: ProjectInfo;
 	_meta?: Record<string, unknown>;
 }
 
-/** Maps working-directory identities at the editor's remote connection, leaving opaque protocol content untouched. */
+/** Maps directory identities at the editor's remote connection, leaving opaque protocol content untouched. */
 export class EditorRemoteAgentHostTransport extends Disposable implements IClientTransport {
 
 	private readonly _requests = new Map<number, string>();
@@ -133,6 +134,7 @@ export class EditorRemoteAgentHostTransport extends Disposable implements IClien
 		return {
 			...value,
 			...(value.workingDirectories ? { workingDirectories: value.workingDirectories.map(map) } : {}),
+			...(value.project ? { project: { ...value.project, uri: map(value.project.uri) } } : {}),
 			...(decision?.primary ? { _meta: withSessionFolderPickerDecision(value._meta, { ...decision, primary: map(decision.primary) }) } : {}),
 		};
 	}

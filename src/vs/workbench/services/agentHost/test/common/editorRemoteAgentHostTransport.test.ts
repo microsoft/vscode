@@ -21,6 +21,9 @@ const fileDirectory = 'file:///home/user/project?key%3Dvalue#folder';
 const remoteReplacement = 'vscode-remote://wsl%2Bubuntu/home/user/replacement?key%3Dvalue#folder';
 const fileReplacement = 'file:///home/user/replacement?key%3Dvalue#folder';
 const otherRemoteDirectory = 'vscode-remote://ssh-remote%2Bother/home/user/project';
+const remoteProject = 'vscode-remote://wsl%2Bubuntu/home/user/repo';
+const fileProject = 'file:///home/user/repo';
+const urlProject = 'https://github.com/owner/repo';
 const session = 'ahp-session:/session';
 const chat = 'ahp-chat:/chat';
 const timestamp = '2026-08-28T00:00:00.000Z';
@@ -62,10 +65,16 @@ function chatSummary(workingDirectories: string[]): ChatSummary {
 	return { resource: chat, title: opaqueText, status: SessionStatus.Idle, modifiedAt: timestamp, workingDirectories };
 }
 
+/** The repository root a fixture session belongs to, in the same namespace as its directories. */
+function projectFor(directory: string) {
+	return { uri: directory.startsWith('file:') ? fileProject : remoteProject, displayName: 'repo' };
+}
+
 function sessionSummary(workingDirectories: string[]): SessionSummary {
 	return {
 		resource: session, provider: 'copilot', title: opaqueText, status: SessionStatus.Idle,
 		createdAt: timestamp, modifiedAt: timestamp, workingDirectories,
+		project: projectFor(workingDirectories[0]),
 		_meta: folderPickerMeta(workingDirectories[0]),
 	};
 }
@@ -77,6 +86,7 @@ function snapshots(workingDirectories: string[]): Snapshot[] {
 			state: {
 				provider: 'copilot', title: opaqueText, status: SessionStatus.Idle,
 				lifecycle: SessionLifecycle.Ready, activeClients: [], workingDirectories,
+				project: projectFor(workingDirectories[0]),
 				chats: [chatSummary(workingDirectories)],
 				config: { schema: { type: 'object', properties: {} }, values: { workingDirectory: fileDirectory, text: opaqueText } },
 				_meta: folderPickerMeta(workingDirectories[0]),
@@ -355,7 +365,7 @@ suite('EditorRemoteAgentHostTransport', () => {
 			{ jsonrpc: '2.0', method: 'root/sessionAdded', params: { channel: 'ahp-root://', summary: sessionSummary([directory]) } },
 			{
 				jsonrpc: '2.0', method: 'root/sessionSummaryChanged',
-				params: { channel: 'ahp-root://', session, changes: { workingDirectories: [directory], _meta: folderPickerMeta(directory), title: opaqueText } },
+				params: { channel: 'ahp-root://', session, changes: { workingDirectories: [directory], project: projectFor(directory), _meta: folderPickerMeta(directory), title: opaqueText } },
 			},
 			{ jsonrpc: '2.0', id: 1, result: { items: [sessionSummary([directory])], nextCursor: fileDirectory } },
 		];
@@ -366,6 +376,19 @@ suite('EditorRemoteAgentHostTransport', () => {
 		input.forEach(message => underlying.messageEmitter.fire(message));
 
 		assert.deepStrictEqual({ received, original: input }, { received: messages(remoteDirectory), original });
+	});
+
+	test('maps a project root with no working directories and leaves a repository URL alone', () => {
+		const { underlying, transport, received } = createTransport();
+		const summary = (project: string): SessionSummary => ({
+			resource: session, provider: 'copilot', title: opaqueText, status: SessionStatus.Idle,
+			createdAt: timestamp, modifiedAt: timestamp, project: { uri: project, displayName: 'repo' },
+		});
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'listSessions', params: { channel: 'ahp-root://' } });
+
+		underlying.messageEmitter.fire({ jsonrpc: '2.0', id: 1, result: { items: [summary(fileProject), summary(urlProject)] } });
+
+		assert.deepStrictEqual(received, [{ jsonrpc: '2.0', id: 1, result: { items: [summary(remoteProject), summary(urlProject)] } }]);
 	});
 
 	test('passes through error and unknown responses and consumes response correlation once', () => {
