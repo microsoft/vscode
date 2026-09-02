@@ -361,7 +361,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 		private readonly _uriIdentService: IUriIdentityService,
 		private readonly _workspaceContextService: IWorkspaceContextService
 	) {
-		if (name !== undefined) {
+		if (name) {
 			this._name = name;
 		} else if (_rootUri) {
 			const folder = this._workspaceContextService.getWorkspaceFolder(_rootUri);

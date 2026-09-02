@@ -43,7 +43,9 @@ declare module 'vscode' {
 		 * @param iconPath An optional icon for the source control.
 		 * @param isHidden Whether the source control is hidden by default.
 		 * @param parent An optional parent source control.
-		 * @param name An optional human-readable name for the source control repository.
+		 * @param name An optional human-readable repository name, distinct from the source control provider `label`.
+		 * The name is captured when the source control is created and cannot be changed. When omitted or empty,
+		 * the repository name is derived from its workspace folder, root URI, or provider label.
 		 * @returns An instance of source control.
 		 */
 		export function createSourceControl(id: string, label: string, rootUri?: Uri, iconPath?: IconPath, isHidden?: boolean, parent?: SourceControl, name?: string): SourceControl;
