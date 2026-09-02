@@ -112,6 +112,46 @@ gulp graph. As its own pipeline step:
   that applies, writes results to `AGENT_SDK_RESULTS_FILE`, and emits
   `##vso[task.setvariable]` so downstream pipeline steps see the path.
 
+## What ends up in a tarball
+
+`npm ci --ignore-scripts --omit=peer`, then the whole `node_modules/` tarred.
+`--omit=peer` is the load-bearing flag.
+
+npm 7+ installs `peerDependencies` automatically, so claude's lockfile carries
+100 packages the agent host never loads: `@modelcontextprotocol/sdk`, `zod`,
+`ajv` and their transitive graph. The SDK inlines all of that into `sdk.mjs` at
+publish time. `sdk.mjs` statically imports node builtins and nothing else, and
+the one external module it resolves at runtime is its own native binary
+package. On the VS Code side, every reference to those packages is an
+`import type`, which TypeScript erases. With the peers omitted, a claude
+tarball is exactly two packages — `@anthropic-ai/claude-agent-sdk` and the one
+`claude-agent-sdk-<target>` binary package — both pinned to the SDK version.
+
+The point isn't size (the peers are ~4% of a ~90MB tarball). It's that the
+tarball becomes a function of `(SDK version, target)` and nothing else. Before
+this, a transitive peer bump could change the bytes without changing the
+version, and since the CDN path is content-addressed and immutable, the upload
+then failed against the already-published blob. That is
+[#333870](https://github.com/microsoft/vscode/pull/333870) /
+[#334094](https://github.com/microsoft/vscode/pull/334094).
+
+`--omit=optional` would be a very different flag: the native binary ships as an
+*optional* dependency, and `findMissingNativeOptionalDep` exists to catch it
+going missing.
+
+codex declares no peers at all, so the flag is inert there — its tarball bytes
+are unchanged.
+
+### Keeping the assumption honest
+
+That the SDK inlines its peers is an implementation detail Anthropic never
+promised; the `peerDependencies` block says the opposite. So `package.ts` runs
+`verifyClaudeSdkLoads` before tarring: in a child process, it imports `sdk.mjs`
+out of the staged tree and builds an MCP server from it with the peers absent.
+If a future version stops inlining a peer and starts importing it for real, the
+build fails there — not on a user's machine, months later, against a tarball
+that is already immutable on the CDN.
+
 ## Bumping an SDK version
 
 1. Edit the `dependencies` version in `build/agent-sdk/agents/<sdk>/package.json`

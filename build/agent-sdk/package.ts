@@ -20,10 +20,12 @@
  * same npm install + same tar version produces naturally.
  *
  * SDK version pinning:
- *   - Pinned via repo-root `package.json` devDeps (`getSdkVersion`).
- *   - No `node_modules` package-lock for the scratch install: transitive
- *     drift surfaces at upload time as a sha mismatch against the existing
- *     blob, where a human investigates.
+ *   - Pinned in `agents/<sdk>/package.json` (`getAgentMeta`), with the
+ *     `package-lock.json` alongside it fixing the transitive graph.
+ *   - Peer dependencies are omitted from the install (see `npmCi`), so the
+ *     tarball is a function of the SDK version and target alone. A peer bump
+ *     in the lockfile can no longer change the bytes at a CDN path that is
+ *     already published.
  *
  * Uses node-tar (pure JS) for tar creation rather than system tar so that
  * tarballs produced on a Windows or macOS host have the same shape as ones
@@ -36,6 +38,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as tar from 'tar';
+import { pathToFileURL } from 'url';
 import { findMissingNativeOptionalDep } from '../azure-pipelines/common/checkNativeOptionalDeps.ts';
 import { getAgentDir, getAgentMeta, parseFlags, type Sdk, sha256OfFile } from './common.ts';
 
@@ -98,6 +101,10 @@ export async function buildOne(args: IBuildArgs): Promise<IBuildResult> {
 		const missingNativeDep = findMissingNativeOptionalDep(nodeModulesDir, packageName, args.sdkTarget);
 		if (missingNativeDep) {
 			throw new Error(`[${SCRIPT}] npm ci left ${packageName}@${sdkVersion} without its native package '${missingNativeDep}' for target ${args.sdkTarget} — the optional dependency was silently skipped. Refusing to build a binary-less tarball; re-run to re-fetch it.`);
+		}
+
+		if (args.sdk === 'claude') {
+			verifyClaudeSdkLoads(stagingDir, sdkVersion);
 		}
 
 		chmodPlatformBinaries(nodeModulesDir, args.sdk);
@@ -176,19 +183,83 @@ function chmodPlatformBinaries(nodeModulesDir: string, sdk: Sdk): void {
 	}
 }
 
+/**
+ * Smoke-checks the packaged claude tree before it is tarred: imports the SDK's
+ * ESM entry point and builds an in-process MCP server out of it, with the
+ * peerDependencies absent (see `npmCi`).
+ *
+ * This is the guard on the assumption `--omit=peer` rests on. Today the SDK
+ * inlines MCP, zod and ajv into `sdk.mjs`, so nothing resolves them from disk —
+ * but that is an implementation detail Anthropic never promised, and the
+ * `peerDependencies` block says the opposite. If a future version starts
+ * importing a peer for real, this fails the build with a plain
+ * ERR_MODULE_NOT_FOUND rather than failing on a user's machine, long after the
+ * tarball has become immutable on the CDN.
+ *
+ * Runs in a child process so a stray top-level timer in the SDK can't wedge the
+ * build and so the module never enters this process's cache. Safe for
+ * cross-target builds: `sdk.mjs` is platform-independent JS, and the calls it
+ * makes here never reach for the native binary.
+ *
+ * codex has no equivalent — the agent host runs its vendored binary directly
+ * and never loads JS out of that tarball.
+ */
+function verifyClaudeSdkLoads(stagingDir: string, sdkVersion: string): void {
+	const entry = path.join(stagingDir, 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'sdk.mjs');
+	// Lives at the staging root rather than inside `node_modules`, so it is
+	// outside what `buildTarball` collects.
+	const probePath = path.join(stagingDir, 'sdk-load-probe.mjs');
+	fs.writeFileSync(probePath, [
+		// Dynamic import against a file URL, matching how the agent host loads
+		// the downloaded SDK (`claudeAgentSdkService.ts`).
+		`const sdk = await import(${JSON.stringify(pathToFileURL(entry).href)});`,
+		// The exports that would reach for a peer if any of them did:
+		// `createSdkMcpServer` and `tool` are the MCP + zod surface, `query` is
+		// the main entry point. Drift across the *full* binding surface is a
+		// separate concern, caught at compile time by the mapped-type assertion
+		// in `claudeAgentSdkService.ts`.
+		`for (const name of ['query', 'tool', 'createSdkMcpServer']) {`,
+		`	if (typeof sdk[name] !== 'function') { throw new Error('SDK export missing or not callable: ' + name); }`,
+		`}`,
+		// Constructs the bundled MCP server — the path that would need
+		// `@modelcontextprotocol/sdk` on disk if it were no longer inlined.
+		`sdk.createSdkMcpServer({ name: 'agent-sdk-package-probe', version: '1.0.0', tools: [] });`,
+		'',
+	].join('\n'));
+
+	console.log(`[${SCRIPT}] Verifying the SDK loads without its peerDependencies…`);
+	const result = spawnSync(process.execPath, [probePath], { cwd: stagingDir, stdio: 'inherit' });
+	if (result.error) {
+		throw new Error(`[${SCRIPT}] SDK load probe failed to spawn: ${result.error.message}`);
+	}
+	if (result.status !== 0) {
+		throw new Error(`[${SCRIPT}] claude-agent-sdk@${sdkVersion} does not load with its peerDependencies omitted (probe exited ${result.status}; see output above). The SDK likely stopped inlining a peer such as '@modelcontextprotocol/sdk' or 'zod'. Either drop '--omit=peer' from npmCi or add the now-required package as a real dependency in build/agent-sdk/agents/claude/package.json.`);
+	}
+}
+
 function npmCi(workDir: string, env: NodeJS.ProcessEnv): void {
 	// `npm ci` instead of `npm install`: installs the EXACT graph from the
 	// committed package-lock.json without resolving versions, which is what
 	// makes the tarball bytes reproducible across pipeline runs.
 	// `--ignore-scripts` blocks any postinstall/preinstall the SDK or its
 	// transitive deps might ship.
+	// `--omit=peer` drops the auto-installed peerDependencies. The agent host
+	// never loads them out of the tarball: the SDK's own entry points inline
+	// everything they need (MCP, zod, ajv) at bundle time, and the workbench
+	// passes its own zod / MCP types across the boundary. Omitting them keeps
+	// the tarball a pure function of (SDK version, target), so a transitive
+	// peer bump can no longer change the bytes at a CDN path that is already
+	// published — the failure mode of https://github.com/microsoft/vscode/pull/334094.
+	// Unlike `--omit=optional`, this does not touch the native binary package.
+	// `verifyClaudeSdkLoads` below is what keeps the "never loads them" claim
+	// honest as the SDK version moves.
 	// On Windows, npm is a `.cmd` shim. Two things matter:
 	//   1. The explicit `.cmd` suffix — Node won't resolve PATHEXT.
 	//   2. `shell: true` — since Node 20 (CVE-2024-27980) child_process
 	//      refuses to spawn .cmd/.bat without it.
 	const isWindows = process.platform === 'win32';
 	const npm = isWindows ? 'npm.cmd' : 'npm';
-	const result = spawnSync(npm, ['ci', '--ignore-scripts'], {
+	const result = spawnSync(npm, ['ci', '--ignore-scripts', '--omit=peer'], {
 		cwd: workDir,
 		env: { ...process.env, ...env },
 		stdio: 'inherit',
