@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { type Configuration, HtmlRspackPlugin, rspack } from '@rspack/core';
+import { type Configuration, CopyRspackPlugin, HtmlRspackPlugin, rspack } from '@rspack/core';
 import { ComponentExplorerPlugin } from '@vscode/component-explorer-webpack-plugin';
 import fs from 'fs';
 import net from 'net';
@@ -12,6 +12,10 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 const isStaticComponentExplorerBuild = process.env['COMPONENT_EXPLORER_STATIC_BUILD'] === '1';
+const builtInFileIconThemeDirectories = [
+	'extensions/theme-defaults/fileicons',
+	'extensions/theme-seti/icons',
+];
 
 function findFreePort(startPort: number): Promise<number> {
 	return new Promise(resolve => {
@@ -103,19 +107,21 @@ export default {
 				},
 			},
 			{
-				test: /\.woff$/,
-				type: 'asset/resource',
-			},
-			{
-				// Built-in color and file icon theme JSON files use JSONC (comments / trailing
+				// Built-in color theme JSON files use JSONC (comments / trailing
 				// commas), so import them as raw strings and let VS Code's
 				// JSON parser handle them.
-				test: /[\\/]extensions[\\/](?:theme-defaults[\\/]themes|theme-seti[\\/]icons)[\\/].*\.json$/,
+				test: /[\\/]extensions[\\/]theme-defaults[\\/]themes[\\/].*\.json$/,
 				type: 'asset/source',
 			},
 		],
 	},
 	plugins: [
+		...(isStaticComponentExplorerBuild ? [new CopyRspackPlugin({
+			patterns: builtInFileIconThemeDirectories.map(directory => ({
+				from: path.join(repoRoot, directory),
+				to: directory,
+			})),
+		})] : []),
 		new ComponentExplorerPlugin({
 			include: 'src/**/*.fixture.ts',
 		}),
