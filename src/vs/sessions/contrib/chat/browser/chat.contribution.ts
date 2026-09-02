@@ -387,6 +387,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('chat.agentSessions.consolidatedRemoteWorkspaces', "Controls whether GitHub and remote workspaces are combined under Remote in the Agents Window workspace picker, with search always available."),
 			tags: ['preview'],
+			experiment: { mode: 'auto' },
 		},
 		[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING]: {
 			type: 'string',
