@@ -79,4 +79,29 @@ suite('AgentHostPromptOverride', () => {
 			],
 		});
 	});
+
+	test('keeps strings that merely start with a date and applies BOM-prefixed and null-value overrides', async () => {
+		const logService = new NullLogService();
+		const fileService = disposables.add(new FileService(logService));
+		const tools: Tool[] = [
+			{ name: 'date_prefixed', description: 'original' },
+			{ name: 'null_description', description: 'original' },
+		];
+		const result = await applyConfiguredPromptOverrides('\uFEFF' + [
+			'systemPrompt: 2024-01-02 evaluation agent',
+			'toolDescriptions:',
+			'  date_prefixed:',
+			'    description: 2024-01-02 do exactly one thing',
+			'  null_description:',
+			'    description:',
+		].join('\n'), undefined, tools, fileService, logService);
+
+		assert.deepStrictEqual(result, {
+			systemPrompt: '2024-01-02 evaluation agent',
+			tools: [
+				{ name: 'date_prefixed', description: '2024-01-02 do exactly one thing' },
+				{ name: 'null_description', description: 'original' },
+			],
+		});
+	});
 });

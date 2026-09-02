@@ -83,9 +83,10 @@ export function applyPromptOverridesFromString(
 
 function parsePromptOverrideConfig(content: string, source: string, logService: ILogService): IPromptOverrideConfig | undefined {
 	const errors: YamlParseError[] = [];
-	const document = parseYaml(content, errors);
-	if (errors.length > 0) {
-		logPromptOverrideFailure(logService, source, `Failed to parse prompt override from "${source}"`, errors[0].message);
+	const document = parseYaml(content.replace(/^\uFEFF/, ''), errors);
+	const fatalError = errors.find(error => error.code !== 'missing-value');
+	if (fatalError) {
+		logPromptOverrideFailure(logService, source, `Failed to parse prompt override from "${source}"`, fatalError.message);
 		return undefined;
 	}
 	warnedSources.delete(source);
@@ -130,11 +131,15 @@ function isYamlString(value: YamlScalarNode): boolean {
 	if (!rawValue || /^(?:~|null|true|false)$/i.test(rawValue)) {
 		return false;
 	}
-	if (/^\d{4}-\d{1,2}-\d{1,2}(?:$|[Tt\s])/.test(rawValue)) {
+	if (YAML_DATE.test(rawValue) || YAML_TIMESTAMP.test(rawValue)) {
 		return false;
 	}
-	return !/^[-+]?(?:(?:0b[01_]+)|(?:0o[0-7_]+)|(?:0x[\da-f_]+)|(?:\d[\d_]*(?::[0-5]?\d)+)|(?:(?:\d[\d_]*)?\.[\d_]+|(?:\d[\d_]*)\.)(?:e[-+]?\d+)?|(?:\d[\d_]*e[-+]?\d+)|(?:\d[\d_]*)|\.(?:inf|nan))$/i.test(rawValue);
+	return !YAML_NUMBER.test(rawValue);
 }
+
+const YAML_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const YAML_TIMESTAMP = /^\d{4}-\d{1,2}-\d{1,2}(?:[Tt]|[ \t]+)\d{1,2}:\d{2}:\d{2}(?:\.\d*)?(?:[ \t]*(?:Z|[-+]\d{1,2}(?::\d{2})?))?$/;
+const YAML_NUMBER = /^[-+]?(?:(?:0b[01_]+)|(?:0o[0-7_]+)|(?:0x[\da-f_]+)|(?:\d[\d_]*(?::[0-5]?\d)+)|(?:(?:\d[\d_]*)?\.[\d_]+|(?:\d[\d_]*)\.)(?:e[-+]?\d+)?|(?:\d[\d_]*e[-+]?\d+)|(?:\d[\d_]*)|\.(?:inf|nan))$/i;
 
 function logPromptOverrideFailure(logService: ILogService, source: string, message: string, error: unknown): void {
 	if (warnedSources.has(source)) {
