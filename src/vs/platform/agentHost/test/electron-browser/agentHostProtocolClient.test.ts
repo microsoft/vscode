@@ -2456,10 +2456,10 @@ suite('AgentHostProtocolClient', () => {
 				const connectPromise = client.connect();
 				await completeHandshake(transports[0], connectPromise);
 				const reconnectDeadlines: (number | undefined)[] = [];
-				const stateListener = client.onDidChangeConnectionState(state => {
-					if (state === AgentHostClientState.Reconnecting) {
-						reconnectDeadlines.push(client.nextReconnectAt);
-					}
+				// The client stays `reconnecting` across rounds, so the schedule
+				// event — not the state event — reports each new deadline.
+				const stateListener = client.onDidScheduleReconnect(() => {
+					reconnectDeadlines.push(client.nextReconnectAt);
 				});
 
 				transports[0].fireClose();
@@ -2471,7 +2471,7 @@ suite('AgentHostProtocolClient', () => {
 				const secondDeadline = client.nextReconnectAt;
 				assert.ok(secondDeadline !== undefined);
 
-				assert.deepStrictEqual(reconnectDeadlines, [undefined, firstDeadline, secondDeadline]);
+				assert.deepStrictEqual(reconnectDeadlines, [firstDeadline, secondDeadline]);
 				stateListener.dispose();
 				client.dispose();
 			});

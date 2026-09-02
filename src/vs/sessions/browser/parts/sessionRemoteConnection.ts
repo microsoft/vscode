@@ -7,7 +7,7 @@ import { TimeoutTimer } from '../../../base/common/async.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { autorun, derived, derivedObservableWithCache, IObservable, IReader, observableSignal, observableValue } from '../../../base/common/observable.js';
+import { autorun, derived, derivedObservableWithCache, IObservable, IReader, observableSignal, observableValue, transaction } from '../../../base/common/observable.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
@@ -143,9 +143,14 @@ export class SessionRemoteConnection extends Disposable {
 
 	setSession(session: IActiveSession | undefined): void {
 		this._progressListener.clear();
-		this._attempt.set(undefined, undefined);
-		this._autoConnected.set(undefined, undefined);
-		this._session.set(session, undefined);
+		// One transaction: these writes notify autoruns synchronously, and
+		// clearing the gates while the previous session is still selected would
+		// let the automatic start fire for the host being switched away from.
+		transaction(tx => {
+			this._session.set(session, tx);
+			this._attempt.set(undefined, tx);
+			this._autoConnected.set(undefined, tx);
+		});
 	}
 
 	connect(): void {
@@ -343,8 +348,17 @@ export class SessionRemoteConnection extends Disposable {
 			};
 		}
 
-		if (!status || status.kind === 'connected' || status.kind === 'connecting' || status.kind === 'incompatible') {
+		if (!status || status.kind === 'connected' || status.kind === 'connecting') {
 			return undefined;
+		}
+
+		if (status.kind === 'incompatible') {
+			// The centered recovery state is skipped once a transcript is rendered,
+			// so this banner is the only place the incompatibility can be explained.
+			return {
+				icon: Codicon.debugDisconnect,
+				message: localize('sessionRemoteHost.incompatibleDescription', "{0} is incompatible with this version of Visual Studio Code.", hostLabel),
+			};
 		}
 
 		if (status.kind === 'reconnecting') {
@@ -355,6 +369,10 @@ export class SessionRemoteConnection extends Disposable {
 					message: seconds === undefined
 						? localize('sessionRemoteHost.reconnecting', "Reconnecting to {0}...", hostLabel)
 						: localize('sessionRemoteHost.reconnectingIn', "Reconnecting to {0} in {1}s", hostLabel, seconds),
+					// The banner is a live region, so the per-second countdown would
+					// otherwise queue an announcement every tick. Keep the spoken
+					// text stable and let only the visible text count down.
+					ariaLabel: localize('sessionRemoteHost.reconnecting', "Reconnecting to {0}...", hostLabel),
 					action: seconds !== undefined && provider && isAgentHostProvider(provider) && provider.reconnectNow
 						? {
 							label: localize('sessionRemoteHost.tryNow', "Try Now"),

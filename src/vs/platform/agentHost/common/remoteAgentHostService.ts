@@ -687,13 +687,15 @@ export interface IRemoteAgentHostService {
 	/** Fires when a remote connection is established or lost. */
 	readonly onDidChangeConnections: Event<void>;
 
-	/** Currently connected remote addresses with metadata. */
+	/**
+	 * Known remote addresses with metadata. This is a status catalog, not a
+	 * liveness list: an entry is retained after a failed dial so its
+	 * {@link IRemoteAgentHostConnectionInfo.status} — and its disconnect reason —
+	 * stay observable. Callers asking "is this host usable?" must test `status`
+	 * (see `RemoteAgentHostConnectionStatus.isConnected`) rather than presence.
+	 */
 	readonly connections: readonly IRemoteAgentHostConnectionInfo[];
 
-	/**
-	 * Returns the last machine-readable disconnect reason for an address whose
-	 * failed connection is no longer represented in {@link connections}.
-	 */
 	/** All remote agent host entries exposed by registered factories, regardless of connection status. */
 	readonly configuredEntries: readonly IRemoteAgentHostEntry[];
 

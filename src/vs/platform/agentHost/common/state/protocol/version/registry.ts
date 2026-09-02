@@ -35,7 +35,6 @@ export const PROTOCOL_VERSION = '0.9.0';
  * `scripts/verify-release-metadata.ts`.
  */
 export const SUPPORTED_PROTOCOL_VERSIONS: readonly string[] = Object.freeze([
-	'1.0.0',
 	'0.9.0',
 	'0.8.0',
 	'0.7.0',

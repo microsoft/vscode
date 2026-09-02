@@ -61,6 +61,9 @@ export class RemoteHostUnavailableEmptyState extends Disposable {
 		this._title = dom.append(this.domNode, dom.$('h2.remote-host-unavailable-empty-state-title'));
 		this._description = dom.append(this.domNode, dom.$('p.remote-host-unavailable-empty-state-description'));
 		this._progress = dom.append(this.domNode, dom.$('p.remote-host-unavailable-empty-state-progress.hidden'));
+		// Connect progress changes while the user waits (waiting → download
+		// percentage), so announce it politely rather than leaving it silent.
+		this._progress.setAttribute('role', 'status');
 		this._actionContainer = dom.append(this.domNode, dom.$('.remote-host-unavailable-empty-state-action.hidden'));
 		// Primary styling: recovering the host is the one thing to do here.
 		this._action = this._register(new Button(this._actionContainer, { ...defaultButtonStyles, title: true }));

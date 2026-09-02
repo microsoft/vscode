@@ -21,6 +21,12 @@ import { localize } from '../../../nls.js';
 export interface ISessionReadOnlyBannerContent {
 	readonly icon?: ThemeIcon;
 	readonly message: string;
+	/**
+	 * Text announced instead of {@link message}. Set this when the visible text
+	 * changes faster than it is worth speaking — a per-second countdown, say —
+	 * so the live region announces a stable summary rather than every tick.
+	 */
+	readonly ariaLabel?: string;
 	readonly action?: { readonly label: string; readonly run: () => void };
 }
 
@@ -41,6 +47,7 @@ export class SessionReadOnlyBanner extends Disposable {
 
 	private readonly _icon: HTMLElement;
 	private readonly _text: HTMLElement;
+	private readonly _announcement: HTMLElement;
 	private readonly _actionContainer: HTMLElement;
 	private readonly _actionDisposables = this._register(new DisposableStore());
 
@@ -48,15 +55,18 @@ export class SessionReadOnlyBanner extends Disposable {
 		super();
 
 		this.domNode = dom.$('.session-readonly-banner');
-		// A `role="status"` live region is announced from its text content, so no
-		// `aria-label` is needed (setting one to the same string would just
-		// override the accessible name without changing the announcement).
+		// A `role="status"` live region is announced from its text content. The
+		// visible text is hidden from that content and mirrored into a dedicated
+		// element, so text that changes every second can be announced as a stable
+		// summary instead of queueing an utterance per update.
 		this.domNode.setAttribute('role', 'status');
 
 		this._icon = dom.append(this.domNode, dom.$('.session-readonly-banner-icon'));
 		this._icon.setAttribute('aria-hidden', 'true');
 
 		this._text = dom.append(this.domNode, dom.$('span.session-readonly-banner-text'));
+		this._text.setAttribute('aria-hidden', 'true');
+		this._announcement = dom.append(this.domNode, dom.$('span.session-readonly-banner-announcement'));
 		this._actionContainer = dom.append(this.domNode, dom.$('span.session-readonly-banner-action'));
 
 		this.setContent({ message: localize('sessionReadOnlyBanner.message', "This chat is read-only") });
@@ -76,6 +86,12 @@ export class SessionReadOnlyBanner extends Disposable {
 		dom.clearNode(this._icon);
 		this._icon.appendChild(renderIcon(content.icon ?? Codicon.lock));
 		this._text.textContent = content.message;
+		// Re-writing identical text would queue a fresh announcement, which is
+		// exactly what a ticking countdown must avoid.
+		const announced = content.ariaLabel ?? content.message;
+		if (this._announcement.textContent !== announced) {
+			this._announcement.textContent = announced;
+		}
 
 		this._actionDisposables.clear();
 		dom.clearNode(this._actionContainer);

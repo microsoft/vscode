@@ -263,8 +263,10 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		} catch (error) {
 			providerStore.dispose();
 			if (stagedAddress !== undefined) {
-				const connectionStillRegistered = this._remoteAgentHostService.connections.some(connection => connection.address === stagedAddress);
-				if (token.isCancellationRequested || !connectionStillRegistered) {
+				// A failed dial now retains a client-less entry, so mere presence no
+				// longer means the connection survived — require a live one.
+				const connectionStillLive = this._isConnectedOrReconnecting(stagedAddress);
+				if (token.isCancellationRequested || !connectionStillLive) {
 					this._connectionFactory.unstageConnection(stagedAddress);
 					await this._remoteAgentHostService.removeRemoteAgentHost(stagedAddress);
 				}

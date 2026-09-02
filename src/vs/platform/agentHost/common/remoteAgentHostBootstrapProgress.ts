@@ -41,6 +41,14 @@ export class RemoteAgentHostBootstrapProgressReporter extends Disposable {
 
 		const now = Date.now();
 		if (this._lastReportTime === undefined || now - this._lastReportTime >= this._intervalMs) {
+			// Discard any queued report first: if the event loop stalled past the
+			// interval, a stale pending value would otherwise land after this newer
+			// one and make the displayed progress run backwards.
+			if (this._timeoutHandle !== undefined) {
+				clearTimeout(this._timeoutHandle);
+				this._timeoutHandle = undefined;
+			}
+			this._pendingProgress = undefined;
 			this._lastReportTime = now;
 			this._progress.set(progress, undefined);
 			return;
