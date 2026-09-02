@@ -7,7 +7,6 @@ import { open, unlink, type FileHandle } from 'fs/promises';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Barrier, DeferredPromise, disposableTimeout, Limiter, ResourceQueue } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
-import { structuralEquals } from '../../../base/common/equals.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { getExtensionForMimeType, getMediaMime, getMediaOrTextMime } from '../../../base/common/mime.js';
@@ -82,7 +81,6 @@ import { ICopilotApiService } from './shared/copilotApiService.js';
 import { INetworkDiagnosticsService } from './networkDiagnosticsService.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
-import { getShellInitScriptConfigWriteError } from '../common/shellInitScript.js';
 import { resolveLastNonLocalTurnId } from '../common/agentHostConversationContext.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
@@ -4516,10 +4514,6 @@ export class AgentService extends Disposable implements IAgentService {
 			? createUnknownAgentHostClientTelemetryContext(clientContextOrType)
 			: clientContextOrType;
 		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
-		if (action.type === ActionType.RootConfigChanged && Object.hasOwn(action.config, SessionConfigKey.ShellInitSnippets)) {
-			this._stateManager.rejectClientAction(channel, action, { clientId, clientSeq }, 'Shell init script config is session-only and cannot be set in root config.');
-			return;
-		}
 		if (action.type === ActionType.RootConfigChanged && Object.hasOwn(action.config, AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY)) {
 			const migration = action.config[AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY];
 			const origin = { clientId, clientSeq };
@@ -4769,33 +4763,11 @@ export class AgentService extends Disposable implements IAgentService {
 		// watermark, attempt budgets), so a client must never be able to write it, and
 		// a wholesale replacement must not drop it either.
 		if (action.type === ActionType.SessionConfigChanged) {
-			let configAction = action as SessionConfigChangedAction;
+			const configAction = action as SessionConfigChangedAction;
 			const forbidden = HOST_WRITTEN_SESSION_CONFIG_KEYS.filter(key => Object.hasOwn(configAction.config, key));
 			if (forbidden.length > 0) {
 				this._stateManager.rejectClientAction(channel, action, origin, `Session config keys are host-owned and cannot be set by a client: ${forbidden.join(', ')}.`);
 				return;
-			}
-			const editorClient = clientContext.clientType === AgentHostClientType.EditorWindow;
-			const writesShellInit = Object.hasOwn(configAction.config, SessionConfigKey.ShellInitSnippets);
-			const existingShellInit = this._stateManager.getSessionState(sessionChannel)?.config?.values[SessionConfigKey.ShellInitSnippets];
-			const carriesExistingShellInit = !editorClient
-				&& configAction.replace
-				&& writesShellInit
-				&& existingShellInit !== undefined
-				&& structuralEquals(configAction.config[SessionConfigKey.ShellInitSnippets], existingShellInit);
-			const shellInitWriteError = carriesExistingShellInit ? undefined : getShellInitScriptConfigWriteError(configAction.config, clientContext.clientType);
-			if (shellInitWriteError) {
-				this._stateManager.rejectClientAction(channel, action, origin, shellInitWriteError);
-				return;
-			}
-			if (!editorClient && configAction.replace && !writesShellInit) {
-				if (existingShellInit !== undefined) {
-					configAction = {
-						...configAction,
-						config: { ...configAction.config, [SessionConfigKey.ShellInitSnippets]: existingShellInit },
-					};
-					action = configAction;
-				}
 			}
 			if (configAction.replace) {
 				action = this._withPreservedHostWrittenSessionConfig(sessionChannel, configAction);

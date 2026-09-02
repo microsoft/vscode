@@ -2061,99 +2061,6 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(envelope.rejectionReason, undefined);
 		});
 
-		test('accepts shell init config from Editor Window clients and rejects other clients', async () => {
-			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			const agent = new MockAgent('copilot');
-			disposables.add(toDisposable(() => agent.dispose()));
-			registerTestAgentProvider(svc, agent);
-			const session = await svc.createSession({ provider: 'copilot' });
-			getStateManager(svc).setSessionConfig(session.toString(), {
-				schema: {
-					type: 'object',
-					properties: {
-						[SessionConfigKey.ShellInitSnippets]: {
-							type: 'array',
-							title: 'Shell Init Script',
-							sessionMutable: true,
-						},
-						[SessionConfigKey.AutoApprove]: {
-							type: 'string',
-							title: 'Auto Approve',
-							sessionMutable: true,
-						},
-					},
-				},
-				values: {},
-			});
-			const first = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
-			const script = [{ shell: 'bash', script: 'export READY=1' }];
-
-			svc.dispatchAction(session.toString(), {
-				type: ActionType.SessionConfigChanged,
-				config: { [SessionConfigKey.ShellInitSnippets]: script },
-			}, 'editor-client', 1, AgentHostClientType.EditorWindow);
-			const accepted = await first;
-
-			const second = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 2));
-			svc.dispatchAction(session.toString(), {
-				type: ActionType.SessionConfigChanged,
-				config: { [SessionConfigKey.ShellInitSnippets]: [{ shell: 'bash', script: 'export UNTRUSTED=1' }] },
-			}, 'agents-window-client', 2, AgentHostClientType.AgentsWindow);
-			const rejected = await second;
-
-			const third = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 3));
-			svc.dispatchAction(session.toString(), {
-				type: ActionType.SessionConfigChanged,
-				config: { [SessionConfigKey.ShellInitSnippets]: [] },
-			}, 'agents-window-client', 3, AgentHostClientType.AgentsWindow);
-			const cleared = await third;
-
-			const fourth = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 4));
-			svc.dispatchAction(session.toString(), {
-				type: ActionType.SessionConfigChanged,
-				config: { [SessionConfigKey.ShellInitSnippets]: script },
-			}, 'editor-client', 4, AgentHostClientType.EditorWindow);
-			await fourth;
-
-			const fifth = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 5));
-			svc.dispatchAction(session.toString(), {
-				type: ActionType.SessionConfigChanged,
-				config: {},
-				replace: true,
-			}, 'agents-window-client', 5, AgentHostClientType.AgentsWindow);
-			const replacement = await fifth;
-
-			const sixth = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 6));
-			svc.dispatchAction(session.toString(), {
-				type: ActionType.SessionConfigChanged,
-				config: {
-					[SessionConfigKey.AutoApprove]: 'autoApprove',
-					[SessionConfigKey.ShellInitSnippets]: script,
-				},
-				replace: true,
-			}, 'agents-window-client', 6, AgentHostClientType.AgentsWindow);
-			const carriedReplacement = await sixth;
-
-			const values = getStateManager(svc).getSessionState(session.toString())?.config?.values;
-			assert.deepStrictEqual({
-				acceptedReason: accepted.rejectionReason,
-				rejectedReason: rejected.rejectionReason,
-				clearedReason: cleared.rejectionReason,
-				replacementReason: replacement.rejectionReason,
-				carriedReplacementReason: carriedReplacement.rejectionReason,
-				shellInit: values?.[SessionConfigKey.ShellInitSnippets],
-				autoApprove: values?.[SessionConfigKey.AutoApprove],
-			}, {
-				acceptedReason: undefined,
-				rejectedReason: 'Shell init script config can only be set by an Editor Window client.',
-				clearedReason: undefined,
-				replacementReason: undefined,
-				carriedReplacementReason: undefined,
-				shellInit: script,
-				autoApprove: 'autoApprove',
-			});
-		});
-
 		test('accepts a working-directory mutation synchronously', async () => {
 			const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession();
 			const added = URI.file('/workspace/added');
@@ -2410,25 +2317,6 @@ suite('AgentService (node dispatcher)', () => {
 				localDisposables.dispose();
 				await rm(tempDir.fsPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 			}
-		});
-
-		test('rejects shell init scripts in root config', async () => {
-			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
-
-			svc.dispatchAction(ROOT_STATE_URI, {
-				type: ActionType.RootConfigChanged,
-				config: { [SessionConfigKey.ShellInitSnippets]: [{ shell: 'bash', script: 'export ROOT=1' }] },
-			}, 'editor-client', 1, AgentHostClientType.EditorWindow);
-			const envelope = await envelopePromise;
-
-			assert.deepStrictEqual({
-				rejectionReason: envelope.rejectionReason,
-				rootValue: getStateManager(svc).rootState.config?.values[SessionConfigKey.ShellInitSnippets],
-			}, {
-				rejectionReason: 'Shell init script config is session-only and cannot be set in root config.',
-				rootValue: undefined,
-			});
 		});
 
 		test('generates and persists an AI title after first-turn fallback title', async () => {

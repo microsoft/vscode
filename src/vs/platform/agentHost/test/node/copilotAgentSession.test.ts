@@ -19,7 +19,7 @@ import { join, sep } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService, type IWriteFileOptions } from '../../../files/common/files.js';
+import { FileSystemProviderCapabilities, IFileService, type IWriteFileOptions } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
@@ -716,8 +716,6 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	fileAtomicWrite?: boolean;
 	shellInitWriteGate?: Promise<void>;
 	onShellInitWrite?: () => void;
-	shellInitWriteFailureLeavesArtifact?: boolean;
-	shellInitDeleteMissingThrows?: boolean;
 	sessionDatabase?: ISessionDatabase;
 	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
 	configureMockSession?: (session: MockCopilotSession) => void;
@@ -878,9 +876,6 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 				await options?.shellInitWriteGate;
 				if (shellInitWriteFailures > 0) {
 					shellInitWriteFailures--;
-					if (options?.shellInitWriteFailureLeavesArtifact) {
-						storedFileContents.set(`${resource.fsPath}.vsctmp`, 'partial');
-					}
 					throw new Error('write failed');
 				}
 			}
@@ -892,9 +887,6 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 				mockSession.operationLog.push('file.delete:shellInit');
 			}
 			const matches = [...storedFileContents.keys()].filter(key => key.startsWith(resource.toString()) || key.startsWith(resource.fsPath));
-			if (options?.shellInitDeleteMissingThrows && resource.path.includes('/agentHost/shellInit/') && matches.length === 0) {
-				throw new FileOperationError('not found', FileOperationResult.FILE_NOT_FOUND);
-			}
 			// Like the disk provider, a non-recursive delete removes only an
 			// empty directory and fails while descendants remain.
 			if (!delOptions?.recursive && matches.some(key => key !== resource.toString() && key !== resource.fsPath)) {
@@ -12341,21 +12333,23 @@ Use the attached image as context.
 			);
 		});
 
-		test('does not register a shell init script or send the turn when the sandbox update fails', async () => {
+		test('does not register a shell init script when the sandbox update fails', async () => {
 			const { session, mockSession, storedFileContents, setConfigValue } = await createAgentSession(disposables);
 			mockSession.sandboxConfigUpdateSuccess = false;
 			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
 
-			await assert.rejects(session.send('go', undefined, 'turn-1', 'interactive'), /rejected sandbox config update/);
+			await session.send('go', undefined, 'turn-1', 'interactive');
 
+			// Best-effort: the turn still runs, just without the script. The file
+			// is written before the grant, so only registration is withheld.
 			assert.deepStrictEqual({
 				registered: mockSession.shellInitScriptUpdates,
 				materialized: [...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')),
-				sends: mockSession.sendRequests,
+				sends: mockSession.sendRequests.length,
 			}, {
 				registered: [],
-				materialized: false,
-				sends: [],
+				materialized: true,
+				sends: 1,
 			});
 		});
 
@@ -12363,50 +12357,11 @@ Use the attached image as context.
 			const { session, mockSession, setConfigValue } = await createAgentSession(disposables, { shellInitWriteFailures: 1 });
 			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
 
-			await assert.rejects(session.send('go', undefined, 'turn-1', 'interactive'), /Failed to materialize shell init script/);
+			await session.send('go', undefined, 'turn-1', 'interactive');
 			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, []);
 
 			await session.send('go', undefined, 'turn-2', 'interactive');
 			assert.strictEqual(mockSession.shellInitScriptUpdates.length, 1);
-		});
-
-		test('removes the sandbox grant when a failed write is followed by a clear', async () => {
-			const { session, mockSession, storedFileContents, setConfigValue, setRootValue } = await createAgentSession(disposables, {
-				shellInitWriteFailures: 1,
-				shellInitWriteFailureLeavesArtifact: true,
-				fileAtomicWrite: true,
-			});
-			setRootValue(AgentHostSandboxConfigKey.Sandbox, { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On });
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
-			await assert.rejects(session.send('go', undefined, 'turn-1', 'interactive'), /Failed to materialize shell init script/);
-
-			setConfigValue(SessionConfigKey.ShellInitSnippets, []);
-			await session.send('go', undefined, 'turn-2', 'interactive');
-
-			const sandboxConfig = mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined;
-			assert.deepStrictEqual({
-				hasGrant: sandboxConfig?.userPolicy?.filesystem?.readonlyPaths?.includes(TEST_SHELL_INIT_DIR) ?? false,
-				hasArtifact: [...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')),
-			}, {
-				hasGrant: false,
-				hasArtifact: false,
-			});
-		});
-
-		test('does not retry cleanup when a failed write created no directory', async () => {
-			const { session, mockSession, setConfigValue } = await createAgentSession(disposables, {
-				shellInitWriteFailures: 1,
-				shellInitDeleteMissingThrows: true,
-			});
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
-			await assert.rejects(session.send('go', undefined, 'turn-1', 'interactive'), /Failed to materialize shell init script/);
-
-			setConfigValue(SessionConfigKey.ShellInitSnippets, []);
-			await session.send('go', undefined, 'turn-2', 'interactive');
-			const deletesAfterClear = mockSession.operationLog.filter(operation => operation === 'file.delete:shellInit').length;
-			await session.send('go', undefined, 'turn-3', 'interactive');
-
-			assert.strictEqual(mockSession.operationLog.filter(operation => operation === 'file.delete:shellInit').length, deletesAfterClear);
 		});
 
 		test('uses atomic writes when the file provider supports them', async () => {
@@ -12419,42 +12374,48 @@ Use the attached image as context.
 			assert.deepStrictEqual(scriptPath ? fileWriteOptions.get(scriptPath)?.atomic : undefined, { postfix: '.vsctmp' });
 		});
 
-		test('materializes, registers, avoids duplicate RPCs, and clears', async () => {
+		test('materializes, registers, rewrites in place, and clears', async () => {
 			const { session, mockSession, storedFileContents, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables);
 			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
 
 			await session.send('go', undefined, 'turn-1', 'interactive');
 			const scriptPath = (mockSession.shellInitScriptUpdates.at(-1) as Array<{ path: string }>)?.[0]?.path;
-			assert.ok(scriptPath?.startsWith(TEST_SHELL_INIT_DIR) && /init-\d+\.sh$/.test(scriptPath), String(scriptPath));
+			assert.ok(scriptPath?.startsWith(TEST_SHELL_INIT_DIR) && scriptPath.endsWith('init.sh'), String(scriptPath));
 
-			const afterFirst = mockSession.shellInitScriptUpdates.length;
 			await session.send('go', undefined, 'turn-2', 'interactive');
-			assert.deepStrictEqual([afterFirst, mockSession.shellInitScriptUpdates.length], [1, 1]);
+			assert.strictEqual(mockSession.shellInitScriptUpdates.length, 1);
 
+			// Changed content is rewritten at the registered path. The runtime
+			// re-reads the file before each command, so no RPC is needed.
 			setConfigValue(SessionConfigKey.ShellInitSnippets, [{ ...initScript, script: 'changed' }]);
 			fireSessionConfigChange({ [SessionConfigKey.ShellInitSnippets]: [{ ...initScript, script: 'changed' }] });
 			await timeout(0);
-			const changedScriptPath = (mockSession.shellInitScriptUpdates.at(-1) as Array<{ path: string }>)?.[0]?.path;
-			assert.ok(changedScriptPath && changedScriptPath !== scriptPath, String(changedScriptPath));
+			assert.deepStrictEqual({
+				updates: mockSession.shellInitScriptUpdates.length,
+				content: storedFileContents.get(URI.file(scriptPath).toString()),
+			}, {
+				updates: 1,
+				content: 'changed',
+			});
 
+			// Clearing unregisters but keeps the file until dispose, so a command
+			// already holding the path can still source it.
 			setConfigValue(SessionConfigKey.ShellInitSnippets, []);
 			await session.send('go', undefined, 'turn-3', 'interactive');
-			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, [
-				[{ shell: 'bash', path: scriptPath }],
-				[{ shell: 'bash', path: changedScriptPath }],
-				[],
-			]);
-			assert.deepStrictEqual(
-				[...storedFileContents.keys()].filter(key => key.includes('/agentHost/shellInit/')).sort(),
-				[URI.file(scriptPath).toString(), URI.file(changedScriptPath).toString()].sort(),
-			);
+			assert.deepStrictEqual({
+				updates: mockSession.shellInitScriptUpdates,
+				retained: storedFileContents.has(URI.file(scriptPath).toString()),
+			}, {
+				updates: [[{ shell: 'bash', path: scriptPath }], []],
+				retained: true,
+			});
 
 			session.dispose();
 			await timeout(0);
 			assert.ok(![...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')));
 		});
 
-		test('keeps the last valid registration and blocks the turn when config becomes malformed', async () => {
+		test('keeps the last valid registration when config becomes malformed', async () => {
 			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables);
 			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
 			await session.send('go', undefined, 'turn-1', 'interactive');
@@ -12464,35 +12425,9 @@ Use the attached image as context.
 			setConfigValue(SessionConfigKey.ShellInitSnippets, malformed);
 			fireSessionConfigChange({ [SessionConfigKey.ShellInitSnippets]: malformed });
 			await timeout(0);
-			await assert.rejects(session.send('go', undefined, 'turn-2', 'interactive'), /Malformed .*shell init script config/);
+			await session.send('go', undefined, 'turn-2', 'interactive');
 
 			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, [registered]);
-		});
-
-		test('keeps the registered script file unchanged when a replacement is rejected', async () => {
-			const { session, mockSession, storedFileContents, setConfigValue } = await createAgentSession(disposables);
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
-			await session.send('go', undefined, 'turn-1', 'interactive');
-			const registeredPath = (mockSession.shellInitScriptUpdates.at(-1) as Array<{ path: string }>)[0].path;
-
-			mockSession.shellInitScriptUpdateSuccess = false;
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [{ ...initScript, script: 'rejected' }]);
-			await assert.rejects(session.send('go', undefined, 'turn-2', 'interactive'), /rejected shell init script update/);
-			const updatesAfterRejection = mockSession.shellInitScriptUpdates.length;
-
-			mockSession.shellInitScriptUpdateSuccess = true;
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
-			await session.send('go', undefined, 'turn-3', 'interactive');
-
-			assert.deepStrictEqual({
-				registeredContent: storedFileContents.get(URI.file(registeredPath).toString()),
-				registeredFileCount: [...storedFileContents.keys()].filter(key => key.includes('/agentHost/shellInit/')).length,
-				updateCount: mockSession.shellInitScriptUpdates.length,
-			}, {
-				registeredContent: initScript.script,
-				registeredFileCount: 1,
-				updateCount: updatesAfterRejection,
-			});
 		});
 
 		test('each instance owns a distinct directory so a stale cleanup cannot delete a successor script', async () => {
@@ -12564,7 +12499,7 @@ Use the attached image as context.
 			);
 		});
 
-		test('unregisters a shell init script, retains its revision, and removes its sandbox grant', async () => {
+		test('unregisters on clear and keeps the file and sandbox grant until dispose', async () => {
 			const { session, mockSession, storedFileContents, setConfigValue, setRootValue } = await createAgentSession(disposables);
 			setRootValue(AgentHostSandboxConfigKey.Sandbox, { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On });
 			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
@@ -12575,13 +12510,14 @@ Use the attached image as context.
 			setConfigValue(SessionConfigKey.ShellInitSnippets, []);
 			await session.send('go', undefined, 'turn-2', 'interactive');
 
+			// A command that already captured the path can still read the file.
 			assert.deepStrictEqual({
 				operations: mockSession.operationLog.filter(operation => operation === 'options.update:shell' || operation === 'file.delete:shellInit'),
 				hasGrant: (mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined)?.userPolicy?.filesystem?.readonlyPaths?.includes(TEST_SHELL_INIT_DIR) ?? false,
 				retainedContent: storedFileContents.get(URI.file(scriptPath).toString()),
 			}, {
 				operations: ['options.update:shell'],
-				hasGrant: false,
+				hasGrant: true,
 				retainedContent: initScript.script,
 			});
 		});
@@ -12614,19 +12550,19 @@ Use the attached image as context.
 			assert.ok(![...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')));
 		});
 
-		test('a failed registration prevents the turn from reaching the SDK', async () => {
+		test('a failed registration is logged without aborting the turn', async () => {
 			const { session, mockSession, setConfigValue } = await createAgentSession(disposables);
 			mockSession.shellInitScriptUpdateSuccess = false;
 			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
 
-			await assert.rejects(session.send('go', undefined, 'turn-1', 'interactive'), /rejected shell init script update/);
+			await session.send('go', undefined, 'turn-1', 'interactive');
 
 			assert.deepStrictEqual({
 				abortCalls: mockSession.abortCalls,
-				sends: mockSession.sendRequests,
+				sends: mockSession.sendRequests.length,
 			}, {
 				abortCalls: 0,
-				sends: [],
+				sends: 1,
 			});
 		});
 	});

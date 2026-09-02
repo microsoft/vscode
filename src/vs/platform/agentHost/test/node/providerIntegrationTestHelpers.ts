@@ -6,7 +6,7 @@
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { type Implementation, SubscribeResult } from '../../common/state/protocol/commands.js';
+import { SubscribeResult } from '../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { MessageKind, ROOT_STATE_URI, buildDefaultChatUri, type MessageAttachment, type SessionState } from '../../common/state/sessionState.js';
 import type { TestProtocolClient } from './serverIntegrationTestHelpers.js';
@@ -15,7 +15,6 @@ export interface IAgentHostProviderTestConfig {
 	readonly provider: string;
 	readonly scheme: string;
 	readonly githubToken: string;
-	readonly clientInfo?: Implementation;
 }
 
 export async function createProviderSession(
@@ -27,7 +26,7 @@ export async function createProviderSession(
 	beforeCreateSession?: () => Promise<void>,
 ): Promise<string> {
 	client.setWorkingDirectory(workingDirectory.fsPath);
-	await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId, clientInfo: config.clientInfo }, 30_000);
+	await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId }, 30_000);
 	await client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: config.githubToken }, 30_000);
 	await beforeCreateSession?.();
 

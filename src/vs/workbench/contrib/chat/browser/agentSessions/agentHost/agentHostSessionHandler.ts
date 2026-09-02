@@ -2969,10 +2969,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		onFailureStage('prepareTurn');
-		await this._shellInitSynchronizer.reconcile(session, cancellationToken);
-		if (cancellationToken.isCancellationRequested) {
-			return;
-		}
+		// Synchronous, so the turn dispatched next observes the current script.
+		this._shellInitSynchronizer.reconcile(session);
 		if (request.acceptedConfirmationData?.some(isResumeTurnConfirmationData)) {
 			return this._handleResumedTurn(session, request, progress, cancellationToken);
 		}

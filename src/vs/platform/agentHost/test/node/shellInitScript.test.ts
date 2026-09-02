@@ -172,14 +172,14 @@ suite('shellInitScript', () => {
 			const command = [
 				`$PROFILE = [pscustomobject]@{ CurrentUserAllHosts = ${powerShellLiteral(allHostsProfile)}; CurrentUserCurrentHost = ${powerShellLiteral(currentHostProfile)} }`,
 				script,
-				`Write-Output "profiles=$env:VSCODE_TEST_ALL_HOSTS,$env:VSCODE_TEST_CURRENT_HOST activation=$env:VSCODE_TEST_ACTIVATION preference=$ErrorActionPreference exit=$global:LASTEXITCODE"`,
+				`Write-Output "profiles=$env:VSCODE_TEST_ALL_HOSTS,$env:VSCODE_TEST_CURRENT_HOST activation=$env:VSCODE_TEST_ACTIVATION exit=$global:LASTEXITCODE"`,
 			].join('\n');
 
 			const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command]);
 
 			assert.deepStrictEqual(stdout.trim().split(/\r?\n/), [
 				'copilot shell init: loading the PowerShell profile failed; continuing.',
-				'profiles=loaded,loaded activation=loaded preference=Continue exit=0',
+				'profiles=loaded,loaded activation=loaded exit=0',
 			]);
 		});
 	});

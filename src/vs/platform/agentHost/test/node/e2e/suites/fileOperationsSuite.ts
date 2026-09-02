@@ -9,7 +9,6 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { editorWindowAgentHostClientInfo } from '../../../../common/agentHostClientInfo.js';
 import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
 import { buildDefaultChatUri, getInlineToolInput, ROOT_STATE_URI, ToolCallCancellationReason, ToolResultContentType, type ToolResultFileEditContent } from '../../../../common/state/sessionState.js';
 import type { StringOrMarkdown } from '../../../../common/state/protocol/state.js';
@@ -260,11 +259,12 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 			this.timeout(180_000);
 			const workspace = mkdtempSync(join(tmpdir(), 'ahp-shell-init-'));
 			tempDirs.push(workspace);
-			const sessionUri = await createRealSession(context.client, config, 'shell-init-script', createdSessions, URI.file(workspace), undefined, editorWindowAgentHostClientInfo);
+			const sessionUri = await createRealSession(context.client, config, 'shell-init-script', createdSessions, URI.file(workspace));
 			// Session config carries script text; the host materializes the file
-			// and registers it through the SDK's `shell.initScripts`. Dispatch
-			// the first turn immediately afterward to pin ordered Editor Window
-			// config publication without relying on a server echo.
+			// and registers it through the SDK's `shell.initScripts`. The first
+			// turn is dispatched immediately afterward: dispatch is ordered per
+			// connection and the host applies config before starting the turn,
+			// so no server echo is awaited.
 			context.client.beginAhpSnapshotRound();
 			context.client.dispatch({
 				channel: sessionUri,

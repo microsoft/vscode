@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import sinon from 'sinon';
 import { timeout } from '../../../../../../base/common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
@@ -36,32 +34,12 @@ class TestSubscription extends Disposable implements IAgentSubscription<SessionS
 	private readonly _onDidChange = this._register(new Emitter<SessionState>());
 	readonly onDidChange = this._onDidChange.event;
 	readonly onWillApplyAction = Event.None as Event<ActionEnvelope>;
-	private readonly _onDidApplyAction = this._register(new Emitter<ActionEnvelope>());
-	readonly onDidApplyAction = this._onDidApplyAction.event;
+	readonly onDidApplyAction = Event.None as Event<ActionEnvelope>;
 
 	constructor(private _state: SessionState) { super(); }
 	get value(): SessionState { return this._state; }
 	get verifiedValue(): SessionState { return this._state; }
 	set(state: SessionState): void { this._state = state; this._onDidChange.fire(state); }
-	applyConfig(config: Record<string, unknown>, rejectionReason?: string, origin = { clientId: 'test', clientSeq: 1 }): void {
-		if (!rejectionReason) {
-			this._state = {
-				...this._state,
-				config: {
-					...this._state.config!,
-					values: { ...this._state.config?.values, ...config },
-				},
-			};
-			this._onDidChange.fire(this._state);
-		}
-		this._onDidApplyAction.fire({
-			channel: 'copilot:/session',
-			action: { type: ActionType.SessionConfigChanged, config },
-			serverSeq: 1,
-			origin,
-			rejectionReason,
-		});
-	}
 }
 
 suite('AgentHostShellInitSynchronizer', () => {
@@ -118,7 +96,6 @@ suite('AgentHostShellInitSynchronizer', () => {
 	}) {
 		const dispatched: Record<string, unknown>[] = [];
 		const agentHostService = new class extends mock<IAgentHostService>() {
-			override readonly clientId = 'test';
 			override dispatch(_uri: string, action: Parameters<IAgentHostService['dispatch']>[1]): void {
 				if (action.type === ActionType.SessionConfigChanged) {
 					dispatched.push(action.config);
@@ -195,7 +172,7 @@ suite('AgentHostShellInitSynchronizer', () => {
 			onDidChangeCollections: collectionsChanged.event,
 		});
 		const subscription = await register(synchronizer, state());
-		subscription.applyConfig(dispatched[0]);
+		subscription.set(state({ values: dispatched[0] }));
 		await timeout(0);
 
 		currentCollection = collection([{ variable: ACTIVATION_VARIABLE, value: 'activate-b', folder: folderA }]);
@@ -211,155 +188,14 @@ suite('AgentHostShellInitSynchronizer', () => {
 		});
 	});
 
-	test('reconcile waits for the config echo before the first turn', async () => {
+	test('reconcile publishes synchronously before the first turn', () => {
 		const { synchronizer, dispatched } = create({ enabled: true });
 		const subscription = disposables.add(new TestSubscription(state()));
 		disposables.add(synchronizer.register(session, subscription));
 
-		let resolved = false;
-		const reconcile = synchronizer.reconcile(session, CancellationToken.None).then(() => resolved = true);
-		await timeout(0);
-		assert.strictEqual(resolved, false);
+		synchronizer.reconcile(session);
 
-		subscription.applyConfig(dispatched[0]);
-		await reconcile;
-		assert.strictEqual(resolved, true);
-	});
-
-	test('reconcile rejects when the host rejects the config action', async () => {
-		const { synchronizer, dispatched } = create({ enabled: true });
-		const subscription = disposables.add(new TestSubscription(state()));
-		disposables.add(synchronizer.register(session, subscription));
-		const reconcile = synchronizer.reconcile(session, CancellationToken.None);
-		await timeout(0);
-
-		subscription.applyConfig(dispatched[0], 'not authorized');
-
-		await assert.rejects(reconcile, /not authorized/);
-	});
-
-	test('reconcile times out when the host does not acknowledge the config action', async () => {
-		const clock = sinon.useFakeTimers();
-		try {
-			const { synchronizer } = create({ enabled: true });
-			const subscription = disposables.add(new TestSubscription(state()));
-			disposables.add(synchronizer.register(session, subscription));
-
-			const reconcile = assert.rejects(
-				synchronizer.reconcile(session, CancellationToken.None),
-				/Timed out waiting for Agent Host to apply shell init config/,
-			);
-			await clock.tickAsync(10_000);
-
-			await reconcile;
-		} finally {
-			clock.restore();
-		}
-	});
-
-	test('reconcile has one timeout when a background publication is pending', async () => {
-		const clock = sinon.useFakeTimers();
-		try {
-			const { synchronizer } = create({ enabled: true });
-			const subscription = disposables.add(new TestSubscription(state()));
-			disposables.add(synchronizer.register(session, subscription));
-			await clock.tickAsync(0);
-
-			const reconcile = assert.rejects(
-				synchronizer.reconcile(session, CancellationToken.None),
-				/Timed out waiting for Agent Host to apply shell init config/,
-			);
-			await clock.tickAsync(10_000);
-
-			await reconcile;
-			assert.strictEqual(clock.now, 10_000);
-		} finally {
-			clock.restore();
-		}
-	});
-
-	test('ignores a matching acknowledgement from another client', async () => {
-		const { synchronizer, dispatched } = create({ enabled: true });
-		const subscription = disposables.add(new TestSubscription(state()));
-		disposables.add(synchronizer.register(session, subscription));
-
-		let resolved = false;
-		const reconcile = synchronizer.reconcile(session, CancellationToken.None).then(() => resolved = true);
-		await timeout(0);
-		subscription.applyConfig(dispatched[0], undefined, { clientId: 'other', clientSeq: 1 });
-		await timeout(0);
-		assert.strictEqual(resolved, false);
-
-		subscription.applyConfig(dispatched[0]);
-		await reconcile;
-		assert.strictEqual(resolved, true);
-	});
-
-	test('cancels a pending reconciliation when its registration is disposed', async () => {
-		const { synchronizer } = create({ enabled: true });
-		const subscription = disposables.add(new TestSubscription(state()));
-		const registration = disposables.add(synchronizer.register(session, subscription));
-		const reconcile = assert.rejects(synchronizer.reconcile(session, CancellationToken.None), /Canceled/);
-		await timeout(0);
-
-		registration.dispose();
-
-		await reconcile;
-	});
-
-	test('reconcile waits when the desired value is only optimistic', async () => {
-		const { synchronizer, dispatched } = create({ enabled: true });
-		const subscription = disposables.add(new TestSubscription(state()));
-		disposables.add(synchronizer.register(session, subscription));
-		await timeout(0);
-		subscription.set(state({ values: dispatched[0] }));
-
-		let resolved = false;
-		const reconcile = synchronizer.reconcile(session, CancellationToken.None).then(() => resolved = true);
-		await timeout(0);
-		assert.strictEqual(resolved, false);
-
-		subscription.applyConfig(dispatched[0]);
-		await reconcile;
-		assert.strictEqual(resolved, true);
-	});
-
-	test('a changed desired value waits for the previous publication before dispatching', async () => {
-		let currentCollection = collection([{ variable: ACTIVATION_VARIABLE, value: 'activate-a', folder: folderA }]);
-		const { synchronizer, dispatched } = create({
-			enabled: true,
-			getCollection: () => currentCollection,
-		});
-		const subscription = disposables.add(new TestSubscription(state()));
-		disposables.add(synchronizer.register(session, subscription));
-		await timeout(0);
-		currentCollection = collection([{ variable: ACTIVATION_VARIABLE, value: 'activate-b', folder: folderA }]);
-
-		let resolved = false;
-		const reconcile = synchronizer.reconcile(session, CancellationToken.None).then(() => resolved = true);
-		await timeout(0);
-		assert.deepStrictEqual({ dispatches: dispatched.length, resolved }, { dispatches: 1, resolved: false });
-
-		subscription.applyConfig(dispatched[0]);
-		await timeout(0);
-		assert.deepStrictEqual({ dispatches: dispatched.length, resolved }, { dispatches: 2, resolved: false });
-
-		subscription.applyConfig(dispatched[1]);
-		await reconcile;
-		assert.strictEqual(resolved, true);
-	});
-
-	test('a cancelled reconcile is not blocked by an earlier unacknowledged publication', async () => {
-		const { synchronizer } = create({ enabled: true });
-		const subscription = disposables.add(new TestSubscription(state()));
-		disposables.add(synchronizer.register(session, subscription));
-		await timeout(0);
-		const cancellation = disposables.add(new CancellationTokenSource());
-
-		const reconcile = synchronizer.reconcile(session, cancellation.token);
-		cancellation.cancel();
-
-		await reconcile;
+		assert.strictEqual(dispatched.length, 1);
 	});
 
 	test('uses the session folder in a multi-root workspace and project for worktrees', async () => {

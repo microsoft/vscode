@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise, raceCancellation, raceTimeout, RunOnceScheduler, Sequencer } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../../../base/common/errors.js';
+import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
@@ -16,7 +14,6 @@ import { SessionConfigKey } from '../../../../../../platform/agentHost/common/se
 import { createShellInitScript, type IShellInitScript, type ShellInitScriptShell } from '../../../../../../platform/agentHost/common/shellInitScript.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
-import type { ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
@@ -32,24 +29,25 @@ const PYTHON_ACTIVATION_VARIABLES: readonly string[] = isWindows
 	? ['VSCODE_PYTHON_PWSH_ACTIVATE']
 	: ['VSCODE_PYTHON_BASH_ACTIVATE'];
 const TOOL_SHELL: ShellInitScriptShell = isWindows ? 'powershell' : 'bash';
-const SHELL_INIT_PUBLICATION_TIMEOUT_MS = 10_000;
 
 export const IAgentHostShellInitSynchronizer = createDecorator<IAgentHostShellInitSynchronizer>('agentHostShellInitSynchronizer');
 
 export interface IAgentHostShellInitSynchronizer {
 	readonly _serviceBrand: undefined;
 	register(session: URI, subscription: IAgentSubscription<SessionState>): IDisposable;
-	reconcile(session: URI, token: CancellationToken): Promise<void>;
+	/**
+	 * Publishes synchronously so a turn dispatched right after it observes the
+	 * current script: dispatch is ordered per connection and the agent host
+	 * applies the value before it starts the turn.
+	 */
+	reconcile(session: URI): void;
 }
 
 interface IRegistration {
 	readonly subscription: IAgentSubscription<SessionState>;
 	readonly store: DisposableStore;
 	readonly scheduler: RunOnceScheduler;
-	readonly sequencer: Sequencer;
 	schemaReady: boolean;
-	publishAfterPending: boolean;
-	pendingPublication: { readonly serialized: string; readonly desired: readonly IShellInitScript[]; readonly applied: DeferredPromise<ActionEnvelope | undefined> } | undefined;
 }
 
 /**
@@ -88,15 +86,12 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 		this._registrations.get(key)?.store.dispose();
 
 		const store = new DisposableStore();
-		const scheduler = store.add(new RunOnceScheduler(() => { void this._enqueuePublish(key); }, 0));
+		const scheduler = store.add(new RunOnceScheduler(() => this._publish(key), 0));
 		const registration: IRegistration = {
 			subscription,
 			store,
 			scheduler,
-			sequencer: new Sequencer(),
 			schemaReady: this._supportsShellInit(subscription.value),
-			publishAfterPending: false,
-			pendingPublication: undefined,
 		};
 		this._registrations.set(key, registration);
 		store.add(subscription.onDidChange(state => {
@@ -108,18 +103,7 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 				scheduler.schedule();
 			}
 		}));
-		store.add(subscription.onDidApplyAction(envelope => {
-			const pending = registration.pendingPublication;
-			if (pending
-				&& envelope.action.type === ActionType.SessionConfigChanged
-				&& envelope.origin?.clientId === this._agentHostService.clientId
-				&& structuralEquals(envelope.action.config[SessionConfigKey.ShellInitSnippets], pending.desired)
-			) {
-				pending.applied.complete(envelope);
-			}
-		}));
 		store.add(toDisposable(() => {
-			void registration.pendingPublication?.applied.complete(undefined);
 			if (this._registrations.get(key) === registration) {
 				this._registrations.delete(key);
 			}
@@ -128,11 +112,10 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 		return store;
 	}
 
-	reconcile(session: URI, token: CancellationToken): Promise<void> {
+	reconcile(session: URI): void {
 		const key = session.toString();
-		const registration = this._registrations.get(key);
-		registration?.scheduler.cancel();
-		return this._enqueuePublish(key, token);
+		this._registrations.get(key)?.scheduler.cancel();
+		this._publish(key);
 	}
 
 	private _scheduleAll(): void {
@@ -145,16 +128,8 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 		return !!state && !(state instanceof Error) && !!state.config?.schema.properties[SessionConfigKey.ShellInitSnippets];
 	}
 
-	private _enqueuePublish(key: string, token?: CancellationToken): Promise<void> {
-		const registration = this._registrations.get(key);
-		const deadline = token ? Date.now() + SHELL_INIT_PUBLICATION_TIMEOUT_MS : undefined;
-		const queued = registration?.sequencer.queue(() => this._publish(key, token, deadline)) ?? Promise.resolve();
-		return token ? raceCancellation(queued, token).then(() => { }) : queued;
-	}
-
-	private async _publish(key: string, token?: CancellationToken, deadline?: number): Promise<void> {
-		const registration = this._registrations.get(key);
-		const state = registration?.subscription.value;
+	private _publish(key: string): void {
+		const state = this._registrations.get(key)?.subscription.value;
 		if (!state || state instanceof Error || !state.config?.schema.properties[SessionConfigKey.ShellInitSnippets]) {
 			return;
 		}
@@ -168,71 +143,15 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 			return;
 		}
 		const desired = enabled && folder ? [createShellInitScript(TOOL_SHELL, this._readPythonActivation(folder))] : [];
-		const serialized = JSON.stringify(desired);
-		const pending = registration.pendingPublication;
-		if (pending?.serialized === serialized) {
-			if (token) {
-				await this._awaitPublication(registration, pending, token, deadline ?? Date.now());
-			}
-			return;
-		}
-		if (pending) {
-			if (!token) {
-				registration.publishAfterPending = true;
-				return;
-			}
-			await this._awaitPublication(registration, pending, token, deadline ?? Date.now());
-			registration.publishAfterPending = false;
-			return this._publish(key, token, deadline);
-		}
-		const confirmed = registration.subscription.verifiedValue?.config?.values[SessionConfigKey.ShellInitSnippets] as readonly IShellInitScript[] | undefined;
-		if (structuralEquals(confirmed, desired) || (!desired.length && confirmed === undefined)) {
+		const current = state.config.values[SessionConfigKey.ShellInitSnippets] as readonly IShellInitScript[] | undefined;
+		if (structuralEquals(current, desired) || (!desired.length && current === undefined)) {
 			return;
 		}
 
-		const action = {
+		this._agentHostService.dispatch(key, {
 			type: ActionType.SessionConfigChanged,
 			config: { [SessionConfigKey.ShellInitSnippets]: desired },
-		} as const;
-		const publication = {
-			serialized,
-			desired,
-			applied: new DeferredPromise<ActionEnvelope | undefined>(),
-		};
-		registration.pendingPublication = publication;
-		void publication.applied.p.then(() => {
-			if (registration.pendingPublication === publication) {
-				registration.pendingPublication = undefined;
-			}
 		});
-		this._agentHostService.dispatch(key, action);
-		if (token) {
-			await this._awaitPublication(registration, publication, token, deadline ?? Date.now());
-		} else {
-			void this._awaitPublication(registration, publication, undefined, Date.now() + SHELL_INIT_PUBLICATION_TIMEOUT_MS).then(() => {
-				if (registration.publishAfterPending) {
-					registration.publishAfterPending = false;
-					registration.scheduler.schedule();
-				}
-			});
-		}
-	}
-
-	private async _awaitPublication(registration: IRegistration, publication: NonNullable<IRegistration['pendingPublication']>, token: CancellationToken | undefined, deadline: number): Promise<void> {
-		const bounded = raceTimeout(publication.applied.p, Math.max(0, deadline - Date.now()));
-		const envelope = token ? await raceCancellation(bounded, token) : await bounded;
-		if (registration.pendingPublication === publication) {
-			registration.pendingPublication = undefined;
-		}
-		if (token && envelope === undefined && !token.isCancellationRequested) {
-			if (registration.store.isDisposed) {
-				throw new CancellationError();
-			}
-			throw new Error('Timed out waiting for Agent Host to apply shell init config.');
-		}
-		if (token && envelope?.rejectionReason) {
-			throw new Error(`Agent Host rejected shell init config: ${envelope.rejectionReason}`);
-		}
 	}
 
 	private _readPythonActivation(folder: IWorkspaceFolder): string | undefined {
