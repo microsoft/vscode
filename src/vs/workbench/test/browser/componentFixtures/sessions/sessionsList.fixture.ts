@@ -330,6 +330,15 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			width: 260,
 		}),
 	}),
+	SessionsList_NarrowHoverToolbar: defineComponentFixture({
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [
+				{ id: 'a', title: 'Review PR 333429: sessions fix normalize Windows workspace path casing', workspace: 'vscode', minutesAgo: 12, group: GROUP.id, changesSummary: { files: 4, additions: 104, deletions: 4 } },
+			],
+			groups: [GROUP],
+			width: 260,
+		}),
+	}),
 	SessionsList_CustomGroup_InProgress: defineComponentFixture({
 		render: ctx => renderSessionsList(ctx, {
 			sessions: [
