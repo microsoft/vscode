@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from '../../../../../base/common/arrays.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, dispose, isDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -24,7 +25,8 @@ import { IChatWidgetContrib } from '../widget/chatWidget.js';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
 
-
+const issueIconCharacter = '\ueb0c';
+const pullRequestIconCharacter = '\uea64';
 
 export class ChatDynamicVariableModel extends Disposable implements IChatWidgetContrib {
 	public static readonly ID = 'chatDynamicVariableModel';
@@ -50,7 +52,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		return ChatDynamicVariableModel.ID;
 	}
 
-	private decorationData: { id: string; text: string; rangeOffset: number }[] = [];
+	private decorationData: { id: string; text: string; rangeOffset: number; rangeLength: number; expectedRangeOffset?: number }[] = [];
 
 	private readonly _editorListener = this._register(new MutableDisposable());
 
@@ -100,7 +102,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 				if (newText !== data.text) {
 					const replacement = e.changes.find(change =>
 						change.rangeOffset <= data.rangeOffset
-						&& change.rangeOffset + change.rangeLength >= data.rangeOffset + data.text.length
+						&& change.rangeOffset + change.rangeLength >= data.rangeOffset + data.rangeLength
 					);
 					const preservedRange = replacement && this.findReferenceRangeInReplacement(model, e.changes, replacement, data);
 					if (preservedRange) {
@@ -146,13 +148,13 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		model: ITextModel,
 		changes: readonly IModelContentChange[],
 		replacement: IModelContentChange,
-		data: { text: string; rangeOffset: number }
+		data: { text: string; rangeOffset: number; rangeLength: number; expectedRangeOffset?: number }
 	): Range | undefined {
 		if (!data.text) {
 			return undefined;
 		}
 
-		const previousRelativeOffset = data.rangeOffset - replacement.rangeOffset;
+		const previousRelativeOffset = (data.expectedRangeOffset ?? data.rangeOffset) - replacement.rangeOffset;
 		let matchOffset = replacement.text.indexOf(data.text);
 		let closestMatchOffset = matchOffset;
 		while (matchOffset !== -1) {
@@ -198,7 +200,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		}
 	}
 
-	addReference(ref: IDynamicVariable): void {
+	addReference(ref: IDynamicVariable, expectedText?: string, expectedRangeOffset?: number): void {
 		if (!isValidEditorRange(ref.range)) {
 			return;
 		}
@@ -209,6 +211,29 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		}
 
 		this._variables.push(ref);
+		this.updateDecorations();
+		if (expectedText !== undefined || expectedRangeOffset !== undefined) {
+			const addedDecoration = this.decorationData[this._variables.length - 1];
+			if (addedDecoration) {
+				addedDecoration.text = expectedText ?? addedDecoration.text;
+				addedDecoration.expectedRangeOffset = expectedRangeOffset;
+			}
+		}
+		this.widget.refreshParsedInput();
+		this._onDidChangeReferences.fire();
+	}
+
+	removeReference(reference: IDynamicVariable): void {
+		const index = this._variables.findIndex(variable =>
+			variable.id === reference.id && Range.equalsRange(variable.range, reference.range));
+		if (index === -1) {
+			return;
+		}
+
+		const [removed] = this._variables.splice(index, 1);
+		if (isDisposable(removed)) {
+			removed.dispose();
+		}
 		this.updateDecorations();
 		this.widget.refreshParsedInput();
 		this._onDidChangeReferences.fire();
@@ -224,17 +249,20 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		const validVariables = this._variables.filter(v => isValidEditorRange(v.range));
 		const decorationIds = this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, validVariables.map((r): IDecorationOptions => ({
 			range: r.range,
-			hoverMessage: this.getHoverForReference(r)
+			hoverMessage: this.getHoverForReference(r),
+			renderOptions: getReferenceIconRenderOptions(r),
 		})));
 
 		this._variables = validVariables.slice(0, decorationIds.length);
 		this.decorationData = [];
 		for (let i = 0; i < decorationIds.length; i++) {
 			const range = this._variables[i].range;
+			const text = model.getValueInRange(range);
 			this.decorationData.push({
 				id: decorationIds[i],
-				text: model.getValueInRange(range),
-				rangeOffset: model.getOffsetAt({ lineNumber: range.startLineNumber, column: range.startColumn })
+				text,
+				rangeOffset: model.getOffsetAt({ lineNumber: range.startLineNumber, column: range.startColumn }),
+				rangeLength: text.length,
 			});
 		}
 	}
@@ -280,6 +308,22 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		this.disposeVariables();
 		super.dispose();
 	}
+}
+
+function getReferenceIconRenderOptions(reference: IDynamicVariable): IDecorationOptions['renderOptions'] {
+	const contentText = reference.icon?.id === Codicon.issues.id
+		? issueIconCharacter
+		: reference.icon?.id === Codicon.gitPullRequest.id
+			? pullRequestIconCharacter
+			: undefined;
+	return contentText ? {
+		before: {
+			contentText,
+			fontFamily: 'codicon',
+			margin: '0 2px 0 0',
+			verticalAlign: 'middle',
+		},
+	} : undefined;
 }
 
 /**

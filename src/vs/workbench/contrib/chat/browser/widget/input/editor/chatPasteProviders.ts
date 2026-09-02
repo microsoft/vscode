@@ -16,7 +16,7 @@ import { basename, joinPath } from '../../../../../../../base/common/resources.j
 import { URI, UriComponents } from '../../../../../../../base/common/uri.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../../../../editor/common/core/range.js';
-import { DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider, DocumentPasteEditsSession, DocumentPasteTriggerKind, SymbolKinds } from '../../../../../../../editor/common/languages.js';
+import { DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider, DocumentPasteEditsSession, DocumentPasteTriggerKind, ILinksList, LinkProvider, SymbolKinds } from '../../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../../../editor/common/services/languageFeatures.js';
 import { IModelService } from '../../../../../../../editor/common/services/model.js';
@@ -45,6 +45,7 @@ export const pastedTextArtifactDefaultMinLength = 10000;
  */
 const pastedTextArtifactMinLines = 10;
 export const CHAT_ATTACHMENT_MIME_TYPE = 'application/vnd.chat.attachment+json';
+const chatPasteLinkMetadataKey = 'chatPasteLink';
 
 interface SerializedCopyData {
 	readonly uri: UriComponents;
@@ -368,19 +369,45 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 		}
 
 		const textdata = await text.asString();
-		const githubLink = getGitHubIssueOrPullRequestLink(textdata);
-		if (githubLink) {
-			return createEditSession({
-				insertText: githubLink,
-				title: localize('pasteGitHubLink', "Paste GitHub Link"),
-				kind: this.kind,
-				handledMimeType: Mimes.text,
-			});
-		}
-
 		const target = this.pasteTargetService.getTarget(model.uri);
 		if (!target) {
 			return;
+		}
+
+		const githubLink = this.configurationService.getValue<boolean>(ChatConfiguration.PasteGitHubLinksAsReferences, { resource: model.uri })
+			? getGitHubIssueOrPullRequestLink(textdata)
+			: undefined;
+		if (githubLink) {
+			if (model.uri.scheme === Schemas.sessionsChatInput || ranges.length !== 1) {
+				return;
+			}
+			const pasteRange = ranges[0];
+			const referenceRange = new Range(
+				pasteRange.startLineNumber,
+				pasteRange.startColumn,
+				pasteRange.startLineNumber,
+				pasteRange.startColumn + githubLink.label.length
+			);
+			const edit = createInlineReferencePasteEdit(
+				model,
+				{
+					id: githubLink.url,
+					fullName: githubLink.label,
+					icon: githubLink.type === 'issue' ? Codicon.issues : Codicon.gitPullRequest,
+					range: referenceRange,
+					data: URI.parse(githubLink.url),
+					isAttachmentReference: true,
+					_meta: { [chatPasteLinkMetadataKey]: true },
+					promptText: githubLink.url,
+				},
+				githubLink.label,
+				pasteRange,
+				Mimes.text,
+				this.kind,
+				localize('pasteGitHubLink', "Paste GitHub Link"),
+				this.pasteTargetService,
+			);
+			return edit ? createEditSession(edit) : undefined;
 		}
 
 		let copiedContext: IChatRequestPasteVariableEntry | undefined;
@@ -466,9 +493,17 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 	}
 }
 
-function getGitHubIssueOrPullRequestLink(text: string): string | undefined {
-	const url = text.trim();
-	return /^https:\/\/github\.com\/[a-z\d](?:[a-z\d-]{0,38})\/[a-z\d._-]+\/(?:issues|pull)\/\d+(?:[/?#][^\s]*)?$/i.test(url) ? url : undefined;
+function getGitHubIssueOrPullRequestLink(text: string): { readonly label: string; readonly type: 'issue' | 'pullRequest'; readonly url: string } | undefined {
+	const url = text;
+	const match = /^https:\/\/github\.com\/(?<owner>[a-z\d](?:[a-z\d-]{0,38}))\/(?<repository>[a-z\d._-]+)\/(?<type>issues|pull)\/(?<number>[1-9]\d*)(?:[/?#][^\s]*)?$/i.exec(url);
+	if (!match?.groups) {
+		return undefined;
+	}
+	return {
+		label: `${match.groups.owner}/${match.groups.repository}#${match.groups.number}`,
+		type: match.groups.type.toLowerCase() === 'issues' ? 'issue' : 'pullRequest',
+		url,
+	};
 }
 
 export function createPastedTextArtifact(
@@ -603,6 +638,73 @@ function createCustomPasteEdit(
 		additionalEdit: {
 			edits: [customEdit],
 		}
+	};
+}
+
+function createInlineReferencePasteEdit(
+	model: ITextModel,
+	reference: IDynamicVariable,
+	text: string,
+	replaceRange: IRange,
+	handledMimeType: string,
+	kind: HierarchicalKind,
+	title: string,
+	pasteTargetService: IChatPasteTargetService,
+): DocumentPasteEdit | undefined {
+	const resolveTarget = (): IChatPasteTarget => {
+		const target = pasteTargetService.getTarget(model.uri);
+		if (!target) {
+			throw new Error('No chat paste target found for inline reference');
+		}
+		return target;
+	};
+	const replaceStart = Range.getStartPosition(replaceRange);
+	const intersectedReferences = resolveTarget().inlineReferences
+		.filter(candidate => {
+			if (!Range.isEmpty(replaceRange)) {
+				return Range.areIntersecting(candidate.range, replaceRange);
+			}
+			return Range.containsPosition(candidate.range, replaceStart)
+				&& !Position.equals(Range.getStartPosition(candidate.range), replaceStart)
+				&& !Position.equals(Range.getEndPosition(candidate.range), replaceStart);
+		});
+	if (intersectedReferences.length > 1 || intersectedReferences.some(candidate => !Range.containsRange(replaceRange, candidate.range))) {
+		return undefined;
+	}
+	const replacedReferences = intersectedReferences.map(candidate => ({
+		reference: candidate,
+		text: model.getValueInRange(candidate.range),
+		rangeOffset: model.getOffsetAt(Range.getStartPosition(candidate.range)),
+	}));
+
+	return {
+		insertText: `${text} `,
+		title,
+		kind,
+		handledMimeType,
+		additionalEdit: {
+			edits: [{
+				resource: model.uri,
+				undo: () => {
+					const target = resolveTarget();
+					target.removeInlineReference(reference);
+					for (const replaced of replacedReferences) {
+						target.addInlineReference({ ...replaced.reference, range: reference.range }, replaced.text, replaced.rangeOffset);
+					}
+				},
+				redo: () => {
+					const target = resolveTarget();
+					for (const replaced of replacedReferences) {
+						target.removeInlineReference(replaced.reference);
+					}
+					target.addInlineReference(reference);
+				},
+				metadata: {
+					needsConfirmation: false,
+					label: title,
+				},
+			}],
+		},
 	};
 }
 
@@ -860,6 +962,23 @@ class PasteHtmlProvider implements DocumentPasteEditProvider {
 	}
 }
 
+class ChatInputLinkProvider implements LinkProvider {
+	constructor(private readonly pasteTargetService: IChatPasteTargetService) { }
+
+	provideLinks(model: ITextModel): ILinksList | undefined {
+		const target = this.pasteTargetService.getTarget(model.uri);
+		if (!target) {
+			return undefined;
+		}
+
+		const links = target.inlineReferences.flatMap(reference =>
+			reference._meta?.[chatPasteLinkMetadataKey] === true && URI.isUri(reference.data)
+				? [{ range: reference.range, url: reference.data }]
+				: []);
+		return links.length ? { links } : undefined;
+	}
+}
+
 /** The Markdown form of pasted HTML, when the HTML carries real formatting. */
 async function getMeaningfulMarkdown(dataTransfer: IReadonlyVSDataTransfer): Promise<string | undefined> {
 	const htmlText = await dataTransfer.get(Mimes.html)?.asString();
@@ -892,10 +1011,12 @@ export class ChatPasteProvidersFeature extends Disposable {
 			new PasteTextProvider(pasteTargetService, modelService, logService, configurationService),
 			new PasteHtmlProvider(),
 		];
+		const chatInputLinkProvider = new ChatInputLinkProvider(pasteTargetService);
 		for (const scheme of chatInputSchemes) {
 			for (const provider of chatInputProviders) {
 				this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme, pattern: '*', hasAccessToAllModels: true }, provider));
 			}
+			this._register(languageFeaturesService.linkProvider.register({ scheme, pattern: '*', hasAccessToAllModels: true }, chatInputLinkProvider));
 		}
 		// Symbol paste inserts a `#sym:` token that is only meaningful alongside a
 		// standalone inline reference, which the widget-backed inputs provide.

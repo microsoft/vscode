@@ -59,10 +59,12 @@ export class NewChatInputPasteTarget implements IChatPasteTarget {
 		this.completionHandler.acceptCompletion({ ...entry, range: offsetRange }, text, offsetRange);
 	}
 
-	addInlineReference(_reference: IDynamicVariable): void {
+	addInlineReference(_reference: IDynamicVariable, _expectedText?: string): void {
 		// The composer has no dynamic-variable model; references that are not
 		// backed by an attachment are not surfaced here.
 	}
+
+	removeInlineReference(_reference: IDynamicVariable): void { }
 
 	isTerminalCommandPaste(text: string, range: IRange): boolean {
 		const model = this.editor.getModel();
