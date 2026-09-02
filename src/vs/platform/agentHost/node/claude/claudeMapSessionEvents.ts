@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import { hasKey } from '../../../../base/common/types.js';
 import type { URI } from '../../../../base/common/uri.js';
 import { LogLevel, type ILogService } from '../../../log/common/log.js';
 import type { AgentSignal } from '../../common/agent.js';
@@ -133,9 +134,9 @@ export class ClaudeMapperState {
 	 * `undefined` if the `tool_use_id` is unknown (defense-in-depth
 	 * against transport drift / replay).
 	 */
-	lookupToolCall(toolUseId: string): { turnId: string; toolName: string; isClientTool: boolean } | undefined {
+	lookupToolCall(toolUseId: string): { turnId: string; toolName: string; isClientTool: boolean; restored: boolean } | undefined {
 		const entry = this.toolCalls.lookup(toolUseId);
-		return entry ? { turnId: entry.turnId, toolName: entry.toolName, isClientTool: entry.isClientTool } : undefined;
+		return entry ? { turnId: entry.turnId, toolName: entry.toolName, isClientTool: entry.isClientTool, restored: entry.restored } : undefined;
 	}
 
 	/** Drain cross-message tracking once a `tool_result` is delivered. */
@@ -264,7 +265,7 @@ export function mapSDKMessageToAgentSignals(
 			);
 		case 'user':
 			return tagWithParent(
-				mapUserMessage(message, chat, state, logService, registry),
+				mapUserMessage(message, chat, turnId, state, logService, registry),
 				chat,
 				message.parent_tool_use_id,
 				registry,
@@ -341,10 +342,15 @@ function mapAssistantCanonical(
 function mapUserMessage(
 	message: Extract<SDKMessage, { type: 'user' }>,
 	chat: URI,
+	turnId: string,
 	state: ClaudeMapperState,
 	logService: ILogService,
 	registry: SubagentRegistry,
 ): AgentSignal[] {
+	// A replayed envelope is transcript history; its tool_results were attributed when they first landed.
+	if (hasKey(message, { isReplay: true }) && message.isReplay) {
+		return [];
+	}
 	const content = message.message.content;
 	if (!Array.isArray(content)) {
 		return [];
@@ -358,6 +364,13 @@ function mapUserMessage(
 		const tracked = state.lookupToolCall(block.tool_use_id);
 		if (!tracked) {
 			logService.warn(`[claudeMapSessionEvents] tool_result for unknown tool_use_id ${block.tool_use_id}`);
+			continue;
+		}
+		if (tracked.restored && tracked.turnId !== turnId) {
+			// The reducer only mutates the active turn, so a completion for a committed turn would be dropped anyway.
+			logService.info(`[claudeMapSessionEvents] tool_result for restored tool_use ${block.tool_use_id} belongs to committed turn ${tracked.turnId}, not in-flight turn ${turnId}; dropping it`);
+			state.completeToolCall(block.tool_use_id);
+			state.takeFileEdit(block.tool_use_id);
 			continue;
 		}
 		const isError = block.is_error === true;

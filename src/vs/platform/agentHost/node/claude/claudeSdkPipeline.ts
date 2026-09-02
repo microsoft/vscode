@@ -17,6 +17,7 @@ import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTel
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import type { IClaudeAttributionSeed } from './claudeAttributionResolver.js';
 import { ClaudePromptQueue, IPendingSdkMessage } from './claudePromptQueue.js';
 import { ClaudeSdkMessageRouter } from './claudeSdkMessageRouter.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
@@ -335,6 +336,11 @@ export class ClaudeSdkPipeline extends Disposable {
 		this._router.setClientToolOwner(clientToolOwner);
 	}
 
+	/** Hand a resumed session's replay attribution seed to the router, which awaits it before mapping the first message. */
+	seedReplayAttribution(seed: Promise<IClaudeAttributionSeed | undefined>): void {
+		this._router.seedReplayAttribution(seed);
+	}
+
 	/** Attach the rematerializer hook for abort / crash recovery. Optional — tests that exercise only the dispose path skip this. */
 	attachRematerializer(rematerializer: IRematerializer): void {
 		this._rematerializer = rematerializer;
@@ -632,6 +638,8 @@ export class ClaudeSdkPipeline extends Disposable {
 		this._abortController = built.abortController;
 		this._wireAbortHandler(built.abortController);
 		this._queue.resetForRebind();
+		// An aborted turn never delivers a `result`, so this is its only turn-end drain.
+		this._router.clearPendingTurnState();
 		this._needsRebind = false;
 		// New SDK starts with the materializer's `Options.model` / effort /
 		// permissionMode but we don't trust that to match `_currentModel`
