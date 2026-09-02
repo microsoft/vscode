@@ -1638,8 +1638,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					if (this._activeSessions.get(sessionResource) !== session) {
 						return;
 					}
-					// Before the entry is dropped, so `_hasOtherSessionHold` still pins the shared session subscription.
-					this._disposeDetachedSubagentObservations(resolvedSession.toString());
 					this._activeSessions.delete(sessionResource);
 					this._disposeActiveClientEntry(sessionResource);
 					this._pendingMessageSubscriptions.deleteAndDispose(sessionResource);
@@ -1647,6 +1645,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					this._serverTurnWatchers.deleteAndDispose(sessionResource);
 					this._mcpAuthWatchers.deleteAndDispose(sessionResource);
 					this._releaseSessionInputNeeded(sessionResource);
+					// Shared by every chat of the backend session, exactly like the input-needed watcher above.
+					if (!this._hasOtherSessionHold(resolvedSession.toString())) {
+						this._disposeDetachedSubagentObservations(resolvedSession.toString());
+					}
 					this._pendingHistoryTurns.delete(sessionResource);
 					this._surfacedMcpAuthServers.delete(sessionResource);
 					const chatURI = this._chatURIsBySessionResource.get(sessionResource);
@@ -4304,7 +4306,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 	}
 
-	/** Drops the detached subagent observations belonging to a backend session that is being torn down. */
+	/**
+	 * Drops the detached subagent observations for a backend session whose last chat has closed. They are
+	 * shared by every chat of that session, so an earlier sibling closing must leave them running.
+	 */
 	private _disposeDetachedSubagentObservations(sessionUri: string): void {
 		const prefix = `${sessionUri}\0`;
 		this._detachedSubagentObservationsSuspended = true;

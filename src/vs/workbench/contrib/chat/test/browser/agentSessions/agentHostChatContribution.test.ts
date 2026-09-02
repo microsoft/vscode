@@ -13399,7 +13399,16 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('a subagent chat created after the parent turn completed is still observed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const begunToolCalls: { toolCallId: string; subagentInvocationId: string | undefined }[] = [];
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				languageModelToolsServiceOverride: {
+					getToolByName: () => ({ id: 'vscode_readFile', source: ToolDataSource.Internal, displayName: 'Read File', modelDescription: 'Reads a file' }),
+					beginToolCall: options => {
+						begunToolCalls.push({ toolCallId: options.toolCallId, subagentInvocationId: options.subagentInvocationId });
+						return undefined;
+					},
+				},
+			});
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 			const parentSession = parseDefaultChatUri(session);
 			assert.ok(parentSession);
@@ -13424,8 +13433,56 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 			await timeout(0);
-
 			assert.strictEqual(agentHostService.hasLiveSubscription(childChatUri), true, 'the not-yet-created subagent chat must stay subscribed past its parent turn');
+
+			// The subagent only now starts, and runs a client tool the detached observer has to claim.
+			agentHostService.fireAction({
+				channel: childChatUri,
+				action: {
+					type: 'chat/turnStarted', turnId: 'late-child-turn',
+					startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: 'do work', origin: { kind: MessageKind.User } },
+				} as ChatAction,
+				serverSeq: 4001,
+				origin: undefined,
+			});
+			agentHostService.fireAction({
+				channel: childChatUri,
+				action: {
+					type: 'chat/toolCallStart', turnId: 'late-child-turn',
+					toolCallId: 'tc-late-child', toolName: 'read_file', displayName: 'Read File',
+					contributor: { kind: ToolCallContributorKind.Client, clientId: agentHostService.clientId },
+				} as ChatAction,
+				serverSeq: 4002,
+				origin: undefined,
+			});
+			agentHostService.fireAction({
+				channel: childChatUri,
+				action: {
+					type: 'chat/toolCallReady', turnId: 'late-child-turn',
+					toolCallId: 'tc-late-child', invocationMessage: 'Reading file',
+					toolInput: '{}', confirmed: ToolCallConfirmationReason.NotNeeded,
+				} as ChatAction,
+				serverSeq: 4003,
+				origin: undefined,
+			});
+			await timeout(50);
+
+			assert.deepStrictEqual(
+				begunToolCalls.filter(call => call.toolCallId === 'tc-late-child'),
+				[{ toolCallId: 'tc-late-child', subagentInvocationId: toolCallId }],
+				'the detached observer must process the late child turn and claim its client tool',
+			);
+
+			agentHostService.fireAction({
+				channel: childChatUri,
+				action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', turnId: 'late-child-turn' } as ChatAction,
+				serverSeq: 4004,
+				origin: undefined,
+			});
+			await timeout(50);
+
+			assert.strictEqual(agentHostService.hasLiveSubscription(childChatUri), false, 'the subagent chat must be released once the subagent finishes');
 		}));
 
 		test('a background subagent stays observed after the parent turn ends and is released when it finishes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
