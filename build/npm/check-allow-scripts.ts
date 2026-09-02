@@ -61,15 +61,27 @@ function checkDirectory(directory: string): CheckResult {
 }
 
 function main(): void {
+	const args = process.argv.slice(2);
+	const jsonOutput = args.includes('--json');
+
 	const packageDirectories = dirs
 		.map(dir => path.join(root, dir))
 		.filter(directory => existsSync(path.join(directory, 'package.json')));
+	
 	const results: CheckResult[] = [];
 	for (const directory of packageDirectories) {
 		const result = checkDirectory(directory);
 		if (result.pending.length > 0) {
 			results.push(result);
 		}
+	}
+
+	if (jsonOutput) {
+		console.log(JSON.stringify(results, null, 2));
+		if (results.length > 0) {
+			process.exitCode = 1;
+		}
+		return;
 	}
 
 	if (results.length === 0) {
@@ -87,5 +99,3 @@ function main(): void {
 	console.error('\nRun `npm approve-scripts <pkg>` in each directory to review the pending install scripts.');
 	process.exitCode = 1;
 }
-
-main();
