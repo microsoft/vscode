@@ -985,7 +985,7 @@ class RecordingSessionDataService implements ISessionDataService {
 	}
 	deleteSessionData(session: URI) { return this._delegate.deleteSessionData(session); }
 	get onWillDeleteSessionData() { return this._delegate.onWillDeleteSessionData; }
-	cleanupOrphanedData(knownSessionIds: Set<string>) { return this._delegate.cleanupOrphanedData(knownSessionIds); }
+	cleanupOrphanedData(knownSessions: readonly URI[]) { return this._delegate.cleanupOrphanedData(knownSessions); }
 	whenIdle() { return this._delegate.whenIdle(); }
 }
 

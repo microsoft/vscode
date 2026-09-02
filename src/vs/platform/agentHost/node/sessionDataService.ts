@@ -3,15 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Limiter } from '../../../base/common/async.js';
+import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { IReference, ReferenceCollection } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { IFileService } from '../../files/common/files.js';
+import { IFileService, IFileStat } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agent.js';
 import { DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { ISessionDatabase, ISessionDataService, IWillDeleteSessionDataEvent, SESSION_DB_FILENAME } from '../common/sessionDataService.js';
+import { AH_META_CHAT_BACKING_DB_KEY, buildSubagentSessionUriPrefix } from '../common/state/sessionState.js';
 import { SessionDatabase } from './sessionDatabase.js';
+
+function sanitizeDataKey(key: string): string {
+	return key.replace(/[^a-zA-Z0-9_.-]/g, '-');
+}
+
+interface IDataOwner {
+	/** Directory name of the session itself. */
+	readonly key: string;
+	/** Directory name prefix of every subagent session of the session. */
+	readonly subagentPrefix: string;
+	/** Fragment every chat channel directory of the session carries (`<chatId>-<base64url(session)>`). */
+	readonly chatFragment: string;
+}
+
+/** Whether `name` belongs to the owner session, one of its subagent sessions, or one of its chat channels. */
+function isOwnedData(name: string, owner: IDataOwner): boolean {
+	return name === owner.key
+		|| name.startsWith(owner.subagentPrefix)
+		|| name.endsWith(owner.chatFragment)
+		|| name.includes(`${owner.chatFragment}-`);
+}
 
 class SessionDatabaseCollection extends ReferenceCollection<ISessionDatabase> {
 
@@ -76,12 +100,20 @@ export class SessionDataService implements ISessionDataService {
 	}
 
 	getSessionDataDirById(sessionId: string): URI {
-		const sanitized = sessionId.replace(/[^a-zA-Z0-9_.-]/g, '-');
-		return URI.joinPath(this._basePath, sanitized);
+		return URI.joinPath(this._basePath, sanitizeDataKey(sessionId));
 	}
 
 	private _sanitizedSessionKey(session: URI): string {
-		return this._dataKey(session).replace(/[^a-zA-Z0-9_.-]/g, '-');
+		return sanitizeDataKey(this._dataKey(session));
+	}
+
+	/** Derives every directory name shape owned by `session` through the same key derivation its producers use. */
+	private _dataOwner(session: URI): IDataOwner {
+		return {
+			key: this._sanitizedSessionKey(session),
+			subagentPrefix: this._sanitizedSessionKey(URI.parse(buildSubagentSessionUriPrefix(session))),
+			chatFragment: `-${sanitizeDataKey(encodeBase64(VSBuffer.fromString(session.toString()), false, true))}`,
+		};
 	}
 
 	/**
@@ -145,7 +177,7 @@ export class SessionDataService implements ISessionDataService {
 		}
 	}
 
-	async cleanupOrphanedData(knownSessionIds: Set<string>): Promise<void> {
+	async cleanupOrphanedData(knownSessions: readonly URI[]): Promise<void> {
 		try {
 			const exists = await this._fileService.exists(this._basePath);
 			if (!exists) {
@@ -157,26 +189,51 @@ export class SessionDataService implements ISessionDataService {
 				return;
 			}
 
+			const owners = knownSessions.map(session => this._dataOwner(session));
+			const limiter = new Limiter<void>(4);
 			const deletions: Promise<void>[] = [];
 			for (const child of stat.children) {
-				if (!child.isDirectory) {
+				if (!child.isDirectory || child.name.startsWith(DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX) || owners.some(owner => isOwnedData(child.name, owner))) {
 					continue;
 				}
-				const name = child.name;
-				if (!knownSessionIds.has(name) && !name.startsWith(DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX)) {
-					this._logService.trace(`[SessionDataService] Cleaning up orphaned session data: ${name}`);
-					deletions.push(
-						this._fileService.del(child.resource, { recursive: true }).catch(err => {
-							this._logService.warn(`[SessionDataService] Failed to clean up orphaned data: ${name}`, err);
-						})
-					);
-				}
+				deletions.push(limiter.queue(() => this._deleteOrphanedData(child)));
 			}
 
 			await Promise.all(deletions);
 		} catch (err) {
 			this._logService.warn('[SessionDataService] Failed to run orphan cleanup', err);
 		}
+	}
+
+	private async _deleteOrphanedData(dir: IFileStat): Promise<void> {
+		try {
+			if (await this._isChatBackingData(dir)) {
+				this._logService.trace(`[SessionDataService] Keeping chat backing session data: ${dir.name}`);
+				return;
+			}
+			this._logService.trace(`[SessionDataService] Cleaning up orphaned session data: ${dir.name}`);
+			await this._fileService.del(dir.resource, { recursive: true });
+		} catch (err) {
+			this._logService.warn(`[SessionDataService] Failed to clean up orphaned data: ${dir.name}`, err);
+		}
+	}
+
+	/** A chat's backing SDK session is never registered, so only its own marker identifies it. */
+	private async _isChatBackingData(dir: IFileStat): Promise<boolean> {
+		if (!await this._fileService.exists(URI.joinPath(dir.resource, SESSION_DB_FILENAME))) {
+			return false;
+		}
+		const ref = this._databases.acquire(dir.name);
+		try {
+			if (await ref.object.getMetadata(AH_META_CHAT_BACKING_DB_KEY) !== undefined) {
+				return true;
+			}
+		} finally {
+			ref.dispose();
+		}
+		// Releasing the reference closes the database asynchronously; the delete must not race it.
+		await ref.object.close();
+		return false;
 	}
 
 	async listSessionDataIds(prefix: string): Promise<readonly string[]> {

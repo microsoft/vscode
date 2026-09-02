@@ -13,7 +13,8 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
-import { buildChatUri } from '../../common/state/sessionState.js';
+import { SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
+import { AH_META_CHAT_BACKING_DB_KEY, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri } from '../../common/state/sessionState.js';
 import { SessionDataService } from '../../node/sessionDataService.js';
 
 suite('SessionDataService', () => {
@@ -26,7 +27,7 @@ suite('SessionDataService', () => {
 	setup(() => {
 		fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
-		service = new SessionDataService(basePath, fileService, new NullLogService());
+		service = new SessionDataService(basePath, fileService, new NullLogService(), () => ':memory:');
 	});
 
 	teardown(() => disposables.clear());
@@ -72,27 +73,86 @@ suite('SessionDataService', () => {
 		await service.deleteSessionData(session);
 	});
 
-	test('cleanupOrphanedData deletes orphans but keeps known sessions', async () => {
-		const baseDir = URI.joinPath(basePath, 'agentSessionData');
-		await fileService.createFolder(URI.joinPath(baseDir, 'keep-1'));
-		await fileService.createFolder(URI.joinPath(baseDir, 'keep-2'));
-		await fileService.createFolder(URI.joinPath(baseDir, 'orphan-1'));
-		await fileService.createFolder(URI.joinPath(baseDir, 'orphan-2'));
-		await fileService.createFolder(URI.joinPath(baseDir, 'devcontainer-worktree-detached'));
+	test('cleanupOrphanedData deletes orphans but keeps known sessions and the data they own', async () => {
+		const known = AgentSession.uri('copilot', 'keep-1');
+		const orphan = AgentSession.uri('copilot', 'orphan-1');
+		const dirs = {
+			known: service.getSessionDataDir(known),
+			knownChat: service.getSessionDataDir(URI.parse(buildChatUri(known, 'chat-a'))),
+			knownSubagentChat: service.getSessionDataDir(URI.parse(buildSubagentChatUri(known, 'call-1'))),
+			knownSubagent: service.getSessionDataDir(URI.parse(buildSubagentSessionUri(known, 'call-1'))),
+			orphan: service.getSessionDataDir(orphan),
+			orphanChat: service.getSessionDataDir(URI.parse(buildChatUri(orphan, 'chat-b'))),
+			orphanSharingPrefix: service.getSessionDataDir(AgentSession.uri('copilot', 'keep-1-other')),
+			detachedWorktree: URI.joinPath(basePath, 'agentSessionData', 'devcontainer-worktree-detached'),
+		};
+		for (const dir of Object.values(dirs)) {
+			await fileService.createFolder(dir);
+		}
 
-		await service.cleanupOrphanedData(new Set(['keep-1', 'keep-2']));
+		await service.cleanupOrphanedData([known]);
 
-		assert.ok(await fileService.exists(URI.joinPath(baseDir, 'keep-1')));
-		assert.ok(await fileService.exists(URI.joinPath(baseDir, 'keep-2')));
-		assert.ok(!(await fileService.exists(URI.joinPath(baseDir, 'orphan-1'))));
-		assert.ok(!(await fileService.exists(URI.joinPath(baseDir, 'orphan-2'))));
-		assert.ok(await fileService.exists(URI.joinPath(baseDir, 'devcontainer-worktree-detached')));
-		assert.deepStrictEqual(await service.listSessionDataIds('devcontainer-worktree-'), ['devcontainer-worktree-detached']);
+		const remaining: Record<string, boolean> = {};
+		for (const [name, dir] of Object.entries(dirs)) {
+			remaining[name] = await fileService.exists(dir);
+		}
+		assert.deepStrictEqual({ remaining, listedDetached: await service.listSessionDataIds('devcontainer-worktree-') }, {
+			remaining: {
+				known: true,
+				knownChat: true,
+				knownSubagentChat: true,
+				knownSubagent: true,
+				orphan: false,
+				orphanChat: false,
+				orphanSharingPrefix: false,
+				detachedWorktree: true,
+			},
+			listedDetached: ['devcontainer-worktree-detached'],
+		});
+	});
+
+	test('cleanupOrphanedData does not mistake chats of a session whose URI extends a known one', async () => {
+		// base64url('copilot:/abc') is a prefix of base64url('copilot:/abcd'): the input is a multiple of three bytes.
+		const known = AgentSession.uri('copilot', 'abc');
+		const orphan = AgentSession.uri('copilot', 'abcd');
+		const knownChat = service.getSessionDataDir(URI.parse(buildChatUri(known, 'chat-a')));
+		const orphanChat = service.getSessionDataDir(URI.parse(buildChatUri(orphan, 'chat-b')));
+		await fileService.createFolder(knownChat);
+		await fileService.createFolder(orphanChat);
+
+		await service.cleanupOrphanedData([known]);
+
+		assert.deepStrictEqual({
+			knownChat: await fileService.exists(knownChat),
+			orphanChat: await fileService.exists(orphanChat),
+		}, { knownChat: true, orphanChat: false });
+	});
+
+	test('cleanupOrphanedData keeps the backing session of a chat', async () => {
+		const known = AgentSession.uri('copilot', 'known');
+		const backing = AgentSession.uri('claude', 'backing-sdk-session');
+		const unmarked = AgentSession.uri('claude', 'unmarked-sdk-session');
+		for (const session of [known, backing, unmarked]) {
+			await fileService.createFile(URI.joinPath(service.getSessionDataDir(session), SESSION_DB_FILENAME), VSBuffer.alloc(0));
+		}
+		const backingRef = disposables.add(service.openDatabase(backing));
+		await backingRef.object.setMetadata(AH_META_CHAT_BACKING_DB_KEY, buildChatUri(known, 'chat-a'));
+		const unmarkedRef = disposables.add(service.openDatabase(unmarked));
+		await unmarkedRef.object.setMetadata('customTitle', 'not a chat backing');
+
+		await service.cleanupOrphanedData([known]);
+		await Promise.all([backingRef.object.close(), unmarkedRef.object.close()]);
+
+		assert.deepStrictEqual({
+			known: await fileService.exists(service.getSessionDataDir(known)),
+			backing: await fileService.exists(service.getSessionDataDir(backing)),
+			unmarked: await fileService.exists(service.getSessionDataDir(unmarked)),
+		}, { known: true, backing: true, unmarked: false });
 	});
 
 	test('cleanupOrphanedData is a no-op when base directory does not exist', async () => {
 		// Should not throw
-		await service.cleanupOrphanedData(new Set());
+		await service.cleanupOrphanedData([]);
 	});
 });
 
