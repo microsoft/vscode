@@ -434,7 +434,7 @@ export function getPresentableMcpServerCustomizations(customizations: readonly C
 	return entries.filter(entry => entry.isTopLevel || !topLevelNames.has(entry.server.name));
 }
 
-class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizationService {
+export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizationService {
 
 	private readonly _sessionStateSubscriptions = this._register(new DisposableResourceMap<IDisposable & { readonly connection: IAgentConnection; readonly backendSession: URI; readonly sub: IAgentSubscription<SessionState> }>());
 
@@ -530,8 +530,9 @@ class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizat
 
 	private _readSessionState(sessionResource: URI): SessionState | undefined {
 		const target = this._resolveSessionTarget(sessionResource);
-		const value = target ? this._ensureSessionStateSubscription(sessionResource, target)?.sub.value : undefined;
-		return value && !(value instanceof Error) ? value : undefined;
+		const subscription = target ? this._ensureSessionStateSubscription(sessionResource, target)?.sub : undefined;
+		const value = subscription?.value;
+		return value instanceof Error ? subscription?.verifiedValue : value;
 	}
 
 	private _ensureSessionStateSubscription(sessionResource: URI, target: IAgentHostSessionResolution): (IDisposable & { readonly connection: IAgentConnection; readonly backendSession: URI; readonly sub: IAgentSubscription<SessionState> }) | undefined {
