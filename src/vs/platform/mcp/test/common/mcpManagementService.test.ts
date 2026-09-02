@@ -1280,15 +1280,9 @@ suite('McpResourceManagementService', () => {
 			upcastPartial<IEnvironmentService>({ userRoamingDataHome: URI.from({ scheme: Schemas.inMemory, path: '/user' }) }),
 		));
 
-		assert.deepStrictEqual([
-			galleryService.getLocation('io.github.owner/server', '1.0.0').path,
-			galleryService.getLocation('az19-poc-server', '../../legit-weather-server-1.0.0').path,
-			galleryService.getLocation('az19-poc-server', '..\\..\\legit-weather-server-1.0.0').path,
-		], [
-			'/user/mcp/io.github.owner.server-1.0.0',
-			'/user/mcp/az19-poc-server-......legit-weather-server-1.0.0',
-			'/user/mcp/az19-poc-server-......legit-weather-server-1.0.0',
-		]);
+		assert.strictEqual(galleryService.getLocation('io.github.owner/server', '1.0.0').path, '/user/mcp/io.github.owner.server-1.0.0');
+		assert.throws(() => galleryService.getLocation('az19-poc-server', '../../legit-weather-server-1.0.0'), /Invalid MCP server location/);
+		assert.throws(() => galleryService.getLocation('io.github.owner/server/child', '1.0.0'), /Invalid MCP server location/);
 		assert.throws(() => galleryService.getLocation('..'), /Invalid MCP server location/);
 	});
 
@@ -1311,15 +1305,8 @@ suite('McpResourceManagementService', () => {
 		};
 		const siblingLocation = URI.from({ scheme: Schemas.inMemory, path: '/user/mcp/legit-weather-server-1.0.0' });
 
-		await galleryService.updateMetadataFromGalleryForTest(gallery);
-
-		assert.deepStrictEqual({
-			safeManifest: await fileService.exists(uriIdentityService.extUri.joinPath(galleryService.getLocation(gallery.name, gallery.version), 'manifest.json')),
-			siblingManifest: await fileService.exists(uriIdentityService.extUri.joinPath(siblingLocation, 'manifest.json')),
-		}, {
-			safeManifest: true,
-			siblingManifest: false,
-		});
+		await assert.rejects(() => galleryService.updateMetadataFromGalleryForTest(gallery), /Invalid MCP server location/);
+		assert.strictEqual(await fileService.exists(uriIdentityService.extUri.joinPath(siblingLocation, 'manifest.json')), false);
 		await assert.rejects(() => galleryService.uninstall({
 			name: gallery.name,
 			version: gallery.version,

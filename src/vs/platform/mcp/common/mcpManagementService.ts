@@ -615,10 +615,13 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 	}
 
 	protected getLocation(name: string, version?: string): URI {
-		name = name.replace(/[\\/]/g, '.');
-		version = version?.replace(/[\\/]/g, '.');
-		const location = this.uriIdentityService.extUri.joinPath(this.mcpLocation, version ? `${name}-${version}` : name);
-		if (this.uriIdentityService.extUri.isEqual(location, this.mcpLocation) || !this.uriIdentityService.extUri.isEqualOrParent(location, this.mcpLocation)) {
+		const folderName = version ? `${name.replace('/', '.')}-${version}` : name.replace('/', '.');
+		const location = this.uriIdentityService.extUri.joinPath(this.mcpLocation, folderName);
+		if (
+			this.uriIdentityService.extUri.basename(location) !== folderName
+			|| this.uriIdentityService.extUri.isEqual(location, this.mcpLocation)
+			|| !this.uriIdentityService.extUri.isEqualOrParent(location, this.mcpLocation)
+		) {
 			throw new Error(`Invalid MCP server location for ${name}`);
 		}
 		return location;
