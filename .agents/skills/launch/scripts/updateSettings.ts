@@ -7,9 +7,10 @@ import * as fs from 'node:fs';
 
 const settingsFile = process.argv[2];
 const sessionTitle = process.argv[3]?.replace(/\s+/g, ' ').trim().replaceAll('$', '\uFF04');
+const sourceSettingsFile = process.argv[4];
 
 if (!settingsFile) {
-	throw new Error('Usage: updateSettings.ts <settings-file> [session-title]');
+	throw new Error('Usage: updateSettings.ts <settings-file> [session-title] [source-settings-file]');
 }
 
 let settingsStat;
@@ -23,9 +24,11 @@ try {
 
 let text;
 if (settingsStat) {
-	text = fs.readFileSync(settingsFile, 'utf8');
 	if (settingsStat.isSymbolicLink()) {
+		text = fs.readFileSync(sourceSettingsFile ?? settingsFile, 'utf8');
 		fs.unlinkSync(settingsFile);
+	} else {
+		text = fs.readFileSync(settingsFile, 'utf8');
 	}
 } else {
 	text = '';
@@ -48,7 +51,8 @@ fs.writeFileSync(settingsFile, text);
 
 function setJsoncProperty(text: string, key: string, value: boolean | string): string {
 	const maskedText = maskComments(text);
-	const property = findRootProperty(maskedText, key);
+	const properties = findRootProperties(maskedText, key);
+	const property = properties[properties.length - 1];
 	const serializedValue = JSON.stringify(value);
 
 	if (property) {
@@ -68,8 +72,9 @@ function setJsoncProperty(text: string, key: string, value: boolean | string): s
 	return text.slice(0, lastBrace) + insertion + text.slice(lastBrace);
 }
 
-function findRootProperty(text: string, key: string): { valueStart: number; valueEnd: number } | undefined {
+function findRootProperties(text: string, key: string): { valueStart: number; valueEnd: number }[] {
 	let depth = 0;
+	const properties: { valueStart: number; valueEnd: number }[] = [];
 
 	for (let index = 0; index < text.length; index++) {
 		const current = text[index];
@@ -100,13 +105,13 @@ function findRootProperty(text: string, key: string): { valueStart: number; valu
 				if (!valueMatch) {
 					throw new Error(`Unsupported value for ${key} in ${settingsFile}`);
 				}
-				return { valueStart, valueEnd: valueStart + valueMatch[0].length };
+				properties.push({ valueStart, valueEnd: valueStart + valueMatch[0].length });
 			}
 		}
 		index = stringEnd - 1;
 	}
 
-	return undefined;
+	return properties;
 }
 
 function findStringEnd(text: string, start: number): number {

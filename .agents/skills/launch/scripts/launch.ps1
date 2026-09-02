@@ -489,8 +489,9 @@ try {
 	}
 
 	$settingsFile = Join-Path $destinationUdd 'User\settings.json'
+	$sourceSettingsFile = Join-Path $sourceUserDataDir 'User\settings.json'
 	$settingsScript = Join-Path $PSScriptRoot 'updateSettings.ts'
-	& $node $settingsScript $settingsFile $sessionTitle
+	& $node $settingsScript $settingsFile $sessionTitle $sourceSettingsFile
 	if ($LASTEXITCODE -ne 0) {
 		throw "Failed to update launch settings in $settingsFile"
 	}

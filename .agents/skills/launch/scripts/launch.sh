@@ -48,7 +48,14 @@ SESSION_TITLE=""
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 		--agents) AGENTS=1; shift ;;
-		--session-title) SESSION_TITLE="$2"; shift 2 ;;
+		--session-title)
+			if [[ $# -lt 2 ]]; then
+				echo "Missing value for --session-title." >&2
+				exit 2
+			fi
+			SESSION_TITLE="$2"
+			shift 2
+			;;
 		--source-user-data-dir) SOURCE_UDD="$2"; shift 2 ;;
 		--repo) REPO="$2"; shift 2 ;;
 		--clone-extensions|--copy-extensions) CLONE_EXTENSIONS=1; shift ;;
@@ -173,9 +180,10 @@ fi
 # always applied because every launched instance under this skill is
 # a throwaway used for automation.
 SETTINGS_FILE="$DEST_UDD/User/settings.json"
+SOURCE_SETTINGS_FILE="$SOURCE_UDD/User/settings.json"
 mkdir -p "$(dirname "$SETTINGS_FILE")"
 SETTINGS_SCRIPT="$(cd "$(dirname "$0")" && pwd)/updateSettings.ts"
-if ! node "$SETTINGS_SCRIPT" "$SETTINGS_FILE" "$SESSION_TITLE"; then
+if ! node "$SETTINGS_SCRIPT" "$SETTINGS_FILE" "$SESSION_TITLE" "$SOURCE_SETTINGS_FILE"; then
 	echo "[launch.sh] failed to update launch settings in $SETTINGS_FILE" >&2
 	exit 1
 fi
