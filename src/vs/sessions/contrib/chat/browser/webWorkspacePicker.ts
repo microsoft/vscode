@@ -119,6 +119,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			items,
 			item => this._dispatchPickerItem(item),
 			this._getAllBrowseActions(),
+			this._useConsolidatedRemoteWorkspaces() && attachesContext !== true,
 		);
 	}
 

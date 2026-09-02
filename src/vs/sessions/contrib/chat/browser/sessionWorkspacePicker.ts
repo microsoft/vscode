@@ -1191,16 +1191,13 @@ export class WorkspacePicker extends Disposable {
 		if (hasLocalSupport) {
 			all.unshift(this._localBrowseAction);
 		}
-		if (!this._isTabFiltered()) {
-			return all;
-		}
 		return all.filter(a =>
-			this._isGroupInActiveTab(a.group)
+			(!this._isTabFiltered() || this._isGroupInActiveTab(a.group))
 			&& (this._directPickerAttachesContext === undefined || Boolean(a.attachesContext) === this._directPickerAttachesContext)
 		);
 	}
 
-	private _useConsolidatedRemoteWorkspaces(): boolean {
+	protected _useConsolidatedRemoteWorkspaces(): boolean {
 		return this.configurationService.getValue<boolean>(AGENT_SESSIONS_CONSOLIDATED_REMOTE_WORKSPACES_SETTING);
 	}
 
@@ -1214,7 +1211,9 @@ export class WorkspacePicker extends Disposable {
 		if (this._directPickerGroup !== undefined) {
 			return group === this._directPickerGroup;
 		}
-		return this._getTabGroup(group) === this._activeTab;
+		const availableTabs = this._getAvailableTabs();
+		const activeTab = this._activeTab ?? (availableTabs.length === 1 ? availableTabs[0].id : undefined);
+		return this._getTabGroup(group) === activeTab;
 	}
 
 	/**

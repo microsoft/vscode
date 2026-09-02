@@ -2947,6 +2947,32 @@ suite('AutomationsWorkspacePicker', () => {
 
 		assert.deepStrictEqual(dispatched, [{ browseActionIndex: 0 }]);
 	});
+
+	test('mobile workspace sheet shows search when requested without folder enumeration', async () => {
+		const workbench = document.createElement('div');
+		document.body.append(workbench);
+		disposables.add({ dispose: () => workbench.remove() });
+		const trigger = workbench.appendChild(document.createElement('button'));
+		const sheet = showMobileWorkspacePickerSheet(
+			upcastPartial<IWorkbenchLayoutService>({ mainContainer: workbench }),
+			trigger,
+			[{
+				kind: ActionListItemKind.Action,
+				label: 'microsoft/vscode',
+				group: { title: '', icon: Codicon.repo },
+				item: { folderUri: URI.file('/microsoft/vscode'), providerId: 'github' },
+			}],
+			() => { },
+			[],
+			true,
+		);
+
+		const searchInput = workbench.querySelector<HTMLInputElement>('.mobile-picker-sheet-search-input');
+		assert.strictEqual(searchInput?.placeholder, 'Search Workspaces...');
+
+		workbench.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')?.click();
+		await sheet;
+	});
 });
 
 // ---- Tab discovery ----------------------------------------------------------
@@ -3149,6 +3175,34 @@ suite('WorkspacePicker - Tab discovery', () => {
 		}, {
 			items: ['Issue...'],
 			showsFilter: false,
+		});
+	});
+
+	test('filters context actions and allows repository attachment with a sole consolidated tab', () => {
+		const baseProvider = createMockProvider('github', {
+			browseActions: [
+				{ ...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Repository...'), attachesContext: false },
+				{ ...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Issue...'), attachesContext: true },
+			],
+		});
+		providersService.setProviders([{
+			...baseProvider,
+			resolveWorkspace: uri => {
+				const workspace = baseProvider.resolveWorkspace(uri);
+				return workspace ? { ...workspace, group: SESSION_WORKSPACE_GROUP_GITHUB } : undefined;
+			},
+		}]);
+		const picker = createTestablePicker(disposables, providersService, true, {}, undefined, undefined, true);
+		picker.setSelectedWorkspace(URI.file('/microsoft/vscode'), { fireEvent: false, persist: false });
+
+		picker.selectWorkspaceActions();
+
+		assert.deepStrictEqual({
+			tabs: picker.getAvailableTabs(),
+			items: picker.getItemLabels(),
+		}, {
+			tabs: [SESSION_WORKSPACE_GROUP_REMOTE],
+			items: ['Repository...', 'Attach Repository...'],
 		});
 	});
 
