@@ -22,6 +22,7 @@ import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../.
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { InputFocusedContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -463,7 +464,13 @@ registerAction2(class RemoveAction extends Action2 {
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 				},
-				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate(), ChatContextKeys.inChatQuestionCarousel.negate(), ChatContextKeys.readOnly.negate()),
+				when: ContextKeyExpr.and(
+					ChatContextKeys.inChatSession,
+					EditorContextKeys.textInputFocus.negate(),
+					InputFocusedContext.toNegated(),
+					ChatContextKeys.inChatQuestionCarousel.negate(),
+					ChatContextKeys.readOnly.negate()
+				),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
@@ -518,7 +525,13 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 				},
-				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate(), ChatContextKeys.inChatQuestionCarousel.negate(), ChatContextKeys.readOnly.negate()),
+				when: ContextKeyExpr.and(
+					ChatContextKeys.inChatSession,
+					EditorContextKeys.textInputFocus.negate(),
+					InputFocusedContext.toNegated(),
+					ChatContextKeys.inChatQuestionCarousel.negate(),
+					ChatContextKeys.readOnly.negate()
+				),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
@@ -663,7 +676,12 @@ registerAction2(class EditAction extends Action2 {
 			icon: Codicon.edit,
 			keybinding: {
 				primary: KeyCode.Enter,
-				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate(), ChatContextKeys.readOnly.negate()),
+				when: ContextKeyExpr.and(
+					ChatContextKeys.inChatSession,
+					EditorContextKeys.textInputFocus.negate(),
+					InputFocusedContext.toNegated(),
+					ChatContextKeys.readOnly.negate()
+				),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
