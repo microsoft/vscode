@@ -55,7 +55,7 @@ class CodeBlockEditorHostTransport implements IframeEmbeddedEditorHostTransport 
 	#activated = false;
 	#disposed = false;
 
-	readonly onMessage: IframeEmbeddedEditorHostTransport['onMessage'] = listener => {
+	readonly onMessage: IframeEmbeddedEditorHostTransport['onMessage'] = (listener: (message: unknown) => void) => {
 		if (this.#disposed) {
 			throw new Error('Code block editor host transport is disposed');
 		}
