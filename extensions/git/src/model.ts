@@ -717,19 +717,16 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			return undefined;
 		}
 
-		const submodule = parentRepository.submodules
-			.find(submodule => pathEquals(path.join(parentRepository.root, submodule.path), repository.root));
-		if (submodule) {
-			return getSubmoduleDisplayName(submodule);
-		}
-
 		try {
 			// Repository status populates parentRepository.submodules asynchronously.
 			// Read .gitmodules directly so naming does not depend on discovery order.
 			return await getSubmoduleDisplayNameForPath(parentRepository.root, repository.root);
 		} catch (err) {
 			this.logger.warn(`[Model][getRepositoryDisplayName] Failed to resolve submodule name for: "${repository.root}". Error:${err}`);
-			return undefined;
+
+			const submodule = parentRepository.submodules
+				.find(submodule => pathEquals(path.join(parentRepository.root, submodule.path), repository.root));
+			return submodule ? getSubmoduleDisplayName(submodule) : undefined;
 		}
 	}
 
