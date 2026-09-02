@@ -1741,6 +1741,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.visibleChangeCount++;
 		this.listWidget?.setVisible(visible);
 		this.inputPartDisposable.value?.setVisible(visible);
+		this.inlineInputPartDisposable.value?.setVisible(visible);
 
 		if (visible) {
 			if (!wasVisible) {
