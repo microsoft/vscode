@@ -651,11 +651,6 @@ suite('Sessions - Workbench', () => {
 	});
 
 	test('sidebar visibility does not change the grid width passed to layout', () => {
-		// The titlebar row and the sidebar/content row are siblings under the
-		// same vertical grid split, so they must always receive the same
-		// width. If the gutter reserved for the sidebar's floating-panel gap
-		// varied with sidebar visibility, the titlebar - and the sidebar
-		// toggle icon within it - would resize and shift on every toggle.
 		const layoutCalls: IViewSize[] = [];
 		const host: IContainerResizeTestHarness = {
 			partVisibility: { sidebar: true, editor: false, auxiliaryBar: false },
