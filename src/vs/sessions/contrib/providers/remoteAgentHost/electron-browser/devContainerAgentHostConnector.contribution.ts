@@ -132,7 +132,15 @@ class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector 
 		return isDevContainerWorkspaceAvailable(workspaceUri, this._fileService, this._mainService, this._configurationService);
 	}
 
-	async createConnection(workspaceUri: URI, address: string, token: CancellationToken): Promise<IDevContainerAgentHostConnection> {
+	stopContainer(workspaceUri: URI): Promise<void> {
+		return this._mainService.stopContainer(workspaceUri.fsPath);
+	}
+
+	removeContainer(workspaceUri: URI): Promise<void> {
+		return this._mainService.removeContainer(workspaceUri.fsPath);
+	}
+
+	async createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: { readonly resume: boolean }): Promise<IDevContainerAgentHostConnection> {
 		ensureDevContainerAgentHostsEnabled(this._configurationService);
 		if (workspaceUri.scheme !== Schemas.file) {
 			throw new Error(localize('devContainerAgentHost.localWorkspaceRequired', "Dev Container Agent Hosts require a local file workspace."));
@@ -151,6 +159,7 @@ class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector 
 				connectionId,
 				workspaceFolder,
 				name,
+				resume: options?.resume ?? true,
 			});
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
@@ -180,6 +189,7 @@ class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector 
 						connectionId: reconnectConnectionId,
 						workspaceFolder,
 						name,
+						resume: false,
 					});
 					return {
 						connectionId: reconnectConnectionId,

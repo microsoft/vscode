@@ -12,6 +12,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { FileAccess } from '../../../base/common/network.js';
 import { join } from '../../../base/common/path.js';
 import { findExecutable } from '../../../base/node/processes.js';
+import { SequencerByKey } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { vLiteral, vObj, vString } from '../../../base/common/validation.js';
 import { localize } from '../../../nls.js';
@@ -98,8 +99,13 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 	private readonly _connections = this._register(new DisposableMap<string, IDevContainerRelay>());
 	private readonly _connectionStores = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly _connectionTokenSources = new Map<string, CancellationTokenSource>();
+	private readonly _connectionWorkspaces = new Map<string, string>();
+	private readonly _containerIds = new Map<string, string>();
+	private readonly _suspendedWorkspaces = new Set<string>();
+	private readonly _containerOperations = new SequencerByKey<string>();
 	private _nativeRequire: NodeJS.Require | undefined;
 	private _shellEnvironment: Promise<typeof process.env> | undefined;
+	private _dockerExecutable: Promise<string | undefined> | undefined;
 	private _dockerAvailable: Promise<boolean> | undefined;
 
 	constructor(
@@ -112,7 +118,14 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		super();
 	}
 
-	async connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult> {
+	connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult> {
+		return this._containerOperations.queue(config.workspaceFolder, () => this._connect(config));
+	}
+
+	private async _connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult> {
+		if (this._suspendedWorkspaces.has(config.workspaceFolder) && config.resume !== true) {
+			throw new Error(localize('devContainerAgentHost.containerSuspended', "Dev Container for '{0}' is stopped.", config.workspaceFolder));
+		}
 		await this.disconnect(config.connectionId);
 		const store = new DisposableStore();
 		const tokenSource = store.add(new CancellationTokenSource());
@@ -131,6 +144,9 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 			if (!upResult) {
 				throw new Error(localize('devContainerAgentHost.invalidUpResult', "Dev Container CLI returned an invalid result: {0}", up.stdout.trim() || up.stderr.trim()));
 			}
+			this._containerIds.set(config.workspaceFolder, upResult.containerId);
+			this._connectionWorkspaces.set(config.connectionId, config.workspaceFolder);
+			store.add(toDisposable(() => this._connectionWorkspaces.delete(config.connectionId)));
 
 			const exec = this._createExec(config.connectionId, config.workspaceFolder, tokenSource.token);
 			const [{ stdout: unameS }, { stdout: unameM }, { stdout: libc }] = await Promise.all([
@@ -196,6 +212,9 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 			);
 			this._connections.set(config.connectionId, relay);
 			store.add(toDisposable(() => this._connections.deleteAndDispose(config.connectionId)));
+			if (config.resume === true) {
+				this._suspendedWorkspaces.delete(config.workspaceFolder);
+			}
 
 			return {
 				connectionId: config.connectionId,
@@ -393,10 +412,59 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 	}
 
 	isDockerAvailable(): Promise<boolean> {
-		this._dockerAvailable ??= this._resolveShellEnvironment()
-			.then(environment => findExecutable('docker', undefined, undefined, environment))
-			.then(executable => executable !== undefined);
+		this._dockerAvailable ??= this._resolveDockerExecutable().then(executable => executable !== undefined);
 		return this._dockerAvailable;
+	}
+
+	async stopContainer(workspaceFolder: string): Promise<void> {
+		await this._containerOperations.queue(workspaceFolder, () => this._changeContainerState(workspaceFolder, 'stop'));
+	}
+
+	async removeContainer(workspaceFolder: string): Promise<void> {
+		await this._containerOperations.queue(workspaceFolder, () => this._changeContainerState(workspaceFolder, 'rm'));
+	}
+
+	private async _changeContainerState(workspaceFolder: string, operation: 'stop' | 'rm'): Promise<void> {
+		const containerId = this._containerIds.get(workspaceFolder);
+		if (!containerId) {
+			return;
+		}
+		this._suspendedWorkspaces.add(workspaceFolder);
+		const connectionIds = [...this._connectionWorkspaces]
+			.filter(([, workspace]) => workspace === workspaceFolder)
+			.map(([connectionId]) => connectionId);
+		await Promise.all(connectionIds.map(connectionId => this.disconnect(connectionId)));
+		const args = operation === 'rm' ? ['rm', '--force', containerId] : ['stop', containerId];
+		const result = await this._runDocker(args);
+		if (result.code !== 0 && !/No such container/i.test(result.stderr)) {
+			throw new Error(localize('devContainerAgentHost.containerLifecycleFailed', "Docker failed to {0} Dev Container '{1}' (exit {2}): {3}", operation === 'rm' ? 'remove' : 'stop', containerId, result.code, result.stderr.trim()));
+		}
+		if (operation === 'rm' || /No such container/i.test(result.stderr)) {
+			this._containerIds.delete(workspaceFolder);
+		}
+	}
+
+	protected async _runDocker(args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
+		const executable = await this._resolveDockerExecutable();
+		if (!executable) {
+			throw new Error(localize('devContainerAgentHost.dockerUnavailable', "Docker is not available."));
+		}
+		const environment = await this._resolveShellEnvironment();
+		return new Promise((resolve, reject) => {
+			const child = spawn(executable, args, { env: environment });
+			let stdout = '';
+			let stderr = '';
+			child.stdout.on('data', data => stdout += data.toString());
+			child.stderr.on('data', data => stderr += data.toString());
+			child.once('error', reject);
+			child.once('close', code => resolve({ stdout, stderr, code: code ?? -1 }));
+		});
+	}
+
+	private _resolveDockerExecutable(): Promise<string | undefined> {
+		this._dockerExecutable ??= this._resolveShellEnvironment()
+			.then(environment => findExecutable('docker', undefined, undefined, environment));
+		return this._dockerExecutable;
 	}
 
 	protected _spawnDevContainer(

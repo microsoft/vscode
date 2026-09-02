@@ -33,7 +33,9 @@ class TestRelay implements IDevContainerRelay {
 class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainService {
 	readonly relay = new TestRelay();
 	readonly execCommands: string[] = [];
+	readonly dockerCommands: string[][] = [];
 	relayCommand: string | undefined;
+	failDevContainerUp = false;
 
 	constructor(
 		private readonly _libc = '',
@@ -66,8 +68,16 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		return this._resolveShellEnvironment();
 	}
 
+	protected override _runDocker(args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
+		this.dockerCommands.push([...args]);
+		return Promise.resolve({ stdout: `${args.at(-1)}\n`, stderr: '', code: 0 });
+	}
+
 	protected override _runDevContainer(connectionId: string, args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
 		assert.deepStrictEqual(args, ['up', '--workspace-folder', '/workspace']);
+		if (this.failDevContainerUp) {
+			return Promise.reject(new Error('devcontainer up failed'));
+		}
 		this._reportOutput(connectionId, 'Starting Dev Container\n');
 		return Promise.resolve({
 			stdout: '[1 ms] Starting...\n{"outcome":"success","containerId":"container-id","remoteWorkspaceFolder":"/workspaces/project"}\n',
@@ -192,6 +202,63 @@ suite('Dev Container Agent Host Main Service', () => {
 			disposed: true,
 			output: ['connection:Starting Dev Container\n'],
 		});
+	});
+
+	test('stops and removes the container after disconnecting its relay', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		await service.connect({
+			connectionId: 'connection',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		});
+
+		await service.stopContainer('/workspace');
+		await assert.rejects(service.connect({
+			connectionId: 'automatic-reconnect',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		}), /is stopped/);
+		await service.connect({
+			connectionId: 'explicit-resume',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+			resume: true,
+		});
+		await service.removeContainer('/workspace');
+
+		assert.deepStrictEqual({
+			relayDisposed: service.relay.disposed,
+			dockerCommands: service.dockerCommands,
+		}, {
+			relayDisposed: true,
+			dockerCommands: [
+				['stop', 'container-id'],
+				['rm', '--force', 'container-id'],
+			],
+		});
+	});
+
+	test('keeps automatic reconnects suspended when an explicit resume fails', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		await service.connect({
+			connectionId: 'connection',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		});
+		await service.stopContainer('/workspace');
+		service.failDevContainerUp = true;
+
+		await assert.rejects(service.connect({
+			connectionId: 'failed-resume',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+			resume: true,
+		}), /devcontainer up failed/);
+		await assert.rejects(service.connect({
+			connectionId: 'automatic-reconnect',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		}), /is stopped/);
 	});
 
 	test('installs the Alpine CLI artifact in a musl container', async () => {

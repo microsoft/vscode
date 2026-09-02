@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -20,7 +21,8 @@ import { AgentSession, type IAgentSessionMetadata } from '../../../../../platfor
 import { IAgentHostService, type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { IRemoteAgentHostService, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { StateComponents, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
@@ -36,12 +38,12 @@ import { IChatSessionsService } from '../../../../../workbench/contrib/chat/comm
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAgentHostAutoConnect, IAgentHostConnectProgress, IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
-import { IGitHubInfo, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
+import { IGitHubInfo, IChat, isActiveSessionStatus, ISession, SessionStatus, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { BaseAgentHostSessionsProvider } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { ReconnectableAgentHostAutomationStore } from '../../agentHost/browser/reconnectableAgentHostAutomationStore.js';
-import type { ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
+import type { ISendRequestOptions, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AutomationStore } from '../../../automations/browser/automationService.js';
 import { providerAutomationStorageKey } from '../../../automations/common/automationStorageService.js';
 import { remoteAgentHostSessionTypeAuthorityPrefix, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
@@ -49,6 +51,7 @@ import { readAgentDevContainerWorktreeMetadata } from '../../../../../platform/a
 
 /** Storage key prefix for cached session summaries, per remote address. */
 const CACHED_SESSIONS_STORAGE_PREFIX = 'remoteAgentHost.cachedSessions.v2.';
+const DEV_CONTAINER_ARCHIVE_CONFIRMATION_TIMEOUT_MS = 5000;
 // TODO@sandy081 Remove this legacy cache-key cleanup after 2026-10-14.
 const CACHED_SESSIONS_STORAGE_PREFIX_LEGACY = 'remoteAgentHost.cachedSessions.';
 
@@ -97,6 +100,12 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	 */
 	readonly hostGroup?: IAgentHostGroup;
 	readonly devContainerWorktreeScope?: string;
+	/** Controls the stopped/removed container while this runtime provider remains registered. */
+	readonly devContainerLifecycle?: {
+		connect(): Promise<void>;
+		stop(): Promise<void>;
+		remove(): Promise<void>;
+	};
 }
 
 /**
@@ -194,6 +203,8 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	private readonly _workspaceTypeIcon: ThemeIcon | undefined;
 	private readonly _defaultChangesetKind: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind'];
 	private readonly _devContainerWorktreeScope: string | undefined;
+	private readonly _devContainerLifecycle: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle'];
+	private readonly _lastSessionStatuses = new Map<string, SessionStatus>();
 	/** Storage key used for persisting {@link _sessionCache} snapshots. */
 	private readonly _storageKey: string;
 	/**
@@ -238,10 +249,14 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._workspaceTypeIcon = config.workspaceTypeIcon;
 		this._defaultChangesetKind = config.defaultChangesetKind;
 		this._devContainerWorktreeScope = config.devContainerWorktreeScope;
+		this._devContainerLifecycle = config.devContainerLifecycle;
 		this.onDidReportConnectProgress = config.onDidReportConnectProgress;
 		this.autoConnect = config.autoConnect;
 		this.canConnectOnDemand = !!config.connectOnDemand;
 		this._register(this._onDidChangeResourceLabelHomes(() => this.updateResourceLabelHomes()));
+		if (this._devContainerLifecycle) {
+			this._register(this._onDidChangeSessionsImmediately(e => this._onDevContainerSessionsChanged(e)));
+		}
 		this.updateResourceLabelHomes();
 		const displayName = config.name || config.address;
 
@@ -284,7 +299,21 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	}
 
 	override async archiveSession(sessionId: string): Promise<void> {
-		if (!this._hasSession(sessionId) || !this.connection) {
+		if (!this._hasSession(sessionId)) {
+			return;
+		}
+		if (this._devContainerLifecycle) {
+			await this._ensureDevContainerConnection();
+			await this._setDevContainerSessionArchived(sessionId, true);
+			if (this.getKnownSessions().some(session => session.sessionId !== sessionId && !session.isArchived.get())) {
+				await this._stopDevContainerIfIdle();
+				return;
+			}
+			await this._devContainerLifecycle.remove();
+			await this._setDetachedWorktreeArchived(sessionId, true);
+			return;
+		}
+		if (!this.connection) {
 			return;
 		}
 		await this._setDetachedWorktreeArchived(sessionId, true);
@@ -294,7 +323,28 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	}
 
 	override async unarchiveSession(sessionId: string): Promise<void> {
-		if (!this._hasSession(sessionId) || !this.connection) {
+		if (!this._hasSession(sessionId)) {
+			return;
+		}
+		if (this._devContainerLifecycle) {
+			await this._setDetachedWorktreeArchived(sessionId, false);
+			try {
+				await this._ensureDevContainerConnection();
+				await this._setDevContainerSessionArchived(sessionId, false);
+			} catch (error) {
+				const hasOtherUnarchivedSession = this.getKnownSessions().some(session => session.sessionId !== sessionId && !session.isArchived.get());
+				if (!hasOtherUnarchivedSession) {
+					await this._devContainerLifecycle.remove();
+					await this._setDetachedWorktreeArchived(sessionId, true);
+				}
+				throw error;
+			}
+			if (this.getSessions().find(session => session.sessionId === sessionId)?.status.get() === SessionStatus.Completed) {
+				await this._stopDevContainerIfIdle();
+			}
+			return;
+		}
+		if (!this.connection) {
 			return;
 		}
 		await this._setDetachedWorktreeArchived(sessionId, false);
@@ -303,26 +353,128 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		}
 	}
 
+	override async createNewChat(chatId: string): Promise<IChat> {
+		await this._ensureDevContainerConnection();
+		return super.createNewChat(chatId);
+	}
+
+	override async sendRequest(chatId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
+		await this._ensureDevContainerConnection();
+		return super.sendRequest(chatId, chatResource, options);
+	}
+
+	private async _ensureDevContainerConnection(): Promise<void> {
+		if (this.connection || !this._devContainerLifecycle) {
+			return;
+		}
+		await this._devContainerLifecycle.connect();
+		if (!this.connection) {
+			throw new Error(localize('devContainerAgentHost.reconnectFailed', "Dev Container Agent Host '{0}' did not reconnect.", this.label));
+		}
+	}
+
+	private async _setDevContainerSessionArchived(sessionId: string, archived: boolean): Promise<void> {
+		const connection = this.connection;
+		const backendUri = this._getBackendSessionUri(sessionId);
+		if (!connection || !backendUri) {
+			throw new Error(archived
+				? localize('devContainerAgentHost.archiveDisconnected', "Unable to archive Dev Container session '{0}' while disconnected.", sessionId)
+				: localize('devContainerAgentHost.unarchiveDisconnected', "Unable to unarchive Dev Container session '{0}' while disconnected.", sessionId));
+		}
+		const subscription = connection.getSubscription(StateComponents.Session, backendUri, 'RemoteAgentHostSessionsProvider.archive');
+		try {
+			let timedOut = false;
+			const confirmation = raceTimeout(
+				Event.toPromise(Event.filter(connection.onDidAction, envelope =>
+					envelope.channel === backendUri.toString()
+					&& envelope.action.type === ActionType.SessionIsArchivedChanged
+					&& envelope.action.isArchived === archived
+				)),
+				DEV_CONTAINER_ARCHIVE_CONFIRMATION_TIMEOUT_MS,
+				() => timedOut = true,
+			);
+			if (!this._setSessionArchived(sessionId, archived)) {
+				throw new Error(archived
+					? localize('devContainerAgentHost.archiveDisconnected', "Unable to archive Dev Container session '{0}' while disconnected.", sessionId)
+					: localize('devContainerAgentHost.unarchiveDisconnected', "Unable to unarchive Dev Container session '{0}' while disconnected.", sessionId));
+			}
+			const confirmationEnvelope = await confirmation;
+			if (confirmationEnvelope?.rejectionReason) {
+				this._setSessionArchivedLocally(sessionId, !archived);
+				throw new Error(archived
+					? localize('devContainerAgentHost.archiveRejected', "Unable to archive Dev Container session '{0}': {1}", sessionId, confirmationEnvelope.rejectionReason)
+					: localize('devContainerAgentHost.unarchiveRejected', "Unable to unarchive Dev Container session '{0}': {1}", sessionId, confirmationEnvelope.rejectionReason));
+			}
+			if (timedOut) {
+				this._setSessionArchivedLocally(sessionId, !archived);
+				throw new Error(archived
+					? localize('devContainerAgentHost.archiveTimeout', "Timed out waiting for Dev Container session '{0}' to be archived.", sessionId)
+					: localize('devContainerAgentHost.unarchiveTimeout', "Timed out waiting for Dev Container session '{0}' to be unarchived.", sessionId));
+			}
+		} finally {
+			subscription.dispose();
+		}
+	}
+
+	private _onDevContainerSessionsChanged(event: { readonly added: readonly ISession[]; readonly removed: readonly ISession[]; readonly changed: readonly ISession[] }): void {
+		for (const session of event.removed) {
+			this._lastSessionStatuses.delete(session.sessionId);
+		}
+		let becameIdle = false;
+		for (const session of [...event.added, ...event.changed]) {
+			const previous = this._lastSessionStatuses.get(session.sessionId);
+			const current = session.status.get();
+			this._lastSessionStatuses.set(session.sessionId, current);
+			becameIdle ||= previous !== undefined && isActiveSessionStatus(previous) && current === SessionStatus.Completed;
+		}
+		if (becameIdle && !this.getSessions().some(session => isActiveSessionStatus(session.status.get()))) {
+			void this._stopDevContainerIfIdle().catch(error =>
+				this._logService.error(`[${this.id}] Failed to stop idle Dev Container.`, error));
+		}
+	}
+
+	private async _stopDevContainerIfIdle(): Promise<void> {
+		if (this._devContainerLifecycle && !this.getKnownSessions().some(session => {
+			const status = session.status.get();
+			return status === SessionStatus.Untitled || isActiveSessionStatus(status);
+		})) {
+			await this._devContainerLifecycle.stop();
+		}
+	}
+
 	override async deleteSessions(sessionIds: readonly string[]): Promise<void> {
+		const hadSessions = sessionIds.some(sessionId => this._hasSession(sessionId));
 		const detachedWorktrees = sessionIds.filter(sessionId => this._hasSession(sessionId)).map(sessionId => ({
 			sessionId,
 			handle: this._getDetachedWorktreeHandle(sessionId),
 		})).filter((entry): entry is { sessionId: string; handle: string } => !!entry.handle);
 		let deleteError: unknown;
 		try {
+			if (hadSessions && this._devContainerLifecycle) {
+				await this._ensureDevContainerConnection();
+			}
 			await super.deleteSessions(sessionIds);
 		} catch (error) {
 			deleteError = error;
 		}
 		let worktreeError: unknown;
-		for (const { sessionId, handle } of detachedWorktrees) {
-			if (this._hasSession(sessionId)) {
-				continue;
-			}
+		if (!deleteError && this._devContainerLifecycle && hadSessions && this.getKnownSessions().length === 0) {
 			try {
-				await this._deleteDetachedWorktree(handle);
+				await this._devContainerLifecycle.remove();
 			} catch (error) {
-				worktreeError ??= error;
+				worktreeError = error;
+			}
+		}
+		if (!worktreeError) {
+			for (const { sessionId, handle } of detachedWorktrees) {
+				if (this._hasSession(sessionId)) {
+					continue;
+				}
+				try {
+					await this._deleteDetachedWorktree(handle);
+				} catch (error) {
+					worktreeError ??= error;
+				}
 			}
 		}
 		if (deleteError) {

@@ -86,6 +86,8 @@ The service stages a runtime-only `DevContainer` entry and asks the remote Agent
 
 When both worktree isolation and Dev Container execution are selected, the local Agent Host creates the worktree before the container starts. The connector opens the Dev Container on that host worktree, and the container-backed session uses folder isolation so it does not create a second worktree inside the container. The remote session stores only an opaque worktree handle in its metadata; authoritative host paths stay in a local detached-worktree record. Archive, unarchive, and delete resolve that handle through the local Agent Host so cleanup and recreation match ordinary local worktree sessions without retaining a hidden local session. Successful remote listings reconcile their active handles with old local records; cleanup removes only clean worktrees and preserves dirty work.
 
+The dynamic provider remains registered after its sessions become idle, but withdraws its runtime connection and stops the Dev Container once no session is actively working or waiting for input. A later send restarts the container and reconnects the same provider on demand. Archiving first records the remote archived state, then removes the container before removing its mounted worktree. Unarchiving recreates the worktree before starting a replacement container and returns the container to the stopped state when the restored session is still idle.
+
 ## Change policy
 
 Update this specification only when connection/provider ownership, routing identity, or the shared Agent Host lifecycle boundary changes. Do not append transport algorithms, telemetry schemas, retry narratives, or incident history.

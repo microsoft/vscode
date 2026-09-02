@@ -14,6 +14,8 @@ export interface IDevContainerAgentHostConfig {
 	readonly connectionId: string;
 	readonly workspaceFolder: string;
 	readonly name: string;
+	/** Whether this user-initiated connection may resume a deliberately stopped container. */
+	readonly resume?: boolean;
 }
 
 /** Serializable connection metadata returned to the renderer. */
@@ -44,4 +46,6 @@ export interface IDevContainerAgentHostMainService extends IRelayChannel {
 	isDockerAvailable(): Promise<boolean>;
 	connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult>;
 	disconnect(connectionId: string): Promise<void>;
+	stopContainer(workspaceFolder: string): Promise<void>;
+	removeContainer(workspaceFolder: string): Promise<void>;
 }
