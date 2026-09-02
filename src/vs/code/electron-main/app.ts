@@ -148,6 +148,7 @@ import { NativeWebContentExtractorService } from '../../platform/webContentExtra
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../platform/networkFilter/common/networkFilterService.js';
 import { ITerminalSandboxService, NullTerminalSandboxService } from '../../platform/sandbox/common/terminalSandboxService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
+import { markNodeCompileCacheReady, waitForNodeCompileCacheReady } from '../../base/node/nodeCompileCache.js';
 
 type OSProxyConfigEvent = {
 	readonly success: boolean;
@@ -753,7 +754,7 @@ export class CodeApplication extends Disposable {
 		// cannot fully observe.
 		const agentHostStarter = appInstantiationService.createInstance(ElectronAgentHostStarter, { machineId, sqmId, devDeviceId });
 		// This manager self-disposes after its lifecycle join; CodeApplication disposes before later shutdown listeners run.
-		appInstantiationService.createInstance(AgentHostProcessManager, agentHostStarter, process.platform);
+		const agentHostProcessManager = appInstantiationService.createInstance(AgentHostProcessManager, agentHostStarter, process.platform);
 
 		// Metered connection telemetry
 		appInstantiationService.invokeFunction(accessor => {
@@ -779,13 +780,24 @@ export class CodeApplication extends Disposable {
 		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
 
 		// Open Windows
-		await appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, initialProtocolUrls));
+		const windows = await appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, initialProtocolUrls));
 
 		// Signal phase: after window open
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
 
 		// Post Open Windows Tasks
 		this.afterWindowOpen(appInstantiationService);
+
+		const isGeneratingNodeCompileCache = process.env['VSCODE_GENERATE_NODE_COMPILE_CACHE'] === '1';
+		const shouldStartCriticalNodeProcesses = isGeneratingNodeCompileCache || process.env['VSCODE_MEASURE_NODE_COMPILE_CACHE'] === '1';
+		if (shouldStartCriticalNodeProcesses) {
+			await Promise.all([
+				...windows.map(window => window.ready()),
+				sharedProcessReady,
+				appInstantiationService.invokeFunction(accessor => accessor.get(ILocalPtyService).getLatency()),
+				agentHostProcessManager.start()
+			]);
+		}
 
 		// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
 		const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
@@ -796,9 +808,21 @@ export class CodeApplication extends Disposable {
 
 				// Eventually Post Open Window Tasks
 				this.eventuallyAfterWindowOpen(appInstantiationService);
+
+				if (shouldStartCriticalNodeProcesses) {
+					markNodeCompileCacheReady();
+				}
 			}, 2500));
 		}, 2500));
 		eventuallyPhaseScheduler.schedule();
+
+		if (isGeneratingNodeCompileCache) {
+			await Promise.all([
+				this.lifecycleMainService.when(LifecycleMainPhase.Eventually),
+				waitForNodeCompileCacheReady()
+			]);
+			await this.lifecycleMainService.quit();
+		}
 	}
 
 	private async setupProtocolUrlHandlers(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): Promise<IInitialProtocolUrls | undefined> {

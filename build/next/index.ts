@@ -145,6 +145,7 @@ const serverEntryPoints = [
 // Bootstrap files per target
 const bootstrapEntryPointsDesktop = [
 	'main',
+	'mainImpl',
 	'cli',
 	'bootstrap-fork',
 ];
@@ -616,6 +617,18 @@ function cssExternalPlugin(): esbuild.Plugin {
 	};
 }
 
+function mainImplExternalPlugin(): esbuild.Plugin {
+	return {
+		name: 'main-impl-external',
+		setup(build) {
+			build.onResolve({ filter: /^\.\/mainImpl\.js$/ }, args => ({
+				path: args.path,
+				external: true,
+			}));
+		},
+	};
+}
+
 /**
  * esbuild plugin that transforms source files to inject build-time configuration.
  * This runs during onLoad so the transformation happens before esbuild processes the content,
@@ -843,6 +856,9 @@ ${tslib}`,
 		const outPath = path.join(REPO_ROOT, outDir, `${entry}.js`);
 
 		const bootstrapPlugins: esbuild.Plugin[] = [inlineMinimistPlugin(), contentMapperPlugin];
+		if (entry === 'main') {
+			bootstrapPlugins.push(mainImplExternalPlugin());
+		}
 		if (doNls) {
 			bootstrapPlugins.unshift(nlsPlugin({
 				baseDir: path.join(REPO_ROOT, SRC_DIR),
