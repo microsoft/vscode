@@ -6,14 +6,17 @@
 import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IVoiceSessionController } from '../../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IChat, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { INewChatVoiceComposer, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
-import { SessionsVoiceNewComposerContribution } from '../../browser/voiceBridge.contribution.js';
+import { prepareNewVoiceSession, SessionsVoiceNewComposerContribution } from '../../browser/voiceBridge.contribution.js';
 
 suite('SessionsVoiceNewComposerContribution', () => {
 
@@ -134,5 +137,55 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		disposables.add(target.registerComposer(b));
 
 		assert.strictEqual(getDisconnectCount(), 0);
+	});
+
+	test('creates and sends a voice-requested session without waiting for its composer', async () => {
+		const workspace = new class extends mock<ISessionWorkspace>() {
+			override readonly uri = URI.file('/workspace');
+		}();
+		const activeSession = new class extends mock<IActiveSession>() {
+			override readonly workspace = constObservable(workspace);
+			override readonly isQuickChat = constObservable(false);
+		}();
+		const chat = new class extends mock<IChat>() { }();
+		const createdSession = new class extends mock<ISession>() {
+			override readonly mainChat = constObservable(chat);
+		}();
+		const sessionsService = new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(activeSession);
+			override async openNewSession() {
+				return { session: createdSession, trustDeclined: false };
+			}
+		}();
+		const sent: { session: ISession; chat: IChat; query: string }[] = [];
+		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
+			override isNewSessionTargetAvailable(): boolean { return false; }
+			override async sendRequest(session: ISession, targetChat: IChat, options: { query: string }): Promise<void> {
+				sent.push({ session, chat: targetChat, query: options.query });
+			}
+		}();
+		let draftTargetSet = false;
+		const voiceSessionController = new class extends mock<IVoiceSessionController>() {
+			override setDraftTarget(): void { draftTargetSet = true; }
+		}();
+
+		const result = await prepareNewVoiceSession(
+			'refactor the upload service',
+			sessionsService,
+			sessionsManagementService,
+			voiceSessionController,
+			() => false,
+			new NullLogService(),
+		);
+
+		assert.deepStrictEqual({
+			result,
+			draftTargetSet,
+			sent,
+		}, {
+			result: 'sent',
+			draftTargetSet: true,
+			sent: [{ session: createdSession, chat, query: 'refactor the upload service' }],
+		});
 	});
 });

@@ -320,6 +320,8 @@ export interface IVoiceSessionController {
 
 export const IVoiceSessionController = createDecorator<IVoiceSessionController>('voiceSessionController');
 
+export type VoiceNewSessionPreparationResult = 'prepared' | 'sent' | 'failed';
+
 export class VoiceSessionController extends Disposable implements IVoiceSessionController {
 
 	declare readonly _serviceBrand: undefined;
@@ -2035,9 +2037,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this._sendContext();
 					this.voiceClientService.sendToolResult(e.callId, result);
 				};
-				const sendPromise = this._prepareNewSessionTarget(createNewSession, shouldSend).then(prepared =>
-					prepared && shouldSend ? this._sendTranscriptionToChat(text) : prepared
-				);
+				const sendPromise = this._prepareNewSessionTarget(createNewSession, text).then(result => {
+					if (result === 'failed') {
+						return false;
+					}
+					if (result === 'sent' || !shouldSend) {
+						return true;
+					}
+					return this._sendTranscriptionToChat(text);
+				});
 				sendPromise.then(sent => {
 					if (!sent) {
 						this._clearAwaitingReply();
@@ -3680,22 +3688,22 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 	}
 
-	private async _prepareNewSessionTarget(createNewSession: boolean, willSend: boolean): Promise<boolean> {
+	private async _prepareNewSessionTarget(createNewSession: boolean, text: string): Promise<VoiceNewSessionPreparationResult> {
 		if (!createNewSession) {
-			return true;
+			return 'prepared';
 		}
 
 		this._setPinnedSubmitSession(undefined);
-		const preparedByHost = await this.commandService.executeCommand<boolean>('_chat.voice.prepareNewSession').catch(() => undefined);
+		const preparedByHost = await this.commandService.executeCommand<VoiceNewSessionPreparationResult>('_chat.voice.prepareNewSession', text).catch(() => undefined);
 		if (preparedByHost !== undefined) {
 			return preparedByHost;
 		}
 
 		this.newSessionAsTarget();
-		if (willSend) {
+		if (text.trim()) {
 			this._setPinnedSubmitSession(this._targetSession.get());
 		}
-		return true;
+		return 'prepared';
 	}
 
 	/**

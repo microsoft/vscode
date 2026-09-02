@@ -34,7 +34,7 @@ import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessi
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { IMicCaptureService } from '../../../browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackService.js';
-import { VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
+import { VoiceNewSessionPreparationResult, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { ChatSendResult, ElicitationState, IChatConfirmation, IChatModelReference, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
@@ -664,13 +664,13 @@ class AdoptingCommandService extends TestCommandService {
 }
 
 class PreparingNewSessionCommandService extends TestCommandService {
-	constructor(private readonly prepared = true) {
+	constructor(private readonly result: VoiceNewSessionPreparationResult = 'sent') {
 		super();
 	}
 
 	override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T> {
 		if (commandId === '_chat.voice.prepareNewSession') {
-			return this.prepared as T;
+			return this.result as T;
 		}
 		if (commandId === '_chat.voice.getCurrentSession') {
 			return 'sessions-voice://new-chat/composer' as T;
@@ -5420,14 +5420,14 @@ suite('VoiceSessionController', () => {
 		}, {
 			created: 0,
 			sent: [],
-			acceptedInputs: ['refactor the upload service'],
+			acceptedInputs: [],
 			toolResults: [{ callId: 'host-new-session-send', result: 'ok' }],
 		});
 	});
 
 	test('send_to_chat with new_session does not fall back when host preparation fails', async () => {
 		const voiceClientService = new TestVoiceClientService();
-		const commandService = new PreparingNewSessionCommandService(false);
+		const commandService = new PreparingNewSessionCommandService('failed');
 		const chatService = new NewSessionChatService();
 		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
 		await controller.connect(mainWindow);

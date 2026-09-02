@@ -9,14 +9,49 @@ import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
+import { IVoiceSessionController, VoiceNewSessionPreparationResult } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { IVoiceModelSelectionResult, resolveVoiceModel } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceToolDispatchService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, inheritableSessionTarget, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
+
+export async function prepareNewVoiceSession(
+	text: string,
+	sessionsService: ISessionsService,
+	sessionsManagementService: ISessionsManagementService,
+	voiceSessionController: IVoiceSessionController,
+	hasActiveComposer: () => boolean,
+	logService: ILogService,
+): Promise<VoiceNewSessionPreparationResult> {
+	const activeSession = sessionsService.activeSession.get();
+	const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
+	const folderUri = isQuickChat ? undefined : activeSession?.workspace.get()?.uri;
+	voiceSessionController.setDraftTarget();
+	try {
+		const result = await sessionsService.openNewSession({
+			folderUri,
+			...inheritableSessionTarget(sessionsManagementService, activeSession, folderUri),
+		});
+		if (folderUri) {
+			if (!result.session) {
+				return 'failed';
+			}
+			if (text.trim()) {
+				await sessionsManagementService.sendRequest(result.session, result.session.mainChat.get(), { query: text });
+				return 'sent';
+			}
+			return 'prepared';
+		}
+		return sessionsService.activeSession.get() === undefined && hasActiveComposer() ? 'prepared' : 'failed';
+	} catch (error) {
+		logService.error('Failed to prepare a new session for Voice Mode:', error);
+		return 'failed';
+	}
+}
 
 /**
  * Bridges {@link IVoiceSessionController} to Agents window chat surfaces.
@@ -43,6 +78,7 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -100,20 +136,9 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 			return this.chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource?.toString();
 		}));
 
-		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.prepareNewSession', async (): Promise<boolean> => {
-			const activeSession = this.sessionsService.activeSession.get();
-			const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
-			const folderUri = isQuickChat ? undefined : activeSession?.workspace.get()?.uri;
-			this.voiceSessionController.setDraftTarget();
-			const result = await this.sessionsService.openNewSession({
-				folderUri,
-				...inheritableSessionTarget(this.sessionsManagementService, activeSession, folderUri),
-			});
-			if (folderUri) {
-				return !!result.session;
-			}
-			return this.sessionsService.activeSession.get() === undefined && !!this._activeComposerTarget();
-		}));
+		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.prepareNewSession', (_accessor, text: string) =>
+			prepareNewVoiceSession(text, this.sessionsService, this.sessionsManagementService, this.voiceSessionController, () => !!this._activeComposerTarget(), this.logService)
+		));
 
 		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.selectModel', (_accessor, requestedModel: string): IVoiceModelSelectionResult => {
 			const composer = this._activeComposerTarget();
