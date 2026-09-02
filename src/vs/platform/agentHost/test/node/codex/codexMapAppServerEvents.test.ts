@@ -830,6 +830,14 @@ suite('codexMapAppServerEvents', () => {
 		]);
 	});
 
+	test('an empty mcpToolCall progress message clears the previous one', () => {
+		const state = createCodexSessionMapState();
+		const toolCallId = startMcpToolCall(state, 'mcp_1');
+		const progress = (message: string) => mapMcpToolCallProgress(state, { threadId: 'thr_1', turnId: 'turn_a', itemId: 'mcp_1', message });
+		const emitted = (progressMessage: string) => [{ type: ActionType.ChatToolCallContentChanged, turnId: 'turn_a', toolCallId, content: [], _meta: { progressMessage } }];
+		assert.deepStrictEqual([progress(''), progress('Searching'), progress(''), progress('')], [emitted(''), emitted('Searching'), emitted(''), []]);
+	});
+
 	test('mcpToolCall progress does not clobber start-time _meta', () => {
 		const state = createCodexSessionMapState();
 		state.itemToToolCall.set('mcp_1', { toolCallId: 'tc_1', turnId: 'turn_a', toolName: 'github.search', output: '', meta: { ui: { resourceUri: 'ui://github/app' } } });

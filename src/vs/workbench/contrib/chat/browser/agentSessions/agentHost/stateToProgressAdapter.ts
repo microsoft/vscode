@@ -386,7 +386,7 @@ function getSubagentAgentName(tc: ToolCallState): string | undefined {
 /** Surfaces `_meta.progressMessage` of a running tool call as the invocation's progress step. */
 function applyToolCallProgress(invocation: ChatToolInvocation, tc: ToolCallState): void {
 	const progressMessage = tc.status === ToolCallStatus.Running ? readToolCallMeta(tc).progressMessage : undefined;
-	if (progressMessage) {
+	if (progressMessage !== undefined) {
 		invocation.acceptProgress({ message: progressMessage });
 	}
 }

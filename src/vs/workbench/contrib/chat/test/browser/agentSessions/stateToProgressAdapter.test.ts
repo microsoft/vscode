@@ -3453,6 +3453,14 @@ suite('stateToProgressAdapter', () => {
 			assert.deepStrictEqual({ updated: executingProgressMessage(updated), seeded: executingProgressMessage(seeded) }, { updated: 'Searching', seeded: 'Ranking' });
 		});
 
+		test('an empty _meta.progressMessage clears the message already shown', () => {
+			const invocation = toolCallStateToInvocation(createToolCallState());
+			updateRunningToolSpecificData(invocation, createToolCallState({ _meta: { progressMessage: 'Searching' } }));
+			updateRunningToolSpecificData(invocation, createToolCallState({ _meta: { progressMessage: '' } }));
+			const seeded = toolCallStateToInvocation(createToolCallState({ _meta: { progressMessage: '' } }));
+			assert.deepStrictEqual({ cleared: executingProgressMessage(invocation), seeded: executingProgressMessage(seeded) }, { cleared: '', seeded: '' });
+		});
+
 		test('keeps the current progress when _meta.progressMessage is missing or not a string', () => {
 			const invocation = toolCallStateToInvocation(createToolCallState());
 			updateRunningToolSpecificData(invocation, createToolCallState({ _meta: { progressMessage: 'Searching' } }));
