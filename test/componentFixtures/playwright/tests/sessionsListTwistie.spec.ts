@@ -13,18 +13,22 @@ test('reveals the nested chat twistie only while hovering the session row', asyn
 	const twistie = sessionRow.locator('.session-chat-twistie.collapsible');
 	const statusIcon = sessionRow.locator('.session-icon');
 
+	// Initial state checks
 	await expect(twistie).toHaveCSS('opacity', '0');
 	await expect(twistie).toHaveCSS('pointer-events', 'none');
 	await expect(statusIcon).toHaveCSS('visibility', 'visible');
 
+	// Hover state
 	await sessionRow.hover();
 
 	await expect(twistie).toHaveCSS('opacity', '1');
 	await expect(twistie).toHaveCSS('pointer-events', 'auto');
 	await expect(statusIcon).toHaveCSS('visibility', 'hidden');
 
+	// Unhover state
 	await page.mouse.move(0, 0);
 
 	await expect(twistie).toHaveCSS('opacity', '0');
+	await expect(twistie).toHaveCSS('pointer-events', 'none');
 	await expect(statusIcon).toHaveCSS('visibility', 'visible');
 });
