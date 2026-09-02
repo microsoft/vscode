@@ -105,7 +105,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 						if (item.collapsed.read(reader)) {
 							return headerHeight;
 						}
-						if (item.documentDiffItem.isBinary) {
+						if (item.isBinary) {
 							return headerHeight
 								+ (this._workbenchUIElementFactory.diffEditorItemContentBottomPadding ?? 0)
 								+ binaryFilePlaceholderContentHeight;
@@ -554,7 +554,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			|| v.viewModel.originalUri?.toString() === resource.toString()
 		);
 		const editor = item?.template.get()?.editor;
-		if (!editor || item.viewModel.documentDiffItem.isBinary) {
+		if (!editor || item.viewModel.isBinary) {
 			return undefined;
 		}
 

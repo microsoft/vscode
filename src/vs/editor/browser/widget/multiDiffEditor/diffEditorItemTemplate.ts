@@ -236,8 +236,8 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 
 		this._register(autorun(reader => {
 			const collapsed = this._collapsed.read(reader);
-			const isBinary = this._viewModel.read(reader)?.documentDiffItem.isBinary === true;
 			const item = this._viewModel.read(reader);
+			const isBinary = item?.isBinary === true;
 			const canOpenDiff = !!(item?.originalUri && item.modifiedUri && this._openBinaryDiffButton);
 			this._elements.editor.style.display = collapsed || isBinary ? 'none' : 'block';
 			this._elements.binaryFilePlaceholder.style.display = !collapsed && isBinary ? 'grid' : 'none';
@@ -264,7 +264,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 				this._originalContentWidth.set(this.editor.getOriginalEditor().getContentWidth(), tx);
 			});
 			const viewModel = this._viewModel.get();
-			if (this._isSettingData || viewModel?.documentDiffItem.isBinary || !viewModel?.diffEditorViewModel.isDiffUpToDate.get()) {
+			if (this._isSettingData || viewModel?.isBinary || !viewModel?.diffEditorViewModel.isDiffUpToDate.get()) {
 				return;
 			}
 			this._observedEditorContentHeight = e.contentHeight;
@@ -396,7 +396,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 		}
 
 		const value = item.documentDiffItem;
-		const editorContentHeight = value.isBinary
+		const editorContentHeight = item.isBinary
 			? binaryFilePlaceholderContentHeight
 			: Math.max(0, Math.max(initialSize, item.lastTemplateData.get().expandedContentHeight) - this._outerEditorHeight);
 		this._observedEditorContentHeight = editorContentHeight;
@@ -436,7 +436,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 			this._isSettingData = false;
 		}
 		this._dataStore.add(autorun(reader => {
-			if (item.documentDiffItem.isBinary) {
+			if (item.isBinary) {
 				return;
 			}
 			const viewModel = item.diffEditorViewModel;
@@ -567,7 +567,7 @@ export class DiffEditorItemBinding extends VirtualizedItemBinding<DocumentDiffIt
 	}
 
 	focus(): void {
-		if (this.item.documentDiffItem.isBinary) {
+		if (this.item.isBinary) {
 			this._template.focusBinaryFilePlaceholder();
 		} else {
 			this.editor.focus();

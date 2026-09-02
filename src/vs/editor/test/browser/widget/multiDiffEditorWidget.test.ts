@@ -22,7 +22,7 @@ import { InMemoryStorageService, IStorageService } from '../../../../platform/st
 import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/diffProviderFactoryService.js';
 import { DiffEditorWidget } from '../../../browser/widget/diffEditor/diffEditorWidget.js';
 import { RefCounted } from '../../../browser/widget/diffEditor/utils.js';
-import { IDocumentDiffItem, IMultiDiffEditorModel } from '../../../browser/widget/multiDiffEditor/model.js';
+import { DiffItemSource, IDocumentDiffItem, IMultiDiffEditorModel } from '../../../browser/widget/multiDiffEditor/model.js';
 import { MultiDiffEditorWidget } from '../../../browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { IWorkbenchUIElementFactory } from '../../../browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
@@ -103,11 +103,8 @@ suite('MultiDiffEditorWidget', () => {
 		const originalUri = URI.parse('inmemory://original/image.png');
 		const modifiedUri = URI.parse('inmemory://modified/image.png');
 		const documentItem = RefCounted.createOfNonDisposable<IDocumentDiffItem>({
-			originalUri,
-			modifiedUri,
-			original: undefined,
-			modified: undefined,
-			isBinary: true,
+			original: new DiffItemSource(originalUri, undefined),
+			modified: new DiffItemSource(modifiedUri, undefined),
 		}, { dispose() { } });
 		const model: IMultiDiffEditorModel = {
 			documents: ValueWithChangeEvent.const([documentItem]),
@@ -200,8 +197,8 @@ suite('MultiDiffEditorWidget', () => {
 		const original = disposables.add(instantiateTextModel(instantiationService, 'const value = 1;', undefined, undefined, originalUri));
 		const modified = disposables.add(instantiateTextModel(instantiationService, 'const value = 2;', undefined, undefined, modifiedUri));
 		const documentItem = RefCounted.createOfNonDisposable<IDocumentDiffItem>({
-			original,
-			modified,
+			original: new DiffItemSource(originalUri, original),
+			modified: new DiffItemSource(modifiedUri, modified),
 			options: { accessibilitySupport: 'off' },
 		}, { dispose() { } });
 		const model: IMultiDiffEditorModel = {
@@ -276,7 +273,7 @@ suite('MultiDiffEditorWidget', () => {
 		const originalContent = Array.from({ length: 64 }, (_, index) => `line ${index}`).join('\n');
 		const original = disposables.add(instantiateTextModel(instantiationService, originalContent, undefined, undefined, originalUri));
 		const documentItem = RefCounted.createOfNonDisposable<IDocumentDiffItem>({
-			original,
+			original: new DiffItemSource(originalUri, original),
 			modified: undefined,
 			options: { accessibilitySupport: 'off' },
 		}, { dispose() { } });
@@ -354,8 +351,8 @@ suite('MultiDiffEditorWidget', () => {
 			const original = disposables.add(instantiateTextModel(instantiationService, '', undefined, undefined, originalUri));
 			const modified = disposables.add(instantiateTextModel(instantiationService, 'const value = 1;', undefined, undefined, modifiedUri));
 			documentItems.push(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
-				original,
-				modified,
+				original: new DiffItemSource(originalUri, original),
+				modified: new DiffItemSource(modifiedUri, modified),
 				options: { accessibilitySupport: 'off' },
 			}, { dispose() { } }));
 			originalUris.push(originalUri);
