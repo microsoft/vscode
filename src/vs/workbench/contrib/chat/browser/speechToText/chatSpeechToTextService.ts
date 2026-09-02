@@ -63,10 +63,11 @@ export function stripDictationFillers(text: string): string {
 		.replace(/^[ \t]+|[ \t]+$/g, '');
 }
 
-export function selectFinalDictationTranscript(liveTranscript: string, backendTranscript: string | undefined, preserveLiveTranscript: boolean, isAuthoritativeFinal = false): string {
-	if (isAuthoritativeFinal) {
-		return backendTranscript ?? liveTranscript;
-	}
+export function selectAuthoritativeDictationTranscript(liveTranscript: string, backendTranscript: string | undefined): string {
+	return backendTranscript ?? liveTranscript;
+}
+
+export function selectFinalDictationTranscript(liveTranscript: string, backendTranscript: string | undefined, preserveLiveTranscript: boolean): string {
 	const visibleLiveTranscript = stripDictationFillers(liveTranscript);
 	if (preserveLiveTranscript && visibleLiveTranscript && !stripDictationFillers(backendTranscript ?? '').startsWith(visibleLiveTranscript)) {
 		return liveTranscript;
@@ -971,7 +972,8 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				this._failMaiSession(localize('chatStt.maiDisconnected', "Cloud dictation was disconnected."));
 			}
 		}));
-		this._maiSessionDisposables.add(this._transcriptionClient.onDidClose(() => {
+		this._maiSessionDisposables.add(this._transcriptionClient.onDidClose(code => {
+			this._sessionCloseCode = code;
 			this._failMaiSession(localize('chatStt.maiDisconnected', "Cloud dictation was disconnected."));
 		}));
 		this._setPreparingModel(true);
@@ -1299,12 +1301,13 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				return undefined;
 			}
 			hasAuthoritativeFinal = this._activeBackend === 'mai' && this._maiReceivedFinal;
-			text = selectFinalDictationTranscript(
-				liveTranscript,
-				finalText,
-				this._activeBackend !== 'mai' && options?.preserveLiveTranscript === true,
-				hasAuthoritativeFinal,
-			);
+			text = hasAuthoritativeFinal
+				? selectAuthoritativeDictationTranscript(liveTranscript, finalText)
+				: selectFinalDictationTranscript(
+					liveTranscript,
+					finalText,
+					this._activeBackend !== 'mai' && options?.preserveLiveTranscript === true,
+				);
 		} catch (err) {
 			if (generation !== this._sessionGeneration) {
 				return undefined;

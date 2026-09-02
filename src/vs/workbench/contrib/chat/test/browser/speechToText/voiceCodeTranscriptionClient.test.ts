@@ -53,15 +53,14 @@ function createTestWindow(): Window & typeof globalThis {
 			if (property === 'WebSocket') {
 				return TestWebSocket;
 			}
-			if (property === 'setInterval' || property === 'clearInterval') {
-				if (property === 'setInterval') {
-					return (callback: () => void) => {
-						TestWebSocket.ping = callback;
-						return 1;
-					};
-				}
-				const value = Reflect.get(target, property, receiver);
-				return typeof value === 'function' ? value.bind(target) : value;
+			if (property === 'setInterval') {
+				return (callback: () => void) => {
+					TestWebSocket.ping = callback;
+					return 1;
+				};
+			}
+			if (property === 'clearInterval') {
+				return () => { };
 			}
 			return Reflect.get(target, property, receiver);
 		}
@@ -144,28 +143,71 @@ suite('VoiceCodeTranscriptionClient', () => {
 		]);
 	});
 
+	test('emits an explicit empty final transcript', async () => {
+		const client = createClient();
+		const socket = await connect(client);
+		client.sendPttStart('turn-1');
+		const transcriptions: object[] = [];
+		store.add(client.onTranscription(transcription => transcriptions.push(transcription)));
+
+		socket.receive({ type: 'transcription', turn_id: 'turn-1', status: 'final', text: '', committed: '', revision: 1 });
+
+		assert.deepStrictEqual(transcriptions, [
+			{ turnId: 'turn-1', status: 'final', text: '', committed: '', revision: 1 },
+		]);
+	});
+
 	test('reports malformed frames and unexpected closure as transport errors', async () => {
 		const client = createClient();
 		const socket = await connect(client);
 		const errors: object[] = [];
+		const closures: number[] = [];
+		const closeEvents: string[] = [];
 		store.add(client.onError(error => errors.push(error)));
+		store.add(client.onError(() => closeEvents.push('error')));
+		store.add(client.onDidClose(code => {
+			closures.push(code);
+			closeEvents.push('close');
+		}));
 
+		socket.receive({ type: 'error', detail: 'capture limit reached', code: 'capture_limit', turn_id: 'turn-1', terminal: false });
 		socket.receive({ type: 'error', detail: 'backend rejected audio', code: 'bad_audio', turn_id: 'turn-1', terminal: true });
 		socket.receive({ type: 'transcription', turn_id: '', status: 'final', text: 'invalid', revision: 1 });
 		socket.close(4008, 'rejected');
 
 		assert.deepStrictEqual(errors, [
+			{ detail: 'capture limit reached', code: 'capture_limit', turnId: 'turn-1', terminal: false },
 			{ detail: 'backend rejected audio', code: 'bad_audio', turnId: 'turn-1', terminal: true },
 			{ detail: 'Transcription connection closed (4008): rejected', terminal: true },
 		]);
+		assert.deepStrictEqual(closures, [4008]);
+		assert.deepStrictEqual(closeEvents.slice(-2), ['close', 'error']);
+	});
+
+	test('ignores errors from a socket replaced by reconnect', async () => {
+		const client = createClient();
+		const oldSocket = await connect(client);
+		const oldError = oldSocket.onerror;
+		const errors: object[] = [];
+		store.add(client.onError(error => errors.push(error)));
+
+		const reconnecting = client.connect(createTestWindow(), 'github-token');
+		const newSocket = TestWebSocket.instance;
+		assert.ok(newSocket);
+		newSocket.open();
+		await reconnecting;
+		oldError?.();
+
+		assert.strictEqual(client.isConnected, true);
+		assert.deepStrictEqual(errors, []);
 	});
 
 	test('pings an idle connection and cancels a pending connection without a close notification', async () => {
 		const clock = sinon.useFakeTimers();
 		const client = createClient();
 		const socket = await connect(client);
-		const closures: undefined[] = [];
-		store.add(client.onDidClose(() => closures.push(undefined)));
+		const closures: number[] = [];
+		store.add(client.onDidClose(code => closures.push(code)));
 		try {
 			assert.ok(TestWebSocket.ping);
 			TestWebSocket.ping();

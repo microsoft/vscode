@@ -8,14 +8,14 @@ import sinon from 'sinon';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ChatSpeechToTextService, ChatSpeechToTextState, createDictationCleanupSystemPrompt, isDictationEntitled, selectFinalDictationTranscript, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextService, ChatSpeechToTextState, createDictationCleanupSystemPrompt, isDictationEntitled, selectAuthoritativeDictationTranscript, selectFinalDictationTranscript, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { resolveDictationLanguage } from '../../browser/speechToText/dictationLanguage.js';
 import { ChatEntitlement } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
-import { IVoiceCodeTranscriptionClient } from '../../browser/speechToText/voiceCodeTranscriptionClient.js';
+import { IVoiceCodeTranscriptionClient, IVoiceCodeTranscriptionError } from '../../browser/speechToText/voiceCodeTranscriptionClient.js';
 
 type CleanupTestService = {
 	_configurationService: {
@@ -47,11 +47,13 @@ type ConfiguredTestService = {
 type MaiSessionTestService = {
 	_sessionGeneration: number;
 	_maiTurnId: string;
-	_maiRevision: number;
+	_sessionCloseCode: number;
 	_maiSessionDisposables: DisposableStore;
 	_transcriptionClient: Pick<IVoiceCodeTranscriptionClient, 'connect' | 'startSession' | 'sendPttStart' | 'onTranscription' | 'onError' | 'onDidClose'>;
+	_logService: { warn(message: string): void };
 	_getGitHubToken: () => Promise<string>;
 	_setPreparingModel: (preparing: boolean) => void;
+	_failMaiSession: (message: string) => void;
 	_startMaiSession: (window: Window & typeof globalThis, generation: number) => Promise<void>;
 };
 
@@ -214,7 +216,7 @@ suite('ChatSpeechToTextService', () => {
 		}
 	});
 
-	test('waits for the dedicated MAI final beyond the former four-second cutoff', async () => {
+	test('waits for the dedicated MAI final until the backend deadline', async () => {
 		const clock = sinon.useFakeTimers();
 		const warnings: string[] = [];
 		const sentTurns: string[] = [];
@@ -463,7 +465,7 @@ suite('ChatSpeechToTextService', () => {
 		assert.deepStrictEqual({
 			partialLength: partial.length,
 			finalLength: final.length,
-			selection: selectFinalDictationTranscript(partial, final, true, true),
+			selection: selectAuthoritativeDictationTranscript(partial, final),
 		}, {
 			partialLength: 19,
 			finalLength: 58,
@@ -473,7 +475,7 @@ suite('ChatSpeechToTextService', () => {
 
 	test('uses an explicit empty MAI final to clear a stale partial', () => {
 		assert.strictEqual(
-			selectFinalDictationTranscript('stale partial', '', true, true),
+			selectAuthoritativeDictationTranscript('stale partial', ''),
 			'',
 		);
 	});
@@ -498,6 +500,44 @@ suite('ChatSpeechToTextService', () => {
 
 		assert.deepStrictEqual(calls, ['preparing:true', 'connect', 'startSession', 'preparing:false', `pttStart:${service._maiTurnId}`]);
 		service._maiSessionDisposables.dispose();
+	});
+
+	test('keeps non-terminal errors active and records the socket close code', async () => {
+		const emitters = new DisposableStore();
+		const errorEmitter = emitters.add(new Emitter<IVoiceCodeTranscriptionError>());
+		const closeEmitter = emitters.add(new Emitter<number>());
+		const failures: string[] = [];
+		const service = Object.create(ChatSpeechToTextService.prototype) as MaiSessionTestService;
+		service._sessionGeneration = 3;
+		service._sessionCloseCode = 0;
+		service._maiSessionDisposables = new DisposableStore();
+		service._logService = { warn: () => { } };
+		service._getGitHubToken = async () => 'github-token';
+		service._setPreparingModel = () => { };
+		service._failMaiSession = message => failures.push(message);
+		service._transcriptionClient = {
+			connect: async () => { },
+			startSession: async () => { },
+			sendPttStart: () => { },
+			onTranscription: Event.None,
+			onError: errorEmitter.event,
+			onDidClose: closeEmitter.event,
+		};
+		await service._startMaiSession(mainWindow, 3);
+
+		errorEmitter.fire({ detail: 'capture limit reached', terminal: false });
+		assert.deepStrictEqual(failures, []);
+
+		closeEmitter.fire(4008);
+		assert.deepStrictEqual({
+			closeCode: service._sessionCloseCode,
+			failureCount: failures.length,
+		}, {
+			closeCode: 4008,
+			failureCount: 1,
+		});
+		service._maiSessionDisposables.dispose();
+		emitters.dispose();
 	});
 
 	test('cleanup prompt guides list formatting with ordering cues', () => {

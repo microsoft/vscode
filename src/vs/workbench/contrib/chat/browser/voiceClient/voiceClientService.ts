@@ -39,7 +39,7 @@ import {
 } from '../../common/voiceClient/voiceClientService.js';
 import { isTerminalCloseCode, voiceCloseCodeInfo } from '../../common/voiceClient/voiceCloseCodes.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
-import { addWebSocketAuthToken, getVoiceWebSocketUrl } from './voiceEndpoint.js';
+import { getVoiceWebSocketUrl } from './voiceEndpoint.js';
 
 const PING_INTERVAL_MS = 25_000;
 const PONG_TIMEOUT_MS = 10_000;
@@ -330,7 +330,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			this._cleanup();
 			return;
 		}
-		const url = this._authToken ? addWebSocketAuthToken(baseUrl, this._authToken) : baseUrl;
+		const url = this._authToken
+			? `${baseUrl}?token=${encodeURIComponent(this._authToken)}`
+			: baseUrl;
 		const ws = new win.WebSocket(url);
 		this._ws = ws;
 		this._sessionStartedOnSocket = false;

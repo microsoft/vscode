@@ -11,14 +11,16 @@ const TRANSCRIPTION_PATH = '/realtime/transcription';
 
 export function getVoiceWebSocketUrl(configurationService: IConfigurationService, productService: IProductService): string {
 	const configured = configurationService.getValue<string>('agents.voice.backendUrl');
-	if (typeof configured === 'string' && isLoopbackWebSocketUrl(configured.trim())) {
-		return configured.trim();
-	}
-	return productService.voiceWsUrl || '';
+	const configuredUrl = typeof configured === 'string' ? configured.trim() : '';
+	return configuredUrl || productService.voiceWsUrl || '';
 }
 
 export function getTranscriptionWebSocketUrl(configurationService: IConfigurationService, productService: IProductService): string {
-	const voiceUrl = getVoiceWebSocketUrl(configurationService, productService);
+	const configured = configurationService.getValue<string>('agents.voice.backendUrl');
+	const configuredUrl = typeof configured === 'string' ? configured.trim() : '';
+	const voiceUrl = configuredUrl && isLoopbackWebSocketUrl(configuredUrl)
+		? configuredUrl
+		: productService.voiceWsUrl || '';
 	if (!voiceUrl) {
 		return '';
 	}

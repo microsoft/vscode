@@ -32,17 +32,13 @@ export interface IVoiceCodeTranscriptionError {
 	readonly code?: string;
 	readonly turnId?: string;
 	readonly terminal?: boolean;
-	readonly limitSeconds?: number;
-	readonly usedSeconds?: number;
-	readonly remainingSeconds?: number;
-	readonly resetAt?: string;
 }
 
 export interface IVoiceCodeTranscriptionClient {
 	readonly _serviceBrand: undefined;
 	readonly onTranscription: Event<IVoiceCodeTranscription>;
 	readonly onError: Event<IVoiceCodeTranscriptionError>;
-	readonly onDidClose: Event<void>;
+	readonly onDidClose: Event<number>;
 	readonly isConnected: boolean;
 
 	connect(window: Window & typeof globalThis, authToken: string): Promise<void>;
@@ -60,7 +56,7 @@ export class VoiceCodeTranscriptionClient extends Disposable implements IVoiceCo
 	readonly onTranscription = this._onTranscription.event;
 	private readonly _onError = this._register(new Emitter<IVoiceCodeTranscriptionError>());
 	readonly onError = this._onError.event;
-	private readonly _onDidClose = this._register(new Emitter<void>());
+	private readonly _onDidClose = this._register(new Emitter<number>());
 	readonly onDidClose = this._onDidClose.event;
 
 	private _socket: WebSocket | undefined;
@@ -118,6 +114,9 @@ export class VoiceCodeTranscriptionClient extends Disposable implements IVoiceCo
 			}
 		};
 		socket.onerror = () => {
+			if (this._socket !== socket) {
+				return;
+			}
 			this._clearConnectTimeout();
 			if (!opened.isSettled) {
 				opened.error(new Error('Transcription WebSocket connection failed'));
@@ -140,8 +139,8 @@ export class VoiceCodeTranscriptionClient extends Disposable implements IVoiceCo
 				opened.error(new Error(detail));
 			}
 			if (!this._intentionalClose) {
+				this._onDidClose.fire(event.code);
 				this._reportError(detail, undefined, undefined, true);
-				this._onDidClose.fire();
 			}
 		};
 		try {
@@ -279,23 +278,15 @@ export class VoiceCodeTranscriptionClient extends Disposable implements IVoiceCo
 			optionalNonEmptyString(message.code),
 			optionalNonEmptyString(message.turn_id),
 			optionalBoolean(message.terminal),
-			optionalNonNegativeNumber(message.limit_seconds),
-			optionalNonNegativeNumber(message.used_seconds),
-			optionalNonNegativeNumber(message.remaining_seconds),
-			optionalUtcTimestamp(message.reset_at),
 		);
 	}
 
-	private _reportError(detail: string, code?: string, turnId?: string, terminal?: boolean, limitSeconds?: number, usedSeconds?: number, remainingSeconds?: number, resetAt?: string): void {
+	private _reportError(detail: string, code?: string, turnId?: string, terminal?: boolean): void {
 		this._onError.fire({
 			detail,
 			...(code !== undefined ? { code } : {}),
 			...(turnId !== undefined ? { turnId } : {}),
 			...(terminal !== undefined ? { terminal } : {}),
-			...(limitSeconds !== undefined ? { limitSeconds } : {}),
-			...(usedSeconds !== undefined ? { usedSeconds } : {}),
-			...(remainingSeconds !== undefined ? { remainingSeconds } : {}),
-			...(resetAt !== undefined ? { resetAt } : {}),
 		});
 	}
 
@@ -414,12 +405,4 @@ function optionalNonEmptyString(value: unknown): string | undefined {
 
 function optionalBoolean(value: unknown): boolean | undefined {
 	return typeof value === 'boolean' ? value : undefined;
-}
-
-function optionalNonNegativeNumber(value: unknown): number | undefined {
-	return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
-}
-
-function optionalUtcTimestamp(value: unknown): string | undefined {
-	return typeof value === 'string' && value.endsWith('Z') && !Number.isNaN(Date.parse(value)) ? value : undefined;
 }

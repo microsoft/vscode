@@ -45,7 +45,18 @@ suite('Voice endpoint', () => {
 		});
 	});
 
-	test('does not send audio or tokens to a non-loopback endpoint override', () => {
+	test('accepts an IPv6 loopback development endpoint', () => {
+		const configurationService = new TestConfigurationService({
+			'agents.voice.backendUrl': 'ws://[::1]:8000/api/v1/realtime/voice',
+		});
+
+		assert.strictEqual(
+			getTranscriptionWebSocketUrl(configurationService, productService),
+			'ws://[::1]:8000/api/v1/realtime/transcription',
+		);
+	});
+
+	test('keeps a remote Voice Mode override out of the transcription client', () => {
 		const configurationService = new TestConfigurationService({
 			'agents.voice.backendUrl': 'wss://untrusted.example/api/v1/realtime/voice',
 		});
@@ -54,9 +65,20 @@ suite('Voice endpoint', () => {
 			voice: getVoiceWebSocketUrl(configurationService, productService),
 			transcription: getTranscriptionWebSocketUrl(configurationService, productService),
 		}, {
-			voice: 'wss://voice.test/voice-code/api/v1/realtime/voice?product=stable',
+			voice: 'wss://untrusted.example/api/v1/realtime/voice',
 			transcription: 'wss://voice.test/voice-code/api/v1/realtime/transcription?product=stable',
 		});
+	});
+
+	test('ignores a malformed development endpoint override', () => {
+		const configurationService = new TestConfigurationService({
+			'agents.voice.backendUrl': 42,
+		});
+
+		assert.strictEqual(
+			getTranscriptionWebSocketUrl(configurationService, productService),
+			'wss://voice.test/voice-code/api/v1/realtime/transcription?product=stable',
+		);
 	});
 
 	test('rejects a product endpoint that is not the Voice sibling', () => {
