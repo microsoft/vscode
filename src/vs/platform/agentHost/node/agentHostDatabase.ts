@@ -198,6 +198,40 @@ export interface IAgentHostDatabase extends IDisposable {
 	close(): Promise<void>;
 }
 
+const sessionsV2SchemaSql = `CREATE TABLE sessions_v2 (
+	session_uri         TEXT PRIMARY KEY NOT NULL,
+	provider            TEXT NOT NULL,
+	start_time          INTEGER NOT NULL,
+	external            INTEGER,
+	registration_source TEXT NOT NULL,
+	session_generation  TEXT,
+	source_revision     INTEGER CHECK (source_revision >= 0),
+	payload_version     INTEGER CHECK (payload_version >= 0),
+	payload_hash        TEXT,
+	verified            INTEGER NOT NULL DEFAULT 0 CHECK (verified IN (0, 1)),
+	payload             TEXT,
+	is_chat_backing     INTEGER NOT NULL DEFAULT 0 CHECK (is_chat_backing IN (0, 1)),
+	modified_time       INTEGER NOT NULL DEFAULT 0
+)`;
+
+const sessionChatCatalogSchemaSql = [
+	`CREATE TABLE session_chat_catalogs (
+		session_uri              TEXT PRIMARY KEY NOT NULL,
+		revision                 INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
+		legacy_mirrored_revision INTEGER NOT NULL DEFAULT 0 CHECK (legacy_mirrored_revision >= 0)
+	)`,
+	`CREATE TABLE session_chats (
+		session_uri       TEXT NOT NULL REFERENCES session_chat_catalogs(session_uri) ON DELETE CASCADE,
+		chat_uri          TEXT NOT NULL,
+		chat_order        INTEGER NOT NULL CHECK (chat_order >= 0),
+		provider_data     TEXT,
+		origin            TEXT,
+		inherited_turn_id TEXT,
+		PRIMARY KEY (session_uri, chat_uri),
+		UNIQUE (session_uri, chat_order)
+	)`,
+].join(';\n');
+
 const migrations = [
 	{
 		version: 1,
@@ -227,196 +261,47 @@ const migrations = [
 	{
 		version: 4,
 		sql: [
-			`CREATE TABLE sessions_v2 (
-				session_uri                 TEXT PRIMARY KEY NOT NULL REFERENCES sessions(session_uri) ON DELETE CASCADE,
-				provider                    TEXT NOT NULL,
-				start_time                  INTEGER NOT NULL,
-				external                    INTEGER,
-				registration_source         TEXT NOT NULL,
-				modified_time               INTEGER,
-				title                       TEXT,
-				title_source                TEXT CHECK (title_source IN ('user', 'agent', 'auto')),
-				is_read                     INTEGER CHECK (is_read IN (0, 1)),
-				is_archived                 INTEGER CHECK (is_archived IN (0, 1)),
-				project_uri                 TEXT,
-				project_display_name        TEXT,
-				workspaceless               INTEGER CHECK (workspaceless IN (0, 1)),
-				ehcli_adoptable             INTEGER CHECK (ehcli_adoptable IN (0, 1)),
-				working_directories_json    TEXT,
-				chats_json                  TEXT,
-				multi_root_json             TEXT,
-				folder_picker_json          TEXT,
-				changes_summary_json        TEXT,
-				github_summary_json         TEXT,
-				git_summary_json            TEXT,
-				source_control_summary_json TEXT,
-				artifacts_json              TEXT,
-				orchestration_json          TEXT,
-				session_generation          TEXT,
-				source_revision             INTEGER CHECK (source_revision >= 0),
-				projection_version          INTEGER CHECK (projection_version >= 0),
-				source_hash                 TEXT,
-				verified                    INTEGER NOT NULL DEFAULT 0 CHECK (verified IN (0, 1))
-			)`,
-			`INSERT INTO sessions_v2 (session_uri, provider, start_time, external, registration_source)
-				SELECT session_uri, provider, start_time, external, registration_source FROM sessions`,
-		].join(';\n'),
-	},
-	{
-		version: 5,
-		sql: 'ALTER TABLE sessions_v2 ADD COLUMN is_chat_backing INTEGER NOT NULL DEFAULT 0 CHECK (is_chat_backing IN (0, 1))',
-	},
-	{
-		version: 6,
-		sql: 'ALTER TABLE sessions_v2 ADD COLUMN ehcli_adopted INTEGER CHECK (ehcli_adopted IN (0, 1))',
-	},
-	{
-		version: 7,
-		sql: [
-			`CREATE TABLE sessions_v2_v7 (
-				session_uri                 TEXT PRIMARY KEY NOT NULL,
-				provider                    TEXT NOT NULL,
-				start_time                  INTEGER NOT NULL,
-				external                    INTEGER,
-				registration_source         TEXT NOT NULL,
-				modified_time               INTEGER,
-				title                       TEXT,
-				title_source                TEXT CHECK (title_source IN ('user', 'agent', 'auto')),
-				is_read                     INTEGER CHECK (is_read IN (0, 1)),
-				is_archived                 INTEGER CHECK (is_archived IN (0, 1)),
-				project_uri                 TEXT,
-				project_display_name        TEXT,
-				workspaceless               INTEGER CHECK (workspaceless IN (0, 1)),
-				ehcli_adoptable             INTEGER CHECK (ehcli_adoptable IN (0, 1)),
-				working_directories_json    TEXT,
-				chats_json                  TEXT,
-				multi_root_json             TEXT,
-				folder_picker_json          TEXT,
-				changes_summary_json        TEXT,
-				github_summary_json         TEXT,
-				git_summary_json            TEXT,
-				source_control_summary_json TEXT,
-				artifacts_json              TEXT,
-				orchestration_json          TEXT,
-				session_generation          TEXT,
-				source_revision             INTEGER CHECK (source_revision >= 0),
-				projection_version          INTEGER CHECK (projection_version >= 0),
-				source_hash                 TEXT,
-				verified                    INTEGER NOT NULL DEFAULT 0 CHECK (verified IN (0, 1)),
-				is_chat_backing             INTEGER NOT NULL DEFAULT 0 CHECK (is_chat_backing IN (0, 1)),
-				ehcli_adopted               INTEGER CHECK (ehcli_adopted IN (0, 1))
-			)`,
-			`INSERT INTO sessions_v2_v7 (
-				session_uri, provider, start_time, external, registration_source, modified_time, title, title_source,
-				is_read, is_archived, project_uri, project_display_name, workspaceless, ehcli_adoptable,
-				working_directories_json, chats_json, multi_root_json, folder_picker_json, changes_summary_json,
-				github_summary_json, git_summary_json, source_control_summary_json, artifacts_json, orchestration_json,
-				session_generation, source_revision, projection_version, source_hash, verified, is_chat_backing, ehcli_adopted
-			)
-				SELECT
-					session_uri, provider, start_time, external, registration_source, modified_time, title, title_source,
-					is_read, is_archived, project_uri, project_display_name, workspaceless, ehcli_adoptable,
-					working_directories_json, chats_json, multi_root_json, folder_picker_json, changes_summary_json,
-					github_summary_json, git_summary_json, source_control_summary_json, artifacts_json, orchestration_json,
-					session_generation, source_revision, projection_version, source_hash, verified, is_chat_backing, ehcli_adopted
-				FROM sessions_v2`,
-			'DROP TABLE sessions_v2',
-			'ALTER TABLE sessions_v2_v7 RENAME TO sessions_v2',
-		].join(';\n'),
-	},
-	{
-		version: 8,
-		sql: [
-			`CREATE TABLE sessions_v2_v8 (
-				session_uri         TEXT PRIMARY KEY NOT NULL,
-				provider            TEXT NOT NULL,
-				start_time          INTEGER NOT NULL,
-				external            INTEGER,
-				registration_source TEXT NOT NULL,
-				session_generation  TEXT,
-				source_revision     INTEGER CHECK (source_revision >= 0),
-				payload_version     INTEGER CHECK (payload_version >= 0),
-				payload_hash        TEXT,
-				verified            INTEGER NOT NULL DEFAULT 0 CHECK (verified IN (0, 1)),
-				payload             TEXT,
-				is_chat_backing     INTEGER NOT NULL DEFAULT 0 CHECK (is_chat_backing IN (0, 1))
-			)`,
-			`INSERT INTO sessions_v2_v8 (
-				session_uri, provider, start_time, external, registration_source,
-				session_generation, source_revision, payload_version, payload_hash, verified, payload, is_chat_backing
-			)
-				SELECT
-					session_uri, provider, start_time, external, registration_source,
-					session_generation, source_revision, projection_version, source_hash, 0, NULL, is_chat_backing
-				FROM sessions_v2`,
-			'DROP TABLE sessions_v2',
-			'ALTER TABLE sessions_v2_v8 RENAME TO sessions_v2',
-		].join(';\n'),
-	},
-	{
-		version: 9,
-		sql: [
 			'ALTER TABLE sessions ADD COLUMN modified_time INTEGER NOT NULL DEFAULT 0',
 			'UPDATE sessions SET modified_time = start_time',
 		].join(';\n'),
 	},
 	{
-		version: 10,
+		version: 5,
 		sql: [
-			'ALTER TABLE sessions_v2 ADD COLUMN modified_time INTEGER NOT NULL DEFAULT 0',
-			'UPDATE sessions_v2 SET modified_time = start_time',
-		].join(';\n'),
-	},
-	{
-		version: 11,
-		sql: [
-			`CREATE TABLE session_chat_catalogs (
-				session_uri             TEXT PRIMARY KEY NOT NULL,
-				revision                INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
-				legacy_mirrored_revision INTEGER NOT NULL DEFAULT 0 CHECK (legacy_mirrored_revision >= 0)
-			)`,
-			`CREATE TABLE session_chats (
-				session_uri       TEXT NOT NULL REFERENCES session_chat_catalogs(session_uri) ON DELETE CASCADE,
-				chat_uri          TEXT NOT NULL,
-				chat_order        INTEGER NOT NULL CHECK (chat_order >= 0),
-				provider_data     TEXT,
-				origin            TEXT,
-				inherited_turn_id TEXT,
-				PRIMARY KEY (session_uri, chat_uri),
-				UNIQUE (session_uri, chat_order)
-			)`,
+			sessionsV2SchemaSql,
+			`INSERT INTO sessions_v2 (session_uri, provider, start_time, external, registration_source, modified_time)
+				SELECT session_uri, provider, start_time, external, registration_source, modified_time FROM sessions`,
+			sessionChatCatalogSchemaSql,
 		].join(';\n'),
 	},
 ] as const;
 
-async function bridgeUpstreamVersion4(database: Database, currentVersion: number): Promise<number> {
-	if (currentVersion !== 4 || await get(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'sessions_v2'`, [])) {
+async function normalizePreReleaseCatalogSchema(database: Database, currentVersion: number): Promise<number> {
+	if (currentVersion < 4 || currentVersion > 11 || !await get(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'sessions_v2'`, [])) {
 		return currentVersion;
 	}
 	await exec(database, 'BEGIN TRANSACTION');
 	try {
-		await exec(database, `
-			CREATE TABLE sessions_v2 (
-				session_uri         TEXT PRIMARY KEY NOT NULL,
-				provider            TEXT NOT NULL,
-				start_time          INTEGER NOT NULL,
-				external            INTEGER,
-				registration_source TEXT NOT NULL,
-				session_generation  TEXT,
-				source_revision     INTEGER CHECK (source_revision >= 0),
-				payload_version     INTEGER CHECK (payload_version >= 0),
-				payload_hash        TEXT,
-				verified            INTEGER NOT NULL DEFAULT 0 CHECK (verified IN (0, 1)),
-				payload             TEXT,
-				is_chat_backing     INTEGER NOT NULL DEFAULT 0 CHECK (is_chat_backing IN (0, 1)),
-				modified_time       INTEGER NOT NULL DEFAULT 0
-			);
-			INSERT INTO sessions_v2 (session_uri, provider, start_time, external, registration_source, modified_time)
-				SELECT session_uri, provider, start_time, external, registration_source, modified_time FROM sessions;
-			PRAGMA user_version = 10;
-		`);
+		const hasFinalCatalog = (currentVersion === 5 || currentVersion === 11)
+			&& await get(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'session_chat_catalogs'`, [])
+			&& await get(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'session_chats'`, []);
+		if (!hasFinalCatalog) {
+			const sessionColumns = await all(database, 'PRAGMA table_info(sessions)', []);
+			if (!sessionColumns.some(column => column.name === 'modified_time')) {
+				await exec(database, 'ALTER TABLE sessions ADD COLUMN modified_time INTEGER NOT NULL DEFAULT 0');
+				await exec(database, 'UPDATE sessions SET modified_time = start_time');
+			}
+			await exec(database, 'DROP TABLE sessions_v2');
+			await exec(database, sessionsV2SchemaSql);
+			await exec(database, `INSERT INTO sessions_v2 (session_uri, provider, start_time, external, registration_source, modified_time)
+				SELECT session_uri, provider, start_time, external, registration_source, modified_time FROM sessions`);
+			await exec(database, 'DROP TABLE IF EXISTS session_chats');
+			await exec(database, 'DROP TABLE IF EXISTS session_chat_catalogs');
+			await exec(database, sessionChatCatalogSchemaSql);
+		}
+		await exec(database, 'PRAGMA user_version = 5');
 		await exec(database, 'COMMIT');
-		return 10;
+		return 5;
 	} catch (error) {
 		await exec(database, 'ROLLBACK');
 		throw error;
@@ -1514,7 +1399,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					database.serialize();
 					await exec(database, 'PRAGMA foreign_keys = ON');
 					const versionRow = await get(database, 'PRAGMA user_version', []);
-					const currentVersion = await bridgeUpstreamVersion4(database, (versionRow?.user_version as number | undefined) ?? 0);
+					const currentVersion = await normalizePreReleaseCatalogSchema(database, (versionRow?.user_version as number | undefined) ?? 0);
 					for (const migration of migrations) {
 						if (migration.version > currentVersion) {
 							await exec(database, 'BEGIN TRANSACTION');

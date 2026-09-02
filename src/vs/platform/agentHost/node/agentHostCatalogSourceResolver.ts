@@ -6,7 +6,7 @@
 import { URI } from '../../../base/common/uri.js';
 import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, stringifySessionArtifacts } from '../common/sessionArtifacts.js';
 import { META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
-import { GIT_DB_METADATA_KEYS, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
+import { META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { ChangesSummary, ChatOrigin, ChatOriginKind } from '../common/state/protocol/state.js';
 import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ISessionGitHubState, ISessionGitState, ISessionSourceControlState, parseSessionCreationReference, parseSessionFolderPickerDecision, parseSessionMultiRootMetadata, readSessionCreationReference, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionFolderPickerDecision, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionStatus, SessionSummary } from '../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, AgentHostCatalogData, AgentHostCatalogJsonValue, AgentHostCatalogMetadata, agentHostCatalogGitValidator } from './agentHostCatalogProjection.js';
@@ -49,28 +49,69 @@ export interface IAgentHostCatalogSourceResolverDependencies {
 	readonly worktreeProjectFromRepositoryRoot: (repositoryRoot: string | undefined) => { readonly uri: URI; readonly displayName: string } | undefined;
 }
 
+interface ISessionMetadataKey {
+	readonly key: string;
+}
+
+interface ITypedSessionMetadataKey<T> extends ISessionMetadataKey {
+	has(values: Readonly<Record<string, string | undefined>>): boolean;
+	read(values: Readonly<Record<string, string | undefined>>): T | undefined;
+}
+
+function stringSessionMetadataKey(key: string): ITypedSessionMetadataKey<string> {
+	return {
+		key,
+		has: values => values[key] !== undefined,
+		read: values => values[key],
+	};
+}
+
+function parsedSessionMetadataKey<T>(key: string, parse: (value: string) => T | undefined): ITypedSessionMetadataKey<T> {
+	return {
+		key,
+		has: values => values[key] !== undefined,
+		read: values => {
+			const value = values[key];
+			return value === undefined ? undefined : parse(value);
+		},
+	};
+}
+
+const sessionMetadata = {
+	title: stringSessionMetadataKey(SESSION_CUSTOM_TITLE_KEY),
+	titleSource: stringSessionMetadataKey(SESSION_CUSTOM_TITLE_SOURCE_KEY),
+	isRead: parsedSessionMetadataKey(AH_META_IS_READ_DB_KEY, value => value === 'true'),
+	isArchived: parsedSessionMetadataKey(AH_META_IS_ARCHIVED_DB_KEY, value => value === 'true'),
+	isDone: parsedSessionMetadataKey(AH_META_IS_DONE_DB_KEY, value => value === 'true'),
+	creationReference: parsedSessionMetadataKey(AH_META_CREATED_BY_SESSION_DB_KEY, parseSessionCreationReference),
+	workspaceless: parsedSessionMetadataKey(AH_META_WORKSPACELESS_DB_KEY, value => value === 'true'),
+	ehcliAdopted: parsedSessionMetadataKey(AH_META_EHCLI_ADOPTED_DB_KEY, value => value === 'true'),
+	multiRoot: parsedSessionMetadataKey(SESSION_META_MULTI_ROOT_KEY, parseSessionMultiRootMetadata),
+	folderPicker: parsedSessionMetadataKey(SESSION_META_FOLDER_PICKER_KEY, parseSessionFolderPickerDecision),
+	artifacts: parsedSessionMetadataKey(SESSION_ARTIFACTS_KEY, value => parseSessionArtifacts(value).artifacts),
+	changes: parsedSessionMetadataKey(META_CHANGES_SUMMARY, readPersistedChanges),
+	chatBacking: stringSessionMetadataKey(CHAT_BACKING_METADATA_KEY),
+	worktreeRepositoryRoot: stringSessionMetadataKey(WORKTREE_META_REPOSITORY_ROOT),
+	gitHub: parsedSessionMetadataKey(META_GITHUB_STATE, readPersistedGitHubState),
+	git: parsedSessionMetadataKey(META_GIT_STATE, readPersistedGitState),
+	sourceControl: parsedSessionMetadataKey(META_SOURCE_CONTROL_STATE, readPersistedSourceControlState),
+} as const;
+
+const sessionMetadataKeys: readonly ISessionMetadataKey[] = Object.values(sessionMetadata);
+
+function createMetadataKeySet(keys: readonly ISessionMetadataKey[]): Record<string, true> {
+	return keys.reduce<Record<string, true>>((result, metadata) => {
+		result[metadata.key] = true;
+		return result;
+	}, {});
+}
+
 export class AgentHostCatalogSourceResolver {
 
 	constructor(private readonly _dependencies: IAgentHostCatalogSourceResolverDependencies) { }
 
 	async buildCatalogSyncRequest(session: URI, state: ICatalogSourceState, metadataOverrides: Readonly<Record<string, string>>, preferPersistedMetadata: boolean): Promise<IAgentHostCatalogSyncRequest> {
-		const metadataKeys: Record<string, true> = {
-			[SESSION_CUSTOM_TITLE_KEY]: true,
-			[SESSION_CUSTOM_TITLE_SOURCE_KEY]: true,
-			[AH_META_IS_READ_DB_KEY]: true,
-			[AH_META_IS_ARCHIVED_DB_KEY]: true,
-			[AH_META_IS_DONE_DB_KEY]: true,
-			[AH_META_CREATED_BY_SESSION_DB_KEY]: true,
-			[AH_META_WORKSPACELESS_DB_KEY]: true,
-			[AH_META_EHCLI_ADOPTED_DB_KEY]: true,
-			[SESSION_META_MULTI_ROOT_KEY]: true,
-			[SESSION_META_FOLDER_PICKER_KEY]: true,
-			[SESSION_ARTIFACTS_KEY]: true,
-			[META_CHANGES_SUMMARY]: true,
-			[CHAT_BACKING_METADATA_KEY]: true,
-			[WORKTREE_META_REPOSITORY_ROOT]: true,
-			...GIT_DB_METADATA_KEYS,
-		};
+		const metadataKeys = createMetadataKeySet(sessionMetadataKeys);
 		for (const chat of state.chats) {
 			metadataKeys[customChatTitleMetadataKey(chat.uri)] = true;
 			metadataKeys[customChatTitleSourceMetadataKey(chat.uri)] = true;
@@ -98,73 +139,61 @@ export class AgentHostCatalogSourceResolver {
 				ref.dispose();
 			}
 		})));
+		const persistedTitle = sessionMetadata.title.read(metadata);
+		const persistedTitleSource = sessionMetadata.titleSource.read(metadata);
 		const defaultChat = state.chats.find(chat => chat.kind === 'default');
 		const defaultChatMetadata = defaultChat ? chatMetadata.get(defaultChat.uri) : undefined;
 		const title = preferPersistedMetadata
-			? metadata[SESSION_CUSTOM_TITLE_KEY] ?? defaultChatMetadata?.[SESSION_CUSTOM_TITLE_KEY] ?? state.title ?? ''
+			? persistedTitle ?? defaultChatMetadata?.[SESSION_CUSTOM_TITLE_KEY] ?? state.title ?? ''
 			: metadataOverrides[SESSION_CUSTOM_TITLE_KEY] ?? state.title ?? defaultChatMetadata?.[SESSION_CUSTOM_TITLE_KEY] ?? '';
 		const titleSource = normalizeCatalogTitleSource(
-			metadata[SESSION_CUSTOM_TITLE_SOURCE_KEY]
-			?? (metadata[SESSION_CUSTOM_TITLE_KEY] === undefined ? defaultChatMetadata?.[SESSION_CUSTOM_TITLE_SOURCE_KEY] : undefined),
+			persistedTitleSource
+			?? (persistedTitle === undefined ? defaultChatMetadata?.[SESSION_CUSTOM_TITLE_SOURCE_KEY] : undefined),
 		);
-		const persistedMultiRoot = metadata[SESSION_META_MULTI_ROOT_KEY] !== undefined
-			? parseSessionMultiRootMetadata(metadata[SESSION_META_MULTI_ROOT_KEY])
-			: undefined;
+		const persistedMultiRoot = sessionMetadata.multiRoot.read(metadata);
 		const multiRoot = preferPersistedMetadata
-			? (metadata[SESSION_META_MULTI_ROOT_KEY] !== undefined ? persistedMultiRoot : readSessionMultiRootMetadata(state.meta))
+			? (sessionMetadata.multiRoot.has(metadata) ? persistedMultiRoot : readSessionMultiRootMetadata(state.meta))
 			: readSessionMultiRootMetadata(state.meta) ?? persistedMultiRoot;
-		const persistedFolderPicker = metadata[SESSION_META_FOLDER_PICKER_KEY] !== undefined
-			? parseSessionFolderPickerDecision(metadata[SESSION_META_FOLDER_PICKER_KEY])
-			: undefined;
+		const persistedFolderPicker = sessionMetadata.folderPicker.read(metadata);
 		const folderPicker = preferPersistedMetadata
-			? (metadata[SESSION_META_FOLDER_PICKER_KEY] !== undefined ? persistedFolderPicker : readSessionFolderPickerDecision(state.meta))
+			? (sessionMetadata.folderPicker.has(metadata) ? persistedFolderPicker : readSessionFolderPickerDecision(state.meta))
 			: readSessionFolderPickerDecision(state.meta) ?? persistedFolderPicker;
-		const persistedArtifacts = parseSessionArtifacts(metadata[SESSION_ARTIFACTS_KEY]).artifacts;
+		const persistedArtifacts = sessionMetadata.artifacts.read(metadata) ?? [];
 		const stateArtifacts = readSessionArtifacts(state.meta);
 		const artifacts = preferPersistedMetadata
 			? (metadata[SESSION_ARTIFACTS_KEY] !== undefined ? persistedArtifacts : stateArtifacts)
 			: (metadataOverrides[SESSION_ARTIFACTS_KEY] !== undefined || stateArtifacts.length === 0 ? persistedArtifacts : stateArtifacts);
-		const persistedCreationReference = metadata[AH_META_CREATED_BY_SESSION_DB_KEY] !== undefined
-			? parseSessionCreationReference(metadata[AH_META_CREATED_BY_SESSION_DB_KEY])
-			: undefined;
+		const persistedCreationReference = sessionMetadata.creationReference.read(metadata);
 		const creationReference = preferPersistedMetadata
-			? (metadata[AH_META_CREATED_BY_SESSION_DB_KEY] !== undefined ? persistedCreationReference : readSessionCreationReference(state.meta))
+			? (sessionMetadata.creationReference.has(metadata) ? persistedCreationReference : readSessionCreationReference(state.meta))
 			: readSessionCreationReference(state.meta) ?? persistedCreationReference;
-		const persistedGitHub = metadata[META_GITHUB_STATE] !== undefined
-			? readPersistedGitHubState(metadata[META_GITHUB_STATE])
-			: undefined;
+		const persistedGitHub = sessionMetadata.gitHub.read(metadata);
 		const github = preferPersistedMetadata
-			? (metadata[META_GITHUB_STATE] !== undefined ? persistedGitHub : readSessionGitHubState(state.meta))
+			? (sessionMetadata.gitHub.has(metadata) ? persistedGitHub : readSessionGitHubState(state.meta))
 			: readSessionGitHubState(state.meta) ?? persistedGitHub;
-		const persistedSourceControl = metadata[META_SOURCE_CONTROL_STATE] !== undefined
-			? readPersistedSourceControlState(metadata[META_SOURCE_CONTROL_STATE])
-			: undefined;
+		const persistedSourceControl = sessionMetadata.sourceControl.read(metadata);
 		const sourceControl = preferPersistedMetadata
-			? (metadata[META_SOURCE_CONTROL_STATE] !== undefined ? persistedSourceControl : readSessionSourceControlState(state.meta))
+			? (sessionMetadata.sourceControl.has(metadata) ? persistedSourceControl : readSessionSourceControlState(state.meta))
 			: readSessionSourceControlState(state.meta) ?? persistedSourceControl;
-		const persistedGit = metadata[META_GIT_STATE] !== undefined
-			? readPersistedGitState(metadata[META_GIT_STATE])
-			: undefined;
+		const persistedGit = sessionMetadata.git.read(metadata);
 		const git = readSessionGitState(state.meta) ?? persistedGit;
-		const persistedWorkspaceless = metadata[AH_META_WORKSPACELESS_DB_KEY] === 'true';
+		const persistedWorkspaceless = sessionMetadata.workspaceless.read(metadata) ?? false;
 		const workspaceless = preferPersistedMetadata && metadata[AH_META_WORKSPACELESS_DB_KEY] !== undefined
 			? persistedWorkspaceless
 			: readSessionWorkspaceless(state.meta) || persistedWorkspaceless;
 		const stateIsRead = (state.status & SessionStatus.IsRead) !== 0;
 		const isRead = preferPersistedMetadata && metadata[AH_META_IS_READ_DB_KEY] !== undefined
-			? metadata[AH_META_IS_READ_DB_KEY] === 'true'
+			? sessionMetadata.isRead.read(metadata) ?? false
 			: stateIsRead;
-		const persistedArchived = metadata[AH_META_IS_ARCHIVED_DB_KEY] ?? metadata[AH_META_IS_DONE_DB_KEY];
+		const persistedArchived = sessionMetadata.isArchived.read(metadata) ?? sessionMetadata.isDone.read(metadata);
 		const isArchived = preferPersistedMetadata && persistedArchived !== undefined
-			? persistedArchived === 'true'
+			? persistedArchived
 			: (state.status & SessionStatus.IsArchived) !== 0;
-		const persistedChanges = metadata[META_CHANGES_SUMMARY] !== undefined
-			? readPersistedChanges(metadata[META_CHANGES_SUMMARY])
-			: undefined;
+		const persistedChanges = sessionMetadata.changes.read(metadata);
 		const changes = preferPersistedMetadata && metadata[META_CHANGES_SUMMARY] !== undefined ? persistedChanges : state.changes;
-		const worktreeProject = this._dependencies.worktreeProjectFromRepositoryRoot(metadata[WORKTREE_META_REPOSITORY_ROOT]);
+		const worktreeProject = this._dependencies.worktreeProjectFromRepositoryRoot(sessionMetadata.worktreeRepositoryRoot.read(metadata));
 		const ehcliAdoptable = readSessionEhcliAdoptable(state.meta);
-		const ehcliAdopted = readSessionEhcliAdopted(state.meta) || metadata[AH_META_EHCLI_ADOPTED_DB_KEY] === 'true';
+		const ehcliAdopted = readSessionEhcliAdopted(state.meta) || sessionMetadata.ehcliAdopted.read(metadata) === true;
 		const meta: AgentHostCatalogMetadata = {
 			...(multiRoot ? { [SESSION_META_MULTI_ROOT_KEY]: multiRoot } : undefined),
 			...(folderPicker ? { [SESSION_META_FOLDER_PICKER_KEY]: folderPicker } : undefined),
@@ -186,7 +215,7 @@ export class AgentHostCatalogSourceResolver {
 			project: worktreeProject
 				? { uri: worktreeProject.uri.toString(), displayName: worktreeProject.displayName }
 				: state.project,
-			isChatBacking: !!metadata[CHAT_BACKING_METADATA_KEY] || this._dependencies.isUnpersistedChatBacking(session),
+			isChatBacking: !!sessionMetadata.chatBacking.read(metadata) || this._dependencies.isUnpersistedChatBacking(session),
 			workingDirectories: state.workingDirectories,
 			changes,
 			_meta: Object.keys(meta).length > 0 ? meta : undefined,

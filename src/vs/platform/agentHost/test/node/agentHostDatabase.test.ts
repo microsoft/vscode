@@ -232,7 +232,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				sessionV2Columns: sessionV2Columns.map(row => row.name),
 				sessionV2ForeignKeys,
 			}, {
-				version: [{ user_version: 11 }],
+				version: [{ user_version: 5 }],
 				tables: ['metadata', 'session_chat_catalogs', 'session_chats', 'sessions', 'sessions_v2'],
 				sessionColumns: ['session_uri', 'provider', 'start_time', 'external', 'registration_source', 'modified_time'],
 				sessionV2Columns: [
@@ -340,7 +340,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 
 		assert.deepStrictEqual(results, [4, 5, 6].map(version => ({
 			version,
-			schemaVersion: [{ user_version: 11 }],
+			schemaVersion: [{ user_version: 5 }],
 			foreignKeys: [],
 			published: undefined,
 			directLegacy: undefined,
@@ -355,7 +355,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		})));
 	});
 
-	test('bridges the upstream v4 migration collision before applying current migrations', async () => {
+	test('applies the catalog migration after upstream v4', async () => {
 		const path = join(temporaryDirectory!, 'agent-host-upstream-v4.db');
 		await createUpstreamVersion4Database(path);
 		database = new AgentHostDatabase(path);
@@ -383,7 +383,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				version: await all(rawDatabase, 'PRAGMA user_version'),
 				tables: (await all(rawDatabase, `SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`)).map(row => row.name),
 			}, {
-				version: [{ user_version: 11 }],
+				version: [{ user_version: 5 }],
 				tables: ['metadata', 'session_chat_catalogs', 'session_chats', 'sessions', 'sessions_v2'],
 			});
 		} finally {
@@ -391,7 +391,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		}
 	});
 
-	test('migrates v7 registry rows to the v8 envelope and requires payload reseeding', async () => {
+	test('normalizes a pre-release v7 catalog and requires payload reseeding', async () => {
 		const path = join(temporaryDirectory!, 'agent-host-v7.db');
 		await createPublishedSessionsV2Database(path, 6);
 		const v7Database = await openDatabase(path);
@@ -427,14 +427,56 @@ suite('AgentHostDatabase sessions_v2', () => {
 				start_time: 6,
 				external: 1,
 				registration_source: 'discovery',
-				session_generation: 'generation-6',
-				source_revision: 7,
-				payload_version: 4,
-				payload_hash: 'published-hash',
+				session_generation: null,
+				source_revision: null,
+				payload_version: null,
+				payload_hash: null,
 				verified: 0,
 				payload: null,
-				is_chat_backing: 1,
+				is_chat_backing: 0,
 			}],
+		});
+	});
+
+	test('normalizes the pre-release v11 version without rebuilding its final catalog', async () => {
+		const path = join(temporaryDirectory!, 'agent-host-v11.db');
+		database = new AgentHostDatabase(path);
+		await database.registerSessionV2('session://v11', { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.replaceSessionChatCatalog('session://v11', [
+			{ chat: 'ahp-chat://peer', order: 0, providerData: 'peer' },
+		], undefined);
+		await database.close();
+		database = undefined;
+
+		const preReleaseDatabase = await openDatabase(path);
+		await exec(preReleaseDatabase, 'PRAGMA user_version = 11');
+		await close(preReleaseDatabase);
+
+		database = new AgentHostDatabase(path);
+		const registration = await database.getSessionV2Registration('session://v11');
+		const catalog = await database.getSessionChatCatalog('session://v11');
+		await database.close();
+		database = undefined;
+
+		const normalizedDatabase = await openDatabase(path);
+		const version = await all(normalizedDatabase, 'PRAGMA user_version');
+		await close(normalizedDatabase);
+
+		assert.deepStrictEqual({ registration, catalog, version }, {
+			registration: {
+				session: 'session://v11',
+				provider: 'copilot',
+				startTime: 1,
+				modifiedTime: 1,
+				external: false,
+				source: 'explicit',
+			},
+			catalog: {
+				revision: 1,
+				legacyMirroredRevision: 0,
+				chats: [{ chat: 'ahp-chat://peer', order: 0, providerData: 'peer' }],
+			},
+			version: [{ user_version: 5 }],
 		});
 	});
 
