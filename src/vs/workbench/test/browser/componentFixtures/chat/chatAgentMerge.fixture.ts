@@ -225,6 +225,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 
 	FailingChecks: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
 		render: (ctx) => renderAgentMerge(ctx, {
 			summary: createSummary(['fixCI'], { failedChecks }),
 		}),

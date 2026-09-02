@@ -21,6 +21,11 @@
 	border-color: transparent;
 }
 
+.hc-black .chat-agent-merge.collapsed,
+.hc-light .chat-agent-merge.collapsed {
+	border-color: var(--vscode-chat-requestBorder);
+}
+
 .chat-agent-merge.collapsed:hover,
 .chat-agent-merge.collapsed:focus-within {
 	border-color: var(--vscode-chat-requestBorder);
