@@ -7,6 +7,9 @@ import { Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ChatEditingSessionState, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatRequestDisablement } from '../../../../contrib/chat/common/model/chatModel.js';
@@ -14,10 +17,11 @@ import { IChatTodo } from '../../../../contrib/chat/common/tools/chatTodoListSer
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../contrib/chat/common/languageModels.js';
 import { ChatAgentLocation } from '../../../../contrib/chat/common/constants.js';
 import { ChatInputNotificationSeverity, IChatInputNotification } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
-import { defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { renderChatInput } from './renderChatInput.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
+import '../../../../contrib/chat/browser/agentSessions/agentHost/media/agentHostChatInputPicker.css';
 
 const sampleArtifacts = [
 	{ label: 'Dev Server', uri: 'http://localhost:3000', type: 'devServer' as const },
@@ -89,11 +93,41 @@ const sampleNotification: IChatInputNotification = {
 	autoDismissOnMessage: false,
 };
 
+function renderCopilotHarnessPickers({ container }: ComponentFixtureContext): void {
+	container.style.width = '360px';
+	container.classList.add('monaco-workbench');
+	const session = dom.append(container, dom.$('.interactive-session'));
+	const renderRow = (compact: boolean) => {
+		const toolbar = dom.append(session, dom.$('.chat-secondary-input-toolbar'));
+		const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
+		const actionsContainer = dom.append(actionBar, dom.$('.actions-container'));
+		actionsContainer.style.display = 'flex';
+		for (const [icon, label] of [[Codicon.commentCompact, 'Agent'], [Codicon.shieldCompact, 'Default permissions']] as const) {
+			const item = dom.append(actionsContainer, dom.$(`.action-item.agent-host-chat-input-picker-host${compact ? '.compact-picker' : ''}`));
+			const slot = dom.append(item, dom.$('.agent-host-chat-input-picker-slot'));
+			const trigger = dom.append(slot, dom.$('a.action-label'));
+			dom.append(trigger, renderIcon(icon));
+			dom.append(trigger, dom.$('span.agent-host-chat-input-picker-label', undefined, label));
+		}
+	};
+	renderRow(false);
+	renderRow(true);
+}
+
 export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	Default: defineComponentFixture({ render: context => renderChatInput(context) }),
 	WithSandboxing: defineComponentFixture({ render: context => renderChatInput(context, { sandboxingEnabled: true }) }),
 	WithProviderIcon: defineComponentFixture({ render: context => renderChatInput(context, { models: sampleModels }) }),
-	CompactWithProviderIcon: defineComponentFixture({ render: context => renderChatInput(context, { models: sampleModels, width: 260 }) }),
+	CompactWithProviderIcon: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The editor chat input shows compact picker controls as 12-pixel codicons centered with equal padding inside matching 22-pixel square controls, aligned with the expanded toolbar height.'],
+		render: context => renderChatInput(context, { models: sampleModels, width: 180 })
+	}),
+	CopilotHarnessCompactPickers: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The Copilot harness mode and permissions pickers show labeled and compact rows at the same height. Each compact icon is centered with equal padding inside a 22-pixel square control.'],
+		render: renderCopilotHarnessPickers,
+	}),
 	WithArtifacts: defineComponentFixture({ render: context => renderChatInput(context, { artifacts: sampleArtifacts }) }),
 	// The notice/input seam, the subject of #330483. Driven through the real
 	// notification service so the squared corner comes from the stack.

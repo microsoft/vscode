@@ -89,6 +89,12 @@
 	align-self: center;
 }
 
+/* Flex centering shares attachment growth above and below the midpoint. Offset
+ * that growth so the bottom controls stay anchored and the composer grows up. */
+.sessions-chat-widget:not(.new-chat-in-session) > .new-chat-widget-container > .new-chat-widget-content {
+	position: relative;
+}
+
 .new-chat-widget-container .new-chat-bottom-container {
 	width: 100%;
 	max-width: 800px;
@@ -160,6 +166,7 @@
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.sessions-chat-picker-slot {
 	box-sizing: border-box;
 	width: 22px;
+	height: 22px;
 	min-width: 22px;
 	padding: 0;
 }
@@ -168,9 +175,10 @@
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.sessions-chat-picker-slot .action-label {
 	box-sizing: border-box;
 	width: 22px;
+	height: 22px;
 	min-width: 22px;
-	justify-content: flex-start;
-	padding: 2px 2px 2px 8px;
+	justify-content: center;
+	padding: 0;
 }
 
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.sessions-chat-picker-slot .action-label > .codicon {
@@ -216,20 +224,25 @@
 	display: none;
 }
 
-/* Icon-only action items in the bottom row (e.g. OpenTelemetry status pill)
- * lack the chevron that visually balances the 7px left padding, so use
- * symmetric horizontal padding and drop the picker min-width that would
- * otherwise leave the icon left-aligned inside a 30px box. */
-.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .monaco-action-bar .action-item,
-.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .monaco-action-bar .action-item .action-label {
-	min-width: 0;
+/* Status actions are icon-only, so use the same centered control box as compact pickers. */
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .monaco-action-bar .action-item {
+	width: 22px;
+	min-width: 22px;
 }
 
 .new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .action-label {
-	padding: 3px 4px;
+	box-sizing: border-box;
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	width: 22px;
+	height: 22px;
+	min-width: 22px;
+	padding: 0;
+}
+
+.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .action-label.codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 /* The category row is quiet at rest, while hover/open state reveals the active target. */

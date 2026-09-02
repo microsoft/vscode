@@ -687,6 +687,16 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const attachRow = dom.append(inputArea, dom.$('.sessions-chat-attach-row'));
 		const attachedContextContainer = dom.append(attachRow, dom.$('.sessions-chat-attached-context'));
 		this._contextAttachments.renderAttachedContext(attachedContextContainer);
+		const updateAttachmentOffset = () => {
+			parent.style.top = `${-attachRow.getBoundingClientRect().height / 2}px`;
+		};
+		const attachmentResizeObserver = this._register(new dom.DisposableResizeObserver(
+			'NewChatInputWidget.attachments',
+			updateAttachmentOffset,
+			dom.getWindow(attachRow),
+		));
+		this._register(attachmentResizeObserver.observe(attachRow));
+		this._register(toDisposable(() => parent.style.removeProperty('top')));
 		this._register(this.instantiationService.createInstance(ChatDragAndDrop, () => undefined, {
 			get attachments() { return contextAttachments.attachments; },
 			addAttachments: (entries: readonly IChatRequestVariableEntry[]) => contextAttachments.addAttachments(...entries),
@@ -1180,13 +1190,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 					if (!element) {
 						continue;
 					}
+					const isModelPicker = element.classList.contains('model-picker-item');
 					items.push({
 						element,
-						canShrink: configToolbar.getItemAction(index)?.id === 'sessions.modelPicker',
+						canShrink: isModelPicker,
 						isCompact: () => element.classList.contains('compact-picker'),
 						setCompact: (compact: boolean) => {
 							element.classList.toggle('compact-picker', compact);
-							if (configToolbar.getItemAction(index)?.id === 'sessions.modelPicker') {
+							if (isModelPicker) {
 								this._compactModelPicker.set(compact, undefined);
 							}
 						},

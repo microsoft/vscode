@@ -63,28 +63,39 @@ suite('Sessions - Chat View', () => {
 		const picker = dom.append(item, dom.$('.action-label.model-picker-split.compact'));
 		const name = dom.append(picker, dom.$('.model-picker-section.model-picker-name'));
 		name.style.minWidth = '22px';
-		dom.append(name, dom.$('span.codicon'));
+		const icon = dom.append(name, dom.$('span.codicon'));
+		icon.style.width = '12px';
+		icon.style.height = '12px';
 		const config = dom.append(picker, dom.$('.model-picker-section.model-picker-config'));
 		const configLabel = dom.append(config, dom.$('span.chat-input-picker-label'));
 		configLabel.textContent = 'High';
 
+		const nameBounds = name.getBoundingClientRect();
+		const iconBounds = icon.getBoundingClientRect();
 		assert.deepStrictEqual({
 			configVisible: dom.getWindow(configLabel).getComputedStyle(configLabel).display !== 'none',
 			configWidth: config.getBoundingClientRect().width > 0,
-			nameWidth: name.getBoundingClientRect().width,
+			name: { width: nameBounds.width, height: nameBounds.height },
+			iconOffset: {
+				x: iconBounds.left - nameBounds.left,
+				y: iconBounds.top - nameBounds.top,
+			},
 		}, {
 			configVisible: true,
 			configWidth: true,
-			nameWidth: 22,
+			name: { width: 22, height: 22 },
+			iconOffset: { x: 5, y: 5 },
 		});
 	});
 
-	test('keeps compact empty-state picker icons inside their action item', () => {
-		const toolbar = dom.append(document.body, dom.$('.sessions-chat-config-toolbar'));
-		disposables.add(toDisposable(() => toolbar.remove()));
+	test('centers compact empty-state picker icons inside their action item', () => {
+		const inputPart = dom.append(document.body, dom.$('.interactive-input-part'));
+		disposables.add(toDisposable(() => inputPart.remove()));
+		const toolbar = dom.append(inputPart, dom.$('.sessions-chat-config-toolbar'));
 		const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
 		const item = dom.append(actionBar, dom.$('.action-item.compact-picker'));
-		const label = dom.append(item, dom.$('a.action-label'));
+		const slot = dom.append(item, dom.$('.sessions-chat-picker-slot'));
+		const label = dom.append(slot, dom.$('a.action-label'));
 		const icon = dom.append(label, dom.$('span.codicon'));
 		icon.style.width = '12px';
 		icon.style.height = '12px';
@@ -93,17 +104,22 @@ suite('Sessions - Chat View', () => {
 		const labelBounds = label.getBoundingClientRect();
 		const iconBounds = icon.getBoundingClientRect();
 		assert.deepStrictEqual({
-			labelOffset: labelBounds.left - itemBounds.left,
-			iconOffset: iconBounds.left - itemBounds.left,
+			item: { width: itemBounds.width, height: itemBounds.height },
+			label: { width: labelBounds.width, height: labelBounds.height },
+			iconOffset: {
+				x: iconBounds.left - labelBounds.left,
+				y: iconBounds.top - labelBounds.top,
+			},
 			iconEscapes: iconBounds.left < itemBounds.left || iconBounds.right > itemBounds.right,
 		}, {
-			labelOffset: 0,
-			iconOffset: 8,
+			item: { width: 22, height: 22 },
+			label: { width: 22, height: 22 },
+			iconOffset: { x: 5, y: 5 },
 			iconEscapes: false,
 		});
 	});
 
-	test('keeps compact bottom-row picker glyphs inside their action item', () => {
+	test('centers compact bottom-row picker glyphs inside their action item', () => {
 		const workbench = dom.append(document.body, dom.$('.agent-sessions-workbench'));
 		disposables.add(toDisposable(() => workbench.remove()));
 		workbench.style.setProperty('--vscode-codiconFontSize-compact', '12px');
@@ -111,28 +127,94 @@ suite('Sessions - Chat View', () => {
 		const row = dom.append(widget, dom.$('.new-chat-bottom-container'));
 		const actionBar = dom.append(row, dom.$('.monaco-action-bar'));
 		const item = dom.append(actionBar, dom.$('.action-item.compact-picker'));
-		const label = dom.append(item, dom.$('a.action-label'));
+		const slot = dom.append(item, dom.$('.sessions-chat-picker-slot.compact-picker'));
+		const label = dom.append(slot, dom.$('a.action-label'));
 		const icon = dom.append(label, dom.$('span.codicon'));
 		icon.style.width = '12px';
 		icon.style.height = '12px';
 
 		const itemBounds = item.getBoundingClientRect();
+		const slotBounds = slot.getBoundingClientRect();
 		const labelBounds = label.getBoundingClientRect();
 		const iconBounds = icon.getBoundingClientRect();
 		assert.deepStrictEqual({
-			itemWidth: itemBounds.width,
-			labelWidth: labelBounds.width,
-			labelOffset: labelBounds.left - itemBounds.left,
-			iconWidth: iconBounds.width,
-			iconOffset: iconBounds.left - itemBounds.left,
+			item: { width: itemBounds.width, height: itemBounds.height },
+			slot: { width: slotBounds.width, height: slotBounds.height },
+			label: { width: labelBounds.width, height: labelBounds.height },
+			icon: { width: iconBounds.width, height: iconBounds.height },
+			iconOffset: {
+				x: iconBounds.left - labelBounds.left,
+				y: iconBounds.top - labelBounds.top,
+			},
 			iconEscapes: iconBounds.left < itemBounds.left || iconBounds.right > itemBounds.right,
 		}, {
-			itemWidth: 22,
-			labelWidth: 22,
-			labelOffset: 0,
-			iconWidth: 12,
-			iconOffset: 8,
+			item: { width: 22, height: 22 },
+			slot: { width: 22, height: 22 },
+			label: { width: 22, height: 22 },
+			icon: { width: 12, height: 12 },
+			iconOffset: { x: 5, y: 5 },
 			iconEscapes: false,
+		});
+	});
+
+	test('uses the compact control box for bottom-row status icons', () => {
+		const workbench = dom.append(document.body, dom.$('.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		workbench.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+		const widget = dom.append(workbench, dom.$('.new-chat-widget-container.revealed'));
+		const row = dom.append(widget, dom.$('.new-chat-bottom-container'));
+		const statusToolbar = dom.append(row, dom.$('.new-chat-status-toolbar'));
+		const actionBar = dom.append(statusToolbar, dom.$('.monaco-action-bar'));
+		const item = dom.append(actionBar, dom.$('.action-item'));
+		const label = dom.append(item, dom.$('a.action-label.codicon.codicon-warning'));
+
+		const itemBounds = item.getBoundingClientRect();
+		const labelBounds = label.getBoundingClientRect();
+		assert.deepStrictEqual({
+			item: { width: itemBounds.width, height: itemBounds.height },
+			label: { width: labelBounds.width, height: labelBounds.height },
+			iconFontSize: dom.getWindow(label).getComputedStyle(label).fontSize,
+		}, {
+			item: { width: 22, height: 22 },
+			label: { width: 22, height: 22 },
+			iconFontSize: '12px',
+		});
+	});
+
+	test('centers compact in-session picker glyphs inside their action item', () => {
+		const workbench = dom.append(document.body, dom.$('.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		workbench.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+		const session = dom.append(workbench, dom.$('.interactive-session'));
+		const toolbar = dom.append(session, dom.$('.chat-secondary-input-toolbar'));
+		const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
+		const actionsContainer = dom.append(actionBar, dom.$('.actions-container'));
+		actionsContainer.style.display = 'flex';
+		const item = dom.append(actionsContainer, dom.$('.action-item.compact-picker'));
+		const slot = dom.append(item, dom.$('.sessions-chat-picker-slot'));
+		const label = dom.append(slot, dom.$('a.action-label'));
+		const icon = dom.append(label, dom.$('span.codicon'));
+		dom.append(label, dom.$('span.sessions-chat-dropdown-label', undefined, 'Autopilot'));
+
+		const itemBounds = item.getBoundingClientRect();
+		const slotBounds = slot.getBoundingClientRect();
+		const labelBounds = label.getBoundingClientRect();
+		const iconBounds = icon.getBoundingClientRect();
+		assert.deepStrictEqual({
+			item: { width: itemBounds.width, height: itemBounds.height },
+			slot: { width: slotBounds.width, height: slotBounds.height },
+			label: { width: labelBounds.width, height: labelBounds.height },
+			icon: {
+				width: iconBounds.width,
+				height: iconBounds.height,
+				x: iconBounds.left - labelBounds.left,
+				y: iconBounds.top - labelBounds.top,
+			},
+		}, {
+			item: { width: 22, height: 22 },
+			slot: { width: 22, height: 22 },
+			label: { width: 22, height: 22 },
+			icon: { width: 12, height: 12, x: 5, y: 5 },
 		});
 	});
 
