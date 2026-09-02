@@ -94,6 +94,7 @@ export interface IAgentHostDatabaseSessionChat {
 export interface IAgentHostDatabaseSessionChatCatalog {
 	readonly revision: number;
 	readonly legacyMirroredRevision: number;
+	readonly legacyMirroredPayload?: string;
 	readonly chats: readonly IAgentHostDatabaseSessionChat[];
 }
 
@@ -201,7 +202,9 @@ export interface IAgentHostDatabase extends IDisposable {
 	/** Replaces authoritative peer-chat membership when its revision still matches. */
 	replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<number | undefined>;
 	/** Acknowledges the exact central revision written to the downgrade-compatibility mirror. */
-	markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number): Promise<boolean>;
+	markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number, payload?: string): Promise<boolean>;
+	/** Records the legacy payload used as the next three-way merge base without acknowledging a central revision. */
+	recordSessionChatCatalogLegacyMirrorPayload(session: string, expectedRevision: number, payload: string): Promise<boolean>;
 	close(): Promise<void>;
 }
 
@@ -368,6 +371,7 @@ function sessionsV2BackfillKey(provider: AgentProvider, payloadVersion: number):
 
 const sessionsV2ExcludedKeyPrefix = 'sessionsV2Excluded:';
 const sessionsV2PayloadDirtyKeyPrefix = 'sessionsV2PayloadDirty:';
+const sessionChatCatalogLegacyMirrorKeyPrefix = 'sessionChatCatalogLegacyMirror:';
 
 function sessionsV2ExcludedProviderPrefix(provider: AgentProvider): string {
 	return `${sessionsV2ExcludedKeyPrefix}${provider}:`;
@@ -379,6 +383,10 @@ function sessionsV2ExcludedKey(provider: AgentProvider, session: string): string
 
 function sessionsV2PayloadDirtyKey(session: string): string {
 	return `${sessionsV2PayloadDirtyKeyPrefix}${session}`;
+}
+
+function sessionChatCatalogLegacyMirrorKey(session: string): string {
+	return `${sessionChatCatalogLegacyMirrorKeyPrefix}${session}`;
 }
 
 /** Metadata key for a session's durable "explicitly deleted" tombstone. */
@@ -466,6 +474,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [tombstoneKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(session)]);
 				await run(database, 'DELETE FROM sessions WHERE session_uri = ?', [session]);
 				await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [session]);
 				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [session]);
@@ -655,6 +664,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					JSON.stringify({ reason: exclusion.reason, fingerprint: exclusion.fingerprint }),
 				]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(exclusion.session)]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(exclusion.session)]);
 				await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [exclusion.session]);
 				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [exclusion.session]);
 				await exec(database, 'COMMIT');
@@ -789,6 +799,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await run(database, 'DELETE FROM sessions WHERE session_uri = ?', [session]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(session)]);
 				await exec(database, 'COMMIT');
 			} catch (error) {
 				await this._rollback(database, error, `Failed to unregister mirrored runtime session ${session}`);
@@ -904,6 +915,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [session]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(session)]);
 				await exec(database, 'COMMIT');
 			} catch (error) {
 				await this._rollback(database, error, `Failed to unregister sessions_v2 identity ${session}`);
@@ -1086,6 +1098,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		const rows = await all(await this._ensureDatabase(), `SELECT
 				catalog.revision,
 				catalog.legacy_mirrored_revision,
+				(SELECT value FROM metadata WHERE key = ?) AS legacy_mirrored_payload,
 				chat.chat_uri,
 				chat.chat_order,
 				chat.provider_data,
@@ -1094,7 +1107,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			FROM session_chat_catalogs AS catalog
 			LEFT JOIN session_chats AS chat ON chat.session_uri = catalog.session_uri
 			WHERE catalog.session_uri = ?
-			ORDER BY chat.chat_order`, [session]);
+			ORDER BY chat.chat_order`, [sessionChatCatalogLegacyMirrorKey(session), session]);
 		const catalog = rows[0];
 		if (!catalog) {
 			return undefined;
@@ -1102,6 +1115,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		return {
 			revision: catalog.revision as number,
 			legacyMirroredRevision: catalog.legacy_mirrored_revision as number,
+			...(catalog.legacy_mirrored_payload === null ? {} : { legacyMirroredPayload: catalog.legacy_mirrored_payload as string }),
 			chats: rows.filter(row => row.chat_uri !== null).map(row => ({
 				chat: row.chat_uri as string,
 				order: row.chat_order as number,
@@ -1155,22 +1169,56 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
-	async markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number): Promise<boolean> {
+	async markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number, payload?: string): Promise<boolean> {
 		if (!Number.isSafeInteger(expectedRevision) || expectedRevision <= 0) {
 			throw new Error('Session chat catalog revision must be a positive safe integer');
 		}
 		return this._transactionSequencer.queue(async () => {
 			const database = await this._ensureDatabase();
-			await run(database, `UPDATE session_chat_catalogs SET legacy_mirrored_revision = ?
-				WHERE session_uri = ? AND revision = ? AND legacy_mirrored_revision < ?`, [
-				expectedRevision,
-				session,
-				expectedRevision,
-				expectedRevision,
-			]);
-			const row = await get(database, `SELECT revision, legacy_mirrored_revision
-				FROM session_chat_catalogs WHERE session_uri = ?`, [session]);
-			return row?.revision === expectedRevision && row.legacy_mirrored_revision === expectedRevision;
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				await run(database, `UPDATE session_chat_catalogs SET legacy_mirrored_revision = ?
+					WHERE session_uri = ? AND revision = ? AND legacy_mirrored_revision < ?`, [
+					expectedRevision,
+					session,
+					expectedRevision,
+					expectedRevision,
+				]);
+				const row = await get(database, `SELECT revision, legacy_mirrored_revision
+					FROM session_chat_catalogs WHERE session_uri = ?`, [session]);
+				const mirrored = row?.revision === expectedRevision && row.legacy_mirrored_revision === expectedRevision;
+				if (row && payload !== undefined) {
+					await run(database, `INSERT INTO metadata (key, value) VALUES (?, ?)
+						ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [sessionChatCatalogLegacyMirrorKey(session), payload]);
+				}
+				await exec(database, 'COMMIT');
+				return mirrored;
+			} catch (error) {
+				return this._rollback(database, error, `Failed to mark the chat catalog mirrored for ${session}`);
+			}
+		});
+	}
+
+	async recordSessionChatCatalogLegacyMirrorPayload(session: string, expectedRevision: number, payload: string): Promise<boolean> {
+		if (!Number.isSafeInteger(expectedRevision) || expectedRevision <= 0) {
+			throw new Error('Session chat catalog revision must be a positive safe integer');
+		}
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				const row = await get(database, 'SELECT revision FROM session_chat_catalogs WHERE session_uri = ?', [session]);
+				if (row?.revision !== expectedRevision) {
+					await exec(database, 'COMMIT');
+					return false;
+				}
+				await run(database, `INSERT INTO metadata (key, value) VALUES (?, ?)
+					ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [sessionChatCatalogLegacyMirrorKey(session), payload]);
+				await exec(database, 'COMMIT');
+				return true;
+			} catch (error) {
+				return this._rollback(database, error, `Failed to record the chat catalog mirror base for ${session}`);
+			}
 		});
 	}
 

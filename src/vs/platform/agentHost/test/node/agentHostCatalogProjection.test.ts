@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { SESSION_META_ARTIFACTS_KEY } from '../../common/sessionArtifacts.js';
 import { SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../../common/state/sessionState.js';
 import {
@@ -170,6 +171,40 @@ suite('AgentHostCatalogProjection', () => {
 				git: { isDetachedHead: true },
 				artifacts: artifacts.slice(-AGENT_HOST_CATALOG_ARTIFACT_LIMIT),
 			});
+		});
+	});
+
+	test('preserves Dev Container worktree and pull request state metadata', () => {
+		const data = createData();
+		const encoded = encode({
+			...data,
+			_meta: {
+				...data._meta,
+				[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: {
+					version: 1,
+					handle: '00000000-0000-4000-8000-000000000001',
+				},
+				[SESSION_META_GITHUB_KEY]: {
+					...data._meta?.[SESSION_META_GITHUB_KEY],
+					pullRequestState: 'merged',
+					pullRequestStateUrl: 'https://github.com/microsoft/vscode/pull/1',
+				},
+			},
+		});
+
+		assert.deepStrictEqual({
+			devContainerWorktree: encoded.data._meta?.[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY],
+			gitHub: encoded.data._meta?.[SESSION_META_GITHUB_KEY],
+		}, {
+			devContainerWorktree: {
+				version: 1,
+				handle: '00000000-0000-4000-8000-000000000001',
+			},
+			gitHub: {
+				...data._meta?.[SESSION_META_GITHUB_KEY],
+				pullRequestState: 'merged',
+				pullRequestStateUrl: 'https://github.com/microsoft/vscode/pull/1',
+			},
 		});
 	});
 

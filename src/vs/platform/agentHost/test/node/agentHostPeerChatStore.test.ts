@@ -24,6 +24,22 @@ const origin = {
 	selection: { text: 'selected', responsePartId: 'response-1' },
 } as const;
 
+class FailingLegacyMirrorDatabase extends TestSessionDatabase {
+	private legacyMirrorFailures = 0;
+
+	failLegacyMirrors(count: number): void {
+		this.legacyMirrorFailures = count;
+	}
+
+	override async setMetadata(key: string, value: string): Promise<void> {
+		if (key === PEER_CHATS_METADATA_KEY && this.legacyMirrorFailures > 0) {
+			this.legacyMirrorFailures--;
+			throw new Error('legacy mirror failed');
+		}
+		return super.setMetadata(key, value);
+	}
+}
+
 suite('AgentHostPeerChatStore', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -187,6 +203,73 @@ suite('AgentHostPeerChatStore', () => {
 			firstImport: [{ uri: first.toString(), providerData: 'first' }],
 			secondImport: [{ uri: second.toString(), providerData: 'second' }],
 			central: [{ uri: second.toString(), providerData: 'second' }],
+		});
+	});
+
+	test('merges older-build changes made after an interrupted compatibility mirror', async () => {
+		const database = new FailingLegacyMirrorDatabase();
+		const store = createStore(database);
+		await store.replace(session, [{ uri: first.toString() }]);
+
+		database.failLegacyMirrors(1);
+		await store.upsert(session, second, undefined);
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([
+			{ uri: third.toString() },
+		]));
+
+		const beforeRepair = await store.tryRead(session);
+		const reconciled = await store.reconcileLegacy(session);
+
+		assert.deepStrictEqual({
+			beforeRepair,
+			reconciled,
+			central: await store.tryRead(session),
+			legacy: await store.tryReadLegacy(session),
+		}, {
+			beforeRepair: [
+				{ uri: first.toString() },
+				{ uri: second.toString() },
+			],
+			reconciled: [
+				{ uri: third.toString() },
+				{ uri: second.toString() },
+			],
+			central: [
+				{ uri: third.toString() },
+				{ uri: second.toString() },
+			],
+			legacy: [
+				{ uri: third.toString() },
+				{ uri: second.toString() },
+			],
+		});
+	});
+
+	test('preserves older-build changes when a new write follows an interrupted mirror', async () => {
+		const database = new FailingLegacyMirrorDatabase();
+		const store = createStore(database);
+		await store.replace(session, [{ uri: first.toString() }]);
+		database.failLegacyMirrors(1);
+		await store.upsert(session, second, undefined);
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([
+			{ uri: third.toString() },
+		]));
+		database.failLegacyMirrors(1);
+
+		await store.remove(session, first);
+
+		assert.deepStrictEqual({
+			central: await store.tryRead(session),
+			legacy: await store.tryReadLegacy(session),
+		}, {
+			central: [
+				{ uri: third.toString() },
+				{ uri: second.toString() },
+			],
+			legacy: [
+				{ uri: third.toString() },
+				{ uri: second.toString() },
+			],
 		});
 	});
 });

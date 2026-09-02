@@ -8,6 +8,7 @@ import { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import { stableStringify } from '../../../base/common/objects.js';
 import { URI } from '../../../base/common/uri.js';
 import { IValidator, ValidationError, ValidatorBase, ValidatorType, vArray, vBoolean, vEnum, vObj, vOptionalProp } from '../../../base/common/validation.js';
+import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, isAgentDevContainerWorktreeHandle } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { SESSION_META_ARTIFACTS_KEY } from '../common/sessionArtifacts.js';
 import { SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../common/state/sessionState.js';
 
@@ -217,6 +218,8 @@ const githubValidator = plainObject(vObj({
 	initialPullRequestUrls: vOptionalProp(githubReferencesValidator),
 	associatedPullRequestUrls: vOptionalProp(githubReferencesValidator),
 	issueUrls: vOptionalProp(githubReferencesValidator),
+	pullRequestState: vOptionalProp(vEnum('open', 'closed', 'merged')),
+	pullRequestStateUrl: vOptionalProp(uriString()),
 	pullRequestBranchName: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
 }));
 
@@ -270,6 +273,13 @@ const creationReferenceValidator = plainObject(vObj({
 	turnId: vOptionalProp(boundedString()),
 }));
 
+const devContainerWorktreeValidator = new RefinedValidator(plainObject(vObj({
+	version: safeInteger(),
+	handle: boundedString(),
+})), value => value.version === 1 && isAgentDevContainerWorktreeHandle(value.handle)
+	? value
+	: { message: 'Expected valid Dev Container worktree metadata.' });
+
 /**
  * The session's `_meta` bag, validated slot by slot under the same well-known
  * keys `sessionState.ts` uses, so readers such as `readSessionGitState` accept
@@ -286,6 +296,7 @@ const metadataValidator = plainObject(vObj({
 	[SESSION_META_WORKSPACELESS_KEY]: vOptionalProp(vBoolean()),
 	[SESSION_META_EHCLI_ADOPTABLE_KEY]: vOptionalProp(vBoolean()),
 	[SESSION_META_EHCLI_ADOPTED_KEY]: vOptionalProp(vBoolean()),
+	[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: vOptionalProp(devContainerWorktreeValidator),
 }));
 
 const chatValidator = plainObject(vObj({

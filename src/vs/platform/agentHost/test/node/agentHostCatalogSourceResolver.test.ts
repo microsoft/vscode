@@ -8,6 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
 import { META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
+import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { SessionArtifactType, SESSION_META_ARTIFACTS_KEY, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { ChatOriginKind } from '../../common/state/protocol/state.js';
 import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionSourceControlOutcome, SessionStatus, withSessionCreationReference, withSessionEhcliAdoptable, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
@@ -134,6 +135,33 @@ suite('AgentHostCatalogSourceResolver', () => {
 		}, {
 			summary: 'Default Chat Title',
 			titleSource: 'user',
+		});
+	});
+
+	test('projects persisted Dev Container worktree and pull request state metadata', async () => {
+		const devContainerWorktree = {
+			version: 1,
+			handle: '00000000-0000-4000-8000-000000000001',
+		} as const;
+		const gitHub = {
+			...persistedGitHub,
+			pullRequestState: 'merged',
+			pullRequestStateUrl: 'https://github.com/microsoft/vscode/pull/1',
+		} as const;
+		const result = await createResolver({
+			...persistedMetadata(),
+			[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: JSON.stringify(devContainerWorktree),
+			[META_GITHUB_STATE]: JSON.stringify(gitHub),
+		}).buildCatalogSyncRequest(session, sourceState(), {}, true);
+
+		assert.deepStrictEqual({
+			devContainerWorktree: result.data._meta?.[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY],
+			gitHub: result.data._meta?.[SESSION_META_GITHUB_KEY],
+			persistedDevContainerWorktree: result.legacyMetadata[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY],
+		}, {
+			devContainerWorktree,
+			gitHub,
+			persistedDevContainerWorktree: JSON.stringify(devContainerWorktree),
 		});
 	});
 

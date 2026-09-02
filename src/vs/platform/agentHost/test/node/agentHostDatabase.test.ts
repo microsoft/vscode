@@ -265,12 +265,17 @@ suite('AgentHostDatabase sessions_v2', () => {
 			throw new Error('Expected the initial chat catalog write to succeed');
 		}
 		const first = await database.getSessionChatCatalog(session);
-		const firstAcknowledged = await database.markSessionChatCatalogLegacyMirrored(session, firstRevision);
+		const firstAcknowledged = await database.markSessionChatCatalogLegacyMirrored(session, firstRevision, '[{"uri":"ahp-chat://first"}]');
 		const secondRevision = await database.replaceSessionChatCatalog(session, [
 			{ chat: 'ahp-chat://second', order: 0, inheritedTurnId: 'turn-1' },
 		], firstRevision);
+		if (secondRevision === undefined) {
+			throw new Error('Expected the second chat catalog write to succeed');
+		}
 		const conflictingRevision = await database.replaceSessionChatCatalog(session, [], firstRevision);
-		const staleAcknowledgement = await database.markSessionChatCatalogLegacyMirrored(session, firstRevision);
+		const staleAcknowledgement = await database.markSessionChatCatalogLegacyMirrored(session, firstRevision, 'stale-mirror-payload');
+		const afterStaleAcknowledgement = await database.getSessionChatCatalog(session);
+		const baseRecorded = await database.recordSessionChatCatalogLegacyMirrorPayload(session, secondRevision, 'observed-legacy-payload');
 		const second = await database.getSessionChatCatalog(session);
 
 		assert.deepStrictEqual({
@@ -281,6 +286,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 			secondRevision,
 			conflictingRevision,
 			staleAcknowledgement,
+			afterStaleAcknowledgement,
+			baseRecorded,
 			second,
 		}, {
 			before: undefined,
@@ -297,9 +304,19 @@ suite('AgentHostDatabase sessions_v2', () => {
 			secondRevision: 2,
 			conflictingRevision: undefined,
 			staleAcknowledgement: false,
+			afterStaleAcknowledgement: {
+				revision: 2,
+				legacyMirroredRevision: 1,
+				legacyMirroredPayload: 'stale-mirror-payload',
+				chats: [
+					{ chat: 'ahp-chat://second', order: 0, inheritedTurnId: 'turn-1' },
+				],
+			},
+			baseRecorded: true,
 			second: {
 				revision: 2,
 				legacyMirroredRevision: 1,
+				legacyMirroredPayload: 'observed-legacy-payload',
 				chats: [
 					{ chat: 'ahp-chat://second', order: 0, inheritedTurnId: 'turn-1' },
 				],

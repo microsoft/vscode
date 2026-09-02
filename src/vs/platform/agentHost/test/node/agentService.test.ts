@@ -316,6 +316,8 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	private readonly _sessionChats = new Map<string, IAgentHostDatabaseSessionChatCatalog>();
 	registryWriteAttempts = 0;
 	private _remainingRegistryWriteFailures = 0;
+	modifiedTimeBatchAttempts = 0;
+	private _remainingModifiedTimeBatchFailures = 0;
 	readonly externalUpdates: { session: string; external: boolean }[] = [];
 	undefinedExternalListCalls = 0;
 	sessionV2UpsertAttempts = 0;
@@ -340,6 +342,11 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	failRegistryWrites(count: number): void {
 		this.registryWriteAttempts = 0;
 		this._remainingRegistryWriteFailures = count;
+	}
+
+	failModifiedTimeBatches(count: number): void {
+		this.modifiedTimeBatchAttempts = 0;
+		this._remainingModifiedTimeBatchFailures = count;
 	}
 
 	async registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
@@ -408,6 +415,11 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	}
 
 	async updateSessionModifiedTimes(updates: readonly { readonly session: string; readonly modifiedTime: number }[]): Promise<void> {
+		this.modifiedTimeBatchAttempts++;
+		if (this._remainingModifiedTimeBatchFailures > 0) {
+			this._remainingModifiedTimeBatchFailures--;
+			throw new Error('transient modified-time batch failure');
+		}
 		for (const { session, modifiedTime } of updates) {
 			await this.updateSessionModifiedTime(session, modifiedTime);
 		}
@@ -674,12 +686,20 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		this._sessionChats.set(session, { revision, legacyMirroredRevision: current?.legacyMirroredRevision ?? 0, chats: [...chats] });
 		return revision;
 	}
-	async markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number): Promise<boolean> {
+	async markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number, payload?: string): Promise<boolean> {
 		const current = this._sessionChats.get(session);
 		if (!current || current.revision !== expectedRevision) {
 			return false;
 		}
-		this._sessionChats.set(session, { ...current, legacyMirroredRevision: expectedRevision });
+		this._sessionChats.set(session, { ...current, legacyMirroredRevision: expectedRevision, ...(payload === undefined ? {} : { legacyMirroredPayload: payload }) });
+		return true;
+	}
+	async recordSessionChatCatalogLegacyMirrorPayload(session: string, expectedRevision: number, payload: string): Promise<boolean> {
+		const current = this._sessionChats.get(session);
+		if (!current || current.revision !== expectedRevision) {
+			return false;
+		}
+		this._sessionChats.set(session, { ...current, legacyMirroredPayload: payload });
 		return true;
 	}
 
@@ -989,12 +1009,20 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 		this._sessionChats.set(session, { revision, legacyMirroredRevision: current?.legacyMirroredRevision ?? 0, chats: [...chats] });
 		return revision;
 	}
-	async markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number): Promise<boolean> {
+	async markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number, payload?: string): Promise<boolean> {
 		const current = this._sessionChats.get(session);
 		if (!current || current.revision !== expectedRevision) {
 			return false;
 		}
-		this._sessionChats.set(session, { ...current, legacyMirroredRevision: expectedRevision });
+		this._sessionChats.set(session, { ...current, legacyMirroredRevision: expectedRevision, ...(payload === undefined ? {} : { legacyMirroredPayload: payload }) });
+		return true;
+	}
+	async recordSessionChatCatalogLegacyMirrorPayload(session: string, expectedRevision: number, payload: string): Promise<boolean> {
+		const current = this._sessionChats.get(session);
+		if (!current || current.revision !== expectedRevision) {
+			return false;
+		}
+		this._sessionChats.set(session, { ...current, legacyMirroredPayload: payload });
 		return true;
 	}
 
@@ -3691,11 +3719,11 @@ suite('AgentService (node dispatcher)', () => {
 	suite('aggregation', () => {
 
 		class TimedExternalAgent extends MockAgent {
-			readonly catalog = new Map<string, { session: URI; modifiedTime: number; _meta?: IAgentSessionMetadata['_meta'] }>();
+			readonly catalog = new Map<string, { session: URI; modifiedTime: number; summary?: string; _meta?: IAgentSessionMetadata['_meta'] }>();
 
-			addSession(id: string, modifiedTime: number, _meta?: IAgentSessionMetadata['_meta']): URI {
+			addSession(id: string, modifiedTime: number, _meta?: IAgentSessionMetadata['_meta'], summary?: string): URI {
 				const session = AgentSession.uri(this.id, id);
-				this.catalog.set(id, { session, modifiedTime, _meta });
+				this.catalog.set(id, { session, modifiedTime, summary, _meta });
 				(this as unknown as { _sessions: Map<string, URI> })._sessions.set(id, session);
 				return session;
 			}
@@ -3705,6 +3733,7 @@ suite('AgentService (node dispatcher)', () => {
 					chat: URI.parse(buildDefaultChatUri(entry.session)),
 					startTime: entry.modifiedTime,
 					modifiedTime: entry.modifiedTime,
+					...(entry.summary ? { summary: entry.summary } : {}),
 					...(entry._meta ? { _meta: entry._meta } : {}),
 				}));
 			}
@@ -3712,14 +3741,14 @@ suite('AgentService (node dispatcher)', () => {
 			override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
 				const session = resolveAgentChatContext(context, chat).configurationResource;
 				const entry = this.catalog.get(AgentSession.id(session));
-				return entry ? { chat, startTime: entry.modifiedTime, modifiedTime: entry.modifiedTime, ...(entry._meta ? { _meta: entry._meta } : {}) } : undefined;
+				return entry ? { chat, startTime: entry.modifiedTime, modifiedTime: entry.modifiedTime, ...(entry.summary ? { summary: entry.summary } : {}), ...(entry._meta ? { _meta: entry._meta } : {}) } : undefined;
 			}
 
 			// The catalog is now read back for listing, so the session-scoped
 			// metadata a real provider reports must agree with the chat-scoped one.
 			override async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
 				const entry = this.catalog.get(AgentSession.id(session));
-				return entry ? { session, startTime: entry.modifiedTime, modifiedTime: entry.modifiedTime, ...(entry._meta ? { _meta: entry._meta } : {}) } : undefined;
+				return entry ? { session, startTime: entry.modifiedTime, modifiedTime: entry.modifiedTime, ...(entry.summary ? { summary: entry.summary } : {}), ...(entry._meta ? { _meta: entry._meta } : {}) } : undefined;
 			}
 		}
 
@@ -3741,10 +3770,16 @@ suite('AgentService (node dispatcher)', () => {
 
 		class CountingMetadataAgent extends TimedExternalAgent {
 			metadataCalls: string[] = [];
+			prewarmCalls = 0;
 
 			override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
 				this.metadataCalls.push(resolveAgentChatContext(context, chat).configurationResource.toString());
 				return super.getChatMetadata(chat, context);
+			}
+
+			async prewarmSessionMetadata() {
+				this.prewarmCalls++;
+				return toDisposable(() => { });
 			}
 		}
 
@@ -4074,11 +4109,71 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				sessions: listed.map(metadata => ({ session: metadata.session.toString(), title: metadata.summary })),
 				providerMetadataCalls: agent.metadataCalls,
+				providerPrewarmCalls: agent.prewarmCalls,
 				sessionDatabaseOpens: databaseOpens,
 			}, {
 				sessions: [{ session: session.toString(), title: 'Central' }],
 				providerMetadataCalls: [],
+				providerPrewarmCalls: 0,
 				sessionDatabaseOpens: 0,
+			});
+		});
+
+		test('recency discovery invalidates an overlapping central list', async () => {
+			const orchestratorDatabase = new CentralCatalogDatabase();
+			const session = AgentSession.uri('copilot', 'recency-overlap');
+			await orchestratorDatabase.registerSessionV2(session.toString(), {
+				provider: 'copilot',
+				startTime: 10,
+				modifiedTime: 10,
+				source: 'explicit',
+			}, { checkTombstone: false });
+			orchestratorDatabase.setCatalog(session, centralData(10, 'Central'));
+			const svc = createCentralCatalogService(createSessionDataService(), orchestratorDatabase);
+			await svc.whenCatalogReconciliationIdle();
+			const agent = disposables.add(new CountingMetadataAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			await timeout(0);
+
+			const snapshotRead = new DeferredPromise<void>();
+			const releaseSnapshot = new DeferredPromise<void>();
+			const internal = svc as unknown as {
+				_listRegisteredSessions(): Promise<readonly IRegisteredSession[]>;
+				_registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean>;
+				_computeSessions(mode: AgentHostExternalSessionsMode, epoch?: number): Promise<readonly IAgentSessionMetadata[]>;
+			};
+			const originalComputeSessions = internal._computeSessions.bind(svc);
+			let listComputations = 0;
+			internal._computeSessions = (mode, epoch) => {
+				listComputations++;
+				return originalComputeSessions(mode, epoch);
+			};
+			const originalListRegisteredSessions = internal._listRegisteredSessions.bind(svc);
+			let blockFirstRead = true;
+			internal._listRegisteredSessions = async () => {
+				const result = await originalListRegisteredSessions();
+				if (blockFirstRead) {
+					blockFirstRead = false;
+					snapshotRead.complete();
+					await releaseSnapshot.p;
+				}
+				return result;
+			};
+
+			const first = svc.listSessions();
+			await snapshotRead.p;
+			await internal._registerDiscoveredChats(agent, [discoveredChat(session, false, 20)]);
+			const second = svc.listSessions();
+			releaseSnapshot.complete();
+
+			assert.deepStrictEqual({
+				first: (await first)[0]?.modifiedTime,
+				second: (await second)[0]?.modifiedTime,
+				listComputations,
+			}, {
+				first: 20,
+				second: 20,
+				listComputations: 2,
 			});
 		});
 
@@ -4169,11 +4264,13 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				sessions: listed.map(metadata => metadata.session.toString()),
 				providerMetadataCalls: agent.metadataCalls,
+				providerPrewarmCalls: agent.prewarmCalls,
 				sessionDatabaseOpenSessions: [...new Set(databaseOpens)],
 				sessionDatabaseOpenCount: databaseOpens.length,
 			}, {
 				sessions: [centralSession.toString(), fallbackSession.toString()],
 				providerMetadataCalls: [fallbackSession.toString()],
+				providerPrewarmCalls: 1,
 				sessionDatabaseOpenSessions: [buildDefaultChatUri(fallbackSession), fallbackSession.toString()],
 				sessionDatabaseOpenCount: 4,
 			});
@@ -4381,23 +4478,63 @@ suite('AgentService (node dispatcher)', () => {
 		test('rediscovery advances recency without overwriting durable unread state for an existing external session', async () => {
 			const db = new TestSessionDatabase();
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			const agent = disposables.add(new MockAgent('copilot'));
-			const session = AgentSession.uri('copilot', 'rediscovered-external');
-			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			const session = agent.addSession('rediscovered-external', Date.now(), undefined, 'Before rediscovery');
 			registerTestAgentProvider(svc, agent);
 			await svc.listSessions();
 			await db.setMetadata(AH_META_IS_READ_DB_KEY, '');
 			const rediscoveredModifiedTime = Date.now() + 60_000;
+			agent.catalog.set(AgentSession.id(session), { session, modifiedTime: rediscoveredModifiedTime, summary: 'After rediscovery' });
 
-			await (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, [discoveredChat(session, true, rediscoveredModifiedTime)]);
+			const rediscovered = await agent.listExternalChats();
+			await (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, rediscovered.map(metadata => ({ ...metadata, external: true })));
+			await svc.whenCatalogReconciliationIdle();
 			const registered = await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.get(session);
+			const listed = await svc.listSessions();
 
 			assert.deepStrictEqual({
 				isRead: await db.getMetadata(AH_META_IS_READ_DB_KEY),
 				modifiedTime: registered?.modifiedTime,
+				summary: listed[0]?.summary,
 			}, {
 				isRead: '',
 				modifiedTime: rediscoveredModifiedTime,
+				summary: 'After rediscovery',
+			});
+		});
+
+		test('a failed recency batch does not skip independent discovery post-processing', async () => {
+			const database = new TransientRegistryWriteDatabase();
+			const svc = createExternalSessionService(createSessionDataService(), database);
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			const existing = agent.addSession('existing-before-batch-failure', 10);
+			await database.registerRuntimeSession(existing.toString(), {
+				provider: 'copilot',
+				startTime: 10,
+				modifiedTime: 10,
+				source: 'restore',
+			}, { checkTombstone: false });
+			const register = (svc as unknown as {
+				_registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean>;
+			})._registerDiscoveredChats.bind(svc);
+			const added = agent.addSession('added-during-batch-failure', 20);
+			database.failModifiedTimeBatches(2);
+
+			const changed = await register(agent, [
+				discoveredChat(existing, false, 30),
+				discoveredChat(added, false, 20),
+			]);
+			const registered = new Set((await svc.getRegisteredSessions()).map(session => session.toString()));
+
+			assert.deepStrictEqual({
+				changed,
+				modifiedTimeBatchAttempts: database.modifiedTimeBatchAttempts,
+				addedWasRegistered: registered.has(added.toString()),
+			}, {
+				changed: true,
+				modifiedTimeBatchAttempts: 2,
+				addedWasRegistered: true,
 			});
 		});
 
@@ -16916,16 +17053,22 @@ suite('AgentService (node dispatcher)', () => {
 
 			const session = await localService.createSession({
 				provider: 'copilot',
-				config: { autoApprove: 'autoApprove' },
+				config: {
+					autoApprove: 'autoApprove',
+					[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'export TRANSIENT=1' }],
+				},
 				_meta: { 'vscode.devContainerWorktree': { version: 1, handle: '00000000-0000-4000-8000-000000000001' } },
 			});
 
 			// Wait for the fire-and-forget persistence to flush
 			await new Promise(r => setTimeout(r, 50));
-			const listed = await localService.listSessions();
-
-			// Simulate a server restart: drop the in-memory state
+			const persistedConfigValues = JSON.parse((await sessionDb.getMetadata('configValues'))!);
+			await sessionDb.setMetadata('configValues', JSON.stringify({
+				autoApprove: 'autoApprove',
+				[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'export STALE=1' }],
+			}));
 			getStateManager(localService).removeSession(session.toString());
+			const listed = await localService.listSessions();
 
 			localAgent.sessionMessages = [
 				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
@@ -16936,10 +17079,12 @@ suite('AgentService (node dispatcher)', () => {
 			const state = getStateManager(localService).getSessionState(session.toString());
 			assert.ok(state);
 			assert.deepStrictEqual({
+				persistedConfigValues,
 				config: state!.config?.values,
 				listedDevContainerWorktree: listed[0]?._meta?.['vscode.devContainerWorktree'],
 				devContainerWorktree: state!._meta?.['vscode.devContainerWorktree'],
 			}, {
+				persistedConfigValues: { autoApprove: 'autoApprove' },
 				config: { autoApprove: 'autoApprove' },
 				listedDevContainerWorktree: { version: 1, handle: '00000000-0000-4000-8000-000000000001' },
 				devContainerWorktree: { version: 1, handle: '00000000-0000-4000-8000-000000000001' },

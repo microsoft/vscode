@@ -23,7 +23,7 @@ import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, I
 import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
-import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { omitTransientSessionConfigValues, SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
 import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, isAgentHostAutomationMigrationCompletion } from '../common/automationMigration.js';
@@ -72,7 +72,7 @@ import { AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './age
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION } from './agentHostCatalogProjection.js';
 import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult } from './agentHostCatalogReconciliationService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
-import { AgentHostCatalogListReader } from './agentHostCatalogListReader.js';
+import { AgentHostCatalogListReader, AgentHostCatalogListResult } from './agentHostCatalogListReader.js';
 import { AgentHostSessionsV2CandidateResolution, AgentHostSessionsV2MigrationService, IAgentHostSessionsV2Candidate } from './agentHostSessionsV2MigrationService.js';
 
 import { buildWorktreeFailureNotification, IAgentHostWorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
@@ -2210,7 +2210,19 @@ export class AgentService extends Disposable implements IAgentService {
 				return false;
 			}
 		})));
-		await this._sessionRegistry.updateModifiedTimes(modifiedTimeAdvances);
+		if (modifiedTimeAdvances.length > 0) {
+			try {
+				await this._retryRegistryMutation(
+					() => this._sessionRegistry.updateModifiedTimes(modifiedTimeAdvances),
+					`batched modified-time update for ${modifiedTimeAdvances.length} session(s)`,
+				);
+				this._invalidateSessionList();
+			} catch (error) {
+				this._logService.warn(`[AgentService] Failed to persist ${modifiedTimeAdvances.length} discovered session modified time(s); continuing discovery post-processing`, error);
+			}
+			await Promise.all(modifiedTimeAdvances.map(({ session }) => this._markCatalogPayloadDirty(session.toString())));
+			this._catalogReconciliationService.schedule();
+		}
 		try {
 			await this._sessionRegistry.markSessionsV2ExcludedBatch(exclusionsToMark);
 		} catch (error) {
@@ -2599,41 +2611,49 @@ export class AgentService extends Disposable implements IAgentService {
 		const registered = hiddenExternal.size > 0
 			? allRegistered.filter(entry => !hiddenExternal.has(entry.session.toString()))
 			: allRegistered;
-		const prewarmDisposables: IDisposable[] = [];
-		const involvedProviders = new Map<AgentProvider, IAgent>();
-		for (const entry of registered) {
-			if (!involvedProviders.has(entry.provider)) {
-				const agent = this._providerService.getProvider(entry.provider);
-				if (agent?.prewarmSessionMetadata) {
-					involvedProviders.set(entry.provider, agent);
-				}
+		const catalogLimiter = new Limiter<{
+			readonly registeredSession: IRegisteredSession;
+			readonly central: AgentHostCatalogListResult;
+		} | undefined>(4);
+		const catalogResults = await Promise.all(registered.map(registeredSession => catalogLimiter.queue(async () => {
+			const { session } = registeredSession;
+			if (this._stateManager.isIdleProvisionalSession(session.toString()) || this._unpersistedChatBackings.has(session.toString())) {
+				return undefined;
+			}
+			return {
+				registeredSession,
+				central: await this._catalogListReader.read(registeredSession),
+			};
+		})));
+		const fallbackProviders = new Map<AgentProvider, IAgent>();
+		for (const result of catalogResults) {
+			if (!result || result.central.eligible || result.central.chatBacking || fallbackProviders.has(result.registeredSession.provider)) {
+				continue;
+			}
+			const agent = this._providerService.getProvider(result.registeredSession.provider);
+			if (agent?.prewarmSessionMetadata) {
+				fallbackProviders.set(result.registeredSession.provider, agent);
 			}
 		}
-		await Promise.all([...involvedProviders.values()].map(async agent => {
+		const prewarmDisposables: IDisposable[] = [];
+		await Promise.all([...fallbackProviders.values()].map(async agent => {
 			try {
 				prewarmDisposables.push(await agent.prewarmSessionMetadata!());
 			} catch (err) {
 				this._logService.warn(`[AgentService] listSessions: failed to prewarm metadata for provider ${agent.id}`, err);
 			}
 		}));
-		const metadataLimiter = new Limiter<IAgentSessionMetadata | undefined>(4);
 		const repairSessions = new Set<string>();
 		const persistedFallbackTitles = new Map<string, string>();
+		const fallbackLimiter = new Limiter<IAgentSessionMetadata | undefined>(4);
 		let results: readonly (IAgentSessionMetadata | undefined)[];
 		try {
-			results = await Promise.all(registered.map(registeredSession => metadataLimiter.queue(async (): Promise<IAgentSessionMetadata | undefined> => {
+			results = await Promise.all(catalogResults.map(result => fallbackLimiter.queue(async (): Promise<IAgentSessionMetadata | undefined> => {
+				if (!result) {
+					return undefined;
+				}
+				const { registeredSession, central } = result;
 				const { session } = registeredSession;
-				// Idle provisional sessions stay hidden until they materialize or gain
-				// turn activity (#321269). The state-manager overlay below re-surfaces
-				// them then.
-				if (this._stateManager.isIdleProvisionalSession(session.toString())) {
-					return undefined;
-				}
-				if (this._unpersistedChatBackings.has(session.toString())) {
-					return undefined;
-				}
-
-				const central = await this._catalogListReader.read(registeredSession);
 				if (central.eligible) {
 					return central.metadata;
 				}
@@ -4383,7 +4403,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService.warn(`[AgentService] Failed to open session database to persist configValues for ${session.toString()}: ${toErrorMessage(err)}`);
 			return;
 		}
-		ref.object.setMetadata('configValues', JSON.stringify(values)).catch(err => {
+		ref.object.setMetadata('configValues', JSON.stringify(omitTransientSessionConfigValues(values))).catch(err => {
 			this._logService.warn(`[AgentService] Failed to persist configValues for ${session.toString()}: ${toErrorMessage(err)}`);
 		}).finally(() => {
 			ref.dispose();
@@ -6009,7 +6029,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let title = meta.summary ?? 'Session';
 		let isRead: boolean | undefined;
 		let isArchived: boolean | undefined;
-		let persistedConfigValues: Record<string, string> | undefined;
+		let persistedConfigValues: Record<string, unknown> | undefined;
 		let changes: ChangesSummary | undefined;
 		let gitMetadata: Record<string, string | undefined> | undefined;
 		let changesetMetadata: Record<string, string | undefined> | undefined;
@@ -6119,7 +6139,12 @@ export class AgentService extends Disposable implements IAgentService {
 
 						if (m.configValues) {
 							try {
-								persistedConfigValues = JSON.parse(m.configValues);
+								const parsed: unknown = JSON.parse(m.configValues);
+								if (isRecord(parsed)) {
+									persistedConfigValues = omitTransientSessionConfigValues(parsed);
+								} else {
+									this._logService.warn(`[AgentService] Ignoring persisted configValues with an invalid shape for ${sessionStr}`);
+								}
 							} catch (err) {
 								this._logService.warn(`[AgentService] Failed to parse persisted configValues for ${sessionStr}: ${toErrorMessage(err)}`);
 							}

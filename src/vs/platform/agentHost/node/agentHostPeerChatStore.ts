@@ -57,13 +57,13 @@ export class AgentHostPeerChatStore {
 				}
 				const central = this._entriesFromCatalog(catalog.chats);
 				if (catalog.legacyMirroredRevision !== catalog.revision) {
-					try {
-						await this._publishCompatibilityState(session, central, catalog.revision);
-					} catch (error) {
-						this._logService.error(error, `[AgentHostPeerChatStore] Failed to publish peer-chat compatibility state for ${session.toString()}`);
-					}
-					result = central;
+					result = (await this._reconcileUnmirroredCatalog(session))?.entries;
 					return;
+				}
+				if (legacy !== undefined && catalog.legacyMirroredPayload === undefined) {
+					if (!await this._database.markSessionChatCatalogLegacyMirrored(session.toString(), catalog.revision, JSON.stringify(legacy))) {
+						continue;
+					}
 				}
 				if (legacy !== undefined && JSON.stringify(legacy) !== JSON.stringify(central)) {
 					if (!await this._replaceCentral(session, legacy, catalog.revision)) {
@@ -177,12 +177,24 @@ export class AgentHostPeerChatStore {
 
 	private async _applyWrite(session: URI, mutate: (entries: IPersistedPeerChat[]) => IPersistedPeerChat[]): Promise<void> {
 		while (true) {
-			const catalog = await this._database.getSessionChatCatalog(session.toString());
+			let catalog = await this._database.getSessionChatCatalog(session.toString());
+			let reconciledEntries: IPersistedPeerChat[] | undefined;
+			if (catalog && catalog.legacyMirroredRevision !== catalog.revision) {
+				const reconciled = await this._reconcileUnmirroredCatalog(session);
+				catalog = await this._database.getSessionChatCatalog(session.toString());
+				if (!reconciled || !catalog || catalog.revision !== reconciled.revision) {
+					continue;
+				}
+				reconciledEntries = reconciled.entries;
+			}
 			const central = catalog ? this._entriesFromCatalog(catalog.chats) : undefined;
-			const legacy = !catalog || catalog.legacyMirroredRevision === catalog.revision
-				? await this.tryReadLegacy(session)
-				: undefined;
-			const current = legacy ?? central ?? [];
+			const legacy = reconciledEntries ? undefined : await this.tryReadLegacy(session);
+			if (catalog && legacy !== undefined && catalog.legacyMirroredRevision === catalog.revision && catalog.legacyMirroredPayload === undefined) {
+				if (!await this._database.markSessionChatCatalogLegacyMirrored(session.toString(), catalog.revision, JSON.stringify(legacy))) {
+					continue;
+				}
+			}
+			const current = reconciledEntries ?? legacy ?? central ?? [];
 			const updated = this._parse(session, JSON.stringify(mutate(current)));
 			if (await this._replaceCentral(session, updated, catalog?.revision)) {
 				return;
@@ -237,23 +249,85 @@ export class AgentHostPeerChatStore {
 
 	private _enqueueLegacyMirror(session: URI): Promise<void> {
 		return this._enqueue(session, async () => {
-			const catalog = await this._database.getSessionChatCatalog(session.toString());
-			if (!catalog || catalog.legacyMirroredRevision === catalog.revision) {
-				return;
-			}
-			const entries = this._entriesFromCatalog(catalog.chats);
-			await this._publishCompatibilityState(session, entries, catalog.revision);
+			await this._reconcileUnmirroredCatalog(session);
 		});
 	}
 
+	private async _reconcileUnmirroredCatalog(session: URI): Promise<{ readonly entries: IPersistedPeerChat[]; readonly revision: number } | undefined> {
+		while (true) {
+			const catalog = await this._database.getSessionChatCatalog(session.toString());
+			if (!catalog) {
+				return undefined;
+			}
+			const central = this._entriesFromCatalog(catalog.chats);
+			if (catalog.legacyMirroredRevision === catalog.revision) {
+				return { entries: central, revision: catalog.revision };
+			}
+			const legacy = await this.tryReadLegacy(session);
+			const base = this._parseLegacyMirrorBase(session, catalog.legacyMirroredPayload);
+			if (legacy !== undefined && base !== undefined && JSON.stringify(legacy) !== JSON.stringify(base)) {
+				const merged = this._mergeLegacyChanges(base, central, legacy);
+				if (!await this._replaceCentral(session, merged, catalog.revision)) {
+					continue;
+				}
+				const revision = catalog.revision + 1;
+				if (!await this._database.recordSessionChatCatalogLegacyMirrorPayload(session.toString(), revision, JSON.stringify(legacy))) {
+					continue;
+				}
+				return { entries: merged, revision };
+			}
+			try {
+				await this._publishCompatibilityState(session, central, catalog.revision);
+			} catch (error) {
+				this._logService.error(error, `[AgentHostPeerChatStore] Failed to publish peer-chat compatibility state for ${session.toString()}`);
+			}
+			return { entries: central, revision: catalog.revision };
+		}
+	}
+
 	private async _writeLegacyMirror(session: URI, entries: readonly IPersistedPeerChat[], revision: number): Promise<boolean> {
+		const payload = JSON.stringify(entries);
 		const ref = this._sessionDataService.openDatabase(session);
 		try {
-			await ref.object.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify(entries));
+			await ref.object.setMetadata(PEER_CHATS_METADATA_KEY, payload);
 		} finally {
 			ref.dispose();
 		}
-		return this._database.markSessionChatCatalogLegacyMirrored(session.toString(), revision);
+		return this._database.markSessionChatCatalogLegacyMirrored(session.toString(), revision, payload);
+	}
+
+	private _parseLegacyMirrorBase(session: URI, payload: string | undefined): IPersistedPeerChat[] | undefined {
+		if (payload === undefined) {
+			return undefined;
+		}
+		try {
+			return this._parse(session, payload);
+		} catch (error) {
+			this._logService.warn(`[AgentHostPeerChatStore] Ignoring malformed legacy mirror base for ${session.toString()}: ${toErrorMessage(error)}`);
+			return undefined;
+		}
+	}
+
+	private _mergeLegacyChanges(base: readonly IPersistedPeerChat[], central: readonly IPersistedPeerChat[], legacy: readonly IPersistedPeerChat[]): IPersistedPeerChat[] {
+		const baseByUri = new Map(base.map(entry => [entry.uri, entry]));
+		const centralByUri = new Map(central.map(entry => [entry.uri, entry]));
+		const legacyUris = new Set(legacy.map(entry => entry.uri));
+		const merged: IPersistedPeerChat[] = [];
+		for (const legacyEntry of legacy) {
+			const baseEntry = baseByUri.get(legacyEntry.uri);
+			const centralEntry = centralByUri.get(legacyEntry.uri);
+			if (!baseEntry || JSON.stringify(legacyEntry) !== JSON.stringify(baseEntry)) {
+				merged.push(legacyEntry);
+			} else if (centralEntry) {
+				merged.push(centralEntry);
+			}
+		}
+		for (const centralEntry of central) {
+			if (!baseByUri.has(centralEntry.uri) && !legacyUris.has(centralEntry.uri)) {
+				merged.push(centralEntry);
+			}
+		}
+		return merged;
 	}
 
 	private async _readChatMetadata(entry: IPersistedPeerChat): Promise<IPersistedPeerChat> {

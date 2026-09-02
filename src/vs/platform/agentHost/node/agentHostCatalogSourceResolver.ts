@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
+import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readAgentDevContainerWorktreeMetadata } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, stringifySessionArtifacts } from '../common/sessionArtifacts.js';
 import { META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
@@ -95,6 +96,7 @@ const sessionMetadata = {
 	gitHub: parsedSessionMetadataKey(META_GITHUB_STATE, readPersistedGitHubState),
 	git: parsedSessionMetadataKey(META_GIT_STATE, readPersistedGitState),
 	sourceControl: parsedSessionMetadataKey(META_SOURCE_CONTROL_STATE, readPersistedSourceControlState),
+	devContainerWorktree: parsedSessionMetadataKey(AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readPersistedDevContainerWorktree),
 } as const;
 
 const sessionMetadataKeys: readonly ISessionMetadataKey[] = Object.values(sessionMetadata);
@@ -194,6 +196,10 @@ export class AgentHostCatalogSourceResolver {
 		const worktreeProject = this._dependencies.worktreeProjectFromRepositoryRoot(sessionMetadata.worktreeRepositoryRoot.read(metadata));
 		const ehcliAdoptable = readSessionEhcliAdoptable(state.meta);
 		const ehcliAdopted = readSessionEhcliAdopted(state.meta) || sessionMetadata.ehcliAdopted.read(metadata) === true;
+		const persistedDevContainerWorktree = sessionMetadata.devContainerWorktree.read(metadata);
+		const devContainerWorktree = preferPersistedMetadata && sessionMetadata.devContainerWorktree.has(metadata)
+			? persistedDevContainerWorktree
+			: readAgentDevContainerWorktreeMetadata(state.meta) ?? persistedDevContainerWorktree;
 		const meta: AgentHostCatalogMetadata = {
 			...(multiRoot ? { [SESSION_META_MULTI_ROOT_KEY]: multiRoot } : undefined),
 			...(folderPicker ? { [SESSION_META_FOLDER_PICKER_KEY]: folderPicker } : undefined),
@@ -205,6 +211,7 @@ export class AgentHostCatalogSourceResolver {
 			...(workspaceless ? { [SESSION_META_WORKSPACELESS_KEY]: true } : undefined),
 			...(ehcliAdoptable ? { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true } : undefined),
 			...(ehcliAdopted ? { [SESSION_META_EHCLI_ADOPTED_KEY]: true } : undefined),
+			...(devContainerWorktree ? { [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: devContainerWorktree } : undefined),
 		};
 		const data: AgentHostCatalogData = {
 			modifiedTime: state.modifiedTime,
@@ -262,6 +269,9 @@ export class AgentHostCatalogSourceResolver {
 		}
 		if (metadata[WORKTREE_META_REPOSITORY_ROOT] !== undefined) {
 			legacyMetadata[WORKTREE_META_REPOSITORY_ROOT] = metadata[WORKTREE_META_REPOSITORY_ROOT];
+		}
+		if (devContainerWorktree || sessionMetadata.devContainerWorktree.has(metadata)) {
+			legacyMetadata[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY] = devContainerWorktree ? JSON.stringify(devContainerWorktree) : '';
 		}
 		if (metadataOverrides[SESSION_CUSTOM_TITLE_KEY] !== undefined || persisted[SESSION_CUSTOM_TITLE_KEY] !== undefined) {
 			legacyMetadata[SESSION_CUSTOM_TITLE_KEY] = title;
@@ -377,6 +387,14 @@ function readPersistedGitHubState(value: string | undefined): ISessionGitHubStat
 	}
 	try {
 		return readSessionGitHubState({ [SESSION_META_GITHUB_KEY]: JSON.parse(value) });
+	} catch {
+		return undefined;
+	}
+}
+
+function readPersistedDevContainerWorktree(value: string): ReturnType<typeof readAgentDevContainerWorktreeMetadata> {
+	try {
+		return readAgentDevContainerWorktreeMetadata({ [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: JSON.parse(value) });
 	} catch {
 		return undefined;
 	}
