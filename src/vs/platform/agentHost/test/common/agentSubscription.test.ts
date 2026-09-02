@@ -837,6 +837,38 @@ suite('ChatStateSubscription', () => {
 			activeTurn: undefined,
 		});
 	});
+
+	test('confirming one optimistic truncation leaves a later optimistic truncation pending', () => {
+		const sub = createSub();
+		sub.handleSnapshot(makeChatState(chatUri, undefined, { turns: [makeCompletedTurn('turn-0')] }), 0);
+		const firstTruncateSeq = sub.applyOptimistic({ type: ActionType.ChatTruncated });
+		sub.applyOptimistic(makeTurnStart('turn-1'));
+		sub.applyOptimistic({ type: ActionType.ChatTruncated });
+
+		sub.receiveEnvelope(makeEnvelope({ type: ActionType.ChatTruncated }, 1, { clientId: 'c1', clientSeq: firstTruncateSeq }));
+
+		assert.deepStrictEqual(summarize(sub), {
+			pending: [ActionType.ChatTurnStarted, ActionType.ChatTruncated],
+			confirmedTurns: [],
+			turns: [],
+			activeTurn: undefined,
+		});
+	});
+
+	test('a foreign-origin confirmed truncation does not retire an optimistic truncation', () => {
+		const sub = createSub();
+		sub.handleSnapshot(makeChatState(chatUri, undefined, { turns: [makeCompletedTurn('turn-0')] }), 0);
+		sub.applyOptimistic({ type: ActionType.ChatTruncated });
+
+		sub.receiveEnvelope(makeEnvelope({ type: ActionType.ChatTruncated }, 1, { clientId: 'c2', clientSeq: 5 }));
+
+		assert.deepStrictEqual(summarize(sub), {
+			pending: [ActionType.ChatTruncated],
+			confirmedTurns: [],
+			turns: [],
+			activeTurn: undefined,
+		});
+	});
 });
 
 // TerminalStateSubscription

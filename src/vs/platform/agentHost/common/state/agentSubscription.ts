@@ -495,29 +495,31 @@ export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
 			return;
 		}
 		const alreadyStarted = this._confirmedState?.activeTurn?.id === action.turnId;
-		this._retirePending(p => p.action.type === ActionType.ChatTurnStarted && p.action.turnId === action.turnId, !alreadyStarted);
+		this._retireEarliestPending(p => p.action.type === ActionType.ChatTurnStarted && p.action.turnId === action.turnId, !alreadyStarted);
 	}
 
 	private _promotePendingTruncationIfApplied(envelope: ActionEnvelope, isOwnAction: boolean): void {
-		// A host may apply a truncation without echoing its clientSeq, which would leave it replaying over every later turn.
+		// A host may apply a truncation without echoing its clientSeq, leaving it to replay over every later turn.
 		const { action, origin } = envelope;
 		if (!isChatAction(action)) {
 			return;
 		}
-		if (action.type === ActionType.ChatTruncated) {
-			this._retirePending(p => p.action.type === ActionType.ChatTruncated && p.action.turnId === action.turnId);
+		if (action.type === ActionType.ChatTruncated && !origin) {
+			this._retireEarliestPending(p => p.action.type === ActionType.ChatTruncated && p.action.turnId === action.turnId);
 		} else if (action.type === ActionType.ChatTurnStarted && isOwnAction && origin) {
-			this._retirePending(p => p.action.type === ActionType.ChatTruncated && p.clientSeq < origin.clientSeq);
+			this._retireEarliestPending(p => p.action.type === ActionType.ChatTruncated && p.clientSeq < origin.clientSeq);
 		}
 	}
 
-	/** Drops pending actions the host has evidently processed, applying them to confirmed state first when `promote` is set. */
-	private _retirePending(isProcessed: (pending: IPendingChatAction) => boolean, promote = true): void {
-		for (const pending of this._pendingActions.filter(isProcessed)) {
-			this._pendingActions.splice(this._pendingActions.indexOf(pending), 1);
-			if (promote) {
-				this._confirmedApply(pending.action);
-			}
+	/** Drops the earliest pending action the host has evidently processed, folding it into confirmed state first when `promote` is set. */
+	private _retireEarliestPending(isProcessed: (pending: IPendingChatAction) => boolean, promote = true): void {
+		const index = this._pendingActions.findIndex(isProcessed);
+		if (index === -1) {
+			return;
+		}
+		const [pending] = this._pendingActions.splice(index, 1);
+		if (promote) {
+			this._confirmedApply(pending.action);
 		}
 	}
 
