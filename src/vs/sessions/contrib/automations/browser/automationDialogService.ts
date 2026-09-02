@@ -26,7 +26,7 @@ import { ILanguageModelsService } from '../../../../workbench/contrib/chat/commo
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { IFormState, IValidationState, isAutomationDialogEditCommand, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, updateSaveButtonState } from './automationDialog.js';
+import { IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
 
 const $ = DOM.$;
 
@@ -82,8 +82,9 @@ export class AutomationDialogService implements IAutomationDialogService {
 	async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
 		const disposables = new DisposableStore();
 
-		const initial = options.existing;
-		const isEdit = !!initial;
+		const existing = options.existing;
+		const initial = existing ?? options.initialValues;
+		const isEdit = !!existing;
 		const initialTarget = initial?.target;
 		const initialWorkspaceTarget = initialTarget?.kind === 'workspace' ? initialTarget : undefined;
 
@@ -182,13 +183,14 @@ export class AutomationDialogService implements IAutomationDialogService {
 							...(cancelButton ? [cancelButton.element] : []),
 						],
 						isAutomationDialogPopupTarget,
+						handle.acceptPromptSuggestion,
 					));
 					focusFirst = keyboardNavigation.focusFirst;
 					revalidate = () => updateSaveButtonState(saveButton, state, validation, form, getPrompt, getBranch);
 					revalidate();
 				},
 			}, this.keybindingService, this.layoutService, this.hostService, automationDialogAllowableCommands,
-				(commandId, event) => isAutomationDialogEditCommand(commandId, event.target)),
+				(commandId, event) => shouldPassThroughAutomationDialogCommand(commandId, event.target)),
 		));
 
 		activeContainer.classList.add('automation-dialog-open');
@@ -228,7 +230,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 				return undefined;
 			}
 
-			if (isEdit && initial) {
+			if (existing) {
 				const patch: IUpdateAutomationOptions = {
 					name: state.name,
 					prompt,
@@ -239,7 +241,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					permissionLevel: permissionLevel ?? null,
 					enabled: state.enabled,
 				};
-				return { kind: 'update', id: initial.id, value: patch };
+				return { kind: 'update', id: existing.id, value: patch };
 			}
 
 			const create: ICreateAutomationOptions = {

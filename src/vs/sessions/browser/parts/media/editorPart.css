@@ -27,6 +27,10 @@
 	padding-right: 0;
 }
 
+.agent-sessions-workbench .part.editor > .content .editor-group-container > .title > .title-actions {
+	padding: 0 0 0 var(--vscode-spacing-size40);
+}
+
 .agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .label-container > .single-tab.title-label {
 	padding-left: var(--vscode-spacing-size80);
 }
@@ -35,16 +39,25 @@
 	display: none;
 }
 
-.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .tabs-bar-add-tab {
+.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .label-container > .tabs-bar-add-tab {
 	display: flex;
 	align-items: center;
 	flex: 0 0 auto;
 	height: var(--editor-group-tab-height);
 }
 
-.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .tabs-bar-add-tab .action-label:not(.separator) {
-	width: 22px;
-	height: 22px;
+.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .label-container > .tabs-bar-add-tab::after {
+	content: '';
+	width: var(--vscode-strokeThickness);
+	height: var(--vscode-spacing-size160);
+	margin: 0 var(--vscode-spacing-size40);
+	background-color: var(--vscode-titleBar-activeForeground);
+	opacity: 0.3;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .label-container > .tabs-bar-add-tab .action-label:not(.separator) {
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-codiconFontSize);
 	margin: 0 var(--vscode-spacing-size40);
 	display: flex;
 	align-items: center;
@@ -53,12 +66,12 @@
 	color: var(--chat-tab-inactive-foreground, currentColor);
 }
 
-.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .tabs-bar-add-tab .action-label:not(.separator):not(.disabled):hover {
+.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .label-container > .tabs-bar-add-tab .action-label:not(.separator):not(.disabled):hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--chat-tab-active-foreground, currentColor);
 }
 
-.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .tabs-bar-add-tab .action-label:not(.separator):focus-visible {
+.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .label-container > .tabs-bar-add-tab .action-label:not(.separator):focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }

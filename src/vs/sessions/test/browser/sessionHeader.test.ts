@@ -13,19 +13,15 @@ import { URI } from '../../../base/common/uri.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
-import { Codicon } from '../../../base/common/codicons.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
-import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { SessionHeader } from '../../browser/parts/sessionHeader.js';
-import { SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING } from '../../common/sessionConfig.js';
 import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { IChat, ISessionCapabilities, ISessionWorkspace, SessionStatus } from '../../services/sessions/common/session.js';
+import { IChat, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 
-function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly showMetadataInChatInput?: boolean; readonly workspace?: ISessionWorkspace }) {
+function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: ISessionCapabilities = { supportsMultipleChats: false }) {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
 
@@ -43,9 +39,6 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 		override readonly onDidChangeSessions = Event.None;
 	}());
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
-	instantiationService.stub(IConfigurationService, new TestConfigurationService({
-		[SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING]: options?.showMetadataInChatInput ?? false,
-	}));
 
 	const mainChat = new class extends mock<IChat>() {
 		override readonly title: IObservable<string> = constObservable('Main Chat');
@@ -67,8 +60,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 		override readonly closedChats: IObservable<readonly IChat[]> = constObservable([]);
 		override readonly visibleChatTabs: IObservable<readonly IChat[]> = constObservable([mainChat]);
 		override readonly shouldShowChatTabs: IObservable<boolean> = constObservable(false);
-		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: false });
-		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(options?.workspace);
+		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable(capabilities);
 	}();
 
 	const header = store.add(instantiationService.createInstance(SessionHeader));
@@ -93,17 +85,6 @@ suite('Sessions - SessionHeader', () => {
 		return dragEvent;
 	}
 
-	test('a small pointer move over the meta row (e.g. the changed-files pill) does not start a session drag', () => {
-		const { header } = createHarness(disposables);
-
-		const metaRow = header.element.querySelector<HTMLElement>('.chat-composite-bar-meta-row');
-		assert.ok(metaRow, 'meta row should be rendered');
-
-		const dragEvent = simulateDragFrom(header, metaRow);
-
-		assert.strictEqual(dragEvent.defaultPrevented, true, 'drag-start originating in the meta row must be prevented so the underlying click is not swallowed');
-	});
-
 	test('a small pointer move over the title actions toolbar does not start a session drag', () => {
 		const { header } = createHarness(disposables);
 
@@ -123,36 +104,46 @@ suite('Sessions - SessionHeader', () => {
 		assert.strictEqual(dragEvent.defaultPrevented, false);
 	});
 
-	test('shows read-only workspace metadata beside the title and hides the second row when configured', () => {
-		const root = URI.file('C:\\Code\\vscode');
-		const workspace: ISessionWorkspace = {
-			uri: root,
-			label: 'vscode',
-			icon: Codicon.folder,
-			folders: [{
-				root,
-				workingDirectory: root,
-				name: 'vscode',
-				description: undefined,
-			}],
-			requiresWorkspaceTrust: false,
-			isVirtualWorkspace: false,
-		};
-		const { header } = createHarness(disposables, { showMetadataInChatInput: true, workspace });
+	test('hides the header while it is replaced by the single-group tabs row', () => {
+		const { header } = createHarness(disposables);
 
-		const workspaceMeta = header.element.querySelector<HTMLElement>('.chat-composite-bar-workspace-meta');
-		const metaRow = header.element.querySelector<HTMLElement>('.chat-composite-bar-meta-row');
+		header.setVisible(false);
+		const hiddenDisplay = header.element.style.display;
+		header.setVisible(true);
 
 		assert.deepStrictEqual({
-			workspaceText: workspaceMeta?.textContent,
-			workspaceHidden: workspaceMeta?.classList.contains('hidden'),
-			workspaceFocusable: workspaceMeta?.tabIndex,
-			metaRowDisplay: metaRow?.style.display,
+			hiddenDisplay,
+			restoredDisplay: header.element.style.display,
+			hasMetadataRow: header.element.querySelector('.chat-composite-bar-meta-row') !== null,
 		}, {
-			workspaceText: '·vscode',
-			workspaceHidden: false,
-			workspaceFocusable: -1,
-			metaRowDisplay: 'none',
+			hiddenDisplay: 'none',
+			restoredDisplay: '',
+			hasMetadataRow: false,
+		});
+	});
+
+	test('reports whether the inline rename could be started', () => {
+		const renameable = createHarness(disposables, { supportsMultipleChats: false, supportsRename: true });
+		const notRenameable = createHarness(disposables);
+
+		const startedWhenVisible = renameable.header.startTitleEditing();
+		const hasInput = renameable.header.element.querySelector('.chat-composite-bar-session-title-input') !== null;
+		// The header is hidden while the single-group tabs row replaces it, so
+		// there is no title to rename inline.
+		renameable.header.setVisible(false);
+
+		assert.deepStrictEqual({
+			startedWhenVisible,
+			hasInput,
+			startedWhenHidden: renameable.header.startTitleEditing(),
+			startedWhenNotRenameable: notRenameable.header.startTitleEditing(),
+			hasInputWhenNotRenameable: notRenameable.header.element.querySelector('.chat-composite-bar-session-title-input') !== null,
+		}, {
+			startedWhenVisible: true,
+			hasInput: true,
+			startedWhenHidden: false,
+			startedWhenNotRenameable: false,
+			hasInputWhenNotRenameable: false,
 		});
 	});
 });

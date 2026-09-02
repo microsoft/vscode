@@ -17,7 +17,7 @@ import { openNewSearchEditor } from '../../../../workbench/contrib/searchEditor/
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
-import { IsQuickChatSessionContext, SessionIsCreatedContext, SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../common/contextkeys.js';
+import { IsQuickChatSessionContext, SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../common/contextkeys.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
@@ -43,7 +43,6 @@ const singleEditorTitleWhen = EditorTabsVisibleContext.negate();
 
 const changesTabActionWhen = ContextKeyExpr.and(
 	addTabActionWhen,
-	SessionIsCreatedContext,
 	SinglePaneChangesTabAvailableContext);
 
 const filesTabActionWhen = ContextKeyExpr.and(
@@ -121,7 +120,7 @@ export class NewBrowserTabAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
 		const editorService = accessor.get(IEditorService);
-		const browserInput = browserViewWorkbenchService.getOrCreateLazy(generateUuid(), {});
+		const browserInput = browserViewWorkbenchService.getOrCreateLazy({ id: generateUuid() });
 
 		await editorService.openEditor(browserInput);
 	}
@@ -192,7 +191,7 @@ export class NewChangesTabAction extends Action2 {
 		const sessionChangesService = accessor.get(ISessionChangesService);
 
 		const session = sessionsService.activeSession.get();
-		if (session?.isCreated.get()) {
+		if (session) {
 			const group = editorGroupsService.mainPart.activeGroup;
 			await sessionChangesService.openChangesEditor(session.resource, { index: group.count }, group);
 		}

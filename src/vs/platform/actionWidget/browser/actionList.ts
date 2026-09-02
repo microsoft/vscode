@@ -392,6 +392,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			data.detail.textContent = '';
 			data.detail.style.display = 'none';
 		}
+		data.container.classList.toggle('has-detail', !!element.detail);
 
 		// Render optional inline toggle (shown as its own row below the detail)
 		dom.clearNode(data.inlineToggleContainer);
@@ -714,6 +715,7 @@ export class ActionListWidget<T> extends Disposable {
 	private readonly _filterCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly _groupTitleByIndex = new Map<number, string>();
 	private readonly _standaloneToggles = new Map<IActionListItem<T>, Toggle>();
+	private _visibleMenuItems: readonly IActionListItem<T>[];
 
 	private readonly _onDidRequestLayout = this._register(new Emitter<void>());
 
@@ -735,6 +737,7 @@ export class ActionListWidget<T> extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+		this._visibleMenuItems = items;
 		this._initialFocusItemId = this._options?.initialFocusItemId;
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
@@ -851,6 +854,11 @@ export class ActionListWidget<T> extends Disposable {
 					return null;
 				},
 				getWidgetAriaLabel: () => localize({ key: 'customQuickFixWidget', comment: [`An action widget option`] }, "Action Widget"),
+				getSetSize: () => this._visibleMenuItems.filter(item => item.kind === ActionListItemKind.Action).length,
+				getPosInSet: (_element, index) => Math.max(
+					this._visibleMenuItems.slice(0, index + 1).filter(item => item.kind === ActionListItemKind.Action).length,
+					1
+				),
 				getRole: (e) => {
 					switch (e.kind) {
 						case ActionListItemKind.Action:
@@ -1199,6 +1207,7 @@ export class ActionListWidget<T> extends Disposable {
 		// which may cause DOM changes that shift focus.
 		const filterInputHasFocus = this._filterInput && dom.isActiveElement(this._filterInput);
 
+		this._visibleMenuItems = visible;
 		this._list.splice(0, this._list.length, visible);
 
 		// Notify the parent that a re-layout is needed
@@ -1722,7 +1731,7 @@ export class ActionListWidget<T> extends Disposable {
 		}
 
 		try {
-			return rows.map(({ element, item }) => element.getBoundingClientRect().width + this._computeToolbarWidth(item));
+			return rows.map(({ element, item }) => element.getBoundingClientRect().width + (item.detail ? 0 : this._computeToolbarWidth(item)));
 		} finally {
 			for (const { element } of rows) {
 				element.style.width = '';

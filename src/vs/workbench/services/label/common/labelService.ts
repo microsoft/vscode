@@ -12,7 +12,7 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWo
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IWorkspaceContextService, IWorkspace, isWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION, isUntitledWorkspace, isTemporaryWorkspace } from '../../../../platform/workspace/common/workspace.js';
-import { basenameOrAuthority, basename, joinPath, dirname } from '../../../../base/common/resources.js';
+import { basenameOrAuthority, basename, dirname, isEqualOrParent, joinPath, relativePath } from '../../../../base/common/resources.js';
 import { tildify, getPathLabel } from '../../../../base/common/labels.js';
 import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent, Verbosity } from '../../../../platform/label/common/label.js';
 import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
@@ -178,36 +178,70 @@ export class LabelService extends Disposable implements ILabelService {
 		this.userHome = await this.pathService.userHome();
 	}
 
-	findFormatting(resource: URI): ResourceLabelFormatting | undefined {
+	getUriHome(resource: URI): URI | undefined {
+		const formatter = this.findHomeFormatter(resource);
+		return formatter?.home ? resource.with({ path: formatter.home, query: null, fragment: null }) : undefined;
+	}
+
+	private findHomeFormatter(resource: URI): ResourceLabelFormatter | undefined {
 		let bestResult: ResourceLabelFormatter | undefined;
-
 		for (const formatter of this.formatters) {
-			if (formatter.scheme === resource.scheme) {
-				if (!formatter.authority && (!bestResult || formatter.priority)) {
-					bestResult = formatter;
-					continue;
-				}
-
-				if (!formatter.authority) {
-					continue;
-				}
-
-				if (match(formatter.authority, resource.authority, { ignoreCase: true }) &&
-					(
-						!bestResult?.authority ||
-						formatter.authority.length > bestResult.authority.length ||
-						((formatter.authority.length === bestResult.authority.length) && formatter.priority)
-					)
-				) {
-					bestResult = formatter;
-				}
+			if (!formatter.home || formatter.scheme !== resource.scheme || (formatter.authority && !match(formatter.authority, resource.authority, { ignoreCase: true }))) {
+				continue;
+			}
+			if (!isEqualOrParent(resource, resource.with({ path: formatter.home }))) {
+				continue;
+			}
+			const authorityLength = formatter.authority?.length ?? 0;
+			const bestAuthorityLength = bestResult?.authority?.length ?? 0;
+			const bestHomeLength = bestResult?.home?.length ?? 0;
+			if (!bestResult ||
+				formatter.home.length > bestHomeLength ||
+				(formatter.home.length === bestHomeLength && authorityLength > bestAuthorityLength) ||
+				(formatter.home.length === bestHomeLength && authorityLength === bestAuthorityLength && formatter.priority)
+			) {
+				bestResult = formatter;
 			}
 		}
+		return bestResult;
+	}
 
-		return bestResult ? bestResult.formatting : undefined;
+	findFormatting(resource: URI): ResourceLabelFormatting | undefined {
+		let bestResult: ResourceLabelFormatter | undefined;
+		for (const formatter of this.formatters) {
+			if (formatter.home || formatter.scheme !== resource.scheme) {
+				continue;
+			}
+			if (!formatter.authority && (!bestResult || formatter.priority)) {
+				bestResult = formatter;
+				continue;
+			}
+			if (!formatter.authority) {
+				continue;
+			}
+			if (match(formatter.authority, resource.authority, { ignoreCase: true }) &&
+				(
+					!bestResult?.authority ||
+					formatter.authority.length > bestResult.authority.length ||
+					((formatter.authority.length === bestResult.authority.length) && formatter.priority)
+				)
+			) {
+				bestResult = formatter;
+			}
+		}
+		return bestResult?.formatting;
 	}
 
 	getUriLabel(resource: URI, options: { relative?: boolean; noPrefix?: boolean; separator?: '/' | '\\'; appendWorkspaceSuffix?: boolean } = {}): string {
+		const homeFormatter = options.noPrefix ? undefined : this.findHomeFormatter(resource);
+		if (homeFormatter?.home) {
+			const home = resource.with({ path: homeFormatter.home, query: null, fragment: null });
+			const separator = options.separator ?? homeFormatter.formatting.separator;
+			const path = relativePath(home, resource);
+			const label = this.formatUri(home, homeFormatter.formatting);
+			return path ? `${label}${separator}${this.adjustPathSeparators(path, separator)}` : label;
+		}
+
 		let formatting = this.findFormatting(resource);
 		if (formatting && options.separator) {
 			// mixin separator if defined from the outside

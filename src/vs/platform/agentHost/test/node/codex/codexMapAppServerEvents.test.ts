@@ -131,7 +131,7 @@ suite('codexMapAppServerEvents', () => {
 	test('item/started for agentMessage seeds a markdown part', () => {
 		const state = createCodexSessionMapState();
 		const actions = mapItemStarted(state, {
-			item: { type: 'agentMessage', id: 'item_x', text: '', phase: null, memoryCitation: null },
+			item: { type: 'agentMessage', id: 'item_x', text: '', phase: null, memoryCitation: null, delivery: null },
 			threadId: 'thr_1',
 			turnId: 'turn_a',
 			startedAtMs: 0,
@@ -161,7 +161,7 @@ suite('codexMapAppServerEvents', () => {
 	test('item/agentMessage/delta emits ChatDelta for known itemId', () => {
 		const state = createCodexSessionMapState();
 		mapItemStarted(state, {
-			item: { type: 'agentMessage', id: 'item_x', text: '', phase: null, memoryCitation: null },
+			item: { type: 'agentMessage', id: 'item_x', text: '', phase: null, memoryCitation: null, delivery: null },
 			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
 		});
 		const partId = state.itemToPartId.get('item_x')!;
@@ -295,12 +295,12 @@ suite('codexMapAppServerEvents', () => {
 	test('item/completed for agentMessage clears the mapping', () => {
 		const state = createCodexSessionMapState();
 		mapItemStarted(state, {
-			item: { type: 'agentMessage', id: 'item_x', text: '', phase: null, memoryCitation: null },
+			item: { type: 'agentMessage', id: 'item_x', text: '', phase: null, memoryCitation: null, delivery: null },
 			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
 		});
 		assert.strictEqual(state.itemToPartId.size, 1);
 		mapItemCompleted(state, {
-			item: { type: 'agentMessage', id: 'item_x', text: 'final', phase: null, memoryCitation: null },
+			item: { type: 'agentMessage', id: 'item_x', text: 'final', phase: null, memoryCitation: null, delivery: null },
 			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
 		});
 		assert.strictEqual(state.itemToPartId.size, 0);
@@ -309,11 +309,11 @@ suite('codexMapAppServerEvents', () => {
 	test('second agentMessage in a turn is seeded with a leading block separator', () => {
 		const state = createCodexSessionMapState();
 		const first = mapItemStarted(state, {
-			item: { type: 'agentMessage', id: 'm1', text: 'Consolidating the recommendation and tradeoffs.', phase: null, memoryCitation: null },
+			item: { type: 'agentMessage', id: 'm1', text: 'Consolidating the recommendation and tradeoffs.', phase: null, memoryCitation: null, delivery: null },
 			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
 		});
 		const second = mapItemStarted(state, {
-			item: { type: 'agentMessage', id: 'm2', text: '## Conclusion', phase: null, memoryCitation: null },
+			item: { type: 'agentMessage', id: 'm2', text: '## Conclusion', phase: null, memoryCitation: null, delivery: null },
 			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
 		});
 		assert.deepStrictEqual({
@@ -327,11 +327,11 @@ suite('codexMapAppServerEvents', () => {
 
 	test('agentMessage block separator counter resets per turn', () => {
 		const state = createCodexSessionMapState();
-		mapItemStarted(state, { item: { type: 'agentMessage', id: 'm1', text: 'a', phase: null, memoryCitation: null }, threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0 });
-		mapItemStarted(state, { item: { type: 'agentMessage', id: 'm2', text: 'b', phase: null, memoryCitation: null }, threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0 });
+		mapItemStarted(state, { item: { type: 'agentMessage', id: 'm1', text: 'a', phase: null, memoryCitation: null, delivery: null }, threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0 });
+		mapItemStarted(state, { item: { type: 'agentMessage', id: 'm2', text: 'b', phase: null, memoryCitation: null, delivery: null }, threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0 });
 		// A new turn resets the counter, so its first agentMessage is unseeded.
 		resetCodexTurnMapState(state);
-		const firstOfNextTurn = mapItemStarted(state, { item: { type: 'agentMessage', id: 'm3', text: 'c', phase: null, memoryCitation: null }, threadId: 'thr_1', turnId: 'turn_b', startedAtMs: 0 });
+		const firstOfNextTurn = mapItemStarted(state, { item: { type: 'agentMessage', id: 'm3', text: 'c', phase: null, memoryCitation: null, delivery: null }, threadId: 'thr_1', turnId: 'turn_b', startedAtMs: 0 });
 		assert.strictEqual(markdownPartContent(firstOfNextTurn[0]), 'c');
 	});
 
@@ -356,9 +356,9 @@ suite('codexMapAppServerEvents', () => {
 			turn: { id: 'turn_a', items: [], itemsView: { type: 'full' } as never, status: 'inProgress' as never, error: null, startedAt: null, completedAt: null, durationMs: null },
 		}, 'prompt'));
 		// Preamble message, then the final-answer message; two distinct items.
-		apply(mapItemStarted(state, { item: { type: 'agentMessage', id: 'm1', text: '', phase: null, memoryCitation: null }, threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0 }));
+		apply(mapItemStarted(state, { item: { type: 'agentMessage', id: 'm1', text: '', phase: null, memoryCitation: null, delivery: null }, threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0 }));
 		apply(mapAgentMessageDelta(state, { threadId: 'thr_1', turnId: 'turn_a', itemId: 'm1', delta: 'Consolidating the recommendation and tradeoffs.' }));
-		apply(mapItemStarted(state, { item: { type: 'agentMessage', id: 'm2', text: '', phase: null, memoryCitation: null }, threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0 }));
+		apply(mapItemStarted(state, { item: { type: 'agentMessage', id: 'm2', text: '', phase: null, memoryCitation: null, delivery: null }, threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0 }));
 		apply(mapAgentMessageDelta(state, { threadId: 'thr_1', turnId: 'turn_a', itemId: 'm2', delta: '## Conclusion\n\nDone.' }));
 
 		// Adjacent markdown parts are coalesced by plain concatenation, so the
@@ -538,6 +538,45 @@ suite('codexMapAppServerEvents', () => {
 		});
 	});
 
+	test('item/completed for commandExecution falls back to streamed output when aggregated output is empty', () => {
+		const state = createCodexSessionMapState();
+		mapItemStarted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_streamed_output',
+				command: 'echo hi', cwd: '/tmp', processId: null,
+				source: 'agent' as never, status: 'inProgress' as never,
+				commandActions: [], aggregatedOutput: null,
+				exitCode: null, durationMs: null,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const toolCallId = state.itemToToolCall.get('cmd_streamed_output')!.toolCallId;
+		mapCommandExecutionOutputDelta(state, { threadId: 'thr_1', turnId: 'turn_a', itemId: 'cmd_streamed_output', delta: 'hi\n' });
+
+		const actions = mapItemCompleted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_streamed_output',
+				command: 'echo hi', cwd: '/tmp', processId: null,
+				source: 'agent' as never, status: 'completed' as never,
+				commandActions: [], aggregatedOutput: '',
+				exitCode: 0, durationMs: 12,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		});
+
+		assert.deepStrictEqual(actions, [{
+			type: ActionType.ChatToolCallComplete,
+			turnId: 'turn_a',
+			toolCallId,
+			result: {
+				success: true,
+				pastTenseMessage: 'Ran `echo hi`',
+				content: [{ type: ToolResultContentType.Text, text: 'hi\n' }],
+				error: undefined,
+			},
+		}]);
+	});
+
 	test('item/completed for commandExecution emits ChatToolCallComplete with aggregated output', () => {
 		const state = createCodexSessionMapState();
 		mapItemStarted(state, {
@@ -634,12 +673,12 @@ suite('codexMapAppServerEvents', () => {
 	test('imageGeneration item maps to an image tool call lifecycle', () => {
 		const state = createCodexSessionMapState();
 		const startActions = mapItemStarted(state, {
-			item: { type: 'imageGeneration', id: 'image_1', status: 'in_progress', revisedPrompt: null, result: '' },
+			item: { type: 'imageGeneration', id: 'image_1', status: 'in_progress', revisedPrompt: null, result: '', failure: null },
 			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
 		});
 		const toolCallId = state.itemToToolCall.get('image_1')!.toolCallId;
 		const completeActions = mapItemCompleted(state, {
-			item: { type: 'imageGeneration', id: 'image_1', status: 'completed', revisedPrompt: 'A watercolor fox', result: 'aW1hZ2U=' },
+			item: { type: 'imageGeneration', id: 'image_1', status: 'completed', revisedPrompt: 'A watercolor fox', result: 'aW1hZ2U=', failure: null },
 			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
 		});
 		assert.deepStrictEqual({
@@ -1319,7 +1358,7 @@ suite('codexMapAppServerEvents', () => {
 			},
 		});
 		assert.deepStrictEqual(actions, [
-			{ type: ActionType.ChatError, turnId: 'turn_a', duration: 0, error: { errorType: 'CodexError', message: 'boom' } },
+			{ type: ActionType.ChatError, turnId: 'turn_a', duration: 0, part: { kind: ResponsePartKind.Error, error: { errorType: 'CodexError', message: 'boom' } } },
 			{ type: ActionType.ChatTurnComplete, turnId: 'turn_a', duration: 0 },
 		]);
 	});

@@ -13,6 +13,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 export const enum SessionChatPillKind {
 	Changes = 'changes',
 	Artifacts = 'artifacts',
+	References = 'references',
 	Customizations = 'customizations',
 	PullRequests = 'pullRequests',
 	Issues = 'issues',
@@ -24,6 +25,7 @@ export const enum SessionChatPillKind {
 export const SESSION_CHAT_PILL_KINDS: readonly SessionChatPillKind[] = [
 	SessionChatPillKind.Changes,
 	SessionChatPillKind.Artifacts,
+	SessionChatPillKind.References,
 	SessionChatPillKind.Customizations,
 	SessionChatPillKind.PullRequests,
 	SessionChatPillKind.Issues,
@@ -35,6 +37,7 @@ export function getSessionChatPillLabel(kind: SessionChatPillKind): string {
 	switch (kind) {
 		case SessionChatPillKind.Changes: return localize('sessionChatPills.changes', "Changes");
 		case SessionChatPillKind.Artifacts: return localize('sessionChatPills.artifacts', "Artifacts");
+		case SessionChatPillKind.References: return localize('sessionChatPills.references', "References");
 		case SessionChatPillKind.Customizations: return localize('sessionChatPills.customizations', "Customizations");
 		case SessionChatPillKind.PullRequests: return localize('sessionChatPills.pullRequests', "Pull Requests");
 		case SessionChatPillKind.Issues: return localize('sessionChatPills.issues', "Issues");
@@ -57,8 +60,6 @@ export interface ISessionChatPillMenuEntry {
 	readonly label: string;
 	/** Whether the pill shows when it has data. */
 	readonly checked: boolean;
-	/** Kinds without data cannot be toggled. */
-	readonly enabled: boolean;
 }
 
 /**
@@ -73,8 +74,8 @@ export interface ISessionChatPillMenu {
 }
 
 /**
- * Builds the visibility menu. Every hideable kind is listed, checked while it is
- * not hidden, and disabled while the session reports no data for it.
+ * Builds the visibility menu. Every hideable kind is listed and toggleable,
+ * checked while it is not hidden, grouped by whether the session has data for it.
  *
  * @param targetKind The pill that was right-clicked, which gains a "Hide X"
  * entry. Omitted when the click did not land on a pill.
@@ -90,12 +91,10 @@ export function getSessionChatPillMenu(
 		if (!isSessionChatPillHideable(kind)) {
 			continue;
 		}
-		const enabled = kindsWithData.has(kind);
-		(enabled ? withData : withoutData).push({
+		(kindsWithData.has(kind) ? withData : withoutData).push({
 			kind,
 			label: getSessionChatPillLabel(kind),
 			checked: !hiddenKinds.has(kind),
-			enabled,
 		});
 	}
 

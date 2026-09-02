@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -17,6 +18,7 @@ import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChan
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, withSessionGitState, type Changeset, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
+import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
 import type { ChangesSummary } from '../../common/state/protocol/state.js';
 import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
@@ -31,6 +33,14 @@ import { AgentConfigurationService } from '../../node/agentConfigurationService.
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
+type WithoutLast<T extends readonly unknown[]> = T extends [...infer Head, unknown] ? Head : never;
+
+class TestAgentHostChangesetService extends AgentHostChangesetService {
+	constructor(...args: WithoutLast<ConstructorParameters<typeof AgentHostChangesetService>>) {
+		super(...args, new NullAgentHostWorktreeIsolation());
+	}
+}
+
 /**
  * Builds a test subscription service backed by a mutable set of subscribed
  * changeset URIs, so service tests can simulate subscribe / unsubscribe
@@ -41,6 +51,7 @@ function createSubscriptionService(...changesets: string[]): IAgentHostChangeset
 	return {
 		_serviceBrand: undefined,
 		subscriptions,
+		onDidChangeSessionSubscriptions: Event.None,
 		getSessionSubscriptions: () => subscriptions,
 		addSubscription: (_session, changeset) => { subscriptions.add(changeset); },
 		removeSubscription: (_session, changeset) => { subscriptions.delete(changeset); },
@@ -113,7 +124,7 @@ suite.skip('AgentHostChangesetService', () => {
 
 	setup(() => {
 		stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-		changesetService = disposables.add(new AgentHostChangesetService(
+		changesetService = disposables.add(new TestAgentHostChangesetService(
 			stateManager,
 			new NullLogService(),
 			createNullSessionDataService(),
@@ -307,7 +318,7 @@ suite.skip('AgentHostChangesetService', () => {
 				},
 			} as unknown as IAgentHostGitService;
 
-			const localChangesets = disposables.add(new AgentHostChangesetService(
+			const localChangesets = disposables.add(new TestAgentHostChangesetService(
 				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString())), NULL_REVIEW_SERVICE, NullTelemetryService));
 
 			localStateManager.createSession({
@@ -385,7 +396,7 @@ suite.skip('AgentHostChangesetService', () => {
 					return [];
 				},
 			} as unknown as IAgentHostGitService;
-			const localChangesets = disposables.add(new AgentHostChangesetService(
+			const localChangesets = disposables.add(new TestAgentHostChangesetService(
 				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString())), NULL_REVIEW_SERVICE, NullTelemetryService));
 			const sessionStr = sessionUri.toString();
 
@@ -421,7 +432,7 @@ suite.skip('AgentHostChangesetService', () => {
 					return [];
 				},
 			} as unknown as IAgentHostGitService;
-			const localChangesets = disposables.add(new AgentHostChangesetService(
+			const localChangesets = disposables.add(new TestAgentHostChangesetService(
 				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(), NULL_REVIEW_SERVICE, NullTelemetryService));
 			const sessionStr = sessionUri.toString();
 
@@ -454,7 +465,7 @@ suite.skip('AgentHostChangesetService', () => {
 				computeSessionFileDiffs: async () => undefined,
 			} as unknown as IAgentHostGitService;
 
-			const localChangesets = disposables.add(new AgentHostChangesetService(
+			const localChangesets = disposables.add(new TestAgentHostChangesetService(
 				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(), NULL_REVIEW_SERVICE, NullTelemetryService));
 
 			localStateManager.createSession({
@@ -514,7 +525,7 @@ suite.skip('AgentHostChangesetService', () => {
 				computeSessionFileDiffs: async () => gitDiffs,
 			} as unknown as IAgentHostGitService;
 
-			const localChangesets = disposables.add(new AgentHostChangesetService(
+			const localChangesets = disposables.add(new TestAgentHostChangesetService(
 				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(), NULL_REVIEW_SERVICE, NullTelemetryService));
 
 			const sessionStr = sessionUri.toString();
@@ -588,7 +599,7 @@ suite.skip('AgentHostChangesetService', () => {
 				computeSessionFileDiffs: async () => { throw new Error('git command failed'); },
 			} as unknown as IAgentHostGitService;
 			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-			const localChangesets = disposables.add(new AgentHostChangesetService(
+			const localChangesets = disposables.add(new TestAgentHostChangesetService(
 				localStateManager, new NullLogService(), createNullSessionDataService(), stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString())), NULL_REVIEW_SERVICE, NullTelemetryService));
 
 			const sessionStr = sessionUri.toString();
@@ -619,7 +630,7 @@ suite.skip('AgentHostChangesetService', () => {
 		});
 	});
 
-	suite('deferred refresh (working directory unknown)', () => {
+	suite('materialization refresh (working directory unknown)', () => {
 
 		function createDeferringService(subscriptions: Iterable<string> = []): { service: AgentHostChangesetService; localStateManager: AgentHostStateManager; computes: string[]; subscriptions: Set<string> } {
 			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -629,7 +640,7 @@ suite.skip('AgentHostChangesetService', () => {
 				computeUncommittedFileDiffs: async () => { computes.push('uncommitted'); return []; },
 			} as unknown as IAgentHostGitService;
 			const subscriptionService = createSubscriptionService(...subscriptions);
-			const service = disposables.add(new AgentHostChangesetService(
+			const service = disposables.add(new TestAgentHostChangesetService(
 				localStateManager,
 				new NullLogService(),
 				createNullSessionDataService(),
@@ -659,7 +670,7 @@ suite.skip('AgentHostChangesetService', () => {
 			return sessionStr;
 		}
 
-		test('refreshSessionChangeset / refreshBranchChangeset defer until the working directory is known, then drain the subscribed changesets', async () => {
+		test('refreshSessionChangeset / refreshBranchChangeset skip until the working directory is known, then recompute the subscribed changesets', async () => {
 			const sessionStr = sessionUri.toString();
 			const { service, localStateManager, computes } = createDeferringService([
 				buildBranchChangesetUri(sessionStr),
@@ -679,13 +690,13 @@ suite.skip('AgentHostChangesetService', () => {
 			assert.deepStrictEqual(computes.sort(), ['session', 'session']);
 		});
 
-		test('computeUncommittedChangeset defers until the working directory is known, then drains', async () => {
+		test('computeUncommittedChangeset skips until the working directory is known, then recomputes', async () => {
 			const sessionStr = sessionUri.toString();
 			const { service, localStateManager, computes } = createDeferringService([buildUncommittedChangesetUri(sessionStr)]);
 			createSessionState(localStateManager, undefined);
 
 			await service.computeUncommittedChangeset(sessionStr);
-			assert.deepStrictEqual(computes, [], 'uncommitted compute deferred while the working directory is unknown');
+			assert.deepStrictEqual(computes, [], 'uncommitted compute skipped while the working directory is unknown');
 
 			const summary = localStateManager.getSessionSummary(sessionStr)!;
 			localStateManager.markSessionPersisted(sessionStr, { ...summary, workingDirectories: ['file:///wd'] });
@@ -694,7 +705,7 @@ suite.skip('AgentHostChangesetService', () => {
 			assert.deepStrictEqual(computes, ['uncommitted']);
 		});
 
-		test('a changeset unsubscribed before materialization is naturally skipped on drain', async () => {
+		test('a changeset unsubscribed before materialization is skipped', async () => {
 			const sessionStr = sessionUri.toString();
 			const { service, localStateManager, computes, subscriptions } = createDeferringService([buildSessionChangesetUri(sessionStr)]);
 			createSessionState(localStateManager, undefined);
@@ -710,26 +721,6 @@ suite.skip('AgentHostChangesetService', () => {
 			assert.deepStrictEqual(computes, []);
 		});
 
-		test('onSessionDisposed clears every pending refresh for the session', async () => {
-			const sessionStr = sessionUri.toString();
-			const { service, localStateManager, computes } = createDeferringService([
-				buildBranchChangesetUri(sessionStr),
-				buildSessionChangesetUri(sessionStr),
-				buildUncommittedChangesetUri(sessionStr),
-			]);
-			createSessionState(localStateManager, undefined);
-
-			service.refreshBranchChangeset(sessionStr);
-			service.refreshSessionChangeset(sessionStr);
-			await service.computeUncommittedChangeset(sessionStr);
-			service.onSessionDisposed(sessionStr);
-
-			const summary = localStateManager.getSessionSummary(sessionStr)!;
-			localStateManager.markSessionPersisted(sessionStr, { ...summary, workingDirectories: ['file:///wd'] });
-			service.onWorkingDirectoryAvailable(sessionStr);
-			await timeout(0);
-			assert.deepStrictEqual(computes, []);
-		});
 	});
 
 	suite('restorePersistedStaticChangesets', () => {
@@ -935,7 +926,7 @@ suite.skip('AgentHostChangesetService', () => {
 		// content for `computeTurnDiffs` to chew on. The base class behaviour
 		// is preserved (super-call is awaited), so any per-file dispatch the
 		// production path would emit still flows through normally.
-		class CountingChangesetService extends AgentHostChangesetService {
+		class CountingChangesetService extends TestAgentHostChangesetService {
 			readonly turnComputeCalls: { session: string; turnId: string }[] = [];
 			readonly uncommittedComputeCalls: string[] = [];
 			override async computeTurnChangeset(session: string, turnId: string): Promise<string> {
@@ -1061,7 +1052,7 @@ suite.skip('AgentHostChangesetService', () => {
 			const sessionDb = new SessionDatabase(':memory:');
 			disposables.add(toDisposable(() => sessionDb.close()));
 			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-			const svc = disposables.add(new AgentHostChangesetService(
+			const svc = disposables.add(new TestAgentHostChangesetService(
 				localStateManager,
 				new NullLogService(),
 				createSessionDataService(sessionDb),
@@ -1137,7 +1128,7 @@ suite.skip('AgentHostChangesetService', () => {
 				calls.push({ fromRef: opts.fromRef, toRef: opts.toRef });
 				return expectedDiffs;
 			};
-			const svc = disposables.add(new AgentHostChangesetService(
+			const svc = disposables.add(new TestAgentHostChangesetService(
 				stateManager,
 				new NullLogService(),
 				createSessionDataService(new TestSessionDatabase()),
@@ -1172,7 +1163,7 @@ suite.skip('AgentHostChangesetService', () => {
 			const gitService = createNoopGitService();
 			let gitCalls = 0;
 			gitService.computeFileDiffsBetweenRefs = async () => { gitCalls++; return undefined; };
-			const svc = disposables.add(new AgentHostChangesetService(
+			const svc = disposables.add(new TestAgentHostChangesetService(
 				stateManager,
 				new NullLogService(),
 				createSessionDataService(new TestSessionDatabase()),
@@ -1204,7 +1195,7 @@ suite.skip('AgentHostChangesetService', () => {
 			const gitService = createNoopGitService();
 			let gitCalls = 0;
 			gitService.computeFileDiffsBetweenRefs = async () => { gitCalls++; return undefined; };
-			const svc = disposables.add(new AgentHostChangesetService(
+			const svc = disposables.add(new TestAgentHostChangesetService(
 				stateManager,
 				new NullLogService(),
 				createSessionDataService(new TestSessionDatabase()),
@@ -1234,7 +1225,7 @@ suite.skip('AgentHostChangesetService', () => {
 
 			const gitService = createNoopGitService();
 			gitService.computeFileDiffsBetweenRefs = async () => undefined;
-			const svc = disposables.add(new AgentHostChangesetService(
+			const svc = disposables.add(new TestAgentHostChangesetService(
 				stateManager,
 				new NullLogService(),
 				createSessionDataService(new TestSessionDatabase()),
@@ -1260,6 +1251,68 @@ suite.skip('AgentHostChangesetService', () => {
 	});
 });
 
+suite('AgentHostChangesetService - materialization refresh', () => {
+
+	const disposables = new DisposableStore();
+
+	teardown(() => {
+		disposables.clear();
+	});
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('recomputes an uncommitted subscription added after worktree pending clears but before materialization', async () => {
+		const sessionStr = AgentSession.uri('mock', 'session-materialization').toString();
+		const sourceDirectory = 'file:///repo/source';
+		const worktreeDirectory = 'file:///repo/worktree';
+		const computedWorkingDirectories: string[] = [];
+		const gitService = createNoopGitService();
+		gitService.computeSessionFileDiffs = async workingDirectory => {
+			computedWorkingDirectories.push(workingDirectory.toString());
+			return [];
+		};
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const diffService = new TestDiffComputeService();
+		class TestableChangesetService extends TestAgentHostChangesetService {
+			protected override _createDiffComputeService() {
+				return diffService;
+			}
+		}
+		const subscriptionService = createSubscriptionService();
+		const service = disposables.add(new TestableChangesetService(
+			stateManager,
+			new NullLogService(),
+			createNullSessionDataService(),
+			gitService,
+			NULL_CHECKPOINT_SERVICE,
+			disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
+			createOperationService(),
+			subscriptionService,
+			NULL_REVIEW_SERVICE,
+			NullTelemetryService,
+		));
+		stateManager.createSession({
+			resource: sessionStr,
+			provider: 'mock',
+			title: 'Test',
+			status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+			workingDirectories: [sourceDirectory],
+		}, { emitNotification: false });
+
+		const uncommittedChangeset = buildUncommittedChangesetUri(sessionStr);
+		subscriptionService.addSubscription(sessionStr, uncommittedChangeset);
+		await service.computeUncommittedChangeset(sessionStr);
+
+		const summary = stateManager.getSessionSummary(sessionStr)!;
+		stateManager.markSessionPersisted(sessionStr, { ...summary, workingDirectories: [worktreeDirectory] });
+		service.onWorkingDirectoryAvailable(sessionStr);
+		await timeout(0);
+
+		assert.deepStrictEqual(computedWorkingDirectories, [sourceDirectory, worktreeDirectory]);
+	});
+});
+
 /**
  * A log service that records every warning/error message so multi-root tests
  * can assert the never-hard-fail path logged the expected per-folder failure.
@@ -1274,6 +1327,80 @@ class RecordingLogService extends NullLogService {
 		this.warnings.push(message);
 	}
 }
+
+suite('AgentHostChangesetService - turn changeset lifecycle', () => {
+
+	const disposables = new DisposableStore();
+	const sessionStr = AgentSession.uri('mock', 'session-turn-lifecycle').toString();
+
+	teardown(() => {
+		disposables.clear();
+	});
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('marks a ready turn changeset as computing until recomputation completes', async () => {
+		const recomputeGate = new DeferredPromise<void>();
+		let computeCount = 0;
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+		git.computeFileDiffsBetweenRefs = async () => {
+			computeCount++;
+			if (computeCount > 1) {
+				await recomputeGate.p;
+			}
+			return [];
+		};
+		const checkpoint: IAgentHostCheckpointService = {
+			...NULL_CHECKPOINT_SERVICE,
+			getTurnCheckpointPair: async () => ({ parent: 'parent', current: 'current' }),
+		};
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const diffService = new TestDiffComputeService();
+		class TestableChangesetService extends TestAgentHostChangesetService {
+			protected override _createDiffComputeService() {
+				return diffService;
+			}
+		}
+		const svc = disposables.add(new TestableChangesetService(
+			stateManager,
+			new NullLogService(),
+			createSessionDataService(new TestSessionDatabase()),
+			git,
+			checkpoint,
+			disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
+			createOperationService(),
+			createSubscriptionService(),
+			NULL_REVIEW_SERVICE,
+			NullTelemetryService,
+		));
+		stateManager.createSession({
+			resource: sessionStr,
+			provider: 'mock',
+			title: 'Test',
+			status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+			workingDirectories: ['file:///repo'],
+		});
+		const turnUri = await svc.computeTurnChangeset(sessionStr, 'turn-1');
+
+		const recompute = svc.computeTurnChangeset(sessionStr, 'turn-1');
+		const whileRecomputing = stateManager.getChangesetState(turnUri)?.status;
+		recomputeGate.complete();
+		await recompute;
+
+		assert.deepStrictEqual({
+			whileRecomputing,
+			afterRecompute: stateManager.getChangesetState(turnUri),
+		}, {
+			whileRecomputing: ChangesetStatus.Computing,
+			afterRecompute: {
+				status: ChangesetStatus.Ready,
+				files: [],
+			},
+		});
+	});
+});
 
 /**
  * Multi-root turn changeset aggregation (AC-2). A separate top-level suite so
@@ -1311,7 +1438,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		log?: RecordingLogService;
 		telemetry?: ITelemetryService;
 		subscriptions?: string[];
-		peer?: { resource: string; db: TestSessionDatabase; turnId: string };
+		peer?: { resource: string; db: TestSessionDatabase; turnId: string; onDispose?: () => void };
 	}): { svc: AgentHostChangesetService; stateManager: AgentHostStateManager; log: RecordingLogService } {
 		const log = options.log ?? new RecordingLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -1320,7 +1447,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		// worker_thread, which the unit-test harness cannot load, so substitute
 		// the shared synchronous in-process computer via the factory seam.
 		const diffService = new TestDiffComputeService();
-		class TestableChangesetService extends AgentHostChangesetService {
+		class TestableChangesetService extends TestAgentHostChangesetService {
 			protected override _createDiffComputeService() {
 				return diffService;
 			}
@@ -1332,9 +1459,19 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			log,
 			{
 				...sessionDataService,
-				openDatabase: resource => options.peer?.resource === resource.toString()
-					? peerDataService!.openDatabase(resource)
-					: sessionDataService.openDatabase(resource),
+				openDatabase: resource => {
+					if (options.peer?.resource !== resource.toString()) {
+						return sessionDataService.openDatabase(resource);
+					}
+					const ref = peerDataService!.openDatabase(resource);
+					return {
+						object: ref.object,
+						dispose: () => {
+							options.peer?.onDispose?.();
+							ref.dispose();
+						},
+					};
+				},
 			},
 			options.git,
 			options.checkpoint,
@@ -1428,7 +1565,15 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 
 	test('uses the owning peer database for multi-root non-git fallback', async () => {
 		const sessionDb = new TestSessionDatabase();
-		const peerDb = new TestSessionDatabase();
+		const lifecycle: string[] = [];
+		class DelayedPeerDatabase extends TestSessionDatabase {
+			override async getFileEditsByTurn(turnId: string) {
+				await timeout(0);
+				lifecycle.push('read');
+				return super.getFileEditsByTurn(turnId);
+			}
+		}
+		const peerDb = new DelayedPeerDatabase();
 		peerDb.addEdit({ turnId: 'peer-turn', toolCallId: 'tc1', filePath: '/folderA/peer.txt', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('a'), afterContent: encodeString('a\nb') });
 		const peerResource = 'ahp-chat://peer-1/session-mr';
 		const { svc, stateManager } = build({
@@ -1436,14 +1581,18 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			git: createNoopGitService(),
 			checkpoint: NULL_CHECKPOINT_SERVICE,
 			db: sessionDb,
-			peer: { resource: peerResource, db: peerDb, turnId: 'peer-turn' },
+			peer: { resource: peerResource, db: peerDb, turnId: 'peer-turn', onDispose: () => lifecycle.push('dispose') },
 		});
 
 		const turnUri = await svc.computeTurnChangeset(sessionStr, 'peer-turn');
 
-		assert.deepStrictEqual(stateManager.getChangesetState(turnUri)?.files.map(file => file.id), [
-			URI.file('/folderA/peer.txt').toString(),
-		]);
+		assert.deepStrictEqual({
+			files: stateManager.getChangesetState(turnUri)?.files.map(file => file.id),
+			lifecycle,
+		}, {
+			files: [URI.file('/folderA/peer.txt').toString()],
+			lifecycle: ['read', 'dispose'],
+		});
 	});
 
 	test('diffs a repository shared by two working directories exactly once (dedup by repo root)', async () => {
@@ -1506,6 +1655,33 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			'the failed git repo contributes its DB-tracked edits instead of dropping the folder',
 		);
 		assert.ok(log.errors.some(e => e.includes('repoBad') && e.includes('falling back to tracked edits')), `expected a fallback error naming the repo, got ${JSON.stringify(log.errors)}`);
+	});
+
+	test('missing checkpoint refs use tracked edits without logging an error', async () => {
+		const log = new RecordingLogService();
+		const db = new TestSessionDatabase();
+		db.addEdit({ turnId: 'turn-1', toolCallId: 'tc1', filePath: '/repoA/tracked.ts', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('1'), afterContent: encodeString('1\n2') });
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+		const { svc, stateManager } = build({
+			workingDirectories: ['file:///repoA', 'file:///repoB'],
+			git,
+			checkpoint: makeCheckpoint(() => undefined),
+			db,
+			log,
+		});
+
+		const turnUri = await svc.computeTurnChangeset(sessionStr, 'turn-1');
+
+		assert.deepStrictEqual({
+			status: stateManager.getChangesetState(turnUri)?.status,
+			files: stateManager.getChangesetState(turnUri)?.files.map(file => file.id),
+			errors: log.errors,
+		}, {
+			status: ChangesetStatus.Ready,
+			files: [URI.file('/repoA/tracked.ts').toString()],
+			errors: [],
+		});
 	});
 
 	test('a folder whose repository-root lookup throws is treated as non-git (DB fallback) without dropping the whole turn', async () => {
@@ -1666,6 +1842,18 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			}
 		}
 
+		/** Polls until the independently published primary branch changeset settles. */
+		async function waitForBranchCompute(svc: AgentHostChangesetService, stateManager: AgentHostStateManager): Promise<void> {
+			const branchUri = buildBranchChangesetUri(sessionStr);
+			for (let i = 0; i < 500; i++) {
+				const status = stateManager.getChangesetState(branchUri)?.status;
+				if (!svc.isStaticChangesetComputeActive(branchUri) && status !== ChangesetStatus.Computing) {
+					return;
+				}
+				await timeout(1);
+			}
+		}
+
 		test('sums every repository branch diff, not just the primary', async () => {
 			const git = createNoopGitService();
 			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
@@ -1807,7 +1995,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			);
 		});
 
-		test('a repository whose branch diff throws is skipped and logged, without failing the aggregate', async () => {
+		test('a repository branch diff failure leaves a cold summary unavailable without failing the branch changeset', async () => {
 			const log = new RecordingLogService();
 			const git = createNoopGitService();
 			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
@@ -1818,14 +2006,23 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 				if (root === 'file:///repoGood2') { return [gitDiff('/repoGood2/b.ts', 5, 1)]; }
 				return undefined;
 			};
-			const { svc, stateManager } = build({ workingDirectories: ['file:///repoGood1', 'file:///repoBad', 'file:///repoGood2'], git, checkpoint: NULL_CHECKPOINT_SERVICE, log });
+			const db = new TestSessionDatabase();
+			const { svc, stateManager } = build({ workingDirectories: ['file:///repoGood1', 'file:///repoBad', 'file:///repoGood2'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db, log });
 
 			svc.refreshBranchChangeset(sessionStr);
-			const changes = await waitForSummaryChanges(stateManager);
+			await waitForBranchCompute(svc, stateManager);
 
-			// repoBad is skipped; the aggregate is the sum of the two good repos.
-			assert.deepStrictEqual(changes, { additions: 7, deletions: 1, files: 2 }, 'the failing repository is excluded, the rest still counted');
-			assert.ok(log.errors.some(e => e.includes('repoBad')), `expected an error naming the failing repository, got ${JSON.stringify(log.errors)}`);
+			assert.deepStrictEqual({
+				live: stateManager.getSessionSummary(sessionStr)?.changes,
+				persisted: await db.getMetadata(META_CHANGES_SUMMARY),
+				branchStatus: stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.status,
+				loggedRepoBad: log.errors.some(e => e.includes('repoBad')),
+			}, {
+				live: undefined,
+				persisted: undefined,
+				branchStatus: ChangesetStatus.Ready,
+				loggedRepoBad: true,
+			}, 'one failed source prevents partial publication without failing the primary branch changeset');
 		});
 
 		test('threads a base branch per repository (primary uses the session base, secondaries their default)', async () => {
@@ -1851,18 +2048,35 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			assert.ok(repoB.length > 0 && repoB.every(c => c.baseBranch === 'develop'), `secondary repo must use its own default branch (not HEAD), got ${JSON.stringify(repoB)}`);
 		});
 
-		test('all-folder summary is computed even when the primary branch diff is unavailable', async () => {
+		test('partial recompute preserves cached all-folder summary when the primary branch diff is unavailable', async () => {
+			let primaryAvailable = true;
 			const git = createNoopGitService();
 			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
-			// The PRIMARY repo (repoA) has no resolvable branch diff; repoB does.
-			git.computeSessionFileDiffs = async wd => wd.toString() === 'file:///repoB' ? [gitDiff('/repoB/b.ts', 4, 1)] : undefined;
+			git.computeSessionFileDiffs = async wd => {
+				const root = wd.toString();
+				if (root === 'file:///repoA') { return primaryAvailable ? [gitDiff('/repoA/a.ts', 3, 1)] : undefined; }
+				if (root === 'file:///repoB') { return [gitDiff('/repoB/b.ts', 5, 2)]; }
+				return undefined;
+			};
 			const db = new TestSessionDatabase();
 			const { svc, stateManager } = build({ workingDirectories: ['file:///repoA', 'file:///repoB'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
 
 			svc.refreshBranchChangeset(sessionStr);
-			const changes = await waitForSummaryChanges(stateManager);
+			await waitForSummaryChanges(stateManager);
 
-			assert.deepStrictEqual(changes, { additions: 4, deletions: 1, files: 1 }, 'the all-folder chip is independent of the primary branch changeset succeeding');
+			primaryAvailable = false;
+			svc.refreshBranchChangeset(sessionStr);
+			await waitForBranchCompute(svc, stateManager);
+
+			assert.deepStrictEqual({
+				live: stateManager.getSessionSummary(sessionStr)?.changes,
+				persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+				branchStatus: stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.status,
+			}, {
+				live: { additions: 8, deletions: 3, files: 2 },
+				persisted: { additions: 8, deletions: 3, files: 2 },
+				branchStatus: ChangesetStatus.Ready,
+			}, 'an unavailable primary source preserves the last complete all-folder summary');
 		});
 
 		test('folds non-git folder edits into the all-folder chip', async () => {
@@ -1943,7 +2157,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			}, 'a genuinely empty all-folder aggregate is written as zero, not preserved');
 		});
 
-		test('a secondary default-branch lookup rejection yields a partial summary and keeps the branch changeset Ready (never Error)', async () => {
+		test('a secondary default-branch lookup rejection leaves a cold summary unavailable and keeps the branch changeset Ready', async () => {
 			const log = new RecordingLogService();
 			const git = createNoopGitService();
 			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
@@ -1962,19 +2176,21 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			const { svc, stateManager } = build({ workingDirectories: ['file:///repoA', 'file:///repoB'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db, log });
 
 			svc.refreshBranchChangeset(sessionStr);
-			const changes = await waitForSummaryChanges(stateManager);
+			await waitForBranchCompute(svc, stateManager);
 
 			assert.deepStrictEqual({
-				changes,
+				live: stateManager.getSessionSummary(sessionStr)?.changes,
+				persisted: await db.getMetadata(META_CHANGES_SUMMARY),
 				branchStatus: stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.status,
+				branchFiles: stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.files.map(file => file.id),
 				loggedRepoB: log.errors.some(e => e.includes('repoB')),
 			}, {
-				// repoB is unavailable (its default-branch probe threw); only the
-				// primary repoA contributes to the partial aggregate.
-				changes: { additions: 3, deletions: 1, files: 1 },
+				live: undefined,
+				persisted: undefined,
 				branchStatus: ChangesetStatus.Ready,
+				branchFiles: [URI.file('/repoA/a.ts').toString()],
 				loggedRepoB: true,
-			}, 'a secondary default-branch failure must not flip the published branch changeset to Error');
+			}, 'a secondary failure must not publish a partial summary or fail the independent primary branch changeset');
 		});
 	});
 

@@ -109,7 +109,7 @@
 	.modal-editor-title {
 		grid-column: 2;
 		font-size: 12px;
-		font-weight: 500;
+		font-weight: var(--vscode-fontWeight-semiBold);
 		color: var(--vscode-titleBar-activeForeground);
 		overflow: hidden;
 

@@ -13,13 +13,13 @@ import { URI } from '../../../../base/common/uri.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { AbstractEditorWithViewState } from '../../../../workbench/browser/parts/editor/editorWithViewState.js';
@@ -31,7 +31,8 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/servic
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
-import { IMultiDiffEditorOptions, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorOptions, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { MultiDiffEditorLogger } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorLogging.js';
 import { IDiffEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
@@ -52,6 +53,7 @@ import { CheckboxActionViewItem } from '../../../../base/browser/ui/toggle/toggl
 import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { localize } from '../../../../nls.js';
 import { getChangesEditorFileStats } from './changesEditorLabels.js';
+import { IDiffEditorOptionsService } from '../../editor/common/diffEditorOptionsService.js';
 
 const HEADER_HEIGHT = 35;
 
@@ -65,15 +67,23 @@ const CHANGES_DIFF_EDITOR_OPTIONS: IDiffEditorOptions = {
 	lineNumbersMinChars: 3,
 };
 
+const CHANGES_LIST_BOTTOM_PADDING_PX = 24;
+const CHANGES_ENTRY_HEADER_HEIGHT_PX = 32;
+const CHANGES_ENTRY_CONTENT_BOTTOM_PADDING_PX = 8;
+
 class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 
 	readonly headerClickToCollapse = true;
+	readonly diffEditorItemHorizontalInsets = { left: 0, right: 0 };
+	readonly diffEditorItemHeaderHeight = CHANGES_ENTRY_HEADER_HEIGHT_PX;
+	readonly diffEditorItemContentBottomPadding = CHANGES_ENTRY_CONTENT_BOTTOM_PADDING_PX;
 
 	constructor(
 		private readonly changesObs: IObservable<readonly ISessionFileChange[]>,
 		@ICommandService private readonly commandService: ICommandService,
 		@IChangesViewService private readonly changesViewService: IChangesViewService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEditorService private readonly editorService: IEditorService,
 	) { }
 
 	createResourceLabel(element: HTMLElement, kind: MultiDiffEditorItemLabelKind): IResourceLabel {
@@ -101,6 +111,14 @@ class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 			return this.instantiationService.createInstance(ChangesetReviewActionViewItem, action, options);
 		}
 		return undefined;
+	}
+
+	openDiffEditor(original: URI, modified: URI): void {
+		void this.editorService.openEditor({
+			original: { resource: original },
+			modified: { resource: modified },
+			options: { pinned: true },
+		});
 	}
 }
 
@@ -188,6 +206,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	/** Deferred focus request awaiting the active diff editor to be rendered. */
 	private readonly _pendingFocus = this._register(new MutableDisposable());
 
+	private readonly _logger: MultiDiffEditorLogger;
+
 	constructor(
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -199,9 +219,10 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChangesViewService private readonly changesViewService: IChangesViewService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
 		@ISessionChangesService private readonly sessionChangesService: ISessionChangesService,
+		@IDiffEditorOptionsService private readonly diffEditorOptionsService: IDiffEditorOptionsService,
+		@ILogService logService: ILogService,
 	) {
 		super(
 			SessionChangesEditor.ID,
@@ -215,6 +236,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			editorService,
 			editorGroupService,
 		);
+
+		this._logger = this._register(new MultiDiffEditorLogger(logService));
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -254,16 +277,10 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			paneInstantiationService.createInstance(SessionChangesUIElementFactory, this._scopedChangesObs),
 			CHANGES_DIFF_EDITOR_OPTIONS,
 		));
-		this._applyRenderSideBySide();
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('diffEditor.renderSideBySide')) {
-				this._applyRenderSideBySide();
-			}
+		this.widget.setPaddingBottom(CHANGES_LIST_BOTTOM_PADDING_PX);
+		this._register(autorun(reader => {
+			this.widget?.setRenderSideBySide(this.diffEditorOptionsService.renderSideBySide.read(reader), { useInlineViewWhenSpaceIsLimited: true });
 		}));
-	}
-
-	private _applyRenderSideBySide(): void {
-		this.widget?.setRenderSideBySide(this.configurationService.getValue<boolean>('diffEditor.renderSideBySide') ?? true);
 	}
 
 	/**
@@ -273,6 +290,10 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	 */
 	tryGetCodeEditor(resource: URI): { diffEditor: IDiffEditor; editor: ICodeEditor } | undefined {
 		return this.widget?.tryGetCodeEditor(resource);
+	}
+
+	getLayoutDebugState(): IObservable<IMultiDiffEditorLayoutDebugState> {
+		return this.widget!.getLayoutDebugState();
 	}
 
 	/** Creates the classic (non-single-pane) internal header toolbars. */
@@ -297,7 +318,11 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 	override async setInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
-		this._inputSessionResource.set(this.sessionChangesService.getSessionResource(input.multiDiffSource), undefined);
+		if (token.isCancellationRequested) {
+			return;
+		}
+		const sessionResource = this.sessionChangesService.getSessionResource(input.multiDiffSource);
+		this._inputSessionResource.set(sessionResource, undefined);
 		const viewModel = await input.getViewModel();
 		if (token.isCancellationRequested) {
 			return;
@@ -308,6 +333,11 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		// automatic first-change navigation sees the restored active item instead
 		// of navigating to (and focusing) the first file.
 		const viewState = this.loadEditorViewState(input, context);
+		this._logger.log('changes editor set input', {
+			session: sessionResource,
+			preserveFocus: !!options?.preserveFocus,
+			hasPersistedViewState: !!viewState,
+		});
 		this.widget?.setViewModel(viewModel, { preserveFocus: options?.preserveFocus, viewState });
 		this._applyOptions(options);
 	}
@@ -319,6 +349,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		// state survives regardless of the close/open ordering.
 		if (!visible) {
 			this._pendingFocus.clear();
+			this._logger.log('changes editor hidden, saving view state');
 			this.saveCurrentEditorViewState();
 		}
 		super.setEditorVisible(visible);
@@ -326,6 +357,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 	protected override computeEditorViewState(_resource: URI): IMultiDiffEditorViewState | undefined {
 		if (!this.viewModel) {
+			this._logger.log('skipped computing view state, no view model loaded');
 			return undefined; // nothing loaded: don't overwrite a saved state with an empty snapshot
 		}
 		return this.widget?.getViewState();
@@ -393,6 +425,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	override clearInput(): void {
 		const input = this.input;
 		this._pendingFocus.clear();
+		this._logger.log('changes editor clear input');
 		// Let the base capture the current view state (it reads the widget) before the
 		// view model is torn down.
 		super.clearInput();
@@ -412,9 +445,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			return;
 		}
 
-		const control = widget.getActiveControl();
-		if (control) {
-			control.focus();
+		if (widget.focus()) {
 			return;
 		}
 
@@ -422,10 +453,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		// part was just revealed from a hidden state), so getActiveControl() is
 		// undefined. Focus it as soon as it becomes available.
 		this._pendingFocus.value = widget.onDidChangeActiveControl(() => {
-			const activeControl = widget.getActiveControl();
-			if (activeControl) {
+			if (widget.focus()) {
 				this._pendingFocus.clear();
-				activeControl.focus();
 			}
 		});
 	}

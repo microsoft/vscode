@@ -11,7 +11,8 @@ import { ResourceMap } from '../../../../../base/common/map.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { getCleanPromptName, getPromptFileExtension, SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IHeaderAttribute, ParsedPromptFile, PromptFileParser, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
-import { IPromptPath, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { getCustomizationMigrationTargetType, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 
@@ -49,11 +50,7 @@ const retainedPromptHeaderKeys = new Set([
  * Prompt files become skills because agent-host harnesses have no prompt-file concept;
  * every other customization keeps its type and only changes location.
  */
-export function getCustomizationMigrationTargetType(customization: IPromptPath): PromptsType {
-	return customization.type === PromptsType.prompt ? PromptsType.skill : customization.type;
-}
-
-export function migratePromptFileToSkill(promptFile: IPromptPath, content: string, skillNameOverride?: string): IMigratedPromptFile {
+export function migratePromptFileToSkill(promptFile: MigratableConfiguration, content: string, skillNameOverride?: string): IMigratedPromptFile {
 	const parser = new PromptFileParser();
 	const parsed = parser.parse(promptFile.uri, content);
 	const friendlyName = promptFile.name?.trim() || parsed.header?.name?.trim() || getCleanPromptName(promptFile.uri);
@@ -102,7 +99,7 @@ function formatMigratedHeaderValue(value: string, sourceAttribute: IHeaderAttrib
 }
 
 export async function migrateCustomizations(
-	customizations: readonly IPromptPath[],
+	customizations: readonly MigratableConfiguration[],
 	targetFolders: CustomizationMigrationTargetFolders,
 	fileService: IFileService,
 	onMigrationError?: (error: Error) => void,
@@ -115,7 +112,7 @@ export async function migrateCustomizations(
 	const migratedCustomizations: IMigratedCustomization[] = [];
 	let migratedCount = 0;
 	const deleteOriginalFiles = options?.deleteOriginalFiles ?? true;
-	const customizationsBySource = new ResourceMap<IPromptPath[]>();
+	const customizationsBySource = new ResourceMap<MigratableConfiguration[]>();
 
 	for (const customization of customizations) {
 		const sourceCustomizations = customizationsBySource.get(customization.uri) ?? [];
@@ -212,7 +209,7 @@ function getOrCreateReservedNames(folder: URI, reservedNames: Map<string, Set<st
 
 async function getAvailableMigratedFileUri(
 	targetFolder: URI,
-	customization: IPromptPath,
+	customization: MigratableConfiguration,
 	reservedNames: Set<string>,
 	fileService: IFileService,
 ): Promise<URI> {

@@ -21,9 +21,9 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 
 	readonly resource = undefined;
 
-	private static _activeHarnessLabel = '';
 	private _isDirty = false;
 	private _saveHandler?: () => Promise<boolean>;
+	private _targetLabel: string | undefined;
 
 	override get capabilities(): EditorInputCapabilities {
 		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.RequiresModal;
@@ -36,7 +36,6 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 	 */
 	static getOrCreate(): AICustomizationManagementEditorInput {
 		if (!AICustomizationManagementEditorInput._instance || AICustomizationManagementEditorInput._instance.isDisposed()) {
-			AICustomizationManagementEditorInput._activeHarnessLabel = '';
 			AICustomizationManagementEditorInput._instance = new AICustomizationManagementEditorInput();
 		}
 		return AICustomizationManagementEditorInput._instance;
@@ -55,10 +54,10 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 	}
 
 	override getName(): string {
-		const harnessLabel = AICustomizationManagementEditorInput._activeHarnessLabel;
-		return harnessLabel
-			? localize('aiCustomizationManagementEditorNameWithHarness', "Agent Customizations for {0}", harnessLabel)
-			: localize('aiCustomizationManagementEditorName', "Agent Customizations");
+		if (this._targetLabel) {
+			return localize('aiCustomizationManagementEditorNameWithTarget', "Agent Customizations - {0}", this._targetLabel);
+		}
+		return localize('aiCustomizationManagementEditorName', "Agent Customizations");
 	}
 
 	override getIcon(): ThemeIcon {
@@ -92,14 +91,6 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 		this.setDirty(false);
 	}
 
-	setHarnessLabel(label: string): void {
-		if (AICustomizationManagementEditorInput._activeHarnessLabel === label) {
-			return;
-		}
-		AICustomizationManagementEditorInput._activeHarnessLabel = label;
-		this._onDidChangeLabel.fire();
-	}
-
 	setDirty(dirty: boolean): void {
 		if (this._isDirty !== dirty) {
 			this._isDirty = dirty;
@@ -109,5 +100,13 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 
 	setSaveHandler(handler: (() => Promise<boolean>) | undefined): void {
 		this._saveHandler = handler;
+	}
+
+	setTargetLabel(label: string | undefined): void {
+		if (this._targetLabel === label) {
+			return;
+		}
+		this._targetLabel = label;
+		this._onDidChangeLabel.fire();
 	}
 }

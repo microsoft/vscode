@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta, toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
-import { readChatSurfaceMeta, withChatSurfaceMeta, createTerminalChatInstruction } from '../../common/meta/agentChatSurfaceMeta.js';
+import { createEditorInlineChatInstruction, createTerminalChatInstruction, readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
 import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readUsageInfoMeta, type AgentCustomization, type ClientPluginCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
@@ -15,7 +15,7 @@ import type { SessionModelInfo, SimpleMessageAttachment } from '../../common/sta
 import { createAgentModelByokMeta, readAgentModelByokIdentifier } from '../../common/agentModelByokMeta.js';
 import { createAgentModelSourceMeta, readAgentModelSourceId } from '../../common/agentModelSource.js';
 import { URI } from '../../../../base/common/uri.js';
-import { hasClientPluginMcpDefaultCwds, readClientPluginMcpDefaultCwd, toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
+import { hasClientPluginMcpDefaultCwd, hasClientPluginMcpDefaultCwds, readClientPluginMcpDefaultCwd, toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 
 /** Wraps a `_meta` bag in a minimal {@link ToolCallState} so the reader sees the right source type. */
 function toolCall(meta: Record<string, unknown> | undefined): ToolCallState {
@@ -123,6 +123,26 @@ suite('Agent host _meta readers', () => {
 				{ existing: 'value', 'vscode.chat.surface': { surface: 'terminal', shellType: 'bash', osName: 'Linux' } },
 			);
 		});
+
+		test('reads and writes editor inline metadata', () => {
+			assert.deepStrictEqual(
+				readChatSurfaceMeta({ _meta: withChatSurfaceMeta(undefined, { surface: 'editorInline', languageId: 'typescript', targetUri: 'file:///workspace/inline.ts' }) }),
+				{ surface: 'editorInline', languageId: 'typescript', targetUri: 'file:///workspace/inline.ts' },
+			);
+			assert.deepStrictEqual(
+				readChatSurfaceMeta({ _meta: withChatSurfaceMeta(undefined, { surface: 'editorInline' }) }),
+				{ surface: 'editorInline' },
+			);
+			assert.strictEqual(readChatSurfaceMeta({ _meta: { 'vscode.chat.surface': { surface: 'editorInline', languageId: 1 } } }), undefined);
+			assert.deepStrictEqual(
+				readChatSurfaceMeta({ _meta: { 'vscode.chat.surface': { surface: 'editorInline', targetUri: 1 } } }),
+				{ surface: 'editorInline' },
+			);
+			assert.deepStrictEqual(
+				withChatSurfaceMeta({ existing: 'value' }, { surface: 'editorInline', languageId: 'typescript', targetUri: 'file:///workspace/inline.ts' }),
+				{ existing: 'value', 'vscode.chat.surface': { surface: 'editorInline', languageId: 'typescript', targetUri: 'file:///workspace/inline.ts' } },
+			);
+		});
 	});
 
 	suite('createTerminalChatInstruction', () => {
@@ -139,6 +159,7 @@ suite('Agent host _meta readers', () => {
 				bashOmitsPowerShellIdioms: !bash.includes('Stop-Process'),
 				shellUnknownTargetsOs: shellUnknown.includes('targeting Linux'),
 				shellUnknownOmitsShellGuidance: !shellUnknown.includes('active shell') && !shellUnknown.includes('Python or Perl') && !shellUnknown.includes('Stop-Process'),
+				allRequireFencedCommands: [pwsh, bash, shellUnknown].every(instruction => instruction.includes('each command in its own fenced Markdown code block using triple backticks')),
 				allTagged: pwsh.startsWith('<terminal_chat>') && bash.endsWith('</terminal_chat>') && shellUnknown.endsWith('</terminal_chat>'),
 			}, {
 				pwshTargetsShellAndOs: true,
@@ -149,7 +170,43 @@ suite('Agent host _meta readers', () => {
 				bashOmitsPowerShellIdioms: true,
 				shellUnknownTargetsOs: true,
 				shellUnknownOmitsShellGuidance: true,
+				allRequireFencedCommands: true,
 				allTagged: true,
+			});
+		});
+	});
+
+	suite('createEditorInlineChatInstruction', () => {
+		test('targets the attached editor file and includes its language when known', () => {
+			const typescript = createEditorInlineChatInstruction({ surface: 'editorInline', languageId: 'typescript' });
+			const languageUnknown = createEditorInlineChatInstruction({ surface: 'editorInline' });
+			assert.deepStrictEqual({
+				typescript,
+				languageUnknown,
+			}, {
+				typescript: [
+					'<editor_inline_chat>',
+					'You specialize in focused inline edits. Make the requested change directly.',
+					'- Edit only the file attached as the current editor context. Do not create, delete, or modify other files.',
+					'- Make the smallest edit that satisfies the request; preserve surrounding style and indentation.',
+					'- Focus on the user\'s selected range when one is provided.',
+					'- Avoid broad repository exploration or context-gathering unless required to resolve ambiguity.',
+					'- After making the edit, stop; do not run tests, builds, linters, or other verification, and never summarize the change.',
+					'- Produce the edit directly rather than explaining it or writing a tutorial.',
+					'- The file\'s language is typescript.',
+					'</editor_inline_chat>',
+				].join('\n'),
+				languageUnknown: [
+					'<editor_inline_chat>',
+					'You specialize in focused inline edits. Make the requested change directly.',
+					'- Edit only the file attached as the current editor context. Do not create, delete, or modify other files.',
+					'- Make the smallest edit that satisfies the request; preserve surrounding style and indentation.',
+					'- Focus on the user\'s selected range when one is provided.',
+					'- Avoid broad repository exploration or context-gathering unless required to resolve ambiguity.',
+					'- After making the edit, stop; do not run tests, builds, linters, or other verification, and never summarize the change.',
+					'- Produce the edit directly rather than explaining it or writing a tutorial.',
+					'</editor_inline_chat>',
+				].join('\n'),
 			});
 		});
 	});
@@ -191,9 +248,9 @@ suite('Agent host _meta readers', () => {
 			assert.deepStrictEqual(cmd, { command: 'rename' });
 			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(cmd)), { kind: 'command', command: 'rename' });
 
-			const cmdWithHint = toCommandCompletionAttachmentMeta({ command: 'rename', argumentHint: 'New name', description: undefined });
-			assert.deepStrictEqual(cmdWithHint, { command: 'rename', argumentHint: 'New name' });
-			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(cmdWithHint)), { kind: 'command', command: 'rename', argumentHint: 'New name' });
+			const cmdWithHint = toCommandCompletionAttachmentMeta({ command: 'rename', isSkill: true, argumentHint: 'New name', description: undefined });
+			assert.deepStrictEqual(cmdWithHint, { command: 'rename', isSkill: true, argumentHint: 'New name' });
+			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(cmdWithHint)), { kind: 'command', command: 'rename', isSkill: true, argumentHint: 'New name' });
 
 			const skill = toSkillCompletionAttachmentMeta({ uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon', description: undefined });
 			assert.deepStrictEqual(skill, { uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon' });
@@ -291,6 +348,11 @@ suite('Agent host _meta readers', () => {
 				{ model: 'claude-sonnet-4.6', inputTokens: 40, cachedTokens: 0, outputTokens: 12 },
 			];
 			assert.deepStrictEqual(readUsageInfoMeta(usage({ turnTokenTotals: totals })).turnTokenTotals, totals);
+			assert.deepStrictEqual(readUsageInfoMeta(usage({ directTurnTokenTotals: totals })).directTurnTokenTotals, totals);
+			assert.deepStrictEqual(
+				readUsageInfoMeta(usage({ directCopilotUsage: { totalNanoAiu: 123 } })).directCopilotUsage,
+				{ totalNanoAiu: 123 },
+			);
 		});
 
 		test('drops rows that are not fully formed, and reports nothing when none survive', () => {
@@ -310,6 +372,8 @@ suite('Agent host _meta readers', () => {
 			assert.deepStrictEqual(meta.turnTokenTotals, [{ model: 'gpt-5', inputTokens: 7, cachedTokens: 0, outputTokens: 3 }]);
 			assert.strictEqual(readUsageInfoMeta(usage({ turnTokenTotals: [{ model: 'gpt-5' }] })).turnTokenTotals, undefined);
 			assert.strictEqual(readUsageInfoMeta(usage({ turnTokenTotals: 'nope' })).turnTokenTotals, undefined);
+			assert.strictEqual(readUsageInfoMeta(usage({ directTurnTokenTotals: 'nope' })).directTurnTokenTotals, undefined);
+			assert.strictEqual(readUsageInfoMeta(usage({ directCopilotUsage: { totalNanoAiu: 'nope' } })).directCopilotUsage, undefined);
 			assert.strictEqual(readUsageInfoMeta(usage({})).turnTokenTotals, undefined);
 		});
 
@@ -331,6 +395,8 @@ suite('Agent host _meta readers', () => {
 			const additionalCwd = URI.parse('vscode-remote://ssh-remote+host/workspace');
 			const meta = toClientPluginMcpDefaultCwdsMeta({ primary: null, additional: additionalCwd });
 			assert.strictEqual(hasClientPluginMcpDefaultCwds(plugin(meta)), true);
+			assert.strictEqual(hasClientPluginMcpDefaultCwd(plugin(meta), 'primary'), true);
+			assert.strictEqual(hasClientPluginMcpDefaultCwd(plugin(meta), 'missing'), false);
 			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin(meta), 'primary', primaryCwd), primaryCwd);
 			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin(meta), 'additional', primaryCwd)?.toString(), additionalCwd.toString());
 		});
@@ -340,6 +406,8 @@ suite('Agent host _meta readers', () => {
 			assert.strictEqual(hasClientPluginMcpDefaultCwds(plugin(undefined)), false);
 			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin({ mcpDefaultCwds: { server: 42 } }), 'server', URI.file('/workspace')), undefined);
 			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin({ mcpDefaultCwds: { server: 'relative/path' } }), 'server', URI.file('/workspace')), undefined);
+			assert.strictEqual(hasClientPluginMcpDefaultCwd(plugin({ mcpDefaultCwds: { server: 42 } }), 'server'), false);
+			assert.strictEqual(hasClientPluginMcpDefaultCwd(plugin({ mcpDefaultCwds: { server: 'relative/path' } }), 'server'), false);
 		});
 	});
 });

@@ -16,6 +16,7 @@ import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiff
 import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IMultiDiffEditorOptions } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { ChatWidget } from '../widget/chatWidget.js';
+import { getChatRequestText } from '../chatRequestText.js';
 import { ChatTreeItem } from '../chat.js';
 import { IChatResponseFileChangesService } from '../chatResponseFileChangesService.js';
 import { IChatEditingService, IEditSessionEntryDiff } from '../../common/editing/chatEditingService.js';
@@ -142,7 +143,8 @@ export class PromptTimelineModel extends Disposable {
 		if (!resource) {
 			return undefined;
 		}
-		return this.chatEditingService.editingSessionsObs.read(reader).find(s => isEqual(s.chatSessionResource, resource));
+		this.chatEditingService.editingSessionsObs.read(reader);
+		return this.chatEditingService.getEditingSession(resource);
 	});
 
 	/** Recency-bucketed ticks, capped to a fixed maximum so each keeps a >=24px slot. */
@@ -223,6 +225,9 @@ export class PromptTimelineModel extends Disposable {
 
 	/** Per-item content-signal cache (id -> {version, signal}) for height estimation; version invalidates on content growth. */
 	private readonly _signalCache = new Map<string, { version: number; signal: number }>();
+
+	/** Per-request preview cache (id -> {messageText, preview}); recognizing an Agent Merge turn parses its whole state block, and `_recompute` runs on every streamed token. */
+	private readonly _previewCache = new Map<string, { messageText: string; preview: string }>();
 
 	constructor(
 		private readonly widget: ChatWidget,
@@ -359,9 +364,25 @@ export class PromptTimelineModel extends Disposable {
 		return 1;
 	}
 
+	/**
+	 * Preview of a prompt, which for a request rendered as something other than
+	 * its own text (an Agent Merge turn) previews that stand-in label instead.
+	 */
+	private _requestPreview(item: IChatRequestViewModel): string {
+		const messageText = item.messageText;
+		const cached = this._previewCache.get(item.id);
+		if (cached && cached.messageText === messageText) {
+			return cached.preview;
+		}
+		const preview = getPromptPreview(getChatRequestText(item));
+		this._previewCache.set(item.id, { messageText, preview });
+		return preview;
+	}
+
 	private _bindViewModel(): void {
-		// Different session's items have unrelated ids; drop stale signal estimates.
+		// Different session's items have unrelated ids; drop stale per-item caches.
 		this._signalCache.clear();
+		this._previewCache.clear();
 		this._viewModelListener.value = this.widget.viewModel?.onDidChange(() => this._recompute());
 		this._recompute();
 	}
@@ -370,7 +391,7 @@ export class PromptTimelineModel extends Disposable {
 		const prompts: PromptItem[] = [];
 		for (const item of this.widget.viewModel?.getItems() ?? []) {
 			if (isPromptTimelineRequest(item)) {
-				prompts.push({ requestId: item.id, text: getPromptPreview(item.messageText), timestamp: item.timestamp });
+				prompts.push({ requestId: item.id, text: this._requestPreview(item), timestamp: item.timestamp });
 			}
 		}
 
