@@ -34,6 +34,17 @@ function summary(overrides: Partial<IAgentMergePromptSummary> = {}): IAgentMerge
 	};
 }
 
+function createPart(data: IAgentMergePromptSummary): ChatAgentMergeContentPart {
+	return new ChatAgentMergeContentPart(
+		data,
+		URI.parse('test://session'),
+		upcastPartial<IMarkdownRenderer>({}),
+		upcastPartial<IOpenerService>({}),
+		upcastPartial<IHoverService>({ setupDelayedHover: () => toDisposable(() => { }) }),
+		upcastPartial<ICommandService>({}),
+	);
+}
+
 suite('ChatAgentMergeContentPart file labels', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -100,14 +111,7 @@ suite('ChatAgentMergeContentPart file labels', () => {
 	});
 
 	test('keeps the Agent Message toggle name stable while reporting its state', () => {
-		const part = store.add(new ChatAgentMergeContentPart(
-			summary({ agentMessage: 'Merge agent details.' }),
-			URI.parse('test://session'),
-			upcastPartial<IMarkdownRenderer>({}),
-			upcastPartial<IOpenerService>({}),
-			upcastPartial<IHoverService>({ setupDelayedHover: () => toDisposable(() => { }) }),
-			upcastPartial<ICommandService>({}),
-		));
+		const part = store.add(createPart(summary({ agentMessage: 'Merge agent details.' })));
 		const button = part.domNode.querySelector<HTMLElement>('.chat-agent-merge-message-toggle');
 		assert.ok(button);
 
@@ -126,5 +130,18 @@ suite('ChatAgentMergeContentPart file labels', () => {
 			{ label: 'Agent Message', pressed: 'true' },
 			{ label: 'Agent Message', pressed: 'false' },
 		]);
+	});
+
+	test('tracks hover only over the header content', () => {
+		const part = store.add(createPart(summary()));
+		const header = part.domNode.querySelector<HTMLElement>('.chat-agent-merge-header');
+		assert.ok(header);
+
+		header.dispatchEvent(new MouseEvent('mouseenter'));
+		const whileHovered = part.domNode.classList.contains('header-hovered');
+		header.dispatchEvent(new MouseEvent('mouseleave'));
+		const afterLeaving = part.domNode.classList.contains('header-hovered');
+
+		assert.deepStrictEqual([whileHovered, afterLeaving], [true, false]);
 	});
 });

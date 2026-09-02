@@ -17,6 +17,7 @@ import { ChatContentMarkdownRenderer } from '../../../../contrib/chat/browser/wi
 import { ChatAgentMergeContentPart } from '../../../../contrib/chat/browser/widget/chatContentParts/chatAgentMergeContentPart.js';
 import { AgentFeedbackReviewCommandId, IChatAgentFeedbackPullRequestThreadLink } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { renderChatWidget } from './chatWidget.fixture.js';
 
 // ============================================================================
 // Sample data
@@ -301,6 +302,35 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			summary: createSummary(['addressReviews'], { reviewThreads }),
 			expanded: true,
 			mirroredThreadIds: [reviewThreads[0].id, reviewThreads[2].id],
+		}),
+	}),
+
+	InChat: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderChatWidget(ctx, {
+			width: 720,
+			height: 600,
+			inputVisible: false,
+			messages: [
+				{
+					user: 'Polish the Agent Merge widget',
+					assistant: [{
+						kind: 'markdown',
+						text: 'I updated the widget to make its status easier to scan and keep secondary controls quiet until they are needed.',
+					}],
+				},
+				{
+					user: buildAgentMergePrompt(['addressReviews', 'fixCI'], createContext({
+						reviewThreads: reviewThreads.slice(0, 1),
+						failedChecks,
+					})),
+					isSystemInitiated: true,
+					assistant: [{
+						kind: 'markdown',
+						text: 'I addressed the review feedback and fixed the failing checks. The branch is ready for another review.',
+					}],
+				},
+			],
 		}),
 	}),
 });
