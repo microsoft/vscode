@@ -35,7 +35,7 @@ import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSy
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_NOT_FOUND, ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -11933,7 +11933,7 @@ suite('AgentHostChatContribution', () => {
 				action: {
 					type: 'chat/turnStarted', startedAt: '2025-01-01T00:00:00.000Z',
 					turnId: serverTurnId,
-					message: { text: 'queued message text', origin: { kind: MessageKind.User } },
+					message: withMessageRequestHiddenFromTranscript({ text: 'queued message text', origin: { kind: MessageKind.User } }, true),
 				} as ChatAction,
 				serverSeq: 3,
 				origin: undefined, // Server-originated — no client origin
@@ -11943,8 +11943,8 @@ suite('AgentHostChatContribution', () => {
 
 			// onDidStartServerRequest should have fired, carrying the provider turn id
 			assert.deepStrictEqual(
-				serverRequestEvents.map(e => ({ id: e.id, prompt: e.prompt })),
-				[{ id: serverTurnId, prompt: 'queued message text' }],
+				serverRequestEvents.map(e => ({ id: e.id, prompt: e.prompt, isHidden: e.isHidden, isRequestHidden: e.isRequestHidden })),
+				[{ id: serverTurnId, prompt: '<!-- vscode-request-hidden-from-transcript -->\nqueued message text', isHidden: false, isRequestHidden: true }],
 			);
 
 			// isCompleteObs should be false (turn in progress)
