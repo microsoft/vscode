@@ -33,12 +33,14 @@ suite('SessionsVoiceNewComposerContribution', () => {
 
 	function createController(isConnected: ISettableObservable<boolean>, isConnecting = constObservable(false)) {
 		let disconnectCount = 0;
+		const hasDraftTarget = observableValue<boolean>('hasDraftTarget', false);
 		const controller = new class extends mock<IVoiceSessionController>() {
 			override readonly isConnected = isConnected;
 			override readonly isConnecting = isConnecting;
+			override readonly hasDraftTarget = hasDraftTarget;
 			override disconnect(): void { disconnectCount++; }
 		};
-		return { controller, getDisconnectCount: () => disconnectCount };
+		return { controller, hasDraftTarget, getDisconnectCount: () => disconnectCount };
 	}
 
 	function createTarget(): NewChatVoiceTargetService {
@@ -67,6 +69,23 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		disposables.add(target.registerComposer(b));
 
 		assert.strictEqual(getDisconnectCount(), 1);
+	});
+
+	test('keeps voice connected when voice creates a fresh session composer', () => {
+		const target = disposables.add(createTarget());
+		const isConnected = observableValue<boolean>('isConnected', false);
+		const { controller, hasDraftTarget, getDisconnectCount } = createController(isConnected);
+
+		const a = composer();
+		disposables.add(target.registerComposer(a));
+		isConnected.set(true, undefined);
+		disposables.add(new SessionsVoiceNewComposerContribution(controller, target));
+
+		hasDraftTarget.set(true, undefined);
+		const b = composer();
+		disposables.add(target.registerComposer(b));
+
+		assert.strictEqual(getDisconnectCount(), 0);
 	});
 
 	test('disconnects when a fresh welcome composer takes over a connecting voice session', () => {

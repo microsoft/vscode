@@ -15,7 +15,7 @@ import { IVoiceSessionController } from '../../../../workbench/contrib/chat/brow
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { IVoiceModelSelectionResult, resolveVoiceModel } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceToolDispatchService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, inheritableSessionTarget, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
 
 /**
@@ -26,6 +26,7 @@ import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTI
  * Commands are registered only while `agents.voice.enabled` is set:
  * - `_chat.voice.acceptInput` injects transcribed text into the focused chat widget.
  * - `_chat.voice.getCurrentSession` reports the active session's chat resource.
+ * - `_chat.voice.prepareNewSession` creates a provider-backed draft for a new-session request.
  * - `_chat.voice.switchToSession` activates the session that owns a chat resource.
  * - `_chat.voice.activateSession` narrates a session's pending voice item on demand.
  */
@@ -97,6 +98,21 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 				return activeChat.toString();
 			}
 			return this.chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource?.toString();
+		}));
+
+		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.prepareNewSession', async (): Promise<boolean> => {
+			const activeSession = this.sessionsService.activeSession.get();
+			const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
+			const folderUri = isQuickChat ? undefined : activeSession?.workspace.get()?.uri;
+			this.voiceSessionController.setDraftTarget();
+			const result = await this.sessionsService.openNewSession({
+				folderUri,
+				...inheritableSessionTarget(this.sessionsManagementService, activeSession, folderUri),
+			});
+			if (folderUri) {
+				return !!result.session;
+			}
+			return this.sessionsService.activeSession.get() === undefined && !!this._activeComposerTarget();
 		}));
 
 		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.selectModel', (_accessor, requestedModel: string): IVoiceModelSelectionResult => {
@@ -334,6 +350,7 @@ export class SessionsVoiceNewComposerContribution extends Disposable implements 
 		this._register(autorun(reader => {
 			const connected = voiceSessionController.isConnected.read(reader) || voiceSessionController.isConnecting.read(reader);
 			const activeComposer = newChatVoiceTargetService.activeComposer.read(reader);
+			const hasDraftTarget = voiceSessionController.hasDraftTarget.read(reader);
 			if (!connected) {
 				voiceComposer = activeComposer;
 				voiceComposerCaptured = false;
@@ -345,8 +362,9 @@ export class SessionsVoiceNewComposerContribution extends Disposable implements 
 				return;
 			}
 			// A different welcome composer took over while voice is connected: the
-			// connection is bound to the previous surface and can't route here.
-			if (activeComposer && activeComposer !== voiceComposer && !activeComposer.routesWhileSessionActive) {
+			// connection is bound to the previous surface and can't route here,
+			// unless voice itself initiated the draft transition.
+			if (activeComposer && activeComposer !== voiceComposer && !activeComposer.routesWhileSessionActive && !hasDraftTarget) {
 				voiceSessionController.disconnect('internal');
 			}
 		}));

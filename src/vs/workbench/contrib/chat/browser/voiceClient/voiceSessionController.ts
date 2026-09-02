@@ -2019,15 +2019,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				if (text !== rawText && e.args) {
 					e.args['text'] = text;
 				}
-				if (e.args?.['new_session'] === true) {
-					// Pin this submission to the new target so it outranks any
-					// stale focus-change pin.
-					this._setPinnedSubmitSession(undefined);
-					this.newSessionAsTarget();
-					if (text.trim()) {
-						this._setPinnedSubmitSession(this._targetSession.get());
-					}
-				}
+				const createNewSession = e.args?.['new_session'] === true;
 				this._statusText.set(VoiceToolDispatchService.getActionLabel(e.name), undefined);
 				this._persistEntry('agent_tool_call', this._renderToolCallSummary(e.name, e.args), {
 					toolName: e.name,
@@ -2043,9 +2035,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this._sendContext();
 					this.voiceClientService.sendToolResult(e.callId, result);
 				};
-				const sendPromise = shouldSend
-					? this._sendTranscriptionToChat(text)
-					: Promise.resolve(false);
+				const sendPromise = this._prepareNewSessionTarget(createNewSession, shouldSend).then(prepared =>
+					prepared && shouldSend ? this._sendTranscriptionToChat(text) : prepared
+				);
 				sendPromise.then(sent => {
 					if (!sent) {
 						this._clearAwaitingReply();
@@ -3686,6 +3678,24 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this.commandService.executeCommand('workbench.panel.chat.view.copilot.focus').catch(() => { /* ignore */ });
 			return accepted;
 		}
+	}
+
+	private async _prepareNewSessionTarget(createNewSession: boolean, willSend: boolean): Promise<boolean> {
+		if (!createNewSession) {
+			return true;
+		}
+
+		this._setPinnedSubmitSession(undefined);
+		const preparedByHost = await this.commandService.executeCommand<boolean>('_chat.voice.prepareNewSession').catch(() => undefined);
+		if (preparedByHost !== undefined) {
+			return preparedByHost;
+		}
+
+		this.newSessionAsTarget();
+		if (willSend) {
+			this._setPinnedSubmitSession(this._targetSession.get());
+		}
+		return true;
 	}
 
 	/**

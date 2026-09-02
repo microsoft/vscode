@@ -663,6 +663,22 @@ class AdoptingCommandService extends TestCommandService {
 	}
 }
 
+class PreparingNewSessionCommandService extends TestCommandService {
+	constructor(private readonly prepared = true) {
+		super();
+	}
+
+	override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T> {
+		if (commandId === '_chat.voice.prepareNewSession') {
+			return this.prepared as T;
+		}
+		if (commandId === '_chat.voice.getCurrentSession') {
+			return 'sessions-voice://new-chat/composer' as T;
+		}
+		return super.executeCommand<T>(commandId, ...args);
+	}
+}
+
 class RejectingAcceptCommandService extends TestCommandService {
 	override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T> {
 		if (commandId === '_chat.voice.acceptInput') {
@@ -5381,6 +5397,62 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
+	test('send_to_chat with new_session lets the host prepare its own session', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new PreparingNewSessionCommandService();
+		const chatService = new NewSessionChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'host-new-session-send',
+			name: 'send_to_chat',
+			args: { text: 'refactor the upload service', new_session: true },
+		});
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual({
+			created: chatService.created.length,
+			sent: chatService.sent,
+			acceptedInputs: commandService.acceptedInputs,
+			toolResults: voiceClientService.toolResults,
+		}, {
+			created: 0,
+			sent: [],
+			acceptedInputs: ['refactor the upload service'],
+			toolResults: [{ callId: 'host-new-session-send', result: 'ok' }],
+		});
+	});
+
+	test('send_to_chat with new_session does not fall back when host preparation fails', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new PreparingNewSessionCommandService(false);
+		const chatService = new NewSessionChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'host-new-session-failed',
+			name: 'send_to_chat',
+			args: { text: 'refactor the upload service', new_session: true },
+		});
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual({
+			created: chatService.created.length,
+			sent: chatService.sent,
+			acceptedInputs: commandService.acceptedInputs,
+			toolResults: voiceClientService.toolResults,
+		}, {
+			created: 0,
+			sent: [],
+			acceptedInputs: [],
+			toolResults: [{ callId: 'host-new-session-failed', result: 'error' }],
+		});
+	});
+
 	test('send_to_chat with new_session and no text creates and targets a session without sending', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const commandService = new TestCommandService();
@@ -5411,7 +5483,7 @@ suite('VoiceSessionController', () => {
 			sent: [],
 			acceptedInputs: [],
 			target: 'chat-session://new/1',
-			toolResults: [{ callId: 'new-session-empty', result: 'error' }],
+			toolResults: [{ callId: 'new-session-empty', result: 'ok' }],
 			awaitingReply: false,
 			voiceState: 'idle',
 			status: 'Hold to speak...',
