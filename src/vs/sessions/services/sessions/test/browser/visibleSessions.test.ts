@@ -1011,16 +1011,47 @@ suite('VisibleSession - open/close chats', () => {
 		});
 	});
 
-	test('the main chat cannot be closed', () => {
+	test('the main chat can be closed and stays reopenable', () => {
 		const [main, b] = [makeChat('main'), makeChat('b')];
 		const { visible, ids } = createSession([main, b]);
 
 		visible.closeChat(main);
 
 		assert.deepStrictEqual(snapshot(visible, ids), {
-			open: ['main', 'b'],
+			open: ['b'],
+			closed: ['main'],
+			active: 'b', // active falls back to the remaining open chat
+		});
+	});
+
+	test('the last visible chat cannot be closed', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		const { visible, ids } = createSession([main, b]);
+		visible.closeChat(main);
+
+		visible.closeChat(b); // would leave the session with no visible tab
+
+		assert.deepStrictEqual(snapshot(visible, ids), {
+			open: ['b'],
+			closed: ['main'],
+			active: 'b',
+		});
+	});
+
+	test('a closed main chat is reopened when the remaining chats are deleted', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		const { visible, chatsObs, ids } = createSession([main, b]);
+		visible.closeChat(main);
+
+		chatsObs.set([main], undefined); // the only other chat is removed
+
+		assert.deepStrictEqual(snapshot(visible, ids), {
+			open: ['main'],
 			closed: [],
-			active: 'main',
+			// Recovering the active chat after its chat is removed from the session
+			// is owned by `VisibleSessions` (see its removal-fallback suite); this
+			// suite covers only the tab-visibility floor.
+			active: 'b',
 		});
 	});
 
@@ -1076,10 +1107,69 @@ suite('VisibleSession - open/close chats', () => {
 		});
 	});
 
-	test('a seeded main chat is never hidden even if persisted as closed', () => {
+	test('a seeded main chat stays hidden when another chat is restored as active', () => {
 		const [main, b] = [makeChat('main'), makeChat('b')];
-		// The main chat can never be closed, so a corrupt/legacy closed set that
-		// contains the main chat URI must not hide it from the tab strip.
+		// The main chat is closeable, so a persisted closed set containing it is
+		// honoured as long as some other chat remains visible.
+		const { visible, ids } = createSession([main, b], [main.resource.toString()], b);
+
+		assert.deepStrictEqual(snapshot(visible, ids), {
+			open: ['b'],
+			closed: ['main'],
+			active: 'b',
+		});
+	});
+
+	test('a persisted closed main chat survives a provisional active chat and applies once the peer loads', () => {
+		const [main, peer] = [makeChat('main'), makeChat('peer')];
+		// The peer has not loaded yet, so the session opens on the main chat as a
+		// provisional active chat. That must not discard the persisted closure:
+		// once the peer loads and becomes active, the main chat hides again.
+		const { visible, chatsObs, ids } = createSession([main], [main.resource.toString()], main);
+		const provisional = snapshot(visible, ids);
+
+		chatsObs.set([main, peer], undefined);
+		visible.setActiveChat(peer);
+
+		assert.deepStrictEqual({ provisional, restored: snapshot(visible, ids) }, {
+			provisional: { open: ['main'], closed: [], active: 'main' },
+			restored: { open: ['peer'], closed: ['main'], active: 'peer' },
+		});
+	});
+
+	test('a chat surfaced by the visibility floor is not offered as the last closed chat', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		const { visible, chatsObs } = createSession([main, b]);
+		visible.closeChat(main);
+
+		chatsObs.set([main], undefined); // the floor surfaces the main chat again
+
+		assert.strictEqual(visible.lastClosedChat, undefined);
+	});
+
+	test('re-closing a floor-surfaced chat makes it the last closed chat again', () => {
+		const [main, b, c] = [makeChat('main'), makeChat('b'), makeChat('c')];
+		// Seeded from persisted state, so `main` has no close-order entry at all.
+		const { visible, ids } = createSession([main, b, c], [main.resource.toString()], main);
+
+		visible.closeChat(c); // another chat closes while main is surfaced
+		visible.closeChat(main); // main is on screen (active), so this hides it
+
+		assert.deepStrictEqual({
+			...snapshot(visible, ids),
+			lastClosed: visible.lastClosedChat?.title.get(),
+		}, {
+			open: ['b'],
+			closed: ['main', 'c'],
+			active: 'b',
+			lastClosed: 'main',
+		});
+	});
+
+	test('a seeded closed set never hides the chat restored as active', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		// A corrupt/legacy closed set naming every chat must not leave the session
+		// with an empty tab strip: the restored active chat always stays visible.
 		const { visible, ids } = createSession([main, b], [main.resource.toString(), b.resource.toString()]);
 
 		assert.deepStrictEqual(snapshot(visible, ids), {
@@ -1251,6 +1341,21 @@ suite('VisibleSession - shouldShowChatTabs', () => {
 	test('hidden for a single chat even when its title diverged from the session title', () => {
 		const visible = createSession('Session Title', [makeChat('main', 'Chat Title')]);
 		assert.strictEqual(visible.shouldShowChatTabs.get(), false);
+	});
+
+	test('shown for a single visible chat that is not the main chat', () => {
+		// The session header that replaces the strip shows the session title, so a
+		// lone peer chat needs its tab to identify which chat is on screen.
+		const visible = createSession('Session Title', [makeChat('main', 'Main'), makeChat('peer', 'Chat 2')]);
+		visible.closeChat(visible.mainChat.get());
+
+		assert.deepStrictEqual({
+			visible: visible.visibleChatTabs.get().map(c => c.title.get()),
+			showTabs: visible.shouldShowChatTabs.get(),
+		}, {
+			visible: ['Chat 2'],
+			showTabs: true,
+		});
 	});
 
 	test('shown for more than one chat even if a chat title matches the session title', () => {
@@ -1445,6 +1550,77 @@ suite('VisibleSessions - active chat removal fallback', () => {
 		}, {
 			active: 'tool',
 			visible: ['main', 'tool'],
+		});
+	});
+
+	test('deleting the last peer chat reopens a closed main chat and makes it active', () => {
+		const main = makeChat('main');
+		const peer = makeChat('peer');
+		const { session, chatsObs } = createSession([main, peer]);
+		const model = createModel();
+		const visible = model.setActive(session)!;
+
+		visible.closeChat(main); // the main chat is closeable while a peer remains
+		chatsObs.set([main], undefined); // ...but the peer is then deleted
+
+		assert.deepStrictEqual({
+			active: visible.activeChat.get().title.get(),
+			open: visible.openChats.get().map(c => c.title.get()),
+			closed: visible.closedChats.get().map(c => c.title.get()),
+		}, {
+			active: 'main',
+			open: ['main'],
+			closed: [],
+		});
+	});
+
+	test('a chat surfaced by the visibility floor stays visible when a later chat joins', () => {
+		const main = makeChat('main');
+		const peer = makeChat('peer');
+		const later = makeChat('later');
+		const { session, chatsObs } = createSession([main, peer]);
+		const model = createModel();
+		const visible = model.setActive(session)!;
+
+		visible.closeChat(main);
+		chatsObs.set([main], undefined); // the floor surfaces main, which becomes active
+		chatsObs.set([main, later], undefined); // a new chat arrives
+
+		assert.deepStrictEqual({
+			active: visible.activeChat.get().title.get(),
+			visible: visible.visibleChatTabs.get().map(c => c.title.get()),
+			closed: visible.closedChats.get().map(c => c.title.get()),
+		}, {
+			active: 'main',
+			visible: ['main', 'later'],
+			closed: [],
+		});
+	});
+
+	test('a chat surfaced by the visibility floor can be closed again once another tab exists', () => {
+		const main = makeChat('main');
+		const peer = makeChat('peer');
+		const later = makeChat('later');
+		const { session, chatsObs } = createSession([main, peer]);
+		const model = createModel();
+		const visible = model.setActive(session)!;
+
+		visible.closeChat(main);
+		chatsObs.set([main], undefined); // the floor surfaces main, which becomes active
+		chatsObs.set([main, later], undefined);
+
+		visible.closeChat(main); // main is on screen again, so this must hide it
+
+		assert.deepStrictEqual({
+			active: visible.activeChat.get().title.get(),
+			visible: visible.visibleChatTabs.get().map(c => c.title.get()),
+			closed: visible.closedChats.get().map(c => c.title.get()),
+			lastClosed: visible.lastClosedChat?.title.get(),
+		}, {
+			active: 'later',
+			visible: ['later'],
+			closed: ['main'],
+			lastClosed: 'main',
 		});
 	});
 });

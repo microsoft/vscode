@@ -755,14 +755,16 @@ registerAction2(class CloseChatAction extends Action2 {
 			keybinding: {
 				weight: CHAT_TAB_KEYBINDING_WEIGHT,
 				// Intercept Ctrl/Cmd+W (which otherwise closes the session) only
-				// while the active chat is a closeable non-main chat, so it closes
-				// the chat tab instead — like closing a tab vs the window.
+				// while the active chat is a closeable tab, so it closes the chat
+				// tab instead — like closing a tab vs the window. On the last
+				// remaining tab it falls through and closes the session.
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionActiveChatIsClosableContext),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyW,
 				win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
 			},
-			// Rendered as the tab's close button by the chat tab strip; the main
-			// chat's tab does not render this menu, so no per-tab gating is needed.
+			// Rendered as the tab's close button by the chat tab strip. Every
+			// visible tab can be closed except the last one, which the tab strip
+			// and `closeChat` both enforce.
 			menu: {
 				id: Menus.SessionChatTab,
 				group: 'navigation',
@@ -781,12 +783,15 @@ registerAction2(class CloseChatAction extends Action2 {
 			return;
 		}
 		const chat = context?.chat ?? session.activeChat.get();
-		if (!chat || extUri.isEqual(chat.resource, session.mainChat.get().resource)) {
+		if (!chat) {
 			return;
 		}
 		// An untitled (in-composer) draft has nothing to reopen, so delete it
-		// outright; a committed chat is hidden (reopenable).
-		if (chat.status.get() === SessionStatus.Untitled) {
+		// outright; a committed chat is hidden (reopenable). The main chat is
+		// only ever hidden — deleting it would take the session's own
+		// conversation with it.
+		const isMainChat = extUri.isEqual(chat.resource, session.mainChat.get().resource);
+		if (!isMainChat && chat.status.get() === SessionStatus.Untitled) {
 			await sessionsManagementService.deleteChat(session, chat.resource, { skipConfirmation: true });
 		} else {
 			await sessionsService.closeChat(session, chat);
@@ -832,6 +837,14 @@ registerAction2(class CloseAllChatsAction extends Action2 {
 		}
 
 		const mainResource = session.mainChat.get().resource;
+		// The main chat is this batch's survivor, so open it before closing the
+		// rest. Done unconditionally: it is a no-op when main is already open,
+		// and when main is closed-but-surfaced (the active-chat override shows
+		// it while it stays in the closed set) only this clears that latent
+		// closure — otherwise main would silently vanish again as soon as some
+		// other chat became active. Without it the last non-main chat would also
+		// be the only visible tab and its close would be refused.
+		await sessionsService.openChat(session, mainResource);
 		const chatsToClose = session.openChats.get().filter(chat => !extUri.isEqual(chat.resource, mainResource));
 		for (const chat of chatsToClose) {
 			if (chat.status.get() === SessionStatus.Untitled) {

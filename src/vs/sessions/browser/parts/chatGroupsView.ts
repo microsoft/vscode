@@ -88,6 +88,7 @@ export class ChatGroupsView extends Themable {
 	private _session: IActiveSession | undefined;
 	private _options: IChatViewOptions | undefined;
 	private _mainChatResource: IObservable<string> | undefined;
+	private _canCloseChats: IObservable<boolean> | undefined;
 	private _sessionActive = true;
 	private _sessionVisible = true;
 	private readonly _singleGroupTabsReplaceHeader = observableValue(this, false);
@@ -151,6 +152,9 @@ export class ChatGroupsView extends Themable {
 		}
 
 		this._mainChatResource = derived(reader => session.mainChat.read(reader).resource.toString());
+		// A session always keeps one visible tab, so closing is offered only while
+		// more than one remains — mirroring `VisibleSession.closeChat`.
+		this._canCloseChats = derived(reader => session.visibleChatTabs.read(reader).length > 1);
 
 		const grid = session.isCreated.get()
 			? this._tryRestoreLayout(session, store) ?? this._createSingleGroupGrid(session, store)
@@ -300,6 +304,7 @@ export class ChatGroupsView extends Themable {
 			chats,
 			activeChatResource: activeResourceId,
 			mainChatResource: this._mainChatResource!,
+			canCloseChats: this._canCloseChats!,
 			tabsVisible,
 			showSessionActions,
 			openChat: resource => this._openChat(entry, resource),
