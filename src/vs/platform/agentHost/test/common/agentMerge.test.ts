@@ -271,7 +271,7 @@ suite('Agent Merge gate', () => {
 			...configuration,
 			mergePullRequest: 'never',
 		}), [
-			'Agent Merge is on for `feature`. It will wait for a pull request on this branch, then monitor it.',
+			'Agent Merge is enabled for `feature`. It will wait for a pull request on this branch, then monitor it.',
 			'It will ask the agent to address new pull request review comments.',
 			'It will ask the agent to fix failing CI checks.',
 			'It will ask the agent to resolve merge conflicts and update the branch when it falls behind.',
@@ -325,7 +325,7 @@ suite('Agent Merge gate', () => {
 			mergePullRequest: 'always',
 			mergeMethod: 'squash',
 		}), [
-			'Agent Merge is on for `feature` and is monitoring its pull request.',
+			'Agent Merge is enabled for `feature` and is monitoring its pull request.',
 			'It will ask the agent to fix failing CI checks.',
 			'It will ask the agent to resolve merge conflicts and update the branch when it falls behind.',
 			'After each update, it will wait for new CI results.',

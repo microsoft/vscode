@@ -540,7 +540,7 @@ suite('AgentMergeController', () => {
 					kind: AgentSystemNotificationKind.AgentMergeEnabled,
 					content: agentMergeEnabledNotice({ branchName: 'feature' }, defaultAgentMergeConfiguration),
 				},
-				{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was turned off because the checked-out branch changed from `feature` to `main`.' },
+				{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was disabled because the checked-out branch changed from `feature` to `main`.' },
 			],
 			enabled: false,
 		});
@@ -674,10 +674,10 @@ suite('AgentMergeController', () => {
 		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: false } });
 
 		assert.deepStrictEqual({ afterSelfDisable, notices }, {
-			afterSelfDisable: [{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was turned off because this session was archived.' }],
+			afterSelfDisable: [{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was disabled because this session was archived.' }],
 			notices: [
-				{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was turned off because this session was archived.' },
-				{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was turned off for this session.' },
+				{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was disabled because this session was archived.' },
+				{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was disabled for this session.' },
 			],
 		});
 	});
@@ -709,7 +709,7 @@ suite('AgentMergeController', () => {
 
 		assert.deepStrictEqual(notices, [{
 			kind: AgentSystemNotificationKind.AgentMergeDisabled,
-			content: 'Agent Merge was turned off for this session.',
+			content: 'Agent Merge was disabled for this session.',
 		}, {
 			kind: AgentSystemNotificationKind.AgentMergeEnabled,
 			content: agentMergeEnabledNotice({ branchName: 'feature' }, defaultAgentMergeConfiguration),
