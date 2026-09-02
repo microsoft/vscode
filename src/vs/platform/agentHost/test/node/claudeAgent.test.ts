@@ -2328,6 +2328,30 @@ suite('ClaudeAgent', () => {
 		}
 	});
 
+	test('a workspace-less chat starts in the configured default permission mode', async () => {
+		const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-permdef-home-`));
+		const { agent, sdk, configService } = createTestContext(disposables, { userHome });
+		try {
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+			// No config and no working directories, so the host resolves no session config.
+			const materialize = async () => {
+				const created = await createSession(agent, {});
+				sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+				await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+				return sdk.capturedStartupOptions.at(-1)?.permissionMode;
+			};
+
+			configService.updateRootConfig({ [AgentHostClaudeDefaultPermissionModeConfigKey]: 'acceptEdits' });
+			const configured = await materialize();
+			configService.updateRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: true });
+			const restricted = await materialize();
+
+			assert.deepStrictEqual({ configured, restricted }, { configured: 'acceptEdits', restricted: 'default' });
+		} finally {
+			await fs.rm(userHome.fsPath, { recursive: true, force: true });
+		}
+	});
+
 	test('createProvisional creates a session without SDK startup contact', async () => {
 		const { sdk, instantiationService } = createTestContext(disposables);
 

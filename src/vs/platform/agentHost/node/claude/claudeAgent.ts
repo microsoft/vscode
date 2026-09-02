@@ -1308,14 +1308,15 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Pull `permissionMode` out of the post-validation `IAgentCreateChatOptions.config`
-	 * bag, narrowing the runtime `unknown` value to the SDK's `PermissionMode`
-	 * union (5/6 values, excluding `dontAsk`; sdk.d.ts:1560). Falls back to
-	 * `'default'` when the bag is absent or carries something the schema
-	 * validator shouldn't have accepted (defense-in-depth).
+	 * Pull `permissionMode` out of the `IAgentCreateChatOptions.config` bag,
+	 * narrowing the runtime `unknown` value to the SDK's `PermissionMode` union
+	 * (5/6 values, excluding `dontAsk`; sdk.d.ts:1560). Falls back to the
+	 * configured default when the bag is absent or carries something the schema
+	 * validator shouldn't have accepted, so a workspace-less create for which
+	 * the host resolves no session config lands on the same mode.
 	 */
 	private _resolvePermissionMode(config: Record<string, unknown> | undefined): ClaudePermissionMode {
-		return narrowClaudePermissionMode(config?.[ClaudeSessionConfigKey.PermissionMode]) ?? 'default';
+		return narrowClaudePermissionMode(config?.[ClaudeSessionConfigKey.PermissionMode]) ?? this._defaultPermissionMode();
 	}
 
 	private async _disposeLiveSession(session: ClaudeAgentSession): Promise<void> {

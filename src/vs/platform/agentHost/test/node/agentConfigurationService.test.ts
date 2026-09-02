@@ -11,7 +11,7 @@ import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, clientOwnedApprovalRootConfigKeys, createSchema, platformRootSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostClaudeDefaultPermissionModeConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, clientOwnedApprovalRootConfigKeys, createSchema, platformRootSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { AGENT_CUSTOMIZATION_SETTINGS_META_KEY, getAgentCustomizationSettingsEntries } from '../../common/agentCustomizationSettings.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigState } from '../../common/state/protocol/state.js';
@@ -324,6 +324,7 @@ suite('AgentConfigurationService', () => {
 			[AgentHostTerminalAutoApproveRulesConfigKey]: { rm: true },
 			[AgentHostEditAutoApprovePatternsConfigKey]: { '**/*': true },
 			[AgentHostAutoReplyEnabledConfigKey]: true,
+			[AgentHostClaudeDefaultPermissionModeConfigKey]: 'bypassPermissions',
 		});
 		await firstService.whenIdle();
 
@@ -337,10 +338,12 @@ suite('AgentConfigurationService', () => {
 			// The state manager seeds empty permissions; nothing else survives.
 			restoredKeys: [...clientOwnedApprovalRootConfigKeys].filter(key => restored[key] !== undefined).sort(),
 			permissions: restored[SessionConfigKey.Permissions],
+			claudeDefaultPermissionMode: restartedService.getRootValue(platformRootSchema, AgentHostClaudeDefaultPermissionModeConfigKey),
 		}, {
 			persistedKeys: [...clientOwnedApprovalRootConfigKeys].sort(),
 			restoredKeys: [SessionConfigKey.Permissions],
 			permissions: { allow: [], deny: [] },
+			claudeDefaultPermissionMode: undefined,
 		});
 		fs.rmSync(directory, { recursive: true, force: true });
 	});
