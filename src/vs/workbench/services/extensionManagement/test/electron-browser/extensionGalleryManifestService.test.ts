@@ -77,12 +77,16 @@ function createMicrosoftSession(accessToken = 'ms-token', accountId = 'ms-accoun
 	};
 }
 
-// Gallery manifest response stub. A well-formed manifest with an (empty) `resources` array is a
-// valid service index; eligibility is no longer discovered from a manifest resource.
+// Gallery manifest response stub. A well-formed manifest carries a version, an (empty) `resources`
+// array and the `extensionQuery` capability consumers dereference; eligibility is no longer
+// discovered from a manifest resource.
 function createGalleryManifest() {
 	return {
 		version: '1.0',
 		resources: [],
+		capabilities: {
+			extensionQuery: {},
+		},
 	};
 }
 
@@ -414,8 +418,6 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	});
 
 	test('GitHub provider — eligible account, 200 with a non-manifest body → AccessDenied', async () => {
-		// A captive portal / proxy can answer 200 with an unrelated JSON body; it must not be
-		// accepted as a service index and published as Available.
 		defaultAccount = createDefaultAccount({ enterprise: true });
 		requestHandler = () => mockResponse(200, { foo: 'bar' });
 
@@ -428,6 +430,36 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	test('GitHub provider — eligible account, 200 with malformed resources → AccessDenied', async () => {
 		defaultAccount = createDefaultAccount({ enterprise: true });
 		requestHandler = () => mockResponse(200, { ...createGalleryManifest(), resources: [{}] });
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
+	});
+
+	test('GitHub provider — eligible account, 200 without a version → AccessDenied', async () => {
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		requestHandler = () => mockResponse(200, { resources: [], capabilities: { extensionQuery: {} } });
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
+	});
+
+	test('GitHub provider — eligible account, 200 without capabilities → AccessDenied', async () => {
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		requestHandler = () => mockResponse(200, { version: '1.0', resources: [] });
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
+	});
+
+	test('GitHub provider — eligible account, 200 without the extensionQuery capability → AccessDenied', async () => {
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		requestHandler = () => mockResponse(200, { ...createGalleryManifest(), capabilities: {} });
 
 		const service = createService();
 		await service.getExtensionGalleryManifest();
@@ -710,7 +742,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	test('Microsoft — switching to a different eligible account publishes that account catalog', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession('token-a', 'ms-account-1', 'ms-session-1')];
-		requestHandler = () => mockResponse(200, { version: '1.0', resources: [{ id: 'tenantA', type: 'ExtensionQueryService' }] });
+		requestHandler = () => mockResponse(200, { ...createGalleryManifest(), resources: [{ id: 'tenantA', type: 'ExtensionQueryService' }] });
 
 		const service = createService();
 		const first = await service.getExtensionGalleryManifest();
@@ -720,7 +752,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		// A private marketplace is account-scoped, so a different eligible account can be served a
 		// different catalog. The already-available status must not suppress the new one.
 		microsoftSessions = [createMicrosoftSession('token-b', 'ms-account-2', 'ms-session-2')];
-		requestHandler = () => mockResponse(200, { version: '1.0', resources: [{ id: 'tenantB', type: 'ExtensionQueryService' }] });
+		requestHandler = () => mockResponse(200, { ...createGalleryManifest(), resources: [{ id: 'tenantB', type: 'ExtensionQueryService' }] });
 		onDidChangeSessions.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [], removed: [], changed: [] } });
 		await new Promise(resolve => setTimeout(resolve, 0));
 

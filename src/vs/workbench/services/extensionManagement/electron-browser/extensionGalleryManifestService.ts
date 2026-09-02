@@ -25,6 +25,25 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHostService } from '../../host/browser/host.js';
 import { ExtensionGalleryAccountStatus, IExtensionGalleryAccountService } from '../common/extensionGalleryAccount.js';
 
+/**
+ * Validates that a service index response has the shape required by {@link IExtensionGalleryManifest}.
+ * A non-marketplace endpoint (captive portal, proxy, misconfigured URL) can answer `200` with an
+ * unrelated JSON body, which would otherwise be published as an available gallery and fail later
+ * when consumers read `resources` or `capabilities.extensionQuery`.
+ */
+function isExtensionGalleryManifest(candidate: IExtensionGalleryManifest): boolean {
+	if (typeof candidate.version !== 'string') {
+		return false;
+	}
+
+	if (!Array.isArray(candidate.resources)
+		|| !candidate.resources.every(resource => resource && typeof resource.id === 'string' && typeof resource.type === 'string')) {
+		return false;
+	}
+
+	return !!candidate.capabilities && typeof candidate.capabilities.extensionQuery === 'object' && candidate.capabilities.extensionQuery !== null;
+}
+
 export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryManifestService implements IExtensionGalleryManifestService {
 
 	private readonly commonHeadersPromise: Promise<IHeaders>;
@@ -217,8 +236,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				throw new Error('Unable to retrieve extension gallery manifest.');
 			}
 
-			if (!Array.isArray(extensionGalleryManifest.resources)
-				|| !extensionGalleryManifest.resources.every(resource => resource && typeof resource.id === 'string' && typeof resource.type === 'string')) {
+			if (!isExtensionGalleryManifest(extensionGalleryManifest)) {
 				throw new Error('Service index response is not a valid extension gallery manifest.');
 			}
 
