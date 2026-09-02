@@ -1948,6 +1948,18 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('toolCallStateToStreamingInvocation preserves search rendering before ready', () => {
+			const invocation = toolCallStateToStreamingInvocation({
+				toolCallId: 'tc-rg',
+				toolName: 'rg',
+				displayName: 'Search',
+				status: ToolCallStatus.Streaming,
+				_meta: { toolKind: 'search' },
+			}, undefined);
+
+			assert.deepStrictEqual(invocation.toolSpecificData, { kind: 'search' });
+		});
+
 		test('toolCallStateToStreamingInvocation preserves subagent metadata before ready', () => {
 			const sessionResource = URI.parse('copilotcli:/session-1');
 			const invocation = toolCallStateToStreamingInvocation({
