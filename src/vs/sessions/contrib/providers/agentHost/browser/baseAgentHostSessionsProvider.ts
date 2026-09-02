@@ -67,6 +67,24 @@ import { createActiveSessionSubscriptionObs, createChangesets, IAgentHostChanges
 import { createSessionOutputObs, ISessionOutputObs } from './agentHostSessionFiles.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
+/**
+ * Sessions this client has switched to approve-all, as a capped list of session
+ * ids. Approve-all is applied through a host extension whose resulting value is
+ * not reported back in session state, so without a local record a window reload
+ * would show "Manual" for a session that is in fact auto-approving every tool
+ * call — the UI under-reporting risk.
+ *
+ * This is a compensation, not a design. It exists only because the value cannot
+ * be read back, and it has a limit it cannot overcome: another client changing
+ * the same session leaves this record stale. If a host starts reporting the
+ * value in session state, delete this key together with
+ * `_readApproveAllSessionIds`, `_recordSessionApproveAll`,
+ * `_reassertSessionApproveAll` and `_approveAllInFlight`, and read the value
+ * from session state instead.
+ */
+const STORAGE_KEY_SESSION_APPROVE_ALL = 'sessions.agentHost.sessionApproveAll';
+/** Upper bound on {@link STORAGE_KEY_SESSION_APPROVE_ALL} so the record cannot grow without limit. */
+const SESSION_APPROVE_ALL_MAX_ENTRIES = 200;
 const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const SESSION_CHANGE_NOTIFICATION_DEBOUNCE_MS = 50;
 
@@ -2723,6 +2741,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected readonly _runningSessionConfigs = new Map<string, ResolveSessionConfigResult>();
 	private readonly _runningSessionConfigResolveSeq = new Map<string, number>();
 
+	/** Sessions with an approve-all toggle on the wire, so a re-assert cannot overtake it. */
+	private readonly _approveAllInFlight = new Set<string>();
+
 	/**
 	 * Last authoritatively-resolved schemas for {@link SEEDED_CONFIG_SCHEMA_KEYS},
 	 * seeded into new drafts so their chips survive a workspace/agent switch. Lives
@@ -3790,6 +3811,92 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined {
 		return this._getNewSession(sessionId)?.getConfigValues();
+	}
+
+	// ---- Approve-all (hosts that declare no approvals config property) -------
+
+	/**
+	 * Whether this *connection* can issue the approve-all extension request.
+	 *
+	 * Deliberately named for what it checks. It confirms the connection
+	 * implements the optional method — it does **not** prove the host on the
+	 * other end handles it, because the host does not advertise this vendor
+	 * extension in its `initialize` capabilities the way our own extensions are
+	 * gated (see `supportsAgentHostDetachedWorktrees`). Until it does, the real
+	 * discriminator is the absence of an approvals property in the session
+	 * config schema, and a host that has neither will surface a picker whose
+	 * writes fail. That failure is at least in the safe direction: approvals
+	 * stay narrow and the user keeps being asked.
+	 */
+	canRequestSessionApproveAll(): boolean {
+		return typeof this.connection?.setSessionApproveAll === 'function';
+	}
+
+	/** The last approve-all value this client successfully applied to a session. */
+	getSessionApproveAll(sessionId: string): boolean {
+		return this._readApproveAllSessionIds().includes(sessionId);
+	}
+
+	/**
+	 * Applies approve-all to a session and records the result.
+	 *
+	 * The record is written only after the host accepts, so a failed call leaves
+	 * the picker showing the previous level rather than one that never took
+	 * effect. Failure is also the safe direction: the host's own default is
+	 * off, so a dropped enable means the user keeps being asked.
+	 */
+	async setSessionApproveAll(sessionId: string, enabled: boolean): Promise<void> {
+		const connection = this.connection;
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!connection?.setSessionApproveAll || !cached) {
+			throw new Error(`[${this.id}] Session '${sessionId}' cannot apply approve-all`);
+		}
+		this._approveAllInFlight.add(sessionId);
+		try {
+			await connection.setSessionApproveAll(cached.backendUri, enabled);
+		} finally {
+			this._approveAllInFlight.delete(sessionId);
+		}
+		this._recordSessionApproveAll(sessionId, enabled);
+		this._onDidChangeSessionConfig.fire(sessionId);
+	}
+
+	/**
+	 * Re-applies a remembered approve-all when a session's state subscription is
+	 * established. The host holds the flag in memory only, so a suspended
+	 * sandbox or a restarted daemon comes back with it cleared while our record
+	 * still says otherwise; pushing it again on every (re)subscribe keeps the
+	 * two in step rather than letting the picker drift into a claim the host
+	 * would not honour.
+	 */
+	private _reassertSessionApproveAll(connection: IAgentConnection, sessionId: string, sessionUri: URI): void {
+		// A toggle already on the wire owns the outcome. Without this, a
+		// subscription established mid-flight could re-send the stored `true`
+		// *after* the user's `false` and leave the session auto-approving —
+		// the one direction this must never fail in.
+		if (!connection.setSessionApproveAll || this._approveAllInFlight.has(sessionId) || !this.getSessionApproveAll(sessionId)) {
+			return;
+		}
+		connection.setSessionApproveAll(sessionUri, true).catch(err => {
+			this._logService.warn(`[${this.id}] Failed to re-apply approve-all for ${sessionId}: ${err}`);
+		});
+	}
+
+	private _readApproveAllSessionIds(): string[] {
+		const stored = this._storageService.getObject<string[]>(STORAGE_KEY_SESSION_APPROVE_ALL, StorageScope.PROFILE, []);
+		return Array.isArray(stored) ? stored.filter((id): id is string => typeof id === 'string') : [];
+	}
+
+	private _recordSessionApproveAll(sessionId: string, enabled: boolean): void {
+		// Read-modify-write against storage rather than an in-memory cache: every
+		// agent-host provider in the window shares this one profile-scoped key, so
+		// a cached copy would let the last writer drop the other providers' entries.
+		// Session ids are provider-qualified, so entries cannot collide.
+		const existing = this._readApproveAllSessionIds().filter(id => id !== sessionId);
+		// Most-recent-first, so the cap evicts the sessions least likely to still be open.
+		const next = enabled ? [sessionId, ...existing].slice(0, SESSION_APPROVE_ALL_MAX_ENTRIES) : existing;
+		this._storageService.store(STORAGE_KEY_SESSION_APPROVE_ALL, JSON.stringify(next), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	async setIsolationMode(sessionId: string, mode: string): Promise<void> {
@@ -5041,6 +5148,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		this._hydrateAgentFromDraft(connection, cached, sessionId, sessionUri, store);
 		this._hydrateModelFromDraft(connection, cached, sessionId, sessionUri, store);
+		this._reassertSessionApproveAll(connection, sessionId, sessionUri);
 	}
 
 	/**

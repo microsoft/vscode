@@ -11,6 +11,7 @@ import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { type IConfigurationOverrides, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { ResolveSessionConfigResult, SessionConfigPropertySchema } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { getAgentHostCopilotSandboxSettingId } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -46,7 +47,7 @@ function makeWellKnownConfig(value: string | undefined, levels: readonly string[
 	} as ResolveSessionConfigResult;
 }
 
-class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'onDidChangeRootConfig' | 'getSessionConfig' | 'getRootConfig' | 'setSessionConfigValue' | 'isSessionConfigResolving'> {
+class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'onDidChangeRootConfig' | 'getSessionConfig' | 'getRootConfig' | 'setSessionConfigValue' | 'isSessionConfigResolving' | 'canRequestSessionApproveAll' | 'getSessionApproveAll' | 'setSessionApproveAll'> {
 	readonly id: string = PROVIDER_ID;
 	private readonly _onDidChange = new Emitter<string>();
 	readonly onDidChangeSessionConfig: Event<string> = this._onDidChange.event;
@@ -57,6 +58,13 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	rootConfig: RootConfigState | undefined;
 	readonly setCalls: Array<[string, string, string]> = [];
 	readonly resolving = observableValue<boolean>('resolving', false);
+
+	/** Whether this host drives approvals through the approve-all extension. */
+	approveAllSupported = false;
+	/** Makes the host reject the toggle, so nothing should be recorded. */
+	approveAllRejects = false;
+	readonly approveAllCalls: Array<[string, boolean]> = [];
+	private readonly _approveAll = new Set<string>();
 
 	getSessionConfig(_sessionId: string): ResolveSessionConfigResult | undefined {
 		return this.config;
@@ -69,6 +77,25 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	}
 	async setSessionConfigValue(sessionId: string, property: string, value: string): Promise<void> {
 		this.setCalls.push([sessionId, property, value]);
+	}
+	canRequestSessionApproveAll(): boolean {
+		return this.approveAllSupported;
+	}
+	getSessionApproveAll(sessionId: string): boolean {
+		return this._approveAll.has(sessionId);
+	}
+	async setSessionApproveAll(sessionId: string, enabled: boolean): Promise<void> {
+		this.approveAllCalls.push([sessionId, enabled]);
+		// Mirrors the real provider: record only what the host accepted.
+		if (this.approveAllRejects) {
+			throw new Error('host rejected approve-all');
+		}
+		if (enabled) {
+			this._approveAll.add(sessionId);
+		} else {
+			this._approveAll.delete(sessionId);
+		}
+		this._onDidChange.fire(sessionId);
 	}
 	fireChange(sessionId: string = SESSION_ID): void {
 		this._onDidChange.fire(sessionId);
@@ -135,6 +162,7 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 		enabled: constObservable(true),
 		managedSandboxEnforced,
 	});
+	insta.stub(ILogService, new NullLogService());
 
 	const delegate = store.add(insta.createInstance(AgentHostPermissionPickerDelegate, activeSessionObs));
 	return {
@@ -481,5 +509,126 @@ suite('isWellKnownClaudePermissionModeSchema', () => {
 	test('rejects non-string types and missing enums', () => {
 		assert.strictEqual(isWellKnownClaudePermissionModeSchema(schema({ type: 'number' as 'string' })), false);
 		assert.strictEqual(isWellKnownClaudePermissionModeSchema(schema({ enum: undefined })), false);
+	});
+});
+
+suite('AgentHostPermissionPickerDelegate approve-all fallback', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** A host that publishes a session config but no approvals property. */
+	function makeConfigWithoutAutoApprove(): ResolveSessionConfigResult {
+		return {
+			schema: {
+				type: 'object',
+				properties: {
+					mode: {
+						title: 'Agent Mode',
+						description: '',
+						type: 'string',
+						enum: ['interactive', 'plan'],
+						sessionMutable: true,
+					},
+				},
+			},
+			values: { mode: 'interactive' },
+		} as ResolveSessionConfigResult;
+	}
+
+	function setupApproveAll() {
+		const rig = setup(store, makeActiveSession());
+		rig.provider.approveAllSupported = true;
+		rig.provider.config = makeConfigWithoutAutoApprove();
+		rig.provider.fireChange();
+		return rig;
+	}
+
+	test('offers only the two levels a boolean can express', () => {
+		const { delegate } = setupApproveAll();
+
+		// No Assisted: the risk judge is not addressable over the approve-all call.
+		assert.deepStrictEqual(delegate.availableLevels, [ChatPermissionLevel.Default, ChatPermissionLevel.AutoApprove]);
+	});
+
+	test('applies to a host that has no approvals property but can approve-all', () => {
+		const { delegate, provider } = setupApproveAll();
+		const withExtension = delegate.isApplicable.get();
+
+		// The same schema on a host that cannot approve-all has no approvals axis at all.
+		provider.approveAllSupported = false;
+		provider.fireChange();
+
+		assert.deepStrictEqual({ withExtension, withoutExtension: delegate.isApplicable.get() }, { withExtension: true, withoutExtension: false });
+	});
+
+	test('reports the level the host confirmed, not the one requested', async () => {
+		const { delegate, provider } = setupApproveAll();
+		const before = delegate.currentPermissionLevel.get();
+
+		delegate.setPermissionLevel(ChatPermissionLevel.AutoApprove);
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({
+			before,
+			after: delegate.currentPermissionLevel.get(),
+			calls: provider.approveAllCalls,
+		}, {
+			before: ChatPermissionLevel.Default,
+			after: ChatPermissionLevel.AutoApprove,
+			calls: [[SESSION_ID, true]],
+		});
+	});
+
+	test('stays on the previous level when the host rejects the toggle', async () => {
+		const { delegate, provider } = setupApproveAll();
+		provider.approveAllRejects = true;
+
+		delegate.setPermissionLevel(ChatPermissionLevel.AutoApprove);
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+		// Failing to widen approvals is the safe direction: the user keeps being asked.
+		assert.deepStrictEqual({
+			level: delegate.currentPermissionLevel.get(),
+			calls: provider.approveAllCalls,
+		}, {
+			level: ChatPermissionLevel.Default,
+			calls: [[SESSION_ID, true]],
+		});
+	});
+
+	test('leaves a host that declares autoApprove on the session-config path', async () => {
+		const { delegate, provider } = setup(store, makeActiveSession(), 'default');
+		// Both available: the config property wins because it carries more levels.
+		provider.approveAllSupported = true;
+		provider.fireChange();
+
+		delegate.setPermissionLevel(ChatPermissionLevel.AutoApprove);
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({
+			levels: delegate.availableLevels,
+			configCalls: provider.setCalls,
+			approveAllCalls: provider.approveAllCalls,
+		}, {
+			levels: [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted, ChatPermissionLevel.AutoApprove],
+			configCalls: [[SESSION_ID, 'autoApprove', ChatPermissionLevel.AutoApprove]],
+			approveAllCalls: [],
+		});
+	});
+
+	test('waits for the schema before deciding which path a session is on', () => {
+		const rig = setup(store, makeActiveSession());
+		rig.provider.approveAllSupported = true;
+		// Config not resolved yet — an unresolved schema must not be mistaken for
+		// "this host has no approvals property".
+		rig.provider.config = undefined;
+		rig.provider.fireChange();
+
+		assert.deepStrictEqual({
+			applicable: rig.delegate.isApplicable.get(),
+			levels: rig.delegate.availableLevels,
+		}, {
+			applicable: false,
+			levels: [],
+		});
 	});
 });

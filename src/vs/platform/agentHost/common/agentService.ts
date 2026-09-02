@@ -1153,6 +1153,17 @@ export interface IAgentConnection {
 	disposeSession(session: URI): Promise<void>;
 
 	/**
+	 * Toggle a session's approve-all permission mode on a host whose session
+	 * config declares no approvals property. The value is not reported back in
+	 * session state, so the caller owns displaying it.
+	 *
+	 * Optional because this is a Copilot host extension rather than an AHP
+	 * method — a connection that cannot serve it simply omits it, and callers
+	 * fall back to the session-config approvals path.
+	 */
+	setSessionApproveAll?(session: URI, enabled: boolean): Promise<void>;
+
+	/**
 	 * Host-level network context for diagnostics (version, OS/arch, account,
 	 * proxy settings/env, endpoints). Runs on the agent host process (local or
 	 * remote), so the result reflects the environment the Copilot SDK actually

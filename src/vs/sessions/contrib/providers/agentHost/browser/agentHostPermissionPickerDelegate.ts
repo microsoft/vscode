@@ -20,6 +20,7 @@ import { ISessionsProvider } from '../../../../services/sessions/common/sessions
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { isAssistedPermissionsEnabled, isPermissionLevelVisible } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { CopilotCLISessionType } from './baseAgentHostSessionsProvider.js';
@@ -99,6 +100,13 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		if (!session) {
 			return [ChatPermissionLevel.Default];
 		}
+		// A host with no `autoApprove` property drives approvals through the
+		// approve-all extension, which is a boolean — so it can offer only the
+		// two levels that boolean can express. `Assisted` has no representation
+		// there because the risk judge is not addressable over that call.
+		if (this._usesApproveAll(session)) {
+			return [ChatPermissionLevel.Default, ChatPermissionLevel.AutoApprove];
+		}
 		const provider = this._getProvider(session.providerId);
 		const schema = provider?.getSessionConfig(session.sessionId)?.schema.properties[SessionConfigKey.AutoApprove];
 		const values = schema?.type === 'string' && Array.isArray(schema.enum) ? schema.enum : [];
@@ -135,6 +143,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this.managedSandboxEnforced = agentHostEnablementService.managedSandboxEnforced;
@@ -181,6 +190,15 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		if (!this.availableLevels.includes(level)) {
 			return;
 		}
+		if (this._usesApproveAll(session)) {
+			// Nothing is recorded here — the provider records only what the host
+			// confirms, and fires its change event so the picker re-derives.
+			// A rejected call therefore leaves the chip on the previous level
+			// instead of asserting one that never took effect.
+			provider.setSessionApproveAll(session.sessionId, level === ChatPermissionLevel.AutoApprove)
+				.catch(err => this._logService.warn(`[AgentHostPermissionPicker] Failed to set approve-all: ${err}`));
+			return;
+		}
 		provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, level)
 			.catch(() => { /* best-effort */ });
 	}
@@ -208,6 +226,13 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		if (!provider) {
 			return ChatPermissionLevel.Default;
 		}
+		if (this._usesApproveAll(session)) {
+			// The confirmed value, not the requested one: the provider records
+			// it only after the host accepts.
+			return provider.getSessionApproveAll(session.sessionId)
+				? ChatPermissionLevel.AutoApprove
+				: ChatPermissionLevel.Default;
+		}
 		const value = provider.getSessionConfig(session.sessionId)?.values[SessionConfigKey.AutoApprove];
 		// Defensive: a legacy `autopilot` value on the autoApprove axis (from
 		// before Autopilot moved onto the mode axis) is no longer a valid
@@ -229,8 +254,30 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		if (!provider) {
 			return false;
 		}
+		if (this._usesApproveAll(session)) {
+			return true;
+		}
 		const schema = provider.getSessionConfig(session.sessionId)?.schema.properties[SessionConfigKey.AutoApprove];
 		return !!schema && isWellKnownAutoApproveSchema(schema);
+	}
+
+	/**
+	 * Whether this session's approvals are driven by the Copilot approve-all
+	 * extension rather than an `autoApprove` config property.
+	 *
+	 * Only applies once the session's config has actually been resolved: before
+	 * that the schema is legitimately empty, and treating "not yet known" as
+	 * "no approvals property" would flash the two-level picker at a host that
+	 * turns out to offer three.
+	 */
+	private _usesApproveAll(session: IActiveSession): boolean {
+		const provider = this._getProvider(session.providerId);
+		const config = provider?.getSessionConfig(session.sessionId);
+		if (!provider || !config || !provider.canRequestSessionApproveAll()) {
+			return false;
+		}
+		const schema = config.schema.properties[SessionConfigKey.AutoApprove];
+		return !schema || !isWellKnownAutoApproveSchema(schema);
 	}
 
 	private _getProvider(providerId: string): IAgentHostSessionsProvider | undefined {

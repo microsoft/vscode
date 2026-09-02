@@ -164,6 +164,15 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this.onDisposeSession?.(session);
 	}
 
+	public approveAllCalls: { session: URI; enabled: boolean }[] = [];
+	public failSetSessionApproveAll = false;
+	override async setSessionApproveAll(session: URI, enabled: boolean): Promise<void> {
+		this.approveAllCalls.push({ session, enabled });
+		if (this.failSetSessionApproveAll) {
+			throw new Error('host rejected approve-all');
+		}
+	}
+
 	public disposedChats: URI[] = [];
 	override async disposeChat(chat: URI): Promise<void> {
 		this.disposedChats.push(chat);
@@ -7538,4 +7547,134 @@ suite.skip('LocalAgentHostSessionsProvider - active-session branch changeset sub
 		const untouchedChangeAfter = session.changes.get()[0];
 		assert.strictEqual(untouchedChangeAfter, untouchedChangeBefore, 'an unchanged file must reuse its change object across all updates');
 	}));
+});
+
+suite('LocalAgentHostSessionsProvider - approve-all', () => {
+	const disposables = new DisposableStore();
+	let agentHost: MockAgentHostService;
+
+	setup(() => {
+		agentHost = disposables.add(new MockAgentHostService());
+	});
+
+	teardown(() => {
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** A provider with one discovered session, ready to accept approve-all. */
+	async function withSession(storageService?: IStorageService) {
+		agentHost.addSession(createSession('approve-all', { summary: 'Approve All' }));
+		const provider = createProvider(disposables, agentHost, undefined, storageService ? { storageService } : undefined);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(candidate => candidate.title.get() === 'Approve All');
+		assert.ok(session);
+		return { provider, sessionId: session.sessionId };
+	}
+
+	test('records the value only after the host accepts it', async () => {
+		const { provider, sessionId } = await withSession();
+
+		await provider.setSessionApproveAll(sessionId, true);
+		const afterAccept = provider.getSessionApproveAll(sessionId);
+
+		agentHost.failSetSessionApproveAll = true;
+		await assert.rejects(() => provider.setSessionApproveAll(sessionId, false));
+
+		assert.deepStrictEqual({
+			afterAccept,
+			// The rejected disable must not be recorded, or the picker would claim
+			// a level the host never applied.
+			afterReject: provider.getSessionApproveAll(sessionId),
+			calls: agentHost.approveAllCalls.map(call => call.enabled),
+		}, {
+			afterAccept: true,
+			afterReject: true,
+			calls: [true, false],
+		});
+	});
+
+	test('survives a reload and is re-applied when the session resubscribes', async () => {
+		// One storage service across both providers stands in for a window reload:
+		// the client's record persists, the host's in-memory flag does not.
+		const storageService = disposables.add(new InMemoryStorageService());
+		const first = await withSession(storageService);
+		await first.provider.setSessionApproveAll(first.sessionId, true);
+
+		agentHost.approveAllCalls.length = 0;
+		const second = await withSession(storageService);
+		second.provider.getSessionConfig(second.sessionId);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			remembered: second.provider.getSessionApproveAll(second.sessionId),
+			// Re-applied without the user touching anything, because a suspended
+			// sandbox comes back with the flag cleared.
+			reasserted: agentHost.approveAllCalls.map(call => call.enabled),
+		}, {
+			remembered: true,
+			reasserted: [true],
+		});
+	});
+
+	test('does not re-apply for a session the user never switched', async () => {
+		const { provider, sessionId } = await withSession();
+		agentHost.approveAllCalls.length = 0;
+
+		provider.getSessionConfig(sessionId);
+		await timeout(0);
+
+		assert.deepStrictEqual(agentHost.approveAllCalls, []);
+	});
+});
+
+suite('LocalAgentHostSessionsProvider - approve-all across providers', () => {
+	const disposables = new DisposableStore();
+
+	teardown(() => {
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('one provider recording a session does not drop another provider entry', async () => {
+		// Every agent-host provider in the window shares one profile-scoped
+		// record, so a second provider must not overwrite the first's entries.
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		const firstHost = disposables.add(new MockAgentHostService());
+		firstHost.addSession(createSession('first', { summary: 'First' }));
+		const first = createProvider(disposables, firstHost, undefined, { storageService });
+		first.getSessions();
+
+		const secondHost = disposables.add(new MockAgentHostService());
+		secondHost.addSession(createSession('second', { summary: 'Second' }));
+		const second = createProvider(disposables, secondHost, undefined, { storageService });
+		second.getSessions();
+		await timeout(0);
+
+		const firstSession = first.getSessions().find(candidate => candidate.title.get() === 'First')!;
+		const secondSession = second.getSessions().find(candidate => candidate.title.get() === 'Second')!;
+
+		// Read from the second provider before the first writes: a provider that
+		// cached the record here would later write back its stale copy and drop
+		// whatever the first provider had recorded in between.
+		second.getSessionApproveAll(secondSession.sessionId);
+		await first.setSessionApproveAll(firstSession.sessionId, true);
+		await second.setSessionApproveAll(secondSession.sessionId, true);
+
+		// Read through a provider that has never touched the record, which is what
+		// the next window reload gets. Asking the writers themselves would only
+		// consult their own copies and hide a lost update.
+		const reloaded = createProvider(disposables, disposables.add(new MockAgentHostService()), undefined, { storageService });
+		assert.deepStrictEqual({
+			first: reloaded.getSessionApproveAll(firstSession.sessionId),
+			second: reloaded.getSessionApproveAll(secondSession.sessionId),
+		}, {
+			first: true,
+			second: true,
+		});
+	});
 });
