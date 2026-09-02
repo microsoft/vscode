@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { McpServerConfig, OnElicitation, Options, PermissionMode, SDKUserMessage, SyncHookJSONOutput, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { Sequencer } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -19,7 +18,7 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { ClaudeRuntimeEffortLevel, toRuntimeEffortLevel, resolveClaudeEffort } from '../../common/claudeModelConfig.js';
-import { AgentSignal, IAgentSessionProjectInfo } from '../../common/agent.js';
+import { AgentSignal, IAgentSessionProjectInfo, type IAgentTurnDiagnosticSnapshot, type IAgentTurnPendingHostRequest } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -34,6 +33,7 @@ import { buildClientMcpServers, buildOptions, toClaudeMcpServers, type ClaudeDen
 import { claudeTransportForProvider, parseClaudeModelSelection, toClaudeSdkModelId } from './claudeModelSelection.js';
 import { buildServerToolMcpServer, CLAUDE_SERVER_TOOL_MCP_SERVER_NAME, serverToolAllowList } from './claudeServerToolMcpServer.js';
 import { convertToolCallResult } from './clientTools/claudeClientToolResult.js';
+import type { ClientToolCallRegistry } from './clientTools/claudeClientToolMcpServer.js';
 import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
 import { SessionClientCustomizationsDiff } from './customizations/claudeSessionClientCustomizationsModel.js';
@@ -228,7 +228,7 @@ export class ClaudeAgentSession extends Disposable {
 	private _appliedMcpLaunchEnablementRevision = 0;
 
 	/** Exposed for the materializer's MCP-server build closure. */
-	get pendingClientToolCalls(): PendingRequestRegistry<CallToolResult> { return this._pendingClientToolCalls; }
+	get pendingClientToolCalls(): ClientToolCallRegistry { return this._pendingClientToolCalls; }
 	/** Snapshot of permission-mode fallback used when live read is undefined. */
 	get permissionModeFallback(): ClaudePermissionMode { return this._permissionModeFallback; }
 	private _inheritedPermissionMode: ClaudePermissionMode | undefined;
@@ -241,7 +241,7 @@ export class ClaudeAgentSession extends Disposable {
 		model: ModelSelection | undefined,
 		agent: AgentSelection | undefined,
 		config: Record<string, unknown> | undefined,
-		pendingClientToolCalls: PendingRequestRegistry<CallToolResult>,
+		pendingClientToolCalls: ClientToolCallRegistry,
 		permissionModeFallback: ClaudePermissionMode,
 		instantiationService: IInstantiationService,
 		additionalDirectories: readonly URI[] = [],
@@ -441,7 +441,7 @@ export class ClaudeAgentSession extends Disposable {
 		agent: AgentSelection | undefined,
 		config: Record<string, unknown> | undefined,
 		abortController: AbortController,
-		private readonly _pendingClientToolCalls: PendingRequestRegistry<CallToolResult>,
+		private readonly _pendingClientToolCalls: ClientToolCallRegistry,
 		toolDiff: SessionClientToolsDiff,
 		private readonly _permissionModeFallback: ClaudePermissionMode,
 		additionalDirectories: readonly URI[],
@@ -972,6 +972,43 @@ export class ClaudeAgentSession extends Disposable {
 	 */
 	get hasActiveTurn(): boolean { return this._pipeline?.hasActiveTurn ?? false; }
 
+	/**
+	 * Bounded liveness facts for `turnId`, or for the subagent spawned by
+	 * `subagentToolCallId` when the caller addressed a subagent chat.
+	 */
+	getTurnDiagnosticSnapshot(turnId: string, subagentToolCallId?: string): IAgentTurnDiagnosticSnapshot | undefined {
+		const pipeline = this._pipeline;
+		if (!pipeline) {
+			return undefined;
+		}
+		if (subagentToolCallId !== undefined) {
+			return this.subagents.getSpawn(subagentToolCallId)
+				? { state: 'available', providerCallState: 'pending', providerTurnStarted: true, providerSessionState: pipeline.providerSessionState }
+				: undefined;
+		}
+		const snapshot = pipeline.getTurnDiagnosticSnapshot(turnId);
+		const pendingHostRequests = this._pendingHostRequests();
+		if (snapshot.state !== 'available' || pendingHostRequests.length === 0) {
+			return snapshot;
+		}
+		return { ...snapshot, pendingHostRequests };
+	}
+
+	/** Ids the SDK is parked on inside this session's host round-trip registries. */
+	private _pendingHostRequests(): readonly IAgentTurnPendingHostRequest[] {
+		const requests: IAgentTurnPendingHostRequest[] = [];
+		for (const [id] of this._pendingPermissions.entries()) {
+			requests.push({ kind: 'permission', id });
+		}
+		for (const [id] of this._pendingUserInputs.entries()) {
+			requests.push({ kind: 'userInput', id });
+		}
+		for (const [id] of this._pendingClientToolCalls.entries()) {
+			requests.push({ kind: 'clientToolCall', id });
+		}
+		return requests;
+	}
+
 	/** Pre-materialize model selection accessor (read by materializer to build Options). */
 	get provisionalModel(): ModelSelection | undefined { return this._provisionalModel; }
 
@@ -1364,6 +1401,21 @@ export class ClaudeAgentSession extends Disposable {
 	/** Remove a client's tool contribution from this session. */
 	removeClientTools(clientId: string): void {
 		this.toolDiff.model.removeClient(clientId);
+	}
+
+	/**
+	 * Fail every client-tool call parked for `clientId` so the SDK unblocks
+	 * when the client that owed the result goes away.
+	 */
+	failClientToolCalls(clientId: string): number {
+		const failed = this._pendingClientToolCalls.respondWhere(owner => owner === clientId, {
+			content: [{ type: 'text', text: `Client tool call abandoned: client ${clientId} is no longer connected to this session.` }],
+			isError: true,
+		});
+		if (failed > 0) {
+			this._logService.warn(`[Claude:${this.sessionId}] failed ${failed} parked client tool call(s) for departed client ${clientId}`);
+		}
+		return failed;
 	}
 
 	/** Remove a client's customization contribution from this session. */

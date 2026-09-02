@@ -107,6 +107,27 @@ export class ClaudePromptQueue extends Disposable {
 		return entry.deferred.p;
 	}
 
+	/** True iff `turnId` still has an entry queued, in flight, or popped-but-unsettled. */
+	hasTurn(turnId: string): boolean {
+		return this._toYield.some(e => e.turnId === turnId)
+			|| this._yielded.some(e => e.turnId === turnId)
+			|| this._popped.some(e => e.turnId === turnId);
+	}
+
+	/** True iff an entry for `turnId` has already been handed to the SDK. */
+	isTurnYielded(turnId: string): boolean {
+		return this._yielded.some(e => e.turnId === turnId) || this._popped.some(e => e.turnId === turnId);
+	}
+
+	/** Distinct turn ids with an unsettled entry, in-flight ones first. */
+	pendingTurnIds(): readonly string[] {
+		const ids = new Set<string>();
+		for (const entry of [...this._yielded, ...this._popped, ...this._toYield]) {
+			ids.add(entry.turnId);
+		}
+		return [...ids];
+	}
+
 	/**
 	 * Most-recent in-flight or queued entry, used by steering to inherit
 	 * its parent's `turnId`. Prefers the in-flight head over the latest

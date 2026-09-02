@@ -45,7 +45,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
+import { AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, type IAgentTurnDiagnosticSnapshot } from '../../common/agent.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
@@ -2284,7 +2284,7 @@ suite('ClaudeAgent', () => {
 			undefined,
 			undefined,
 			undefined,
-			new PendingRequestRegistry<CallToolResult>(),
+			new PendingRequestRegistry<CallToolResult, string | undefined>(),
 			'default',
 			instantiationService,
 		));
@@ -2310,7 +2310,7 @@ suite('ClaudeAgent', () => {
 			undefined,
 			undefined,
 			undefined,
-			new PendingRequestRegistry<CallToolResult>(),
+			new PendingRequestRegistry<CallToolResult, string | undefined>(),
 			'default',
 			instantiationService,
 		));
@@ -6838,7 +6838,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 			undefined,
 			undefined,
 			undefined,
-			new PendingRequestRegistry<CallToolResult>(),
+			new PendingRequestRegistry<CallToolResult, string | undefined>(),
 			'default',
 			instantiationService,
 		));
@@ -10169,7 +10169,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		await agent.chats.sendMessage(chat, 'additional', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
 		const additional = agent.getSessionForTesting(backingSession)!;
 		let settled = false;
-		void additional.pendingClientToolCalls.register('tool-1').then(() => settled = true, () => undefined);
+		void additional.pendingClientToolCalls.register('tool-1', undefined).then(() => settled = true, () => undefined);
 
 		agent.onClientToolCallComplete(chat, 'tool-1', { success: true, pastTenseMessage: 'ran' });
 		await tick();
@@ -11062,3 +11062,118 @@ suite('ClaudeAgent — host seams', () => {
 });
 
 // #endregion
+
+suite('ClaudeAgent turn diagnostics', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** The call facts the reaper reads. Session state is asserted separately. */
+	function facts(snapshot: IAgentTurnDiagnosticSnapshot): Record<string, unknown> {
+		return snapshot.state === 'available'
+			? {
+				providerCallState: snapshot.providerCallState,
+				providerTurnStarted: snapshot.providerTurnStarted,
+				callSettlesWithTurn: snapshot.callSettlesWithTurn,
+			}
+			: { state: snapshot.state };
+	}
+
+	function sessionState(snapshot: IAgentTurnDiagnosticSnapshot): string | undefined {
+		return snapshot.state === 'available' ? snapshot.providerSessionState : undefined;
+	}
+
+	test('reports the call pending while the turn is queued and resolved once the final result lands', async () => {
+		const ctx = createTestContext(disposables);
+		await ctx.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(ctx.agent, { workingDirectories: [URI.file('/work-diagnostics')] });
+		const chat = defaultChatUri(created.session);
+
+		const turnActive = new DeferredPromise<void>();
+		const finishTurn = new DeferredPromise<void>();
+		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		ctx.sdk.queryAdvance = async index => {
+			if (index === 1) {
+				turnActive.complete();
+				await finishTurn.p;
+			}
+		};
+		const send = ctx.agent.chats.sendMessage(chat, 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
+		await turnActive.p;
+		const pending = ctx.agent.getTurnDiagnosticSnapshot(chat, 'turn-1', chatContext(chat));
+		finishTurn.complete();
+		await send;
+		const resolved = ctx.agent.getTurnDiagnosticSnapshot(chat, 'turn-1', chatContext(chat));
+
+		assert.deepStrictEqual([facts(pending), facts(resolved), sessionState(pending)], [
+			{ providerCallState: 'pending', providerTurnStarted: true, callSettlesWithTurn: true },
+			{ providerCallState: 'resolved', providerTurnStarted: true, callSettlesWithTurn: true },
+			'active',
+		]);
+	});
+
+	test('reports the call rejected after the turn is aborted', async () => {
+		const ctx = createTestContext(disposables);
+		await ctx.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(ctx.agent, { workingDirectories: [URI.file('/work-diagnostics')] });
+		const chat = defaultChatUri(created.session);
+
+		const turnActive = new DeferredPromise<void>();
+		const finishTurn = new DeferredPromise<void>();
+		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		ctx.sdk.queryAdvance = async index => {
+			if (index === 1) {
+				turnActive.complete();
+				await finishTurn.p;
+			}
+		};
+		const send = ctx.agent.chats.sendMessage(chat, 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
+		await turnActive.p;
+		await ctx.agent.chats.abort(chat, chatContext(chat));
+		await assert.rejects(send);
+		const rejected = ctx.agent.getTurnDiagnosticSnapshot(chat, 'turn-1', chatContext(chat));
+		finishTurn.complete();
+
+		assert.deepStrictEqual({ ...facts(rejected), providerSessionState: sessionState(rejected) }, {
+			providerCallState: 'rejected',
+			providerTurnStarted: true,
+			providerSessionState: 'shutdown',
+			callSettlesWithTurn: true,
+		});
+	});
+
+	test('reports a chat it does not own as missing', async () => {
+		const ctx = createTestContext(disposables);
+		const unknown = defaultChatUri(AgentSession.uri('claude', 'never-created'));
+
+		assert.deepStrictEqual(ctx.agent.getTurnDiagnosticSnapshot(unknown, 'turn-1', chatContext(unknown)), { state: 'missingChat' });
+	});
+
+	test('removing an active client fails the client tool calls it left parked', async () => {
+		const ctx = createTestContext(disposables);
+		await ctx.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(ctx.agent, { workingDirectories: [URI.file('/work-diagnostics')] });
+		const chat = defaultChatUri(created.session);
+		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		await ctx.agent.chats.sendMessage(chat, 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
+
+		const session = ctx.agent.getSessionForTesting(created.session)!;
+		ctx.agent.getOrCreateActiveClient(chat, chatContext(chat), { clientId: 'client-a' });
+		ctx.agent.getOrCreateActiveClient(chat, chatContext(chat), { clientId: 'client-b' });
+		let departed: CallToolResult | undefined;
+		let survivor: CallToolResult | undefined;
+		void session.pendingClientToolCalls.register('call-a', 'client-a').then(result => departed = result, () => undefined);
+		void session.pendingClientToolCalls.register('call-b', 'client-b').then(result => survivor = result, () => undefined);
+
+		ctx.agent.removeActiveClient(chat, chatContext(chat), 'client-a');
+		await tick();
+
+		assert.deepStrictEqual({
+			departedIsError: departed?.isError,
+			departedText: departed?.content.map(block => block.type),
+			survivorSettled: survivor !== undefined,
+		}, {
+			departedIsError: true,
+			departedText: ['text'],
+			survivorSettled: false,
+		});
+	});
+});

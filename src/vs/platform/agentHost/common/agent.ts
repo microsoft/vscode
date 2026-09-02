@@ -221,11 +221,29 @@ export type AgentProvider = string;
 export type AgentTurnProviderCallState = 'notStarted' | 'pending' | 'resolved' | 'rejected';
 export type AgentTurnProviderSessionState = 'active' | 'disconnecting' | 'disconnected' | 'shutdown';
 
+/** What kind of host round-trip a provider is parked on for a turn. */
+export type AgentTurnPendingHostRequestKind = 'permission' | 'userInput' | 'clientToolCall';
+
+/** One host round-trip a provider is still waiting on for a turn. */
+export interface IAgentTurnPendingHostRequest {
+	readonly kind: AgentTurnPendingHostRequestKind;
+	readonly id: string;
+}
+
 export type IAgentTurnDiagnosticSnapshot = {
 	readonly state: 'available';
 	readonly providerCallState: AgentTurnProviderCallState;
 	readonly providerTurnStarted: boolean;
 	readonly providerSessionState: AgentTurnProviderSessionState;
+	/**
+	 * Whether a settled {@link providerCallState} means the turn itself is over.
+	 * Providers whose send call returns before the turn ends must leave this unset.
+	 */
+	readonly callSettlesWithTurn?: boolean;
+	/** Host round-trips the provider is parked on, when it tracks them. */
+	readonly pendingHostRequests?: readonly IAgentTurnPendingHostRequest[];
+	/** Milliseconds since the provider last produced anything for this session. */
+	readonly quietMs?: number;
 } | {
 	readonly state: 'missingChat' | 'missingTurn';
 };
@@ -1144,7 +1162,7 @@ export interface IAgent {
 	truncateChat?(chat: URI, turnId: string | undefined, context?: URI | IAgentChatContext): Promise<void>;
 
 	/** Return bounded diagnostics for an in-flight turn when supported. */
-	getTurnDiagnosticSnapshot?(chat: URI, turnId: string): IAgentTurnDiagnosticSnapshot | undefined;
+	getTurnDiagnosticSnapshot?(chat: URI, turnId: string, context?: URI | IAgentChatContext): IAgentTurnDiagnosticSnapshot | undefined;
 
 	/** Record the host-remapped turn for a completed provider model call. */
 	recordModelCallTurnCorrelation?(chat: URI, modelCallId: string, turnId: string): void;

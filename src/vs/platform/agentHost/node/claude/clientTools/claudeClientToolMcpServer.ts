@@ -6,6 +6,7 @@
 import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolDefinition } from '../../../common/state/protocol/state.js';
+import type { PendingRequestRegistry } from '../../../common/pendingRequestRegistry.js';
 import type { IClaudeAgentSdkService } from '../claudeAgentSdkService.js';
 import { jsonSchemaToZodRawShape } from './claudeJsonSchemaToZod.js';
 
@@ -18,6 +19,9 @@ import { jsonSchemaToZodRawShape } from './claudeJsonSchemaToZod.js';
  * silently deadlocking — see {@link extractToolUseId}.
  */
 const TOOL_USE_ID_META_KEY = 'claudecode/toolUseId';
+
+/** Parked client-tool calls, keyed by SDK `tool_use_id`, tagged with the owning client id. */
+export type ClientToolCallRegistry = PendingRequestRegistry<CallToolResult, string | undefined>;
 
 /**
  * Build the per-session in-process MCP server that surfaces the workbench
@@ -35,7 +39,7 @@ const TOOL_USE_ID_META_KEY = 'claudecode/toolUseId';
  */
 export async function buildClientToolMcpServer(
 	snapshot: readonly ToolDefinition[],
-	awaitResult: (toolUseId: string) => Promise<CallToolResult>,
+	awaitResult: (toolUseId: string, toolName: string) => Promise<CallToolResult>,
 	sdk: IClaudeAgentSdkService
 ): Promise<McpSdkServerConfigWithInstance> {
 	const tools = await Promise.all(snapshot.map(def => sdk.tool(
@@ -53,7 +57,7 @@ export async function buildClientToolMcpServer(
 					isError: true,
 				};
 			}
-			return awaitResult(toolUseId);
+			return awaitResult(toolUseId, def.name);
 		}
 	)));
 	return sdk.createSdkMcpServer({ name: CLAUDE_CLIENT_MCP_SERVER_NAME, tools });

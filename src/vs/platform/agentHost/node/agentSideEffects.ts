@@ -17,10 +17,10 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
-import { IAgentHostChatContributions, type ISendTurnMessageOptions } from '../common/agentHostChatContributionsService.js';
+import { IAgentHostChatContributions, type ISendTurnMessageOptions, type TurnEndReason } from '../common/agentHostChatContributionsService.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type IAgentModelCallCompletedSignal } from '../common/agent.js';
+import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type IAgentModelCallCompletedSignal, type IAgentTurnDiagnosticSnapshot } from '../common/agent.js';
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
 
@@ -31,7 +31,7 @@ import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js'
 import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.js';
 import { ToolCallContributorKind, type AgentInfo, type SessionActiveClient } from '../common/state/protocol/state.js';
 import type { CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
-import { ActionType, isChatAction, StateAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
+import { ActionType, isChatAction, StateAction, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatTurnCancelledAction, type ChatTurnCompleteAction } from '../common/state/sessionActions.js';
 import {
 	buildSubagentChatUri,
 	createErrorResponsePart,
@@ -807,6 +807,8 @@ export class AgentSideEffects extends Disposable {
 			}
 		}
 
+		// Ending a turn force-cancels its running tool calls, so read the spawns first.
+		const endingSubagents = isTerminalTurnAction(action) ? this._resolvedSubagentSpawns(sessionKey, turnId) : [];
 		this._stateManager.dispatchServerAction(sessionKey, action);
 
 		// Any turn-scoped action counts as activity for the hang watchdog: it is
@@ -885,9 +887,51 @@ export class AgentSideEffects extends Disposable {
 				clientContext
 			});
 		}
-		if (action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatTurnCancelled || action.type === ActionType.ChatError) {
+		if (isTerminalTurnAction(action)) {
+			this._endSubagentTurns(endingSubagents, action);
 			this._resumedTurnExecutions.delete(this._resumedTurnExecutionKey(sessionKey, turnId));
 		}
+	}
+
+	/**
+	 * Subagents of `parentChatUri` whose spawning tool call has already reached a
+	 * terminal state. A still-running spawn is a background subagent that
+	 * deliberately outlives its parent turn.
+	 */
+	private _resolvedSubagentSpawns(parentChatUri: ProtocolURI, parentTurnId: string): readonly ISubagentSessionRef[] {
+		return [...this._subagentChats.getAll(parentChatUri)].filter(subagent => !this._isSpawnLive(parentChatUri, parentTurnId, subagent.toolCallId));
+	}
+
+	/** Ends each subagent's active turn with the terminal outcome of its parent turn. */
+	private _endSubagentTurns(subagents: readonly ISubagentSessionRef[], action: IHostTerminalTurnAction): void {
+		for (const subagent of subagents) {
+			const turnId = this._stateManager.getActiveTurnId(subagent.chatUri);
+			if (turnId) {
+				this._endTurnFromHost(subagent.chatUri, retargetTerminalAction(action, turnId, this._turnDuration(subagent.turnStopWatch)));
+			}
+		}
+	}
+
+	/** Whether the parent tool call that spawned a subagent has yet to reach a terminal state. */
+	private _isSpawnLive(parentChatUri: ProtocolURI, parentTurnId: string, toolCallId: string): boolean {
+		const status = this._findToolCallStatus(parentChatUri, parentTurnId, toolCallId);
+		return status !== ToolCallStatus.Completed && status !== ToolCallStatus.Cancelled;
+	}
+
+	private _findToolCallStatus(chat: ProtocolURI, turnId: string, toolCallId: string): ToolCallStatus | undefined {
+		const state = this._stateManager.getSessionState(chat);
+		const turns = state ? [...state.turns, ...(state.activeTurn ? [state.activeTurn] : [])] : [];
+		for (let i = turns.length - 1; i >= 0; i--) {
+			if (turns[i].id !== turnId) {
+				continue;
+			}
+			for (const part of turns[i].responseParts) {
+				if (part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === toolCallId) {
+					return part.toolCall.status;
+				}
+			}
+		}
+		return undefined;
 	}
 
 	private _resumedTurnExecutionKey(chat: ProtocolURI, turnId: string): string {
@@ -912,6 +956,28 @@ export class AgentSideEffects extends Disposable {
 		const sessionUri = isAhpChatChannel(channel) ? parseRequiredSessionUriFromChatUri(channel) : channel;
 		const folderCount = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri)?.length ?? 0;
 		return this._turnTracker.turnCompleted(channel, turnId, result, failure, { isMultiRoot: folderCount > 1, folderCount });
+	}
+
+	/**
+	 * Ends a still-active turn with a host-synthesized terminal action. No-ops
+	 * when the turn already ended or a client cancellation beat the host to it.
+	 */
+	private _endTurnFromHost(channel: ProtocolURI, action: IHostTerminalTurnAction): boolean {
+		const turnId = action.turnId;
+		if (this._stateManager.getActiveTurnId(channel) !== turnId || this._cancelledTurnIds.get(channel)?.has(turnId)) {
+			return false;
+		}
+		const sessionUri = isAhpChatChannel(channel) ? parseRequiredSessionUriFromChatUri(channel) : channel;
+		const clientContext = this._turnTracker.getClientTelemetryContext(channel, turnId);
+		this._stateManager.dispatchServerAction(channel, action);
+		const reason = turnEndReasonFor(action);
+		const failure = reason.kind === 'error' ? { stage: 'provider' as const, error: reason.error } : undefined;
+		const ended = this._completeTurn(channel, turnId, turnResultFor(action), failure);
+		this._toolCallTracker.clearSession(channel);
+		if (ended) {
+			this._chatContributions.turnEnd({ session: sessionUri, channel, turnId, reason, clientContext });
+		}
+		return ended;
 	}
 
 	private _runTurnCompleteSideEffects(sessionKey: ProtocolURI, turnId: string | undefined, clientContext?: IAgentHostClientTelemetryContext): void {
@@ -1097,12 +1163,11 @@ export class AgentSideEffects extends Disposable {
 		for (const subagent of this._subagentChats.getAll(parentChatURI)) {
 			const turnId = this._stateManager.getActiveTurnId(subagent.chatUri);
 			if (turnId) {
-				this._stateManager.dispatchServerAction(subagent.chatUri, {
+				this._endTurnFromHost(subagent.chatUri, {
 					type: ActionType.ChatTurnCancelled,
 					turnId,
 					duration: this._turnDuration(subagent.turnStopWatch),
 				});
-				this._completeTurn(subagent.chatUri, turnId, 'cancelled');
 			}
 			this._toolCallTracker.clearSession(subagent.chatUri);
 			this._turnTracker.clearSession(subagent.chatUri);
@@ -1130,13 +1195,11 @@ export class AgentSideEffects extends Disposable {
 
 		const turnId = this._stateManager.getActiveTurnId(subagent.chatUri);
 		if (turnId) {
-			this._stateManager.dispatchServerAction(subagent.chatUri, {
+			this._endTurnFromHost(subagent.chatUri, {
 				type: ActionType.ChatTurnComplete,
 				turnId,
 				duration: this._turnDuration(subagent.turnStopWatch),
 			});
-			this._completeTurn(subagent.chatUri, turnId, 'success');
-			this._toolCallTracker.clearSession(subagent.chatUri);
 		}
 	}
 
@@ -1277,7 +1340,9 @@ export class AgentSideEffects extends Disposable {
 			const toolCallKey = `${sessionKey}:${e.state.toolCallId}`;
 			this._toolCallAgents.delete(toolCallKey);
 			this._managedApprovalToolCalls.delete(toolCallKey);
-			this._logService.trace(`[AgentSideEffects] Dropping stale tool ready for ${e.state.toolCallId}: status=${toolCall.status}`);
+			this._logService.trace(`[AgentSideEffects] Denying stale tool ready for ${e.state.toolCallId}: status=${toolCall.status}`);
+			// The call already reached a terminal state, so answering it is the only way the provider unparks.
+			agent.respondToPermissionRequest(e.state.toolCallId, false);
 			return;
 		}
 		const contributor = e.state.contributor ?? toolCall?.contributor;
@@ -1401,7 +1466,9 @@ export class AgentSideEffects extends Disposable {
 					},
 					clientId,
 					clientContext.clientType,
-				).catch(error => {
+				).then(() => {
+					this._closeAbandonedTurn(agent, channel, URI.parse(channel), action.turnId, this._chatContext(sessionChannel, channel), execution.duration + execution.stopWatch.elapsed());
+				}).catch(error => {
 					if (this._resumedTurnExecutions.get(key) !== execution) {
 						return;
 					}
@@ -1752,6 +1819,7 @@ export class AgentSideEffects extends Disposable {
 			}
 			this._turnTracker.setCurrentStage(turnChannel, turnId, 'provider');
 			await agent.chats.sendMessage(chatUri, contribution.message.text, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientContext.clientType, sendContext);
+			this._closeAbandonedTurn(agent, turnChannel, chatUri, turnId, sendContext, this._turnDuration(turnStopWatch));
 		} catch (err) {
 			const failure = buildTurnFailure(failureStage, err);
 			const error = failure.error;
@@ -1778,6 +1846,54 @@ export class AgentSideEffects extends Disposable {
 			}
 			this._failSessionCreationIfStillCreating(sessionChannel, error);
 		}
+	}
+
+	/**
+	 * Closes a turn whose provider call has already settled but whose terminal
+	 * signal never arrived. A call the provider still reports pending, or a turn
+	 * blocked on a request the user can see, is left untouched.
+	 */
+	private _closeAbandonedTurn(agent: IAgent, channel: ProtocolURI, chat: URI, turnId: string, context: IAgentChatContext, duration: number): void {
+		if (this._stateManager.getActiveTurnId(channel) !== turnId) {
+			return;
+		}
+		const snapshot = this._providerTurnDiagnostics(agent, chat, turnId, context);
+		if (snapshot?.state !== 'available' || !snapshot.callSettlesWithTurn || snapshot.providerCallState === 'pending') {
+			return;
+		}
+		if (snapshot.pendingHostRequests?.length || this._hasVisiblePendingRequest(channel)) {
+			return;
+		}
+		this._logService.warn(`[AgentSideEffects] Closing abandoned turn ${turnId} on ${channel}: providerCallState=${snapshot.providerCallState}, providerSessionState=${snapshot.providerSessionState}, providerTurnStarted=${snapshot.providerTurnStarted}`);
+		if (snapshot.providerCallState === 'resolved') {
+			this._endTurnFromHost(channel, { type: ActionType.ChatTurnComplete, turnId, duration });
+			return;
+		}
+		const error: ErrorInfo = { errorType: TURN_ABANDONED_ERROR_TYPE, message: 'The agent stopped without finishing this turn.' };
+		this._endTurnFromHost(channel, { type: ActionType.ChatError, turnId, duration, part: createErrorResponsePart(error) });
+	}
+
+	private _providerTurnDiagnostics(agent: IAgent, chat: URI, turnId: string, context: IAgentChatContext): IAgentTurnDiagnosticSnapshot | undefined {
+		try {
+			return agent.getTurnDiagnosticSnapshot?.(chat, turnId, context);
+		} catch (error) {
+			this._logService.error(`[AgentSideEffects] getTurnDiagnosticSnapshot failed for provider ${agent.id}`, error);
+			return undefined;
+		}
+	}
+
+	/** Whether the channel's active turn is parked on a request the user can see and answer. */
+	private _hasVisiblePendingRequest(channel: ProtocolURI): boolean {
+		const activeTurn = this._stateManager.getSessionState(channel)?.activeTurn;
+		return activeTurn?.responseParts.some(part => {
+			if (part.kind === ResponsePartKind.InputRequest) {
+				return part.response === undefined;
+			}
+			return part.kind === ResponsePartKind.ToolCall && (
+				part.toolCall.status === ToolCallStatus.PendingConfirmation
+				|| part.toolCall.status === ToolCallStatus.PendingResultConfirmation
+				|| part.toolCall.status === ToolCallStatus.AuthRequired);
+		}) === true;
 	}
 
 	private async _resolveChatAttachments(attachments: readonly MessageAttachment[] | undefined): Promise<readonly MessageAttachment[] | undefined> {
@@ -1878,6 +1994,42 @@ export class AgentSideEffects extends Disposable {
 		super.dispose();
 	}
 }
+
+/** A terminal turn action the host synthesizes rather than receiving from a provider. */
+type IHostTerminalTurnAction = ChatTurnCompleteAction | ChatTurnCancelledAction | ChatErrorAction;
+
+/** Whether an action is one of the three that end a turn. */
+function isTerminalTurnAction(action: { readonly type: ActionType }): action is IHostTerminalTurnAction {
+	return action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatTurnCancelled || action.type === ActionType.ChatError;
+}
+
+/** The same terminal outcome, re-addressed to another turn. */
+function retargetTerminalAction(action: IHostTerminalTurnAction, turnId: string, duration: number): IHostTerminalTurnAction {
+	switch (action.type) {
+		case ActionType.ChatTurnComplete: return { type: ActionType.ChatTurnComplete, turnId, duration };
+		case ActionType.ChatTurnCancelled: return { type: ActionType.ChatTurnCancelled, turnId, duration };
+		default: return { type: ActionType.ChatError, turnId, duration, part: action.part };
+	}
+}
+
+function turnResultFor(action: IHostTerminalTurnAction): AgentHostTurnResult {
+	switch (action.type) {
+		case ActionType.ChatTurnComplete: return 'success';
+		case ActionType.ChatTurnCancelled: return 'cancelled';
+		default: return 'error';
+	}
+}
+
+function turnEndReasonFor(action: IHostTerminalTurnAction): TurnEndReason {
+	switch (action.type) {
+		case ActionType.ChatTurnComplete: return { kind: 'success' };
+		case ActionType.ChatTurnCancelled: return { kind: 'cancelled' };
+		default: return { kind: 'error', error: action.part.error, resumable: action.part.resumable === true };
+	}
+}
+
+/** `ErrorInfo.errorType` for a turn the host closed because its producer went away. */
+const TURN_ABANDONED_ERROR_TYPE = 'executionAbandoned';
 
 /**
  * Builds the {@link ErrorInfo} for a failed `sendMessage` rejection. When the
