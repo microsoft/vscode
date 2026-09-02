@@ -12371,6 +12371,7 @@ Use the attached image as context.
 			const { session, mockSession, storedFileContents, setConfigValue, setRootValue } = await createAgentSession(disposables, {
 				shellInitWriteFailures: 1,
 				shellInitWriteFailureLeavesArtifact: true,
+				fileAtomicWrite: true,
 			});
 			setRootValue(AgentHostSandboxConfigKey.Sandbox, { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On });
 			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
@@ -12416,7 +12417,7 @@ Use the attached image as context.
 		});
 
 		test('materializes, registers, avoids duplicate RPCs, and clears', async () => {
-			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables);
+			const { session, mockSession, storedFileContents, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables);
 			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
 
 			await session.send('go', undefined, 'turn-1', 'interactive');
@@ -12440,6 +12441,14 @@ Use the attached image as context.
 				[{ shell: 'bash', path: changedScriptPath }],
 				[],
 			]);
+			assert.deepStrictEqual(
+				[...storedFileContents.keys()].filter(key => key.includes('/agentHost/shellInit/')).sort(),
+				[URI.file(scriptPath).toString(), URI.file(changedScriptPath).toString()].sort(),
+			);
+
+			session.dispose();
+			await timeout(0);
+			assert.ok(![...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')));
 		});
 
 		test('keeps the last valid registration when config becomes malformed', async () => {
@@ -12552,11 +12561,12 @@ Use the attached image as context.
 			);
 		});
 
-		test('unregisters a shell init script before deleting it and removes its sandbox grant', async () => {
-			const { session, mockSession, setConfigValue, setRootValue } = await createAgentSession(disposables);
+		test('unregisters a shell init script, retains its revision, and removes its sandbox grant', async () => {
+			const { session, mockSession, storedFileContents, setConfigValue, setRootValue } = await createAgentSession(disposables);
 			setRootValue(AgentHostSandboxConfigKey.Sandbox, { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On });
 			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
 			await session.send('go', undefined, 'turn-1', 'interactive');
+			const scriptPath = (mockSession.shellInitScriptUpdates.at(-1) as Array<{ path: string }>)[0].path;
 
 			mockSession.operationLog.length = 0;
 			setConfigValue(SessionConfigKey.ShellInitSnippets, []);
@@ -12565,9 +12575,11 @@ Use the attached image as context.
 			assert.deepStrictEqual({
 				operations: mockSession.operationLog.filter(operation => operation === 'options.update:shell' || operation === 'file.delete:shellInit'),
 				hasGrant: (mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined)?.userPolicy?.filesystem?.readonlyPaths?.includes(TEST_SHELL_INIT_DIR) ?? false,
+				retainedContent: storedFileContents.get(URI.file(scriptPath).toString()),
 			}, {
-				operations: ['options.update:shell', 'file.delete:shellInit', 'file.delete:shellInit'],
+				operations: ['options.update:shell'],
 				hasGrant: false,
+				retainedContent: initScript.script,
 			});
 		});
 

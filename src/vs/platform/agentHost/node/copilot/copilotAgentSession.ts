@@ -1000,7 +1000,6 @@ export class CopilotAgentSession extends Disposable {
 	private _shellInitScriptMaterializationAttempted = false;
 	private _shellInitSandboxGrantApplied = false;
 	private _shellInitScriptRevision = 0;
-	private _registeredShellInitScriptResource: URI | undefined;
 	private readonly _shellInitScriptSequencer = new Sequencer();
 	private _shellInitScriptDisposing = false;
 	/**
@@ -3086,8 +3085,11 @@ export class CopilotAgentSession extends Disposable {
 		void this._editTracker.flushAttribution().catch(error => {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to flush edit attribution: ${error}`);
 		});
-		void this._disposeShellInitScript();
 		this._beginAbort();
+		void this._wrapper.disconnect().then(
+			() => this._disposeShellInitScript(),
+			error => this._logService.warn(`[Copilot:${this.sessionId}] Failed to disconnect before shell init cleanup: ${getErrorMessage(error)}`),
+		);
 		super.dispose();
 	}
 
@@ -3893,11 +3895,11 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const snippets = configured ?? [];
 			const serialized = JSON.stringify(snippets);
-			if (this._lastAppliedShellInitScripts === serialized && !(snippets.length === 0 && (this._shellInitScriptMaterializationAttempted || this._shellInitSandboxGrantApplied))) {
+			if (this._lastAppliedShellInitScripts === serialized && !(snippets.length === 0 && this._shellInitSandboxGrantApplied)) {
 				return;
 			}
 			if (snippets.length === 0) {
-				if (!this._shellInitScriptRegistered && !this._shellInitScriptMaterializationAttempted && !this._shellInitSandboxGrantApplied) {
+				if (!this._shellInitScriptRegistered && !this._shellInitSandboxGrantApplied) {
 					this._lastAppliedShellInitScripts = serialized;
 					return;
 				}
@@ -3908,7 +3910,6 @@ export class CopilotAgentSession extends Disposable {
 					}
 					this._shellInitScriptRegistered = false;
 				}
-				await this._clearShellInitScript();
 				this._lastAppliedShellInitScripts = serialized;
 				await this._applyEffectiveSandboxConfig(true);
 				this._shellInitSandboxGrantApplied = false;
@@ -3929,13 +3930,8 @@ export class CopilotAgentSession extends Disposable {
 				await this._deleteShellInitScriptFile(materialized.resource);
 				throw new Error('Copilot SDK rejected shell init script update');
 			}
-			const previousResource = this._registeredShellInitScriptResource;
 			this._shellInitScriptRegistered = true;
-			this._registeredShellInitScriptResource = materialized.resource;
 			this._lastAppliedShellInitScripts = serialized;
-			if (previousResource) {
-				await this._deleteShellInitScriptFile(previousResource);
-			}
 			this._logService.trace(`[Copilot:${this.sessionId}] Applied shell init script`);
 		} catch (err) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to update shell init scripts`, err);
@@ -3953,6 +3949,10 @@ export class CopilotAgentSession extends Disposable {
 			await this._fileService.writeFile(resource, VSBuffer.fromString(script.script), { atomic });
 			return { ref: { shell: script.shell, path: resource.fsPath }, resource };
 		} catch (error) {
+			if (atomic) {
+				await this._deleteShellInitScriptFile(resource.with({ path: `${resource.path}${atomic.postfix}` }));
+			}
+			await this._deleteShellInitScriptFile(resource);
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to write shell init script: ${getErrorMessage(error)}`);
 			return undefined;
 		}
@@ -3975,11 +3975,9 @@ export class CopilotAgentSession extends Disposable {
 		try {
 			await this._fileService.del(this._shellInitScriptInstanceDirectory(), { recursive: true });
 			this._shellInitScriptMaterializationAttempted = false;
-			this._registeredShellInitScriptResource = undefined;
 		} catch (error) {
 			if (error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
 				this._shellInitScriptMaterializationAttempted = false;
-				this._registeredShellInitScriptResource = undefined;
 			} else {
 				this._logService.warn(`[Copilot:${this.sessionId}] Failed to remove shell init script: ${getErrorMessage(error)}`);
 			}
