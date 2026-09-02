@@ -2473,7 +2473,9 @@ export function toolCallStateToStreamingInvocation(tc: ToolCallState, subAgentIn
 	} else if (isRenameChatTool(tc)) {
 		invocation.presentation = ToolInvocationPresentation.Hidden;
 	}
-	if (sessionResource && isSubagentTool(tc)) {
+	if (getToolKind(tc) === 'search') {
+		invocation.toolSpecificData = { kind: 'search' };
+	} else if (sessionResource && isSubagentTool(tc)) {
 		invocation.toolSpecificData = toolCallStateToInvocation(tc, subAgentInvocationId, sessionResource, connectionAuthority ?? '', mcpServerAuthority).toolSpecificData;
 	}
 	return invocation;
