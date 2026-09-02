@@ -8293,6 +8293,39 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('materialization replaces the complete SDK system message when configured', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
+			client.createSession = async config => {
+				capturedConfig = config;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+
+			const { agent, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
+			try {
+				configurationService.updateRootConfig({
+					[CopilotCliConfigKey.ModelCapabilityOverrides]: {
+						'*': { promptOverrideString: 'systemPrompt: You are an evaluation agent.' },
+					},
+				});
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const result = await provisionSession(agent, {
+					session: AgentSession.uri('copilotcli', 'system-message-override-session'),
+					workingDirectories: [URI.file('/workspace')],
+				});
+				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, defaultChatUri(result.session), result.session));
+
+				assert.deepStrictEqual(capturedConfig?.systemMessage, {
+					mode: 'replace',
+					content: 'You are an evaluation agent.',
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('materialization applies the per-model capability overrides without changing the wire model', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
@@ -11583,6 +11616,40 @@ suite('CopilotAgent', () => {
 		type AgentInternals = {
 			_resumeSession: (id: string) => Promise<CopilotAgentSession>;
 		};
+
+		test('resume replaces the complete SDK system message when configured', async () => {
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/resume-system-message-`);
+			const promptOverrideFile = '/prompt.yaml';
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession('s1', workingDirectory)]);
+			let capturedSystemMessage: Parameters<ITestCopilotClient['resumeSession']>[1]['systemMessage'];
+			client.resumeSession = async (_sessionId, options) => {
+				capturedSystemMessage = options.systemMessage;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			const { agent, configurationService, fileService } = createTestAgentContext(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService });
+			const provider = disposables.add(new InMemoryFileSystemProvider());
+			disposables.add(fileService.registerProvider(Schemas.file, provider));
+			await fileService.writeFile(URI.file(promptOverrideFile), VSBuffer.fromString('systemPrompt: |-\n  You are an evaluation agent.\n'));
+			const internals = agent as unknown as AgentInternals;
+			try {
+				configurationService.updateRootConfig({
+					[CopilotCliConfigKey.ModelCapabilityOverrides]: {
+						'*': { promptOverrideFile },
+					},
+				});
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				await internals._resumeSession('s1');
+
+				assert.deepStrictEqual(capturedSystemMessage, {
+					mode: 'replace',
+					content: 'You are an evaluation agent.',
+				});
+			} finally {
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
 
 		test('does not restore a persisted custom agent that is absent from the current plugin snapshot', async () => {
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/resume-agent-`);

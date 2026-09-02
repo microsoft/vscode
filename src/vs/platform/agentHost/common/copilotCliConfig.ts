@@ -101,6 +101,10 @@ export interface ICopilotCliModelCapabilityOverride {
 	readonly excludedTools?: readonly string[];
 	/** Deep-merged over the runtime's resolved defaults (e.g. `supports.vision`). */
 	readonly modelCapabilities?: Record<string, unknown>;
+	/** Inline YAML with system-prompt and tool-description overrides. */
+	readonly promptOverrideString?: string;
+	/** Path to a YAML file with system-prompt and tool-description overrides. */
+	readonly promptOverrideFile?: string;
 }
 
 /** Map of model id → capability override. */
@@ -239,6 +243,16 @@ export const copilotCliConfigSchema = createSchema({
 					type: 'object',
 					title: localize('agentHost.config.modelCapabilityOverrides.modelCapabilities.title', "Model Capabilities"),
 					description: localize('agentHost.config.modelCapabilityOverrides.modelCapabilities.description', "Per-property model capability overrides passed through to the Copilot SDK's `modelCapabilities` session field (e.g. `{ \"supports\": { \"vision\": false }, \"limits\": { \"max_context_window_tokens\": 64000 } }`), deep-merged over the runtime's resolved defaults for this model. Applied when the session launches or resumes."),
+				},
+				promptOverrideString: {
+					type: 'string',
+					title: localize('agentHost.config.modelCapabilityOverrides.promptOverrideString.title', "Prompt Override String"),
+					description: localize('agentHost.config.modelCapabilityOverrides.promptOverrideString.description', "Inline YAML that overrides the system prompt and/or SDK tool descriptions for sessions on this model. Takes precedence over `promptOverrideFile`."),
+				},
+				promptOverrideFile: {
+					type: 'string',
+					title: localize('agentHost.config.modelCapabilityOverrides.promptOverrideFile.title', "Prompt Override File"),
+					description: localize('agentHost.config.modelCapabilityOverrides.promptOverrideFile.description', "Path to a YAML file that overrides the system prompt and/or SDK tool descriptions for sessions on this model. Ignored when `promptOverrideString` is also set."),
 				},
 			},
 		},
