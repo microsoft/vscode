@@ -1218,7 +1218,7 @@ export class ChangeLanguageAction extends Action2 {
 			picks.unshift(autoDetectLanguage);
 		}
 
-		const pick = typeof languageMode === 'string' ? { label: languageMode } : await quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
+		const pick = typeof languageMode === 'string' ? { id: languageMode, label: languageService.getLanguageName(languageMode) ?? languageMode } : await quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
 		if (!pick) {
 			return;
 		}
