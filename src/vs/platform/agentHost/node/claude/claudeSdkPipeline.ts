@@ -517,7 +517,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			return;
 		}
 		this._abortController.abort();
-		this._queue.failAll(new CancellationError());
+		this._failQueue(new CancellationError());
 		// Mark unhealthy but keep the `_query` handle: the next `send` rebinds,
 		// and `shutdownAndWait` still needs it to await the subprocess exit.
 		this._needsRebind = true;
@@ -534,6 +534,18 @@ export class ClaudeSdkPipeline extends Disposable {
 			await this._query.setPermissionMode(mode);
 			this._appliedPermissionMode = mode;
 		}
+	}
+
+	/**
+	 * Fails every queued entry and releases the steering ids that went with them.
+	 *
+	 * A crash or an aborted rebind fails the queue without aborting the
+	 * controller. Leaving the ids behind would make the guard reject every
+	 * later delivery of a steer that was never actually run, dropping it.
+	 */
+	private _failQueue(error: Error): void {
+		this._queue.failAll(error);
+		this._steeringInFlight.clear();
 	}
 
 	private _wireAbortHandler(controller: AbortController): void {
@@ -638,7 +650,7 @@ export class ClaudeSdkPipeline extends Disposable {
 				this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] rebind-aborted: warm dispose failed: ${err}`));
 			void Promise.resolve(oldWarm[Symbol.asyncDispose]()).catch((err: unknown) =>
 				this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] previous WarmQuery dispose failed during aborted rebind: ${err}`));
-			this._queue.failAll(new CancellationError());
+			this._failQueue(new CancellationError());
 			this._needsRebind = true;
 			throw new CancellationError();
 		}
@@ -744,7 +756,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			// not clobber the fresh one. Mark unhealthy (keep the handle for
 			// teardown); the next `send` rebinds.
 			if (this._query === query) {
-				this._queue.failAll(fatal);
+				this._failQueue(fatal);
 				this._needsRebind = true;
 			}
 			if (!isCancellationError(fatal)) {

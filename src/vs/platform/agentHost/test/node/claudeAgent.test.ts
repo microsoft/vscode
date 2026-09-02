@@ -7928,6 +7928,60 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		await longSend;
 	});
 
+	test('a steering message re-delivered before it is consumed is only queued once', async () => {
+		const { ctx, sessionUri, query, advance } = await materialize();
+		const sid = AgentSession.id(sessionUri);
+
+		const longSend = ctx.agent.chats.sendMessage(defaultChatUri(sessionUri), 'long task', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(sessionUri)));
+		await tick();
+
+		// The drain contribution re-delivers the current steer on every pending-state change.
+		const steer = { id: 'pending-dup', message: { text: 'switch topic', origin: { kind: MessageKind.User } } };
+		ctx.agent.setPendingMessages!(defaultChatUri(sessionUri), steer, []);
+		ctx.agent.setPendingMessages!(defaultChatUri(sessionUri), steer, []);
+		ctx.agent.setPendingMessages!(defaultChatUri(sessionUri), steer, []);
+		await tick();
+		await tick();
+
+		assert.strictEqual(
+			query.drainedPrompts.filter(p => p.priority === 'now').length,
+			1,
+			'the same steering id must reach the model once, however often it is delivered',
+		);
+
+		const steered = query.drainedPrompts.find(p => p.priority === 'now')!;
+		ctx.sdk.nextQueryMessages.push(
+			{ type: 'user', message: { role: 'user', content: 'switch topic' }, session_id: sid, parent_tool_use_id: null, uuid: steered.uuid },
+			makeResultSuccess(sid),
+		);
+		advance.complete();
+		await longSend;
+	});
+
+	test('a steering id is accepted again once the first delivery has been consumed', async () => {
+		const { ctx, sessionUri, query, advance } = await materialize();
+		const sid = AgentSession.id(sessionUri);
+		const steer = { id: 'pending-reset', message: { text: 'switch topic', origin: { kind: MessageKind.User } } };
+
+		const longSend = ctx.agent.chats.sendMessage(defaultChatUri(sessionUri), 'long task', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(sessionUri)));
+		await tick();
+
+		ctx.agent.setPendingMessages!(defaultChatUri(sessionUri), steer, []);
+		await tick();
+		await tick();
+		assert.strictEqual(query.drainedPrompts.filter(p => p.priority === 'now').length, 1, 'the first delivery is queued');
+
+		// Consuming the steer releases its id, so a later delivery is a new message rather than a duplicate.
+		ctx.agent.setPendingMessages!(defaultChatUri(sessionUri), steer, []);
+		await tick();
+		await tick();
+		assert.strictEqual(query.drainedPrompts.filter(p => p.priority === 'now').length, 2, 'the id is accepted again once consumed');
+
+		ctx.sdk.nextQueryMessages.push(makeResultSuccess(sid), makeResultSuccess(sid));
+		advance.complete();
+		await longSend.catch(() => { /* may cancel */ });
+	});
+
 	test('setPendingMessages with empty steering and non-empty queued is a no-op', async () => {
 		const { ctx, sessionUri, query, advance } = await materialize();
 		const before = query.drainedPrompts.length;
