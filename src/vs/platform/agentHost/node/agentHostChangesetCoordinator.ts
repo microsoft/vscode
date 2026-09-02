@@ -14,7 +14,8 @@ import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChang
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { isAhpChatChannel, parseSubagentSessionUri } from '../common/state/sessionState.js';
+import { readAgentMergeSessionState } from '../common/agentMerge.js';
+import { isAhpChatChannel, parseSubagentSessionUri, type SessionConfigState } from '../common/state/sessionState.js';
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
@@ -57,6 +58,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		this._register(gitStateService.onDidRefreshSessionGitState(sessionStr => this.onDidRunSessionGitStateRefresh(sessionStr)));
 		this._register(gitStateService.onDidChangeSessionGitHubState(sessionStr => this._changesetOperationService.updateOperations(sessionStr)));
 		this._register(this._stateManager.onDidChangeSessionWorkingDirectories(({ session }) => this.onDidChangeSessionWorkingDirectories(session)));
+		this._register(this._stateManager.onDidChangeSessionConfig(event => this.onDidChangeSessionConfig(event.session, event.previous, event.current)));
 	}
 
 	// ---- Lifecycle hooks ----------------------------------------------------
@@ -115,6 +117,14 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		// working tree / branch state can't be mutated mid-request; recompute
 		// them whenever the active-turn state flips.
 		this._changesetOperationService.updateOperations(sessionStr);
+	}
+
+	private onDidChangeSessionConfig(session: URI, previous: SessionConfigState | undefined, current: SessionConfigState | undefined): void {
+		const wasEnabled = readAgentMergeSessionState(previous?.values)?.enabled === true;
+		const isEnabled = readAgentMergeSessionState(current?.values)?.enabled === true;
+		if (wasEnabled !== isEnabled) {
+			this._changesets.refreshChangesetCatalog(session.toString());
+		}
 	}
 
 	// ---- Subscription hooks -------------------------------------------------
