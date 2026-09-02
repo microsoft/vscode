@@ -9,6 +9,7 @@ import { escapeMarkdownLinkLabel, IMarkdownString, MarkdownString } from '../../
 import { escapeIcons } from '../../../../../../base/common/iconLabels.js';
 import { type Tokens } from '../../../../../../base/common/marked/marked.js';
 import { rewriteMarkdownLinks as rewriteMarkdownSource } from '../../../../../../base/common/markdownLinks.js';
+import { Mimes } from '../../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -1494,14 +1495,15 @@ function getTerminalLanguage(tc: ToolCallState) {
  *
  * 1. `existingKind === 'terminal'` — preserve the prior render decision so a
  *    tool already set up as terminal stays terminal across snapshots.
- * 2. `getToolKind(tc) === 'terminal'` with a command available — the
- *    always-available `_meta.toolKind` flag set by the event mapper for
- *    built-in `bash`/`powershell` SDK tools that never emit a
- *    {@link ToolResultContentType.Terminal} content block. We only render the
- *    terminal pill once we actually have the command (`getTerminalInput`):
- *    rendering a terminal pill with an empty command line looks broken, so
- *    until the command arrives we fall back to the generic tool widget
- *    (the `invocationMessage`).
+ * 2. `getToolKind(tc) === 'terminal'` with a command available — either the
+ *    `_meta.toolKind` flag set by the event mapper for built-in
+ *    `bash`/`powershell` SDK tools that never emit a
+ *    {@link ToolResultContentType.Terminal} content block, or a command
+ *    permission request from a remote host that does not set that flag. We
+ *    only render the terminal pill once we actually have the command
+ *    (`getTerminalInput`): rendering a terminal pill with an empty command
+ *    line looks broken, so until the command arrives we fall back to the
+ *    generic tool widget (the `invocationMessage`).
  * 3. A `Terminal` content block in `tc.content` (Running/Completed only) —
  *    the AHP-side signal for the custom terminal tool (`agenthost-terminal:`
  *    URIs).
@@ -1582,7 +1584,12 @@ function getToolInputOutputDetails(tc: ToolCallState, isError: boolean, errorStr
 		for (const block of tc.content ?? []) {
 			switch (block.type) {
 				case ToolResultContentType.Text:
-					output.push({ type: 'embed', value: block.text, isText: true, mimeType: 'text/plain' });
+					output.push({
+						type: 'embed',
+						value: block.text,
+						isText: true,
+						mimeType: block.text.trimStart().startsWith('{') ? 'application/json' : Mimes.text,
+					});
 					break;
 				case ToolResultContentType.EmbeddedResource:
 					output.push({ type: 'embed', value: block.data, mimeType: block.contentType });

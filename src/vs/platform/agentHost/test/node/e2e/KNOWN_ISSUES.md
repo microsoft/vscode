@@ -801,6 +801,24 @@ Copilot errors currently end a turn without offering an in-place retry. The retr
     --grep "restores and resumes a turn interrupted by host shutdown"
   ```
 
+### Codex client-plugin discovery can stall the first turn
+
+A user can attach a client-provided plugin containing agents, rules, and skills to a Codex session and immediately send the first message. Plugin synchronization can overlap that turn and leave it incomplete, so the user receives no response.
+
+- Test: `customization discovery: configured plugin exposes its agent rule and skill children`.
+- Scope: Codex on all platforms.
+- Expected: the plugin is synchronized, its children are published, and the first turn completes.
+- Observed: the first turn can time out after receiving plugin customization updates without receiving `chat/turnComplete` or `chat/error`.
+- Gate: `supportsPluginCustomizationDiscoveryE2E: false`.
+- Related failure: [build 469961](https://dev.azure.com/monacotools/Monaco/_build/results?buildId=469961&view=logs&j=e352877c-ff47-5dec-32e2-b206099d9704&t=b83513b4-f303-5ddc-d18a-1b47c02d8dad).
+- Reproduce: temporarily set the gate to `true`, then run:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "customization discovery: configured plugin exposes its agent rule and skill children"
+  ```
+
 ## Test-design limitations
 
 ### Claude plan-mode prompt

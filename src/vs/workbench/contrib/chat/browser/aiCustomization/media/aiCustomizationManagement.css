@@ -448,7 +448,7 @@
 .ai-customization-list-widget .list-container {
 	flex: 1;
 	min-height: 0;
-	overflow: auto;
+	overflow: hidden;
 }
 
 .ai-customization-list-widget .list-empty-message {
@@ -1336,6 +1336,9 @@ per-word capitalization does not survive translation. */
 	position: relative;
 	flex: 1;
 	min-height: 0;
+	width: 100%;
+	max-width: calc(840px + var(--vscode-spacing-size160));
+	margin: 0 auto;
 }
 
 /* The scrolled element: bound it to the wrapper so clientHeight < scrollHeight when content overflows. */
@@ -1346,7 +1349,7 @@ per-word capitalization does not survive translation. */
 	display: flex;
 	flex-direction: column;
 	gap: var(--vscode-spacing-size240);
-	padding: 0 max(var(--vscode-spacing-size20), calc((100% - 840px) / 2)) var(--vscode-spacing-size200);
+	padding: 0 var(--vscode-spacing-size160) var(--vscode-spacing-size200) 0;
 	box-sizing: border-box;
 }
 
@@ -1694,10 +1697,27 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .embedded-mcp-detail .mcp-detail-definition-empty {
-	margin: var(--vscode-spacing-size80) var(--vscode-spacing-size160) var(--vscode-spacing-size160);
-	padding: var(--vscode-spacing-size160);
-	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
-	border-radius: var(--vscode-cornerRadius-medium);
+	margin: var(--vscode-spacing-size80) calc(var(--vscode-spacing-size160) - var(--vscode-spacing-size40)) var(--vscode-spacing-size160);
+	padding-inline: var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .embedded-detail-leading-slot:empty {
+	display: none;
+}
+
+.ai-customization-management-editor .mcp-detail-container .mcp-detail-header {
+	gap: var(--vscode-spacing-size80);
+	padding-inline: var(--vscode-spacing-size160);
+}
+
+.ai-customization-management-editor .mcp-detail-container .editor-back-button {
+	width: var(--vscode-spacing-size280);
+	height: var(--vscode-spacing-size280);
+}
+
+.ai-customization-management-editor .mcp-detail-container .mcp-detail-definition-empty {
+	margin-inline-start: calc(var(--vscode-spacing-size160) + var(--vscode-spacing-size280) + var(--vscode-spacing-size80) - var(--vscode-spacing-size40));
 }
 
 /* The tools detail lists many short tool descriptions, so let it use the full editor width. */
@@ -2110,7 +2130,7 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-empty {
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body1);
-	padding: 8px 0;
+	padding-block: var(--vscode-spacing-size80);
 }
 
 /* Included tools list (tool extension detail) */
@@ -2752,11 +2772,31 @@ per-word capitalization does not survive translation. */
 	overflow: hidden;
 }
 
+.plugin-list-widget .plugin-card-scrollable {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	width: 100%;
+	max-width: calc(840px + var(--vscode-spacing-size160));
+	margin: 0 auto;
+}
+
+.plugin-list-widget .plugin-card-scrollable > .plugin-card-container {
+	position: absolute;
+	inset: 0;
+}
+
 .plugin-list-widget .plugin-card-scroll {
 	height: 100%;
 	overflow: auto;
 	padding: 0 max(var(--vscode-spacing-size20), calc((100% - 840px) / 2)) var(--vscode-spacing-size200);
 	box-sizing: border-box;
+}
+
+.plugin-list-widget .plugin-card-scroll-content {
+	height: auto;
+	overflow: visible;
+	padding: 0 var(--vscode-spacing-size160) var(--vscode-spacing-size200) 0;
 }
 
 .plugin-list-widget .plugin-marketplace-back-container {

@@ -15,6 +15,9 @@ import { SessionStatus, type ISessionGitHubState, type ISessionGitState } from '
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { ChangesetKind } from '../../common/changesetUri.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentMergeConfigKey } from '../../common/agentMerge.js';
 
 const nullGitStateService = new class implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
@@ -28,11 +31,12 @@ const nullGitStateService = new class implements IAgentHostGitStateService {
 	async attachSessionGitHubPullRequest(): Promise<void> { }
 };
 
-function createStatusService(status?: IAgentHostPullRequestStatus): IAgentHostPullRequestStatusService {
+function createStatusService(status?: IAgentHostPullRequestStatus, onDidChangePullRequestStatus = Event.None): IAgentHostPullRequestStatusService {
 	return {
 		_serviceBrand: undefined,
-		onDidChangePullRequestStatus: Event.None,
+		onDidChangePullRequestStatus,
 		getPullRequestStatus: () => status,
+		markPullRequestMerged: () => { },
 		refresh: async () => { },
 		dispose: () => { },
 	};
@@ -69,7 +73,7 @@ const pullRequestForBranch: ISessionGitHubState = {
 suite('AgentHostPullRequestOperationContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createContribution(status?: IAgentHostPullRequestStatus, isolation?: 'folder' | 'worktree'): AgentHostPullRequestOperationContribution {
+	function createContribution(status?: IAgentHostPullRequestStatus, isolation?: 'folder' | 'worktree', onDidChangePullRequestStatus = Event.None, agentMergeEnabled = false): AgentHostPullRequestOperationContribution {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		if (isolation) {
 			stateManager.createSession({
@@ -86,11 +90,17 @@ suite('AgentHostPullRequestOperationContribution', () => {
 				values: { [SessionConfigKey.Isolation]: isolation },
 			});
 		}
+		const configurationService = new class extends mock<IAgentConfigurationService>() {
+			override getRootValue(_schema: never, key: string) {
+				return (key === AgentMergeConfigKey.Enabled ? agentMergeEnabled : undefined) as never;
+			}
+		}();
 		return disposables.add(new AgentHostPullRequestOperationContribution(
 			stateManager,
 			disposables.add(new InstantiationService()),
 			nullGitStateService,
-			createStatusService(status),
+			createStatusService(status, onDidChangePullRequestStatus),
+			configurationService,
 			new NullLogService(),
 		));
 	}
@@ -101,6 +111,14 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		const operations = provider.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges, changesetKind: ChangesetKind.Session, changesetUri: '' });
 
 		assert.deepStrictEqual(operations?.map(op => op.id), ['create-pr', 'create-pr-auto-merge', 'create-pr-auto-squash', 'create-pr-auto-rebase', 'create-draft-pr']);
+	});
+
+	test('advertises Create PR and Enable Agent Merge as the last Create PR option when Agent Merge is enabled', () => {
+		const provider = createContribution(undefined, undefined, Event.None, true);
+
+		const operations = provider.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges, changesetKind: ChangesetKind.Session, changesetUri: '' });
+
+		assert.deepStrictEqual(operations?.map(op => op.id), ['create-pr', 'create-pr-auto-merge', 'create-pr-auto-squash', 'create-pr-auto-rebase', 'create-pr-agent-merge', 'create-draft-pr']);
 	});
 
 	test('does not advertise PR operations for folder sessions with outgoing changes', () => {
@@ -162,4 +180,5 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			noAutoMerge: undefined,
 		});
 	});
+
 });

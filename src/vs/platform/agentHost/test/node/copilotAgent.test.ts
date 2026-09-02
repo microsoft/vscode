@@ -354,6 +354,7 @@ class TestCopilotApiService implements ICopilotApiService {
 	userLogin: string | undefined;
 	readonly restrictedTelemetryContexts = new Map<string, IRestrictedTelemetryContext>();
 	readonly restrictedTelemetryContextCalls: string[] = [];
+	resolveCopilotSkuHandler: (githubToken: string) => Promise<string | undefined> = async () => undefined;
 
 	messages(_githubToken: string, _request: Anthropic.MessageCreateParamsStreaming, _options?: ICopilotApiServiceRequestOptions): AsyncGenerator<Anthropic.MessageStreamEvent>;
 	messages(_githubToken: string, _request: Anthropic.MessageCreateParamsNonStreaming, _options?: ICopilotApiServiceRequestOptions): Promise<Anthropic.Message>;
@@ -376,6 +377,7 @@ class TestCopilotApiService implements ICopilotApiService {
 	}
 	async resolveApiEndpoint() { return this.apiEndpoint; }
 	async resolveUserLogin() { return this.userLogin; }
+	async resolveCopilotSku(githubToken: string): Promise<string | undefined> { return this.resolveCopilotSkuHandler(githubToken); }
 	async utilityChatCompletion(githubToken: string, request: ICopilotUtilityChatCompletionRequest, options?: ICopilotApiServiceRequestOptions): Promise<string> {
 		this.utilityCalls.push({ token: githubToken, request, options });
 		if (this.error) {
@@ -429,6 +431,9 @@ interface ITestCopilotModelInfo {
 	readonly billing?: CopilotModelInfo['billing'];
 	readonly modelPickerCategory?: CopilotModelInfo['modelPickerCategory'];
 	readonly modelPickerPriceCategory?: CopilotModelInfo['modelPickerPriceCategory'];
+	readonly warningText?: CopilotModelInfo['warningText'];
+	readonly infoMessages?: CopilotModelInfo['infoMessages'];
+	readonly warningMessages?: CopilotModelInfo['warningMessages'];
 	readonly supportedReasoningEfforts?: CopilotModelInfo['supportedReasoningEfforts'];
 }
 
@@ -469,6 +474,9 @@ function toSdkModelInfo(model: ITestCopilotModelInfo): CopilotModelInfo {
 		...(model.billing ? { billing: model.billing } : {}),
 		...(model.modelPickerCategory ? { modelPickerCategory: model.modelPickerCategory } : {}),
 		...(model.modelPickerPriceCategory ? { modelPickerPriceCategory: model.modelPickerPriceCategory } : {}),
+		...(model.warningText ? { warningText: model.warningText } : {}),
+		...(model.infoMessages ? { infoMessages: model.infoMessages } : {}),
+		...(model.warningMessages ? { warningMessages: model.warningMessages } : {}),
 		...(model.supportedReasoningEfforts ? { supportedReasoningEfforts: model.supportedReasoningEfforts } : {}),
 	};
 }
@@ -568,9 +576,16 @@ class RecordingTelemetryService extends NullTelemetryServiceShape {
 	readonly events: Array<{ eventName: string; data: unknown }> = [];
 	readonly errorEvents: Array<{ eventName: string; data: unknown }> = [];
 	readonly experimentProperties: Record<string, string> = {};
+	readonly commonPropertyUpdates: Array<{ name: string; value: string | boolean | undefined }> = [];
 
 	override setExperimentProperty(name?: string, value?: string): void {
 		this.experimentProperties[name ?? ''] = value ?? '';
+	}
+
+	override setCommonProperty(name?: string, value?: string | boolean): void {
+		if (name) {
+			this.commonPropertyUpdates.push({ name, value });
+		}
 	}
 
 	override publicLog2(eventName?: string, data?: unknown): void {
@@ -2079,6 +2094,35 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('updates Copilot SKU telemetry across authentication changes and ignores stale resolution', async () => {
+		const client = new TestCopilotClient([]);
+		const copilotApiService = new TestCopilotApiService();
+		const telemetryService = new RecordingTelemetryService();
+		copilotApiService.resolveCopilotSkuHandler = async token => token === 'token-a' ? 'sku-a' : 'sku-b';
+		const agent = createTestAgent(disposables, { copilotClient: client, copilotApiService, telemetryService });
+		try {
+			await agent.authenticate('https://api.github.com', 'token-a');
+			const staleResolution = new DeferredPromise<string | undefined>();
+			copilotApiService.resolveCopilotSkuHandler = token => token === 'token-a' ? staleResolution.p : Promise.resolve('sku-b');
+			const staleResolutionCall = agent['_resolveCopilotSku']('token-a');
+
+			await agent.authenticate('https://api.github.com', 'token-b');
+			staleResolution.complete('stale-sku-a');
+			await staleResolutionCall;
+			await agent.authenticate('https://api.github.com', '');
+
+			assert.deepStrictEqual(telemetryService.commonPropertyUpdates.filter(update => update.name === 'copilotSku'), [
+				{ name: 'copilotSku', value: undefined },
+				{ name: 'copilotSku', value: 'sku-a' },
+				{ name: 'copilotSku', value: undefined },
+				{ name: 'copilotSku', value: 'sku-b' },
+				{ name: 'copilotSku', value: undefined },
+			]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('updates every live session after a changed auth token without restarting an unchanged proxy', async () => {
 		const client = new TestCopilotClient([], [{
 			id: 'gpt-4o',
@@ -2355,6 +2399,60 @@ suite('CopilotAgent', () => {
 				{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE, reason: 'expired' },
 				{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE, reason: 'expired' },
 			]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('requests reauthentication when the credential is cleared', async () => {
+		const client = new TestCopilotClient([], [{
+			id: 'gpt-4o',
+			name: 'GPT-4o',
+		}]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const authRequests: Array<{ readonly resource: ProtectedResourceMetadata; readonly reason?: string }> = [];
+		disposables.add(autorun(reader => {
+			const requirement = agent.authenticationRequired.read(reader);
+			if (requirement) {
+				authRequests.push(requirement);
+			}
+		}));
+		try {
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+			await waitForState(agent.models, models => models.length > 0);
+			// Another client revoked the shared credential; the resulting SDK failure
+			// is a local InvalidArg rather than a 401, so the cleared token itself has
+			// to advertise the requirement or no client is ever asked to re-supply one.
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, '');
+			await waitForState(agent.models, models => models.length === 0);
+
+			assert.deepStrictEqual(authRequests, [{
+				resource: GITHUB_COPILOT_PROTECTED_RESOURCE,
+				reason: 'expired',
+			}]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('keeps the requirement raised when a second revocation arrives while tokenless', async () => {
+		const client = new TestCopilotClient([], [{
+			id: 'gpt-4o',
+			name: 'GPT-4o',
+		}]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+			await waitForState(agent.models, models => models.length > 0);
+			// The host forwards every revocation to every provider, so a second
+			// client revoking must not retract the outstanding requirement.
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, '');
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, '');
+
+			assert.deepStrictEqual(agent.authenticationRequired.get(), {
+				resource: GITHUB_COPILOT_PROTECTED_RESOURCE,
+				reason: 'expired',
+			});
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -3267,6 +3365,42 @@ suite('CopilotAgent', () => {
 				list: [repoA.toString()],
 				meta: [repoA.toString()],
 			});
+		});
+	});
+
+	suite('prewarmSessionMetadata cache', () => {
+		test('serves getChatMetadata from one bulk list, falls back on miss, and reverts after disposal', async () => {
+			const sessionA = AgentSession.uri('copilotcli', 'prewarm-a');
+			const sessionB = AgentSession.uri('copilotcli', 'prewarm-b');
+			const sessionMissing = AgentSession.uri('copilotcli', 'prewarm-missing');
+			const client = new TestCopilotClient([sdkSession('prewarm-a'), sdkSession('prewarm-b')]);
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				const read = (session: URI) => agent.getChatMetadata(defaultChatUri(session), exactChatContext(session, defaultChatUri(session), session));
+
+				const warm = await agent.prewarmSessionMetadata();
+				// One bulk list warmed the cache; a hit is served without a per-session RPC.
+				await read(sessionA);
+				const afterHit = { listCalls: client.listSessionCallCount, rpcCalls: [...client.getSessionMetadataCalls] };
+
+				// A session absent from the bulk list falls back to a per-session RPC.
+				await read(sessionMissing);
+				const afterMiss = [...client.getSessionMetadataCalls];
+
+				// After disposal the cache is cleared and normal per-session reads resume.
+				warm.dispose();
+				await read(sessionB);
+				const afterDisposal = [...client.getSessionMetadataCalls];
+
+				assert.deepStrictEqual({ afterHit, afterMiss, afterDisposal }, {
+					afterHit: { listCalls: 1, rpcCalls: [] },
+					afterMiss: ['prewarm-missing'],
+					afterDisposal: ['prewarm-missing', 'prewarm-b'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
 		});
 	});
 
@@ -4854,7 +4988,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('models include picker and promo metadata when the SDK provides it', async () => {
+	test('models include picker, notice, and promo metadata when the SDK provides it', async () => {
 		const agent = createTestAgent(disposables, {
 			copilotClient: new TestCopilotClient([], [{
 				id: 'claude-sonnet',
@@ -4879,6 +5013,16 @@ suite('CopilotAgent', () => {
 				},
 				modelPickerCategory: 'powerful',
 				modelPickerPriceCategory: 'medium',
+				warningText: {
+					dataRetention: 'Prompts are retained for 30 days.',
+				},
+				infoMessages: [
+					{ code: 'model_pending_deprecation', message: 'Claude Sonnet will be retired soon.' },
+					{ code: 'model_relocated', message: 'Claude Sonnet now serves from a new region.' },
+				],
+				warningMessages: [
+					{ code: 'model_degraded', message: 'Claude Sonnet is currently degraded.' },
+				],
 			}]),
 		});
 		try {
@@ -4895,6 +5039,15 @@ suite('CopilotAgent', () => {
 				longContextOutputCost: 22.5,
 				priceCategory: 'medium',
 				category: 'powerful',
+				warningText: {
+					data_retention: 'Prompts are retained for 30 days.',
+					model_pending_deprecation: 'Claude Sonnet will be retired soon.',
+					model_degraded: 'Claude Sonnet is currently degraded.',
+				},
+				infoText: {
+					model_relocated: 'Claude Sonnet now serves from a new region.',
+				},
+				rowWarning: 'Claude Sonnet is currently degraded.',
 				promo: {
 					id: 'summer-sale',
 					discountPercent: 25,
@@ -10049,6 +10202,38 @@ suite('CopilotAgent', () => {
 
 				const stored = await sessionDataService.openDatabase(session).object.getMetadata('copilot.model');
 				assert.deepStrictEqual(JSON.parse(stored ?? 'null'), { id: 'auto', config: { tier: 'intelligence' } });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('drops a provisional Auto routing profile when the gate turns off before the first send', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+			client.createSession = async () => new MockCopilotSession() as unknown as CopilotSession;
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				sessionDataService,
+				copilotClient: client,
+				rootConfig: { [CopilotCliConfigKey.AutoModeTiers]: true },
+			});
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await waitForState(agent.models, m => m.length > 0);
+				const session = AgentSession.uri('copilotcli', 'auto-tier-provisional');
+				const chat = defaultChatUri(session);
+				const result = await provisionSession(agent, {
+					session,
+					workingDirectories: [URI.file('/workspace')],
+					model: { id: 'auto', config: { tier: 'intelligence' } },
+				});
+
+				// Still provisional, so the launcher has not run. With the gate off it omits
+				// `capi.autoTier`, so persisting the selection would claim a profile never sent.
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: false });
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, chat, result.session));
+
+				const stored = await sessionDataService.openDatabase(session).object.getMetadata('copilot.model');
+				assert.deepStrictEqual(JSON.parse(stored ?? 'null'), { id: 'auto' });
 			} finally {
 				await disposeAgent(agent);
 			}

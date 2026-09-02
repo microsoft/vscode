@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { isIMenuItem, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, isISubmenuItem, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { Context } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { AgentHostPullRequestOperationId } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { AgentMergeSettingId } from '../../../../../../platform/agentHost/common/agentMerge.js';
@@ -19,20 +19,20 @@ suite('Agent Merge Actions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** A session where Agent Merge applies: agent host provider, live, with an open pull request. */
-	function createContext(options: { readonly primaryOperation: string; readonly agentMergeEnabled: boolean; readonly featureEnabled?: boolean; readonly archived?: boolean }): Context {
+	function createContext(options: { readonly primaryOperation: string; readonly agentMergeEnabled: boolean; readonly featureEnabled?: boolean; readonly archived?: boolean; readonly hasOpenPullRequest?: boolean }): Context {
 		const context = new Context(1, null);
 		context.setValue(IsSessionsWindowContext.key, true);
 		context.setValue(ChatContextKeys.enabled.key, true);
 		context.setValue(SessionProviderIdContext.key, 'local-agent-host');
 		context.setValue(SessionIsArchivedContext.key, options.archived ?? false);
 		context.setValue(`config.${AgentMergeSettingId.Enabled}`, options.featureEnabled ?? true);
-		context.setValue(SessionHasOpenPullRequestContext.key, true);
+		context.setValue(SessionHasOpenPullRequestContext.key, options.hasOpenPullRequest ?? true);
 		context.setValue(SessionPrimaryPullRequestOperationContext.key, options.primaryOperation);
 		context.setValue(SessionAgentMergeEnabledContext.key, options.agentMergeEnabled);
 		return context;
 	}
 
-	function ownsPrimaryButton(options: { readonly primaryOperation: string; readonly agentMergeEnabled: boolean; readonly featureEnabled?: boolean; readonly archived?: boolean }): boolean {
+	function ownsPrimaryButton(options: { readonly primaryOperation: string; readonly agentMergeEnabled: boolean; readonly featureEnabled?: boolean; readonly archived?: boolean; readonly hasOpenPullRequest?: boolean }): boolean {
 		const item = MenuRegistry.getMenuItems(Menus.ChangesOperationsDropdown)
 			.find(entry => !isIMenuItem(entry) && entry.submenu === Menus.ChangesAgentMerge);
 		assert.ok(item, 'Agent Merge is contributed to the changes operations dropdown');
@@ -76,9 +76,11 @@ suite('Agent Merge Actions', () => {
 		assert.deepStrictEqual({
 			featureOff: ownsPrimaryButton({ primaryOperation: AgentHostPullRequestOperationId.EnableAutoMerge, agentMergeEnabled: false, featureEnabled: false }),
 			archived: ownsPrimaryButton({ primaryOperation: AgentHostPullRequestOperationId.EnableAutoMerge, agentMergeEnabled: true, archived: true }),
+			mergeCompleted: ownsPrimaryButton({ primaryOperation: '', agentMergeEnabled: true, hasOpenPullRequest: false }),
 		}, {
 			featureOff: false,
 			archived: false,
+			mergeCompleted: false,
 		});
 	});
 
@@ -100,6 +102,50 @@ suite('Agent Merge Actions', () => {
 			disableWhileOff: false,
 			enableWhileOn: false,
 			disableWhileOn: true,
+		});
+	});
+
+	test('the Agent Merge primary menu places its toggle before the configuration submenu', () => {
+		const visibleEntries = (menu: typeof Menus.ChangesAgentMerge, agentMergeEnabled: boolean) => MenuRegistry.getMenuItems(menu)
+			.filter(entry => entry.group === '1_agentMerge')
+			.filter(entry => entry.when?.evaluate(createContext({ primaryOperation: AgentHostPullRequestOperationId.EnableAutoMerge, agentMergeEnabled })) ?? true)
+			.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+			.map(entry => isIMenuItem(entry) ? entry.command.id : entry.submenu.id);
+
+		assert.deepStrictEqual({
+			operationsWhileOff: visibleEntries(Menus.ChangesOperationsDropdown, false),
+			operationsWhileOn: visibleEntries(Menus.ChangesOperationsDropdown, true),
+			primaryWhileOff: visibleEntries(Menus.ChangesAgentMerge, false),
+			primaryWhileOn: visibleEntries(Menus.ChangesAgentMerge, true),
+		}, {
+			operationsWhileOff: ['sessions.agentHost.agentMerge.enableInSession', Menus.ChangesAgentMergeConfigure.id],
+			operationsWhileOn: ['sessions.agentHost.agentMerge.disableInSession', Menus.ChangesAgentMergeConfigure.id],
+			primaryWhileOff: ['sessions.agentHost.agentMerge.enableInSession', Menus.ChangesAgentMergeConfigure.id],
+			primaryWhileOn: ['sessions.agentHost.agentMerge.disableInSession', Menus.ChangesAgentMergeConfigure.id],
+		});
+	});
+
+	test('all Agent Merge configuration entries are nested under Configure Agent Merge', () => {
+		const topLevelConfigurationCommands = [Menus.ChangesOperationsDropdown, Menus.ChangesAgentMerge]
+			.flatMap(menu => MenuRegistry.getMenuItems(menu))
+			.filter(isIMenuItem)
+			.map(item => item.command.id)
+			.filter(id => id.startsWith('sessions.agentHost.agentMerge.toggle.') || id === 'sessions.agentHost.agentMerge.openDefaults');
+		const configurationItems = MenuRegistry.getMenuItems(Menus.ChangesAgentMergeConfigure);
+
+		assert.deepStrictEqual({
+			topLevelConfigurationCommands,
+			commands: configurationItems.filter(isIMenuItem).map(item => item.command.id),
+			submenus: configurationItems.filter(isISubmenuItem).map(item => item.submenu.id),
+		}, {
+			topLevelConfigurationCommands: [],
+			commands: [
+				'sessions.agentHost.agentMerge.toggle.addressReviews',
+				'sessions.agentHost.agentMerge.toggle.fixCI',
+				'sessions.agentHost.agentMerge.toggle.resolveConflicts',
+				'sessions.agentHost.agentMerge.openDefaults',
+			],
+			submenus: Array(3).fill(Menus.ChangesAgentMergeMergePullRequest.id),
 		});
 	});
 });
