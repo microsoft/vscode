@@ -14,6 +14,7 @@ import type { IAgentServerToolDefinition } from '../../common/agentServerTools.j
 import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitState, readSessionGitHubState, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
@@ -148,7 +149,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.CreateSession,
 		title: 'Create Session',
-		description: 'Create delegated work and start it with an initial prompt. Set `relationship` to `currentSession` when the task belongs to the current plan or deliverable; this creates a new chat that shares the current session\'s workspace, lifecycle, and aggregate diff. Set it to `independent` only for a separate deliverable that needs its own workspace, provider, or top-level lifecycle. The UI shows the created chat or session as a link, so reply with a single short sentence and do NOT print the session URL or tell the user to click the link.',
+		description: 'Create delegated work and start it with an initial prompt. Set `relationship` to `currentSession` when the task belongs to the current plan or deliverable; this creates a new chat that shares the current session\'s workspace, lifecycle, and aggregate diff. Set it to `independent` only for a separate deliverable that needs its own workspace, provider, or top-level lifecycle.',
 		inputSchema: createSessionInputSchema,
 		annotations: { readOnlyHint: false },
 	},
@@ -162,7 +163,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.SendMessage,
 		title: 'Send Message',
-		description: 'Send a message to an existing session or chat, starting a new turn there. Provide a session URI from `list_sessions` or an `agent-host-session://` link; a link carrying a chat id targets that specific chat. The message is delivered asynchronously — this tool does not wait for or return the reply. The UI shows a confirmation with a button to open the target, so reply with a single short sentence and do NOT print the URL or tell the user to click a button.',
+		description: 'Send a message to an existing session or chat, starting a new turn there. Provide a session URI from `list_sessions` or an `agent-host-session://` link; a link carrying a chat id targets that specific chat. The message is delivered asynchronously — this tool does not wait for or return the reply.',
 		inputSchema: sendMessageInputSchema,
 		annotations: { readOnlyHint: false },
 	},
@@ -238,6 +239,8 @@ export interface ISessionCreationDefaults {
 	readonly provider?: AgentProvider;
 	readonly model?: ModelSelection;
 	readonly config?: Record<string, unknown>;
+	readonly isolation?: 'folder' | 'worktree';
+	readonly project?: URI;
 }
 
 /** Point-in-time snapshot of a chat's conversation, read from the host state. */
@@ -402,6 +405,28 @@ function resolveWorkspace(workspace: string, sessions: readonly IAgentSessionMet
 		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: workspace must match a unique known project name, project URI, working directory, absolute path, or valid URI string.`);
 	}
 	return parsed;
+}
+
+async function getCreateSessionCatalog(accessor: ISessionServerToolAccessor, rawArgs: unknown): Promise<readonly IAgentSessionMetadata[]> {
+	const args = (rawArgs ?? {}) as ICreateSessionArgs;
+	if (getCreateSessionRelationship(args) !== 'independent') {
+		return [];
+	}
+	const workspace = getOptionalString(args.workspace, 'workspace', SessionServerToolName.CreateSession);
+	if (workspace === undefined) {
+		return [];
+	}
+	try {
+		// Prefer the catalog because a project display name can also be a valid URI.
+		return await accessor.listSessions();
+	} catch (error) {
+		// An explicit URI/path is self-contained, so it remains usable when a
+		// provider cannot enumerate its session catalog.
+		if (parseWorkspaceUri(workspace) !== undefined) {
+			return [];
+		}
+		throw error;
+	}
 }
 
 function resolveModel(modelName: string | undefined, models: readonly IAgentModelInfo[], provider?: AgentProvider): IAgentModelInfo | undefined {
@@ -717,7 +742,7 @@ export interface ICreateSessionResult {
  * Creates work with the requested relationship and sends its initial prompt.
  */
 export async function applyCreateSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI, sourceTurnId?: string): Promise<ICreateSessionResult> {
-	const sessions = await accessor.listSessions();
+	const sessions = await getCreateSessionCatalog(accessor, rawArgs);
 	const currentSession = source ? currentSessionUri(source.toString()) : undefined;
 	const currentProvider = currentSession ? AgentSession.provider(currentSession) : undefined;
 	const args = getCreateSessionArgs(rawArgs, sessions, accessor.getModels(), currentProvider);
@@ -744,11 +769,21 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	const defaults = source ? accessor.getCreationDefaults(source) : undefined;
 	const provider = args.model?.provider ?? defaults?.provider;
 	const inheritsSourceProvider = provider !== undefined && provider === defaults?.provider;
+	const inheritedProviderConfig = inheritsSourceProvider ? defaults?.config : undefined;
+	const isolation = defaults?.project !== undefined && isEqual(defaults.project, args.workspace)
+		? defaults.isolation
+		: 'worktree';
+	const configValues = inheritedProviderConfig === undefined && isolation === undefined
+		? undefined
+		: {
+			...inheritedProviderConfig,
+			...(isolation !== undefined ? { [SessionConfigKey.Isolation]: isolation } : {}),
+		};
 	const config: IAgentCreateSessionConfig = {
 		workingDirectories: args.workspace ? [args.workspace] : undefined,
 		...(provider !== undefined ? { provider } : {}),
 		...(args.model !== undefined ? { model: { id: args.model.id } } : defaults?.model !== undefined ? { model: defaults.model } : {}),
-		...(inheritsSourceProvider && defaults?.config !== undefined ? { config: defaults.config } : {}),
+		...(configValues !== undefined ? { config: configValues } : {}),
 		...(currentSession !== undefined && source !== undefined ? {
 			_meta: withSessionCreationReference(undefined, {
 				session: currentSession.toString(),
@@ -769,17 +804,12 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	return { relationship: args.relationship, session: session.toString(), chat: chat.toString(), openLink: buildOpenSessionLinkUri(session) };
 }
 
-/**
- * Builds the model-facing `create_session` result. Keeps the machine-readable
- * `agent-host-session://` link (parsed client-side to render the deterministic
- * linked session title) but omits the raw backend session URI so the model has
- * nothing ugly to echo, and tells it to reply briefly.
- */
+/** Builds the model-facing `create_session` result. */
 export function formatCreateSessionResult(result: ICreateSessionResult): string {
 	if (result.relationship === 'currentSession') {
-		return `Chat created in the current session (${result.openLink}). Reply with one short sentence confirming the chat was created; do not print the URL or mention a link.`;
+		return `Chat created in the current session (${result.openLink}).`;
 	}
-	return `New session created (${result.openLink}). Reply with one short sentence confirming the new session was created; do not print the URL or mention a link.`;
+	return `New session created (${result.openLink}).`;
 }
 
 interface ICreateChatArgs {
@@ -876,7 +906,7 @@ export async function applyCreateChatTool(accessor: ISessionServerToolAccessor, 
 
 /** Builds the model-facing `create_chat` result. */
 export function formatCreateChatResult(result: ICreateChatResult): string {
-	return `Chat created (${result.openLink}). Reply with one short sentence confirming the chat was created; do not print the URL or mention a button.`;
+	return `Chat created (${result.openLink}).`;
 }
 
 interface IRenameChatArgs {
@@ -1057,7 +1087,7 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 
 /** Builds the model-facing `send_message` result. */
 export function formatSendMessageResult(openLink: string): string {
-	return `Message sent (${openLink}). Reply with one short sentence confirming the message was sent; do not print the URL or mention a button.`;
+	return `Message sent (${openLink}).`;
 }
 
 // --- get_session_context -----------------------------------------------------
@@ -1383,7 +1413,11 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 						return serializeSessions(filterSessions(await accessor.listSessions(), getListSessionsArgs(rawArgs)));
 					}
 				case SessionServerToolName.GetCurrentSession:
-					return serializeCurrentSession(currentSessionUri(currentChannel), await accessor.listSessions());
+					{
+						const currentSession = currentSessionUri(currentChannel);
+						const metadata = await accessor.getSession(currentSession);
+						return serializeCurrentSession(currentSession, metadata ? [metadata] : []);
+					}
 				case SessionServerToolName.CreateSession: {
 					const relationship = getCreateSessionRelationship(rawArgs);
 					if (relationship === 'currentSession' && createdChatCount >= maxCreatedChats) {

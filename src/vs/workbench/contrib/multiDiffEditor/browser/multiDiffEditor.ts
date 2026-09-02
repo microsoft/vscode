@@ -28,14 +28,14 @@ import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/com
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
-import { IMultiDiffEditorOptions, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorOptions, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { autorun, derived, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { FloatingEditorToolbarWidget } from '../../../../editor/contrib/floatingMenu/browser/floatingMenu.js';
 
 export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
@@ -186,6 +186,10 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 
 	public goToPreviousChange(): void {
 		this._multiDiffEditorWidget?.goToPreviousChange();
+	}
+
+	public getLayoutDebugState(): IObservable<IMultiDiffEditorLayoutDebugState> {
+		return this._multiDiffEditorWidget!.getLayoutDebugState();
 	}
 
 	public async showWhile(promise: Promise<unknown>): Promise<void> {

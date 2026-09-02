@@ -5,7 +5,9 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { timeout } from '../../../../../../base/common/async.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
@@ -23,7 +25,7 @@ import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAcce
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
 import { getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions } from '../../../browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetAccessoryRigPose, getChatPetAccessoryTrack, getChatPetAntennaeOcclusionBounds, getChatPetEyeAccessoryAnchor, getChatPetReducedMotionRigFrame } from '../../../browser/widget/chatPetAccessoryRig.js';
-import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_WINDOW_OWNERSHIP_CHANNEL, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPosition, getChatPetPillPlatformTop, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldClaimChatPetWindowOnConstruction, shouldPlaceChatPetSpeechBubbleLeft, shouldReserveChatPetSpace, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
+import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_BOUNCE_RESULT_DURATION, CHAT_PET_CONFETTI_SCORE, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPosition, getChatPetMouseBounceVelocity, getChatPetMouseCollisionTime, getChatPetPillPlatformTop, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetSweptPlatformTop, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetMouseBounceEligible, isChatPetMouseBounceGracePeriodElapsed, isChatPetMouseContact, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldCelebrateChatPetBounceScore, shouldClaimChatPetWindowOnConstruction, shouldDismissChatPetBounceResult, shouldPlaceChatPetSpeechBubbleLeft, shouldReserveChatPetSpace, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
@@ -171,7 +173,119 @@ suite('ChatPetWidget', () => {
 		assert.strictEqual(observedTargets.size, 0);
 	});
 
-	test('stacks the run cycle behind the input', () => {
+	test('releases a pending pointer monitor before handling arrow-key hops', async () => {
+		const parent = mainWindow.document.createElement('div');
+		parent.style.cssText = 'position:relative;width:400px;height:240px';
+		const input = mainWindow.document.createElement('div');
+		input.style.cssText = 'position:absolute;left:0;right:0;bottom:0;height:40px';
+		parent.append(input);
+		mainWindow.document.body.append(parent);
+		disposables.add(toDisposable(() => parent.remove()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		service.toggle();
+		disposables.add(new ChatPetWidget(
+			{
+				...createPetHost(parent, input, parent),
+				getPlatformTop: () => input.getBoundingClientRect().top,
+			},
+			undefined,
+			service,
+			new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return false; }
+			}(),
+			new class extends mock<IContextMenuService>() { }(),
+			new class extends mock<ICommandService>() { }(),
+			new NullLogService(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
+		));
+		const button = parent.querySelector<HTMLElement>('.chat-pet-button');
+		assert.ok(button);
+		const initialLeft = button.offsetLeft;
+		button.dispatchEvent(new mainWindow.PointerEvent('pointerdown', {
+			pointerId: 1,
+			button: 0,
+			buttons: 1,
+			bubbles: true,
+		}));
+		const arrowEvent = new mainWindow.KeyboardEvent('keydown', { code: 'ArrowLeft', key: 'ArrowLeft', bubbles: true, cancelable: true });
+		Object.defineProperty(arrowEvent, 'keyCode', { value: 37 });
+		button.dispatchEvent(arrowEvent);
+		await timeout(650);
+
+		assert.deepStrictEqual({
+			initialLeft,
+			currentLeft: button.offsetLeft,
+		}, {
+			initialLeft,
+			currentLeft: initialLeft - 24,
+		});
+	});
+
+	test('resets pet size from the context menu', async () => {
+		const parent = mainWindow.document.createElement('div');
+		const dragBounds = mainWindow.document.createElement('div');
+		const movementBounds = mainWindow.document.createElement('div');
+		mainWindow.document.body.append(parent, dragBounds, movementBounds);
+		disposables.add(toDisposable(() => {
+			parent.remove();
+			dragBounds.remove();
+			movementBounds.remove();
+		}));
+		let contextMenuDelegate: IContextMenuDelegate | undefined;
+		const contextMenuService = new class extends mock<IContextMenuService>() {
+			override showContextMenu(delegate: IContextMenuDelegate): void {
+				contextMenuDelegate = delegate;
+			}
+		}();
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		service.toggle();
+		service.setScale(4);
+		disposables.add(new ChatPetWidget(
+			createPetHost(parent, dragBounds, movementBounds),
+			undefined,
+			service,
+			new TestAccessibilityService(),
+			contextMenuService,
+			new class extends mock<ICommandService>() { }(),
+			new NullLogService(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
+		));
+		const button = parent.getElementsByClassName('chat-pet-button')[0] as HTMLElement;
+
+		button.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		assert.ok(contextMenuDelegate);
+		const resetSizeAction = contextMenuDelegate.getActions().find(action => action.id === 'chat.pet.resetSize');
+		assert.ok(resetSizeAction);
+		const enabledBeforeReset = resetSizeAction.enabled;
+		await resetSizeAction.run();
+		button.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		assert.ok(contextMenuDelegate);
+		const resetSizeActionAtDefault = contextMenuDelegate.getActions().find(action => action.id === 'chat.pet.resetSize');
+
+		assert.deepStrictEqual({
+			label: resetSizeAction.label,
+			enabledBeforeReset,
+			scale: service.scale.get(),
+			displaySize: button.style.width,
+			enabledAtDefault: resetSizeActionAtDefault?.enabled,
+		}, {
+			label: 'Reset Size',
+			enabledBeforeReset: true,
+			scale: 1,
+			displaySize: '48px',
+			enabledAtDefault: false,
+		});
+	});
+
+	test('stacks dragging above sticky scroll and the run cycle behind the input', () => {
 		const parent = mainWindow.document.createElement('div');
 		const input = mainWindow.document.createElement('div');
 		const movementBounds = mainWindow.document.createElement('div');
@@ -202,6 +316,9 @@ suite('ChatPetWidget', () => {
 		const overlay = parent.getElementsByClassName('chat-pet-overlay')[0];
 		const button = parent.getElementsByClassName('chat-pet-button')[0] as HTMLElement;
 		const restingZIndex = mainWindow.getComputedStyle(button).zIndex;
+		button.classList.add('dragging');
+		const draggingZIndex = mainWindow.getComputedStyle(button).zIndex;
+		button.classList.remove('dragging');
 
 		service.setOnTheRun(true);
 		const onTheRun = {
@@ -222,6 +339,7 @@ suite('ChatPetWidget', () => {
 		assert.deepStrictEqual({
 			overlayPrecedesInput: overlay.nextElementSibling === input,
 			restingZIndex,
+			draggingZIndex,
 			onTheRun,
 			returning,
 			returned: {
@@ -231,6 +349,7 @@ suite('ChatPetWidget', () => {
 		}, {
 			overlayPrecedesInput: true,
 			restingZIndex: '1',
+			draggingZIndex: '14',
 			onTheRun: {
 				onTheRunClass: true,
 				returningClass: false,
@@ -246,6 +365,47 @@ suite('ChatPetWidget', () => {
 				zIndex: '1',
 			},
 		});
+	});
+
+	test('keeps the on-the-run pet still', () => {
+		const clock = sinon.useFakeTimers();
+		const parent = mainWindow.document.createElement('div');
+		const input = mainWindow.document.createElement('div');
+		const movementBounds = mainWindow.document.createElement('div');
+		parent.append(input);
+		mainWindow.document.body.append(parent, movementBounds);
+		const storageService = new TestStorageService();
+		const service = new ChatPetService(storageService, new TestTelemetryService(), new NullLogService());
+		service.toggle();
+		const widget = new ChatPetWidget(
+			createPetHost(parent, input, movementBounds),
+			undefined,
+			service,
+			new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return false; }
+			}(),
+			new class extends mock<IContextMenuService>() { }(),
+			new class extends mock<ICommandService>() { }(),
+			new NullLogService(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
+		);
+		try {
+			service.setOnTheRun(true);
+			clock.tick(10_000);
+
+			assert.strictEqual(Reflect.get(widget, '_transientState').get(), undefined);
+		} finally {
+			widget.dispose();
+			service.dispose();
+			storageService.dispose();
+			parent.remove();
+			movementBounds.remove();
+			clock.restore();
+		}
 	});
 
 	test('moves one pet instance between chat hosts without respawning it', () => {
@@ -471,59 +631,6 @@ suite('ChatPetWidget', () => {
 		}, {
 			visible: [false, false, true],
 			spaceReserved: [false, false, true],
-		});
-	});
-
-	test('keeps the pet on external-app blur but transfers it to another VS Code window', async () => {
-		const parent = mainWindow.document.createElement('div');
-		const dragBounds = mainWindow.document.createElement('div');
-		const movementBounds = mainWindow.document.createElement('div');
-		mainWindow.document.body.append(parent, dragBounds, movementBounds);
-		disposables.add(toDisposable(() => {
-			parent.remove();
-			dragBounds.remove();
-			movementBounds.remove();
-		}));
-		const hostService = new class extends mock<IHostService>() {
-			override readonly hasFocus = true;
-			override readonly onDidChangeFocus = Event.None;
-			override readonly onDidChangeActiveWindow = Event.None;
-		}();
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
-		disposables.add(new ChatPetWidget(
-			createPetHost(parent, dragBounds, movementBounds),
-			undefined,
-			service,
-			new TestAccessibilityService(),
-			new class extends mock<IContextMenuService>() { }(),
-			new class extends mock<ICommandService>() { }(),
-			new NullLogService(),
-			hostService,
-		));
-		const button = parent.getElementsByClassName('chat-pet-button')[0];
-		service.toggle();
-		const initiallyHidden = button.classList.contains('hidden');
-		const ownershipChannel = new BroadcastChannel(CHAT_PET_WINDOW_OWNERSHIP_CHANNEL);
-		disposables.add(toDisposable(() => ownershipChannel.close()));
-
-		mainWindow.dispatchEvent(new FocusEvent('blur'));
-		const hiddenAfterExternalBlur = button.classList.contains('hidden');
-		ownershipChannel.postMessage({ windowId: mainWindow.vscodeWindowId + 1 });
-		await new Promise(resolve => mainWindow.setTimeout(resolve, 10));
-		const hiddenAfterWindowTransfer = button.classList.contains('hidden');
-		mainWindow.dispatchEvent(new FocusEvent('focus'));
-		const hiddenAfterReturn = button.classList.contains('hidden');
-
-		assert.deepStrictEqual({
-			initiallyHidden,
-			hiddenAfterExternalBlur,
-			hiddenAfterWindowTransfer,
-			hiddenAfterReturn,
-		}, {
-			initiallyHidden: false,
-			hiddenAfterExternalBlur: false,
-			hiddenAfterWindowTransfer: true,
-			hiddenAfterReturn: false,
 		});
 	});
 
@@ -1998,6 +2105,260 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
+	test('transfers pointer impact into an upward mouse bounce', () => {
+		assert.deepStrictEqual({
+			leftStrike: getChatPetMouseBounceVelocity({ x: 400, y: 900 }, { x: 600, y: -1_000 }, 112, 100, 48),
+			centerStrike: getChatPetMouseBounceVelocity({ x: -200, y: -500 }, { x: 0, y: 500 }, 124, 100, 48),
+			contact: [
+				isChatPetMouseContact(100, 80, { left: 100, right: 148, top: 80, bottom: 128 }),
+				isChatPetMouseContact(148, 128, { left: 100, right: 148, top: 80, bottom: 128 }),
+				isChatPetMouseContact(149, 128, { left: 100, right: 148, top: 80, bottom: 128 }),
+			],
+			sweptCollision: [
+				getChatPetMouseCollisionTime(0, 0, 100, 0, 48, 48, 50, 20),
+				getChatPetMouseCollisionTime(0, 0, 100, 0, 48, 48, 50, 60),
+				getChatPetMouseCollisionTime(0, 0, 100, 0, 48, 48, 200, 20),
+				getChatPetMouseCollisionTime(0, 0, 100, 100, 48, 48, 20, -100),
+			],
+			eligibleDirection: [
+				isChatPetMouseBounceEligible(-1),
+				isChatPetMouseBounceEligible(0),
+				isChatPetMouseBounceEligible(1),
+				isChatPetMouseBounceEligible(advanceChatPetThrow(
+					{ left: 0, top: 0, x: 0, y: -10 },
+					10,
+					{ minimumLeft: 0, maximumLeft: 100, minimumTop: -100 },
+				).y),
+			],
+			releaseGrace: {
+				duration: CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION,
+				before: isChatPetMouseBounceGracePeriodElapsed(499, 500),
+				atBoundary: isChatPetMouseBounceGracePeriodElapsed(500, 500),
+			},
+			resultDuration: CHAT_PET_BOUNCE_RESULT_DURATION,
+			confetti: {
+				score: CHAT_PET_CONFETTI_SCORE,
+				below: shouldCelebrateChatPetBounceScore(19),
+				atThreshold: shouldCelebrateChatPetBounceScore(20),
+			},
+			resultDismissal: {
+				idle: shouldDismissChatPetBounceResult('idle'),
+				landing: shouldDismissChatPetBounceResult('splat'),
+				sleep: shouldDismissChatPetBounceResult('sleep'),
+				typing: shouldDismissChatPetBounceResult('typing'),
+			},
+		}, {
+			leftStrike: { x: 630, y: -985 },
+			centerStrike: { x: -130, y: -760 },
+			contact: [true, true, false],
+			sweptCollision: [0.02, undefined, undefined, undefined],
+			eligibleDirection: [false, false, true, true],
+			releaseGrace: {
+				duration: 500,
+				before: false,
+				atBoundary: true,
+			},
+			resultDuration: 5_000,
+			confetti: {
+				score: 20,
+				below: false,
+				atThreshold: true,
+			},
+			resultDismissal: {
+				idle: false,
+				landing: false,
+				sleep: true,
+				typing: true,
+			},
+		});
+	});
+
+	test('squishes once per pointer contact and keeps the result until the next interaction', async function () {
+		this.timeout(10_000);
+		const parent = mainWindow.document.createElement('div');
+		parent.style.cssText = 'position:relative;width:400px;height:240px';
+		const input = mainWindow.document.createElement('div');
+		input.style.cssText = 'position:absolute;left:0;right:0;bottom:0;height:40px';
+		parent.append(input);
+		mainWindow.document.body.append(parent);
+		disposables.add(toDisposable(() => parent.remove()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		service.toggle();
+		disposables.add(new ChatPetWidget(
+			{
+				...createPetHost(parent, input, parent),
+				getPlatformTop: () => input.getBoundingClientRect().top,
+			},
+			undefined,
+			service,
+			new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return false; }
+			}(),
+			new class extends mock<IContextMenuService>() { }(),
+			new class extends mock<ICommandService>() { }(),
+			new NullLogService(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
+		));
+		const button = parent.querySelector<HTMLElement>('.chat-pet-button');
+		const counter = parent.querySelector<HTMLElement>('.chat-pet-bounce-counter');
+		assert.ok(button);
+		assert.ok(counter);
+		const throwPet = () => {
+			const event = new mainWindow.KeyboardEvent('keydown', { code: 'ArrowLeft', key: 'ArrowLeft', shiftKey: true, bubbles: true, cancelable: true });
+			Object.defineProperty(event, 'keyCode', { value: 37 });
+			button.dispatchEvent(event);
+		};
+		throwPet();
+		const strike = () => mainWindow.document.dispatchEvent(new mainWindow.MouseEvent('pointermove', {
+			clientX: button.getBoundingClientRect().left + button.getBoundingClientRect().width / 2,
+			clientY: button.getBoundingClientRect().top + button.getBoundingClientRect().height / 2,
+			bubbles: true,
+		}));
+		const moveAway = () => mainWindow.document.dispatchEvent(new mainWindow.MouseEvent('pointermove', {
+			clientX: button.getBoundingClientRect().right + 100,
+			clientY: button.getBoundingClientRect().bottom + 100,
+			bubbles: true,
+		}));
+		strike();
+		assert.strictEqual(counter.textContent, '');
+		for (let attempt = 0; attempt < 30 && counter.textContent === ''; attempt++) {
+			moveAway();
+			await timeout(20);
+			strike();
+		}
+		strike();
+		strike();
+		const pointerImpact = {
+			count: counter.textContent,
+			impactClass: button.classList.contains('bounce-impact'),
+			impactSpriteRequested: Array.from(button.querySelectorAll('img.chat-pet-spritesheet'))
+				.some(image => image.getAttribute('src')?.includes('buddy-wall-impact-')),
+			transform: button.style.transform,
+		};
+		for (let attempt = 0; attempt < 100 && (button.classList.contains('throwing') || button.classList.contains('falling')); attempt++) {
+			await timeout(20);
+		}
+		const landed = {
+			count: counter.textContent,
+			hidden: counter.classList.contains('hidden'),
+		};
+		await timeout(CHAT_PET_BOUNCE_RESULT_DURATION - 200);
+		const beforeTimeout = {
+			count: counter.textContent,
+			hidden: counter.classList.contains('hidden'),
+		};
+		await timeout(250);
+		const timedOut = {
+			count: counter.textContent,
+			hidden: counter.classList.contains('hidden'),
+		};
+		throwPet();
+		const bounceEvent = new mainWindow.KeyboardEvent('keydown', { code: 'Enter', key: 'Enter', bubbles: true, cancelable: true });
+		Object.defineProperty(bounceEvent, 'keyCode', { value: 13 });
+		button.dispatchEvent(bounceEvent);
+		for (let attempt = 0; attempt < 100 && (button.classList.contains('throwing') || button.classList.contains('falling')); attempt++) {
+			await timeout(20);
+		}
+		button.click();
+		const dismissed = {
+			count: counter.textContent,
+			hidden: counter.classList.contains('hidden'),
+		};
+		service.toggle();
+
+		assert.deepStrictEqual({
+			pointerImpact,
+			landed,
+			beforeTimeout,
+			timedOut,
+			dismissed,
+		}, {
+			pointerImpact: {
+				count: '1',
+				impactClass: true,
+				impactSpriteRequested: true,
+				transform: '',
+			},
+			landed: {
+				count: '1',
+				hidden: false,
+			},
+			beforeTimeout: {
+				count: '1',
+				hidden: false,
+			},
+			timedOut: {
+				count: '',
+				hidden: true,
+			},
+			dismissed: {
+				count: '',
+				hidden: true,
+			},
+		});
+	});
+
+	test('squishes once for an airborne keyboard bounce', () => {
+		const parent = mainWindow.document.createElement('div');
+		parent.style.cssText = 'position:relative;width:400px;height:240px';
+		const input = mainWindow.document.createElement('div');
+		input.style.cssText = 'position:absolute;left:0;right:0;bottom:0;height:40px';
+		parent.append(input);
+		mainWindow.document.body.append(parent);
+		disposables.add(toDisposable(() => parent.remove()));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		service.toggle();
+		disposables.add(new ChatPetWidget(
+			{
+				...createPetHost(parent, input, parent),
+				getPlatformTop: () => input.getBoundingClientRect().top,
+			},
+			undefined,
+			service,
+			new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return false; }
+			}(),
+			new class extends mock<IContextMenuService>() { }(),
+			new class extends mock<ICommandService>() { }(),
+			new NullLogService(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
+		));
+		const button = parent.querySelector<HTMLElement>('.chat-pet-button');
+		const counter = parent.querySelector<HTMLElement>('.chat-pet-bounce-counter');
+		assert.ok(button);
+		assert.ok(counter);
+		const throwEvent = new mainWindow.KeyboardEvent('keydown', { code: 'ArrowLeft', key: 'ArrowLeft', shiftKey: true, bubbles: true, cancelable: true });
+		Object.defineProperty(throwEvent, 'keyCode', { value: 37 });
+		button.dispatchEvent(throwEvent);
+		const bounceEvent = new mainWindow.KeyboardEvent('keydown', { code: 'Enter', key: 'Enter', bubbles: true, cancelable: true });
+		Object.defineProperty(bounceEvent, 'keyCode', { value: 13 });
+		button.dispatchEvent(bounceEvent);
+		button.dispatchEvent(bounceEvent);
+
+		assert.deepStrictEqual({
+			count: counter.textContent,
+			hidden: counter.classList.contains('hidden'),
+			ariaHidden: counter.getAttribute('aria-hidden'),
+			impactClass: button.classList.contains('bounce-impact'),
+			impactSpriteRequested: Array.from(button.querySelectorAll('img.chat-pet-spritesheet'))
+				.some(image => image.getAttribute('src')?.includes('buddy-wall-impact-')),
+		}, {
+			count: '1',
+			hidden: false,
+			ariaHidden: 'true',
+			impactClass: true,
+			impactSpriteRequested: true,
+		});
+	});
+
 	test('smoothly rights throws through the apex', () => {
 		assert.deepStrictEqual([
 			getChatPetThrowRotation(45, 20, -500, 16),
@@ -2121,14 +2482,49 @@ suite('ChatPetWidget', () => {
 	test('uses substantive input surfaces as the platform', () => {
 		assert.deepStrictEqual([
 			getChatPetPlatformTop(100, 160),
+			getChatPetPlatformTop(100, 160, 80),
 			getChatPetPlatformTop(100, 160, 120),
 			getChatPetPlatformTop(100, 160, 158),
 			getChatPetPlatformTop(100, 160, 170),
 		], [
 			110,
+			80,
 			120,
 			158,
 			110,
+		]);
+	});
+
+	test('resolves pill edges at the swept landing position in both directions', () => {
+		const getLanding = (previousLeft: number, left: number) => {
+			const platformTop = getChatPetSweptPlatformTop(
+				100,
+				160,
+				200,
+				previousLeft,
+				-70,
+				left,
+				-46,
+				48,
+				48,
+				petCenterX => petCenterX >= 250 && petCenterX <= 350 ? 90 : undefined,
+			);
+			return {
+				platformTop,
+				landing: getChatPetThrowLanding(previousLeft, -70, left, -46, 48, 48, 0, 400, platformTop - 100, 300),
+			};
+		};
+
+		assert.deepStrictEqual([
+			getLanding(20, 28),
+			getLanding(40, 20),
+			getLanding(132, 124),
+			getLanding(110, 132),
+		], [
+			{ platformTop: 110, landing: undefined },
+			{ platformTop: 90, landing: { left: 30, top: -58, landsOnPlatform: true } },
+			{ platformTop: 110, landing: undefined },
+			{ platformTop: 90, landing: { left: 121, top: -58, landsOnPlatform: true } },
 		]);
 	});
 

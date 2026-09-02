@@ -11,7 +11,7 @@ import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentModelInfo, type IAgentResolveChatConfigParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agent.js';
+import { AgentSession, type AgentChatMigrationResult, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentModelInfo, type IAgentResolveChatConfigParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agent.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
 import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -60,6 +60,10 @@ export class MockAgent implements IAgent {
 	readonly onDidChangeChatData = Event.None;
 	readonly onDidSpawnChat = Event.None;
 	getTurnDiagnosticSnapshot?: IAgent['getTurnDiagnosticSnapshot'];
+
+	recordModelCallTurnCorrelation(chat: URI, modelCallId: string, turnId: string): void {
+		this.modelCallTurnCorrelationCalls.push({ chat, modelCallId, turnId });
+	}
 	private readonly _onDidSendMessage = new Emitter<IMockSendMessageCall>();
 	readonly onDidSendMessage = this._onDidSendMessage.event;
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
@@ -85,6 +89,7 @@ export class MockAgent implements IAgent {
 	readonly setClientCustomizationsCalls: { clientId: string; customizations: ClientPluginCustomization[] }[] = [];
 	readonly setClientToolsCalls: { clientId: string; tools: readonly ToolDefinition[] }[] = [];
 	readonly removeActiveClientCalls: { chat: URI; clientId: string }[] = [];
+	readonly modelCallTurnCorrelationCalls: { chat: URI; modelCallId: string; turnId: string }[] = [];
 	/**
 	 * Every host-supplied {@link IAgentChatContext} this agent was handed,
 	 * keyed by the boundary it arrived at. Lets shared tests assert that Agent
@@ -160,7 +165,7 @@ export class MockAgent implements IAgent {
 		this._discoveredChatsEmitter.fire(chats);
 	}
 
-	async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined> {
+	async listChatsToMigrate(): Promise<AgentChatMigrationResult> {
 		return [];
 	}
 
@@ -567,7 +572,7 @@ export class ScriptedMockAgent implements IAgent {
 		this._discoveredChatsEmitter.fire(chats);
 	}
 
-	async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined> {
+	async listChatsToMigrate(): Promise<AgentChatMigrationResult> {
 		return [];
 	}
 

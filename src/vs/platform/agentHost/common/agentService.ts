@@ -18,9 +18,10 @@ import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { IAgentHostResourceUriMapper } from './agentHostUri.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
-import type { InitializeResult } from './state/protocol/common/commands.js';
+import type { AutomationCapabilities, InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
-import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
+import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from './state/protocol/channels-automation/commands.js';
+import type { ActionEnvelope, ClientAutomationAction, ClientAutomationRunAction, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
 import type { ContentEncoding, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, StateComponents, type RootState } from './state/sessionState.js';
 import { type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IMcpNotification, type IAgentHostNetworkEndpoint, type IAgentHostManagedSettingsSnapshot } from './agent.js';
@@ -774,11 +775,16 @@ export interface IAgentHostManagementService {
 	 * `createChat` (`title` and `model`).
 	 */
 	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatRequestOptions): Promise<void>;
+	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
+	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void>;
+	claimDetachedWorktree(handle: string): Promise<void>;
+	deleteDetachedWorktree(handle: string): Promise<void>;
+	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void>;
 	shutdown(): Promise<void>;
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
-	getSessionStateFile(session: URI): Promise<URI | undefined>;
+	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined>;
 	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
 	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk>;
 	startWebSocketServer(): Promise<IAgentHostSocketInfo>;
@@ -812,6 +818,11 @@ export interface IAgentService {
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
+	claimDetachedWorktree?(handle: string): Promise<void>;
+	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
+	deleteDetachedWorktree?(handle: string): Promise<void>;
+	reconcileDetachedWorktrees?(scope: string, activeHandles: readonly string[]): Promise<void>;
 
 	/**
 	 * Create an additional chat within an existing session. Spins up the
@@ -910,7 +921,7 @@ export interface IAgentService {
 	 */
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
 
-	getSessionStateFile?(session: URI): Promise<URI | undefined>;
+	getSessionStateFile?(session: URI, chat?: URI): Promise<URI | undefined>;
 
 	collectDebugLogs?(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
 
@@ -959,6 +970,11 @@ export interface IAgentService {
 	 */
 	readonly onDidNotification: Event<INotification>;
 
+	readonly automationCapabilities: AutomationCapabilities | undefined;
+	listAutomationTriggerDefinitions(params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult>;
+	runAutomation(params: RunAutomationParams): Promise<RunAutomationResult>;
+	fetchAutomationRuns(params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult>;
+
 	/**
 	 * Dispatch a client-originated action to the server. The server applies
 	 * it to state, triggers side effects, and echoes it back via
@@ -970,7 +986,7 @@ export interface IAgentService {
 	 * rather than {@link URI} objects so that authority-less scheme URIs
 	 * like `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext): void;
+	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext): void;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.
@@ -1077,7 +1093,7 @@ export interface IAgentConnection {
 	 * than {@link URI} objects so authority-less scheme URIs like
 	 * `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): void;
+	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void;
 
 	// ---- Events (connection-level) ------------------------------------------
 	readonly onDidNotification: Event<INotification>;
@@ -1108,9 +1124,17 @@ export interface IAgentConnection {
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
+	claimDetachedWorktree?(handle: string): Promise<void>;
+	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
+	deleteDetachedWorktree?(handle: string): Promise<void>;
+	reconcileDetachedWorktrees?(scope: string, activeHandles: readonly string[]): Promise<void>;
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 	completions(params: CompletionsParams): Promise<CompletionsResult>;
+	listAutomationTriggerDefinitions(params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult>;
+	runAutomation(params: RunAutomationParams): Promise<RunAutomationResult>;
+	fetchAutomationRuns(params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult>;
 
 	/**
 	 * Trigger characters announced by the connected agent host that should
@@ -1146,7 +1170,7 @@ export interface IAgentConnection {
 	 */
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
 
-	getSessionStateFile(session: URI): Promise<URI | undefined>;
+	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined>;
 
 	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
 

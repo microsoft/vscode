@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../common/openSessionLink.js';
 import { ArtifactServerToolName, LEGACY_ARTIFACT_SERVER_TOOL_NAMES } from '../../common/serverToolNames.js';
 import { parseSessionArtifactInput, SessionArtifactCollection } from '../../common/sessionArtifactCollection.js';
 import { readSessionArtifacts, SESSION_ARTIFACT_TYPES, SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
@@ -25,7 +27,7 @@ const addArtifactInputSchema: ToolDefinition['inputSchema'] = {
 			description: 'Required. `true` for an artifact — something this session produced, such as a pull request or issue it opened, a plan file it wrote outside the workspace, or another side effect of its work. `false` for a reference — something it did not produce but the user should look at, such as the pull request or commit that introduced a bug, or a website that matters for the task.',
 		},
 		link: { type: 'string', description: 'URL of the pull request, issue, commit or website. Required for those kinds.' },
-		uri: { type: 'string', description: 'URI of the file or resource. Required for the `file` and `resource` kinds.' },
+		uri: { type: 'string', description: 'Absolute URI including its scheme. For a local file, pass a file URI such as `file:///C:/path/to/file`, not a plain file system path such as `C:\\path\\to\\file`. Required for the `file` and `resource` kinds.' },
 		commitHash: { type: 'string', description: 'The commit hash. Required for the `commit` kind.' },
 	},
 	required: ['type', 'label', 'isArtifact'],
@@ -48,7 +50,7 @@ export const artifactServerToolDefinitions: ToolDefinition[] = [
 	{
 		name: ArtifactServerToolName.AddArtifactOrReference,
 		title: 'Add Artifact or Reference',
-		description: 'Record an artifact or a reference so it is surfaced next to the chat input. An artifact is something this session produced that is not just an ordinary workspace edit: a pull request or issue it opened, a plan or report file it wrote outside the workspace, or another side effect of its work. A reference is something the session did not produce but the user should look at because of this task: the pull request or commit that introduced a bug, an issue it investigated, or a website worth reading. Set `isArtifact` accordingly. Do not record routine files you merely edited.',
+		description: 'Record an artifact or a reference so it is surfaced next to the chat input. An artifact is something this session produced that is not just an ordinary workspace edit: a pull request or issue it opened, a plan or report file it wrote outside the workspace, or another side effect of its work. A reference is something the session did not produce but the user should look at because of this task: the pull request or commit that introduced a bug, an issue it investigated, or a website worth reading. Set `isArtifact` accordingly. Do not record routine files you merely edited or sessions and chats created with session-management tools.',
 		inputSchema: addArtifactInputSchema,
 		annotations: { readOnlyHint: false },
 	},
@@ -164,6 +166,9 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 			switch (toolName) {
 				case ArtifactServerToolName.AddArtifactOrReference: {
 					const input = parseSessionArtifactInput(rawArgs, ArtifactServerToolName.AddArtifactOrReference);
+					if (input.uri && URI.parse(input.uri).scheme === AGENT_HOST_SESSION_LINK_SCHEME) {
+						throw new Error(`Invalid ${ArtifactServerToolName.AddArtifactOrReference} input: sessions and chats created with session-management tools must not be recorded as artifacts or references.`);
+					}
 					const result = artifacts.read().add(input, generateUuid);
 					if (!result.added) {
 						return `Already recorded: ${describeArtifact(result.artifact)}`;
@@ -201,4 +206,4 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
  * The instruction appended to every agent's host instructions while the
  * artifact tools are enabled.
  */
-export const ARTIFACT_TOOLS_INSTRUCTION = `Record the notable results of your work with \`${ArtifactServerToolName.AddArtifactOrReference}\` (types: ${SESSION_ARTIFACT_TYPES.join(', ')}; use \`${SessionArtifactType.Resource}\` when nothing else fits) so they are surfaced next to the chat input. Pass \`isArtifact: true\` for an artifact — something this session produced beyond ordinary workspace edits, such as a pull request or issue you opened, a plan or report file you wrote outside the workspace, or another side effect of your work. Pass \`isArtifact: false\` for a reference — something you did not produce but the user should look at because of this task, such as the pull request or commit that introduced a bug, an issue you investigated, or a website worth reading. Record each one once, and do not record routine files you merely edited or commits you create unless the user asks for them.`;
+export const ARTIFACT_TOOLS_INSTRUCTION = `Record the notable results of your work with \`${ArtifactServerToolName.AddArtifactOrReference}\` (types: ${SESSION_ARTIFACT_TYPES.join(', ')}; use \`${SessionArtifactType.Resource}\` when nothing else fits) so they are surfaced next to the chat input. Pass \`isArtifact: true\` for an artifact — something this session produced beyond ordinary workspace edits, such as a pull request or issue you opened, a plan or report file you wrote outside the workspace, or another side effect of your work. Pass \`isArtifact: false\` for a reference — something you did not produce but the user should look at because of this task, such as the pull request or commit that introduced a bug, an issue you investigated, or a website worth reading. Record each one once, and do not record routine files you merely edited, commits you create unless the user asks for them, or sessions and chats created with session-management tools.`;

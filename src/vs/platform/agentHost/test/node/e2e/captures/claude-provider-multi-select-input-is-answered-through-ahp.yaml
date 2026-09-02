@@ -21,9 +21,9 @@ exchanges:
                 multiSelect: true
                 options:
                   - label: Red
-                    description: The color red.
+                    description: Select red.
                   - label: Blue
-                    description: The color blue.
+                    description: Select blue.
       stopReason: tool_use
   - request:
       model: claude-opus-5
@@ -44,9 +44,9 @@ exchanges:
                     multiSelect: true
                     options:
                       - label: Red
-                        description: The color red.
+                        description: Select red.
                       - label: Blue
-                        description: The color blue.
+                        description: Select blue.
         - role: user
           content:
             - type: tool_result

@@ -185,6 +185,9 @@ export interface ISessionsService {
 	/** Place a session to the right of the last visible session and activate it. */
 	openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI }): Promise<void>;
 
+	/** Open a chat to the side of its session view, redirecting a superseded resource first. */
+	openChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean }): Promise<void>;
+
 	/**
 	 * Whether the given session may be opened, honoring workspace trust. Prompts
 	 * for trust on any untrusted folder the session runs in and resolves to
@@ -466,9 +469,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// one disappears.
 		this._register(this.sessionsManagementService.onDidChangeSessions(e => this._onDidChangeSessions(e)));
 
-		// Reflect provider session replacement (e.g. a draft graduating into a
-		// committed session) onto the grid slot.
+		// Reflect both provider session replacement (e.g. a draft graduating)
+		// and pre-send draft replacement onto the same visible grid slot.
 		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => this._onDidReplaceSession(from, to)));
+		this._register(this.sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => this._onDidReplaceSession(from, to)));
 
 		// While a foreground send materialises new chats, keep the newest chat
 		// active in the visible slot so the user sees the chat being sent.
@@ -734,6 +738,15 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const t0 = Date.now();
 		this._cancelRestore();
 		const token = this._startOpenSession();
+		// Redirect a superseded resource (e.g. a legacy session adopted into another
+		// provider) before activating, the same way `openSession` does for a URI, so
+		// opening by object migrates rather than activating the old facade as-is.
+		const resolved = await this._resolveSessionForOpen(session, chatUri);
+		if (token.isCancellationRequested) {
+			return;
+		}
+		session = resolved.session;
+		chatUri = resolved.chatUri ?? chatUri;
 		if (options?.source) {
 			await this.sessionOpenTelemetryService.withOpenRequest(options.source, token, telemetryAttempt =>
 				this._openChat(session, chatUri, options.preserveFocus, token, t0, telemetryAttempt));
@@ -841,8 +854,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._cancelRestore();
 		const token = this._startOpenSession();
 		await this.sessionOpenTelemetryService.withOpenRequest(options?.source ?? 'unknown', token, async telemetryAttempt => {
-			// Redirect a superseded resource (legacy Copilot CLI) before lookup, so an
-			// open by URI migrates rather than reaching the old provider.
+			// Redirect a superseded resource (legacy session adopted into another
+			// provider) before lookup, so an open by URI migrates rather than reaching
+			// the old provider. Providers decline unfamiliar resources and the caller
+			// keeps the original resource.
 			const resolved = await this.sessionsManagementService.resolveSessionResource(sessionResource, 'open');
 			if (token.isCancellationRequested) {
 				return;
@@ -860,17 +875,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 		});
 	}
 
-	async openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI }): Promise<void> {
-		const visible = this.visibleSessions.get();
-		const lastVisible = visible[visible.length - 1];
-		if (lastVisible && lastVisible.sessionId !== session.sessionId) {
-			this.insertAt(session, lastVisible.sessionId, 'right');
-		}
-		if (options?.chatResource) {
-			await this.openChat(session, options.chatResource, { preserveFocus: options.preserveFocus, source: options.source });
-		} else {
-			await this.openSession(session.resource, { preserveFocus: options?.preserveFocus, source: options?.source });
-		}
+	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {
+		this._cancelRestore();
+		this._startOpenSession();
+		this._showSession(this._getSession(sessionResource), options);
 	}
 
 	async canOpenSession(session: ISession): Promise<boolean> {
@@ -916,10 +924,69 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return true;
 	}
 
-	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {
-		this._cancelRestore();
-		this._startOpenSession();
-		this._showSession(this._getSession(sessionResource), options);
+	async openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI }): Promise<void> {
+		const token = this._startOpenSession();
+		// Redirect a superseded resource before inserting a slot, so the side-by-side
+		// view/terminal never briefly binds to the old facade.
+		const resolved = await this._resolveSessionForOpen(session, options?.chatResource);
+		if (token.isCancellationRequested) {
+			return;
+		}
+		session = resolved.session;
+		if (options?.chatResource && resolved.chatUri) {
+			options = { ...options, chatResource: resolved.chatUri };
+		}
+		const visible = this.visibleSessions.get();
+		const lastVisible = visible[visible.length - 1];
+		if (lastVisible && lastVisible.sessionId !== session.sessionId) {
+			this.insertAt(session, lastVisible.sessionId, 'right');
+		}
+		if (options?.chatResource) {
+			await this.openChat(session, options.chatResource, { preserveFocus: options.preserveFocus, source: options.source });
+		} else {
+			await this.openSession(session.resource, { preserveFocus: options?.preserveFocus, source: options?.source });
+		}
+	}
+
+	/**
+	 * Opens a chat to the side of its session view, redirecting a superseded
+	 * resource first so a migrating session opens its adopted twin to the side
+	 * rather than the old facade. Provider-neutral: the redirect is the
+	 * `resolveSessionResource` hook, not a scheme check.
+	 */
+	async openChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
+		const token = this._startOpenSession();
+		const resolved = await this._resolveSessionForOpen(session, chatResource);
+		if (token.isCancellationRequested) {
+			return;
+		}
+		session = resolved.session;
+		chatResource = resolved.chatUri ?? chatResource;
+		this._showSession(this._getSession(session.resource), options);
+		const sessionView = this.sessionsPartService.getSessionView(session.sessionId);
+		if (!sessionView) {
+			throw new Error(`Unable to open chat to the side because session view '${session.sessionId}' is not mounted`);
+		}
+		await sessionView.openChatToSide(chatResource);
+	}
+
+	/**
+	 * Redirects a superseded session to its authoritative facade before it is
+	 * shown (mirrors `openSession`'s URI resolution). Provider-neutral: it asks
+	 * `resolveSessionResource`, which declines unfamiliar resources, rather than
+	 * inspecting the provider's URI scheme. Returns the redirected session (and
+	 * its main chat) when it changes, otherwise the inputs unchanged.
+	 */
+	private async _resolveSessionForOpen(session: ISession, chatUri: URI | undefined): Promise<{ session: ISession; chatUri: URI | undefined }> {
+		const resolved = await this.sessionsManagementService.resolveSessionResource(session.resource, 'open');
+		if (this.uriIdentityService.extUri.isEqual(resolved, session.resource)) {
+			return { session, chatUri };
+		}
+		const superseding = this.sessionsManagementService.getSession(resolved);
+		if (!superseding) {
+			return { session, chatUri };
+		}
+		return { session: superseding, chatUri: chatUri ? superseding.mainChat.get().resource : undefined };
 	}
 
 	private _getSession(sessionResource: URI): ISession {

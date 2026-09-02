@@ -28,9 +28,9 @@ import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/theme.js';
-import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
+import { chatPersistentContentVisibleClass, ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { IChatModelReference, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatModelReference, IChatService, ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { isChatTranscriptContextVariableEntry, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -52,8 +52,6 @@ import { INewChatVoiceTargetService } from './newChatVoice.js';
 import { ISessionsChatViewStateService } from './chatViewStateService.js';
 import { ExternalSessionBanner } from './externalSessionBanner.js';
 import { Menus } from '../../../browser/menus.js';
-import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
-import { SessionsChatBackgroundRenderer } from './chatBackgroundRenderer.js';
 import { ISessionOpenTelemetryService } from '../../../services/sessions/browser/sessionOpenTelemetryService.js';
 
 export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefined): boolean {
@@ -65,6 +63,10 @@ export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefine
  * shown before a session has been created. This is the default view that
  * the `SessionsPart` grid is seeded with.
  */
+export interface INewChatViewOptions extends IChatViewOptions {
+	readonly initialAttachments?: readonly IChatRequestVariableEntry[];
+}
+
 export class NewChatView extends AbstractChatView {
 
 	static readonly TYPE = 'sessions.newSession';
@@ -76,17 +78,12 @@ export class NewChatView extends AbstractChatView {
 
 	constructor(
 		isNewChatInSession: boolean,
-		options: IChatViewOptions,
+		options: INewChatViewOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsChatBackgroundService chatBackgroundService: ISessionsChatBackgroundService,
 	) {
 		super();
 
 		this.element.classList.add('chat-view-new');
-		const backgroundRenderer = this._register(new SessionsChatBackgroundRenderer(this.element));
-		const updateBackground = () => backgroundRenderer.setBackground(chatBackgroundService.getBackground());
-		this._register(chatBackgroundService.onDidChangeBackground(updateBackground));
-		updateBackground();
 		this.kind = isNewChatInSession ? 'newChatInSession' : 'newSession';
 		const widgetOptions = { ...options, petHostPreferred: this._isVisibleObs };
 		this._widget = this._register(isNewChatInSession
@@ -198,7 +195,6 @@ export class ChatView extends AbstractChatView {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@ISessionsChatBackgroundService private readonly chatBackgroundService: ISessionsChatBackgroundService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -218,10 +214,6 @@ export class ChatView extends AbstractChatView {
 		this._register(toDisposable(() => this._reportModelUnbound()));
 
 		this.element.classList.add('chat-view-chat');
-		const backgroundRenderer = this._register(new SessionsChatBackgroundRenderer(this.element));
-		const updateBackground = () => backgroundRenderer.setBackground(this.chatBackgroundService.getBackground());
-		this._register(this.chatBackgroundService.onDidChangeBackground(updateBackground));
-		updateBackground();
 		this._widgetContainer = $('.chat-view-widget');
 		this.element.appendChild(this._widgetContainer);
 
@@ -302,6 +294,11 @@ export class ChatView extends AbstractChatView {
 
 		// Floating status pills above the input.
 		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar));
+		const updateChatPillsVisibility = (visible: boolean) => {
+			this._widget.inputPart.persistentContentContainerElement.classList.toggle(chatPersistentContentVisibleClass, visible);
+		};
+		this._register(this._chatPills.onDidChangeVisibility(updateChatPillsVisibility));
+		updateChatPillsVisibility(this._chatPills.visible);
 		this._register(this._widget.inputPart.registerChatPetHorizontalPlatformProvider({
 			onDidChange: this._chatPills.onDidChangeChatPetPlatform,
 			getElements: () => this._chatPills.getChatPetPlatformElements(),
@@ -341,6 +338,11 @@ export class ChatView extends AbstractChatView {
 			const activity = typeof statusMessage === 'string' ? statusMessage : statusMessage ? renderAsPlaintext(statusMessage) : undefined;
 			const model = chatModel.read(reader);
 			let showProgress: boolean;
+			let requestCount = 0;
+			let visibleRequestCount = 0;
+			let hiddenRequestIncomplete: boolean | undefined;
+			let hiddenRequestState: ResponseModelState | undefined;
+			let readyMessage: string | undefined;
 			if (!resource) {
 				showProgress = false;
 			} else if (!model) {
@@ -348,14 +350,17 @@ export class ChatView extends AbstractChatView {
 			} else {
 				const requests = model.getRequests();
 				const lastRequest = model.lastRequestObs.read(reader);
-				const visibleRequestCount = requests.filter(request => !request.isHiddenFromTranscript).length;
-				const hiddenRequestIncomplete = lastRequest?.isHiddenFromTranscript
-					? lastRequest.response?.isIncomplete.read(reader)
-					: undefined;
-				showProgress = shouldShowTranscriptPreparationProgress(requests.length, visibleRequestCount, hiddenRequestIncomplete);
+				requestCount = requests.length;
+				visibleRequestCount = requests.filter(request => !request.isRequestHiddenFromTranscript).length;
+				const hiddenResponse = lastRequest?.isRequestHiddenFromTranscript ? lastRequest.response : undefined;
+				hiddenRequestIncomplete = hiddenResponse?.isIncomplete.read(reader);
+				hiddenRequestState = hiddenResponse?.state;
+				readyMessage = findTranscriptContextEntry(requests.filter(request => request.isHiddenFromTranscript))?.readyMessage?.trim();
+				showProgress = shouldShowTranscriptPreparationProgress(requestCount, visibleRequestCount, hiddenRequestIncomplete);
 			}
-			const progress = getTranscriptProgress(showProgress, activity);
-			this._widget.setTranscriptProgress(progress, progress);
+			const showCompletion = shouldShowTranscriptPreparationCompletion(requestCount, visibleRequestCount, hiddenRequestState, readyMessage);
+			const progress = showCompletion ? readyMessage : getTranscriptProgress(showProgress, activity);
+			this._widget.setTranscriptProgress(progress, progress, showCompletion ? { complete: true } : undefined);
 		}));
 	}
 
@@ -365,8 +370,7 @@ export class ChatView extends AbstractChatView {
 			const model = chatModel.read(reader);
 			model?.lastRequestObs.read(reader);
 			const requests = model?.getRequests() ?? [];
-			const hasVisibleRequest = requests.some(request => !request.isHiddenFromTranscript);
-			const entry = hasVisibleRequest ? undefined : findTranscriptContextEntry(requests.filter(request => request.isHiddenFromTranscript));
+			const entry = findInitialTranscriptContextEntry(requests);
 			if (entry?.id === currentEntryId) {
 				return;
 			}
@@ -656,6 +660,10 @@ export function shouldShowTranscriptPreparationProgress(requestCount: number, vi
 	return requestCount === 0 || (visibleRequestCount === 0 && hiddenRequestIncomplete !== false);
 }
 
+export function shouldShowTranscriptPreparationCompletion(requestCount: number, visibleRequestCount: number, hiddenRequestState: ResponseModelState | undefined, readyMessage: string | undefined): boolean {
+	return requestCount > 0 && visibleRequestCount === 0 && hiddenRequestState === ResponseModelState.Complete && !!readyMessage;
+}
+
 export function getTranscriptProgress(showProgress: boolean, activity: string | undefined): string | undefined {
 	if (!showProgress) {
 		return undefined;
@@ -671,6 +679,13 @@ export function findTranscriptContextEntry(requests: readonly { readonly variabl
 		}
 	}
 	return undefined;
+}
+
+/** Returns initial transcript context until a request row becomes visible. */
+export function findInitialTranscriptContextEntry(requests: readonly { readonly isRequestHiddenFromTranscript: boolean; readonly variableData: { readonly variables: readonly IChatRequestVariableEntry[] }; readonly attachedContext?: readonly IChatRequestVariableEntry[] }[]): IChatRequestTranscriptContextVariableEntry | undefined {
+	return requests.some(request => !request.isRequestHiddenFromTranscript)
+		? undefined
+		: findTranscriptContextEntry(requests);
 }
 
 /**

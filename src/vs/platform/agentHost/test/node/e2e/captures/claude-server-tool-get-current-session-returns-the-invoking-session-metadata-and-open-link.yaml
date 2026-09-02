@@ -29,7 +29,7 @@ exchanges:
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: '{"session":"claude:/${uuid_0}","openLink":"agent-host-session://claude/${uuid_0}","title":"Call get_current_session exactly once, then reply exactly \"current\".","status":"inProgress","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-02T00:59:56.191Z","modifiedAt":"2026-08-02T00:59:55.849Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"claude:/${uuid_0}/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"claude:/${uuid_0}/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}'
+              content: '{"session":"claude:/${uuid_0}","openLink":"agent-host-session://claude/${uuid_0}","title":"Call get_current_session exactly once, then reply exactly \"current\".","status":"inProgress","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-28T00:05:14.745Z","modifiedAt":"2026-08-28T00:05:10.397Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"claude:/${uuid_0}/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"claude:/${uuid_0}/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}'
     response:
       content: current
       stopReason: end_turn
