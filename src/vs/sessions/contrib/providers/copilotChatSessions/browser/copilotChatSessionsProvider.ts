@@ -44,6 +44,7 @@ import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -1401,7 +1402,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 * How long the first sandbox turn waits for the session's model catalog to arrive before
 	 * dispatching without the user's model. Long enough to cover the gap between the relay
 	 * connecting and the host publishing its models, short enough not to strand a send behind a
-	 * catalog that is never coming.
+	 * catalog that is never coming. Exceeding it is reported to the user, not only logged.
 	 */
 	private static readonly SANDBOX_MODEL_WAIT_MS = 5_000;
 
@@ -1503,6 +1504,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
 		@ILogService private readonly logService: ILogService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
 		@IPullRequestIconCache private readonly pullRequestIconCache: IPullRequestIconCache,
 		@ILabelService private readonly labelService: ILabelService,
@@ -2132,6 +2134,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return getWorkbenchContribution<CloudSandboxAgentHostContribution>(CloudSandboxAgentHostContribution.ID);
 	}
 
+	/** Test seam: overridden so a test can reach the timeout without waiting out the real budget. */
+	protected get _sandboxModelWaitMs(): number {
+		return CopilotChatSessionsProvider.SANDBOX_MODEL_WAIT_MS;
+	}
+
 	/**
 	 * Commit a cloud new-session into a GitHub-managed sandbox instead of the server-run cloud
 	 * agent: provision the sandbox, then hand the session over to the remote-agent-host provider
@@ -2153,7 +2160,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		let provisioned: ICloudSandboxProvisionedSession | undefined;
 		// Read before provisioning: the composer session is retired below, and its selection is the
 		// only record of what the user picked for this turn.
-		const selectedRawModelId = this._rawCloudModelId(session);
+		const selectedModel = this._selectedCloudModel(session);
 		try {
 			provisioned = await this._getCloudSandboxContribution().provisionSession({
 				repoNwo,
@@ -2164,7 +2171,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			// Send into the session's main chat rather than `createNewChat`, which would mint an
 			// *additional* peer chat inside a session that already has one.
 			const chat = provisioned.session.mainChat.get();
-			await this._carryModelToSandbox(provisioned, chat.resource, selectedRawModelId);
+			await this._carryModelToSandbox(provisioned, chat.resource, selectedModel);
 			const committed = await provisioned.provider.sendRequest(provisioned.session.sessionId, chat.resource, options);
 
 			// Retire only once the turn is dispatched; swapping earlier bounces the view home.
@@ -2193,20 +2200,25 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	/**
-	 * The backend model id behind this composer's selection, as the sandbox knows it.
+	 * The composer's model selection as the sandbox knows it, plus the label to name it by.
 	 *
 	 * Cloud sessions pick from the extension host's `models` option group, whose ids are the
 	 * group's own item ids, while a sandbox registers its models from what the agent host
-	 * advertises. The two are different id spaces, so only the underlying model id crosses over.
+	 * advertises. Different id spaces, so only the underlying model id crosses over.
+	 *
+	 * Only the model, because only the model exists: an option item's `modelMetadata` is hover and
+	 * pricing detail with no configuration schema, so a cloud composer never offers a thinking
+	 * level or context tier to carry alongside it.
 	 */
-	private _rawCloudModelId(session: RemoteNewSession): string | undefined {
+	private _selectedCloudModel(session: RemoteNewSession): { readonly rawModelId: string; readonly label: string } | undefined {
 		const selectedModelId = session.selectedModelId;
 		if (!selectedModelId) {
 			return undefined;
 		}
 		const { modelOption } = session.getModelOptionsSnapshot();
 		const item = modelOption?.group.items.find(i => i.id === selectedModelId);
-		return item?.modelMetadata?.id ?? item?.id ?? selectedModelId;
+		const rawModelId = item?.modelMetadata?.id ?? item?.id ?? selectedModelId;
+		return { rawModelId, label: item?.modelMetadata?.name ?? item?.name ?? rawModelId };
 	}
 
 	/**
@@ -2214,19 +2226,20 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 *
 	 * Mission Control starts no run, so this client sends that turn — and a session that has never
 	 * run has no model of its own to restore. Without this the turn carries no model at all and
-	 * silently runs on whatever the agent host defaults to, discarding the user's pick along with
-	 * the thinking level and context tier configured against it.
+	 * runs on whatever the agent host defaults to.
 	 *
-	 * A freshly connected sandbox publishes its models asynchronously, so an empty catalog here is
-	 * "not yet" rather than "no": the model resolution is awaited while it reports `pending`, which
-	 * is the wait {@link ISessionsProvider.getModelsSnapshot} documents. Bounded, because the turn
-	 * cannot be held indefinitely — on timeout, or a model the sandbox genuinely does not offer,
-	 * the host chooses, which is the behavior this had before.
+	 * A freshly connected sandbox publishes its models asynchronously, so an empty catalog is "not
+	 * yet" rather than "no": resolution is awaited while it reports `pending`, bounded because the
+	 * turn cannot be held indefinitely.
+	 *
+	 * Every path that gives up tells the user: an absent `Message.model` means "host decides", so
+	 * nothing downstream would report running at a capability and price they did not choose.
 	 */
-	private async _carryModelToSandbox(provisioned: ICloudSandboxProvisionedSession, chatResource: URI, rawModelId: string | undefined): Promise<void> {
-		if (!rawModelId) {
+	private async _carryModelToSandbox(provisioned: ICloudSandboxProvisionedSession, chatResource: URI, selected: { readonly rawModelId: string; readonly label: string } | undefined): Promise<void> {
+		if (!selected) {
 			return;
 		}
+		const { rawModelId, label } = selected;
 		const sessionId = provisioned.session.sessionId;
 		const provider = provisioned.provider;
 
@@ -2235,13 +2248,14 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const modelTarget = provider.getModelsSnapshot(sessionId).modelTarget;
 		if (!modelTarget) {
 			this.logService.info(`[CopilotChatSessionsProvider] Sandbox session ${sessionId} reported no model target; letting the agent host choose.`);
+			this._notifySandboxModelNotApplied(label);
 			return;
 		}
 		const desiredModelId = `${modelTarget}:${rawModelId}`;
 
 		const store = new DisposableStore();
 		try {
-			const deadline = Date.now() + CopilotChatSessionsProvider.SANDBOX_MODEL_WAIT_MS;
+			const deadline = Date.now() + this._sandboxModelWaitMs;
 			for (; ;) {
 				const resolution = provider.getModelsSnapshot(sessionId, desiredModelId).desiredModelResolution;
 				if (resolution.kind === 'available') {
@@ -2250,6 +2264,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				}
 				if (resolution.kind !== 'pending') {
 					this.logService.info(`[CopilotChatSessionsProvider] Sandbox session ${sessionId} does not advertise model '${rawModelId}'; letting the agent host choose.`);
+					this._notifySandboxModelNotApplied(label);
 					return;
 				}
 				const remaining = deadline - Date.now();
@@ -2260,12 +2275,18 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					: undefined;
 				if (!published) {
 					this.logService.warn(`[CopilotChatSessionsProvider] Sandbox session ${sessionId} had not published model '${rawModelId}' in time; letting the agent host choose.`);
+					this._notifySandboxModelNotApplied(label);
 					return;
 				}
 			}
 		} finally {
 			store.dispose();
 		}
+	}
+
+	/** Name the model so the substitution is attributable. A warning: the turn still runs. */
+	private _notifySandboxModelNotApplied(label: string): void {
+		this.notificationService.warn(localize('sandboxModelNotApplied', "Couldn't use {0} for this session. The agent's default model will be used instead.", label));
 	}
 
 	/** Retire the optimistic placeholder in favour of the session that now exists. */
