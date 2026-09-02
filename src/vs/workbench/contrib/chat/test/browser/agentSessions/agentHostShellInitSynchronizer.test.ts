@@ -43,7 +43,7 @@ class TestSubscription extends Disposable implements IAgentSubscription<SessionS
 	get value(): SessionState { return this._state; }
 	get verifiedValue(): SessionState { return this._state; }
 	set(state: SessionState): void { this._state = state; this._onDidChange.fire(state); }
-	applyConfig(config: Record<string, unknown>, rejectionReason?: string): void {
+	applyConfig(config: Record<string, unknown>, rejectionReason?: string, origin = { clientId: 'test', clientSeq: 1 }): void {
 		if (!rejectionReason) {
 			this._state = {
 				...this._state,
@@ -58,7 +58,7 @@ class TestSubscription extends Disposable implements IAgentSubscription<SessionS
 			channel: 'copilot:/session',
 			action: { type: ActionType.SessionConfigChanged, config },
 			serverSeq: 1,
-			origin: { clientId: 'test', clientSeq: 1 },
+			origin,
 			rejectionReason,
 		});
 	}
@@ -118,6 +118,7 @@ suite('AgentHostShellInitSynchronizer', () => {
 	}) {
 		const dispatched: Record<string, unknown>[] = [];
 		const agentHostService = new class extends mock<IAgentHostService>() {
+			override readonly clientId = 'test';
 			override dispatch(_uri: string, action: Parameters<IAgentHostService['dispatch']>[1]): void {
 				if (action.type === ActionType.SessionConfigChanged) {
 					dispatched.push(action.config);
@@ -254,6 +255,56 @@ suite('AgentHostShellInitSynchronizer', () => {
 		} finally {
 			clock.restore();
 		}
+	});
+
+	test('reconcile has one timeout when a background publication is pending', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const { synchronizer } = create({ enabled: true });
+			const subscription = disposables.add(new TestSubscription(state()));
+			disposables.add(synchronizer.register(session, subscription));
+			await clock.tickAsync(0);
+
+			const reconcile = assert.rejects(
+				synchronizer.reconcile(session, CancellationToken.None),
+				/Timed out waiting for Agent Host to apply shell init config/,
+			);
+			await clock.tickAsync(10_000);
+
+			await reconcile;
+			assert.strictEqual(clock.now, 10_000);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('ignores a matching acknowledgement from another client', async () => {
+		const { synchronizer, dispatched } = create({ enabled: true });
+		const subscription = disposables.add(new TestSubscription(state()));
+		disposables.add(synchronizer.register(session, subscription));
+
+		let resolved = false;
+		const reconcile = synchronizer.reconcile(session, CancellationToken.None).then(() => resolved = true);
+		await timeout(0);
+		subscription.applyConfig(dispatched[0], undefined, { clientId: 'other', clientSeq: 1 });
+		await timeout(0);
+		assert.strictEqual(resolved, false);
+
+		subscription.applyConfig(dispatched[0]);
+		await reconcile;
+		assert.strictEqual(resolved, true);
+	});
+
+	test('cancels a pending reconciliation when its registration is disposed', async () => {
+		const { synchronizer } = create({ enabled: true });
+		const subscription = disposables.add(new TestSubscription(state()));
+		const registration = disposables.add(synchronizer.register(session, subscription));
+		const reconcile = assert.rejects(synchronizer.reconcile(session, CancellationToken.None), /Canceled/);
+		await timeout(0);
+
+		registration.dispose();
+
+		await reconcile;
 	});
 
 	test('reconcile waits when the desired value is only optimistic', async () => {
