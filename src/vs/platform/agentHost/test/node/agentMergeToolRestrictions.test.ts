@@ -39,7 +39,7 @@ suite('Agent Merge tool restrictions', () => {
 			'github-mcp-server stdio',
 			'x=gh; "$x" pr review --approve',
 			'curl -X POST https://api.github.com/repos/microsoft/vscode/issues',
-			"python - <<'PY'\nurl = 'https://api.github.com/repos/microsoft/vscode/issues'\nPY",
+			'python - <<\'PY\'\nurl = \'https://api.github.com/repos/microsoft/vscode/issues\'\nPY',
 			'git push origin HEAD',
 			'npm test',
 		];
