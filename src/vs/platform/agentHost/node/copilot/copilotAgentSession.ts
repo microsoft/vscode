@@ -3885,21 +3885,24 @@ export class CopilotAgentSession extends Disposable {
 	 * Best-effort: failures are logged and retried on the next turn.
 	 */
 	private async _applyEffectiveShellInitScripts(): Promise<void> {
-		if (this._shellInitScriptDisposing || this._isCustomTerminalToolEnabled()) {
+		if (this._shellInitScriptDisposing) {
 			return;
 		}
 		try {
+			// Off states are decided before the payload is looked at, so a stale
+			// registration is always cleared: the forwarded setting is false, or
+			// the custom terminal tool has replaced the SDK's built-in shell.
+			const enabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableShellInitScript) === true
+				&& !this._isCustomTerminalToolEnabled();
 			// Session-only by construction: root and parent-session values are
-			// never consulted. The workbench forwards its setting as root config,
-			// so the host applies nothing while it is off, whoever published.
-			const own = this._configurationService.getSessionConfigValues(this._ownerSessionUri.toString())?.[SessionConfigKey.ShellInitSnippets];
+			// never consulted.
+			const own = enabled ? this._configurationService.getSessionConfigValues(this._ownerSessionUri.toString())?.[SessionConfigKey.ShellInitSnippets] : undefined;
 			if (own !== undefined && !isShellInitScriptList(own)) {
 				// Keep the last valid registration rather than clearing it.
 				this._logService.warn(`[Copilot:${this.sessionId}] Ignoring malformed shell init script config`);
 				return;
 			}
-			const enabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableShellInitScript) === true;
-			const snippets = enabled ? (own ?? []) : [];
+			const snippets = own ?? [];
 			const serialized = JSON.stringify(snippets);
 			if (this._lastAppliedShellInitScripts === serialized) {
 				return;
