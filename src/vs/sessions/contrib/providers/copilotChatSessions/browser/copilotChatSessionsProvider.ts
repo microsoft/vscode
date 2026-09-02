@@ -1400,6 +1400,14 @@ class AgentSessionAdapter implements ICopilotChatSession {
  */
 export class CopilotChatSessionsProvider extends Disposable implements ISessionsProvider {
 
+	/**
+	 * How long the first sandbox turn waits for the session's model catalog to arrive before
+	 * dispatching without the user's model. Long enough to cover the gap between the relay
+	 * connecting and the host publishing its models, short enough not to strand a send behind a
+	 * catalog that is never coming.
+	 */
+	private static readonly SANDBOX_MODEL_WAIT_MS = 5_000;
+
 	readonly id = COPILOT_PROVIDER_ID;
 	readonly label = localize('copilotChatSessionsProvider', "Copilot Chat");
 	readonly icon = Codicon.copilot;
@@ -2163,7 +2171,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			// Send into the session's main chat rather than `createNewChat`, which would mint an
 			// *additional* peer chat inside a session that already has one.
 			const chat = provisioned.session.mainChat.get();
-			this._carryModelToSandbox(provisioned, chat.resource, selectedRawModelId);
+			await this._carryModelToSandbox(provisioned, chat.resource, selectedRawModelId);
 			const committed = await provisioned.provider.sendRequest(provisioned.session.sessionId, chat.resource, options);
 
 			// Retire only once the turn is dispatched; swapping earlier bounces the view home.
@@ -2216,20 +2224,55 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 * silently runs on whatever the agent host defaults to, discarding the user's pick along with
 	 * the thinking level and context tier configured against it.
 	 *
-	 * Best-effort: a model the sandbox does not advertise (or a model list that has not arrived) is
-	 * left alone rather than sent as an unroutable id, which keeps the previous behavior.
+	 * A freshly connected sandbox publishes its models asynchronously, so an empty catalog here is
+	 * "not yet" rather than "no": the model resolution is awaited while it reports `pending`, which
+	 * is the wait {@link ISessionsProvider.getModelsSnapshot} documents. Bounded, because the turn
+	 * cannot be held indefinitely — on timeout, or a model the sandbox genuinely does not offer,
+	 * the host chooses, which is the behavior this had before.
 	 */
-	private _carryModelToSandbox(provisioned: ICloudSandboxProvisionedSession, chatResource: URI, rawModelId: string | undefined): void {
+	private async _carryModelToSandbox(provisioned: ICloudSandboxProvisionedSession, chatResource: URI, rawModelId: string | undefined): Promise<void> {
 		if (!rawModelId) {
 			return;
 		}
 		const sessionId = provisioned.session.sessionId;
-		const match = provisioned.provider.getModelsSnapshot(sessionId).models.find(model => model.metadata.id === rawModelId);
-		if (!match) {
-			this.logService.info(`[CopilotChatSessionsProvider] Sandbox session ${sessionId} does not advertise model '${rawModelId}'; letting the agent host choose.`);
+		const provider = provisioned.provider;
+
+		// Agent-host models are published under the session's model target, so that is the vendor
+		// prefix their identifiers carry. Without it there is nothing to resolve against.
+		const modelTarget = provider.getModelsSnapshot(sessionId).modelTarget;
+		if (!modelTarget) {
+			this.logService.info(`[CopilotChatSessionsProvider] Sandbox session ${sessionId} reported no model target; letting the agent host choose.`);
 			return;
 		}
-		provisioned.provider.setModel(sessionId, chatResource, match.identifier, ChatModelSource.CarriedOver);
+		const desiredModelId = `${modelTarget}:${rawModelId}`;
+
+		const store = new DisposableStore();
+		try {
+			const deadline = Date.now() + CopilotChatSessionsProvider.SANDBOX_MODEL_WAIT_MS;
+			for (; ;) {
+				const resolution = provider.getModelsSnapshot(sessionId, desiredModelId).desiredModelResolution;
+				if (resolution.kind === 'available') {
+					provider.setModel(sessionId, chatResource, resolution.model.identifier, ChatModelSource.CarriedOver);
+					return;
+				}
+				if (resolution.kind !== 'pending') {
+					this.logService.info(`[CopilotChatSessionsProvider] Sandbox session ${sessionId} does not advertise model '${rawModelId}'; letting the agent host choose.`);
+					return;
+				}
+				const remaining = deadline - Date.now();
+				// `raceTimeout` signals a timeout with `undefined`, which is also what a `void`
+				// event resolves to — map the event to a value that tells the two apart.
+				const published = remaining > 0
+					? await raceTimeout(Event.toPromise(provider.onDidChangeModels, store).then(() => true), remaining)
+					: undefined;
+				if (!published) {
+					this.logService.warn(`[CopilotChatSessionsProvider] Sandbox session ${sessionId} had not published model '${rawModelId}' in time; letting the agent host choose.`);
+					return;
+				}
+			}
+		} finally {
+			store.dispose();
+		}
 	}
 
 	/** Retire the optimistic placeholder in favour of the session that now exists. */

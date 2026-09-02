@@ -71,7 +71,6 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	readonly onDidChange = this._onDidChange.event;
 
 	private _models: readonly SessionModelInfo[] = [];
-	private _lastCatalogueSignature: string | undefined;
 
 	constructor(
 		private readonly _sessionType: string,
@@ -81,14 +80,15 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		super();
 
 		// The catalogue is populated independently of the host — a sandbox can advertise its models
-		// before the Copilot vendor has resolved — so re-publish when it arrives to pick up the
-		// enrichment. Gated on the catalogue actually changing: this provider's own republish makes
-		// the service fire this event again, which would otherwise loop.
+		// before the Copilot vendor has resolved, and CAPI can refresh prices later — so re-publish
+		// whenever it changes to pick up the enrichment.
+		//
+		// Scoped to the enriched-from vendor, which also keeps this from looping: the service fires
+		// this event for every provider that publishes, including this one, but a host's vendor is
+		// always a session-type id (`agent-host-…`) and never `copilot`.
 		if (this._catalogue) {
-			this._register(this._catalogue.onDidChangeLanguageModels(() => {
-				const signature = this._catalogueSignature();
-				if (signature !== this._lastCatalogueSignature) {
-					this._lastCatalogueSignature = signature;
+			this._register(this._catalogue.onDidChangeLanguageModels(vendor => {
+				if (vendor === COPILOT_VENDOR_ID) {
 					this._onDidChange.fire();
 				}
 			}));
@@ -203,25 +203,6 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	}
 
 	/**
-	 * Cheap fingerprint of the catalogue's contribution to what this provider publishes, used to
-	 * suppress a re-publish that would otherwise bounce between this provider and the service.
-	 */
-	private _catalogueSignature(): string {
-		if (!this._catalogue) {
-			return '';
-		}
-		const parts: string[] = [];
-		for (const identifier of this._catalogue.getLanguageModelIds()) {
-			const metadata = this._catalogue.lookupLanguageModel(identifier);
-			if (metadata?.vendor !== COPILOT_VENDOR_ID) {
-				continue;
-			}
-			parts.push(`${metadata.id}:${metadata.maxInputTokens}:${metadata.maxOutputTokens}:${metadata.multiplierNumeric ?? ''}:${AgentHostLanguageModelProvider._contextWindowTiers(metadata)?.join('/') ?? ''}`);
-		}
-		return parts.sort().join(',');
-	}
-
-	/**
 	 * The distinct context-window sizes a catalogue entry offers, ascending, or `undefined` when it
 	 * offers no real choice. Sourced from the numeric `contextSize` picker the Copilot catalogue
 	 * synthesizes from CAPI billing, which is the only place these token counts exist.
@@ -294,6 +275,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				enum: property.enum,
 				enumItemLabels,
 				enumDescriptions: property.enumDescriptions ?? effortDisplay?.descriptions,
+				readOnly: property.readOnly,
 				group: AgentHostLanguageModelProvider._groupForConfigKey(key),
 			};
 		}

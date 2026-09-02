@@ -1983,8 +1983,14 @@ suite('CopilotChatSessionsProvider', () => {
 			return { provider, provisionRequests, cloudSends };
 		}
 
-		/** A provisioned session whose provider immediately commits the send. */
-		function provisionedSession(sendRequest?: () => Promise<ISession>, sandboxModels: readonly ILanguageModelChatMetadataAndIdentifier[] = []): ICloudSandboxProvisionedSession & { published: string[]; modelSelections: { modelId: string; source: ChatModelSource }[] } {
+		/**
+		 * A provisioned session whose provider immediately commits the send.
+		 *
+		 * `sandboxModels` is a function so a test can model a catalog that is still arriving:
+		 * resolution reports `pending` until it yields the model, mirroring an agent host that has
+		 * connected but not yet published.
+		 */
+		function provisionedSession(sendRequest?: () => Promise<ISession>, sandboxModels: () => readonly ILanguageModelChatMetadataAndIdentifier[] = () => []): ICloudSandboxProvisionedSession & { published: string[]; modelSelections: { modelId: string; source: ChatModelSource }[]; modelsChanged: Emitter<void> } {
 			const committed = upcastPartial<ISession>({
 				sessionId: 'agenthost:sess-new',
 				resource: URI.parse('agent-host-copilot:/sess-new'),
@@ -1996,6 +2002,7 @@ suite('CopilotChatSessionsProvider', () => {
 			});
 			const published: string[] = [];
 			const modelSelections: { modelId: string; source: ChatModelSource }[] = [];
+			const modelsChanged = disposables.add(new Emitter<void>());
 			return {
 				taskId: 'task-new',
 				sessionId: 'sess-new',
@@ -2003,10 +2010,28 @@ suite('CopilotChatSessionsProvider', () => {
 				session: sandboxSession,
 				published,
 				modelSelections,
+				modelsChanged,
 				provider: upcastPartial<CloudSandboxSessionsProvider>({
 					sendRequest: sendRequest ?? (async () => committed),
 					publishWithheldSession: (rawId: string) => { published.push(rawId); },
-					getModelsSnapshot: () => ({ models: sandboxModels, desiredModelResolution: { kind: 'notRequested' }, modelTarget: 'agent-host-copilot' }),
+					onDidChangeModels: modelsChanged.event,
+					getModelsSnapshot: (_sessionId: string, desiredModelId?: string) => {
+						const models = sandboxModels();
+						const model = models.find(m => m.identifier === desiredModelId);
+						return {
+							models,
+							desiredModelResolution: !desiredModelId
+								? { kind: 'notRequested' as const }
+								: model
+									? { kind: 'available' as const, model }
+									// An empty catalog is "not yet"; a populated one that lacks the
+									// model is conclusive.
+									: models.length === 0
+										? { kind: 'pending' as const, identifier: desiredModelId }
+										: { kind: 'unavailable' as const, identifier: desiredModelId },
+							modelTarget: 'agent-host-copilot',
+						};
+					},
 					setModel: (_sessionId: string, _chatResource: URI, modelId: string, source: ChatModelSource) => { modelSelections.push({ modelId, source }); },
 				}) as CloudSandboxSessionsProvider,
 			};
@@ -2032,7 +2057,7 @@ suite('CopilotChatSessionsProvider', () => {
 		test('carries the composer model into the sandbox before the first turn', async () => {
 			// Mission Control starts no run, so a session that has never run has no model to
 			// restore: without this the first turn would silently take the agent host default.
-			const provisioned = provisionedSession(undefined, [sandboxModel('claude-sonnet-4.6')]);
+			const provisioned = provisionedSession(undefined, () => [sandboxModel('claude-sonnet-4.6')]);
 			const { provider } = createSandboxProvider({
 				provision: async () => provisioned,
 				getOptionGroups: () => cloudModelOptionGroup('synthetic-cloud-model', 'claude-sonnet-4.6'),
@@ -2049,10 +2074,38 @@ suite('CopilotChatSessionsProvider', () => {
 			assert.deepStrictEqual(provisioned.modelSelections, [{ modelId: 'agent-host-copilot:claude-sonnet-4.6', source: ChatModelSource.CarriedOver }]);
 		});
 
+		test('waits for a sandbox catalog that is still arriving rather than sending without the model', async () => {
+			// A freshly connected sandbox publishes its models asynchronously. Treating that empty
+			// window as a miss would reinstate the very race this carries the model to avoid.
+			let models: readonly ILanguageModelChatMetadataAndIdentifier[] = [];
+			const provisioned = provisionedSession(undefined, () => models);
+			const { provider } = createSandboxProvider({
+				provision: async () => provisioned,
+				getOptionGroups: () => cloudModelOptionGroup('synthetic-cloud-model', 'claude-sonnet-4.6'),
+			});
+			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			session.setUseSandbox(true);
+			provider.setModel(sessionInfo.sessionId, session.mainChat.get().resource, 'synthetic-cloud-model', ChatModelSource.Chosen);
+
+			const sent = provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' });
+			// Publish only once the send is already waiting on the pending catalog.
+			await timeout(0);
+			const beforeCatalog = [...provisioned.modelSelections];
+			models = [sandboxModel('claude-sonnet-4.6')];
+			provisioned.modelsChanged.fire();
+			await sent;
+
+			assert.deepStrictEqual(
+				{ beforeCatalog, afterCatalog: provisioned.modelSelections },
+				{ beforeCatalog: [], afterCatalog: [{ modelId: 'agent-host-copilot:claude-sonnet-4.6', source: ChatModelSource.CarriedOver }] }
+			);
+		});
+
 		test('leaves the model to the agent host when the sandbox does not advertise it', async () => {
 			// Sending an unroutable id would fail the turn outright, so an unmatched pick keeps
 			// the previous behavior of letting the host choose.
-			const provisioned = provisionedSession(undefined, [sandboxModel('gpt-5')]);
+			const provisioned = provisionedSession(undefined, () => [sandboxModel('gpt-5')]);
 			const { provider } = createSandboxProvider({
 				provision: async () => provisioned,
 				getOptionGroups: () => cloudModelOptionGroup('synthetic-cloud-model', 'claude-sonnet-4.6'),

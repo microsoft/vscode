@@ -260,7 +260,7 @@ suite('AgentHostLanguageModelProvider', () => {
 			}),
 		]));
 		return {
-			fire: () => onDidChange.fire('copilot'),
+			fire: (vendor: string = 'copilot') => onDidChange.fire(vendor),
 			catalogue: {
 				getLanguageModelIds: () => [...byIdentifier.keys()],
 				lookupLanguageModel: (identifier: string) => byIdentifier.get(identifier),
@@ -348,19 +348,27 @@ suite('AgentHostLanguageModelProvider', () => {
 		);
 	});
 
-	test('republishes when the catalogue changes, but not when it is unchanged', async () => {
-		// The service re-resolves this provider whenever it publishes, which fires the change event
-		// again; without the guard that would loop.
+	test('republishes on a catalogue change, ignoring changes from other vendors', async () => {
+		// The service fires this event for every provider that publishes, including this one. Its
+		// own vendor is a session-type id, so scoping to the enriched-from vendor also breaks the
+		// loop — while still picking up a later CAPI refresh of prices or windows.
 		const { catalogue: known, fire } = catalogue([{ id: 'claude-opus-5', contextSizes: [264_000, 1_000_000] }]);
-		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'copilot', known));
+		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'agent-host-copilot', known));
 		let changes = 0;
 		store.add(provider.onDidChange(() => changes++));
 
-		fire();
-		const afterFirst = changes;
-		fire();
+		fire('agent-host-copilot');
+		const afterOwnVendor = changes;
+		fire('copilot');
+		const afterCatalogue = changes;
+		fire('copilot');
 
-		assert.deepStrictEqual({ afterFirst, afterSecond: changes }, { afterFirst: 1, afterSecond: 1 });
+		assert.deepStrictEqual(
+			{ afterOwnVendor, afterCatalogue, afterSecondCatalogueChange: changes },
+			// Every catalogue change republishes: a price refresh that leaves ids and windows
+			// untouched still has to reach the picker.
+			{ afterOwnVendor: 0, afterCatalogue: 1, afterSecondCatalogueChange: 2 }
+		);
 	});
 
 	test('carries model notices and flags row warnings', async () => {

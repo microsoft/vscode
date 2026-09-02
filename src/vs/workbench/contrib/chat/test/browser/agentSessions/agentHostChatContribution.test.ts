@@ -8901,6 +8901,7 @@ suite('AgentHostChatContribution', () => {
 				enum: ['low', 'medium', 'high'],
 				enumItemLabels: ['Low', 'Medium', 'High'],
 				enumDescriptions: undefined,
+				readOnly: undefined,
 				group: 'navigation',
 			});
 		});
