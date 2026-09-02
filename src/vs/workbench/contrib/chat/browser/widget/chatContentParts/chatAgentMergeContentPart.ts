@@ -210,7 +210,7 @@ export class ChatAgentMergeContentPart extends Disposable {
 			const showDetailsLabel = localize('chat.agentMerge.showMergeDetails', "Show Merge Details");
 			messageButton = this._register(new Button(header, { ...transparentButtonStyles, title: false }));
 			messageButton.element.classList.add('chat-agent-merge-message-toggle');
-			messageButton.icon = Codicon.commentDiscussion;
+			messageButton.icon = Codicon.eye;
 			messageButton.setAriaLabel(agentMessageLabel);
 			messageButton.element.tabIndex = -1;
 			preventPointerFocus(messageButton);

@@ -151,7 +151,9 @@ which sits either on an ancestor or on the workbench element itself. */
 .monaco-reduce-motion .chat-agent-merge .chat-agent-merge-twistie.codicon,
 .monaco-workbench.monaco-reduce-motion .chat-agent-merge .chat-agent-merge-twistie.codicon,
 .monaco-reduce-motion .chat-agent-merge .chat-agent-merge-message-toggle,
-.monaco-workbench.monaco-reduce-motion .chat-agent-merge .chat-agent-merge-message-toggle {
+.monaco-workbench.monaco-reduce-motion .chat-agent-merge .chat-agent-merge-message-toggle,
+.monaco-reduce-motion .chat-agent-merge .chat-agent-merge-source,
+.monaco-workbench.monaco-reduce-motion .chat-agent-merge .chat-agent-merge-source {
 	transition: none;
 }
 
@@ -174,13 +176,33 @@ which sits either on an ancestor or on the workbench element itself. */
 }
 
 .chat-agent-merge .chat-agent-merge-source {
-	display: flex;
+	display: none;
 	align-items: center;
 	flex: 0 0 auto;
 	gap: var(--vscode-spacing-size60);
 	color: var(--vscode-descriptionForeground);
 	font-weight: var(--vscode-fontWeight-regular);
+	opacity: 0;
 	white-space: nowrap;
+	transition:
+		opacity 60ms ease-out,
+		display 60ms allow-discrete;
+}
+
+.chat-agent-merge:not(.collapsed) .chat-agent-merge-source,
+.chat-agent-merge.collapsed > .chat-agent-merge-header:hover .chat-agent-merge-source,
+.chat-agent-merge.collapsed > .chat-agent-merge-header:focus-within .chat-agent-merge-source {
+	display: flex;
+	opacity: 1;
+}
+
+@starting-style {
+
+	.chat-agent-merge:not(.collapsed) .chat-agent-merge-source,
+	.chat-agent-merge.collapsed > .chat-agent-merge-header:hover .chat-agent-merge-source,
+	.chat-agent-merge.collapsed > .chat-agent-merge-header:focus-within .chat-agent-merge-source {
+		opacity: 0;
+	}
 }
 
 .chat-agent-merge .chat-agent-merge-source::before {
