@@ -8,6 +8,7 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
 import { IDeleteChatOptions, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
 
@@ -93,6 +94,8 @@ export interface ICreateNewSessionOptions {
 	 * does not implement the setter.
 	 */
 	readonly permissionLevel?: string;
+	/** Provider-owned session values restored into an Automation draft. */
+	readonly sessionTemplate?: IAutomationSessionTemplate;
 	/**
 	 * Optional worktree isolation mode (`worktree` or `workspace`) to apply
 	 * via {@link ISessionsProvider.setIsolationMode}. Skipped if the
@@ -391,6 +394,9 @@ export interface ISessionsManagementService {
 	 * Discard the matching Automation dialog session draft.
 	 */
 	discardAutomationSession(session?: ISession): void;
+
+	/** Capture the provider-owned values currently selected on an Automation draft. */
+	getAutomationSessionTemplate(session: ISession): Promise<IAutomationSessionTemplate | undefined>;
 
 	/**
 	 * Create a new session for the given folder.

@@ -44,7 +44,7 @@ import { MobileSessionTypePicker } from '../../chat/browser/mobile/mobileSession
 import { isMobilePickerSheetTarget } from '../../../browser/parts/mobile/mobilePickerSheet.js';
 import { ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
-import { AutomationInterval } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationInterval, AutomationTarget, IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { DAYS_OF_WEEK } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
@@ -208,6 +208,7 @@ interface IRenderFormHandle {
 	readonly getMode: () => string | undefined;
 	readonly getPermissionLevel: () => string | undefined;
 	readonly getModelId: () => string | undefined;
+	readonly getSessionTemplate: () => Promise<IAutomationSessionTemplate | undefined>;
 	readonly getBranch: () => string | undefined;
 	readonly waitForAutomationSessionSync: () => Promise<void>;
 	readonly getFocusableElements: () => readonly HTMLElement[];
@@ -215,12 +216,12 @@ interface IRenderFormHandle {
 }
 
 export type AutomationSessionDraftTarget =
-	| { readonly kind: 'workspace'; readonly folderUri: URI; readonly providerId: string | undefined; readonly sessionTypeId: string }
-	| { readonly kind: 'quickChat'; readonly providerId: string; readonly sessionTypeId: string };
+	| { readonly kind: 'workspace'; readonly folderUri: URI; readonly providerId: string | undefined; readonly sessionTypeId: string; readonly sessionTemplate?: IAutomationSessionTemplate }
+	| { readonly kind: 'quickChat'; readonly providerId: string; readonly sessionTypeId: string; readonly sessionTemplate?: IAutomationSessionTemplate };
 
 type AutomationSessionDraftService = Pick<
 	ISessionsManagementService,
-	'automationSession' | 'createAutomationSession' | 'createAutomationQuickChat' | 'discardAutomationSession'
+	'automationSession' | 'createAutomationSession' | 'createAutomationQuickChat' | 'discardAutomationSession' | 'getAutomationSessionTemplate'
 >;
 
 export class AutomationSessionDraftSynchronizer extends Disposable {
@@ -252,6 +253,11 @@ export class AutomationSessionDraftSynchronizer extends Disposable {
 			pendingSync = this.syncPromise;
 			await pendingSync;
 		} while (pendingSync !== this.syncPromise);
+	}
+
+	async getSessionTemplate(): Promise<IAutomationSessionTemplate | undefined> {
+		await this.waitForSync();
+		return this.session ? this.sessionsManagementService.getAutomationSessionTemplate(this.session) : undefined;
 	}
 
 	private scheduleSync(): void {
@@ -291,10 +297,12 @@ export class AutomationSessionDraftSynchronizer extends Disposable {
 				? this.sessionsManagementService.createAutomationQuickChat({
 					providerId: target.providerId,
 					sessionTypeId: target.sessionTypeId,
+					sessionTemplate: target.sessionTemplate,
 				})
 				: this.sessionsManagementService.createAutomationSession(target.folderUri, {
 					providerId: target.providerId,
 					sessionTypeId: target.sessionTypeId,
+					sessionTemplate: target.sessionTemplate,
 				});
 			this.appliedTarget = target;
 		} catch (error) {
@@ -311,7 +319,8 @@ export class AutomationSessionDraftSynchronizer extends Disposable {
 			|| this.sessionsManagementService.automationSession.get()?.sessionId !== this.session.sessionId
 			|| this.appliedTarget.kind !== target.kind
 			|| this.appliedTarget.providerId !== target.providerId
-			|| this.appliedTarget.sessionTypeId !== target.sessionTypeId) {
+			|| this.appliedTarget.sessionTypeId !== target.sessionTypeId
+			|| this.appliedTarget.sessionTemplate !== target.sessionTemplate) {
 			return false;
 		}
 		return target.kind === 'quickChat'
@@ -829,6 +838,8 @@ export function renderForm(
 	sessionsManagementService: ISessionsManagementService,
 	workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	initialPrompt: string,
+	initialTarget: AutomationTarget | undefined,
+	initialSessionTemplate: IAutomationSessionTemplate | undefined,
 	initialMode: string | undefined,
 	initialPermissionLevel: string | undefined,
 	initialModelId: string | undefined,
@@ -962,6 +973,22 @@ export function renderForm(
 		(folderUri, preferredProviderId) => canSelectAutomationWorkspace(folderUri, preferredProviderId, sessionsManagementService, workspaceTrustRequestService),
 		error => logService.error('[AutomationDialog] Failed to synchronize the automation session draft.', error),
 	));
+	let resolvedInitialProviderId = initialTarget?.providerId;
+	let resolvedInitialSessionTypeId = initialTarget?.sessionTypeId;
+	const getInitialSessionTemplate = (folderUri: URI | undefined, providerId: string | undefined, sessionTypeId: string, isQuickChat: boolean) => {
+		if (!initialTarget || !initialSessionTemplate || initialTarget.kind !== (isQuickChat ? 'quickChat' : 'workspace')) {
+			return undefined;
+		}
+		if (initialTarget.kind === 'workspace' && (!folderUri || !isEqual(initialTarget.folderUri, folderUri))) {
+			return undefined;
+		}
+		resolvedInitialProviderId ??= providerId;
+		resolvedInitialSessionTypeId ??= sessionTypeId;
+		if (resolvedInitialProviderId !== providerId || resolvedInitialSessionTypeId !== sessionTypeId) {
+			return undefined;
+		}
+		return initialSessionTemplate;
+	};
 	const updateAutomationSessionTarget = () => {
 		const folderUri = isolationModel.folderUriObs.get();
 		const pick = sessionTypePicker.selectedPick;
@@ -973,10 +1000,21 @@ export function renderForm(
 		if (isQuickChat) {
 			const providerId = pick.providerId;
 			if (providerId) {
-				automationSessionDraftSynchronizer.update({ kind: 'quickChat', providerId, sessionTypeId: pick.sessionTypeId });
+				automationSessionDraftSynchronizer.update({
+					kind: 'quickChat',
+					providerId,
+					sessionTypeId: pick.sessionTypeId,
+					sessionTemplate: getInitialSessionTemplate(undefined, providerId, pick.sessionTypeId, true),
+				});
 			}
 		} else if (folderUri) {
-			automationSessionDraftSynchronizer.update({ kind: 'workspace', folderUri, providerId: pick.providerId, sessionTypeId: pick.sessionTypeId });
+			automationSessionDraftSynchronizer.update({
+				kind: 'workspace',
+				folderUri,
+				providerId: pick.providerId,
+				sessionTypeId: pick.sessionTypeId,
+				sessionTemplate: getInitialSessionTemplate(folderUri, pick.providerId, pick.sessionTypeId, false),
+			});
 		}
 	};
 	disposables.add(sessionTypePicker.onDidChangeSelectedPick(() => {
@@ -1251,6 +1289,7 @@ export function renderForm(
 		getMode: () => chatInput.currentModeObs.get().id,
 		getPermissionLevel: () => chatInput.currentPermissionLevelObs.get(),
 		getModelId: () => chatInput.selectedLanguageModel.get()?.identifier,
+		getSessionTemplate: () => automationSessionDraftSynchronizer.getSessionTemplate(),
 		getBranch: () => isolationModel.persistedBranch,
 		waitForAutomationSessionSync: () => {
 			updateAutomationSessionTarget();

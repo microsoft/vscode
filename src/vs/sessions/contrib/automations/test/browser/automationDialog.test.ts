@@ -31,6 +31,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { createWorkbenchDialogOptions } from '../../../../../workbench/browser/parts/dialogs/dialog.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { GitRefType, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
@@ -148,10 +149,11 @@ function createWorkspace(requiresWorkspaceTrust: boolean): ISessionWorkspace {
 
 function createAutomationDraftService() {
 	const automationSession = observableValue<ISession | undefined>('automationSession', undefined);
-	const created: Array<{ kind: 'workspace' | 'quickChat'; providerId: string | undefined; sessionTypeId: string; folderUri?: string }> = [];
+	const created: Array<{ kind: 'workspace' | 'quickChat'; providerId: string | undefined; sessionTypeId: string; folderUri?: string; sessionTemplate?: IAutomationSessionTemplate }> = [];
 	const discarded: string[] = [];
+	const sessionTemplates = new Map<string, IAutomationSessionTemplate | undefined>();
 	let nextId = 1;
-	const createDraft = (kind: 'workspace' | 'quickChat', providerId: string | undefined, sessionTypeId: string, folderUri?: URI): ISession => {
+	const createDraft = (kind: 'workspace' | 'quickChat', providerId: string | undefined, sessionTypeId: string, folderUri?: URI, sessionTemplate?: IAutomationSessionTemplate): ISession => {
 		const previous = automationSession.get();
 		if (previous) {
 			discarded.push(previous.sessionId);
@@ -161,14 +163,16 @@ function createAutomationDraftService() {
 			providerId: providerId ?? 'resolved-provider',
 			sessionType: sessionTypeId,
 		});
-		created.push({ kind, providerId, sessionTypeId, folderUri: folderUri?.toString() });
+		created.push({ kind, providerId, sessionTypeId, folderUri: folderUri?.toString(), ...(sessionTemplate ? { sessionTemplate } : {}) });
+		sessionTemplates.set(session.sessionId, sessionTemplate);
 		automationSession.set(session, undefined);
 		return session;
 	};
 	const service = upcastPartial<ISessionsManagementService>({
 		automationSession,
-		createAutomationSession: (folderUri, options) => createDraft('workspace', options?.providerId, options?.sessionTypeId ?? 'default', folderUri),
-		createAutomationQuickChat: options => createDraft('quickChat', options?.providerId, options?.sessionTypeId ?? 'default'),
+		createAutomationSession: (folderUri, options) => createDraft('workspace', options?.providerId, options?.sessionTypeId ?? 'default', folderUri, options?.sessionTemplate),
+		createAutomationQuickChat: options => createDraft('quickChat', options?.providerId, options?.sessionTypeId ?? 'default', undefined, options?.sessionTemplate),
+		getAutomationSessionTemplate: async session => sessionTemplates.get(session.sessionId),
 		discardAutomationSession: session => {
 			const current = automationSession.get();
 			if (!current || (session && session.sessionId !== current.sessionId)) {
@@ -218,6 +222,39 @@ suite('Automation session draft synchronization', () => {
 			discarded: ['automation-1', 'automation-2', 'automation-3', 'automation-4'],
 			currentSession: undefined,
 			errorCount: 0,
+		});
+	});
+
+	test('restores and captures the target session template', async () => {
+		const { service, created } = createAutomationDraftService();
+		const synchronizer = disposables.add(new AutomationSessionDraftSynchronizer(service, async () => true, () => { }));
+		const sessionTemplate = {
+			modelId: 'model',
+			agent: { uri: 'file:///agent.md' },
+			config: { mode: 'plan' },
+		};
+
+		synchronizer.update({
+			kind: 'workspace',
+			folderUri: URI.parse('file:///workspace'),
+			providerId: 'provider',
+			sessionTypeId: 'type',
+			sessionTemplate,
+		});
+		const captured = await synchronizer.getSessionTemplate();
+
+		assert.deepStrictEqual({
+			created,
+			captured,
+		}, {
+			created: [{
+				kind: 'workspace',
+				providerId: 'provider',
+				sessionTypeId: 'type',
+				folderUri: 'file:///workspace',
+				sessionTemplate,
+			}],
+			captured: sessionTemplate,
 		});
 	});
 

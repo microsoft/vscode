@@ -29,7 +29,7 @@ import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/an
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/githubIssueReferences.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
-import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { KNOWN_MODE_VALUES, omitTransientSessionConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -50,6 +50,7 @@ import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browse
 import { ChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatSendRequestOptions, IChatService, type IChatModelReference } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, getChatPermissionLevelFromDefaultConfiguration, isChatPermissionLevel, type IChatDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
@@ -1958,6 +1959,8 @@ interface INewSessionConstructionContext {
 	 * present from the very first `resolveConfig`/`createSession`.
 	 */
 	readonly initialConfigValues?: Record<string, unknown>;
+	/** Provider-owned Automation values restored before the first configuration resolution. */
+	readonly initialSessionTemplate?: IAutomationSessionTemplate;
 	/**
 	 * Optional property schemas to seed into the new session's config before its
 	 * first {@link NewSession.resolveConfig} round-trip. Carried over from the
@@ -2145,11 +2148,11 @@ class NewSession extends Disposable {
 		this._workspace = observableValue<ISessionWorkspace | undefined>(this, ctx.workspace);
 		const changes = observableValueOpts<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>({ owner: this, equalsFn: sessionFileChangesEqual }, []);
 		const checkpoints = observableValue(this, undefined);
-		this._selectedModelId = undefined;
-		this._selectedAgent = undefined;
+		this._selectedModelId = ctx.initialSessionTemplate?.modelId;
+		this._selectedAgent = ctx.initialSessionTemplate?.agent ? { uri: ctx.initialSessionTemplate.agent.uri, name: '' } : undefined;
 		this._modelId = observableValue<string | undefined>(this, this._selectedModelId);
-		this._modelSource = observableValue<ChatModelSource | undefined>(this, undefined);
-		const mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>(this, undefined);
+		this._modelSource = observableValue<ChatModelSource | undefined>(this, this._selectedModelId ? ChatModelSource.Chosen : undefined);
+		const mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>(this, this._selectedAgent ? { id: this._selectedAgent.uri, kind: AGENT_MODE_KIND } : undefined);
 		this._mode = mode;
 		const isArchived = observableValue(this, false);
 		const isRead = observableValue(this, true);
@@ -3516,7 +3519,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(`Cannot resolve workspace for URI: ${workspaceUri.toString()}`);
 		}
 
-		return this._createDraftSession(sessionType, workspace, false, options?.metadata);
+		return this._createDraftSession(sessionType, workspace, false, options?.metadata, options?.sessionTemplate);
 	}
 
 	startNewSessionRequest(sessionId: string, activity?: string): IDisposable {
@@ -3527,7 +3530,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return newSession.startRequest(activity);
 	}
 
-	createQuickChat(sessionTypeId: string): ISession {
+	createQuickChat(sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
 		const sessionType = this.sessionTypes.find(t => t.id === sessionTypeId);
 		if (!sessionType) {
 			throw new Error(this._noAgentsErrorMessage());
@@ -3539,7 +3542,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// workspace-less: no `resolveWorkspace`, no `workingDirectory`. The
 		// agent host runs it in a throwaway scratch cwd and tags it via the
 		// `quickChat` create flag.
-		return this._createDraftSession(sessionType, undefined, true);
+		return this._createDraftSession(sessionType, undefined, true, options?.metadata, options?.sessionTemplate);
 	}
 
 	/**
@@ -3547,7 +3550,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * given session type. Shared by {@link createNewSession} (workspace-bound)
 	 * and {@link createQuickChat} (workspace-less, `quickChat === true`).
 	 */
-	private _createDraftSession(sessionType: ISessionType, workspace: ISessionWorkspace | undefined, quickChat: boolean, initialMetadata?: Record<string, unknown>): ISession {
+	private _createDraftSession(sessionType: ISessionType, workspace: ISessionWorkspace | undefined, quickChat: boolean, initialMetadata?: Record<string, unknown>, initialSessionTemplate?: IAutomationSessionTemplate): ISession {
 		// Tear-down of superseded drafts is handled by the management layer
 		// (it calls `deleteNewSession` on the previous pending session). Each
 		// new session is tracked independently in `_newSessions` so several can
@@ -3568,7 +3571,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				backendSessionScheme: this._backendSessionScheme(sessionType.id),
 				authenticationPending: this.authenticationPending,
 				logService: this._logService,
-				initialConfigValues: this._initialNewSessionConfig(workspace),
+				initialConfigValues: initialSessionTemplate ? { ...initialSessionTemplate.config } : this._initialNewSessionConfig(workspace),
+				initialSessionTemplate,
 				initialConfigSchema: this._seededConfigSchema(),
 				initialMetadata,
 				instantiationService: this._instantiationService,
@@ -3832,6 +3836,36 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	// -- Dynamic session config ----------------------------------------------
+
+	async getAutomationSessionTemplate(sessionId: string): Promise<IAutomationSessionTemplate | undefined> {
+		const newSession = this._getNewSession(sessionId);
+		if (!newSession) {
+			return undefined;
+		}
+		await newSession.waitForConfigResolution();
+		if (this._getNewSession(sessionId) !== newSession) {
+			return undefined;
+		}
+		const config = omitTransientSessionConfigValues({ ...newSession.getConfigValues() });
+		delete config[SessionConfigKey.Isolation];
+		delete config[SessionConfigKey.Branch];
+		delete config[SessionConfigKey.WorktreeBranchPrefix];
+		delete config[SessionConfigKey.WorktreeIncludeFiles];
+		delete config[SessionConfigKey.WorktreeBranchTrack];
+		delete config[SessionConfigKey.WorktreeCreateNewBranch];
+		delete config[SessionConfigKey.AgentMerge];
+		delete config[SessionConfigKey.AgentMergeController];
+		const modelId = newSession.getSelectedModelId();
+		const agent = newSession.getSelectedAgent();
+		if (!modelId && !agent && Object.keys(config).length === 0) {
+			return undefined;
+		}
+		return {
+			...(modelId ? { modelId } : {}),
+			...(agent ? { agent: { uri: agent.uri } } : {}),
+			...(Object.keys(config).length > 0 ? { config } : {}),
+		};
+	}
 
 	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined {
 		// New-session config wins (during pre-creation flow). Otherwise lazily
