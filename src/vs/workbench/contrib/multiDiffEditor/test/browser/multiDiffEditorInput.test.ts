@@ -12,10 +12,14 @@ import { observableValue, ValueWithChangeEventFromObservable } from '../../../..
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
+import { TestDiffProviderFactoryService } from '../../../../../editor/test/browser/diff/testDiffProviderFactoryService.js';
+import { createCodeEditorServices } from '../../../../../editor/test/browser/testCodeEditor.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ITextFileEditorModelManager, ITextFileService } from '../../../../services/textfile/common/textfiles.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { ITextFileEditorModelManager, ITextFileService, TextFileOperationError, TextFileOperationResult } from '../../../../services/textfile/common/textfiles.js';
 import { MultiDiffEditorInput } from '../../browser/multiDiffEditorInput.js';
 import { IMultiDiffSourceResolverService, MultiDiffEditorItem } from '../../browser/multiDiffSourceResolverService.js';
 
@@ -98,5 +102,65 @@ suite('MultiDiffEditorInput', () => {
 
 		await assert.rejects(viewModelPromise, CancellationError);
 		assert.strictEqual(referenceDisposed, true);
+	});
+
+	test('keeps binary resources in the multi diff model', async () => {
+		const originalUri = URI.parse('file:///original.png');
+		const modifiedUri = URI.parse('file:///modified.png');
+		const textModelService = new class extends mock<ITextModelService>() {
+			override createModelReference(): Promise<IReference<IResolvedTextEditorModel>> {
+				return Promise.reject(new TextFileOperationError('binary', TextFileOperationResult.FILE_IS_BINARY));
+			}
+		}();
+		const textResourceConfigurationService = new class extends mock<ITextResourceConfigurationService>() {
+			override readonly onDidChangeConfiguration = Event.None;
+			override getValue<T>(): T { return {} as T; }
+		}();
+		let saveCallCount = 0;
+		const textFileService = new class extends mock<ITextFileService>() {
+			override readonly files = new class extends mock<ITextFileEditorModelManager>() {
+				override readonly onDidChangeDirty = Event.None;
+			}();
+			override save(): Promise<undefined> {
+				saveCallCount++;
+				return Promise.resolve(undefined);
+			}
+		}();
+		const services = new ServiceCollection();
+		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const input = disposables.add(new MultiDiffEditorInput(
+			URI.parse('multi-diff-editor:test'),
+			'Test',
+			[new MultiDiffEditorItem(originalUri, modifiedUri, undefined)],
+			false,
+			textModelService,
+			textResourceConfigurationService,
+			instantiationService,
+			new class extends mock<IMultiDiffSourceResolverService>() { }(),
+			textFileService,
+		));
+
+		const viewModel = await input.getViewModel();
+		const item = viewModel.items.get()[0];
+		await input.save(1);
+
+		assert.deepStrictEqual({
+			itemCount: viewModel.items.get().length,
+			originalUri: item.originalUri?.toString(),
+			modifiedUri: item.modifiedUri?.toString(),
+			isBinary: item.documentDiffItem.isBinary,
+			hasOriginalTextModel: item.documentDiffItem.original !== undefined,
+			hasModifiedTextModel: item.documentDiffItem.modified !== undefined,
+			saveCallCount,
+		}, {
+			itemCount: 1,
+			originalUri: originalUri.toString(),
+			modifiedUri: modifiedUri.toString(),
+			isBinary: true,
+			hasOriginalTextModel: false,
+			hasModifiedTextModel: false,
+			saveCallCount: 0,
+		});
 	});
 });
