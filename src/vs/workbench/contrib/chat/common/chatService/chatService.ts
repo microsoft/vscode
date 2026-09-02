@@ -660,6 +660,17 @@ export interface IChatTerminalToolInvocationData {
 		isSandboxWrapped?: boolean;
 	};
 	/**
+	 * Whether the user may edit the command before confirming.
+	 *
+	 * Omitted means editable, the historical behavior for the built-in terminal
+	 * tool, which runs `commandLine.userEdited` when it is set. A producer whose
+	 * confirmation does not return the edit — an agent-host session, whose edit
+	 * would have to travel back as `chat/toolCallConfirmed.editedToolInput` —
+	 * MUST set `false`. Letting someone edit a command they are approving and
+	 * then running the original is worse than showing it read-only.
+	 */
+	editable?: boolean;
+	/**
 	 * LM-generated intention describing why the command is being run, shown
 	 * above the command in the terminal tool card. Set by the Agent Host; the
 	 * built-in terminal tool leaves this unset.

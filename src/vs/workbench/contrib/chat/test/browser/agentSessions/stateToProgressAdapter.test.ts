@@ -1594,10 +1594,14 @@ suite('stateToProgressAdapter', () => {
 				kind: invocation.toolSpecificData?.kind,
 				command: (invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined)?.commandLine.original,
 				language: (invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined)?.language,
+				// Read-only for the same reason as a generic input: the edit is never returned, so
+				// an editable command line would run the one the agent proposed.
+				editable: (invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined)?.editable,
 			}, {
 				kind: 'terminal',
 				command: 'rg -n "sandbox" --glob "*.ts"',
 				language: 'shellscript',
+				editable: false,
 			});
 		});
 

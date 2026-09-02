@@ -1572,6 +1572,10 @@ function buildTerminalToolSpecificData(
 		...existing,
 		kind: 'terminal',
 		commandLine,
+		// Read-only for the same reason as a generic confirmation input: this
+		// adapter never returns an edited command to the host, so an editable
+		// field would collect a change and then run what the agent proposed.
+		editable: false,
 		intention: tc.intention ?? existing?.intention,
 		language: existing?.language ?? getTerminalLanguage(tc),
 		autoApproveRuleResolvable: readToolCallMeta(tc).autoApproveRuleResolvable ?? existing?.autoApproveRuleResolvable,

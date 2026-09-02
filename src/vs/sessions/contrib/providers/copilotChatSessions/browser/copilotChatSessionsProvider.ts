@@ -2293,7 +2293,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	/** Name the model so the substitution is attributable. A warning: the turn still runs. */
 	private _notifySandboxModelNotApplied(label: string): void {
-		this.notificationService.warn(localize('sandboxModelNotApplied', "Couldn't use {0} for this session. The agent's default model was used instead.", label));
+		this.notificationService.warn(localize('sandboxModelNotApplied', "Couldn't use {0} for this session. The agent's default model will be used instead.", label));
 	}
 
 	/** Retire the optimistic placeholder in favour of the session that now exists. */
