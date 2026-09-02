@@ -451,7 +451,7 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
-		test('thread coordination tools restore deterministic target-session chips', () => {
+		test('only thread creation tools restore deterministic target-session chips', () => {
 			const createLink = 'agent-host-session://codex/created-thread';
 			const createChatLink = 'agent-host-session://codex/source-thread?chat=peer';
 			const sendLink = 'agent-host-session://codex/target-thread';
@@ -500,12 +500,7 @@ suite('stateToProgressAdapter', () => {
 				label: 'Parallel task',
 				fullTitle: 'Parallel task',
 				isChat: true,
-			}, {
-				kind: 'sessionCreated',
-				openLink: sendLink,
-				label: 'foo',
-				fullTitle: 'foo',
-			}]);
+			}, undefined]);
 		});
 
 		test('system notification response part restores as system notification', () => {

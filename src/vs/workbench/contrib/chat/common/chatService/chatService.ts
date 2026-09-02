@@ -1224,8 +1224,8 @@ export interface IChatToolResourcesInvocationData {
 }
 
 /**
- * Tool-specific data for a completed `create_session`, `create_chat`, or
- * `send_message` agent-host tool call. Carries a clickable link so the renderer
+ * Tool-specific data for a completed `create_session` or `create_chat`
+ * agent-host tool call. Carries a clickable link so the renderer
  * can show the target title without relying on the model to echo a markdown link.
  */
 export interface IChatSessionCreatedData {

@@ -28,7 +28,7 @@ import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../..
 import { readAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
-import { AGENT_HOST_SESSION_LINK_SCHEME, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
+import { AGENT_HOST_SESSION_LINK_SCHEME, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { parsePartialToolInputForDisplay } from '../../../../../../platform/agentHost/common/partialToolInput.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
@@ -1712,14 +1712,13 @@ function getToolErrorString(tc: ToolCallState): string | undefined {
 
 /**
  * Builds the `sessionCreated` tool-specific data for a completed, successful
- * session-coordination tool call by recovering its open-session link.
+ * session-creation tool call by recovering its open-session link.
  */
 function buildSessionCreatedToolData(tc: ToolCallState): IChatSessionCreatedData | undefined {
 	if (tc.status !== ToolCallStatus.Completed || !tc.success) {
 		return undefined;
 	}
-	const isSend = isSendMessageTool(tc.toolName);
-	if (!isCreateSessionTool(tc.toolName) && !isCreateChatTool(tc.toolName) && !isSend) {
+	if (!isCreateSessionTool(tc.toolName) && !isCreateChatTool(tc.toolName)) {
 		return undefined;
 	}
 	const output = getToolOutputText(tc);
@@ -1733,7 +1732,7 @@ function buildSessionCreatedToolData(tc: ToolCallState): IChatSessionCreatedData
 	const label = fullTitle.length > 60 ? `${fullTitle.slice(0, 57)}…` : fullTitle;
 	// A chat-scoped link shows the conversation icon; a session-scoped link shows the agent icon.
 	const isChat = isCreateChatTool(tc.toolName)
-		|| ((isCreateSessionTool(tc.toolName) || isSend) && !!parseOpenSessionLinkChatId(openLink));
+		|| (isCreateSessionTool(tc.toolName) && !!parseOpenSessionLinkChatId(openLink));
 	return { kind: 'sessionCreated', openLink, label, fullTitle, ...(isChat ? { isChat: true } : {}) };
 }
 
@@ -1773,17 +1772,16 @@ function buildAutomationConfiguredToolData(tc: ToolCallState): IChatAutomationCo
 }
 
 /**
- * Derives a title for the "Open Session" button from a session tool's arguments —
- * the `prompt` (create_session/create_chat) or `message` (send_message) it was
- * started with, trimmed to one line.
+ * Derives a title for the "Open Session" button from a session-creation tool's
+ * prompt, trimmed to one line.
  */
 function createSessionTitleFromArgs(toolInput: string | undefined): string | undefined {
 	if (!toolInput) {
 		return undefined;
 	}
 	try {
-		const args = JSON.parse(toolInput) as { prompt?: unknown; message?: unknown };
-		const text = typeof args.prompt === 'string' ? args.prompt : (typeof args.message === 'string' ? args.message : undefined);
+		const args = JSON.parse(toolInput) as { prompt?: unknown };
+		const text = typeof args.prompt === 'string' ? args.prompt : undefined;
 		if (text === undefined) {
 			return undefined;
 		}
