@@ -150,6 +150,14 @@ suite('PendingRequestRegistry', () => {
 		assert.strictEqual(await promise, 'value');
 	});
 
+	test('a duplicate register for a parked key shares the deferred', async () => {
+		const registry = new PendingRequestRegistry<string>();
+		const first = registry.register('k');
+		const second = registry.register('k');
+		assert.strictEqual(registry.respond('k', 'value'), true);
+		assert.deepStrictEqual([await Promise.all([first, second]), registry.has('k')], [['value', 'value'], false]);
+	});
+
 	test('hasBufferedResult reports only unconsumed early results', async () => {
 		const registry = new PendingRequestRegistry<string>();
 		assert.strictEqual(registry.hasBufferedResult('k'), false);
