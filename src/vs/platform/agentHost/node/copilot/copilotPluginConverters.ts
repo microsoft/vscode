@@ -521,7 +521,12 @@ export function parsedPluginsEqual(a: readonly IParsedPlugin[], b: readonly IPar
 			format: p.format,
 			hooks: p.hooks.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, linux: c.linux, osx: c.osx, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout })) })),
 			mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration, defaultCwd: m.defaultCwd?.toString() })),
-			skills: p.skills.map(s => ({ uri: s.uri.toString(), name: s.name })),
+			skills: p.skills.map(s => ({
+				uri: s.uri.toString(),
+				name: s.name,
+				disableModelInvocation: s.disableModelInvocation,
+				disableUserInvocation: s.disableUserInvocation,
+			})),
 			agents: p.agents.map(a => ({ uri: a.uri.toString(), name: a.name })),
 			instructions: p.instructions.map(i => ({ uri: i.uri.toString(), name: i.name })),
 		})));

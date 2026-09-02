@@ -25,7 +25,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { localize } from '../../../../nls.js';
-import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parseAgentFile, parsePlugin, parseRuleFile, parseSkillFile, PluginFormat, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
+import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parseAgentFile, parsePlugin, parseRuleFile, parseSkillFile, PluginFormat, toSkillInvocationFlags, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
@@ -5786,6 +5786,7 @@ async function toDiscoveredChildCustomization(file: URI, type: DiscoveredType, f
 			uri,
 			name: skillInfo.name,
 			description: skillInfo.description,
+			...toSkillInvocationFlags(skillInfo.userInvocable, skillInfo.disableModelInvocation),
 		};
 		return skillCustomization;
 	}
@@ -5852,6 +5853,8 @@ export function mapToParsedPlugin(customizations: readonly DirectoryCustomizatio
 					uri: URI.parse(child.uri),
 					name: child.name,
 					description: child.description,
+					...(child.disableModelInvocation ? { disableModelInvocation: true } : {}),
+					...(child.disableUserInvocation ? { disableUserInvocation: true } : {}),
 					customization: child,
 				});
 				continue;
