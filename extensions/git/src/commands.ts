@@ -4447,6 +4447,10 @@ export class CommandCenter {
 			return;
 		}
 
+		if (await this.warnIfResourceMissing(resourceState.resourceUri)) {
+			return;
+		}
+
 		await commands.executeCommand('revealInExplorer', resourceState.resourceUri);
 	}
 
@@ -4462,7 +4466,22 @@ export class CommandCenter {
 			return;
 		}
 
+		if (await this.warnIfResourceMissing(resourceState.resourceUri)) {
+			return;
+		}
+
 		await commands.executeCommand('revealFileInOS', resourceState.resourceUri);
+	}
+
+	private async warnIfResourceMissing(uri: Uri): Promise<boolean> {
+		try {
+			await workspace.fs.stat(uri);
+			return false;
+		} catch {
+			// The resource no longer exists on disk (e.g. a deleted file) and there is nothing to reveal.
+			window.showWarningMessage(l10n.t('"{0}" no longer exists on disk.', path.basename(uri.fsPath)));
+			return true;
+		}
 	}
 
 	private async _stash(repository: Repository, includeUntracked = false, staged = false): Promise<boolean> {
