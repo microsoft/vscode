@@ -157,11 +157,11 @@ suite('SessionsVoiceNewComposerContribution', () => {
 				return { session: createdSession, trustDeclined: false };
 			}
 		}();
-		const sent: { session: ISession; chat: IChat; query: string }[] = [];
+		const sent: { session: ISession; query: string }[] = [];
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
 			override isNewSessionTargetAvailable(): boolean { return false; }
-			override async sendRequest(session: ISession, targetChat: IChat, options: { query: string }): Promise<void> {
-				sent.push({ session, chat: targetChat, query: options.query });
+			override async sendNewChatRequest(session: ISession, options: { query: string }): Promise<void> {
+				sent.push({ session, query: options.query });
 			}
 		}();
 		let draftTargetSet = false;
@@ -185,7 +185,7 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		}, {
 			result: 'sent',
 			draftTargetSet: true,
-			sent: [{ session: createdSession, chat, query: 'refactor the upload service' }],
+			sent: [{ session: createdSession, query: 'refactor the upload service' }],
 		});
 	});
 });

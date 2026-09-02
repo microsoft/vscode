@@ -41,7 +41,7 @@ export async function prepareNewVoiceSession(
 				return 'failed';
 			}
 			if (text.trim()) {
-				await sessionsManagementService.sendRequest(result.session, result.session.mainChat.get(), { query: text });
+				await sessionsManagementService.sendNewChatRequest(result.session, { query: text });
 				return 'sent';
 			}
 			return 'prepared';
