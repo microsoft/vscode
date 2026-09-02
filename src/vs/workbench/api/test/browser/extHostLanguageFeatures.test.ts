@@ -45,7 +45,6 @@ import { provideSelectionRanges } from '../../../../editor/contrib/smartSelect/b
 import { mock } from '../../../../base/test/common/mock.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { NullApiDeprecationService } from '../../common/extHostApiDeprecationService.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
 import { IExtHostFileSystemInfo } from '../../common/extHostFileSystemInfo.js';
 import { URITransformerService } from '../../common/extHostUriTransformerService.js';
@@ -69,6 +68,7 @@ suite('ExtHostLanguageFeatures', function () {
 	let languageFeaturesService: ILanguageFeaturesService;
 	let originalErrorHandler: (e: any) => any;
 	let instantiationService: TestInstantiationService;
+	let reportedApiDeprecations: string[];
 
 	setup(() => {
 
@@ -129,7 +129,13 @@ suite('ExtHostLanguageFeatures', function () {
 		const diagnostics = new ExtHostDiagnostics(rpcProtocol, new NullLogService(), new class extends mock<IExtHostFileSystemInfo>() { }, extHostDocumentsAndEditors);
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(rpcProtocol, new URITransformerService(null), extHostDocuments, commands, diagnostics, new NullLogService(), NullApiDeprecationService, new class extends mock<IExtHostTelemetry>() {
+		reportedApiDeprecations = [];
+		const apiDeprecation = {
+			_serviceBrand: undefined,
+			report: (apiId: string) => { reportedApiDeprecations.push(apiId); }
+		};
+
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, new URITransformerService(null), extHostDocuments, commands, diagnostics, new NullLogService(), apiDeprecation, new class extends mock<IExtHostTelemetry>() {
 			override onExtensionError(): boolean {
 				return true;
 			}
@@ -1075,6 +1081,30 @@ suite('ExtHostLanguageFeatures', function () {
 				assert.strictEqual(model.items[0].container.incomplete, true);
 				model.disposable.dispose();
 			});
+		});
+	});
+
+	test('Suggest, resolving does not report CompletionItem.command as deprecated when command is left untouched, #237861', async () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			disposables.add(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
+				provideCompletionItems(): any {
+					const item = new types.CompletionItem('testing');
+					// Same shape as the built-in typescript-language-features provider: a command that
+					// is set once, up front, and carries the item itself as an argument.
+					item.command = { command: 'test.doNothing', title: '', arguments: [item] };
+					return [item];
+				}
+				resolveCompletionItem(item: vscode.CompletionItem): any {
+					return item; // `command` is intentionally left untouched
+				}
+			}, []));
+
+			await rpcProtocol.sync();
+			const { items, disposable } = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<languages.CompletionItemKind>().add(languages.CompletionItemKind.Snippet)));
+			await items[0].resolve(CancellationToken.None);
+
+			assert.strictEqual(reportedApiDeprecations.includes('CompletionItem.command'), false);
+			disposable.dispose();
 		});
 	});
 
