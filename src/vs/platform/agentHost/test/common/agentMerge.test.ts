@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentMergeConfiguration, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeEnabledNotice, evaluateAgentMerge, getNonMergeSessionConfigValues, readAgentMergeSessionState, shouldStopMergingAfterAgentChanges } from '../../common/agentMerge.js';
+import { AgentMergeConfiguration, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeEnabledNotice, evaluateAgentMerge, getNonMergeSessionConfigValues, isAgentMergePullRequestReadyForReview, readAgentMergeSessionState, shouldStopMergingAfterAgentChanges } from '../../common/agentMerge.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
 
@@ -76,22 +76,16 @@ suite('Agent Merge gate', () => {
 	});
 
 	test('repairs draft pull requests without merging them', () => {
-		const asDraft = (snapshot: PullRequestSnapshot): PullRequestSnapshot => ({
-			...snapshot,
-			core: {
-				...snapshot.core,
-				value: snapshot.core.value ? { ...snapshot.core.value, draft: true } : undefined,
-			},
-		});
-		const repair = evaluateAgentMerge(asDraft(readySnapshot({
+		const repair = evaluateAgentMerge(readySnapshot({
+			draft: true,
 			reviewThreads: [{
 				id: 'thread-1',
 				isResolved: false,
 				comments: [{ id: 'comment-1', author: { login: 'maintainer', association: 'MEMBER' }, body: 'Please fix this' }],
 			}],
 			checks: [{ id: 'required', type: 'checkRun', name: 'Build', required: true, status: 'COMPLETED', conclusion: 'FAILURE' }],
-		})), configuration, '2026-08-02T00:00:00.000Z');
-		const ready = evaluateAgentMerge(asDraft(readySnapshot()), configuration, '2026-08-02T00:00:00.000Z');
+		}), configuration, '2026-08-02T00:00:00.000Z');
+		const ready = evaluateAgentMerge(readySnapshot({ draft: true }), configuration, '2026-08-02T00:00:00.000Z');
 
 		assert.deepStrictEqual({
 			repair: repair.kind === 'prompt' ? repair.actions : repair.kind,
@@ -99,6 +93,41 @@ suite('Agent Merge gate', () => {
 		}, {
 			repair: ['addressReviews', 'fixCI'],
 			ready: 'noWork',
+		});
+	});
+
+	test('reports when required checks and review feedback are ready', () => {
+		const watermark = '2026-08-02T00:00:00.000Z';
+		assert.deepStrictEqual({
+			ready: isAgentMergePullRequestReadyForReview(readySnapshot({ draft: true }), watermark),
+			notDraft: isAgentMergePullRequestReadyForReview(readySnapshot(), watermark),
+			pendingChecks: isAgentMergePullRequestReadyForReview(readySnapshot({
+				draft: true,
+				checks: [{ id: 'required', type: 'checkRun', name: 'Build', required: true, status: 'IN_PROGRESS' }],
+			}), watermark),
+			failingChecks: isAgentMergePullRequestReadyForReview(readySnapshot({
+				draft: true,
+				checks: [{ id: 'required', type: 'checkRun', name: 'Build', required: true, status: 'COMPLETED', conclusion: 'FAILURE' }],
+			}), watermark),
+			reviewComments: isAgentMergePullRequestReadyForReview(readySnapshot({
+				draft: true,
+				reviewThreads: [{
+					id: 'thread-1',
+					isResolved: false,
+					comments: [{ id: 'comment-1', author: { login: 'maintainer', association: 'MEMBER' }, body: 'Please fix this' }],
+				}],
+			}), watermark),
+			newComments: isAgentMergePullRequestReadyForReview(readySnapshot({
+				draft: true,
+				topLevelComments: [{ id: 'comment-1', author: { login: 'maintainer', association: 'MEMBER' }, body: 'Please fix this', createdAt: '2026-08-03T00:00:00.000Z' }],
+			}), watermark),
+		}, {
+			ready: true,
+			notDraft: undefined,
+			pendingChecks: false,
+			failingChecks: false,
+			reviewComments: false,
+			newComments: false,
 		});
 	});
 
@@ -399,6 +428,7 @@ suite('Agent Merge gate', () => {
 });
 
 function readySnapshot(overrides?: {
+	readonly draft?: boolean;
 	readonly topLevelComments?: NonNullable<PullRequestSnapshot['topLevelComments']['value']>;
 	readonly submittedReviews?: NonNullable<PullRequestSnapshot['submittedReviews']['value']>;
 	readonly reviewThreads?: NonNullable<PullRequestSnapshot['reviewThreads']['value']>;
@@ -417,7 +447,7 @@ function readySnapshot(overrides?: {
 				title: 'Change',
 				url: 'https://github.com/octo/repo/pull/1',
 				state: 'open',
-				draft: false,
+				draft: overrides?.draft ?? false,
 				headSha: 'head',
 				headRef: 'feature',
 				baseSha: 'base',

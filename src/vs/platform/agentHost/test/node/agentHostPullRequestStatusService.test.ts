@@ -10,13 +10,15 @@ import { observableValue } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
-import type { PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../../github/common/githubPullRequestService.js';
+import type { PullRequestRef, PullRequestSnapshot, PullRequestSubscription, PullRequestSubscriptionOptions } from '../../../github/common/githubPullRequestService.js';
 import type { IGitHubService } from '../../../github/common/githubService.js';
 import type { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { readSessionGitHubState, SessionStatus, withSessionGitHubState, withSessionGitState, type ISessionGitHubState, type SessionSummary } from '../../common/state/sessionState.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { ActionType } from '../../common/state/sessionActions.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
 
@@ -77,10 +79,33 @@ function snapshot(ref: PullRequestRef, overrides?: { readonly draft?: boolean; r
 	} as PullRequestSnapshot;
 }
 
+function agentMergeReadySnapshot(ref: PullRequestRef): PullRequestSnapshot {
+	const result = snapshot(ref, { draft: true });
+	const ready = { status: 'ready', complete: true } as const;
+	return {
+		...result,
+		topLevelComments: { ...ready, value: [] },
+		submittedReviews: { ...ready, value: [] },
+		reviewThreads: { ...ready, headSha: 'sha1', value: [] },
+		checks: {
+			...ready,
+			headSha: 'sha1',
+			value: {
+				headSha: 'sha1',
+				requirednessComplete: true,
+				expectedSuites: [],
+				expectedSuitesComplete: true,
+				checks: [],
+			},
+		},
+	};
+}
+
 /** Records subscription lifecycle so tests can assert nothing is leaked. */
 class TestPullRequestResources implements IPullRequestResources {
 
 	readonly subscribed: PullRequestRef[] = [];
+	readonly subscriptionOptions: PullRequestSubscriptionOptions[] = [];
 	disposedCount = 0;
 	private _snapshot = observableValue<PullRequestSnapshot | undefined>('snapshot', undefined);
 	private _nextSubscriptionSnapshot: PullRequestSnapshot | undefined;
@@ -88,13 +113,14 @@ class TestPullRequestResources implements IPullRequestResources {
 
 	get liveSubscriptions(): number { return this.subscribed.length - this.disposedCount; }
 
-	subscribePullRequest(ref: PullRequestRef): PullRequestSubscription {
+	subscribePullRequest(ref: PullRequestRef, options: PullRequestSubscriptionOptions): PullRequestSubscription {
 		this.subscribed.push(ref);
+		this.subscriptionOptions.push(options);
 		this._snapshot.set(this._nextSubscriptionSnapshot ?? snapshot(ref), undefined);
 		this._nextSubscriptionSnapshot = undefined;
 		return {
 			resource: { ref, snapshot: this._snapshot as never },
-			update: () => { },
+			update: next => this.subscriptionOptions.push(next),
 			refresh: async () => this.refreshHandler?.(),
 			dispose: () => { this.disposedCount++; },
 		} as PullRequestSubscription;
@@ -248,6 +274,70 @@ suite('AgentHostPullRequestStatusService', () => {
 			whileSubscribed: { live: 1, status: 'open' },
 			afterUnsubscribe: 0,
 			statusAfterUnsubscribe: undefined,
+		});
+	});
+
+	test('tracks review readiness in the host only while Agent Merge is enabled', async () => {
+		const { service, stateManager, subscriptions, resources, session } = createHarness();
+		stateManager.setSessionConfig(session, {
+			schema: { type: 'object', properties: {} },
+			values: {
+				[SessionConfigKey.AgentMerge]: { enabled: true },
+				[SessionConfigKey.AgentMergeController]: {
+					target: {
+						branchName: 'feature',
+						pullRequestUrl,
+						enabledAt: new Date(1).toISOString(),
+						commentWatermark: '',
+					},
+				},
+			},
+		});
+		resources.setNextSubscriptionSnapshot(agentMergeReadySnapshot({ ...account, owner: 'octo', repo: 'repo', number: 7 }));
+		subscriptions.addSubscription(session, `${session}/changes`);
+		await waitForWatch(resources);
+		const enabled = {
+			options: resources.subscriptionOptions.at(-1),
+			readyForReview: service.getPullRequestStatus(session)?.agentMergeReadyForReview,
+		};
+
+		stateManager.dispatchServerAction(session, {
+			type: ActionType.SessionConfigChanged,
+			config: { [SessionConfigKey.AgentMerge]: { enabled: false } },
+			replace: true,
+		});
+		await pump();
+
+		assert.deepStrictEqual({
+			enabled,
+			disabled: {
+				options: resources.subscriptionOptions.at(-1),
+				readyForReview: service.getPullRequestStatus(session)?.agentMergeReadyForReview,
+			},
+		}, {
+			enabled: {
+				options: {
+					priority: 'visible',
+					core: true,
+					mergeability: true,
+					conversation: {
+						topLevelComments: true,
+						submittedReviews: true,
+						reviewThreads: true,
+						includeBodies: true,
+					},
+					checks: { required: true },
+				},
+				readyForReview: true,
+			},
+			disabled: {
+				options: {
+					priority: 'visible',
+					core: true,
+					mergeability: true,
+				},
+				readyForReview: undefined,
+			},
 		});
 	});
 

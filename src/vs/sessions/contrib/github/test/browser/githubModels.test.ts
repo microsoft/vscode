@@ -548,15 +548,8 @@ suite('GitHubPullRequestCIModel', () => {
 
 	test('initial state is empty', () => {
 		const model = acquireModel();
-		assert.deepStrictEqual({
-			checks: model.checks.get(),
-			overallStatus: model.overallStatus.get(),
-			hasLoaded: model.hasLoaded.get(),
-		}, {
-			checks: [],
-			overallStatus: GitHubCIOverallStatus.Neutral,
-			hasLoaded: false,
-		});
+		assert.deepStrictEqual(model.checks.get(), []);
+		assert.strictEqual(model.overallStatus.get(), GitHubCIOverallStatus.Neutral);
 	});
 
 	test('acquiring with the same key returns the same model', () => {
@@ -591,15 +584,8 @@ suite('GitHubPullRequestCIModel', () => {
 		];
 
 		await model.refresh();
-		assert.deepStrictEqual({
-			checkCount: model.checks.get().length,
-			overallStatus: model.overallStatus.get(),
-			hasLoaded: model.hasLoaded.get(),
-		}, {
-			checkCount: 2,
-			overallStatus: GitHubCIOverallStatus.Failure,
-			hasLoaded: true,
-		});
+		assert.strictEqual(model.checks.get().length, 2);
+		assert.strictEqual(model.overallStatus.get(), GitHubCIOverallStatus.Failure);
 	});
 
 	test('refresh shares an in-progress request', async () => {

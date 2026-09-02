@@ -15,8 +15,9 @@ import { AgentHostPullRequestOperationHandler, type PullRequestCreatedEvent } fr
 import { AgentHostPullRequestLifecycleOperationHandler } from './agentHostPullRequestLifecycleOperationHandler.js';
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { AgentMergeConfigKey, agentMergeRootConfigSchema } from '../common/agentMerge.js';
+import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeSessionState } from '../common/agentMerge.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { ActionType } from '../common/state/sessionActions.js';
 
 export class AgentHostPullRequestOperationContribution extends Disposable implements IChangesetOperationContribution {
 
@@ -60,6 +61,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 
 		for (const [operationId, action] of [
 			[AgentHostPullRequestLifecycleOperationHandler.OPERATION_MARK_READY, 'mark-ready'],
+			[AgentHostPullRequestLifecycleOperationHandler.OPERATION_MARK_READY_WITH_AGENT_MERGE, 'mark-ready'],
 			[AgentHostPullRequestLifecycleOperationHandler.OPERATION_MERGE, 'merge'],
 			[AgentHostPullRequestLifecycleOperationHandler.OPERATION_ENABLE_AUTO_MERGE, 'enable-auto-merge'],
 			[AgentHostPullRequestLifecycleOperationHandler.OPERATION_DISABLE_AUTO_MERGE, 'disable-auto-merge'],
@@ -68,6 +70,11 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		}
 
 		store.add(this._pullRequestStatusService.onDidChangePullRequestStatus(sessionKey => registry.onDidChangeOperations(sessionKey)));
+		store.add(this._stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.SessionConfigChanged) {
+				registry.onDidChangeOperations(envelope.channel);
+			}
+		}));
 		let agentMergeEnabled = this._isAgentMergeEnabled();
 		store.add(this._configurationService.onDidRootConfigChange(() => {
 			const nextAgentMergeEnabled = this._isAgentMergeEnabled();
@@ -205,8 +212,12 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 
 		const operations: ChangesetOperation[] = [];
 		if (status.draft) {
+			const agentMergeRunning = this._isAgentMergeRunning(sessionKey);
+			const operationId = agentMergeRunning && status.agentMergeReadyForReview !== true
+				? AgentHostPullRequestLifecycleOperationHandler.OPERATION_MARK_READY_WITH_AGENT_MERGE
+				: AgentHostPullRequestLifecycleOperationHandler.OPERATION_MARK_READY;
 			operations.push({
-				id: AgentHostPullRequestLifecycleOperationHandler.OPERATION_MARK_READY,
+				id: operationId,
 				label: localize('agentHost.changeset.markReady', "Mark Ready"),
 				description: localize('agentHost.changeset.markReady.description', "Take the pull request out of draft so it can be reviewed and merged."),
 				icon: 'git-pull-request',
@@ -253,6 +264,11 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 			return undefined;
 		}
 		return operations;
+	}
+
+	private _isAgentMergeRunning(sessionKey: string): boolean {
+		return this._isAgentMergeEnabled()
+			&& readAgentMergeSessionState(this._stateManager.getSessionState(sessionKey)?.config?.values)?.enabled === true;
 	}
 
 	/**

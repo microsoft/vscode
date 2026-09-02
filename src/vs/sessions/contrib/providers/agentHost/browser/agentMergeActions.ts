@@ -22,14 +22,12 @@ import { IsSessionsWindowContext } from '../../../../../workbench/common/context
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { ANY_AGENT_HOST_PROVIDER_RE, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { SessionIsArchivedContext, SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext, SessionPullRequestReadyForReviewContext } from '../../../../common/contextkeys.js';
+import { SessionIsArchivedContext, SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext } from '../../../../common/contextkeys.js';
 import { CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP } from '../../../changes/browser/changesView.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { getGlobalAgentMergeConfiguration, getSessionAgentMergeConfigurationObservable } from '../../../../browser/sessionAgentMerge.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
-import { GitHubCIOverallStatus } from '../../../github/common/types.js';
 
 const agentMergeCommandPrecondition = ContextKeyExpr.and(
 	IsSessionsWindowContext,
@@ -58,7 +56,9 @@ const agentMergeMenuPrecondition = ContextKeyExpr.and(agentMergeCommandPrecondit
 
 /**
  * Agent Merge owns the primary button while an enabled draft is still waiting
- * for CI or review comments. Once both are ready, Mark Ready takes over.
+ * for CI or review comments. The host advertises a distinct Mark Ready
+ * operation in that state so it remains available in the dropdown; once the
+ * pull request is ready, the normal Mark Ready operation takes over.
  *
  * The auto-merge states are included because Agent Merge replaces them on the
  * button: it subsumes "let this merge on its own once it is ready", and the
@@ -70,9 +70,8 @@ const agentMergeOwnsPrimaryButton = ContextKeyExpr.or(
 	ContextKeyExpr.equals(SessionPrimaryPullRequestOperationContext.key, AgentHostPullRequestOperationId.EnableAutoMerge),
 	ContextKeyExpr.equals(SessionPrimaryPullRequestOperationContext.key, AgentHostPullRequestOperationId.DisableAutoMerge),
 	ContextKeyExpr.and(
-		ContextKeyExpr.equals(SessionPrimaryPullRequestOperationContext.key, AgentHostPullRequestOperationId.MarkReady),
+		ContextKeyExpr.equals(SessionPrimaryPullRequestOperationContext.key, AgentHostPullRequestOperationId.MarkReadyWithAgentMerge),
 		SessionAgentMergeEnabledContext,
-		SessionPullRequestReadyForReviewContext.negate(),
 	),
 	ContextKeyExpr.and(SessionHasOpenPullRequestContext, ContextKeyExpr.equals(SessionPrimaryPullRequestOperationContext.key, '')),
 );
@@ -99,14 +98,6 @@ const agentMergeActionLabels: Record<AgentMergeRepairAction, string> = {
 	fixCI: localize('agentMerge.action.fixCI', "Fix CI Failures"),
 	resolveConflicts: localize('agentMerge.action.resolveConflicts', "Resolve Conflicts and Behind Branches"),
 };
-
-export function isPullRequestReadyForReview(ciStatus: GitHubCIOverallStatus | undefined, reviewThreads: readonly { readonly isResolved: boolean }[] | undefined): boolean {
-	return ciStatus !== undefined
-		&& ciStatus !== GitHubCIOverallStatus.Pending
-		&& ciStatus !== GitHubCIOverallStatus.Failure
-		&& reviewThreads !== undefined
-		&& reviewThreads.every(thread => thread.isResolved);
-}
 
 const agentMergeRepairActions = Object.keys(agentMergeActionLabels) as readonly AgentMergeRepairAction[];
 
@@ -137,14 +128,12 @@ class AgentMergeContextContribution extends Disposable implements IWorkbenchCont
 		@IConfigurationService configurationService: IConfigurationService,
 		@ISessionsService sessionsService: ISessionsService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
-		@IGitHubService gitHubService: IGitHubService,
 		@ILogService logService: ILogService,
 	) {
 		super();
 		const enabledKey = SessionAgentMergeEnabledContext.bindTo(contextKeyService);
 		const actionKeys = new Map(agentMergeRepairActions.map(action => [action, AgentMergeSessionActionContexts[action].bindTo(contextKeyService)]));
 		const mergePullRequestKey = AgentMergeSessionMergePullRequestContext.bindTo(contextKeyService);
-		const pullRequestReadyForReviewKey = SessionPullRequestReadyForReviewContext.bindTo(contextKeyService);
 		let lastLogged: string | undefined;
 		this._register(autorun(reader => {
 			const session = sessionsService.activeSession.read(reader);
@@ -156,17 +145,11 @@ class AgentMergeContextContribution extends Disposable implements IWorkbenchCont
 				key.set(effective[action]);
 			}
 			mergePullRequestKey.set(effective.mergePullRequest);
-			const ciModel = gitHubService.activeSessionPullRequestCIObs.read(reader);
-			const reviewThreadsModel = gitHubService.activeSessionPullRequestReviewThreadsObs.read(reader);
-			const ciStatus = ciModel?.hasLoaded.read(reader) ? ciModel.overallStatus.read(reader) : undefined;
-			const reviewThreads = reviewThreadsModel?.hasLoaded.read(reader) ? reviewThreadsModel.reviewThreads.read(reader) : undefined;
-			const pullRequestReadyForReview = isPullRequestReadyForReview(ciStatus, reviewThreads);
-			pullRequestReadyForReviewKey.set(pullRequestReadyForReview);
 			const authorized = agentMergeRepairActions.filter(action => effective[action]);
-			const signature = `${session?.sessionId ?? 'none'}|${enabled}|${authorized.join(',')}|${effective.mergePullRequest}|${pullRequestReadyForReview}`;
+			const signature = `${session?.sessionId ?? 'none'}|${enabled}|${authorized.join(',')}|${effective.mergePullRequest}`;
 			if (lastLogged !== signature) {
 				lastLogged = signature;
-				logService.info(`[AgentMergeActions] Session state: session=${session?.sessionId ?? 'none'}, enabled=${enabled}, authorizedActions=[${authorized.join(', ') || 'none'}], mergePullRequest=${effective.mergePullRequest}, pullRequestReadyForReview=${pullRequestReadyForReview}`);
+				logService.info(`[AgentMergeActions] Session state: session=${session?.sessionId ?? 'none'}, enabled=${enabled}, authorizedActions=[${authorized.join(', ') || 'none'}], mergePullRequest=${effective.mergePullRequest}`);
 			}
 		}));
 	}

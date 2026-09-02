@@ -628,16 +628,7 @@ export function evaluateAgentMerge(snapshot: PullRequestSnapshot, configuration:
 		return { kind: 'indeterminate', reason: checks.reason, cause: `checks:${checks.reason}` };
 	}
 
-	const reviewThreads = snapshot.reviewThreads.value!
-		.filter(thread => !thread.isResolved && thread.comments.some(comment => isAgentMergeFeedbackAuthor(comment.author)));
-	const latestReviews = latestReviewsByAuthor(snapshot.submittedReviews.value!);
-	const changesRequested = latestReviews.filter(review => review.state.toUpperCase() === 'CHANGES_REQUESTED' && isAgentMergeFeedbackAuthor(review.author));
-	const watermark = Date.parse(commentWatermark);
-	const newComments = snapshot.topLevelComments.value!.filter(comment =>
-		isAgentMergeFeedbackAuthor(comment.author)
-		&& comment.createdAt !== undefined
-		&& Date.parse(comment.createdAt) > watermark
-	);
+	const { reviewThreads, changesRequested, newComments } = getAgentMergeFeedback(snapshot, commentWatermark);
 	const mergeability = snapshot.mergeability.value!;
 	const behind = mergeability.mergeStateStatus?.toUpperCase() === 'BEHIND';
 	const conflicting = mergeability.mergeable === 'CONFLICTING';
@@ -760,6 +751,49 @@ function latestReviewsByAuthor(reviews: PullRequestSnapshot['submittedReviews'][
 		}
 	}
 	return [...latest.values()];
+}
+
+function getAgentMergeFeedback(snapshot: PullRequestSnapshot, commentWatermark: string) {
+	const reviewThreads = snapshot.reviewThreads.value!
+		.filter(thread => !thread.isResolved && thread.comments.some(comment => isAgentMergeFeedbackAuthor(comment.author)));
+	const latestReviews = latestReviewsByAuthor(snapshot.submittedReviews.value!);
+	const changesRequested = latestReviews.filter(review => review.state.toUpperCase() === 'CHANGES_REQUESTED' && isAgentMergeFeedbackAuthor(review.author));
+	const watermark = Date.parse(commentWatermark);
+	const newComments = snapshot.topLevelComments.value!.filter(comment =>
+		isAgentMergeFeedbackAuthor(comment.author)
+		&& comment.createdAt !== undefined
+		&& Date.parse(comment.createdAt) > watermark
+	);
+	return { reviewThreads, changesRequested, newComments };
+}
+
+/**
+ * Returns whether a draft pull request has no pending or failed required checks
+ * and no actionable review feedback, or `undefined` while that state is incomplete.
+ */
+export function isAgentMergePullRequestReadyForReview(snapshot: PullRequestSnapshot, commentWatermark: string): boolean | undefined {
+	const core = snapshot.core;
+	if (core.status !== 'ready' || !core.complete || !core.value || core.value.state !== 'open' || !core.value.draft) {
+		return undefined;
+	}
+	for (const fragment of conversationFragments) {
+		if (!isCompleteFragment(snapshot, fragment)) {
+			return undefined;
+		}
+	}
+	if (!isCompleteHeadFragment(snapshot, 'checks', core.value.headSha)) {
+		return undefined;
+	}
+	const checks = classifyAgentMergeRequiredChecks(snapshot.checks.value!);
+	if (checks.kind === 'indeterminate') {
+		return undefined;
+	}
+	const { reviewThreads, changesRequested, newComments } = getAgentMergeFeedback(snapshot, commentWatermark);
+	return checks.failed.length === 0
+		&& !checks.pending
+		&& reviewThreads.length === 0
+		&& changesRequested.length === 0
+		&& newComments.length === 0;
 }
 
 export function classifyAgentMergeRequiredChecks(checks: PullRequestChecks): AgentMergeRequiredChecks {
