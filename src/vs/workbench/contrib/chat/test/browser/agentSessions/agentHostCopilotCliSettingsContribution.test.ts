@@ -112,7 +112,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		// (family, effort, tool filters) plus the '*' wildcard — the forwarder
 		// must pass the object through structurally unchanged.
 		const capabilityOverrides = {
-			'preview-model-x': { family: 'claude-opus-4-8', reasoningEffort: 'high', availableTools: ['builtin:*'], excludedTools: ['mcp:*'] },
+			'preview-model-x': { family: 'claude-opus-4-8', reasoningEffort: 'high', availableTools: ['builtin:*'], excludedTools: ['mcp:*'], promptOverrideFile: '/prompts/evaluation.yaml' },
 			'*': { reasoningEffort: 'medium' },
 		};
 		const { agentHostService } = setup(disposables, {
