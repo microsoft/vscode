@@ -42,9 +42,8 @@ export class SideChatContribution extends Disposable implements IAgentHostChatCo
 		const forkAnchorTurnId = activeTurn
 			? resolveLastNonLocalTurnId(sourceState?.turns ?? [], turnId => this._localTurns.isLocal(origin.chat, turnId))
 			: undefined;
-		// A completed SDK-backed turn is already carried by the provider's fork.
-		// Only active and host-injected local turns are missing from that history.
-		const sourceContext = activeTurn || this._localTurns.isLocal(origin.chat, origin.turnId)
+		const sourceIsToolChat = this._stateManager.getChatOrigin(origin.chat)?.kind === ChatOriginKind.Tool;
+		const sourceContext = sourceIsToolChat || activeTurn || this._localTurns.isLocal(origin.chat, origin.turnId)
 			? buildBoundedSideChatSourceContext(sourceState?.turns ?? [], origin.turnId, activeTurn, forkAnchorTurnId)
 			: undefined;
 		const partialResponse = getSideChatPartialResponse(activeTurn);

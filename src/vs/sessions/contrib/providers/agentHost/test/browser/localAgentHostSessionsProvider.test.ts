@@ -5172,6 +5172,57 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		}));
 
+		test('createSideChat translates a subagent source to the canonical host chat URI', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, sideChat: true } } } as AgentInfo]);
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-side-chat-subagent');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-side-chat-subagent').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const subagentChat = buildSubagentChatUri(sessionUri, 'call-1');
+
+			agentHost.setSessionState('multi-side-chat-subagent', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				{ ...makeChatSummary(subagentChat, 'Subagent'), origin: { kind: ProtocolChatOriginKind.Tool, chat: defaultChat, toolCallId: 'call-1' } },
+			], { defaultChat }));
+			const sourceChat = session.chats.get().find(chat => chat.resource.fragment === 'subagent/call-1');
+			assert.ok(sourceChat);
+
+			await provider.createSideChat(session.sessionId, sourceChat.resource, 'turn-1', { text: 'selected text' });
+
+			assert.deepStrictEqual({
+				source: agentHost.createdChats.at(-1)?.options?.sideChat?.source.toString(),
+				turnId: agentHost.createdChats.at(-1)?.options?.sideChat?.turnId,
+				selection: agentHost.createdChats.at(-1)?.options?.sideChat?.selection,
+			}, {
+				source: subagentChat,
+				turnId: 'turn-1',
+				selection: { text: 'selected text' },
+			});
+		}));
+
+		test('createSideChat reconstructs a canonical subagent URI when its source is absent from the catalog', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, sideChat: true } } } as AgentInfo]);
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-side-chat-subagent-fallback');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-side-chat-subagent-fallback').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const subagentChat = buildSubagentChatUri(sessionUri, 'call-1');
+
+			agentHost.setSessionState('multi-side-chat-subagent-fallback', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				{ ...makeChatSummary(subagentChat, 'Subagent'), origin: { kind: ProtocolChatOriginKind.Tool, chat: defaultChat, toolCallId: 'call-1' } },
+			], { defaultChat }));
+			const sourceChat = session.chats.get().find(chat => chat.resource.fragment === 'subagent/call-1');
+			assert.ok(sourceChat);
+			agentHost.setSessionState('multi-side-chat-subagent-fallback', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+			], { defaultChat }));
+
+			await provider.createSideChat(session.sessionId, sourceChat.resource, 'turn-1');
+
+			assert.strictEqual(agentHost.createdChats.at(-1)?.options?.sideChat?.source.toString(), subagentChat);
+		}));
+
 		test('createSideChat retains its model through the first request and releases it after the grace window', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, sideChat: true } } } as AgentInfo]);
 			let activeModel: IChatModel | undefined;
