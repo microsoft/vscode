@@ -18,9 +18,11 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 
 	private readonly _proxy: MainThreadLocalizationShape;
 	private readonly currentLanguage: string;
-	private readonly isDefaultLanguage: boolean;
 
 	private readonly bundleCache: Map<string, { contents: { [key: string]: string }; uri: URI }> = new Map();
+
+	/** Is current language matched with default language for initialized extensions. */
+	private readonly isLangMatched: Map<string, boolean> = new Map();
 
 	constructor(
 		@IExtHostInitDataService initData: IExtHostInitDataService,
@@ -29,12 +31,11 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 	) {
 		this._proxy = rpc.getProxy(MainContext.MainThreadLocalization);
 		this.currentLanguage = initData.environment.appLanguage;
-		this.isDefaultLanguage = this.currentLanguage === LANGUAGE_DEFAULT;
 	}
 
 	getMessage(extensionId: string, details: IStringDetails): string {
 		const { message, args, comment } = details;
-		if (this.isDefaultLanguage) {
+		if (this.isLangMatched.get(extensionId)) {
 			return format2(message, (args ?? {}));
 		}
 
@@ -58,9 +59,21 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 	}
 
 	async initializeLocalizedMessages(extension: IExtensionDescription): Promise<void> {
-		if (this.isDefaultLanguage
-			|| (!extension.l10n && !extension.isBuiltin)
-		) {
+		/** Extract extension specific default language, if any. */
+		const getExtensionDefaultLang = (): string | undefined => {
+			const l10n = extension.l10n;
+			if (l10n === undefined || typeof l10n === 'string') {
+				return undefined;
+			}
+			return l10n.defaultLocale;
+		};
+
+		// Fallback to global setting if the extension has no preference.
+		const extDefaultLang = getExtensionDefaultLang() || LANGUAGE_DEFAULT;
+		const isMatched = extDefaultLang === this.currentLanguage;
+		this.isLangMatched.set(extension.identifier.value, isMatched);
+
+		if (isMatched && !extension.isBuiltin) {
 			return;
 		}
 
@@ -99,9 +112,14 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 			return URI.revive(uri);
 		}
 
-		return extension.l10n
-			? URI.joinPath(extension.extensionLocation, extension.l10n, `bundle.l10n.${this.currentLanguage}.json`)
-			: undefined;
+		if (extension.l10n === undefined) {
+			return undefined;
+		}
+		return URI.joinPath(
+			extension.extensionLocation,
+			typeof extension.l10n === 'string' ? extension.l10n : extension.l10n.location,
+			`bundle.l10n.${this.currentLanguage}.json`
+		);
 	}
 }
 
