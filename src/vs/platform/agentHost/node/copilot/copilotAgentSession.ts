@@ -2712,13 +2712,14 @@ export class CopilotAgentSession extends Disposable {
 	 * Applies the per-turn SDK configuration shared by every operation that starts
 	 * an agent loop (normal `session.send` and the `/fleet` start path): agent mode,
 	 * permission mode, sandbox, and MCP enablement. Mode and sandbox keep their
-	 * existing best-effort semantics.
+	 * existing best-effort semantics. Shell init is fail-closed here so an
+	 * opted-in turn cannot silently run with a stale or missing environment.
 	 */
 	private async _prepareSdkTurn(mode: CopilotSdkMode | undefined): Promise<void> {
 		await this.applyMode(mode);
 		await this.syncPermissionMode('turn-start');
 		await this._applyEffectiveSandboxConfig();
-		await this._syncShellInitScript();
+		await this._syncShellInitScript(true);
 		await this._reconcileMcpServerEnablement();
 	}
 
@@ -3776,11 +3777,11 @@ export class CopilotAgentSession extends Disposable {
 		}));
 	}
 
-	private _syncShellInitScript(): Promise<void> {
+	private _syncShellInitScript(failOnError = false): Promise<void> {
 		if (this._shellInitScriptDisposing) {
 			return Promise.resolve();
 		}
-		return this._shellInitScriptSequencer.queue(() => this._applyEffectiveShellInitScripts());
+		return this._shellInitScriptSequencer.queue(() => this._applyEffectiveShellInitScripts(failOnError));
 	}
 
 	private _disposeShellInitScript(): Promise<void> {
@@ -3874,7 +3875,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/** Applies the transient shell init script published by the active client. */
-	private async _applyEffectiveShellInitScripts(): Promise<void> {
+	private async _applyEffectiveShellInitScripts(failOnError: boolean): Promise<void> {
 		if (this._shellInitScriptDisposing) {
 			return;
 		}
@@ -3885,13 +3886,11 @@ export class CopilotAgentSession extends Disposable {
 			const ownConfigValues = this._configurationService.getSessionConfigValues(this._ownerSessionUri.toString());
 			const ownConfigured = ownConfigValues?.[SessionConfigKey.ShellInitSnippets];
 			if (ownConfigValues && Object.hasOwn(ownConfigValues, SessionConfigKey.ShellInitSnippets) && !isShellInitScriptList(ownConfigured)) {
-				this._logService.warn(`[Copilot:${this.sessionId}] Ignoring malformed shell init script config`);
-				return;
+				throw new Error('Malformed shell init script config');
 			}
 			const configured = this._configurationService.getEffectiveValue(this._ownerSessionUri.toString(), platformSessionSchema, SessionConfigKey.ShellInitSnippets);
 			if (configured !== undefined && !isShellInitScriptList(configured)) {
-				this._logService.warn(`[Copilot:${this.sessionId}] Ignoring malformed inherited shell init script config`);
-				return;
+				throw new Error('Malformed inherited shell init script config');
 			}
 			const snippets = configured ?? [];
 			const serialized = JSON.stringify(snippets);
@@ -3923,6 +3922,9 @@ export class CopilotAgentSession extends Disposable {
 			if (!materialized) {
 				// The write failed. Leave the cache unchanged so the next turn
 				// retries rather than permanently treating the script as applied.
+				if (failOnError) {
+					throw new Error('Failed to materialize shell init script');
+				}
 				return;
 			}
 			const result = await this._wrapper.session.rpc.options.update({ shell: { initScripts: [materialized.ref] } });
@@ -3934,6 +3936,9 @@ export class CopilotAgentSession extends Disposable {
 			this._lastAppliedShellInitScripts = serialized;
 			this._logService.trace(`[Copilot:${this.sessionId}] Applied shell init script`);
 		} catch (err) {
+			if (failOnError) {
+				throw err;
+			}
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to update shell init scripts`, err);
 		}
 	}

@@ -12341,18 +12341,21 @@ Use the attached image as context.
 			);
 		});
 
-		test('does not register a shell init script when the sandbox update fails', async () => {
-			const { mockSession, storedFileContents } = await createAgentSession(disposables, {
-				configValues: { [SessionConfigKey.ShellInitSnippets]: [initScript] },
-				configureMockSession: session => session.sandboxConfigUpdateSuccess = false,
-			});
+		test('does not register a shell init script or send the turn when the sandbox update fails', async () => {
+			const { session, mockSession, storedFileContents, setConfigValue } = await createAgentSession(disposables);
+			mockSession.sandboxConfigUpdateSuccess = false;
+			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+
+			await assert.rejects(session.send('go', undefined, 'turn-1', 'interactive'), /rejected sandbox config update/);
 
 			assert.deepStrictEqual({
 				registered: mockSession.shellInitScriptUpdates,
 				materialized: [...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')),
+				sends: mockSession.sendRequests,
 			}, {
 				registered: [],
 				materialized: false,
+				sends: [],
 			});
 		});
 
@@ -12360,7 +12363,7 @@ Use the attached image as context.
 			const { session, mockSession, setConfigValue } = await createAgentSession(disposables, { shellInitWriteFailures: 1 });
 			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
 
-			await session.send('go', undefined, 'turn-1', 'interactive');
+			await assert.rejects(session.send('go', undefined, 'turn-1', 'interactive'), /Failed to materialize shell init script/);
 			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, []);
 
 			await session.send('go', undefined, 'turn-2', 'interactive');
@@ -12375,7 +12378,7 @@ Use the attached image as context.
 			});
 			setRootValue(AgentHostSandboxConfigKey.Sandbox, { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On });
 			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
-			await session.send('go', undefined, 'turn-1', 'interactive');
+			await assert.rejects(session.send('go', undefined, 'turn-1', 'interactive'), /Failed to materialize shell init script/);
 
 			setConfigValue(SessionConfigKey.ShellInitSnippets, []);
 			await session.send('go', undefined, 'turn-2', 'interactive');
@@ -12396,7 +12399,7 @@ Use the attached image as context.
 				shellInitDeleteMissingThrows: true,
 			});
 			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
-			await session.send('go', undefined, 'turn-1', 'interactive');
+			await assert.rejects(session.send('go', undefined, 'turn-1', 'interactive'), /Failed to materialize shell init script/);
 
 			setConfigValue(SessionConfigKey.ShellInitSnippets, []);
 			await session.send('go', undefined, 'turn-2', 'interactive');
@@ -12451,7 +12454,7 @@ Use the attached image as context.
 			assert.ok(![...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')));
 		});
 
-		test('keeps the last valid registration when config becomes malformed', async () => {
+		test('keeps the last valid registration and blocks the turn when config becomes malformed', async () => {
 			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables);
 			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
 			await session.send('go', undefined, 'turn-1', 'interactive');
@@ -12461,7 +12464,7 @@ Use the attached image as context.
 			setConfigValue(SessionConfigKey.ShellInitSnippets, malformed);
 			fireSessionConfigChange({ [SessionConfigKey.ShellInitSnippets]: malformed });
 			await timeout(0);
-			await session.send('go', undefined, 'turn-2', 'interactive');
+			await assert.rejects(session.send('go', undefined, 'turn-2', 'interactive'), /Malformed .*shell init script config/);
 
 			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, [registered]);
 		});
@@ -12474,7 +12477,7 @@ Use the attached image as context.
 
 			mockSession.shellInitScriptUpdateSuccess = false;
 			setConfigValue(SessionConfigKey.ShellInitSnippets, [{ ...initScript, script: 'rejected' }]);
-			await session.send('go', undefined, 'turn-2', 'interactive');
+			await assert.rejects(session.send('go', undefined, 'turn-2', 'interactive'), /rejected shell init script update/);
 			const updatesAfterRejection = mockSession.shellInitScriptUpdates.length;
 
 			mockSession.shellInitScriptUpdateSuccess = true;
@@ -12611,14 +12614,20 @@ Use the attached image as context.
 			assert.ok(![...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')));
 		});
 
-		test('a failed registration is logged without aborting the turn', async () => {
+		test('a failed registration prevents the turn from reaching the SDK', async () => {
 			const { session, mockSession, setConfigValue } = await createAgentSession(disposables);
 			mockSession.shellInitScriptUpdateSuccess = false;
 			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
 
-			await session.send('go', undefined, 'turn-1', 'interactive');
+			await assert.rejects(session.send('go', undefined, 'turn-1', 'interactive'), /rejected shell init script update/);
 
-			assert.strictEqual(mockSession.abortCalls, 0);
+			assert.deepStrictEqual({
+				abortCalls: mockSession.abortCalls,
+				sends: mockSession.sendRequests,
+			}, {
+				abortCalls: 0,
+				sends: [],
+			});
 		});
 	});
 });
