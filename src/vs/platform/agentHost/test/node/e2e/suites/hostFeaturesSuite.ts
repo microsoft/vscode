@@ -16,7 +16,7 @@ import { AgentHostCopilotMultiRootEnabledConfigKey } from '../../../../common/ag
 import { deriveGitHubEndpoints, gitHubCopilotResource } from '../../../../common/githubEndpoints.js';
 import { CompletionItemKind, type CompletionsResult, type InitializeResult, type ResolveSessionConfigResult, type SessionConfigCompletionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { ActionType, AuthRequiredReason, type AuthRequiredParams } from '../../../../common/state/sessionActions.js';
+import { AuthRequiredReason, type AuthRequiredParams } from '../../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, MessageAttachmentKind, ROOT_STATE_URI, ToolCallConfirmationReason, type TerminalState, type ToolResultContent } from '../../../../common/state/sessionState.js';
 import {
 	createRealSession,
