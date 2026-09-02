@@ -354,7 +354,19 @@ function isForwardedChatError(value: unknown): value is IForwardedChatError {
  */
 export function getChatErrorDetailsFromMeta(error: ErrorInfo | undefined, context?: IChatErrorContext): IChatResponseErrorDetails | undefined {
 	const meta = error?._meta;
-	const chatError = meta?.chatError;
+	let chatError = meta?.chatError;
+	// In some hosts the forwarded chat error may be JSON-stringified. Accept
+	// either the raw object or a stringified payload and try to parse it so we
+	// can render friendly messages instead of falling back to generic errors.
+	if (typeof chatError === 'string') {
+		try {
+			chatError = JSON.parse(chatError);
+		} catch {
+			// If parsing fails, fall back to undefined so callers use their
+			// existing generic handling.
+			return undefined;
+		}
+	}
 	if (!isForwardedChatError(chatError)) {
 		return undefined;
 	}
