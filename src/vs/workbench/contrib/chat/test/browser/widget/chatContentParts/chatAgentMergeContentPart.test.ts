@@ -34,13 +34,16 @@ function summary(overrides: Partial<IAgentMergePromptSummary> = {}): IAgentMerge
 	};
 }
 
-function createPart(data: IAgentMergePromptSummary): ChatAgentMergeContentPart {
+function createPart(
+	data: IAgentMergePromptSummary,
+	hoverService: IHoverService = upcastPartial<IHoverService>({ setupDelayedHover: () => toDisposable(() => { }) }),
+): ChatAgentMergeContentPart {
 	return new ChatAgentMergeContentPart(
 		data,
 		URI.parse('test://session'),
 		upcastPartial<IMarkdownRenderer>({}),
 		upcastPartial<IOpenerService>({}),
-		upcastPartial<IHoverService>({ setupDelayedHover: () => toDisposable(() => { }) }),
+		hoverService,
 		upcastPartial<ICommandService>({}),
 	);
 }
@@ -143,5 +146,17 @@ suite('ChatAgentMergeContentPart file labels', () => {
 		const afterLeaving = part.domNode.classList.contains('header-hovered');
 
 		assert.deepStrictEqual([whileHovered, afterLeaving], [true, false]);
+	});
+
+	test('attaches the status hover to the interactive disclosure', () => {
+		let hoverTarget: HTMLElement | undefined;
+		const part = store.add(createPart(summary(), upcastPartial<IHoverService>({
+			setupDelayedHover: target => {
+				hoverTarget = target;
+				return toDisposable(() => { });
+			},
+		})));
+
+		assert.strictEqual(hoverTarget, part.domNode.querySelector('.chat-agent-merge-header-disclosure'));
 	});
 });

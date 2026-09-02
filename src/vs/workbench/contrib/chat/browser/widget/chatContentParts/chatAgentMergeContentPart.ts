@@ -189,8 +189,8 @@ export class ChatAgentMergeContentPart extends Disposable {
 		const content = dom.append(header, dom.$('.chat-agent-merge-header-content', { 'aria-hidden': 'true' }));
 		const icon = dom.append(content, dom.$('span.chat-agent-merge-status-icon'));
 		icon.classList.add(...ThemeIcon.asClassNameArray(status.icon));
-		const title = dom.append(content, dom.$('span.chat-agent-merge-title', undefined, status.title));
-		this._register(this._hoverService.setupDelayedHover(title, { content: status.title }));
+		dom.append(content, dom.$('span.chat-agent-merge-title', undefined, status.title));
+		this._register(this._hoverService.setupDelayedHover(disclosureButton.element, { content: status.title }));
 		dom.append(content, dom.$('span.chat-agent-merge-source', undefined, agentMergeSource));
 
 		let messageButton: Button | undefined;
