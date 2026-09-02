@@ -7,7 +7,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { dirname } from '../../../../../../base/common/resources.js';
 import { IFileService } from '../../../../../files/common/files.js';
 import { ILogService } from '../../../../../log/common/log.js';
-import { detectPluginFormat, readAgentComponents, readSkills, toParsedAgent, toParsedSkill, type INamedPluginResource, type IParsedAgent, type IParsedSkill } from '../../../../../agentPlugins/common/pluginParsers.js';
+import { detectPluginFormat, pathExists, readAgentComponents, readSkills, toParsedAgent, toParsedSkill, type INamedPluginResource, type IParsedAgent, type IParsedSkill } from '../../../../../agentPlugins/common/pluginParsers.js';
 import { CustomizationType } from '../../../../common/state/protocol/channels-session/state.js';
 
 /**
@@ -51,7 +51,7 @@ async function excludeNativePluginSkills<T extends INamedPluginResource>(skills:
 	const isPluginDir = await Promise.all(skills.map(async skill => {
 		const dir = dirname(skill.uri);
 		const format = await detectPluginFormat(dir, fileService, logService);
-		return fileService.exists(URI.joinPath(dir, format.manifestPath));
+		return pathExists(URI.joinPath(dir, format.manifestPath), fileService, logService);
 	}));
 	return skills.filter((_, i) => !isPluginDir[i]);
 }

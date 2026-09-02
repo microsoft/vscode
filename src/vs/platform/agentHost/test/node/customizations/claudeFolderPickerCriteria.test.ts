@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IFileService } from '../../../../files/common/files.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { claudeDirectoryQualifiesForPrimary } from '../../../node/claude/claudeFolderPickerCriteria.js';
-import { createInMemoryFileService, seedFile } from './claudeCustomizationTestUtils.js';
+import { CapturingLogService, createInMemoryFileService, seedFile } from './claudeCustomizationTestUtils.js';
 
 suite('claudeDirectoryQualifiesForPrimary', () => {
 
@@ -57,5 +57,17 @@ suite('claudeDirectoryQualifiesForPrimary', () => {
 			unrelatedSettings: false,
 			nothing: false,
 		});
+	});
+
+	test('a working directory without a file system provider does not qualify and is warned about rather than rejected', async () => {
+		const log = new CapturingLogService();
+		const remote = URI.from({ scheme: Schemas.vscodeRemote, authority: 'dev-container+abc', path: '/workspace' });
+
+		const qualifies = await claudeDirectoryQualifiesForPrimary(fileService, remote, userHome, log);
+
+		assert.deepStrictEqual({
+			qualifies,
+			warned: ['.mcp.json', '.claude/settings.json', '.claude/settings.local.json'].map(name => log.warnings.some(warning => warning.includes(URI.joinPath(remote, name).toString()))),
+		}, { qualifies: false, warned: [true, true, true] });
 	});
 });

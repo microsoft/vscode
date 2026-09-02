@@ -5,12 +5,14 @@
 
 import assert from 'assert';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IFileService } from '../../../../../files/common/files.js';
+import { createFileSystemProviderError, FileSystemProviderErrorCode, IFileService, IStat } from '../../../../../files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../log/common/log.js';
 import { CustomizationType } from '../../../../common/state/protocol/state.js';
 import { scanClaudeDiskCustomizations } from '../../../../node/claude/customizations/scan/claudeAgentSkillScan.js';
-import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, createInMemoryFileService, seedFile } from '../claudeCustomizationTestUtils.js';
+import { CapturingLogService, claudeTestUserHome as userHome, claudeTestWorkspace as workspace, createInMemoryFileService, seedFile } from '../claudeCustomizationTestUtils.js';
 import { AGENT_PLUGIN_SCHEMA } from '../../../../../agentPlugins/common/agentPluginParser.js';
 
 suite('claudeAgentSkillScan', () => {
@@ -120,5 +122,27 @@ suite('claudeAgentSkillScan', () => {
 			discovered.map(d => ({ name: d.name, uri: d.uri.toString() })),
 			[{ name: 'helper', uri: agent.toString() }],
 		);
+	});
+
+	test('a skill whose plugin manifest cannot be read is still surfaced, and the failure is warned about', async () => {
+		class ManifestDeniedProvider extends InMemoryFileSystemProvider {
+			override async stat(resource: URI): Promise<IStat> {
+				if (resource.path.endsWith('/.claude-plugin/plugin.json')) {
+					throw createFileSystemProviderError('denied', FileSystemProviderErrorCode.NoPermissions);
+				}
+				return super.stat(resource);
+			}
+		}
+		fileService = createInMemoryFileService(disposables, new ManifestDeniedProvider());
+		const log = new CapturingLogService();
+		const skill = await seed('/workspace/.claude/skills/s/SKILL.md', '---\nname: s\ndescription: S\n---\nbody');
+		const manifest = URI.joinPath(workspace, '.claude', 'skills', 's', '.claude-plugin', 'plugin.json');
+
+		const discovered = await scanClaudeDiskCustomizations(workspace, userHome, fileService, log);
+
+		assert.deepStrictEqual({
+			skills: discovered.filter(d => d.customization.type === CustomizationType.Skill).map(d => d.uri.toString()),
+			warnings: log.warnings.filter(warning => warning.includes(manifest.toString())).length,
+		}, { skills: [skill.toString()], warnings: 1 });
 	});
 });

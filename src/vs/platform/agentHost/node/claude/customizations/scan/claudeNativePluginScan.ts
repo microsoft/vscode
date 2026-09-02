@@ -7,7 +7,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../files/common/files.js';
 import { ILogService } from '../../../../../log/common/log.js';
-import { detectPluginFormat, parsePlugin, readJsonFile, tryResolve, type IParsedPlugin } from '../../../../../agentPlugins/common/pluginParsers.js';
+import { detectPluginFormat, parsePlugin, pathExists, readJsonFile, tryResolve, type IParsedPlugin } from '../../../../../agentPlugins/common/pluginParsers.js';
 import { findMostSpecificClaudeWorkspaceRoot, selectEnabledClaudePluginIds } from '../claudeCustomizationPolicy.js';
 
 /**
@@ -121,7 +121,7 @@ function splitPluginId(id: string): { readonly plugin: string; readonly marketpl
  */
 async function hasManifest(dir: URI, fileService: IFileService, logService: ILogService): Promise<boolean> {
 	const format = await detectPluginFormat(dir, fileService, logService);
-	return fileService.exists(URI.joinPath(dir, format.manifestPath));
+	return pathExists(URI.joinPath(dir, format.manifestPath), fileService, logService);
 }
 
 /**

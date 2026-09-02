@@ -9,7 +9,7 @@ import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
-import { parseHooksJson, readJsonFile } from '../../../agentPlugins/common/pluginParsers.js';
+import { parseHooksJson, pathExists, readJsonFile } from '../../../agentPlugins/common/pluginParsers.js';
 
 /**
  * Whether a Claude working directory carries configuration that pins it as the
@@ -30,7 +30,7 @@ import { parseHooksJson, readJsonFile } from '../../../agentPlugins/common/plugi
  */
 export async function claudeDirectoryQualifiesForPrimary(fileService: IFileService, workingDirectory: URI, userHome: URI, logService: ILogService, token: CancellationToken = CancellationToken.None): Promise<boolean> {
 	const probes: Array<() => Promise<boolean>> = [
-		() => fileService.exists(joinPath(workingDirectory, '.mcp.json')),
+		() => pathExists(joinPath(workingDirectory, '.mcp.json'), fileService, logService),
 		...['settings.json', 'settings.local.json'].map(fileName => {
 			const uri = joinPath(workingDirectory, '.claude', fileName);
 			return async (): Promise<boolean> => {

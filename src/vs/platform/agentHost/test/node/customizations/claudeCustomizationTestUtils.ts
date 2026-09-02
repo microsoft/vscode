@@ -21,11 +21,20 @@ export const claudeTestUserHome = URI.from({ scheme: Schemas.inMemory, path: '/h
 /**
  * Creates a {@link FileService} backed by an in-memory provider for the
  * `inmemory` scheme, registering both with `disposables` for cleanup.
+ * Pass a `provider` subclass to inject failures.
  */
-export function createInMemoryFileService(disposables: DisposableStore): IFileService {
+export function createInMemoryFileService(disposables: DisposableStore, provider: InMemoryFileSystemProvider = new InMemoryFileSystemProvider()): IFileService {
 	const fileService = disposables.add(new FileService(new NullLogService()));
-	disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+	disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(provider)));
 	return fileService;
+}
+
+/** A {@link NullLogService} that records `warn` messages for assertions. */
+export class CapturingLogService extends NullLogService {
+	readonly warnings: string[] = [];
+	override warn(message: string): void {
+		this.warnings.push(message);
+	}
 }
 
 /** Writes `content` to the in-memory `path` and returns its URI. */

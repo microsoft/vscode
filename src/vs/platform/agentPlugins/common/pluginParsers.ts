@@ -222,7 +222,8 @@ const AGENT_PLUGIN_FORMAT: IPluginFormatConfig = {
 };
 
 export async function detectPluginFormat(pluginUri: URI, fileService: IFileService, logService?: ILogService): Promise<IPluginFormatConfig> {
-	if (await readAgentPluginManifest(pluginUri, fileService)) {
+	// Probe first: exists() inside readAgentPluginManifest rejects on a missing provider and hides permission errors.
+	if (await pathExists(joinPath(pluginUri, AGENT_PLUGIN_FORMAT.manifestPath), fileService, logService) && await readAgentPluginManifest(pluginUri, fileService)) {
 		return AGENT_PLUGIN_FORMAT;
 	}
 	if (await pathExists(joinPath(pluginUri, '.plugin', 'plugin.json'), fileService, logService)) {
