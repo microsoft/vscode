@@ -524,6 +524,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 			customAgents: options?.activeClientAgents ?? constObservable([]),
 			tools: constObservable(options?.activeClient?.tools ?? []),
 			isResolved: constObservable(true),
+			hasSuccessfulResolution: constObservable(true),
 			whenResolved: () => Promise.resolve(),
 			activeClient: (clientId: string) => constObservable({ clientId, ...(options?.activeClient ?? { tools: [], customizations: [] }) }),
 			dispose: () => { },
@@ -2845,6 +2846,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			customAgents,
 			tools,
 			isResolved,
+			hasSuccessfulResolution: isResolved,
 			whenResolved: () => Promise.resolve(),
 			activeClient: clientId => derived(reader => {
 				customAgents.read(reader);
@@ -4307,6 +4309,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			customAgents: constObservable([]),
 			tools: constObservable(activeClient.tools),
 			isResolved: constObservable(true),
+			hasSuccessfulResolution: constObservable(true),
 			whenResolved: () => resolution.p,
 			activeClient: clientId => {
 				activeClientReads++;

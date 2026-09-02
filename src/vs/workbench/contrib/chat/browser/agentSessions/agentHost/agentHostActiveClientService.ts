@@ -54,6 +54,8 @@ export interface IAgentCustomizationScope extends IDisposable {
 	 * unresolved scope would transiently wipe the host's customization state.
 	 */
 	readonly isResolved: IObservable<boolean>;
+	/** `true` after at least one successful full customization resolution. */
+	readonly hasSuccessfulResolution: IObservable<boolean>;
 	/** Resolves once the scope's initial customization resolution has completed. */
 	whenResolved(): Promise<void>;
 }
@@ -83,6 +85,7 @@ class AgentCustomizationScope extends Disposable {
 	private readonly _customizations = observableValue<readonly ClientPluginCustomization[]>('agentCustomizations', []);
 	private readonly _customAgents = observableValue<readonly AgentCustomization[]>('agentCustomAgents', []);
 	private readonly _isResolved = observableValue('agentCustomizationsResolved', false);
+	private readonly _hasSuccessfulResolution = observableValue('agentCustomizationsSuccessfullyResolved', false);
 	private readonly _initialResolution = new DeferredPromise<void>();
 	private readonly _activeClients = new Map<string, IObservable<SessionActiveClient>>();
 	private _refCount = 0;
@@ -103,6 +106,10 @@ class AgentCustomizationScope extends Disposable {
 
 	get isResolved(): IObservable<boolean> {
 		return this._isResolved;
+	}
+
+	get hasSuccessfulResolution(): IObservable<boolean> {
+		return this._hasSuccessfulResolution;
 	}
 
 	constructor(
@@ -154,6 +161,7 @@ class AgentCustomizationScope extends Disposable {
 						this._customAgents.set(agents, tx);
 					}
 					this._isResolved.set(true, tx);
+					this._hasSuccessfulResolution.set(true, tx);
 				});
 				completedInitialResolution = true;
 			} catch (err) {
@@ -208,6 +216,7 @@ class AgentCustomizationScope extends Disposable {
 			customAgents: this.customAgents,
 			tools: this.tools,
 			isResolved: this.isResolved,
+			hasSuccessfulResolution: this.hasSuccessfulResolution,
 			whenResolved: () => this._initialResolution.p,
 			activeClient: clientId => this.activeClient(clientId),
 			dispose: () => {

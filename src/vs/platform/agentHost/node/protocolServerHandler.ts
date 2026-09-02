@@ -16,6 +16,7 @@ import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
+import { AUTOMATION_VIRTUAL_CLIENT_ID } from '../common/meta/automationCustomizationSnapshotMeta.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotification } from '../common/agent.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
@@ -505,7 +506,16 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							const action = msg.params.action as SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction;
 							const channel = msg.params.channel;
 							// Unsupported actions are echoed as rejections so optimistic clients roll back.
-							if (UNSUPPORTED_CLIENT_ACTION_TYPES.has(action.type)) {
+							if ((action.type === ActionType.SessionActiveClientSet && action.activeClient.clientId === AUTOMATION_VIRTUAL_CLIENT_ID)
+								|| (action.type === ActionType.SessionActiveClientRemoved && action.clientId === AUTOMATION_VIRTUAL_CLIENT_ID)) {
+								this._logService.warn(`[ProtocolServer] rejecting reserved Automation virtual client ID: ${action.type}`);
+								this._stateManager.rejectClientAction(
+									channel,
+									action,
+									{ clientId: client.clientId, clientSeq: msg.params.clientSeq },
+									`Reserved active client ID: ${AUTOMATION_VIRTUAL_CLIENT_ID}`,
+								);
+							} else if (UNSUPPORTED_CLIENT_ACTION_TYPES.has(action.type)) {
 								this._logService.warn(`[ProtocolServer] rejecting unsupported client action: ${action.type}`);
 								this._stateManager.rejectClientAction(
 									channel,
@@ -596,6 +606,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				`Client offered protocol versions [${offered.join(', ')}], none of which are compatible with this server's version ${PROTOCOL_VERSION} (server accepts ^${PROTOCOL_VERSION}).`,
 				data,
 			);
+		}
+
+		if (params.clientId === AUTOMATION_VIRTUAL_CLIENT_ID) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Client ID '${AUTOMATION_VIRTUAL_CLIENT_ID}' is reserved for host-owned Automation sessions`);
 		}
 
 		const previousRecord = this._clients.get(params.clientId);

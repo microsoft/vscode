@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { SequencerByKey } from '../../../base/common/async.js';
+import { Sequencer, SequencerByKey } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
@@ -50,6 +50,7 @@ export class AgentPluginManager implements IAgentPluginManager {
 
 	/** Serializes concurrent sync operations per plugin URI. */
 	private readonly _sequencer = new SequencerByKey<string>();
+	private readonly _cachePersistSequencer = new Sequencer();
 
 	/**
 	 * LRU of synced plugins, most recently used at the end. Each entry records
@@ -57,6 +58,9 @@ export class AgentPluginManager implements IAgentPluginManager {
 	 * disk under `{key}/{nonce}`.
 	 */
 	private readonly _lru: ICacheEntry[] = [];
+	private readonly _retained = new Map<string, Set<string>>();
+	private readonly _syncing = new Map<string, number>();
+	private _cachePersistenceFailed = false;
 
 	private _cacheLoadPromise: Promise<void> | undefined;
 
@@ -75,6 +79,14 @@ export class AgentPluginManager implements IAgentPluginManager {
 		return this._basePath;
 	}
 
+	retainCustomizations(owner: string, customizations: readonly ClientPluginCustomization[]): void {
+		if (customizations.length === 0) {
+			this._retained.delete(owner);
+			return;
+		}
+		this._retained.set(owner, new Set(customizations.map(customization => this._cacheEntryKey(customization.uri, customization.nonce))));
+	}
+
 	async syncCustomizations(
 		clientId: string,
 		customizations: ClientPluginCustomization[],
@@ -82,25 +94,32 @@ export class AgentPluginManager implements IAgentPluginManager {
 	): Promise<ISyncedCustomization[]> {
 		await this._ensureCacheLoaded();
 
-		// Sync each customization in parallel, serialized per URI
-		const results = await Promise.all(customizations.map(ref =>
-			this._sequencer.queue(ref.uri, async (): Promise<ISyncedCustomization> => {
-				try {
-					const pluginDir = await this._syncPlugin(clientId, ref);
-					const customization: PluginCustomization = { ...ref, load: { kind: CustomizationLoadStatus.Loaded } };
-					progress?.(customization);
-					return { customization, pluginDir };
-				} catch (err) {
-					const message = err instanceof Error ? err.message : String(err);
-					this._logService.error(`[AgentPluginManager] Failed to sync plugin ${ref.uri}: ${message}`);
-					const customization: PluginCustomization = { ...ref, load: { kind: CustomizationLoadStatus.Error, message } };
-					progress?.(customization);
-					return { customization };
-				}
-			})
-		));
-
-		return results;
+		for (const customization of customizations) {
+			this._incrementSyncing(customization);
+		}
+		try {
+			// Sync each customization in parallel, serialized per URI
+			return await Promise.all(customizations.map(ref =>
+				this._sequencer.queue(ref.uri, async (): Promise<ISyncedCustomization> => {
+					try {
+						const pluginDir = await this._syncPlugin(clientId, ref);
+						const customization: PluginCustomization = { ...ref, load: { kind: CustomizationLoadStatus.Loaded } };
+						progress?.(customization);
+						return { customization, pluginDir };
+					} catch (err) {
+						const message = err instanceof Error ? err.message : String(err);
+						this._logService.error(`[AgentPluginManager] Failed to sync plugin ${ref.uri}: ${message}`);
+						const customization: PluginCustomization = { ...ref, load: { kind: CustomizationLoadStatus.Error, message } };
+						progress?.(customization);
+						return { customization };
+					}
+				})
+			));
+		} finally {
+			for (const customization of customizations) {
+				this._decrementSyncing(customization);
+			}
+		}
 	}
 
 	// ---- plugin storage logic -----------------------------------------------
@@ -118,8 +137,13 @@ export class AgentPluginManager implements IAgentPluginManager {
 
 		// Nonce cache hit — the plugin is already materialized under the nonce
 		// subdirectory, so skip the copy.
-		if (ref.nonce && this._findEntry(ref.uri, ref.nonce) && await this._fileService.exists(destDir)) {
+		if (ref.nonce
+			&& this._findEntry(ref.uri, ref.nonce)
+			&& await this._fileService.exists(destDir)) {
 			this._touchLru(ref.uri, ref.nonce);
+			if (this._cachePersistenceFailed) {
+				await this._persistCache();
+			}
 			this._logService.trace(`[AgentPluginManager] Nonce match for ${ref.uri}, skipping copy`);
 			return destDir;
 		}
@@ -220,6 +244,9 @@ export class AgentPluginManager implements IAgentPluginManager {
 		// `entries` preserves LRU order; the last is the current revision.
 		const stale = entries.slice(0, -1);
 		for (const entry of stale) {
+			if (this._isProtected(entry.uri, entry.nonce)) {
+				continue;
+			}
 			this._logService.info(`[AgentPluginManager] Evicting stale nonce for plugin: ${uri}`);
 			if (await this._tryDeleteDir(this._dirFor(entry.uri, entry.nonce))) {
 				this._removeEntryRef(entry);
@@ -235,6 +262,10 @@ export class AgentPluginManager implements IAgentPluginManager {
 		let i = 0;
 		while (this._lru.length > this._maxPlugins && i < this._lru.length) {
 			const candidate = this._lru[i];
+			if (this._isProtected(candidate.uri, candidate.nonce)) {
+				i++;
+				continue;
+			}
 			this._logService.info(`[AgentPluginManager] Evicting plugin: ${candidate.uri}`);
 			if (await this._tryDeleteDir(this._dirFor(candidate.uri, candidate.nonce))) {
 				this._lru.splice(i, 1);
@@ -246,6 +277,38 @@ export class AgentPluginManager implements IAgentPluginManager {
 				i++;
 			}
 		}
+	}
+
+	private _isProtected(uri: string, nonce: string | undefined): boolean {
+		const key = this._cacheEntryKey(uri, nonce);
+		if (this._syncing.has(key)) {
+			return true;
+		}
+		for (const entries of this._retained.values()) {
+			if (entries.has(key)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private _incrementSyncing(customization: ClientPluginCustomization): void {
+		const key = this._cacheEntryKey(customization.uri, customization.nonce);
+		this._syncing.set(key, (this._syncing.get(key) ?? 0) + 1);
+	}
+
+	private _decrementSyncing(customization: ClientPluginCustomization): void {
+		const key = this._cacheEntryKey(customization.uri, customization.nonce);
+		const count = this._syncing.get(key);
+		if (count === undefined || count === 1) {
+			this._syncing.delete(key);
+		} else {
+			this._syncing.set(key, count - 1);
+		}
+	}
+
+	private _cacheEntryKey(uri: string, nonce: string | undefined): string {
+		return `${uri}\0${nonce ?? ''}`;
 	}
 
 	// ---- cache persistence --------------------------------------------------
@@ -278,17 +341,25 @@ export class AgentPluginManager implements IAgentPluginManager {
 		}
 
 		await this._cleanupStaleNonces();
-		await this._persistCache();
+		try {
+			await this._persistCache();
+		} catch {
+			// The next synchronization retries the cache index write.
+		}
 	}
 
 	private async _persistCache(): Promise<void> {
-		try {
-			// Write entries in LRU order (oldest first)
-			const entries: ICacheEntry[] = this._lru.map(entry => ({ uri: entry.uri, nonce: entry.nonce }));
-			await this._fileService.createFolder(this._basePath);
-			await this._fileService.writeFile(this._cachePath, VSBuffer.fromString(JSON.stringify(entries)));
-		} catch (err) {
-			this._logService.warn('[AgentPluginManager] Failed to persist cache to disk', err);
-		}
+		await this._cachePersistSequencer.queue(async () => {
+			try {
+				const entries: ICacheEntry[] = this._lru.map(entry => ({ uri: entry.uri, nonce: entry.nonce }));
+				await this._fileService.createFolder(this._basePath);
+				await this._fileService.writeFile(this._cachePath, VSBuffer.fromString(JSON.stringify(entries)));
+				this._cachePersistenceFailed = false;
+			} catch (error) {
+				this._cachePersistenceFailed = true;
+				this._logService.warn('[AgentPluginManager] Failed to persist cache to disk', error);
+				throw error;
+			}
+		});
 	}
 }

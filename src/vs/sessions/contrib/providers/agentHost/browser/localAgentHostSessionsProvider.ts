@@ -200,6 +200,25 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 			fromHost: resource => resource,
 			resourceSchemeForProvider: provider => this.resourceSchemeForProvider(provider),
 			providerForResourceScheme: scheme => scheme.startsWith(LOCAL_RESOURCE_SCHEME_PREFIX) ? scheme.slice(LOCAL_RESOURCE_SCHEME_PREFIX.length) : undefined,
+			resolveActiveClient: async (sessionType, roots, clientId) => {
+				const scope = activeClientService.acquireScope(sessionType, roots);
+				try {
+					await scope.whenResolved();
+					return scope.hasSuccessfulResolution.get() ? scope.activeClient(clientId).get() : undefined;
+				} finally {
+					scope.dispose();
+				}
+			},
+			watchActiveClient: (sessionType, roots, clientId, onChange) => {
+				const store = new DisposableStore();
+				const scope = store.add(activeClientService.acquireScope(sessionType, roots));
+				store.add(autorun(reader => {
+					if (scope.hasSuccessfulResolution.read(reader)) {
+						onChange(scope.activeClient(clientId).read(reader));
+					}
+				}));
+				return store;
+			},
 		}));
 		this.automations = automations;
 

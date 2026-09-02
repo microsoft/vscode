@@ -52,4 +52,12 @@ export interface IAgentPluginManager {
 	 * defined when the sync was successful.
 	 */
 	syncCustomizations(clientId: string, customizations: ClientPluginCustomization[], progress?: (status: PluginCustomization) => void): Promise<ISyncedCustomization[]>;
+
+	/**
+	 * Retains the materialized revisions referenced by a durable owner.
+	 *
+	 * Retained revisions are excluded from cache eviction until the owner
+	 * replaces or clears its customization set.
+	 */
+	retainCustomizations(owner: string, customizations: readonly ClientPluginCustomization[]): void;
 }

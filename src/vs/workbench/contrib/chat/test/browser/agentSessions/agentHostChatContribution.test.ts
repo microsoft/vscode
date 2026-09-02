@@ -989,6 +989,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 			customAgents: entry.customAgents,
 			tools: entry.tools,
 			isResolved: entry.isResolved,
+			hasSuccessfulResolution: entry.isResolved,
 			whenResolved: () => entry.whenResolved,
 			activeClient: (clientId: string) => derived(reader => {
 				entry.customAgents.read(reader);

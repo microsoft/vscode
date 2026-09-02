@@ -110,9 +110,12 @@ Changing `target.providerId` changes durable ownership. It therefore performs a 
 | Global legacy ledger | Definitions not yet assigned to an available provider store |
 | Provider-scoped legacy ledger | Compatibility source for one provider before Agent Host authority is active |
 | Agent Host Automation storage | Canonical definitions, trigger cursors, manual request IDs, and run state after activation |
+| Agent Host Automation customization scopes | Latest materialized client customization snapshot per session provider and working-directory scope |
 | Provider-scoped legacy run archive | Read-only historical runs retained because AHP has no history-import command |
 
 The legacy run archive is not an execution authority. Every archived row must already be terminal.
+
+Agent Host Automations share one host-owned virtual client. Connected provider clients publish full customization snapshots resolved through the normal session scope; Agent Host materializes their plugin artifacts before atomically replacing the corresponding virtual-client scope. Definitions retain only capture acknowledgements, while runs use the latest committed scope and pin that revision until terminal. Client-executed tools are not part of the virtual client.
 
 ## Execution authority
 

@@ -29,7 +29,7 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 
 	readonly automationExecution: IAgentHostAutomationExecution = {
 		isSessionTemplateAvailable: template => this.value.automationExecution.isSessionTemplateAvailable(template),
-		createSession: (template, run) => this.value.automationExecution.createSession(template, run),
+		createSession: (template, run, activeClient) => this.value.automationExecution.createSession(template, run, activeClient),
 		startSession: (session, message) => this.value.automationExecution.startSession(session, message),
 		cancelSession: session => this.value.automationExecution.cancelSession(session),
 	};

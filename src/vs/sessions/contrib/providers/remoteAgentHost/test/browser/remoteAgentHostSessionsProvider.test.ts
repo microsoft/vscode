@@ -282,6 +282,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 			customAgents: constObservable([]),
 			tools: constObservable([]),
 			isResolved: constObservable(true),
+			hasSuccessfulResolution: constObservable(true),
 			whenResolved: () => Promise.resolve(),
 			activeClient: (clientId: string) => constObservable({ clientId, tools: [], customizations: [] }),
 			dispose: () => { },

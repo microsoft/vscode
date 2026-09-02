@@ -17,6 +17,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
+import { AUTOMATION_VIRTUAL_CLIENT_ID } from '../../common/meta/automationCustomizationSnapshotMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
@@ -462,6 +463,23 @@ suite('ProtocolServerHandler', () => {
 			create: {},
 			runCancellation: {},
 		});
+	});
+
+	test('handshake rejects the reserved Automation virtual client ID', () => {
+		const transport = connectClient(AUTOMATION_VIRTUAL_CLIENT_ID);
+		const response = findResponse(transport.sent, 1);
+		if (!response || !hasKey(response, { error: true })) {
+			assert.fail('should have rejected the reserved client ID');
+		}
+		assert.deepStrictEqual({
+			code: response.error.code,
+			message: response.error.message,
+		}, {
+			code: JsonRpcErrorCodes.InvalidParams,
+			message: `Client ID '${AUTOMATION_VIRTUAL_CLIENT_ID}' is reserved for host-owned Automation sessions`,
+		});
+		transport.simulateClose();
+		transport.dispose();
 	});
 
 	test('applies telemetry disablement before reporting the client connection', () => {
@@ -1242,6 +1260,39 @@ suite('ProtocolServerHandler', () => {
 			assert.strictEqual(envelope.origin.clientId, clientId);
 			assert.strictEqual(envelope.origin.clientSeq, clientSeq);
 		}
+	});
+
+	test('reserved Automation virtual client actions are rejected', () => {
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+		const transport = connectClient('spoofing-client', [sessionUri]);
+		transport.sent.length = 0;
+		agentService.handledActions.length = 0;
+
+		transport.simulateMessage(notification('dispatchAction', {
+			channel: sessionUri,
+			clientSeq: 1,
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: {
+					clientId: AUTOMATION_VIRTUAL_CLIENT_ID,
+					displayName: 'Spoofed Automation Client',
+					tools: [],
+					customizations: [],
+				},
+			},
+		}));
+
+		const envelope = findNotifications(transport.sent, 'action').at(-1)?.params as ActionEnvelope | undefined;
+		assert.deepStrictEqual({
+			handledActions: agentService.handledActions,
+			actionType: envelope?.action.type,
+			rejectionReason: envelope?.rejectionReason,
+		}, {
+			handledActions: [],
+			actionType: ActionType.SessionActiveClientSet,
+			rejectionReason: `Reserved active client ID: ${AUTOMATION_VIRTUAL_CLIENT_ID}`,
+		});
 	});
 
 	test('turn resume reaches the agent service', () => {

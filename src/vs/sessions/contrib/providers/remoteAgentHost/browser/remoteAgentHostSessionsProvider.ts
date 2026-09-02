@@ -8,7 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -249,6 +249,25 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			providerForResourceScheme: scheme => {
 				const prefix = remoteAgentHostSessionTypeAuthorityPrefix(this._connectionAuthority);
 				return scheme.startsWith(prefix) ? scheme.slice(prefix.length) : undefined;
+			},
+			resolveActiveClient: async (sessionType, roots, clientId) => {
+				const scope = activeClientService.acquireScope(sessionType, roots);
+				try {
+					await scope.whenResolved();
+					return scope.hasSuccessfulResolution.get() ? scope.activeClient(clientId).get() : undefined;
+				} finally {
+					scope.dispose();
+				}
+			},
+			watchActiveClient: (sessionType, roots, clientId, onChange) => {
+				const store = new DisposableStore();
+				const scope = store.add(activeClientService.acquireScope(sessionType, roots));
+				store.add(autorun(reader => {
+					if (scope.hasSuccessfulResolution.read(reader)) {
+						onChange(scope.activeClient(clientId).read(reader));
+					}
+				}));
+				return store;
 			},
 		}));
 		this.automations = this._automationStore;
