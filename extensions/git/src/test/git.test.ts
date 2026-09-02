@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { getSubmoduleDisplayName, GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { getSubmoduleDisplayName, getSubmoduleDisplayNameForPath, GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
 import * as assert from 'assert';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { splitInChunks } from '../util';
 
 suite('git', () => {
@@ -204,6 +207,33 @@ suite('git', () => {
 				getSubmoduleDisplayName({ name: 'dependencies/spdlog', path: 'dependencies/spdlog', url: 'https://example.com/spdlog.git' }),
 				getSubmoduleDisplayName({ name: 'foo', path: 'dependencies/foo', url: 'https://example.com/foo.git' })
 			], ['mpil', undefined, 'foo']);
+		});
+	});
+
+	suite('getSubmoduleDisplayNameForPath', () => {
+		let repositoryRoot: string;
+
+		setup(async () => {
+			repositoryRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-submodule-name-'));
+			await fs.promises.writeFile(path.join(repositoryRoot, '.gitmodules'), `[submodule "mpil"]
+	path = dependencies/metaprogramming
+	url = https://example.com/mpil.git
+[submodule "dependencies/spdlog"]
+	path = dependencies/spdlog
+	url = https://example.com/spdlog.git
+`);
+		});
+
+		teardown(async () => {
+			await fs.promises.rm(repositoryRoot, { recursive: true, force: true });
+		});
+
+		test('resolves customized names without populated repository state', async () => {
+			assert.deepStrictEqual(await Promise.all([
+				getSubmoduleDisplayNameForPath(repositoryRoot, path.join(repositoryRoot, 'dependencies', 'metaprogramming')),
+				getSubmoduleDisplayNameForPath(repositoryRoot, path.join(repositoryRoot, 'dependencies', 'spdlog')),
+				getSubmoduleDisplayNameForPath(repositoryRoot, path.join(repositoryRoot, 'dependencies', 'unknown'))
+			]), ['mpil', undefined, undefined]);
 		});
 	});
 

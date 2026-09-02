@@ -894,6 +894,17 @@ export function getSubmoduleDisplayName(submodule: Submodule): string | undefine
 	return submodule.name !== submodule.path ? submodule.name : undefined;
 }
 
+/**
+ * Gets the customized name of a submodule directly from its superproject.
+ */
+export async function getSubmoduleDisplayNameForPath(superProjectRoot: string, repositoryRoot: string): Promise<string | undefined> {
+	const submodules = await readSubmodules(superProjectRoot);
+	const submodule = submodules.find(submodule =>
+		pathEquals(path.join(superProjectRoot, submodule.path), repositoryRoot));
+
+	return submodule ? getSubmoduleDisplayName(submodule) : undefined;
+}
+
 export function parseGitmodules(raw: string): Submodule[] {
 	const result: Submodule[] = [];
 
@@ -908,6 +919,24 @@ export function parseGitmodules(raw: string): Submodule[] {
 	}
 
 	return result;
+}
+
+/**
+ * Reads the submodule configuration from a repository's working tree.
+ */
+async function readSubmodules(repositoryRoot: string): Promise<Submodule[]> {
+	const gitmodulesPath = path.join(repositoryRoot, '.gitmodules');
+
+	try {
+		const gitmodulesRaw = await fs.readFile(gitmodulesPath, 'utf8');
+		return parseGitmodules(gitmodulesRaw);
+	} catch (err) {
+		if (/ENOENT/.test(err.message)) {
+			return [];
+		}
+
+		throw err;
+	}
 }
 
 export function parseGitRemotes(raw: string): MutableRemote[] {
@@ -3383,18 +3412,7 @@ export class Repository {
 	}
 
 	async getSubmodules(): Promise<Submodule[]> {
-		const gitmodulesPath = path.join(this.root, '.gitmodules');
-
-		try {
-			const gitmodulesRaw = await fs.readFile(gitmodulesPath, 'utf8');
-			return parseGitmodules(gitmodulesRaw);
-		} catch (err) {
-			if (/ENOENT/.test(err.message)) {
-				return [];
-			}
-
-			throw err;
-		}
+		return readSubmodules(this.root);
 	}
 
 	private sanitizeRelativePath(filePath: string): string {
