@@ -322,6 +322,17 @@ export const IVoiceSessionController = createDecorator<IVoiceSessionController>(
 
 export type VoiceNewSessionPreparationResult = 'prepared' | 'sent' | 'failed';
 
+/** Whether a chat input owns the current Voice Mode session. */
+export function isVoiceSessionActiveForInput(inputFocused: boolean, targetSession: URI | undefined, hasDraftTarget: boolean, sessionResource: URI | undefined): boolean {
+	if (hasDraftTarget) {
+		return false;
+	}
+	if (targetSession) {
+		return !!sessionResource && isEqual(targetSession, sessionResource);
+	}
+	return inputFocused;
+}
+
 export class VoiceSessionController extends Disposable implements IVoiceSessionController {
 
 	declare readonly _serviceBrand: undefined;

@@ -34,7 +34,7 @@ import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessi
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { IMicCaptureService } from '../../../browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackService.js';
-import { VoiceNewSessionPreparationResult, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
+import { isVoiceSessionActiveForInput, VoiceNewSessionPreparationResult, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { ChatSendResult, ElicitationState, IChatConfirmation, IChatModelReference, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
@@ -52,6 +52,29 @@ class TestConfigurationService extends BaseTestConfigurationService {
 		super({ 'agents.voice.enabled': true, ...configuration });
 	}
 }
+
+suite('Voice Mode input ownership', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const target = URI.parse('agent-host-copilot:/session-1');
+	const other = URI.parse('agent-host-copilot:/session-2');
+
+	test('follows a pinned session target independently of input focus', () => {
+		assert.deepStrictEqual({
+			matchingUnfocused: isVoiceSessionActiveForInput(false, target, false, target),
+			mismatchedFocused: isVoiceSessionActiveForInput(true, target, false, other),
+			targetlessFocused: isVoiceSessionActiveForInput(true, undefined, false, target),
+			targetlessUnfocused: isVoiceSessionActiveForInput(false, undefined, false, target),
+			draft: isVoiceSessionActiveForInput(true, undefined, true, target),
+		}, {
+			matchingUnfocused: true,
+			mismatchedFocused: false,
+			targetlessFocused: true,
+			targetlessUnfocused: false,
+			draft: false,
+		});
+	});
+});
 
 class TestVoiceClientService extends mock<IVoiceClientService>() {
 	private narrationCounter = 0;

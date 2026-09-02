@@ -121,7 +121,7 @@ import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../speechToT
 import { IDictationOnboardingService } from '../../speechToText/dictationOnboarding.js';
 import { isDictationActiveForEditor, notifyDictationSubmitted, onDidChangeDictationEditor } from '../../speechToText/dictationSession.js';
 import { VoiceModeActionViewItem } from '../../voiceClient/voiceModeActionViewItem.js';
-import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
+import { isVoiceSessionActiveForInput, IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { getAgentSessionPullRequestContextValue } from '../../agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
@@ -3446,13 +3446,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const focusedWidget = observableFromEvent(this, this.chatWidgetService.onDidChangeFocusedSession, () => this.chatWidgetService.lastFocusedWidget);
 		const isVoiceInputActive = derived(this, reader => focusedWidget.read(reader) === widget);
 		const isVoiceSessionActive = derived(this, reader => {
-			if (!isVoiceInputActive.read(reader)) {
-				return false;
-			}
 			const target = this.voiceSessionController.targetSession.read(reader);
 			const hasDraftTarget = this.voiceSessionController.hasDraftTarget.read(reader);
 			const resource = widget.viewModel?.sessionResource;
-			return !hasDraftTarget && (!target || (!!resource && isEqual(target, resource)));
+			return isVoiceSessionActiveForInput(isVoiceInputActive.read(reader), target, hasDraftTarget, resource);
 		});
 
 		const inputPickerCompactStates = new Map<string, ISettableObservable<boolean>>();
