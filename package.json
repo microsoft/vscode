@@ -122,7 +122,7 @@
     "@vscode/native-watchdog": "^1.4.6",
     "@vscode/os-proxy-resolver": "^0.4.0",
     "@vscode/policy-watcher": "^1.4.0",
-    "@vscode/proxy-agent": "github:microsoft/vscode-proxy-agent#354da71d99112721512964c9c96a7b30b102ad40",
+    "@vscode/proxy-agent": "^0.45.0",
     "@vscode/ripgrep-universal": "^1.18.0",
     "@vscode/sandbox-runtime": "0.0.1",
     "@vscode/spdlog": "^0.15.8",
