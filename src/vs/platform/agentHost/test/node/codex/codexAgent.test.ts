@@ -11,13 +11,15 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { AgentChatMigrationDeferred, AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgentChatContext, type IAgentDiscoveredChat } from '../../../common/agent.js';
+import { ActionType, type ChatAction } from '../../../common/state/sessionActions.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type McpServerCustomization } from '../../../common/state/protocol/channels-session/state.js';
-import { buildDefaultChatUri, parseRequiredSessionUriFromChatUri } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, parseRequiredSessionUriFromChatUri, ResponsePartKind } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { getCustomizationEnablementKey, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../../../node/agentHostCustomizationEnablementService.js';
 import { CodexAgent } from '../../../node/codex/codexAgent.js';
 import { CodexClientCustomizationStore, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
 import type { ICodexMcpServerConfigJson, ICodexMcpServerEntry } from '../../../node/codex/codexMcpServers.js';
+import type { GuardianWarningNotification } from '../../../node/codex/protocol/generated/v2/GuardianWarningNotification.js';
 import { targetForMcpServer } from '../../../node/shared/customizationEnablementGate.js';
 import { McpCustomizationController, type IMcpCustomizationControllerOptions } from '../../../node/shared/mcpCustomizationController.js';
 import { createGitHubMcpServerConfiguration, getGitHubMcpTools } from '../../../node/shared/githubMcpServer.js';
@@ -79,6 +81,15 @@ interface ICodexAuthenticateHarness {
 	authenticate(resource: string, token: string): Promise<boolean>;
 }
 
+interface ICodexGuardianWarningHarness {
+	readonly _logService: NullLogService;
+}
+
+interface ICodexGuardianWarningSession {
+	readonly sessionId: string;
+	readonly currentTurnId: string | undefined;
+}
+
 function resolveConversationSession(harness: ICodexConversationResolverHarness, address: URI, context?: URI | IAgentChatContext): URI | undefined {
 	const resolver = (CodexAgent.prototype as unknown as {
 		_resolveConversationSession(this: ICodexConversationResolverHarness, address: URI, context?: URI | IAgentChatContext): URI | undefined;
@@ -100,6 +111,13 @@ function handleMcpRequest(harness: ICodexMcpRequestHarness, chat: URI): Promise<
 	return handler.call(harness, chat, 'server', 'tools/list', undefined);
 }
 
+function handleGuardianWarning(harness: ICodexGuardianWarningHarness, session: ICodexGuardianWarningSession, params: GuardianWarningNotification): ChatAction[] {
+	const handler = (CodexAgent.prototype as unknown as {
+		_handleGuardianWarning(this: ICodexGuardianWarningHarness, session: ICodexGuardianWarningSession, params: GuardianWarningNotification): ChatAction[];
+	})._handleGuardianWarning;
+	return handler.call(harness, session, params);
+}
+
 function emptyHarness(): ICodexConversationResolverHarness {
 	return { id: CODEX_AGENT_PROVIDER_ID, _sessionIdByChatUri: new Map() };
 }
@@ -107,6 +125,34 @@ function emptyHarness(): ICodexConversationResolverHarness {
 suite('CodexAgent', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('ignores routine guardian review notices', () => {
+		const harness: ICodexGuardianWarningHarness = { _logService: new NullLogService() };
+		const session: ICodexGuardianWarningSession = { sessionId: 'session', currentTurnId: 'turn' };
+
+		for (const message of [
+			'Automatic approval review approved (risk: low, authorization: high): Safe read.',
+			'Automatic approval review denied (risk: high, authorization: unknown): Unsafe action.',
+			'Automatic approval review timed out while evaluating the requested approval.',
+		]) {
+			assert.deepStrictEqual(handleGuardianWarning(harness, session, { threadId: 'thread', message }), []);
+		}
+	});
+
+	test('surfaces guardian turn-interruption warnings', () => {
+		const harness: ICodexGuardianWarningHarness = { _logService: new NullLogService() };
+		const session: ICodexGuardianWarningSession = { sessionId: 'session', currentTurnId: 'turn' };
+		const message = 'Automatic approval review rejected too many approval requests for this turn (5 consecutive, 5 in the last 10 reviews); interrupting the turn.';
+
+		assert.deepStrictEqual(handleGuardianWarning(harness, session, { threadId: 'thread', message }), [{
+			type: ActionType.ChatResponsePart,
+			turnId: 'turn',
+			part: {
+				kind: ResponsePartKind.SystemNotification,
+				content: message,
+			},
+		}]);
+	});
 
 	test('GitHub MCP injection respects unowned server enablement', () => {
 		const createHarness = (enabled: boolean, customizationEnabled: boolean, token: string | undefined): ICodexGitHubMcpHarness => Object.assign(Object.create(CodexAgent.prototype), {

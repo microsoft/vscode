@@ -164,6 +164,7 @@ const CODEX_THREAD_TURNS_PAGE_SIZE = 100;
 const CODEX_STARTUP_ACCOUNT_PROBE_TIMEOUT_MS = 30_000;
 const CODEX_DESKTOP_WORKSPACE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const CODEX_DESKTOP_SESSION_META_PATTERN = /"type"\s*:\s*"session_meta".*"payload"\s*:\s*\{[^}]*"originator"\s*:\s*"Codex Desktop"/s;
+const CODEX_GUARDIAN_TURN_INTERRUPTION_PREFIX = 'Automatic approval review rejected too many approval requests for this turn';
 
 function isCodexDesktopGeneratedWorkspace(cwd: string, userHome: URI): boolean {
 	const relativePath = extUriBiasedIgnorePathCase.relativePath(userHome, URI.file(cwd));
@@ -2461,10 +2462,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		subscriptions.add(client.onNotification('thread/tokenUsage/updated', params => this._dispatchTokenUsageUpdated(params)));
 		subscriptions.add(client.onNotification('item/completed', params => this._dispatchItemCompleted(params)));
 		subscriptions.add(client.onNotification('turn/completed', params => this._dispatchTurnCompleted(params)));
-		// Auto-review (guardian) surfacing. The guardian warning is shown as a
-		// system notification; a completed *denied* review is turned into a
-		// retroactive "Approve anyway" tool-call card. The review lifecycle is
-		// non-blocking (codex does not wait on us), so the completed handler is
+		// Auto-review (guardian) surfacing. The guardian turn-interruption warning
+		// is shown as a system notification; a completed *denied* review is turned
+		// into a retroactive "Approve anyway" tool-call card. The review lifecycle
+		// is non-blocking (codex does not wait on us), so the completed handler is
 		// async and resolves its session directly rather than via _dispatchByThread.
 		subscriptions.add(client.onNotification('guardianWarning', params => this._dispatchByThread(params.threadId, s => this._handleGuardianWarning(s, params))));
 		subscriptions.add(client.onNotification('item/autoApprovalReview/completed', params => { void this._handleGuardianReviewCompleted(client, params); }));
@@ -3664,6 +3665,11 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _handleGuardianWarning(session: ICodexSession, params: GuardianWarningNotification): ChatAction[] {
+		// Individual review outcomes are handled by the structured review event. The
+		// warning channel is only needed when the review circuit breaker ends a turn.
+		if (!params.message.startsWith(CODEX_GUARDIAN_TURN_INTERRUPTION_PREFIX)) {
+			return [];
+		}
 		const turnId = session.currentTurnId;
 		if (turnId === undefined) {
 			this._logService.trace(`[Codex:${session.sessionId}] guardianWarning without active turn; ignoring`);
