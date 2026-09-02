@@ -3143,7 +3143,66 @@ suite('WorkspacePicker - Tab discovery', () => {
 
 		picker.selectWorkspaceGroup(SESSION_WORKSPACE_GROUP_GITHUB, true);
 
-		assert.deepStrictEqual(picker.getItemLabels(), ['Issue...']);
+		assert.deepStrictEqual({
+			items: picker.getItemLabels(),
+			showsFilter: picker.showsFilter(),
+		}, {
+			items: ['Issue...'],
+			showsFilter: false,
+		});
+	});
+
+	test('shows GitHub sign-in with remote and GitHub workspaces when groups are combined', () => {
+		const storage = disposables.add(new TestStorageService());
+		const remoteUri = URI.parse('vscode-remote://host/remote-project');
+		const gitHubUri = URI.parse('vscode-vfs://github/microsoft/vscode/HEAD');
+		seedStorage(storage, [
+			{ uri: remoteUri, providerId: 'remote', checked: false },
+			{ uri: gitHubUri, providerId: 'github', checked: false },
+		]);
+		const remoteProvider = createMockProvider('remote', {
+			browseActions: [makeBrowseAction('remote', SESSION_WORKSPACE_GROUP_REMOTE, 'Select Remote...')],
+		});
+		const gitHubProvider = createMockProvider('github', {
+			browseActions: [{ ...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Repository...'), attachesContext: false }],
+		});
+		providersService.setProviders([
+			{
+				...remoteProvider,
+				resolveWorkspace: uri => {
+					const workspace = remoteProvider.resolveWorkspace(uri);
+					return workspace ? { ...workspace, group: SESSION_WORKSPACE_GROUP_REMOTE } : undefined;
+				},
+			},
+			{
+				...gitHubProvider,
+				resolveWorkspace: uri => {
+					const workspace = gitHubProvider.resolveWorkspace(uri);
+					return workspace ? { ...workspace, group: SESSION_WORKSPACE_GROUP_GITHUB } : undefined;
+				},
+			},
+		]);
+		const picker = createTestablePicker(disposables, providersService, true, {
+			restoreFromSessions: false,
+			getWorkspaceGroupAction: group => group === SESSION_WORKSPACE_GROUP_GITHUB ? {
+				label: 'Sign in to GitHub',
+				icon: Codicon.signIn,
+				commandId: AGENTIC_SIGN_IN_COMMAND_ID,
+				hideWorkspaceItems: true,
+			} : undefined,
+		}, undefined, storage, true);
+
+		picker.selectWorkspaceActions();
+		picker.selectTab(SESSION_WORKSPACE_GROUP_REMOTE);
+
+		assert.deepStrictEqual(picker.getItemLabels(), [
+			'remote-project',
+			'microsoft/vscode/HEAD',
+			'Sign in to GitHub',
+			'Select Remote...',
+			'Repository...',
+			'Attach Repository...',
+		]);
 	});
 
 	test('deduplicates groups contributed by multiple providers / actions', () => {
