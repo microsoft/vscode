@@ -26,11 +26,11 @@ export class DynamicProgrammingDiffing implements IDiffAlgorithm {
 
 		// ==== Initializing lcsLengths ====
 		for (let s1 = 0; s1 < sequence1.length; s1++) {
-			for (let s2 = 0; s2 < sequence2.length; s2++) {
-				if (!timeout.isValid()) {
-					return DiffAlgorithmResult.trivialTimedOut(sequence1, sequence2);
-				}
+			if (!timeout.isValid()) {
+				return DiffAlgorithmResult.trivialTimedOut(sequence1, sequence2);
+			}
 
+			for (let s2 = 0; s2 < sequence2.length; s2++) {
 				const horizontalLen = s1 === 0 ? 0 : lcsLengths.get(s1 - 1, s2);
 				const verticalLen = s2 === 0 ? 0 : lcsLengths.get(s1, s2 - 1);
 
