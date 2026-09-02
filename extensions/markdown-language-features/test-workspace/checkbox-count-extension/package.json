@@ -38,7 +38,7 @@
     ]
   },
   "dependencies": {
-    "@vscode/web-editors": "file:../../../../../vscode-packages/vscode-team-tools/packages/web-editors"
+    "@vscode/web-editors": "^0.0.2-41"
   },
   "devDependencies": {
     "esbuild": "0.27.2"
