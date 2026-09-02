@@ -147,7 +147,6 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 			}
 		}));
 		this.widget.render(parent);
-		this.widget.setVisible(true);
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
