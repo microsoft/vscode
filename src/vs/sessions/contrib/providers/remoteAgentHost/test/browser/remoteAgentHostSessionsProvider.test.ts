@@ -1269,12 +1269,13 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		const root = URI.file('/home/remote/.copilot/session-state/sdk-session');
 		const resource = toAgentHostUri(URI.joinPath(root, 'files/plan.md'), agentHostAuthority('localhost:4321'));
+		const providerLabel = provider.sessionTypes.find(type => type.id === CopilotCLISessionType.id)?.label;
 		assert.deepStrictEqual({
 			home: labelService.getUriHome(resource)?.path,
 			label: labelService.getUriLabel(resource),
 		}, {
 			home: root.path,
-			label: 'Copilot [Test Host]/Remote Session/files/plan.md',
+			label: `${providerLabel}/Remote Session/files/plan.md`,
 		});
 	}));
 
