@@ -9,7 +9,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
-import { ActionType, type ActionEnvelope, type ClientChangesetAction } from '../../common/state/sessionActions.js';
+import { ActionType, type ActionEnvelope, type ChatTurnStartedAction, type ClientChangesetAction } from '../../common/state/sessionActions.js';
 import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, ChangesetStatus, MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TerminalLifecycleStatus, TurnState, type AnnotationsState, type AutomationRunState, type AutomationState, type ChangesetState, type ErrorInfo, type RootState, type SessionState, type SessionSummary, type TerminalState, type Turn } from '../../common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, createChatState, createDefaultChatSummary, getTurnError, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
 import { AgentSubscriptionManager, AutomationCatalogSubscription, AutomationRunSubscription, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
@@ -728,6 +728,34 @@ suite('ChatStateSubscription', () => {
 		}, {
 			activeTurn: undefined,
 			turns: [{ id: 'turn-1', state: TurnState.Complete }],
+		});
+	});
+
+	test('stranded optimistic turn start does not reset a confirmed streaming turn', () => {
+		const sub = createSub();
+		sub.handleSnapshot(makeChatState(chatUri), 0);
+		const turnStarted: ChatTurnStartedAction = {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		};
+
+		sub.applyOptimistic(turnStarted);
+		sub.receiveEnvelope(makeEnvelope(turnStarted, 1, undefined));
+		sub.receiveEnvelope(makeEnvelope({
+			type: ActionType.ChatResponsePart,
+			turnId: 'turn-1',
+			part: { kind: ResponsePartKind.Markdown, id: 'part-1', content: 'Hel' },
+		}, 2, undefined));
+		sub.receiveEnvelope(makeEnvelope({ type: ActionType.ChatDelta, turnId: 'turn-1', partId: 'part-1', content: 'lo' }, 3, undefined));
+
+		assert.deepStrictEqual({
+			pendingActions: sub.getPendingActions().length,
+			responseParts: (sub.value as ChatState | undefined)?.activeTurn?.responseParts,
+		}, {
+			pendingActions: 1,
+			responseParts: [{ kind: ResponsePartKind.Markdown, id: 'part-1', content: 'Hello' }],
 		});
 	});
 });
