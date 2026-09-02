@@ -16,11 +16,30 @@ import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ReconnectRe
 import { readSessionFolderPickerDecision, withSessionFolderPickerDecision } from '../../../../platform/agentHost/common/state/sessionState.js';
 import type { IClientTransport } from '../../../../platform/agentHost/common/state/sessionTransport.js';
 
+/** A directory URI in the agent host's own namespace, as it appears on the wire. */
+type HostDirectoryUri = string & { readonly __hostDirectoryUri: unique symbol };
+
+/** A directory URI in the workbench's namespace, matching the window's workspace folders. */
+type ClientDirectoryUri = string & { readonly __clientDirectoryUri: unique symbol };
+
+/** Converts one directory URI into the namespace named by `T`. */
+type DirectoryMap<T extends HostDirectoryUri | ClientDirectoryUri> = (uri: string) => T;
+
+/** Protocol payload carrying the directory identities this transport maps. */
+interface IDirectoryBearingPayload {
+	workingDirectories?: string[];
+	_meta?: Record<string, unknown>;
+}
+
 /** Maps working-directory identities at the editor's remote connection, leaving opaque protocol content untouched. */
 export class EditorRemoteAgentHostTransport extends Disposable implements IClientTransport {
 
 	private readonly _requests = new Map<number, string>();
 	private readonly _uriTransformer;
+
+	/** The two mapping directions, named once so a call site cannot pick the wrong one. */
+	private readonly _toHostMap: DirectoryMap<HostDirectoryUri> = value => this._toHostDirectory(value);
+	private readonly _toClientMap: DirectoryMap<ClientDirectoryUri> = value => this._fromHostDirectory(value);
 
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
@@ -55,6 +74,7 @@ export class EditorRemoteAgentHostTransport extends Disposable implements IClien
 	 * Records request methods when their responses may contain directories that need reverse mapping.
 	 */
 	send(message: ProtocolMessage): void {
+		const map = this._toHostMap;
 		if (isJsonRpcRequest(message)) {
 			switch (message.method) {
 				case 'initialize':
@@ -64,51 +84,51 @@ export class EditorRemoteAgentHostTransport extends Disposable implements IClien
 					this._requests.set(message.id, message.method);
 					break;
 				case 'createSession':
-					message = { ...message, params: this._mapDirectories(message.params, value => this._toHostDirectory(value)) };
+					message = { ...message, params: this._mapDirectories(message.params, map) };
 					break;
 				case 'createChat':
-					message = { ...message, params: this._mapDirectories(message.params, value => this._toHostDirectory(value)) };
+					message = { ...message, params: this._mapDirectories(message.params, map) };
 					break;
 				case 'resolveSessionConfig':
 					if (message.params.workingDirectory) {
-						message = { ...message, params: { ...message.params, workingDirectory: this._toHostDirectory(message.params.workingDirectory) } };
+						message = { ...message, params: { ...message.params, workingDirectory: map(message.params.workingDirectory) } };
 					}
 					break;
 				case 'sessionConfigCompletions':
 					if (message.params.workingDirectory) {
-						message = { ...message, params: { ...message.params, workingDirectory: this._toHostDirectory(message.params.workingDirectory) } };
+						message = { ...message, params: { ...message.params, workingDirectory: map(message.params.workingDirectory) } };
 					}
 					break;
 				case 'createTerminal':
 					if (message.params.cwd) {
-						message = { ...message, params: { ...message.params, cwd: this._toHostDirectory(message.params.cwd) } };
+						message = { ...message, params: { ...message.params, cwd: map(message.params.cwd) } };
 					}
 					break;
 			}
 		} else if (isJsonRpcNotification(message) && message.method === 'dispatchAction') {
-			message = { ...message, params: { ...message.params, action: this._mapAction(message.params.action, value => this._toHostDirectory(value)) } };
+			message = { ...message, params: { ...message.params, action: this._mapAction(message.params.action, map) } };
 		}
 		this._transport.send(message);
 	}
 
 	/** Converts a directory on the connected remote authority to a file URI, leaving other resources unchanged. */
-	private _toHostDirectory(value: string): string {
+	private _toHostDirectory(value: string): HostDirectoryUri {
 		const uri = URI.parse(value);
-		return uri.scheme === Schemas.vscodeRemote && isEqualAuthority(uri.authority, this._remoteAuthority)
+		return (uri.scheme === Schemas.vscodeRemote && isEqualAuthority(uri.authority, this._remoteAuthority)
 			? URI.revive(this._uriTransformer.transformIncoming(uri)).toString()
-			: value;
+			: value) as HostDirectoryUri;
 	}
 
 	/** Converts a host-local file URI to the workbench's remote URI so it matches the corresponding workspace folder. */
-	private _fromHostDirectory(value: string): string {
+	private _fromHostDirectory(value: string): ClientDirectoryUri {
 		const uri = URI.parse(value);
-		return uri.scheme === Schemas.file
+		return (uri.scheme === Schemas.file
 			? URI.revive(this._uriTransformer.transformOutgoing(uri)).toString()
-			: value;
+			: value) as ClientDirectoryUri;
 	}
 
-	/** Copies a payload with mapped working directories and folder-picker primary, preserving unrelated fields and metadata. */
-	private _mapDirectories<T extends { workingDirectories?: string[]; _meta?: Record<string, unknown> }>(value: T, map: (uri: string) => string): T {
+	/** Copies a payload with its directory identities mapped, preserving unrelated fields and metadata. */
+	private _mapDirectories<T extends IDirectoryBearingPayload>(value: T, map: DirectoryMap<HostDirectoryUri | ClientDirectoryUri>): T {
 		const decision = readSessionFolderPickerDecision(value._meta);
 		return {
 			...value,
@@ -118,7 +138,7 @@ export class EditorRemoteAgentHostTransport extends Disposable implements IClien
 	}
 
 	/** Maps directory-bearing action fields in either direction, leaving other action types untouched. */
-	private _mapAction(action: StateAction, map: (uri: string) => string): StateAction {
+	private _mapAction(action: StateAction, map: DirectoryMap<HostDirectoryUri | ClientDirectoryUri>): StateAction {
 		switch (action.type) {
 			case ActionType.SessionWorkingDirectorySet:
 			case ActionType.SessionWorkingDirectoryRemoved:
@@ -140,7 +160,7 @@ export class EditorRemoteAgentHostTransport extends Disposable implements IClien
 
 	/** Restores workbench directory identities in session and chat snapshots, including nested chat summaries. */
 	private _mapSnapshot(snapshot: Snapshot): Snapshot {
-		const map = (value: string) => this._fromHostDirectory(value);
+		const map = this._toClientMap;
 		const state = snapshot.state;
 		if (hasKey(state, { chats: true })) {
 			return { ...snapshot, state: { ...this._mapDirectories(state, map), chats: state.chats.map(chat => this._mapDirectories(chat, map)) } };
@@ -156,7 +176,7 @@ export class EditorRemoteAgentHostTransport extends Disposable implements IClien
 	 * Correlates responses with recorded request methods because JSON-RPC responses contain only the request ID.
 	 */
 	private _fromHost(message: ProtocolMessage): ProtocolMessage {
-		const map = (value: string) => this._fromHostDirectory(value);
+		const map = this._toClientMap;
 		if (isJsonRpcNotification(message)) {
 			switch (message.method) {
 				case 'action':
