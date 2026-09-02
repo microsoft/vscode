@@ -145,12 +145,35 @@ are unchanged.
 ### Keeping the assumption honest
 
 That the SDK inlines its peers is an implementation detail Anthropic never
-promised; the `peerDependencies` block says the opposite. So `package.ts` runs
-`verifyClaudeSdkLoads` before tarring: in a child process, it imports `sdk.mjs`
-out of the staged tree and builds an MCP server from it with the peers absent.
-If a future version stops inlining a peer and starts importing it for real, the
-build fails there — not on a user's machine, months later, against a tarball
-that is already immutable on the CDN.
+promised; the `peerDependencies` block says the opposite. And `--omit=peer`
+applies to every SDK, including any added later — so the check that justifies
+it can't be special-cased to one.
+
+`verifyStagedTree` in `package.ts` runs against the finished tree, just before
+it is tarred, and **every SDK must have a case in it**. `Sdk` is an open string
+type, so adding an SDK is one folder under `agents/`; without the mandatory
+case, that folder would inherit `--omit=peer` and the rest of this pipeline
+with nothing checking it. The `default` branch is a build failure, not a skip.
+
+What gets checked is per-SDK, because the two are shaped differently and a
+check copied from one to the other would assert something we don't depend on:
+
+- **claude** — the agent host dynamic-imports `sdk.mjs` out of the tarball, so
+  the build imports it too, in a child process, and builds an MCP server from
+  it with the peers absent. If a future SDK stops inlining a peer, the build
+  fails there instead of on a user's machine months later, against a tarball
+  that is already immutable on the CDN. Then the native binary at
+  `claude-agent-sdk-<target>/claude[.exe]` is asserted present and executable.
+- **codex** — the agent host never loads JS from that tarball; it spawns
+  `codex-<target>/vendor/<rust-triple>/bin/codex[.exe]` directly. So the check
+  is that the platform package vendors exactly one triple and that triple holds
+  a runnable binary. The `sdkTarget → triple` table is deliberately *not*
+  copied out of `codexAgent.ts` — a second copy could drift and then validate a
+  path nothing uses, so a renamed triple stays the runtime's to catch.
+
+Both run in a child process only where they need to; the file checks are
+cross-target safe, and the claude probe is too, since `sdk.mjs` is
+platform-independent JS and the probed calls never spawn the native binary.
 
 ## Bumping an SDK version
 

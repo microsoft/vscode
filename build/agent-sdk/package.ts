@@ -103,11 +103,11 @@ export async function buildOne(args: IBuildArgs): Promise<IBuildResult> {
 			throw new Error(`[${SCRIPT}] npm ci left ${packageName}@${sdkVersion} without its native package '${missingNativeDep}' for target ${args.sdkTarget} — the optional dependency was silently skipped. Refusing to build a binary-less tarball; re-run to re-fetch it.`);
 		}
 
-		if (args.sdk === 'claude') {
-			verifyClaudeSdkLoads(stagingDir, sdkVersion);
-		}
+		chmodPlatformBinaries(nodeModulesDir, args.sdk, args.sdkTarget);
 
-		chmodPlatformBinaries(nodeModulesDir, args.sdk);
+		// Runs last, so it inspects the tree exactly as `buildTarball` will
+		// collect it — including the executable bits just set above.
+		verifyStagedTree(args.sdk, stagingDir, args.sdkTarget, sdkVersion);
 
 		fs.mkdirSync(args.outDir, { recursive: true });
 		const tgzPath = path.join(args.outDir, `${args.sdk}-${sdkVersion}-${args.sdkTarget}.tgz`);
@@ -135,12 +135,25 @@ function parseTargetTriple(sdkTarget: string): { os: string; cpu: string; libc?:
 
 
 /**
+ * The base name of the native binary an SDK's per-platform package ships,
+ * derived from the *target* rather than the host so cross-compiled tarballs
+ * get the right answer.
+ *
+ * claude appends `.exe` on win32 (`sdk.mjs`: `i = "claude", a = n === "win32"
+ * ? ".exe" : ""`); codex does the same (`codexAgent.ts` `_startRawConnection`).
+ */
+function nativeBinaryName(sdk: Sdk, sdkTarget: string): string {
+	const base = sdk === 'claude' ? 'claude' : 'codex';
+	return sdkTarget.startsWith('win32') ? `${base}.exe` : base;
+}
+
+/**
  * Chmod the executable binaries inside a per-SDK extracted node_modules tree.
  * Layout differs per SDK; we don't pretend it's configurable:
  *   - claude: a single top-level `claude` binary per platform package
  *   - codex:  `vendor/<rust-triple>/bin/codex` under the platform package
  */
-function chmodPlatformBinaries(nodeModulesDir: string, sdk: Sdk): void {
+function chmodPlatformBinaries(nodeModulesDir: string, sdk: Sdk, sdkTarget: string): void {
 	if (sdk === 'claude') {
 		const scopeDir = path.join(nodeModulesDir, '@anthropic-ai');
 		if (!fs.existsSync(scopeDir)) {
@@ -150,7 +163,7 @@ function chmodPlatformBinaries(nodeModulesDir: string, sdk: Sdk): void {
 			if (!child.startsWith('claude-agent-sdk-')) {
 				continue;
 			}
-			const binary = path.join(scopeDir, child, 'claude');
+			const binary = path.join(scopeDir, child, nativeBinaryName(sdk, sdkTarget));
 			if (fs.existsSync(binary)) {
 				fs.chmodSync(binary, 0o755);
 			}
@@ -184,6 +197,96 @@ function chmodPlatformBinaries(nodeModulesDir: string, sdk: Sdk): void {
 }
 
 /**
+ * Proves the staged tree can actually be consumed the way the agent host
+ * consumes it, before the bytes become immutable on the CDN.
+ *
+ * Every SDK must have a case here. `Sdk` is deliberately an open string type
+ * (`common.ts`) so adding one is just a folder under `agents/` — but that also
+ * means a new SDK would otherwise inherit `--omit=peer` and the rest of this
+ * pipeline with nothing checking it. The `default` below turns that into a
+ * build failure rather than a silent gap.
+ *
+ * What "consumed" means is per-SDK, because the two are shaped differently and
+ * a check copied from one to the other would assert something we don't depend
+ * on:
+ *   - claude: the agent host dynamic-imports `sdk.mjs` out of this tree, so
+ *     the JS has to load and work with the peers gone.
+ *   - codex: the agent host never loads JS from this tree at all — it spawns
+ *     the vendored native binary directly — so the binary layout is the thing
+ *     worth asserting.
+ */
+function verifyStagedTree(sdk: Sdk, stagingDir: string, sdkTarget: string, sdkVersion: string): void {
+	const nodeModulesDir = path.join(stagingDir, 'node_modules');
+	switch (sdk) {
+		case 'claude':
+			verifyClaudeSdkLoads(stagingDir, sdkVersion);
+			// `sdk.mjs` resolves this itself, at query time and only then, out
+			// of `@anthropic-ai/claude-agent-sdk-<target>`.
+			assertStagedBinary(
+				path.join(nodeModulesDir, '@anthropic-ai', `claude-agent-sdk-${sdkTarget}`, nativeBinaryName(sdk, sdkTarget)),
+				`claude-agent-sdk@${sdkVersion} (${sdkTarget})`,
+			);
+			return;
+		case 'codex':
+			verifyCodexBinaryLayout(nodeModulesDir, sdkTarget, sdkVersion);
+			return;
+		default:
+			throw new Error(`[${SCRIPT}] No staged-tree verification defined for SDK '${sdk}'. Every SDK under build/agent-sdk/agents/ needs a case in verifyStagedTree() describing how the agent host consumes its tarball — otherwise it inherits '--omit=peer' and the rest of this pipeline unchecked. See "What ends up in a tarball" in build/agent-sdk/README.md.`);
+	}
+}
+
+/**
+ * Asserts a staged native binary is present, non-empty, and carries the
+ * executable bit `chmodPlatformBinaries` should have set.
+ *
+ * The mode check is skipped on Windows hosts: `fs.chmodSync` there only
+ * toggles the read-only flag, so the POSIX permission bits it reports back say
+ * nothing. A POSIX host packaging a win32 target still records the mode we
+ * set, and Windows ignores it on extract either way.
+ */
+function assertStagedBinary(binaryPath: string, context: string): void {
+	let stat: fs.Stats;
+	try {
+		stat = fs.statSync(binaryPath);
+	} catch {
+		throw new Error(`[${SCRIPT}] ${context}: expected a native binary at '${binaryPath}', found nothing. The package layout changed — the agent host resolves exactly this path at runtime, so a tarball without it is dead on arrival.`);
+	}
+	if (stat.size === 0) {
+		throw new Error(`[${SCRIPT}] ${context}: the native binary at '${binaryPath}' is empty.`);
+	}
+	if (process.platform !== 'win32' && (stat.mode & 0o111) === 0) {
+		throw new Error(`[${SCRIPT}] ${context}: the native binary at '${binaryPath}' is not executable (mode ${(stat.mode & 0o777).toString(8)}). chmodPlatformBinaries did not reach it — its layout assumptions are stale.`);
+	}
+}
+
+/**
+ * codex vendors its binary at
+ * `@openai/codex-<target>/vendor/<rust-triple>/bin/codex[.exe]`, and
+ * `codexAgent.ts` reconstructs that path from its own `sdkTarget → triple`
+ * table before spawning it.
+ *
+ * We deliberately do not copy that table here. A second copy could drift out
+ * of sync with the runtime's and then happily validate a path nothing uses.
+ * Instead this asserts the structural invariant the table rests on: the
+ * platform package vendors exactly one triple, and that triple holds a
+ * runnable binary. A *renamed* triple still slips through — that one belongs
+ * to the runtime — but a reorganised, empty or multi-triple `vendor/` fails
+ * here.
+ */
+function verifyCodexBinaryLayout(nodeModulesDir: string, sdkTarget: string, sdkVersion: string): void {
+	const context = `codex@${sdkVersion} (${sdkTarget})`;
+	const vendorDir = path.join(nodeModulesDir, '@openai', `codex-${sdkTarget}`, 'vendor');
+	if (!fs.existsSync(vendorDir)) {
+		throw new Error(`[${SCRIPT}] ${context}: no 'vendor' directory at '${vendorDir}'. The platform package layout changed.`);
+	}
+	const triples = fs.readdirSync(vendorDir, { withFileTypes: true }).filter(e => e.isDirectory()).map(e => e.name);
+	if (triples.length !== 1) {
+		throw new Error(`[${SCRIPT}] ${context}: expected exactly one rust-triple directory under '${vendorDir}', found ${triples.length}${triples.length ? ` (${triples.join(', ')})` : ''}. codexAgent.ts picks the triple from a fixed table, so anything other than one vendored triple means that table needs revisiting.`);
+	}
+	assertStagedBinary(path.join(vendorDir, triples[0], 'bin', nativeBinaryName('codex', sdkTarget)), context);
+}
+
+/**
  * Smoke-checks the packaged claude tree before it is tarred: imports the SDK's
  * ESM entry point and builds an in-process MCP server out of it, with the
  * peerDependencies absent (see `npmCi`).
@@ -200,9 +303,6 @@ function chmodPlatformBinaries(nodeModulesDir: string, sdk: Sdk): void {
  * build and so the module never enters this process's cache. Safe for
  * cross-target builds: `sdk.mjs` is platform-independent JS, and the calls it
  * makes here never reach for the native binary.
- *
- * codex has no equivalent — the agent host runs its vendored binary directly
- * and never loads JS out of that tarball.
  */
 function verifyClaudeSdkLoads(stagingDir: string, sdkVersion: string): void {
 	const entry = path.join(stagingDir, 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'sdk.mjs');
