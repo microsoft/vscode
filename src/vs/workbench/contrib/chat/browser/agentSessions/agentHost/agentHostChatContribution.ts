@@ -25,7 +25,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
-import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService, isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
@@ -218,7 +218,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			this._authenticateWithServer(this._getRootAgents()).catch(() => { /* best-effort */ });
 		}));
 		store.add(this._authenticationService.onDidChangeSessions(event => {
-			void this._handleAuthenticationSessionsChanged(event.providerId, event.event.removed?.length ?? 0);
+			void this._handleAuthenticationSessionsChanged(event.providerId, event.event.removed ?? []);
 		}));
 
 		// Surface the agent host's lazy, first-use SDK download as a progress
@@ -374,12 +374,12 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	}
 
-	private async _handleAuthenticationSessionsChanged(providerId: string, removedSessionCount: number): Promise<void> {
+	private async _handleAuthenticationSessionsChanged(providerId: string, removedSessions: readonly AuthenticationSession[]): Promise<void> {
 		const agents = this._getRootAgents();
-		if (removedSessionCount > 0) {
+		if (removedSessions.length > 0) {
 			const generation = this._authenticationGeneration;
 			try {
-				await this._instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, agents, providerId, {
+				await this._instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, agents, providerId, removedSessions, {
 					authTokenCache: this._authTokenCache,
 					logPrefix: '[AgentHost]',
 					isCurrent: () => this._isAuthenticationCurrent(generation),

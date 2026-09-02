@@ -2434,6 +2434,29 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('keeps the requirement raised when a second revocation arrives while tokenless', async () => {
+		const client = new TestCopilotClient([], [{
+			id: 'gpt-4o',
+			name: 'GPT-4o',
+		}]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+			await waitForState(agent.models, models => models.length > 0);
+			// The host forwards every revocation to every provider, so a second
+			// client revoking must not retract the outstanding requirement.
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, '');
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, '');
+
+			assert.deepStrictEqual(agent.authenticationRequired.get(), {
+				resource: GITHUB_COPILOT_PROTECTED_RESOURCE,
+				reason: 'required',
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('retries refreshing models after a transient failure', async () => {
 		const client = new TestCopilotClient([], [{
 			id: 'gpt-4o',

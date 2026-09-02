@@ -34,7 +34,7 @@ import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessi
 import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAgentHostFileSystemService } from '../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
-import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
@@ -162,7 +162,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		this._register(this._defaultAccountService.onDidChangeDefaultAccount(() => this._authenticateAllConnections()));
 		this._register(this._authenticationService.onDidRegisterAuthenticationProvider(() => this._authenticateAllConnections()));
 		this._register(this._authenticationService.onDidChangeSessions(event => {
-			void this._handleAuthenticationSessionsChanged(event.providerId, event.event.removed?.length ?? 0);
+			void this._handleAuthenticationSessionsChanged(event.providerId, event.event.removed ?? []);
 		}));
 
 		this._reconcile();
@@ -455,15 +455,15 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}
 	}
 
-	private async _handleAuthenticationSessionsChanged(providerId: string, removedSessionCount: number): Promise<void> {
-		if (removedSessionCount > 0) {
+	private async _handleAuthenticationSessionsChanged(providerId: string, removedSessions: readonly AuthenticationSession[]): Promise<void> {
+		if (removedSessions.length > 0) {
 			for (const [address, connState] of this._connections) {
 				const rootState = connState.connection.rootState.value;
 				if (!rootState || rootState instanceof Error) {
 					continue;
 				}
 				try {
-					await this._instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, rootState.agents, providerId, {
+					await this._instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, rootState.agents, providerId, removedSessions, {
 						authTokenCache: connState.authTokenCache,
 						logPrefix: '[RemoteAgentHost]',
 						authenticate: this._authenticateCallback(address, connState.connection),
@@ -541,7 +541,16 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		if (!transform) {
 			return request => connection.authenticate(request);
 		}
-		return async request => connection.authenticate(await transform(request));
+		return async request => {
+			// An empty token is the protocol's revocation sentinel, not a credential.
+			// Token transforms substitute a live credential for an unsealed one, which
+			// would turn a sign-out into a re-authentication and leave the remote host
+			// holding a credential the user just revoked.
+			if (!request.token) {
+				return connection.authenticate(request);
+			}
+			return connection.authenticate(await transform(request));
+		};
 	}
 
 	/**

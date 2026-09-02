@@ -442,8 +442,8 @@ export async function authenticateProtectedResources(
 }
 
 /**
- * Reconciles resources backed by an authentication provider that explicitly
- * removed a session.
+ * Reconciles resources backed by an authentication session that was explicitly
+ * removed.
  *
  * A removal event proves the provider is live and managing its sessions, which
  * is what makes an empty resolution trustworthy here -- unlike the polling path,
@@ -452,11 +452,18 @@ export async function authenticateProtectedResources(
  * and signing out of one leaves the others usable. Re-resolving keeps a partial
  * sign-out from revoking a credential the host still needs, which would restart
  * provider clients and move the Claude proxy port for no reason.
+ *
+ * Only resources the removed sessions could have satisfied are reconciled. One
+ * provider commonly serves several resources with different scope sets (GitHub
+ * serves both the Copilot and repository challenges), and a resource the removed
+ * session never covered must not be re-evaluated against this client's view of
+ * the world -- another client may be the one supplying its credential.
  */
 export async function revokeAuthenticationForRemovedSessions(
 	accessor: ServicesAccessor,
 	agents: readonly AgentInfo[],
 	providerId: string,
+	removedSessions: readonly AuthenticationSession[],
 	options: IAgentHostAuthenticationOptions,
 ): Promise<void> {
 	const authenticationService = accessor.get(IAuthenticationService);
@@ -467,6 +474,9 @@ export async function revokeAuthenticationForRemovedSessions(
 			const scopes = resource.scopes_supported ?? [];
 			const key = protectedResourceAuthenticationKey(resource);
 			if (reconciledResources.has(key)) {
+				continue;
+			}
+			if (!removedSessionsCouldSatisfyResource(removedSessions, scopes)) {
 				continue;
 			}
 			if (!await resourceMatchesAuthenticationProvider(authenticationService, resource, providerId, logService, options.logPrefix)) {
@@ -496,6 +506,17 @@ export async function revokeAuthenticationForRemovedSessions(
 			}
 		}
 	}
+}
+
+/**
+ * Whether any removed session granted every scope a resource requires, and so
+ * could have been the credential backing it.
+ */
+function removedSessionsCouldSatisfyResource(removedSessions: readonly AuthenticationSession[], scopes: readonly string[]): boolean {
+	return removedSessions.some(session => {
+		const granted = new Set(session.scopes);
+		return scopes.every(scope => granted.has(scope));
+	});
 }
 
 async function resourceMatchesAuthenticationProvider(

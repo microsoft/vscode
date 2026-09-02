@@ -1539,7 +1539,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return false;
 		}
 		await this._authenticationSequencer.queue(async () => {
-			this._authenticationRequired.set(undefined, undefined);
+			// Only a supplied credential rearms the requirement. Clearing it for an
+			// empty token would silence the outstanding requirement when a second
+			// revocation arrives while the agent is already tokenless, because
+			// `_applyGitHubToken` returns early for an unchanged token.
+			if (token) {
+				this._authenticationRequired.set(undefined, undefined);
+			}
 			await this._applyGitHubToken(token || undefined);
 		});
 		return true;
