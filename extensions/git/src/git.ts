@@ -1031,6 +1031,22 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
 }
 
+export function parseLsRemote(stdout: string): Ref[] {
+	const refs: Ref[] = [];
+
+	for (const line of stdout.split(/\r?\n/)) {
+		let match: RegExpExecArray | null;
+
+		if (match = /^([0-9a-f]{40})\trefs\/heads\/([^ ]+)$/.exec(line)) {
+			refs.push({ name: match[2], commit: match[1], type: RefType.Head });
+		} else if (match = /^([0-9a-f]{40})\trefs\/tags\/([^ ]+)$/.exec(line)) {
+			refs.push({ name: match[2], commit: match[1], type: RefType.Tag });
+		}
+	}
+
+	return refs;
+}
+
 const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(WIP\s)?on\s([^:]+):\s(.*)\n(\d+)\n(\d+)(?:\x00)/gmi;
 
 function parseGitStashes(raw: string): Stash[] {
@@ -2996,22 +3012,7 @@ export class Repository {
 
 		const result = await this.exec(args, { cancellationToken: opts?.cancellationToken });
 
-		const fn = (line: string): Ref | null => {
-			let match: RegExpExecArray | null;
-
-			if (match = /^([0-9a-f]{40})\trefs\/heads\/([^ ]+)$/.exec(line)) {
-				return { name: match[1], commit: match[2], type: RefType.Head };
-			} else if (match = /^([0-9a-f]{40})\trefs\/tags\/([^ ]+)$/.exec(line)) {
-				return { name: match[2], commit: match[1], type: RefType.Tag };
-			}
-
-			return null;
-		};
-
-		return result.stdout.split('\n')
-			.filter(line => !!line)
-			.map(fn)
-			.filter(ref => !!ref) as Ref[];
+		return parseLsRemote(result.stdout);
 	}
 
 	async getStashes(): Promise<Stash[]> {
