@@ -56,6 +56,13 @@ export interface IAgentHostStarter extends IDisposable {
 
 // ---- Diagnostics types referenced by the provider surface -------------------
 
+/**
+ * A JSON-serializable value. Local mirror of the SDK's `JsonValue` so the common
+ * layer can type the managed-settings payload without importing the node-only
+ * `@github/copilot-sdk` (which must not be pulled into `common/`).
+ */
+export type AgentHostJsonValue = null | boolean | number | string | AgentHostJsonValue[] | { readonly [key: string]: AgentHostJsonValue };
+
 /** A network endpoint the agent host suggests probing, listed on {@link IAgentHostNetworkDiagnosticsInfo.endpoints}. */
 export interface IAgentHostNetworkEndpoint {
 	readonly name: string;
@@ -76,7 +83,7 @@ export interface IAgentHostManagedSettingsSnapshot {
 	readonly bypassPermissionsDisabled: boolean;
 	readonly permissionsAllowIntersected?: boolean;
 	readonly managedKeys: readonly string[];
-	readonly settings?: Readonly<Record<string, unknown>>;
+	readonly settings?: AgentHostJsonValue;
 }
 
 // ---- IPC data types (serializable across MessagePort) -----------------------
