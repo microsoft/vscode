@@ -888,6 +888,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					showGettingStartedBanner: true,
 				};
 				override readonly activeProjectRoot = observableValue('root', URI.file('/workspace'));
+				override readonly activeProjectLabel = observableValue('label', 'workspace');
 				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 				override getActiveProjectRoot() { return URI.file('/workspace'); }
 				override clearOverrideProjectRoot() { }
@@ -1277,6 +1278,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 					showGettingStartedBanner: true,
 				};
 				override readonly activeProjectRoot = observableValue('root', URI.file('/workspace'));
+				override readonly activeProjectLabel = observableValue('label', 'workspace');
 				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 				override getActiveProjectRoot() { return URI.file('/workspace'); }
 			}());
