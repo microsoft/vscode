@@ -83,7 +83,8 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 			},
 			{
 				// The host applies a published shell init script only while this is
-				// true, so the setting is enforced host-side, whoever published.
+				// true. Like every forwarded key it is client-writable root config,
+				// so it is the user's opt-in mirrored to the host, not authorization.
 				key: CopilotCliConfigKey.EnableShellInitScript,
 				computeValue: () => this._configurationService.getValue<boolean>(AgentHostShellToolInitScriptEnabledSettingId) === true,
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostShellToolInitScriptEnabledSettingId),

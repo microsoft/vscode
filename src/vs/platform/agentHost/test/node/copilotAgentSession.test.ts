@@ -12352,7 +12352,7 @@ Use the attached image as context.
 
 			await session.send('go', undefined, 'turn-1', 'interactive');
 
-			// Whoever published the value, the host honors the forwarded setting.
+			// The host honors the forwarded setting regardless of the session value.
 			assert.deepStrictEqual({
 				registered: mockSession.shellInitScriptUpdates,
 				materialized: [...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')),
