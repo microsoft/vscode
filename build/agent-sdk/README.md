@@ -112,6 +112,87 @@ gulp graph. As its own pipeline step:
   that applies, writes results to `AGENT_SDK_RESULTS_FILE`, and emits
   `##vso[task.setvariable]` so downstream pipeline steps see the path.
 
+## What ends up in a tarball
+
+`npm ci --ignore-scripts --omit=peer`, then the whole `node_modules/` tarred.
+`--omit=peer` is the load-bearing flag.
+
+npm 7+ installs `peerDependencies` automatically, so claude's lockfile carries
+100 packages the agent host never loads: `@modelcontextprotocol/sdk`, `zod`,
+`ajv` and their transitive graph. The SDK inlines all of that into `sdk.mjs` at
+publish time. `sdk.mjs` statically imports node builtins and nothing else, and
+the one external module it resolves at runtime is its own native binary
+package.
+
+On the VS Code side, `@modelcontextprotocol/sdk` is only ever `import type`, so
+TypeScript erases it. `zod` is not: `claudeJsonSchemaToZod.ts` imports `z` at
+runtime to build the raw shapes it hands to `sdk.tool()`. That zod is VS Code's
+own dependency (root `package.json`, shipped in the product), and the objects
+flow *into* the SDK. Nothing resolves zod out of the downloaded tree. That is
+the invariant `--omit=peer` needs, and it is weaker than "unused".
+
+With the peers omitted, a claude tarball is exactly two packages,
+`@anthropic-ai/claude-agent-sdk` and the one `claude-agent-sdk-<target>` binary
+package, both pinned to the SDK version.
+
+The point isn't size (the peers are ~4% of a ~90MB tarball). It's that the
+tarball becomes a function of `(SDK version, target)` and nothing else. Before
+this, a transitive peer bump could change the bytes without changing the
+version, and since the CDN path is content-addressed and immutable, the upload
+then failed against the already-published blob. That is
+[#333870](https://github.com/microsoft/vscode/pull/333870) /
+[#334094](https://github.com/microsoft/vscode/pull/334094).
+
+`--omit=optional` would be a very different flag: the native binary ships as an
+*optional* dependency, and `findMissingNativeOptionalDep` exists to catch it
+going missing.
+
+codex declares no peers at all, so the flag is inert there — its tarball bytes
+are unchanged.
+
+### Keeping the assumption honest
+
+That the SDK inlines its peers is an implementation detail Anthropic never
+promised; the `peerDependencies` block says the opposite. And `--omit=peer`
+applies to every SDK, including any added later, so the check that justifies it
+can't be special-cased to one.
+
+`verifyStagedTree` in `package.ts` runs against the finished tree, just before
+it is tarred, and nothing in it is conditioned on which SDK is being built:
+
+1. **It imports the package's entry point** in a child process, under a
+   timeout, with the peers absent. The entry is `<package>/<manifest.main>`,
+   which is the literal path `claudeAgentSdkService.ts` loads at runtime.
+   Packages that declare no `main` are skipped, which is how codex opts out
+   without a special case: it ships only a `bin`, and the agent host never
+   loads JS from that tarball. If a future SDK starts importing a peer for
+   real, the build fails with ERR_MODULE_NOT_FOUND instead of failing on a
+   user's machine months later, against a tarball already immutable on the CDN.
+2. **It stats every native binary** and requires each to be present, non-empty
+   and executable.
+
+Step 2 needs the one piece of per-SDK knowledge in the file, since no manifest
+field describes it: claude ships a single binary at the root of its platform
+package, codex fills a `vendor/<rust-triple>/bin/` directory.
+`listPlatformBinaries` is the only place that encodes those layouts, and
+`chmodPlatformBinaries` reads from the same function, so the chmod and the
+assertion cannot disagree about where the binaries are.
+
+An SDK added under `agents/` with no entry in `listPlatformBinaries` yields no
+binaries, and step 2 fails the build naming the function to edit. That is the
+mandatory-per-SDK guard: a new folder cannot inherit `--omit=peer` unchecked.
+
+The import probe deliberately does not exercise SDK-specific APIs. An earlier
+version called `tool()` and `createSdkMcpServer()` with a zod shape to catch a
+peer resolved lazily inside those calls, but that meant hardcoding one SDK's
+call shape into the build, and the packaging step is the wrong place for it.
+A peer that comes back will almost certainly come back as a static import,
+which the plain import catches. The lazy resolution that does exist in
+`sdk.mjs` today is for the native binary, and step 2 covers that.
+
+Both steps are cross-target safe: `sdk.mjs` is platform-independent JS and
+importing it does not spawn the native binary.
+
 ## Bumping an SDK version
 
 1. Edit the `dependencies` version in `build/agent-sdk/agents/<sdk>/package.json`
