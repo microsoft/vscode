@@ -11,13 +11,17 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { AgentChatMigrationDeferred, AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgentChatContext, type IAgentDiscoveredChat } from '../../../common/agent.js';
+import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
+import { ActionType, type ChatAction } from '../../../common/state/sessionActions.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type McpServerCustomization } from '../../../common/state/protocol/channels-session/state.js';
-import { buildDefaultChatUri, parseRequiredSessionUriFromChatUri } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, parseRequiredSessionUriFromChatUri, ResponsePartKind } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { getCustomizationEnablementKey, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../../../node/agentHostCustomizationEnablementService.js';
 import { CodexAgent } from '../../../node/codex/codexAgent.js';
 import { CodexClientCustomizationStore, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
 import type { ICodexMcpServerConfigJson, ICodexMcpServerEntry } from '../../../node/codex/codexMcpServers.js';
+import type { ItemGuardianApprovalReviewCompletedNotification } from '../../../node/codex/protocol/generated/v2/ItemGuardianApprovalReviewCompletedNotification.js';
+import type { GuardianWarningNotification } from '../../../node/codex/protocol/generated/v2/GuardianWarningNotification.js';
 import { targetForMcpServer } from '../../../node/shared/customizationEnablementGate.js';
 import { McpCustomizationController, type IMcpCustomizationControllerOptions } from '../../../node/shared/mcpCustomizationController.js';
 import { createGitHubMcpServerConfiguration, getGitHubMcpTools } from '../../../node/shared/githubMcpServer.js';
@@ -79,6 +83,31 @@ interface ICodexAuthenticateHarness {
 	authenticate(resource: string, token: string): Promise<boolean>;
 }
 
+interface ICodexGuardianWarningHarness {
+	readonly _logService: NullLogService;
+}
+
+interface ICodexGuardianWarningSession {
+	readonly sessionId: string;
+	readonly currentTurnId: string | undefined;
+}
+
+interface ICodexGuardianReviewSession {
+	readonly sessionId: string;
+	readonly sessionUri: URI;
+	readonly currentTurnId: string | undefined;
+	readonly hostTurnIdByAppTurnId: Map<string, string>;
+	readonly handledGuardianReviews: Set<string>;
+}
+
+interface ICodexGuardianReviewHarness {
+	readonly _logService: NullLogService;
+	readonly _sessionIdByThreadId: Map<string, string>;
+	readonly _sessions: Map<string, ICodexGuardianReviewSession>;
+	_hostTurnId(session: ICodexGuardianReviewSession, appTurnId: string): string;
+	_fire(sessionUri: URI, action: ChatAction): void;
+}
+
 function resolveConversationSession(harness: ICodexConversationResolverHarness, address: URI, context?: URI | IAgentChatContext): URI | undefined {
 	const resolver = (CodexAgent.prototype as unknown as {
 		_resolveConversationSession(this: ICodexConversationResolverHarness, address: URI, context?: URI | IAgentChatContext): URI | undefined;
@@ -100,6 +129,20 @@ function handleMcpRequest(harness: ICodexMcpRequestHarness, chat: URI): Promise<
 	return handler.call(harness, chat, 'server', 'tools/list', undefined);
 }
 
+function handleGuardianWarning(harness: ICodexGuardianWarningHarness, session: ICodexGuardianWarningSession, params: GuardianWarningNotification): ChatAction[] {
+	const handler = (CodexAgent.prototype as unknown as {
+		_handleGuardianWarning(this: ICodexGuardianWarningHarness, session: ICodexGuardianWarningSession, params: GuardianWarningNotification): ChatAction[];
+	})._handleGuardianWarning;
+	return handler.call(harness, session, params);
+}
+
+function handleGuardianReviewCompleted(harness: ICodexGuardianReviewHarness, params: ItemGuardianApprovalReviewCompletedNotification): Promise<void> {
+	const handler = (CodexAgent.prototype as unknown as {
+		_handleGuardianReviewCompleted(this: ICodexGuardianReviewHarness, client: never, params: ItemGuardianApprovalReviewCompletedNotification): Promise<void>;
+	})._handleGuardianReviewCompleted;
+	return handler.call(harness, undefined as never, params);
+}
+
 function emptyHarness(): ICodexConversationResolverHarness {
 	return { id: CODEX_AGENT_PROVIDER_ID, _sessionIdByChatUri: new Map() };
 }
@@ -107,6 +150,104 @@ function emptyHarness(): ICodexConversationResolverHarness {
 suite('CodexAgent', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('ignores guardian review outcome warnings handled by structured events', () => {
+		const harness: ICodexGuardianWarningHarness = { _logService: new NullLogService() };
+		const session: ICodexGuardianWarningSession = { sessionId: 'session', currentTurnId: 'turn' };
+
+		for (const message of [
+			'Automatic approval review approved (risk: low, authorization: high): Safe read.',
+			'Automatic approval review denied (risk: high, authorization: unknown): Unsafe action.',
+			'Automatic approval review timed out while evaluating the requested approval.',
+		]) {
+			assert.deepStrictEqual(handleGuardianWarning(harness, session, { threadId: 'thread', message }), []);
+		}
+	});
+
+	test('surfaces guardian turn-interruption warnings', () => {
+		const harness: ICodexGuardianWarningHarness = { _logService: new NullLogService() };
+		const session: ICodexGuardianWarningSession = { sessionId: 'session', currentTurnId: 'turn' };
+		const message = 'Automatic approval review rejected too many approval requests for this turn (5 consecutive, 5 in the last 10 reviews); interrupting the turn.';
+
+		assert.deepStrictEqual(handleGuardianWarning(harness, session, { threadId: 'thread', message }), [{
+			type: ActionType.ChatResponsePart,
+			turnId: 'turn',
+			part: {
+				kind: ResponsePartKind.SystemNotification,
+				content: message,
+				_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.AutomaticApprovalReviewInterrupted }),
+			},
+		}]);
+	});
+
+	test('surfaces terminal guardian review failures once on their current turn', async () => {
+		const actions: ChatAction[] = [];
+		const session: ICodexGuardianReviewSession = {
+			sessionId: 'session',
+			sessionUri: URI.parse('codex:/session'),
+			currentTurnId: 'host-turn',
+			hostTurnIdByAppTurnId: new Map([
+				['app-turn', 'host-turn'],
+				['stale-app-turn', 'stale-host-turn'],
+			]),
+			handledGuardianReviews: new Set(),
+		};
+		const harness: ICodexGuardianReviewHarness = {
+			_logService: new NullLogService(),
+			_sessionIdByThreadId: new Map([['thread', session.sessionId]]),
+			_sessions: new Map([[session.sessionId, session]]),
+			_hostTurnId: (reviewSession, appTurnId) => reviewSession.hostTurnIdByAppTurnId.get(appTurnId) ?? appTurnId,
+			_fire: (_sessionUri, action) => actions.push(action),
+		};
+		const notification = (reviewId: string, status: ItemGuardianApprovalReviewCompletedNotification['review']['status'], turnId = 'app-turn', rationale: string | null = null): ItemGuardianApprovalReviewCompletedNotification => ({
+			threadId: 'thread',
+			turnId,
+			startedAtMs: 10,
+			completedAtMs: 20,
+			reviewId,
+			targetItemId: null,
+			decisionSource: 'agent',
+			review: { status, riskLevel: null, userAuthorization: null, rationale },
+			action: {
+				type: 'networkAccess',
+				target: 'https://example.com',
+				host: 'example.com',
+				protocol: 'https',
+				port: 443,
+			},
+		});
+
+		await handleGuardianReviewCompleted(harness, notification('approved', 'approved'));
+		await handleGuardianReviewCompleted(harness, notification('in-progress', 'inProgress'));
+		await handleGuardianReviewCompleted(harness, notification('stale', 'timedOut', 'stale-app-turn'));
+		await handleGuardianReviewCompleted(harness, notification('timed-out', 'timedOut', 'app-turn', 'The reviewer did not respond in time.'));
+		await handleGuardianReviewCompleted(harness, notification('timed-out', 'timedOut', 'app-turn', 'The reviewer did not respond in time.'));
+		await handleGuardianReviewCompleted(harness, notification('aborted', 'aborted'));
+
+		assert.deepStrictEqual({ actions, handledReviewIds: [...session.handledGuardianReviews] }, {
+			actions: [
+				{
+					type: ActionType.ChatResponsePart,
+					turnId: 'host-turn',
+					part: {
+						kind: ResponsePartKind.SystemNotification,
+						content: 'Auto-review timed out\nRequested action: Network access `https://example.com`\n\nThe reviewer did not respond in time.',
+						_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.AutomaticApprovalReviewTimedOut }),
+					},
+				},
+				{
+					type: ActionType.ChatResponsePart,
+					turnId: 'host-turn',
+					part: {
+						kind: ResponsePartKind.SystemNotification,
+						content: 'Auto-review stopped\nRequested action: Network access `https://example.com`',
+						_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.AutomaticApprovalReviewAborted }),
+					},
+				},
+			],
+			handledReviewIds: ['timed-out', 'aborted'],
+		});
+	});
 
 	test('GitHub MCP injection respects unowned server enablement', () => {
 		const createHarness = (enabled: boolean, customizationEnabled: boolean, token: string | undefined): ICodexGitHubMcpHarness => Object.assign(Object.create(CodexAgent.prototype), {

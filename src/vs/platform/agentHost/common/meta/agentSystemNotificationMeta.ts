@@ -5,6 +5,12 @@
 
 export const enum AgentSystemNotificationKind {
 	WorktreeCreationFailure = 'worktreeCreationFailure',
+	/** An automatic approval review did not finish before its deadline. */
+	AutomaticApprovalReviewTimedOut = 'automaticApprovalReviewTimedOut',
+	/** An automatic approval review stopped before reaching a decision. */
+	AutomaticApprovalReviewAborted = 'automaticApprovalReviewAborted',
+	/** Automatic approval review denials triggered the turn circuit breaker. */
+	AutomaticApprovalReviewInterrupted = 'automaticApprovalReviewInterrupted',
 	/** Agent Merge started monitoring the session's branch. */
 	AgentMergeEnabled = 'agentMergeEnabled',
 	/** Effective Agent Merge behavior changed while monitoring. */
@@ -19,6 +25,9 @@ export const enum AgentSystemNotificationSeverity {
 
 const knownKinds: ReadonlySet<string> = new Set<string>([
 	AgentSystemNotificationKind.WorktreeCreationFailure,
+	AgentSystemNotificationKind.AutomaticApprovalReviewTimedOut,
+	AgentSystemNotificationKind.AutomaticApprovalReviewAborted,
+	AgentSystemNotificationKind.AutomaticApprovalReviewInterrupted,
 	AgentSystemNotificationKind.AgentMergeEnabled,
 	AgentSystemNotificationKind.AgentMergeConfigurationChanged,
 	AgentSystemNotificationKind.AgentMergeDisabled,
