@@ -169,11 +169,15 @@ check copied from one to the other would assert something we don't depend on:
 - **claude.** The agent host dynamic-imports `sdk.mjs` out of the tarball, so
   the build imports it too, in a child process and under a timeout. It then
   repeats the production call shape from `buildClientToolMcpServer`: a zod raw
-  shape into `sdk.tool()`, the result into `sdk.createSdkMcpServer()`. Checking
-  that the exports merely exist would miss a peer resolved lazily inside
-  `tool()`, which is the shipped path. If a future SDK stops inlining a peer,
-  the build fails here instead of on a user's machine months later, against a
-  tarball that is already immutable on the CDN. The native binary at
+  shape into `sdk.tool()`, the result into `sdk.createSdkMcpServer()`. The
+  import alone would only catch a *static* peer import. Every static import in
+  `sdk.mjs` today is a node builtin, and the one thing it does resolve from
+  disk, its native binary, it resolves lazily via `createRequire` at query
+  time. `createSdkMcpServer()` is the call that does real work: it validates
+  and converts the zod shape, so that is where a de-inlined zod would be
+  resolved. If a future SDK stops inlining a peer, the build fails here instead
+  of on a user's machine months later, against a tarball that is already
+  immutable on the CDN. The native binary at
   `claude-agent-sdk-<target>/claude[.exe]` is then asserted present and
   executable.
 - **codex.** The agent host never loads JS from that tarball; it spawns

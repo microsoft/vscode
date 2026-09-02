@@ -265,9 +265,14 @@ const PROBE_TIMEOUT_MS = 2 * 60 * 1000;
  * The SDK inlines MCP, zod and ajv today but never promised to, and its
  * `peerDependencies` block says otherwise. If that changes, this fails the
  * build with ERR_MODULE_NOT_FOUND instead of failing on a user's machine
- * against a tarball that is already immutable. `tool()` is called rather than
- * just checked for existence, because that is where a lazily-resolved peer
- * would surface.
+ * against a tarball that is already immutable.
+ *
+ * Importing `sdk.mjs` alone would catch a static peer import (every static
+ * import it has today is a node builtin), but not a lazily-resolved one, and
+ * the SDK already resolves its native binary that way. So the probe calls
+ * through: `createSdkMcpServer()` validates and converts the zod raw shape at
+ * call time, which is where a de-inlined zod would be resolved. `tool()` is
+ * only there to build its argument.
  *
  * Child process to keep the module out of this process's cache; timeout so a
  * stray handle fails the build instead of hanging the release job.
