@@ -9,7 +9,7 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, derived, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -54,7 +54,7 @@ class TestConfigurationService extends BaseTestConfigurationService {
 }
 
 suite('Voice Mode input ownership', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const target = URI.parse('agent-host-copilot:/session-1');
 	const other = URI.parse('agent-host-copilot:/session-2');
@@ -73,6 +73,22 @@ suite('Voice Mode input ownership', () => {
 			targetlessUnfocused: false,
 			draft: false,
 		});
+	});
+
+	test('updates when a chat input materializes its pinned session resource', () => {
+		const viewModelChange = store.add(new Emitter<void>());
+		const viewModel: { resource: URI | undefined } = { resource: undefined };
+		const sessionResource = observableFromEvent(store, viewModelChange.event, () => viewModel.resource);
+		const active = derived(store, reader => isVoiceSessionActiveForInput(false, target, false, sessionResource.read(reader)));
+		let current = false;
+		store.add(autorun(reader => {
+			current = active.read(reader);
+		}));
+
+		viewModel.resource = target;
+		viewModelChange.fire();
+
+		assert.strictEqual(current, true);
 	});
 });
 
