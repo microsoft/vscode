@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import {
 	ResponsePartKind,
 	ToolCallStatus,
@@ -204,13 +205,15 @@ export class SubagentRegistry extends Disposable {
 	}
 
 	/**
-	 * Replay-path bulk populate: scan a parent transcript for the
-	 * SDK's synthetic `agentId: <hex>` suffix on Task/Agent tool_result
-	 * text blocks and record each `(toolUseId, agentId)` pair. Idempotent.
+	 * Replay-path bulk populate: record every subagent-spawning tool call in a parent
+	 * transcript, settled or not, with the SDK's `agentId:` suffix where present. Idempotent.
 	 */
 	primeFromTranscript(transcript: readonly Turn[]): void {
 		for (const [toolCallId, agentId] of scanTranscriptForAgentIds(transcript)) {
 			this.recordSpawn(toolCallId, { agentId });
+		}
+		for (const toolCallId of scanTranscriptForSpawns(transcript)) {
+			this.recordSpawn(toolCallId);
 		}
 	}
 
@@ -236,6 +239,26 @@ export function scanTranscriptForAgentIds(transcript: readonly Turn[]): Readonly
 			const pair = extractAgentIdPair(part);
 			if (pair) {
 				out.set(pair.toolCallId, pair.agentId);
+			}
+		}
+	}
+	return out;
+}
+
+/**
+ * Pure scan: the `toolCallId` of every subagent-spawning tool call, regardless of
+ * status. A client tool named `Task` carries no subagent meta and is skipped.
+ */
+function scanTranscriptForSpawns(transcript: readonly Turn[]): readonly string[] {
+	const out: string[] = [];
+	for (const turn of transcript) {
+		for (const part of turn.responseParts) {
+			if (part.kind !== ResponsePartKind.ToolCall) {
+				continue;
+			}
+			const state = part.toolCall;
+			if (SUBAGENT_TOOL_NAMES.has(state.toolName) && readToolCallMeta(state).toolKind === 'subagent') {
+				out.push(state.toolCallId);
 			}
 		}
 	}
