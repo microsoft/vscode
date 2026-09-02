@@ -61,7 +61,6 @@ import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { ChatWidget, layoutChatWidgetForInputHeight } from '../../widget/chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from '../../viewsWelcome/chatViewWelcomeController.js';
 import { IChatViewsWelcomeDescriptor } from '../../viewsWelcome/chatViewsWelcome.js';
-import { MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../../../../../services/history/common/history.js';
 import { IWorkbenchLayoutService, LayoutSettings, Position } from '../../../../../services/layout/browser/layoutService.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../../agentSessions/agentSessions.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
@@ -369,8 +368,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Controls wrapper — sessions + chat live inside here
 		const controlsWrapper = append(parent, $('.voice-agent-controls-wrapper'));
 		this.createControls(controlsWrapper);
-		const workbenchContainer = this.layoutService.getContainer(getWindow(parent));
-		this._register(addDisposableListener(workbenchContainer, EventType.MOUSE_DOWN, event => this.handleMouseBackNavigation(event), true));
 
 		// Voice bar — hidden by default, voice is activated via mic button in toolbar.
 		// The widget is still created for PTT keybinding support and session binding.
@@ -393,40 +390,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.setupContextMenu(parent);
 
 		this.applyModel();
-	}
-
-	private async handleMouseBackNavigation(event: MouseEvent): Promise<void> {
-		if (
-			event.button !== 3 ||
-			this.sessionsViewerOrientation !== AgentSessionsViewerOrientation.Stacked ||
-			this.sessionsViewerVisible ||
-			this._sessionsListSuppressionCount > 0 ||
-			this.welcomeController?.isShowingWelcome.get()
-		) {
-			return;
-		}
-
-		const viewModel = this._widget.viewModel;
-		if (!viewModel || (this._widget.isEmpty() && !viewModel.model.title)) {
-			return;
-		}
-
-		if (
-			!this.configurationService.getValue<boolean>(MOUSE_BACK_FORWARD_NAVIGATION_SETTING) ||
-			!this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled)
-		) {
-			return;
-		}
-
-		const activeElement = getWindow(this._widget.domNode).document.activeElement;
-		if (!activeElement || !this._widget.domNode.contains(activeElement)) {
-			return;
-		}
-
-		EventHelper.stop(event, true);
-		event.stopImmediatePropagation();
-		await this.clear();
-		this.focusSessions();
 	}
 
 	private createControls(parent: HTMLElement): void {

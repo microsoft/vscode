@@ -55,9 +55,10 @@ const agentMergeHasPullRequest = ContextKeyExpr.or(
 const agentMergeMenuPrecondition = ContextKeyExpr.and(agentMergeCommandPrecondition, agentMergeHasPullRequest);
 
 /**
- * Agent Merge owns the primary button only when neither marking the pull
- * request ready nor merging it applies — the states the user is otherwise left
- * waiting in, including a blocked pull request that offers no operation at all.
+ * Agent Merge owns the primary button while an enabled draft is still waiting
+ * for CI or review comments. The host advertises a distinct Mark Ready
+ * operation in that state so it remains available in the dropdown; once the
+ * pull request is ready, the normal Mark Ready operation takes over.
  *
  * The auto-merge states are included because Agent Merge replaces them on the
  * button: it subsumes "let this merge on its own once it is ready", and the
@@ -68,6 +69,10 @@ const agentMergeMenuPrecondition = ContextKeyExpr.and(agentMergeCommandPrecondit
 const agentMergeOwnsPrimaryButton = ContextKeyExpr.or(
 	ContextKeyExpr.equals(SessionPrimaryPullRequestOperationContext.key, AgentHostPullRequestOperationId.EnableAutoMerge),
 	ContextKeyExpr.equals(SessionPrimaryPullRequestOperationContext.key, AgentHostPullRequestOperationId.DisableAutoMerge),
+	ContextKeyExpr.and(
+		ContextKeyExpr.equals(SessionPrimaryPullRequestOperationContext.key, AgentHostPullRequestOperationId.MarkReadyWithAgentMerge),
+		SessionAgentMergeEnabledContext,
+	),
 	ContextKeyExpr.and(SessionHasOpenPullRequestContext, ContextKeyExpr.equals(SessionPrimaryPullRequestOperationContext.key, '')),
 );
 

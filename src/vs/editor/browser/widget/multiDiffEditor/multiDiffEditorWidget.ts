@@ -127,6 +127,10 @@ export class MultiDiffEditorWidget extends Disposable {
 
 	public readonly onDidChangeActiveControl = Event.fromObservableLight(this._activeControl);
 
+	public focus(): boolean {
+		return this._widgetImpl.get().focus();
+	}
+
 	public getViewState(): IMultiDiffEditorViewState {
 		return this._widgetImpl.get().getViewState();
 	}

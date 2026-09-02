@@ -260,48 +260,48 @@ export interface AgentMergeDisableReason {
 export const agentMergeDisableReasons = {
 	sessionArchived: (): AgentMergeDisableReason => ({
 		log: 'the session was archived',
-		notice: localize('agentMerge.disabled.sessionArchived', "Agent Merge was turned off because this session was archived."),
+		notice: localize('agentMerge.disabled.sessionArchived', "Agent Merge was disabled because this session was archived."),
 	}),
 	branchChanged: (from: string, to: string): AgentMergeDisableReason => ({
 		log: `branch changed from ${from} to ${to}`,
 		notice: localize(
 			'agentMerge.disabled.branchChanged',
-			"Agent Merge was turned off because the checked-out branch changed from {0} to {1}.",
+			"Agent Merge was disabled because the checked-out branch changed from {0} to {1}.",
 			appendEscapedMarkdownInlineCode(from),
 			appendEscapedMarkdownInlineCode(to)
 		),
 	}),
 	branchChangedWhileRefreshing: (): AgentMergeDisableReason => ({
 		log: 'the checked-out branch changed while pull request state was refreshing',
-		notice: localize('agentMerge.disabled.branchChangedWhileRefreshing', "Agent Merge was turned off because the checked-out branch changed while its pull request state was refreshing."),
+		notice: localize('agentMerge.disabled.branchChangedWhileRefreshing', "Agent Merge was disabled because the checked-out branch changed while its pull request state was refreshing."),
 	}),
 	differentPullRequest: (): AgentMergeDisableReason => ({
 		log: 'the session became associated with a different pull request',
-		notice: localize('agentMerge.disabled.differentPullRequest', "Agent Merge was turned off because this session became associated with a different pull request."),
+		notice: localize('agentMerge.disabled.differentPullRequest', "Agent Merge was disabled because this session became associated with a different pull request."),
 	}),
 	invalidPullRequestUrl: (): AgentMergeDisableReason => ({
 		log: 'the associated pull request URL is invalid',
-		notice: localize('agentMerge.disabled.invalidPullRequestUrl', "Agent Merge was turned off because the associated pull request URL is invalid."),
+		notice: localize('agentMerge.disabled.invalidPullRequestUrl', "Agent Merge was disabled because the associated pull request URL is invalid."),
 	}),
 	differentGitHubHost: (): AgentMergeDisableReason => ({
 		log: 'the bound pull request belongs to a different GitHub host than the signed-in account',
-		notice: localize('agentMerge.disabled.differentGitHubHost', "Agent Merge was turned off because its pull request belongs to a different GitHub host than the signed-in account."),
+		notice: localize('agentMerge.disabled.differentGitHubHost', "Agent Merge was disabled because its pull request belongs to a different GitHub host than the signed-in account."),
 	}),
 	indeterminate: (minutes: number, reason: string): AgentMergeDisableReason => ({
 		log: `the pull request state could not be evaluated for ${minutes} minutes: ${reason}`,
-		notice: localize('agentMerge.disabled.indeterminate', "Agent Merge was turned off because its pull request state could not be evaluated for {0} minutes.", minutes),
+		notice: localize('agentMerge.disabled.indeterminate', "Agent Merge was disabled because its pull request state could not be evaluated for {0} minutes.", minutes),
 	}),
 	pullRequestClosed: (): AgentMergeDisableReason => ({
 		log: 'the pull request is closed or merged',
-		notice: localize('agentMerge.disabled.pullRequestClosed', "Agent Merge was turned off because its pull request is closed or merged."),
+		notice: localize('agentMerge.disabled.pullRequestClosed', "Agent Merge was disabled because its pull request is closed or merged."),
 	}),
 	repairBudgetExhausted: (): AgentMergeDisableReason => ({
 		log: 'the same pull request blockers remained after repeated repair attempts',
-		notice: localize('agentMerge.disabled.repairBudgetExhausted', "Agent Merge was turned off because the same pull request blockers remained after repeated repair attempts."),
+		notice: localize('agentMerge.disabled.repairBudgetExhausted', "Agent Merge was disabled because the same pull request blockers remained after repeated repair attempts."),
 	}),
-	pullRequestMerged: (): AgentMergeDisableReason => ({
+	pullRequestMerged: (pullRequestNumber: number, pullRequestUrl: string): AgentMergeDisableReason => ({
 		log: 'the pull request was merged',
-		notice: localize('agentMerge.disabled.pullRequestMerged', "Agent Merge merged its pull request and turned itself off."),
+		notice: localize('agentMerge.pullRequestMerged', "Agent Merge merged pull request [#{0}]({1}).", pullRequestNumber, pullRequestUrl),
 	}),
 } as const;
 
@@ -309,8 +309,8 @@ export const agentMergeDisableReasons = {
 export function agentMergeEnabledNotice(target: Pick<AgentMergeTarget, 'branchName' | 'pullRequestUrl'>, configuration: AgentMergeConfiguration): string {
 	const lines = [
 		target.pullRequestUrl
-			? localize('agentMerge.notice.enabled.withPullRequest', "Agent Merge is on for {0} and is monitoring its pull request.", appendEscapedMarkdownInlineCode(target.branchName))
-			: localize('agentMerge.notice.enabled', "Agent Merge is on for {0}. It will wait for a pull request on this branch, then monitor it.", appendEscapedMarkdownInlineCode(target.branchName)),
+			? localize('agentMerge.notice.enabled.withPullRequest', "Agent Merge is enabled for {0} and is monitoring its pull request.", appendEscapedMarkdownInlineCode(target.branchName))
+			: localize('agentMerge.notice.enabled', "Agent Merge is enabled for {0}. It will wait for a pull request on this branch, then monitor it.", appendEscapedMarkdownInlineCode(target.branchName)),
 	];
 	if (configuration.addressReviews) {
 		lines.push(localize('agentMerge.notice.enabled.addressReviews', "It will ask the agent to address new pull request review comments."));
@@ -424,9 +424,9 @@ function agentMergeMergeBehaviorChangedNotice(mergePullRequest: AgentMergeMergeP
 	}
 }
 
-/** The transcript notice shown when the user, rather than the controller, turns Agent Merge off. */
+/** The transcript notice shown when the user, rather than the controller, disables Agent Merge. */
 export function agentMergeDisabledNotice(): string {
-	return localize('agentMerge.notice.disabled', "Agent Merge was turned off for this session.");
+	return localize('agentMerge.notice.disabled', "Agent Merge was disabled for this session.");
 }
 
 /**
@@ -434,7 +434,7 @@ export function agentMergeDisabledNotice(): string {
  * because its own repair work changed the pull request.
  */
 export function agentMergeMergePullRequestDemotedNotice(): string {
-	return localize('agentMerge.notice.mergeDemoted', "Agent Merge changed this pull request, so automatic merging was turned off for this session. Review the changes, then turn it back on if you want it merged automatically.");
+	return localize('agentMerge.notice.mergeDemoted', "Agent Merge changed this pull request, so automatic merging was disabled for this session. Review the changes, then enable it again if you want it merged automatically.");
 }
 
 export function readAgentMergeSessionState(values: Record<string, unknown> | undefined): AgentMergeSessionState | undefined {
@@ -628,16 +628,7 @@ export function evaluateAgentMerge(snapshot: PullRequestSnapshot, configuration:
 		return { kind: 'indeterminate', reason: checks.reason, cause: `checks:${checks.reason}` };
 	}
 
-	const reviewThreads = snapshot.reviewThreads.value!
-		.filter(thread => !thread.isResolved && thread.comments.some(comment => isAgentMergeFeedbackAuthor(comment.author)));
-	const latestReviews = latestReviewsByAuthor(snapshot.submittedReviews.value!);
-	const changesRequested = latestReviews.filter(review => review.state.toUpperCase() === 'CHANGES_REQUESTED' && isAgentMergeFeedbackAuthor(review.author));
-	const watermark = Date.parse(commentWatermark);
-	const newComments = snapshot.topLevelComments.value!.filter(comment =>
-		isAgentMergeFeedbackAuthor(comment.author)
-		&& comment.createdAt !== undefined
-		&& Date.parse(comment.createdAt) > watermark
-	);
+	const { reviewThreads, changesRequested, newComments } = getAgentMergeFeedback(snapshot, commentWatermark);
 	const mergeability = snapshot.mergeability.value!;
 	const behind = mergeability.mergeStateStatus?.toUpperCase() === 'BEHIND';
 	const conflicting = mergeability.mergeable === 'CONFLICTING';
@@ -760,6 +751,49 @@ function latestReviewsByAuthor(reviews: PullRequestSnapshot['submittedReviews'][
 		}
 	}
 	return [...latest.values()];
+}
+
+function getAgentMergeFeedback(snapshot: PullRequestSnapshot, commentWatermark: string) {
+	const reviewThreads = snapshot.reviewThreads.value!
+		.filter(thread => !thread.isResolved && thread.comments.some(comment => isAgentMergeFeedbackAuthor(comment.author)));
+	const latestReviews = latestReviewsByAuthor(snapshot.submittedReviews.value!);
+	const changesRequested = latestReviews.filter(review => review.state.toUpperCase() === 'CHANGES_REQUESTED' && isAgentMergeFeedbackAuthor(review.author));
+	const watermark = Date.parse(commentWatermark);
+	const newComments = snapshot.topLevelComments.value!.filter(comment =>
+		isAgentMergeFeedbackAuthor(comment.author)
+		&& comment.createdAt !== undefined
+		&& Date.parse(comment.createdAt) > watermark
+	);
+	return { reviewThreads, changesRequested, newComments };
+}
+
+/**
+ * Returns whether a draft pull request has no pending or failed required checks
+ * and no actionable review feedback, or `undefined` while that state is incomplete.
+ */
+export function isAgentMergePullRequestReadyForReview(snapshot: PullRequestSnapshot, commentWatermark: string): boolean | undefined {
+	const core = snapshot.core;
+	if (core.status !== 'ready' || !core.complete || !core.value || core.value.state !== 'open' || !core.value.draft) {
+		return undefined;
+	}
+	for (const fragment of conversationFragments) {
+		if (!isCompleteFragment(snapshot, fragment)) {
+			return undefined;
+		}
+	}
+	if (!isCompleteHeadFragment(snapshot, 'checks', core.value.headSha)) {
+		return undefined;
+	}
+	const checks = classifyAgentMergeRequiredChecks(snapshot.checks.value!);
+	if (checks.kind === 'indeterminate') {
+		return undefined;
+	}
+	const { reviewThreads, changesRequested, newComments } = getAgentMergeFeedback(snapshot, commentWatermark);
+	return checks.failed.length === 0
+		&& !checks.pending
+		&& reviewThreads.length === 0
+		&& changesRequested.length === 0
+		&& newComments.length === 0;
 }
 
 export function classifyAgentMergeRequiredChecks(checks: PullRequestChecks): AgentMergeRequiredChecks {

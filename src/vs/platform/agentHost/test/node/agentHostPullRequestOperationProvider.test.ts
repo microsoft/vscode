@@ -10,6 +10,7 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostPullRequestOperationContribution } from '../../node/agentHostPullRequestOperationProvider.js';
+import { AgentHostPullRequestLifecycleOperationHandler } from '../../node/agentHostPullRequestLifecycleOperationHandler.js';
 import type { IAgentHostPullRequestStatus, IAgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
 import { SessionStatus, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
@@ -73,10 +74,10 @@ const pullRequestForBranch: ISessionGitHubState = {
 suite('AgentHostPullRequestOperationContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createContribution(status?: IAgentHostPullRequestStatus, isolation?: 'folder' | 'worktree', onDidChangePullRequestStatus = Event.None, agentMergeEnabled = false): AgentHostPullRequestOperationContribution {
+	function createContribution(status?: IAgentHostPullRequestStatus, isolation?: 'folder' | 'worktree', onDidChangePullRequestStatus = Event.None, agentMergeEnabled = false, sessionAgentMergeEnabled = false): AgentHostPullRequestOperationContribution {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-		if (isolation) {
-			stateManager.createSession({
+		if (isolation || sessionAgentMergeEnabled) {
+			const session = {
 				resource: 'agent:/session',
 				provider: 'copilot',
 				title: 'Session',
@@ -84,10 +85,18 @@ suite('AgentHostPullRequestOperationContribution', () => {
 				createdAt: new Date(1).toISOString(),
 				modifiedAt: new Date(1).toISOString(),
 				workingDirectories: ['file:///repo'],
-			});
+			};
+			if (sessionAgentMergeEnabled) {
+				stateManager.restoreSession(session, []);
+			} else {
+				stateManager.createSession(session);
+			}
 			stateManager.setSessionConfig('agent:/session', {
 				schema: { type: 'object', properties: {} },
-				values: { [SessionConfigKey.Isolation]: isolation },
+				values: {
+					...(isolation ? { [SessionConfigKey.Isolation]: isolation } : {}),
+					...(sessionAgentMergeEnabled ? { [SessionConfigKey.AgentMerge]: { enabled: true } } : {}),
+				},
 			});
 		}
 		const configurationService = new class extends mock<IAgentConfigurationService>() {
@@ -113,12 +122,20 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		assert.deepStrictEqual(operations?.map(op => op.id), ['create-pr', 'create-pr-auto-merge', 'create-pr-auto-squash', 'create-pr-auto-rebase', 'create-draft-pr']);
 	});
 
-	test('advertises Create PR and Enable Agent Merge as the last Create PR option when Agent Merge is enabled', () => {
+	test('advertises Agent Merge variants as the last ready and draft Create PR options when Agent Merge is enabled', () => {
 		const provider = createContribution(undefined, undefined, Event.None, true);
 
 		const operations = provider.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges, changesetKind: ChangesetKind.Session, changesetUri: '' });
 
-		assert.deepStrictEqual(operations?.map(op => op.id), ['create-pr', 'create-pr-auto-merge', 'create-pr-auto-squash', 'create-pr-auto-rebase', 'create-pr-agent-merge', 'create-draft-pr']);
+		assert.deepStrictEqual(operations?.map(({ id, label }) => ({ id, label })), [
+			{ id: 'create-pr', label: 'Create PR' },
+			{ id: 'create-pr-auto-merge', label: 'Create PR (Auto-Merge)' },
+			{ id: 'create-pr-auto-squash', label: 'Create PR (Auto-Squash)' },
+			{ id: 'create-pr-auto-rebase', label: 'Create PR (Auto-Rebase)' },
+			{ id: 'create-pr-agent-merge', label: 'Create PR & Agent Merge' },
+			{ id: 'create-draft-pr', label: 'Create Draft PR' },
+			{ id: 'create-draft-pr-agent-merge', label: 'Create Draft PR & Agent Merge' },
+		]);
 	});
 
 	test('does not advertise PR operations for folder sessions with outgoing changes', () => {
@@ -158,7 +175,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 	});
 
 	test('advertises lifecycle operations for a pull request on the current branch', () => {
-		const operationsFor = (status?: IAgentHostPullRequestStatus) => createContribution(status)
+		const operationsFor = (status?: IAgentHostPullRequestStatus, agentMergeEnabled = false) => createContribution(status, undefined, Event.None, agentMergeEnabled, agentMergeEnabled)
 			.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges, gitHubState: pullRequestForBranch, changesetKind: ChangesetKind.Session, changesetUri: '' })
 			?.map(op => op.id);
 
@@ -166,6 +183,9 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			unresolved: operationsFor(undefined),
 			merged: operationsFor(openPullRequest({ state: 'merged' })),
 			draft: operationsFor(openPullRequest({ draft: true, viewerCanEnableAutoMerge: true })),
+			agentMergeDraftWaiting: operationsFor(openPullRequest({ draft: true, agentMergeReadyForReview: false }), true),
+			agentMergeDraftUnknown: operationsFor(openPullRequest({ draft: true }), true),
+			agentMergeDraftReady: operationsFor(openPullRequest({ draft: true, agentMergeReadyForReview: true }), true),
 			mergeable: operationsFor(openPullRequest({ mergeReady: true })),
 			blocked: operationsFor(openPullRequest({ viewerCanEnableAutoMerge: true })),
 			autoMerging: operationsFor(openPullRequest({ autoMergeEnabled: true })),
@@ -174,11 +194,24 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			unresolved: undefined,
 			merged: undefined,
 			draft: ['pr-mark-ready', 'pr-enable-auto-merge'],
+			agentMergeDraftWaiting: ['pr-mark-ready-with-agent-merge'],
+			agentMergeDraftUnknown: ['pr-mark-ready-with-agent-merge'],
+			agentMergeDraftReady: ['pr-mark-ready'],
 			mergeable: ['pr-merge'],
 			blocked: ['pr-enable-auto-merge'],
 			autoMerging: ['pr-disable-auto-merge'],
 			noAutoMerge: undefined,
 		});
+	});
+
+	test('uses the same label for the Agent Merge Mark Ready operation', () => {
+		const operations = createContribution(openPullRequest({ draft: true, agentMergeReadyForReview: false }), undefined, Event.None, true, true)
+			.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges, gitHubState: pullRequestForBranch, changesetKind: ChangesetKind.Session, changesetUri: '' });
+
+		assert.deepStrictEqual(operations?.map(({ id, label }) => ({ id, label })), [{
+			id: AgentHostPullRequestLifecycleOperationHandler.OPERATION_MARK_READY_WITH_AGENT_MERGE,
+			label: 'Mark Ready',
+		}]);
 	});
 
 });
