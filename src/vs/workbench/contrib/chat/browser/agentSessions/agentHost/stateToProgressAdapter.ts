@@ -18,7 +18,7 @@ import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../..
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
-import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationId } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { SessionServerToolName } from '../../../../../../platform/agentHost/common/serverToolNames.js';
@@ -34,9 +34,9 @@ import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/f
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { ConfigureAutomationToolReferenceName } from '../../../common/automations/automationService.js';
-import { formatCopilotCredits, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatPlanReviewResult, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionCreatedData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
+import { formatCopilotCreditsLabel, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatPlanReviewResult, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionCreatedData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
-import { type IQuotaSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { type IQuotaSnapshot, type IRateLimitSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
@@ -543,6 +543,11 @@ export interface TurnModelLookup {
 	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined): string | undefined;
 	/** Returns the Auto model routing part carried by this usage report, if any. */
 	toAutoModeResolution?(usage: UsageInfo | undefined): IChatAutoModeResolutionPart | undefined;
+	/**
+	 * Returns the display name of the model a turn bills to, reading Auto's pick
+	 * when it routed and folding back to "Auto" while explainability is hidden.
+	 */
+	toBilledModelDisplayName?(usage: UsageInfo | undefined): string | undefined;
 }
 
 /** Minimal model metadata needed to render a turn's response footer (kept small for unit testing). */
@@ -568,11 +573,7 @@ export function formatTurnResponseDetails(
 	const displayName = formatTurnModelName(model, billedModelId);
 	const credits = usageInfoToChatUsage(usage)?.copilotCredits;
 	if (credits !== undefined) {
-		const formatted = formatCopilotCredits(credits);
-		const creditDetails = formatted === '1'
-			? localize('agentHost.responseDetails.credit', "{0} credit", formatted)
-			: localize('agentHost.responseDetails.credits', "{0} credits", formatted);
-		return [displayName, creditDetails].join(' • ');
+		return [displayName, formatCopilotCreditsLabel(credits)].join(' • ');
 	}
 	return [displayName, model.pricing].filter(Boolean).join(' · ');
 }
@@ -580,19 +581,12 @@ export function formatTurnResponseDetails(
 /** Converts an agent-host Auto routing result into the shared chat UI part. */
 export function usageInfoToAutoModeResolution(usage: UsageInfo | undefined, resolvedModelName: string | undefined): IChatAutoModeResolutionPart | undefined {
 	const resolution = readUsageInfoMeta(usage).autoModeResolved;
-	if (!resolution || typeof resolution.confidence !== 'number' || !Number.isFinite(resolution.confidence)) {
-		return undefined;
-	}
-	const predictedLabel = resolution.predictedLabel;
-	if (predictedLabel !== 'needs_reasoning' && predictedLabel !== 'no_reasoning' && predictedLabel !== 'fallback') {
+	if (!resolution) {
 		return undefined;
 	}
 	return {
 		kind: 'autoModeResolution',
-		resolvedModel: resolution.chosenModel,
-		resolvedModelName: resolvedModelName ?? resolution.chosenModel,
-		predictedLabel,
-		confidence: Math.max(0, Math.min(1, resolution.confidence)),
+		resolved: { id: resolution.chosenModel, name: resolvedModelName ?? resolution.chosenModel },
 	};
 }
 
@@ -781,6 +775,10 @@ export interface IAgentHostQuotaUpdate {
 	readonly premiumChat?: IQuotaSnapshot;
 	readonly additionalUsageEnabled?: boolean;
 	readonly additionalUsageCount?: number;
+	readonly additionalUsageEntitlement?: number;
+	readonly usageBasedBilling?: boolean;
+	readonly sessionRateLimit?: IRateLimitSnapshot;
+	readonly weeklyRateLimit?: IRateLimitSnapshot;
 	readonly resetDate?: string;
 }
 
@@ -810,9 +808,21 @@ function mapAccountQuotaSnapshot(snapshot: AccountQuotaSnapshot): IQuotaSnapshot
 	return {
 		percentRemaining: Math.min(100, Math.max(0, snapshot.remainingPercentage)),
 		unlimited,
+		usageBasedBilling: snapshot.tokenBasedBilling,
 		entitlement: !unlimited && entitlement !== undefined && entitlement >= 0 ? entitlement : undefined,
 		quotaRemaining: !unlimited && entitlement !== undefined && used !== undefined ? Math.max(0, entitlement - used) : undefined,
 		resetAt: Number.isFinite(resetAtMs) ? Math.floor(resetAtMs / 1000) : undefined,
+	};
+}
+
+function mapRateLimitSnapshot(snapshot: AccountQuotaSnapshot | undefined): IRateLimitSnapshot | undefined {
+	if (!snapshot || typeof snapshot.remainingPercentage !== 'number') {
+		return undefined;
+	}
+	return {
+		percentRemaining: Math.min(100, Math.max(0, snapshot.remainingPercentage)),
+		unlimited: snapshot.isUnlimitedEntitlement ?? false,
+		resetDate: snapshot.resetDate,
 	};
 }
 
@@ -831,7 +841,8 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
 	const update: Mutable<IAgentHostQuotaUpdate> = {};
 	let hasAny = false;
 
-	const chat = snapshots['chat'] && mapAccountQuotaSnapshot(snapshots['chat']);
+	const chatRaw = snapshots['chat'];
+	const chat = chatRaw && mapAccountQuotaSnapshot(chatRaw);
 	if (chat) {
 		update.chat = chat;
 		hasAny = true;
@@ -841,7 +852,9 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
 		update.completions = completions;
 		hasAny = true;
 	}
-	const premiumRaw = snapshots['premium_interactions'];
+	// The backend reports the premium allowance as `premium_models`, or `premium_interactions` on
+	// older backends. Missing the alias left agent-host quota stale, so no banners. #332787
+	const premiumRaw = snapshots['premium_models'] ?? snapshots['premium_interactions'];
 	const premiumChat = premiumRaw && mapAccountQuotaSnapshot(premiumRaw);
 	if (premiumChat) {
 		update.premiumChat = premiumChat;
@@ -850,10 +863,32 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
 	if (premiumRaw) {
 		update.additionalUsageEnabled = premiumRaw.overageAllowedWithExhaustedQuota ?? false;
 		update.additionalUsageCount = typeof premiumRaw.overage === 'number' ? premiumRaw.overage : 0;
+		if (typeof premiumRaw.overageEntitlement === 'number') {
+			update.additionalUsageEntitlement = premiumRaw.overageEntitlement;
+		}
 		hasAny = true;
 	}
 
-	const resetDate = premiumRaw?.resetDate ?? snapshots['chat']?.resetDate;
+	// Only set when the backend reported it, so we don't clear what the entitlement response knows.
+	const usageBasedBilling = premiumRaw?.tokenBasedBilling ?? chatRaw?.tokenBasedBilling;
+	if (usageBasedBilling !== undefined) {
+		update.usageBasedBilling = usageBasedBilling;
+		hasAny = true;
+	}
+
+	// Rate limits ride along on the same event but are tracked separately from account quotas.
+	const sessionRateLimit = mapRateLimitSnapshot(snapshots['session']);
+	if (sessionRateLimit) {
+		update.sessionRateLimit = sessionRateLimit;
+		hasAny = true;
+	}
+	const weeklyRateLimit = mapRateLimitSnapshot(snapshots['weekly']);
+	if (weeklyRateLimit) {
+		update.weeklyRateLimit = weeklyRateLimit;
+		hasAny = true;
+	}
+
+	const resetDate = premiumRaw?.resetDate ?? chatRaw?.resetDate;
 	if (resetDate) {
 		update.resetDate = resetDate;
 	}
@@ -869,7 +904,7 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
  * The `lookup` callback is responsible for any session-level fallback (e.g.
  * `summary.model?.id` when usage hasn't reported a model yet).
  */
-export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), logicalSessionScheme: string = backendSession.scheme): IChatSessionHistoryItem[] {
+export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), logicalSessionScheme: string = backendSession.scheme, errorDetailsProvider?: (turn: Turn) => IChatResponseErrorDetails | undefined): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
@@ -904,8 +939,9 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 
 		// Response parts — iterate the unified responseParts array
 		const parts: IChatProgress[] = [];
+		// History is settled, so an unresolved row would never flip to a routed one.
 		const autoModeResolution = lookup?.toAutoModeResolution?.(turn.usage);
-		if (autoModeResolution) {
+		if (autoModeResolution?.resolved) {
 			parts.push(autoModeResolution);
 		}
 
@@ -953,6 +989,8 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 					parts.push(inputRequestResponsePartToProgress(rp, connectionAuthority, resourceUris));
 					break;
 				}
+				case ResponsePartKind.Error:
+					break;
 			}
 		}
 
@@ -963,7 +1001,8 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		let errorDetails: IChatResponseErrorDetails | undefined;
 		const turnError = getTurnError(turn);
 		if (turnError) {
-			errorDetails = getChatErrorDetailsFromMeta(turnError, errorContext)
+			errorDetails = errorDetailsProvider?.(turn)
+				?? getChatErrorDetailsFromMeta(turnError, errorContext)
 				?? { message: `Error: (${turnError.errorType}) ${turnError.message}` };
 		}
 
@@ -1672,11 +1711,12 @@ function buildSessionCreatedToolData(tc: ToolCallState): IChatSessionCreatedData
 	if (!openLink || !backend) {
 		return undefined;
 	}
-	// A chat-scoped link (create_chat, or send_message targeting a specific chat)
-	// shows the conversation icon; a session-scoped link shows the agent icon.
-	const isChat = isCreateChatTool(tc.toolName) || (isSend && !!parseOpenSessionLinkChatId(openLink));
-	const label = createSessionTitleFromArgs(getInlineToolInput(tc.toolInput)) ?? (backend.path.replace(/^\//, '') || backend.toString());
-	return { kind: 'sessionCreated', openLink, label, isChat };
+	const fullTitle = createSessionTitleFromArgs(getInlineToolInput(tc.toolInput)) ?? (backend.path.replace(/^\//, '') || backend.toString());
+	const label = fullTitle.length > 60 ? `${fullTitle.slice(0, 57)}…` : fullTitle;
+	// A chat-scoped link shows the conversation icon; a session-scoped link shows the agent icon.
+	const isChat = isCreateChatTool(tc.toolName)
+		|| ((isCreateSessionTool(tc.toolName) || isSend) && !!parseOpenSessionLinkChatId(openLink));
+	return { kind: 'sessionCreated', openLink, label, fullTitle, ...(isChat ? { isChat: true } : {}) };
 }
 
 function buildGeneratedImageToolData(tc: ToolCallState): IChatGeneratedImageData | undefined {
@@ -1733,7 +1773,7 @@ function createSessionTitleFromArgs(toolInput: string | undefined): string | und
 		if (!firstLine) {
 			return undefined;
 		}
-		return firstLine.length > 60 ? `${firstLine.slice(0, 57)}…` : firstLine;
+		return firstLine;
 	} catch {
 		return undefined;
 	}
@@ -1887,8 +1927,8 @@ function fileEditToExternalEdit(edit: FileEdit, undoStopId: string, connectionAu
 		uri: toAgentHostUri(normalized.resource, connectionAuthority),
 		editKind: normalized.kind as ChatExternalEditKind,
 		originalUri: normalized.kind === FileEditKind.Rename && normalized.beforeUri ? toAgentHostUri(normalized.beforeUri, connectionAuthority) : undefined,
-		beforeContentUri: normalized.beforeContentUri ? toAgentHostUri(normalized.beforeContentUri, connectionAuthority) : undefined,
-		afterContentUri: normalized.afterContentUri ? toAgentHostUri(normalized.afterContentUri, connectionAuthority) : undefined,
+		beforeContentUri: normalized.beforeContentUri ? toAgentHostContentUri(normalized.beforeContentUri, connectionAuthority) : undefined,
+		afterContentUri: normalized.afterContentUri ? toAgentHostContentUri(normalized.afterContentUri, connectionAuthority) : undefined,
 		diff,
 		undoStopId,
 	};
@@ -2086,7 +2126,7 @@ function normalizeFileUriSelection(uri: URI, href: string): URI {
 }
 
 /** Wraps an absolute path or internal URI target for the owning Agent Host connection. */
-export function rewriteAgentHostLinkTarget(href: string, connectionAuthority: string): string {
+export function rewriteAgentHostLinkTarget(href: string, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): string {
 	let parsed = parseAbsoluteFileLinkTarget(href);
 	if (!parsed) {
 		try {
@@ -2106,7 +2146,10 @@ export function rewriteAgentHostLinkTarget(href: string, connectionAuthority: st
 
 	let agentHostUri: URI;
 	try {
-		agentHostUri = toAgentHostUri(parsed, connectionAuthority);
+		agentHostUri = resourceUris.fromAgentHost(parsed);
+		if (parsed.scheme !== Schemas.file && isEqual(agentHostUri, parsed)) {
+			agentHostUri = toAgentHostUri(parsed, connectionAuthority);
+		}
 	} catch {
 		return href;
 	}
@@ -2263,6 +2306,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 			};
 		} else if (pendingEdits?.length) {
 			const wrap = (uri: URI) => connectionAuthority ? toAgentHostUri(uri, connectionAuthority) : uri;
+			const wrapContent = (uri: URI) => connectionAuthority ? toAgentHostContentUri(uri, connectionAuthority) : uri;
 			const mapped = mapFileEdits(pendingEdits, tc.toolCallId);
 			toolSpecificData = {
 				kind: 'modifiedFilesConfirmation',
@@ -2270,8 +2314,8 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 				modifiedFiles: mapped.map(edit => {
 					const resource = wrap(edit.resource);
 					const originalResource = edit.originalResource ? wrap(edit.originalResource) : undefined;
-					const modifiedContent = edit.afterContentUri ? wrap(edit.afterContentUri) : undefined;
-					const originalContent = edit.beforeContentUri ? wrap(edit.beforeContentUri) : undefined;
+					const modifiedContent = edit.afterContentUri ? wrapContent(edit.afterContentUri) : undefined;
+					const originalContent = edit.beforeContentUri ? wrapContent(edit.beforeContentUri) : undefined;
 					return {
 						uri: resource,
 						editKind: edit.kind as ChatExternalEditKind,
@@ -2716,7 +2760,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	const hasMcpAppData = invocation.toolSpecificData?.kind === 'input' && !!invocation.toolSpecificData.mcpAppData;
 	// The generic raw input/output details (the expandable JSON blob) are
 	// suppressed for tool kinds that render their own bespoke UI — the subagent
-	// card and the `sessionCreated` "Open Session" pill — so we don't duplicate
+	// card and the `sessionCreated` linked session title — so we don't duplicate
 	// the result underneath them. Search results and separately-rendered file
 	// edits are likewise excluded.
 	const resultDetails = !isTerminal

@@ -10,7 +10,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgentChatContext, type IAgentDiscoveredChat } from '../../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgentChatContext, type IAgentDiscoveredChat } from '../../../common/agent.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type McpServerCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { buildDefaultChatUri, parseRequiredSessionUriFromChatUri } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
@@ -225,7 +225,7 @@ suite('CodexAgent', () => {
 		});
 	});
 
-	test('prefers transient host context over conversation URI shape', () => {
+	test('does not treat a transient host configuration scope as a chat backing', () => {
 		const session = AgentSession.uri('codex', 'session-1');
 
 		const result = resolveConversationSession(emptyHarness(), URI.parse('untitled:conversation'), {
@@ -233,7 +233,7 @@ suite('CodexAgent', () => {
 			configurationResource: session,
 		});
 
-		assert.strictEqual(result?.toString(), session.toString());
+		assert.strictEqual(result, undefined);
 	});
 
 	test('resolves a bound conversation URI from the recorded session binding', () => {
@@ -249,7 +249,7 @@ suite('CodexAgent', () => {
 		assert.strictEqual(result?.toString(), session.toString());
 	});
 
-	test('resolution has exactly two sources: a recorded binding or host context', () => {
+	test('resolution uses only a recorded binding', () => {
 		const session = AgentSession.uri('codex', 'session-3');
 		const defaultChat = URI.parse(buildDefaultChatUri(session));
 
@@ -257,15 +257,16 @@ suite('CodexAgent', () => {
 			// The legacy "a codex session URI addresses its own chat" adapter is
 			// gone: an unbound session URI is not self-resolving any more.
 			unboundSessionUri: resolveConversationSession(emptyHarness(), session)?.toString(),
-			// Nor is a chat URI recognized by shape — an unbound default chat
-			// only resolves once the host supplies its owning session.
+			// Nor is a chat URI recognized by shape or by the configuration scope
+			// supplied in host context. That scope does not identify a peer's
+			// independent backing thread.
 			unboundDefaultChat: resolveConversationSession(emptyHarness(), defaultChat)?.toString(),
 			withHostContext: resolveConversationSession(emptyHarness(), defaultChat, { configurationResource: session, resource: defaultChat })?.toString(),
 			foreignUri: resolveConversationSession(emptyHarness(), URI.parse('untitled:unknown'))?.toString(),
 		}, {
 			unboundSessionUri: undefined,
 			unboundDefaultChat: undefined,
-			withHostContext: session.toString(),
+			withHostContext: undefined,
 			foreignUri: undefined,
 		});
 	});
@@ -384,6 +385,9 @@ suite('CodexAgent', () => {
 		const discoveredChats: number[] = [];
 		const listener = onDidDiscoverChats.event(chats => discoveredChats.push(chats.length));
 		type DiscoveryHarness = {
+			_activated: boolean;
+			_isShuttingDown: boolean;
+			_store: { isDisposed: boolean };
 			_codexChatDiscovery: Promise<void> | undefined;
 			_isSdkResolvableWithoutDownload(): Promise<boolean>;
 			_emitCodexChats(): Promise<boolean>;
@@ -396,6 +400,9 @@ suite('CodexAgent', () => {
 		};
 		let sdkIsLocal = false;
 		const harness: DiscoveryHarness = {
+			_activated: true,
+			_isShuttingDown: false,
+			_store: { isDisposed: false },
 			_logService: { warn: () => { }, info: () => { } },
 			_codexChatDiscovery: undefined,
 			_isSdkResolvableWithoutDownload: async () => sdkIsLocal,
@@ -435,16 +442,18 @@ suite('CodexAgent', () => {
 		];
 		const listChatsToMigrate = (CodexAgent.prototype as unknown as {
 			listChatsToMigrate(this: {
+				_activated: boolean;
 				_isSdkResolvableWithoutDownload(): Promise<boolean>;
-				_listCodexChats(): Promise<typeof chats>;
+				_listCodexChats(): Promise<typeof chats | undefined>;
 				_isKnownCodexChat(chat: (typeof chats)[number]): Promise<boolean>;
 				_logService: { info(message: string): void };
-			}): Promise<typeof chats | undefined>;
+			}): Promise<typeof chats | undefined | typeof AgentChatMigrationDeferred>;
 		}).listChatsToMigrate;
 		// Deferred while the SDK is absent: the catalog it reads lives inside one,
 		// and fetching it is the user's call.
 		let sdkIsLocal = false;
 		const harness = {
+			_activated: true,
 			_logService: { info: () => { } },
 			_isSdkResolvableWithoutDownload: async () => sdkIsLocal,
 			_listCodexChats: async () => chats,
@@ -454,15 +463,23 @@ suite('CodexAgent', () => {
 			},
 		};
 
+		const inactive = await listChatsToMigrate.call({ ...harness, _activated: false });
 		const cold = await listChatsToMigrate.call(harness);
 		sdkIsLocal = true;
 		const result = await listChatsToMigrate.call(harness);
 		const empty = await listChatsToMigrate.call({ ...harness, _listCodexChats: async () => [], _isKnownCodexChat: async () => false });
+		const unavailable = await listChatsToMigrate.call({ ...harness, _listCodexChats: async () => undefined });
 
-		assert.deepStrictEqual({ cold, result, empty }, { cold: undefined, result: chats.slice(0, 2), empty: [] });
+		assert.deepStrictEqual({ inactive, cold, result, empty, unavailable }, {
+			inactive: AgentChatMigrationDeferred,
+			cold: AgentChatMigrationDeferred,
+			result: chats.slice(0, 2),
+			empty: [],
+			unavailable: undefined,
+		});
 	});
 
-	test('native discovery emits only unknown Codex chats as external', async () => {
+	test('activated discovery classifies known Codex chats as internal and unknown chats as external', async () => {
 		const knownInternal = AgentSession.uri('codex', 'known-internal');
 		const knownExternal = AgentSession.uri('codex', 'known-external');
 		const unknownExternal = AgentSession.uri('codex', 'unknown-external');
@@ -474,14 +491,18 @@ suite('CodexAgent', () => {
 		const emitted: unknown[] = [];
 		const emitCodexChats = (CodexAgent.prototype as unknown as {
 			_emitCodexChats(this: {
+				_isShuttingDown: boolean;
+				_store: { isDisposed: boolean };
 				_listCodexChats(): Promise<typeof chats>;
 				_isKnownCodexChat(chat: (typeof chats)[number]): Promise<boolean>;
 				_onDidDiscoverChats: { fire(chats: readonly unknown[]): void };
 				_logService: { warn(message: string): void };
-			}): Promise<void>;
+			}): Promise<boolean>;
 		})._emitCodexChats;
 
 		await emitCodexChats.call({
+			_isShuttingDown: false,
+			_store: { isDisposed: false },
 			_listCodexChats: async () => chats,
 			_isKnownCodexChat: async chat => {
 				const id = AgentSession.id(URI.parse(parseRequiredSessionUriFromChatUri(chat.chat)));
@@ -491,6 +512,10 @@ suite('CodexAgent', () => {
 			_logService: { warn: () => { } },
 		});
 
-		assert.deepStrictEqual(emitted, [{ ...chats[2], external: true }]);
+		assert.deepStrictEqual(emitted, [
+			{ ...chats[0], external: false },
+			{ ...chats[1], external: false },
+			{ ...chats[2], external: true },
+		]);
 	});
 });

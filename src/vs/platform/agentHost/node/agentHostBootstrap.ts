@@ -36,7 +36,6 @@ import { SessionDataService } from './sessionDataService.js';
 import { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
-import { AgentHostProviderLocator, IAgentHostProviderLocator } from './agentHostProviderLocator.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from './localCommands/localChatCommand.js';
@@ -163,7 +162,6 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			byok: options.byok,
 		});
 		instantiationService = new InstantiationService(services, /*strict*/ true);
-		services.set(IAgentHostProviderLocator, new AgentHostProviderLocator(session => foundation.callbackAdapter.value.getAgent(typeof session === 'string' ? session : session.toString())));
 		const octoKitService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostOctoKitService));
 		const copilotApiService = instantiationService.invokeFunction(accessor => accessor.get(ICopilotApiService));
 		services.set(IAgentHostSessionTitleController, infrastructure.add(instantiationService.createInstance(AgentHostSessionTitleController, foundation.stateManager, {
@@ -195,6 +193,9 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		));
 		agentService = agentServiceComposition.agentService;
 		services.set(IAgentService, agentService);
+		// Freeze the migrate-legacy gate at host startup, before a setting toggled
+		// without a full restart can be live-propagated into the shared host.
+		agentService.primeMigrateLegacyGate();
 		agentServiceComposition.setContributions(instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService!)));
 
 		const agentSdkDownloader = instantiationService.invokeFunction(accessor => accessor.get(IAgentSdkDownloader));

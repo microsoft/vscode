@@ -58,7 +58,7 @@
 }
 
 .session-changes-editor-header-left .action-label {
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	align-items: center;
 	min-width: 0;
 	max-width: 100%;
@@ -95,7 +95,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	padding: 3px;
 	border-radius: var(--vscode-cornerRadius-small);
 }
@@ -141,7 +141,7 @@
 	gap: var(--vscode-spacing-size40);
 	min-width: 0;
 	max-width: 100%;
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 }
 
 .changes-picker-action-rich .action-label > span:not(.codicon) {
@@ -181,7 +181,7 @@
 	height: 26px;
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
 	box-sizing: border-box;
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	line-height: 18px;
 	white-space: nowrap;
 }
@@ -289,8 +289,10 @@
  * 16px; height: 16px }` clamps every codicon — including the button elements
  * themselves (which carry the `codicon` class), squashing the secondary icon
  * buttons and detaching the split-button chevron. Un-clamp them (higher
- * specificity than the base rule) so the buttons size to their own content. */
-.monaco-action-bar .action-item.changes-actions-bar .codicon {
+ * specificity than the base rule) so the buttons size to their own content.
+ * A button's leading icon is exempt: it shares its box with the spinner that
+ * replaces it while the action runs, so the button bar owns its sizing. */
+.monaco-action-bar .action-item.changes-actions-bar .codicon:not(.monaco-button-leading-icon) {
 	width: auto;
 	height: 20px;
 	flex-shrink: 0;

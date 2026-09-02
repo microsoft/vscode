@@ -39,7 +39,6 @@ import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/service
 import { PANEL_SECTION_BORDER } from '../../../../../workbench/common/theme.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../../../../browser/menus.js';
 import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobileSessionFilterChips.js';
@@ -53,6 +52,7 @@ const GROUPING_STORAGE_KEY = 'sessionsViewPane.grouping';
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
 const CUSTOMIZATIONS_MIN_HEIGHT = 129;
 const SESSIONS_SECTION_MIN_HEIGHT = 120;
+const SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH = 8;
 
 export const SessionsViewFilterSubMenu = new MenuId('SessionsViewPaneFilterSubMenu');
 export const SessionsViewFilterOptionsSubMenu = new MenuId('SessionsViewPaneFilterOptionsSubMenu');
@@ -96,7 +96,6 @@ export class SessionsView extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
-		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@IHostService private readonly hostService: IHostService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -215,10 +214,10 @@ export class SessionsView extends ViewPane {
 				const mainChat = session.mainChat.get();
 				if (sideBySide) {
 					// Alt-click: open the session to the right of the last visible session in the grid.
-					this.sessionsService.openSessionToSide(session, { preserveFocus, chatResource: mainChat.resource }).then(onOpened).catch(onUnexpectedError);
+					this.sessionsService.openSessionToSide(session, { preserveFocus, chatResource: mainChat.resource, source: 'sessionsList' }).then(onOpened).catch(onUnexpectedError);
 					return;
 				}
-				this.sessionsService.openChat(session, mainChat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
+				this.sessionsService.openChat(session, mainChat.resource, { preserveFocus, source: 'sessionsList' }).then(onOpened).catch(onUnexpectedError);
 			},
 			canOpenSession: session => this.sessionsService.canOpenSession(session),
 			onChatOpen: (session, chat, preserveFocus, sideBySide) => {
@@ -228,13 +227,7 @@ export class SessionsView extends ViewPane {
 					}
 				};
 				if (sideBySide) {
-					this.sessionsService.showSession(session.resource, { preserveFocus });
-					const sessionView = this.sessionsPartService.getSessionView(session.sessionId);
-					if (!sessionView) {
-						onUnexpectedError(new Error(`Unable to open chat to the side because session view '${session.sessionId}' is not mounted`));
-						return;
-					}
-					sessionView.openChatToSide(chat.resource).then(onOpened).catch(onUnexpectedError);
+					this.sessionsService.openChatToSide(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
 					return;
 				}
 				this.sessionsService.openChat(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
@@ -648,6 +641,9 @@ export class SessionsView extends ViewPane {
 
 		this.headerLabel.style.display = '';
 		this.headerActions.style.display = '';
+		if (this.headerLabel.clientWidth < SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH) {
+			this.headerLabel.style.display = 'none';
+		}
 	}
 
 	/**

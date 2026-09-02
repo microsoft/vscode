@@ -76,7 +76,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 
 		dispatchTurn(context.client, sessionUri, 'turn-sa',
 			`Use the \`${config.subagentToolNames[0]}\` tool to spawn a subagent to list the files in the current working directory. ` +
-			'The subagent should call a single read-only tool (e.g. `view` or shell with `ls`) to enumerate the directory. ' +
+			'The subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to enumerate the directory; do not run a shell command. ' +
 			'Do not enumerate the directory yourself — delegate to the subagent.',
 			1);
 
@@ -103,8 +103,9 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		const subagentSnap = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChatUri });
 		const subagentState = subagentSnap.snapshot?.state as ChatState | undefined;
 		const subagentFirstTurn = subagentState?.turns?.[0] ?? subagentState?.activeTurn;
-		assert.ok(
-			subagentFirstTurn?.message.text && subagentFirstTurn.message.text.includes('List the files'),
+		assert.match(
+			subagentFirstTurn?.message.text ?? '',
+			/\blist (?:the |its )?files\b/i,
 			`subagent chat's opening request should render the task prompt, got: ${JSON.stringify(subagentFirstTurn?.message.text)}`,
 		);
 

@@ -6,11 +6,13 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
@@ -105,6 +107,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
 		@ILogService private readonly _logService: ILogService,
 		@IPathService private readonly _pathService: IPathService,
+		@IFileService private readonly _fileService: IFileService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 	) {
 		super();
@@ -397,6 +400,13 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		try {
 			const generation = this._getTerminalOperationGeneration(session.sessionId);
 			const info = getSessionTerminalInfo(session);
+			// A legacy session's worktree checkout may not be materialized yet (it is
+			// recreated lazily on the first send). Launching a local terminal into a
+			// missing cwd fails with "starting directory does not exist", so defer
+			// until the directory exists; a later session refresh retries.
+			if (info?.cwd && !info.agentHostCwd && info.cwd.scheme === Schemas.file && !(await this._fileService.exists(info.cwd))) {
+				return;
+			}
 			const targetPath = info?.cwd ?? await this._pathService.userHome();
 			const targetKey = targetPath.fsPath.toLowerCase();
 			if (this._activeKey === targetKey && this._activeSessionId === session.sessionId) {

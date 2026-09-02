@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
@@ -20,6 +21,40 @@ suite('AgentHostLanguageModelProvider', () => {
 	function createProvider(): AgentHostLanguageModelProvider {
 		return store.add(new AgentHostLanguageModelProvider('agent-host-copilotcli', 'copilotcli'));
 	}
+
+	test('groups the Auto routing-profile picker where thinking level renders for other models', async () => {
+		const provider = createProvider();
+		provider.updateModels([
+			{
+				...makeModel('auto'),
+				configSchema: {
+					type: 'object',
+					properties: { tier: { type: 'string', title: 'Optimize for', enum: ['efficiency', 'balance', 'intelligence'], default: 'balance' } },
+				},
+			},
+			{
+				...makeModel('gpt-5'),
+				configSchema: {
+					type: 'object',
+					properties: {
+						thinkingLevel: { type: 'string', title: 'Thinking Level', enum: ['low', 'high'] },
+						contextSize: { type: 'number', title: 'Context Size', enum: [200_000, 1_000_000] },
+						somethingElse: { type: 'string', title: 'Something Else' },
+					},
+				},
+			},
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(
+			infos.map(info => Object.fromEntries(Object.entries(info.metadata.configurationSchema?.properties ?? {}).map(([key, property]) => [key, property.group]))),
+			[
+				// The Auto model has no thinking level, so its profile takes that slot.
+				{ tier: 'navigation' },
+				{ thinkingLevel: 'navigation', contextSize: 'tokens', somethingElse: undefined },
+			]
+		);
+	});
 
 	test('renders the auto-mode discount as the Auto model detail (and a tooltip)', async () => {
 		const provider = createProvider();
@@ -100,6 +135,28 @@ suite('AgentHostLanguageModelProvider', () => {
 				promo: { id: 'featured', discountPercent: 0, message: 'Now available' },
 			},
 		]);
+	});
+
+	test('carries model notices and flags row warnings', async () => {
+		const provider = createProvider();
+		provider.updateModels([makeModel('gpt-5', {
+			warningText: { model_degraded: 'GPT-5 is currently degraded.' },
+			infoText: { model_relocated: 'GPT-5 now serves from a new region.' },
+			rowWarning: 'GPT-5 is currently degraded.',
+		})]);
+
+		const metadata = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0].metadata;
+		assert.deepStrictEqual({
+			tooltip: metadata.tooltip,
+			statusIcon: metadata.statusIcon?.id,
+			warningText: metadata.warningText,
+			infoText: metadata.infoText,
+		}, {
+			tooltip: 'GPT-5 is currently degraded.',
+			statusIcon: Codicon.warning.id,
+			warningText: { model_degraded: 'GPT-5 is currently degraded.' },
+			infoText: { model_relocated: 'GPT-5 now serves from a new region.' },
+		});
 	});
 
 	test('derives the picker group from the model-id prefix, not the harness provider', async () => {

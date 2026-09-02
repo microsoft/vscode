@@ -252,7 +252,8 @@ export class AgentSessionResidency extends Disposable {
 	}
 
 	private _canContinueRelease(sessionKey: string, expectedRecency: URI | undefined): boolean {
-		return this._isReleaseRequired(sessionKey, expectedRecency)
+		return !this._store.isDisposed
+			&& this._isReleaseRequired(sessionKey, expectedRecency)
 			&& !this._sessionsBeingDisposed.has(sessionKey)
 			&& !this._subscriptions.hasSessionSubscribers(URI.parse(sessionKey))
 			&& !this._delegate.isReleaseBlocked(URI.parse(sessionKey))
@@ -262,7 +263,8 @@ export class AgentSessionResidency extends Disposable {
 
 	private _scheduleRetryIfNeeded(session: URI, expectedRecency: URI | undefined): void {
 		const sessionKey = session.toString();
-		if (!this._isReleaseRequired(sessionKey, expectedRecency)
+		if (this._store.isDisposed
+			|| !this._isReleaseRequired(sessionKey, expectedRecency)
 			|| this._sessionsBeingDisposed.has(sessionKey)
 			|| this._subscriptions.hasSessionSubscribers(session)) {
 			return;

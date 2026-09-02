@@ -4,18 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { raceCancellationError } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
+import { Event } from '../../../../../base/common/event.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, constObservable, IObservable } from '../../../../../base/common/observable.js';
-import { basename, dirname } from '../../../../../base/common/resources.js';
+import { basename, dirname, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { LOCAL_AGENT_HOST_AUTHORITY, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
+import { type AgentHostUriMapper, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { affectsAgentHostProviderPreference, IAgentConnection, IAgentHostService, shouldSurfaceLocalAgentHostProvider } from '../../../../../platform/agentHost/common/agentService.js';
-import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { supportsAgentHostDetachedWorktrees } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { withAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
+import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { workspacelessScratchDir } from '../../../../../platform/agentHost/common/workspacelessScratchDir.js';
+import type { AgentCustomization, ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -23,27 +31,66 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { AutomationStore } from '../../../automations/browser/automationService.js';
 import { providerAutomationStorageKey } from '../../../automations/common/automationStorageService.js';
-import { ISessionsProviderAutomations, type SessionResourceResolveReason } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IPreparedNewSession, ISessionsProviderAutomations, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../../../../services/sessions/common/sessionsProvider.js';
+import { WorkspaceNotTrustedError } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
-import { getCopilotCliSessionRawId, migratedCopilotCliResource } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
-import { adoptLegacyCopilotCliResource, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, LEGACY_MIGRATION_TIMEOUT_MS } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
-import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { buildLocalSessionStateUri, getCopilotCliSessionRawId, migratedCopilotCliResource } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
+import { adoptLegacyCopilotCliResource, isLegacyMigrationEnabledAtStartup, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, LEGACY_MIGRATION_TIMEOUT_MS } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
+import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, type IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
+import { ResourceLabelHomeStore } from '../../../../../workbench/services/label/common/resourceLabelHomeStore.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
-import { IGitHubInfo, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
+import { IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
+import { ChatModelSource, IGitHubInfo, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { AgentHostSessionAdapter, BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
+import { ReconnectableAgentHostAutomationStore } from './reconnectableAgentHostAutomationStore.js';
 
 const LOCAL_RESOURCE_SCHEME_PREFIX = 'agent-host-';
+
+function isSameLogicalModel(source: ILanguageModelChatMetadata, target: ILanguageModelChatMetadata): boolean {
+	if (source.byokModelIdentifier || target.byokModelIdentifier) {
+		return source.byokModelIdentifier !== undefined && source.byokModelIdentifier === target.byokModelIdentifier;
+	}
+	return source.id === target.id && source.family === target.family && source.version === target.version;
+}
+
+function findEquivalentAgent(
+	selectedAgentUri: string,
+	sourceWorkspace: URI,
+	targetWorkspace: URI,
+	targetAgents: readonly AgentCustomization[],
+): AgentCustomization | undefined {
+	const exact = targetAgents.find(agent => agent.uri === selectedAgentUri);
+	if (exact) {
+		return exact;
+	}
+
+	const sourceAgentUri = URI.parse(selectedAgentUri);
+	if (!isEqualOrParent(sourceAgentUri, sourceWorkspace)) {
+		return undefined;
+	}
+	const relativeAgentPath = relativePath(sourceWorkspace, sourceAgentUri);
+	if (!relativeAgentPath) {
+		return undefined;
+	}
+
+	return targetAgents.find(agent => {
+		const candidate = URI.parse(agent.uri);
+		const targetRoot = candidate.with({ path: targetWorkspace.path, query: null, fragment: null });
+		return relativePath(targetRoot, candidate) === relativeAgentPath;
+	});
+}
 
 /**
  * Storage key for the local agent host's cached session summaries. There is a
@@ -75,6 +122,9 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	/** `true` when running in the dedicated Agents window vs. a regular editor window. */
 	private readonly _isSessionsWindow: boolean;
 	private _automationSessionResources = new ResourceSet();
+	private readonly _devContainerAvailableDrafts = new Set<string>();
+	private readonly _devContainerDrafts = new Set<string>();
+	private readonly _resourceLabelHomes: ResourceLabelHomeStore;
 
 	override get order(): number {
 		return -1;
@@ -93,7 +143,9 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	 * sessions on this machine, so a remote host must never claim or probe them.
 	 */
 	async resolveSessionResource(resource: URI, reason?: SessionResourceResolveReason): Promise<URI | undefined> {
-		if (this._configurationService.getValue<boolean>(ChatConfiguration.MigrateLegacyCopilotCliSessions) !== true) {
+		// Frozen at startup: enabling the setting only takes effect after a restart,
+		// so a live toggle never probes a host whose gate is still off.
+		if (!isLegacyMigrationEnabledAtStartup(this._configurationService)) {
 			return undefined;
 		}
 		const rawId = getCopilotCliSessionRawId(migratedCopilotCliResource(resource));
@@ -124,9 +176,21 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		@IDialogService dialogService: IDialogService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IDevContainerAgentHostService private readonly _devContainerAgentHostService: IDevContainerAgentHostService,
+		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
+		@IPathService pathService: IPathService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService);
-		this.automations = this._register(instantiationService.createInstance(AutomationStore, providerAutomationStorageKey(this.id)));
+		this._resourceLabelHomes = this._register(instantiationService.createInstance(ResourceLabelHomeStore));
+		const legacyAutomations = this._register(instantiationService.createInstance(AutomationStore, providerAutomationStorageKey(this.id)));
+		const automations = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, legacyAutomations, {
+			toHost: resource => resource,
+			fromHost: resource => resource,
+			resourceSchemeForProvider: provider => this.resourceSchemeForProvider(provider),
+			providerForResourceScheme: scheme => scheme.startsWith(LOCAL_RESOURCE_SCHEME_PREFIX) ? scheme.slice(LOCAL_RESOURCE_SCHEME_PREFIX.length) : undefined,
+		}));
+		this.automations = automations;
 
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 
@@ -139,6 +203,35 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		// started and the first `listSessions()` round-trip (gated on
 		// authentication settling below) reconciles them.
 		this._enableSessionCachePersistence(LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY, LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY_LEGACY);
+
+		const updateResourceLabelHomes = () => {
+			const homes = this.getResourceLabelHomes();
+			const userHome = pathService.userHome({ preferLocal: true });
+			const sessionStateRoot = buildLocalSessionStateUri(userHome);
+			for (const session of this.getKnownSessions()) {
+				const rawId = AgentSession.id(session.resource);
+				const label = this.getResourceLabelHomeLabel(session);
+				if (session.isQuickChat?.get() && (session.sessionType === 'copilotcli' || session.sessionType === 'claude')) {
+					homes.push({ uri: workspacelessScratchDir(userHome, rawId), label });
+				}
+				if (session.sessionType === 'copilotcli') {
+					homes.push({ uri: joinPath(sessionStateRoot, rawId), label });
+					for (const artifact of session.artifacts?.get() ?? []) {
+						if (!artifact.uri || !isEqualOrParent(artifact.uri, sessionStateRoot)) {
+							continue;
+						}
+						const artifactSessionId = relativePath(sessionStateRoot, artifact.uri)?.split('/')[0];
+						if (artifactSessionId) {
+							homes.push({ uri: joinPath(sessionStateRoot, artifactSessionId), label });
+						}
+					}
+				}
+			}
+			this._resourceLabelHomes.set(homes);
+		};
+		this._register(this._onDidChangeSessionsImmediately(updateResourceLabelHomes));
+		this._register(this._onDidChangeDraftSessions.event(updateResourceLabelHomes));
+		updateResourceLabelHomes();
 		this._register(autorun(reader => {
 			this._automationSessionResources = new ResourceSet(this.automations.runs.read(reader).flatMap(run => run.sessionResource ? [run.sessionResource] : []));
 			const changed = this.syncAutomationSessionMarkers(this._sessionCache.values());
@@ -150,6 +243,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		const connectionListeners = this._register(new DisposableStore());
 		const bindConnection = () => {
 			connectionListeners.clear();
+			automations.setConnection(this._agentHostService);
 			this._attachConnectionListeners(this._agentHostService, connectionListeners);
 
 			const rootState = this._agentHostService.rootState;
@@ -194,6 +288,241 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
 			}
 		}));
+	}
+
+	override createNewSession(workspaceUri: URI, sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+		const session = super.createNewSession(workspaceUri, sessionTypeId, options);
+		void this._resolveDevContainerAvailability(session.sessionId, workspaceUri);
+		return session;
+	}
+
+	private async _resolveDevContainerAvailability(sessionId: string, workspaceUri: URI): Promise<void> {
+		try {
+			const available = await this._devContainerAgentHostService.isAvailable(workspaceUri);
+			if (!available || !this._getNewSession(sessionId)) {
+				return;
+			}
+			this._devContainerAvailableDrafts.add(sessionId);
+			this._onDidChangeSessionConfig.fire(sessionId);
+		} catch (error) {
+			this._logService.warn(`[${this.id}] Failed to resolve Dev Container availability for ${workspaceUri.toString()}`, error);
+		}
+	}
+
+	isDevContainerAvailable(sessionId: string): boolean {
+		return this._devContainerAvailableDrafts.has(sessionId);
+	}
+
+	isDevContainerEnabled(sessionId: string): boolean {
+		return this._devContainerDrafts.has(sessionId);
+	}
+
+	setDevContainerEnabled(sessionId: string, enabled: boolean): void {
+		if (!this._getNewSession(sessionId)) {
+			throw new Error(`Cannot configure unknown new session '${sessionId}'.`);
+		}
+		if (enabled && !this._devContainerAvailableDrafts.has(sessionId)) {
+			throw new Error(`Cannot enable Dev Container execution for unavailable session '${sessionId}'.`);
+		}
+		if (enabled) {
+			this._devContainerDrafts.add(sessionId);
+		} else {
+			this._devContainerDrafts.delete(sessionId);
+		}
+		this._onDidChangeSessionConfig.fire(sessionId);
+	}
+
+	override startNewSessionRequest(sessionId: string, activity?: string): IDisposable {
+		return super.startNewSessionRequest(
+			sessionId,
+			activity ?? (this._devContainerDrafts.has(sessionId)
+				? localize('devContainerAgentHost.starting', "Starting Dev Container...")
+				: undefined),
+		);
+	}
+
+	async prepareNewSession(sessionId: string, token: CancellationToken, query: string): Promise<IPreparedNewSession> {
+		const draft = this._getNewSession(sessionId);
+		if (!draft) {
+			throw new Error(`Cannot prepare unknown new session '${sessionId}'.`);
+		}
+		if (!this._devContainerDrafts.has(sessionId)) {
+			return { session: draft.session };
+		}
+
+		const sourceWorkspace = draft.session.workspace.get()?.folders[0]?.root;
+		if (!sourceWorkspace) {
+			throw new Error(localize('devContainerAgentHost.workspaceRequired', "Dev Container sessions require a workspace."));
+		}
+		const trusted = await this._workspaceTrustRequestService.requestResourcesTrust({
+			uri: sourceWorkspace,
+			message: localize('devContainerAgentHost.trustFolder', "Starting the Dev Container can run lifecycle commands from this workspace."),
+		});
+		if (!trusted) {
+			throw new WorkspaceNotTrustedError();
+		}
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		await this._waitForSessionConfigResolution(this, sessionId, token);
+		const sourceConfig = this.getSessionConfig(sessionId);
+		let devContainerWorkspace = sourceWorkspace;
+		let detachedWorktree: { readonly handle: string; readonly worktree: URI } | undefined;
+		if (sourceConfig?.values[SessionConfigKey.Isolation] === 'worktree') {
+			await draft.waitForEagerCreate();
+			const connection = this.connection;
+			if (!supportsAgentHostDetachedWorktrees(connection.initializeResult.get()) || !connection.createDetachedWorktree || !connection.claimDetachedWorktree || !connection.deleteDetachedWorktree) {
+				throw new Error(localize('devContainerAgentHost.worktreePreparationUnsupported', "The local Agent Host does not support preparing a worktree for a Dev Container."));
+			}
+			detachedWorktree = await connection.createDetachedWorktree(draft.backendUri, query);
+			try {
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				devContainerWorkspace = detachedWorktree.worktree;
+				await this._workspaceTrustManagementService.setUrisTrust([detachedWorktree.worktree], true);
+			} catch (error) {
+				await this._deleteDetachedWorktreeOnRollback(detachedWorktree.handle);
+				throw error;
+			}
+		}
+
+		let target: Awaited<ReturnType<IDevContainerAgentHostService['connect']>>;
+		try {
+			target = await this._devContainerAgentHostService.connect(devContainerWorkspace, token);
+		} catch (error) {
+			if (detachedWorktree) {
+				await this._deleteDetachedWorktreeOnRollback(detachedWorktree.handle);
+			}
+			throw error;
+		}
+		let deleteReplacement: (() => void) | undefined;
+		try {
+			await this._workspaceTrustManagementService.setUrisTrust([target.workspaceUri], true);
+			const targetProvider = this._sessionsProvidersService.getProvider(target.providerId);
+			if (!targetProvider || !isAgentHostProvider(targetProvider)) {
+				throw new Error(localize('devContainerAgentHost.providerUnavailable', "Dev Container sessions provider '{0}' is not available.", target.providerId));
+			}
+			const targetSessionType = targetProvider.getSessionTypes(target.workspaceUri)
+				.find(sessionType => sessionType.id === draft.session.sessionType)
+				?? targetProvider.getSessionTypes(target.workspaceUri)[0];
+			if (!targetSessionType) {
+				throw new Error(localize('devContainerAgentHost.noAgents', "The Dev Container Agent Host did not advertise any agents."));
+			}
+
+			const replacement = targetProvider.createNewSession(target.workspaceUri, targetSessionType.id, {
+				metadata: detachedWorktree
+					? withAgentDevContainerWorktreeMetadata(undefined, detachedWorktree.handle)
+					: undefined,
+			});
+			const discardReplacement = () => targetProvider.deleteNewSession(replacement.sessionId);
+			deleteReplacement = discardReplacement;
+			if (detachedWorktree) {
+				if (!this.connection.claimDetachedWorktree) {
+					throw new Error(localize('devContainerAgentHost.worktreeClaimUnsupported', "The local Agent Host does not support claiming a prepared Dev Container worktree."));
+				}
+				await this.connection.claimDetachedWorktree(detachedWorktree.handle);
+			}
+			await this._waitForSessionConfigResolution(targetProvider, replacement.sessionId, token);
+			if (detachedWorktree) {
+				await targetProvider.setSessionConfigValue(replacement.sessionId, SessionConfigKey.Isolation, 'folder');
+				await this._waitForSessionConfigResolution(targetProvider, replacement.sessionId, token);
+			}
+			const targetConfig = targetProvider.getSessionConfig(replacement.sessionId);
+			if (sourceConfig) {
+				for (const [property, value] of Object.entries(sourceConfig.values)) {
+					if (detachedWorktree && property === SessionConfigKey.Isolation) {
+						continue;
+					}
+					const targetProperty = targetConfig?.schema.properties[property];
+					if (!targetProperty || targetProperty.readOnly) {
+						continue;
+					}
+					await targetProvider.setSessionConfigValue(replacement.sessionId, property, value);
+				}
+			}
+
+			const sourceChat = draft.session.mainChat.get();
+			const replacementChat = replacement.mainChat.get();
+			const modelId = sourceChat.modelId.get();
+			const sourceModelSnapshot = this.getModelsSnapshot(sessionId, modelId);
+			const sourceModel = sourceModelSnapshot.models.find(model => model.identifier === modelId)
+				?? (sourceModelSnapshot.desiredModelResolution.kind === 'available' ? sourceModelSnapshot.desiredModelResolution.model : undefined);
+			const targetModel = sourceModel
+				? targetProvider.getModelsSnapshot(replacement.sessionId).models.find(model => isSameLogicalModel(sourceModel.metadata, model.metadata))
+				: undefined;
+			if (targetModel) {
+				targetProvider.setModel(
+					replacement.sessionId,
+					replacementChat.resource,
+					targetModel.identifier,
+					sourceChat.modelSource.get() ?? ChatModelSource.CarriedOver,
+				);
+			}
+			const selectedAgentUri = sourceChat.mode.get()?.id;
+			const targetAgent = selectedAgentUri
+				? findEquivalentAgent(selectedAgentUri, sourceWorkspace, target.workspaceUri, targetProvider.getCustomAgents(replacement.sessionId))
+				: undefined;
+			if (targetAgent) {
+				targetProvider.setAgent?.(replacement.sessionId, { uri: targetAgent.uri, name: targetAgent.name });
+			}
+			return {
+				session: replacement,
+				discard: async () => {
+					try {
+						discardReplacement();
+						if (detachedWorktree) {
+							await this._deleteDetachedWorktreeOnRollback(detachedWorktree.handle);
+						}
+					} finally {
+						await target.release();
+					}
+				},
+			};
+		} catch (error) {
+			try {
+				if (deleteReplacement) {
+					deleteReplacement();
+					if (detachedWorktree) {
+						await this._deleteDetachedWorktreeOnRollback(detachedWorktree.handle);
+					}
+				} else if (detachedWorktree) {
+					await this._deleteDetachedWorktreeOnRollback(detachedWorktree.handle);
+				}
+			} finally {
+				await target.release();
+			}
+			throw error;
+		}
+	}
+
+	private async _deleteDetachedWorktreeOnRollback(handle: string): Promise<void> {
+		try {
+			await this.connection.deleteDetachedWorktree?.(handle);
+		} catch (error) {
+			this._logService.error(`[${this.id}] Failed to delete detached Dev Container worktree '${handle}' during rollback.`, error);
+		}
+	}
+
+	private async _waitForSessionConfigResolution(provider: IAgentHostSessionsProvider, sessionId: string, token: CancellationToken): Promise<void> {
+		while (provider.isSessionConfigResolving(sessionId).get()) {
+			await raceCancellationError(
+				Event.toPromise(Event.filter(provider.onDidChangeSessionConfig, changedSessionId => changedSessionId === sessionId)),
+				token,
+			);
+		}
+	}
+
+	override deleteNewSession(sessionId: string): void {
+		this._devContainerAvailableDrafts.delete(sessionId);
+		this._devContainerDrafts.delete(sessionId);
+		super.deleteNewSession(sessionId);
+	}
+
+	protected override _disposeAllNewSessions(): void {
+		this._devContainerAvailableDrafts.clear();
+		this._devContainerDrafts.clear();
+		super._disposeAllNewSessions();
 	}
 
 	override getSessions(): ISession[] {
@@ -254,8 +583,10 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		return agentLabel;
 	}
 
-	protected override _diffUriMapper(): (uri: URI) => URI {
-		return uri => toAgentHostUri(uri, LOCAL_AGENT_HOST_AUTHORITY);
+	protected override _diffUriMapper(): AgentHostUriMapper {
+		return (uri, options) => options?.contentRef
+			? toAgentHostContentUri(uri, LOCAL_AGENT_HOST_AUTHORITY)
+			: toAgentHostUri(uri, LOCAL_AGENT_HOST_AUTHORITY);
 	}
 
 	// -- Workspaces ----------------------------------------------------------

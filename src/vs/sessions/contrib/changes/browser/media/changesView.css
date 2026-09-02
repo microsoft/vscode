@@ -45,7 +45,7 @@
 
 .changes-view-body .changes-welcome-message {
 	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 }
 
 /* Main container */
@@ -64,8 +64,8 @@
 	gap: 6px;
 	padding: 2px 0;
 	min-height: 22px;
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label1);
 }
 
 .changes-view-body .changes-files-header-toolbar {
@@ -74,7 +74,7 @@
 }
 
 .changes-view-body .changes-files-header-toolbar .action-label {
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	align-items: center;
 
 	> span {
@@ -99,8 +99,8 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
-	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	padding: 2px 4px;
 }
 
@@ -131,7 +131,7 @@
 .changes-view-body .chat-editing-session-actions.outside-card .monaco-button {
 	height: 26px;
 	padding: 4px;
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	line-height: 18px;
 }
 
@@ -238,8 +238,8 @@
 	gap: 6px;
 	padding: 2px 0;
 	min-height: 22px;
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label1);
 }
 
 /* List rows */
@@ -277,8 +277,8 @@
 	justify-content: center;
 	width: 16px;
 	min-width: 16px;
-	font-size: var(--vscode-agents-fontSize-body2);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-body2);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	margin-right: 2px;
 	opacity: 0.9;
 }
@@ -301,14 +301,14 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
-	font-size: var(--vscode-agents-fontSize-body2);
+	font-size: var(--vscode-fontSize-body2);
 }
 
 .changes-file-list .changes-review-comments-badge {
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
-	font-size: var(--vscode-agents-fontSize-body2);
+	font-size: var(--vscode-fontSize-body2);
 	margin-right: 6px;
 	color: var(--vscode-descriptionForeground);
 }
@@ -325,7 +325,7 @@
 	align-items: center;
 	vertical-align: middle;
 	gap: 4px;
-	font-size: var(--vscode-agents-fontSize-body2);
+	font-size: var(--vscode-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -345,7 +345,10 @@
 .changes-view-body .chat-editing-session-actions .monaco-button.monaco-text-button {
 	gap: 2px;
 
-	.codicon {
+	/* The leading icon is exempt: it shares its box — margin included — with the
+	 * spinner that replaces it while the action runs, so the button bar owns its
+	 * spacing and the button keeps its width across the swap. */
+	.codicon:not(.monaco-button-leading-icon) {
 		margin: 0;
 	}
 }

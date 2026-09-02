@@ -233,6 +233,37 @@ suite('PullRequestMutationService', () => {
 		});
 	});
 
+	test('marks a pull request ready and toggles auto-merge off through node mutations', async () => {
+		await withServers(async server => {
+			server.enqueue(
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostMarkPullRequestReadyForReview',
+					assert: request => assert.deepStrictEqual(request.graphQl?.variables, { pullRequestId: 'PR7' }),
+					response: gitHubGraphQLResponse({
+						markPullRequestReadyForReview: { pullRequest: { id: 'PR7', isDraft: false } },
+					}),
+				}),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostDisablePullRequestAutoMerge',
+					assert: request => assert.deepStrictEqual(request.graphQl?.variables, { pullRequestId: 'PR7' }),
+					response: gitHubGraphQLResponse({
+						disablePullRequestAutoMerge: { pullRequest: { id: 'PR7' } },
+					}),
+				}),
+			);
+			const { ref, resources, service } = setup(server);
+
+			await service.markReadyForReview(ref, { pullRequestId: 'PR7' }, signal());
+			await service.disableAutoMerge(ref, { pullRequestId: 'PR7' }, signal());
+
+			assert.deepStrictEqual(resources.invalidations, [
+				{ fragments: ['core', 'mergeability'] },
+				{ fragments: ['mergeability'] },
+			]);
+			server.assertSatisfied();
+		});
+	});
+
 	test('retries only after a complete refresh proves a comment marker absent', async () => {
 		await withServers(async server => {
 			server.enqueue(

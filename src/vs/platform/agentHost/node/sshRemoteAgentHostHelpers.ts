@@ -5,6 +5,7 @@
 
 import { timeout } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationError } from '../../../base/common/errors.js';
 import { vArray, vObj, vString, vUnknown } from '../../../base/common/validation.js';
 import { TelemetryConfiguration } from '../../telemetry/common/telemetry.js';
 import { getAgentHostEndpointIdentityKey, IAgentHostEndpointMetadata, parseAgentHostEndpointRegistry } from '../common/agentHostEndpointRegistry.js';
@@ -144,13 +145,14 @@ export function buildAgentHostBaseCommand(cliBin: string, cliDataDir: string, te
 	return `${cliBin} --cli-data-dir ${cliDataDir} --telemetry-level ${validateAgentHostTelemetryLevel(telemetryLevel)} agent host --port 0`;
 }
 
-export function resolveRemotePlatform(unameS: string, unameM: string): { os: string; arch: string } | undefined {
+export function resolveRemotePlatform(unameS: string, unameM: string, libc = ''): { os: string; arch: string } | undefined {
 	const os = unameS.trim().toLowerCase();
 	const machine = unameM.trim().toLowerCase();
+	const normalizedLibc = libc.trim().toLowerCase();
 
 	let platformOs: string;
 	if (os === 'linux') {
-		platformOs = 'linux';
+		platformOs = normalizedLibc === 'musl' ? 'alpine' : 'linux';
 	} else if (os === 'darwin') {
 		platformOs = 'darwin';
 	} else {
@@ -165,6 +167,10 @@ export function resolveRemotePlatform(unameS: string, unameM: string): { os: str
 	} else if (machine === 'armv7l') {
 		arch = 'armhf';
 	} else {
+		return undefined;
+	}
+
+	if (platformOs === 'alpine' && arch === 'armhf') {
 		return undefined;
 	}
 
@@ -482,17 +488,32 @@ export function findNewAgentHostEndpoint(before: readonly IAgentHostEndpointMeta
 }
 
 export interface IWaitForNewEndpointOptions {
-	/** Maximum number of `agent endpoints` polls before giving up. Defaults to 20. */
-	readonly attempts?: number;
-	/** Delay between polls, in milliseconds. Defaults to 500. */
+	/**
+	 * Overall deadline for endpoint registration in milliseconds. When omitted,
+	 * the deadline is twenty initial polling intervals (10 seconds by default).
+	 */
+	readonly timeoutMs?: number;
+	/** Initial delay between polls in milliseconds. Defaults to 500. */
 	readonly intervalMs?: number;
 	readonly token?: CancellationToken;
+	/** Called periodically while endpoint registration is still pending. */
+	readonly progress?: (elapsedMs: number) => void;
+}
+
+const DEFAULT_ENDPOINT_REGISTRATION_POLL_COUNT = 20;
+const MAX_ENDPOINT_REGISTRATION_POLL_INTERVAL_MS = 5_000;
+const ENDPOINT_REGISTRATION_PROGRESS_INTERVAL_MS = 10_000;
+const COLD_AGENT_HOST_REGISTRATION_TIMEOUT_MS = 300_000;
+
+/** Gets the endpoint-registration deadline for a newly installed CLI. */
+export function getNewAgentHostRegistrationTimeoutMs(installedCLI: boolean): number | undefined {
+	return installedCLI ? COLD_AGENT_HOST_REGISTRATION_TIMEOUT_MS : undefined;
 }
 
 /**
  * Poll `code agent endpoints` until a newly spawned standalone entry shows
- * up (see {@link findNewAgentHostEndpoint}), or throw once the attempt
- * budget is exhausted. The spawn command itself is fire-and-forget (its
+ * up (see {@link findNewAgentHostEndpoint}), or throw once the deadline
+ * expires. The spawn command itself is fire-and-forget (its
  * process is not tied to the SSH exec channel that launched it — see
  * {@link buildAgentHostSpawnCommand}), so this is the only way to learn
  * the freshly assigned TCP address/token/instanceId.
@@ -505,21 +526,42 @@ export async function waitForNewStandaloneEndpoint(
 	before: readonly IAgentHostEndpointMetadata[],
 	options?: IWaitForNewEndpointOptions,
 ): Promise<IAgentHostEndpointMetadata> {
-	const attempts = options?.attempts ?? 20;
-	const intervalMs = options?.intervalMs ?? 500;
-	for (let attempt = 0; attempt < attempts; attempt++) {
+	const initialIntervalMs = options?.intervalMs ?? 500;
+	const timeoutMs = options?.timeoutMs ?? DEFAULT_ENDPOINT_REGISTRATION_POLL_COUNT * initialIntervalMs;
+	const startTime = Date.now();
+	const deadline = startTime + timeoutMs;
+	let polls = 0;
+	let nextProgressReport = ENDPOINT_REGISTRATION_PROGRESS_INTERVAL_MS;
+
+	while (true) {
+		if (options?.token?.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		const { endpoints } = await runAgentEndpoints(exec, cliBin, cliDataDir, userDataPath);
 		const found = findNewAgentHostEndpoint(before, endpoints);
 		if (found) {
 			return found;
 		}
-		if (attempt < attempts - 1) {
-			if (options?.token) {
-				await timeout(intervalMs, options.token);
-			} else {
-				await timeout(intervalMs);
-			}
+
+		polls++;
+		const elapsedMs = Date.now() - startTime;
+		if (elapsedMs >= nextProgressReport) {
+			options?.progress?.(elapsedMs);
+			nextProgressReport = (Math.floor(elapsedMs / ENDPOINT_REGISTRATION_PROGRESS_INTERVAL_MS) + 1) * ENDPOINT_REGISTRATION_PROGRESS_INTERVAL_MS;
+		}
+		if (Date.now() >= deadline) {
+			throw new Error(`Timed out waiting for the newly spawned agent host to register itself after ${Date.now() - startTime}ms (deadline ${timeoutMs}ms)`);
+		}
+
+		const intervalMs = Math.min(
+			initialIntervalMs * 2 ** Math.floor((polls - 1) / 10),
+			MAX_ENDPOINT_REGISTRATION_POLL_INTERVAL_MS,
+			deadline - Date.now(),
+		);
+		if (options?.token) {
+			await timeout(intervalMs, options.token);
+		} else {
+			await timeout(intervalMs);
 		}
 	}
-	throw new Error(`Timed out waiting for the newly spawned agent host to register itself (checked ${attempts} times, ~${Math.round(attempts * intervalMs / 1000)}s)`);
 }

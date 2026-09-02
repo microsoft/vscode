@@ -54,7 +54,7 @@ function computeTurnStats(chat: IChat, reader: IReader): IDiffStats {
 function buildDebugArtifactSections(debugData: ISessionChatPillsDebugData): readonly IChatPillSection[] {
 	const entries = debugData.markdownFiles.map(name => {
 		const resource = URI.from({ scheme: 'session-chat-pills-debug', path: `/${name}` });
-		return { id: name, label: name, resource, ...sessionArtifactLocation(resource, name), open: () => { } };
+		return { id: name, label: name, resource, ...sessionArtifactLocation(resource.path, name), open: () => { } };
 	});
 	return entries.length ? [{ title: localize('sessionArtifacts.files', "Files"), entries }] : [];
 }
@@ -90,10 +90,10 @@ export function getSessionChatPillKindForAction(actionId: string): SessionChatPi
 
 /**
  * The row's rendered height, reserved below the transcript by its host because
- * the row floats over it. Derived from the row's `2px`/`6px` padding here plus a
+ * the row floats over it. Derived from the row's `2px`/`4px` padding here plus a
  * 22px `.monaco-text-button.small` pill; keep in sync if either changes.
  */
-export const SESSION_CHAT_INPUT_TOOLBAR_HEIGHT = 30;
+export const SESSION_CHAT_INPUT_TOOLBAR_HEIGHT = 28;
 
 /** A toolbar for session metadata, active-turn status, and background activity. */
 export class SessionChatInputToolbar extends Disposable {
@@ -103,6 +103,9 @@ export class SessionChatInputToolbar extends Disposable {
 	private readonly _scrollable: DomScrollableElement;
 	private readonly _onDidChangeChatPetPlatform = this._register(new Emitter<void>());
 	readonly onDidChangeChatPetPlatform: Event<void> = this._onDidChangeChatPetPlatform.event;
+	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
+	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
+	private _visible = false;
 	private readonly _pills: ChatPillsWidget;
 
 	/** Sentinel distinguishing "no override" from an explicit `undefined` session. */
@@ -337,12 +340,21 @@ export class SessionChatInputToolbar extends Disposable {
 			// Stay rendered while hidden pills have data: in read-only chats the
 			// input part is only kept alive by a non-hidden persistent child.
 			const anyHidden = kindsWithData.read(reader).size > 0;
-			this.element.classList.toggle('hidden', !anyVisible && !anyHidden);
+			const visible = anyVisible || anyHidden;
+			this.element.classList.toggle('hidden', !visible);
 			// With no pill left to right-click, the row itself has to carry the
 			// visibility menu or the hidden pills could never be restored.
 			this.element.classList.toggle('empty', !anyVisible);
+			if (this._visible !== visible) {
+				this._visible = visible;
+				this._onDidChangeVisibility.fire(visible);
+			}
 			this._scrollable.scanDomNode();
 		}));
+	}
+
+	get visible(): boolean {
+		return this._visible;
 	}
 
 	getChatPetPlatformElements(): readonly HTMLElement[] {

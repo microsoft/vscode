@@ -51,6 +51,9 @@ import { MockLabelService } from '../../../../../services/label/test/common/mock
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
+import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
+import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
@@ -67,7 +70,7 @@ import { IDefaultAccountService } from '../../../../../../platform/defaultAccoun
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
+import { IMcpService, IMcpWorkbenchService, LazyCollectionState } from '../../../../mcp/common/mcpTypes.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 
 // =============================================================================
@@ -100,7 +103,11 @@ suite('AgentHostClientTools', () => {
 			override readonly extUri = extUriBiasedIgnorePathCase;
 		});
 		instantiationService.stub(IConfigurationService, {
-			getValue: (section: string) => section === CopilotSemanticSearchEnabledSettingId ? semanticSearchEnabled : false,
+			getValue: (section: string) => section === CopilotSemanticSearchEnabledSettingId
+				? semanticSearchEnabled
+				: section === mcpAccessConfig
+					? McpAccessValue.All
+					: false,
 			onDidChangeConfiguration: onDidChangeConfiguration.event,
 		} as Partial<IConfigurationService> as IConfigurationService);
 		instantiationService.stub(IConfigurationResolverService, {} as Partial<IConfigurationResolverService>);
@@ -119,7 +126,13 @@ suite('AgentHostClientTools', () => {
 		});
 		instantiationService.stub(IMcpService, {
 			servers: observableValue('mcpServers', []),
+			lazyCollectionState: observableValue('mcpLazyCollectionState', { state: LazyCollectionState.AllKnown, collections: [] }),
 		});
+		instantiationService.stub(IMcpWorkbenchService, {
+			local: [],
+			onChange: Event.None,
+			whenInitialLocalMcpServersLoaded: Promise.resolve(),
+		} as Partial<IMcpWorkbenchService> as IMcpWorkbenchService);
 		instantiationService.stub(ILanguageModelToolsService, {
 			observeTools: () => tools,
 			toolSets,
@@ -184,6 +197,45 @@ suite('AgentHostClientTools', () => {
 			syncProviderIsStable: true,
 			scopeAfterReleaseIsResolved: true,
 		});
+	});
+
+	test('provides MCP support before a session and keeps unavailable roots distinct from no roots', async () => {
+		const { service } = createActiveClientService();
+		const unavailable = service.acquireMcpServerSupportScope(AGENT_HOST_COPILOT_CLI_SESSION_TYPE, undefined);
+		const workspaceless = service.acquireMcpServerSupportScope(AGENT_HOST_COPILOT_CLI_SESSION_TYPE, []);
+		const workspacelessAgain = service.acquireMcpServerSupportScope(AGENT_HOST_COPILOT_CLI_SESSION_TYPE, []);
+		const otherHarness = service.acquireMcpServerSupportScope('agent-host-claude', []);
+		assert.ok(unavailable);
+		assert.ok(workspaceless);
+		assert.ok(workspacelessAgain);
+		await Promise.all([unavailable.whenResolved(), workspaceless.whenResolved()]);
+
+		assert.deepStrictEqual({
+			unavailableResolved: unavailable.isResolved.get(),
+			workspacelessResolved: workspaceless.isResolved.get(),
+			sameWorkspacelessObservable: workspaceless.support === workspacelessAgain.support,
+			unavailableIsDistinct: unavailable.support !== workspaceless.support,
+			snapshot: workspaceless.support.get(),
+			otherHarness,
+		}, {
+			unavailableResolved: true,
+			workspacelessResolved: true,
+			sameWorkspacelessObservable: true,
+			unavailableIsDistinct: true,
+			snapshot: {
+				servers: [],
+				discoveryComplete: true,
+				coverage: {
+					restrictedByMcpAccess: false,
+					restrictedByCustomizationPolicy: false,
+				},
+			},
+			otherHarness: undefined,
+		});
+
+		unavailable.dispose();
+		workspaceless.dispose();
+		workspacelessAgain.dispose();
 	});
 
 	const semanticSearchTool: IToolData = {
@@ -822,6 +874,7 @@ suite('AgentHostClientTools', () => {
 				register: () => toDisposable(() => { }),
 				reconcile: async () => { },
 			} as Partial<IAgentHostSessionWorkingDirectorySynchronizer> as IAgentHostSessionWorkingDirectorySynchronizer);
+			instantiationService.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
 				onDidChange: Event.None,
 				get: () => undefined,

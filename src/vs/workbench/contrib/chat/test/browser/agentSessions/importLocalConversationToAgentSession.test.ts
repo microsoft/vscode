@@ -73,10 +73,15 @@ suite('importedTurnsFromChatModel', () => {
 			text: turn.message.text,
 			state: turn.state,
 			error: getTurnError(turn),
-			parts: turn.responseParts.filter(part => part.kind !== ResponsePartKind.Error).map(part =>
-				part.kind === ResponsePartKind.Markdown || part.kind === ResponsePartKind.Reasoning
-					? { kind: part.kind, content: part.content }
-					: { kind: part.kind, subagent: subagentOf(part) }),
+			parts: turn.responseParts.map(part => {
+				if (part.kind === ResponsePartKind.Markdown || part.kind === ResponsePartKind.Reasoning) {
+					return { kind: part.kind, content: part.content };
+				}
+				if (part.kind === ResponsePartKind.Error) {
+					return { kind: part.kind, error: part.error };
+				}
+				return { kind: part.kind, subagent: subagentOf(part) };
+			}),
 		}));
 	}
 
@@ -198,7 +203,7 @@ suite('importedTurnsFromChatModel', () => {
 			text: 'q',
 			state: TurnState.Error,
 			error: { errorType: 'E1', message: 'boom' },
-			parts: [],
+			parts: [{ kind: ResponsePartKind.Error, error: { errorType: 'E1', message: 'boom' } }],
 		}]);
 	});
 

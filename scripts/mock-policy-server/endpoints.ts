@@ -32,6 +32,8 @@ export interface EndpointPreset {
 	body: unknown;
 }
 
+export type EndpointResponseMode = 'json' | 'malformed-json' | 'disconnect' | 'timeout';
+
 export interface EndpointDef {
 	/** Stable id used by the API + GUI. */
 	id: string;
@@ -176,6 +178,23 @@ declare var MOCK_POLICY_ENDPOINTS: EndpointDef[];
 					}
 				},
 				{
+					id: 'sandbox-no-internet',
+					label: 'Sandbox, no internet',
+					description: 'Enables the agent runtime sandbox with bypass allowed, but denies outbound network access so sandboxed tools run offline.',
+					status: 200,
+					body: {
+						sandbox: {
+							enabled: true,
+							allowBypass: true,
+							userPolicy: {
+								network: {
+									allowOutbound: false
+								}
+							}
+						}
+					}
+				},
+				{
 					id: 'model-auto',
 					label: 'Model: auto',
 					description: 'Sets the managed model to auto.',
@@ -239,6 +258,13 @@ declare var MOCK_POLICY_ENDPOINTS: EndpointDef[];
 						client_version: '1.132.0',
 						minimum_client_version: '1.133.0'
 					}
+				},
+				{
+					id: 'server-error',
+					label: 'Server error (500)',
+					description: 'Returns an HTTP 500 response to exercise the fail-closed HTTP error path.',
+					status: 500,
+					body: { error: 'mock_managed_settings_failure' }
 				}
 			]
 		},

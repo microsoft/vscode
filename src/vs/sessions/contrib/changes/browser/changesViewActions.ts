@@ -22,7 +22,7 @@ import { DiffEditorInput } from '../../../../workbench/common/editor/diffEditorI
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionHasChangesContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { CustomViewVisibleContext, SessionHasChangesContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
@@ -185,6 +185,7 @@ class ChangesHeaderActionsAction extends Action2 {
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
 					IsAuxiliaryWindowContext.toNegated(),
+					CustomViewVisibleContext.negate(),
 					SinglePaneLayoutEnabledContext,
 					SessionIsCreatedContext,
 					SessionHasChangesContext
@@ -197,7 +198,6 @@ class ChangesHeaderActionsAction extends Action2 {
 
 registerAction2(ChangesHeaderActionsAction);
 
-
 class SetChangesListViewModeAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.setChangesListViewMode';
 
@@ -208,8 +208,8 @@ class SetChangesListViewModeAction extends Action2 {
 			icon: Codicon.listFlat,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorTitle,
-				group: '2_viewMode',
+				id: Menus.SessionsEditorHeaderLayout,
+				group: 'secondary/2_viewMode',
 				order: 20,
 				when: ContextKeyExpr.and(
 					singlePaneDiffEditorTitle,
@@ -237,8 +237,8 @@ class SetChangesTreeViewModeAction extends Action2 {
 			icon: Codicon.listTree,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorTitle,
-				group: '2_viewMode',
+				id: Menus.SessionsEditorHeaderLayout,
+				group: 'secondary/2_viewMode',
 				order: 20,
 				when: ContextKeyExpr.and(
 					singlePaneDiffEditorTitle,

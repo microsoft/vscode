@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
+import { IManagedHoverContent, IManagedHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { $ } from '../../../../base/browser/dom.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { arrayEquals } from '../../../../base/common/equals.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -18,6 +19,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -32,7 +34,7 @@ import { SessionHasPullRequestContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { IGitHubPullRequestRef, ISession } from '../../../services/sessions/common/session.js';
+import { getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IGitHubPullRequestRef, ISession } from '../../../services/sessions/common/session.js';
 import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest, IPullRequestIconStatus, OPEN_PULL_REQUEST_ACTION_ID } from '../common/types.js';
 import { IGitHubService } from './githubService.js';
 import { GitHubReferenceList, IGitHubReferenceListEntry } from './githubReferenceList.js';
@@ -43,7 +45,7 @@ import { computePullRequestIconStatus } from './pullRequestIconStatus.js';
 interface IResolvedSessionPullRequest {
 	readonly ref: IGitHubPullRequestRef;
 	readonly pullRequest: IGitHubPullRequest | undefined;
-	readonly icon: ThemeIcon;
+	readonly icon: ThemeIcon | undefined;
 	readonly status: IPullRequestIconStatus;
 }
 
@@ -66,6 +68,19 @@ const openPullRequestWebviewPath = '/open-pull-request-webview';
 
 class PullRequestActionContext {
 	constructor(readonly pullRequest: IGitHubPullRequestRef) { }
+}
+
+function isPullRequestActionContext(target: unknown): target is PullRequestActionContext {
+	if (!target || typeof target !== 'object') {
+		return false;
+	}
+
+	const candidate = target as { readonly pullRequest?: IGitHubPullRequestRef };
+	return !!candidate.pullRequest &&
+		typeof candidate.pullRequest.owner === 'string' &&
+		typeof candidate.pullRequest.repo === 'string' &&
+		typeof candidate.pullRequest.number === 'number' &&
+		URI.isUri(candidate.pullRequest.uri);
 }
 
 class OpenPullRequestAction extends Action2 {
@@ -96,7 +111,7 @@ class OpenPullRequestAction extends Action2 {
 		const sessionsService = accessor.get(ISessionsService);
 
 		const target = (Array.isArray(sessionOrContext) ? sessionOrContext[0] : sessionOrContext) ?? sessionsService.activeSession.get();
-		const pullRequest = target instanceof PullRequestActionContext ? target.pullRequest : getSessionPullRequest(target);
+		const pullRequest = isPullRequestActionContext(target) ? target.pullRequest : getSessionPullRequest(target);
 		if (!pullRequest) {
 			return;
 		}
@@ -128,21 +143,7 @@ registerAction2(OpenPullRequestAction);
 
 function getSessionPullRequest(session: ISession | undefined): IGitHubPullRequestRef | undefined {
 	const gitHubInfo = session?.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
-	const pullRequestRef = gitHubInfo?.pullRequests?.[0];
-	if (pullRequestRef) {
-		return pullRequestRef;
-	}
-	if (!gitHubInfo?.pullRequest) {
-		return undefined;
-	}
-
-	return {
-		owner: gitHubInfo.owner,
-		repo: gitHubInfo.repo,
-		number: gitHubInfo.pullRequest.number,
-		uri: gitHubInfo.pullRequest.uri,
-		icon: gitHubInfo.pullRequest.icon,
-	};
+	return getGitHubPullRequestRefs(gitHubInfo)[0];
 }
 
 class CopyPullRequestUrlAction extends Action2 {
@@ -162,12 +163,12 @@ class CopyPullRequestUrlAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, session?: IActiveSession | ISession | ISession[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, sessionOrContext?: IActiveSession | ISession | ISession[] | PullRequestActionContext): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
 		const sessionsService = accessor.get(ISessionsService);
 
-		const targetSession = (Array.isArray(session) ? session[0] : session) ?? sessionsService.activeSession.get();
-		const pullRequest = getSessionPullRequest(targetSession);
+		const target = (Array.isArray(sessionOrContext) ? sessionOrContext[0] : sessionOrContext) ?? sessionsService.activeSession.get();
+		const pullRequest = isPullRequestActionContext(target) ? target.pullRequest : getSessionPullRequest(target);
 		if (!pullRequest) {
 			return;
 		}
@@ -187,12 +188,13 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 	private readonly _pullRequestRefsObs: IObservable<readonly IGitHubPullRequestRef[]>;
 	private readonly _pullRequestIdentitiesObs: IObservable<readonly IPullRequestIdentity[]>;
 	private readonly _pullRequestsObs: IObservable<readonly IResolvedSessionPullRequest[]>;
-	private _pullRequestList: GitHubReferenceList<IPullRequestListEntry> | undefined;
+	private readonly _pullRequestList = this._register(new MutableDisposable<GitHubReferenceList<IPullRequestListEntry>>());
 
 	constructor(
 		action: MenuItemAction,
 		options: IActionViewItemOptions,
 		@ISessionContext sessionContext: ISessionContext,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@IPullRequestIconCache private readonly _pullRequestIconCache: IPullRequestIconCache,
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -212,19 +214,7 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 			const session = sessionContext.session.read(reader);
 			const workspace = session?.workspace.read(reader);
 			const gitHubInfo = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
-			if (!gitHubInfo) {
-				return [];
-			}
-			if (gitHubInfo.pullRequests?.length) {
-				return gitHubInfo.pullRequests;
-			}
-			return gitHubInfo.pullRequest ? [{
-				owner: gitHubInfo.owner,
-				repo: gitHubInfo.repo,
-				number: gitHubInfo.pullRequest.number,
-				uri: gitHubInfo.pullRequest.uri,
-				icon: gitHubInfo.pullRequest.icon,
-			}] : [];
+			return getGitHubPullRequestRefs(gitHubInfo);
 		});
 
 		this._pullRequestIdentitiesObs = derivedOpts<readonly IPullRequestIdentity[]>({
@@ -232,14 +222,14 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 			equalsFn: (a, b) => arrayEquals(a, b, (x, y) => x.owner === y.owner && x.repo === y.repo && x.number === y.number)
 		}, reader => this._pullRequestRefsObs.read(reader).map(({ owner, repo, number }) => ({ owner, repo, number })));
 
-		this._pullRequestsObs = derived(reader => this._pullRequestRefsObs.read(reader).map(ref => {
+		this._pullRequestsObs = derived(reader => this._pullRequestRefsObs.read(reader).map((ref, index) => {
 			const reference = reader.store.add(this._gitHubService.createPullRequestModelReference(ref.owner, ref.repo, ref.number));
 			const pullRequest = reference.object.pullRequest.read(reader);
 			const status = pullRequest ? computePullRequestIconStatus(reader, this._gitHubService, ref.owner, ref.repo, pullRequest) : {};
 			const icon = pullRequest
 				? computePullRequestIcon(pullRequest.isDraft ? 'draft' : pullRequest.state, status)
-				: this._pullRequestIconCache.get(ref.uri.toString()) ?? ref.icon ?? computePullRequestIcon(GitHubPullRequestState.Open);
-			if (pullRequest) {
+				: this._pullRequestIconCache.get(ref.uri.toString()) ?? ref.icon ?? (index === 0 ? computePullRequestIcon(GitHubPullRequestState.Open) : undefined);
+			if (pullRequest && icon) {
 				this._pullRequestIconCache.set(ref.uri.toString(), icon);
 			}
 			return {
@@ -285,14 +275,14 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 
 		this._register(autorun(reader => {
 			const pullRequests = this._pullRequestsObs.read(reader);
-			this._pullRequestList?.update(this._getPullRequestListEntries(pullRequests));
+			this._pullRequestList.value?.update(this._getPullRequestListEntries(pullRequests));
 			this.updateLabel();
 			this.updateTooltip();
 		}));
 	}
 
 	protected override hasOpenDropdown(): boolean {
-		return !!this._pullRequestList;
+		return !!this._pullRequestList.value;
 	}
 
 	protected override onDidClickButton(): void {
@@ -311,7 +301,7 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 	}
 
 	protected override getIconElement(): HTMLElement | undefined {
-		const icon = this._pullRequestsObs.get()[0]?.icon ?? Codicon.gitPullRequest;
+		const icon = getHighestPriorityPullRequestIcon(this._pullRequestsObs.get().map(pullRequest => pullRequest.icon)) ?? Codicon.gitPullRequest;
 		const iconElement = $(`span.chat-pill-icon${ThemeIcon.asCSSSelector(icon)}`, { 'aria-hidden': 'true' });
 		if (icon.color) {
 			// Inline `!important` wins over `button.css`'s `.monaco-text-button .codicon
@@ -350,6 +340,23 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 		};
 	}
 
+	protected override getHoverOptions(): IManagedHoverOptions | undefined {
+		const pullRequests = this._pullRequestsObs.get();
+		if (pullRequests.length !== 1) {
+			return undefined;
+		}
+
+		const ref = pullRequests[0].ref;
+		return {
+			actions: [{
+				commandId: CopyPullRequestUrlAction.ID,
+				label: localize('agentSessions.pullRequestHover.copyLink', "Copy Link"),
+				iconClass: ThemeIcon.asClassName(Codicon.copy),
+				run: () => this._copyPullRequestLink(ref),
+			}],
+		};
+	}
+
 	protected override getTooltip(): string {
 		const pullRequests = this._pullRequestsObs.get();
 		if (pullRequests.length > 1) {
@@ -361,13 +368,17 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 			: localize('agentSessions.openPullRequest.tooltip', "Open Pull Request");
 	}
 
+	private _copyPullRequestLink(ref: IGitHubPullRequestRef): void {
+		this._commandService.executeCommand(CopyPullRequestUrlAction.ID, new PullRequestActionContext(ref));
+	}
+
 	private _showPullRequestPicker(pullRequests: readonly IResolvedSessionPullRequest[]): void {
 		const target = this.button?.element;
 		if (!target) {
 			return;
 		}
 
-		const list = new GitHubReferenceList(this._getPullRequestListEntries(pullRequests), entry => {
+		const list = this._pullRequestList.value = new GitHubReferenceList(this._getPullRequestListEntries(pullRequests), entry => {
 			this._hoverService.hideHover();
 			this.actionRunner.run(this._action, new PullRequestActionContext(entry));
 		});
@@ -378,7 +389,6 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 				this._hoverService.hideHover();
 			}
 		};
-		this._pullRequestList = list;
 
 		const hover = this._hoverService.showInstantHover({
 			content: list.element,
@@ -388,13 +398,13 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 			appearance: { showPointer: false, skipFadeInAnimation: true },
 			trapFocus: true,
 			onDidHide: () => {
-				if (this._pullRequestList === list) {
-					this._pullRequestList = undefined;
+				if (this._pullRequestList.value === list) {
+					this._pullRequestList.clear();
 				}
 			},
 		}, true);
 		if (!hover) {
-			this._pullRequestList = undefined;
+			this._pullRequestList.clear();
 		}
 	}
 
@@ -408,9 +418,15 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 			repo: ref.repo,
 			number: ref.number,
 			title: pullRequest?.title,
-			icon,
+			icon: icon ?? Codicon.gitPullRequest,
 			uri: ref.uri,
 			ariaLabel: getPullRequestAriaLabel(ref, pullRequest, status),
+			toolbarActions: [toAction({
+				id: CopyPullRequestUrlAction.ID,
+				label: localize('agentSessions.pullRequestList.copyLink', "Copy Pull Request Link"),
+				class: ThemeIcon.asClassName(Codicon.copy),
+				run: () => this._copyPullRequestLink(ref),
+			})],
 		}));
 	}
 }
