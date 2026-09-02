@@ -49,7 +49,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
 import { CHAT_PROVIDER_DATA_METADATA_KEY } from '../../node/agentHostPeerChatStore.js';
-import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
@@ -5341,6 +5341,33 @@ suite('AgentService (node dispatcher)', () => {
 					currentMarker: true,
 					oldGlobalMarker: false,
 					oldProviderMarker: false,
+				});
+			});
+
+			test('bounds oversized provider summaries and completes the provider migration marker', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				const session = AgentSession.uri('copilot', 'oversized-summary');
+				const oversized = 'x'.repeat(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT + 100);
+				agent.catalog = [{ ...metadata(session), summary: oversized }];
+				registerTestAgentProvider(svc, agent);
+
+				await svc.listSessions();
+				const stored = await database.getSessionV2(session.toString());
+				const decoded = stored && decodeAgentHostCatalogPayload(stored.payload);
+
+				assert.deepStrictEqual({
+					sourceSummaryLength: agent.catalog[0].summary?.length,
+					storedSummaryLength: decoded?.ok ? decoded.value.data.summary?.length : undefined,
+					storedSummaryEndsWithEllipsis: decoded?.ok ? decoded.value.data.summary?.endsWith('…') : false,
+					marker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION),
+				}, {
+					sourceSummaryLength: AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT + 100,
+					storedSummaryLength: AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT,
+					storedSummaryEndsWithEllipsis: true,
+					marker: true,
 				});
 			});
 

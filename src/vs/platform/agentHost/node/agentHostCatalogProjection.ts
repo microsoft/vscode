@@ -16,9 +16,9 @@ export const AGENT_HOST_CATALOG_GITHUB_REFERENCE_LIMIT = 10;
 export const AGENT_HOST_CATALOG_ARTIFACT_LIMIT = 100;
 export const AGENT_HOST_CATALOG_CHILD_LIMIT = 1000;
 export const AGENT_HOST_CATALOG_PAYLOAD_BYTE_LIMIT = 4 * 1024 * 1024;
+export const AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT = 1024;
 
 const MAX_STRING_LENGTH = 4096;
-const MAX_TITLE_LENGTH = 1024;
 const MAX_JSON_DEPTH = 20;
 const MAX_JSON_ENTRIES = 2000;
 
@@ -195,7 +195,7 @@ const changesValidator = plainObject(vObj({
 
 const projectValidator = plainObject(vObj({
 	uri: uriString(),
-	displayName: boundedString(MAX_TITLE_LENGTH),
+	displayName: boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT),
 }));
 
 const multiRootValidator = plainObject(vObj({
@@ -211,28 +211,28 @@ const folderPickerValidator = new RefinedValidator(plainObject(vObj({
 
 const githubReferencesValidator = boundedArray(uriString(), AGENT_HOST_CATALOG_GITHUB_REFERENCE_LIMIT);
 const githubValidator = plainObject(vObj({
-	owner: vOptionalProp(boundedString(MAX_TITLE_LENGTH)),
-	repo: vOptionalProp(boundedString(MAX_TITLE_LENGTH)),
+	owner: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
+	repo: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
 	pullRequestUrls: vOptionalProp(githubReferencesValidator),
 	initialPullRequestUrls: vOptionalProp(githubReferencesValidator),
 	associatedPullRequestUrls: vOptionalProp(githubReferencesValidator),
 	issueUrls: vOptionalProp(githubReferencesValidator),
-	pullRequestBranchName: vOptionalProp(boundedString(MAX_TITLE_LENGTH)),
+	pullRequestBranchName: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
 }));
 
 const gitValidator = plainObject(vObj({
 	hasGitHubRemote: vOptionalProp(vBoolean()),
-	branchName: vOptionalProp(boundedString(MAX_TITLE_LENGTH)),
+	branchName: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
 	isDetachedHead: vOptionalProp(vBoolean()),
-	baseBranchName: vOptionalProp(boundedString(MAX_TITLE_LENGTH)),
-	upstreamBranchName: vOptionalProp(boundedString(MAX_TITLE_LENGTH)),
+	baseBranchName: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
+	upstreamBranchName: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
 	incomingChanges: vOptionalProp(safeInteger()),
 	outgoingChanges: vOptionalProp(safeInteger()),
 	uncommittedChanges: vOptionalProp(safeInteger()),
 	hasBaseBranchChanges: vOptionalProp(vBoolean()),
-	githubOwner: vOptionalProp(boundedString(MAX_TITLE_LENGTH)),
-	githubHeadOwner: vOptionalProp(boundedString(MAX_TITLE_LENGTH)),
-	githubRepo: vOptionalProp(boundedString(MAX_TITLE_LENGTH)),
+	githubOwner: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
+	githubHeadOwner: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
+	githubRepo: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
 }));
 
 /** Exposed so persisted git metadata is parsed by the payload authority instead of a private copy. */
@@ -248,7 +248,7 @@ const sourceControlValidator = new RefinedValidator(plainObject(vObj({
 const artifactValidator = plainObject(vObj({
 	id: boundedString(),
 	type: vEnum('pullRequest', 'issue', 'commit', 'website', 'file', 'resource'),
-	label: boundedString(MAX_TITLE_LENGTH),
+	label: boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT),
 	isArtifact: vOptionalProp(vBoolean()),
 	link: vOptionalProp(boundedString()),
 	uri: vOptionalProp(boundedString()),
@@ -292,7 +292,7 @@ const chatValidator = plainObject(vObj({
 	uri: uriString(),
 	order: safeInteger(),
 	kind: vEnum('default', 'peer'),
-	summary: vOptionalProp(boundedString(MAX_TITLE_LENGTH)),
+	summary: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
 	titleSource: vOptionalProp(vEnum('user', 'agent', 'auto')),
 	origin: vOptionalProp(jsonValue()),
 }));
@@ -318,7 +318,7 @@ const workingDirectoriesValidator = new RefinedValidator(
 
 export const agentHostCatalogDataValidator = plainObject(vObj({
 	modifiedTime: safeInteger(),
-	summary: vOptionalProp(boundedString(MAX_TITLE_LENGTH)),
+	summary: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
 	titleSource: vOptionalProp(vEnum('user', 'agent', 'auto')),
 	isRead: vBoolean(),
 	isArchived: vBoolean(),
