@@ -55,7 +55,6 @@ export interface IFixtureFileChange {
 
 export interface IFixtureMessage {
 	readonly user: string; // user prompt text
-	readonly isSystemInitiated?: boolean;
 	readonly timestamp?: number;
 	readonly assistant?: ReadonlyArray<
 		| { kind: 'markdown'; text: string }
