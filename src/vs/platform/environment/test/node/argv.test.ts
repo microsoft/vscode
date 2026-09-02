@@ -183,5 +183,130 @@ suite('parseArgs', () => {
 		);
 	});
 
+	test('subcommand vs option value', () => {
+
+		interface TestArgs3 {
+			chat?: {
+				verbose?: boolean;
+				_: string[];
+			};
+			tunnel?: {
+				verbose?: boolean;
+				_: string[];
+			};
+			agent?: {
+				verbose?: boolean;
+				_: string[];
+			};
+			profile?: string;
+			verbose?: boolean;
+			_: string[];
+		}
+
+		const options3 = {
+			'chat': c('Chat', { _: { type: 'string[]' } }),
+			'tunnel': c('Tunnel', { _: { type: 'string[]' } }),
+			'agent': c('Agent', { _: { type: 'string[]' } }),
+			profile: o('Profile name'),
+			verbose: { type: 'boolean', global: true, description: '' },
+			_: { type: 'string[]' }
+		} as OptionDescriptions<TestArgs3>;
+
+		assertParse(
+			options3,
+			['--profile', 'agent'],
+			{ profile: 'agent', verbose: false, '_': [] },
+			[]
+		);
+
+		assertParse(
+			options3,
+			['--profile', 'x', 'tunnel'],
+			{ tunnel: { verbose: false, '_': [] }, '_': [] },
+			['tunnel-onUnknownOption profile']
+		);
+
+		assertParse(
+			options3,
+			['tunnel'],
+			{ tunnel: { verbose: false, '_': [] }, '_': [] },
+			[]
+		);
+
+		assertParse(
+			options3,
+			['--verbose', 'chat'],
+			{ chat: { verbose: true, '_': [] }, '_': [] },
+			[]
+		);
+
+		assertParse(
+			options3,
+			['--profile=agent', 'tunnel'],
+			{ tunnel: { verbose: false, '_': [] }, '_': [] },
+			['tunnel-onUnknownOption profile']
+		);
+	});
+
+	test('repeated subcommand tokens and subcommand option values', () => {
+
+		interface TestArgs4 {
+			testcmd?: {
+				verbose?: boolean;
+				_: string[];
+			};
+			log?: string[];
+			verbose?: boolean;
+			_: string[];
+		}
+
+		const options4 = {
+			'testcmd': c('A test command', {
+				verbose: { type: 'boolean', global: true, description: '' },
+				_: { type: 'string[]' }
+			}),
+			log: { type: 'string[]', global: true, description: '' },
+			verbose: { type: 'boolean', global: true, description: '' },
+			_: { type: 'string[]' }
+		} as OptionDescriptions<TestArgs4>;
+
+		assertParse(
+			options4,
+			['--log', 'testcmd', 'testcmd'],
+			{ testcmd: { verbose: false, log: ['testcmd'], '_': [] }, '_': [] },
+			[]
+		);
+
+		assertParse(
+			options4,
+			['--log=testcmd', 'testcmd'],
+			{ testcmd: { verbose: false, log: ['testcmd'], '_': [] }, '_': [] },
+			[]
+		);
+
+		interface TestArgs5 {
+			testcmd?: {
+				testArg?: string;
+				_: string[];
+			};
+			_: string[];
+		}
+
+		const options5 = {
+			'testcmd': c('A test command', {
+				testArg: o('A test command option'),
+				_: { type: 'string[]' }
+			}),
+			_: { type: 'string[]' }
+		} as OptionDescriptions<TestArgs5>;
+
+		assertParse(
+			options5,
+			['--testArg', 'testcmd'],
+			{ '_': [] },
+			['onUnknownOption testArg']
+		);
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
