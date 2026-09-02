@@ -632,3 +632,98 @@ suite('AgentHostPermissionPickerDelegate approve-all fallback', () => {
 		});
 	});
 });
+
+suite('AgentHostPermissionPickerDelegate approve-all is confined to Copilot sessions', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** A session config whose only approvals axis is the given property. */
+	function configWithApprovalsProperty(property: string, values: readonly string[]): ResolveSessionConfigResult {
+		return {
+			schema: {
+				type: 'object',
+				properties: {
+					[property]: {
+						title: 'Approvals',
+						description: '',
+						type: 'string',
+						enum: [...values],
+						sessionMutable: true,
+					},
+				},
+			},
+			values: { [property]: values[0] },
+		} as ResolveSessionConfigResult;
+	}
+
+	function setupAgent(sessionType: string, config: ResolveSessionConfigResult) {
+		const rig = setup(store, makeActiveSession(sessionType));
+		// A remote connection can always issue the request, so the agent gate is
+		// the only thing keeping these sessions off the approve-all path.
+		rig.provider.approveAllSupported = true;
+		rig.provider.config = config;
+		rig.provider.fireChange();
+		return rig;
+	}
+
+	test('leaves agents that own their own approvals axis alone', () => {
+		// Each has a dedicated picker; claiming them here would stack a second
+		// approvals chip beside it and send a Copilot-shaped request.
+		const claude = setupAgent('claude', configWithApprovalsProperty('permissionMode', ['default', 'acceptEdits', 'plan']));
+		const codex = setupAgent('codex', configWithApprovalsProperty('codex.permissionsPreset', ['default', 'auto-review', 'full-access']));
+
+		assert.deepStrictEqual({
+			claude: claude.delegate.isApplicable.get(),
+			codex: codex.delegate.isApplicable.get(),
+		}, {
+			claude: false,
+			codex: false,
+		});
+	});
+
+	test('ignores an unknown agent even when it exposes no approvals axis', () => {
+		// Fail closed: an agent this client has never heard of gets no picker
+		// rather than a request shaped for a different agent.
+		const rig = setupAgent('some-future-agent', configWithApprovalsProperty('mode', ['interactive', 'plan']));
+
+		assert.strictEqual(rig.delegate.isApplicable.get(), false);
+	});
+
+	test('claims a Copilot session with no approvals axis, local or remote', () => {
+		const local = setupAgent('copilotcli', configWithApprovalsProperty('mode', ['interactive', 'plan']));
+		const remote = setupAgent('remote-my-host-copilotcli', configWithApprovalsProperty('mode', ['interactive', 'plan']));
+
+		assert.deepStrictEqual({
+			local: local.delegate.isApplicable.get(),
+			remote: remote.delegate.isApplicable.get(),
+			levels: remote.delegate.availableLevels,
+		}, {
+			local: true,
+			remote: true,
+			levels: [ChatPermissionLevel.Default, ChatPermissionLevel.AutoApprove],
+		});
+	});
+
+	test('the agent gate alone does not claim a session; the connection must offer the request', () => {
+		// `copilotcli` also names the in-process CLI session, whose connection
+		// does not implement the request at all. Two independent gates keep it
+		// on the config path, so matching the agent name is not sufficient.
+		const rig = setup(store, makeActiveSession('copilotcli'));
+		rig.provider.approveAllSupported = false;
+		rig.provider.config = configWithApprovalsProperty('mode', ['interactive', 'plan']);
+		rig.provider.fireChange();
+
+		assert.strictEqual(rig.delegate.isApplicable.get(), false);
+	});
+
+	test('leaves a Copilot session whose host declares approvals on the config path', () => {
+		// The Copilot agent also runs on hosts that declare `autoApprove`; those
+		// keep the richer level set rather than being narrowed to a boolean.
+		const rig = setupAgent('copilotcli', makeWellKnownConfig('default'));
+
+		assert.deepStrictEqual(rig.delegate.availableLevels, [
+			ChatPermissionLevel.Default,
+			ChatPermissionLevel.Assisted,
+			ChatPermissionLevel.AutoApprove,
+		]);
+	});
+});

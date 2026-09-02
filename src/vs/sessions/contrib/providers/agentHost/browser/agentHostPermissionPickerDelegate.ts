@@ -12,6 +12,7 @@ import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../plat
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { narrowClaudePermissionMode } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { narrowCodexPermissionsPreset } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
+import { parseRemoteAgentHostHarness } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IPermissionLevelMeta, IPermissionPickerDelegate } from '../../copilotChatSessions/browser/permissionPicker.js';
@@ -29,6 +30,22 @@ const REQUIRED_AUTO_APPROVE_VALUE = 'default';
 const REQUIRED_MODE_VALUE = 'interactive';
 const REQUIRED_PERMISSION_MODE_VALUE = 'default';
 const REQUIRED_CODEX_APPROVALS_VALUE = 'default';
+
+/**
+ * Whether a session type identifies a Copilot agent session, local
+ * (`copilotcli`) or remote (`remote-<authority>-copilotcli`).
+ *
+ * Used to confine Copilot-specific host extensions to Copilot sessions. A
+ * remote agent host advertises every agent it hosts, so the connection alone
+ * says nothing about which agent a given session runs.
+ */
+export function isCopilotAgentSessionType(sessionType: string | undefined): boolean {
+	if (!sessionType) {
+		return false;
+	}
+	return sessionType === CopilotCLISessionType.id
+		|| parseRemoteAgentHostHarness(sessionType) === CopilotCLISessionType.id;
+}
 
 /**
  * Returns `true` when an `autoApprove` session-config property uses the
@@ -262,18 +279,29 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	}
 
 	/**
-	 * Whether this session's approvals are driven by the Copilot approve-all
-	 * extension rather than an `autoApprove` config property.
+	 * Whether this session's approvals are driven by the approve-all extension
+	 * rather than a config property.
 	 *
-	 * Only applies once the session's config has actually been resolved: before
-	 * that the schema is legitimately empty, and treating "not yet known" as
-	 * "no approvals property" would flash the two-level picker at a host that
-	 * turns out to offer three.
+	 * Gated on the Copilot agent specifically. The extension is a Copilot host
+	 * extension, so that is exactly the set of sessions where it means anything
+	 * — and gating positively fails closed: an agent this client has never heard
+	 * of gets no picker rather than a Copilot-shaped request it never asked for.
+	 * Agents with their own approvals axis (Claude, Codex) are excluded by the
+	 * same rule and keep their dedicated pickers.
+	 *
+	 * The schema check still runs on top, because the Copilot agent also runs on
+	 * hosts that *do* declare an approvals property — those keep the richer
+	 * config-driven level set instead of being narrowed to a boolean.
+	 *
+	 * Requires the config to be resolved first: before that the schema is
+	 * legitimately empty, and treating "not yet known" as "no approvals
+	 * property" would flash the two-level picker at a session that turns out to
+	 * offer three.
 	 */
 	private _usesApproveAll(session: IActiveSession): boolean {
 		const provider = this._getProvider(session.providerId);
 		const config = provider?.getSessionConfig(session.sessionId);
-		if (!provider || !config || !provider.canRequestSessionApproveAll()) {
+		if (!provider || !config || !provider.canRequestSessionApproveAll() || !isCopilotAgentSessionType(session.sessionType)) {
 			return false;
 		}
 		const schema = config.schema.properties[SessionConfigKey.AutoApprove];
