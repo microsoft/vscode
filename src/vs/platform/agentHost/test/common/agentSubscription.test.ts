@@ -9,7 +9,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
-import { ActionType, type ActionEnvelope, type ClientChangesetAction } from '../../common/state/sessionActions.js';
+import { ActionType, type ActionEnvelope, type ChatTurnStartedAction, type ClientChangesetAction } from '../../common/state/sessionActions.js';
 import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, ChangesetStatus, MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TerminalLifecycleStatus, TurnState, type AnnotationsState, type AutomationRunState, type AutomationState, type ChangesetState, type ErrorInfo, type RootState, type SessionState, type SessionSummary, type TerminalState, type Turn } from '../../common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, createChatState, createDefaultChatSummary, getTurnError, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
 import { AgentSubscriptionManager, AutomationCatalogSubscription, AutomationRunSubscription, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
@@ -637,6 +637,40 @@ suite('ChatStateSubscription', () => {
 		};
 	}
 
+	function makeCompletedTurn(id: string): Turn {
+		return {
+			id,
+			message: { text: 'earlier', origin: { kind: MessageKind.User } },
+			responseParts: [],
+			usage: undefined,
+			state: TurnState.Complete,
+		};
+	}
+
+	function makeTurnStart(turnId: string): ChatTurnStartedAction {
+		return {
+			type: ActionType.ChatTurnStarted,
+			turnId,
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		};
+	}
+
+	function streamResponse(sub: ChatStateSubscription, turnId: string, serverSeq: number): void {
+		sub.receiveEnvelope(makeEnvelope({ type: ActionType.ChatResponsePart, turnId, part: { kind: ResponsePartKind.Markdown, id: 'part-1', content: 'hel' } }, serverSeq, undefined));
+		sub.receiveEnvelope(makeEnvelope({ type: ActionType.ChatDelta, turnId, partId: 'part-1', content: 'lo' }, serverSeq + 1, undefined));
+	}
+
+	function summarize(sub: ChatStateSubscription) {
+		const value = sub.value as ChatState | undefined;
+		return {
+			pending: sub.getPendingActions().map(pending => pending.action.type),
+			confirmedTurns: sub.verifiedValue?.turns.map(turn => turn.id),
+			turns: value?.turns.map(turn => turn.id),
+			activeTurn: value?.activeTurn && { id: value.activeTurn.id, responseParts: value.activeTurn.responseParts },
+		};
+	}
+
 	test('normalizes legacy live errors to durable response parts', () => {
 		const error: ErrorInfo = { errorType: 'LegacyError', message: 'legacy failure' };
 		const envelope = normalizeLegacyActionEnvelope({
@@ -728,6 +762,79 @@ suite('ChatStateSubscription', () => {
 		}, {
 			activeTurn: undefined,
 			turns: [{ id: 'turn-1', state: TurnState.Complete }],
+		});
+	});
+
+	test('a stranded optimistic truncation is retired when the host confirms the same truncation without an origin', () => {
+		const sub = createSub();
+		sub.handleSnapshot(makeChatState(chatUri, undefined, { turns: [makeCompletedTurn('turn-0')] }), 0);
+		sub.applyOptimistic({ type: ActionType.ChatTruncated });
+
+		sub.receiveEnvelope(makeEnvelope({ type: ActionType.ChatTruncated }, 1, undefined));
+		const pendingAfterConfirm = sub.getPendingActions().length;
+		sub.receiveEnvelope(makeEnvelope(makeTurnStart('turn-1'), 2, undefined));
+		streamResponse(sub, 'turn-1', 3);
+
+		assert.deepStrictEqual({ pendingAfterConfirm, ...summarize(sub) }, {
+			pendingAfterConfirm: 0,
+			pending: [],
+			confirmedTurns: [],
+			turns: [],
+			activeTurn: { id: 'turn-1', responseParts: [{ kind: ResponsePartKind.Markdown, id: 'part-1', content: 'hello' }] },
+		});
+	});
+
+	test('a stranded optimistic truncation is retired once a later client-dispatched turn start is confirmed', () => {
+		const sub = createSub();
+		sub.handleSnapshot(makeChatState(chatUri, undefined, { turns: [makeCompletedTurn('turn-0')] }), 0);
+		sub.applyOptimistic({ type: ActionType.ChatTruncated });
+		const turnStart = makeTurnStart('turn-1');
+		const turnStartSeq = sub.applyOptimistic(turnStart);
+
+		sub.receiveEnvelope(makeEnvelope(turnStart, 1, { clientId: 'c1', clientSeq: turnStartSeq }));
+		const pendingAfterConfirm = sub.getPendingActions().length;
+		streamResponse(sub, 'turn-1', 2);
+
+		assert.deepStrictEqual({ pendingAfterConfirm, ...summarize(sub) }, {
+			pendingAfterConfirm: 0,
+			pending: [],
+			confirmedTurns: [],
+			turns: [],
+			activeTurn: { id: 'turn-1', responseParts: [{ kind: ResponsePartKind.Markdown, id: 'part-1', content: 'hello' }] },
+		});
+	});
+
+	test('an optimistic truncation that has not been observed is still replayed', () => {
+		const sub = createSub();
+		sub.handleSnapshot(makeChatState(chatUri, undefined, { turns: [makeCompletedTurn('turn-0')] }), 0);
+		sub.applyOptimistic({ type: ActionType.ChatTruncated });
+
+		sub.receiveEnvelope(makeEnvelope({ type: ActionType.ChatTruncated, turnId: 'turn-0' }, 1, undefined));
+		sub.receiveEnvelope(makeEnvelope(makeTurnStart('turn-1'), 2, { clientId: 'c2', clientSeq: 7 }));
+		streamResponse(sub, 'turn-1', 3);
+
+		assert.deepStrictEqual(summarize(sub), {
+			pending: [ActionType.ChatTruncated],
+			confirmedTurns: ['turn-0'],
+			turns: [],
+			activeTurn: undefined,
+		});
+	});
+
+	test('an optimistic truncation dispatched after the confirmed turn start stays pending', () => {
+		const sub = createSub();
+		sub.handleSnapshot(makeChatState(chatUri, undefined, { turns: [makeCompletedTurn('turn-0')] }), 0);
+		const turnStart = makeTurnStart('turn-1');
+		const turnStartSeq = sub.applyOptimistic(turnStart);
+		sub.applyOptimistic({ type: ActionType.ChatTruncated });
+
+		sub.receiveEnvelope(makeEnvelope(turnStart, 1, { clientId: 'c1', clientSeq: turnStartSeq }));
+
+		assert.deepStrictEqual(summarize(sub), {
+			pending: [ActionType.ChatTruncated],
+			confirmedTurns: ['turn-0'],
+			turns: [],
+			activeTurn: undefined,
 		});
 	});
 });
