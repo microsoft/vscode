@@ -47,8 +47,9 @@ function powerShellBlock(body: readonly string[], failureMessage: string): strin
  * setup. Activation is whatever command the Python Environments extension
  * published for the folder; nothing tool-specific is added here.
  *
- * Every script ends successfully: the runtime reports a nonzero init-script
- * status before every later command, and discards Bash init-script stderr.
+ * Every script ends successfully unless sourced profile code itself
+ * terminates the shell: the runtime reports a nonzero init-script status
+ * before every later command, and discards Bash init-script stderr.
  */
 export function createShellInitScript(shell: ShellInitScriptShell, pythonActivation: string | undefined): IShellInitScript {
 	return shell === 'powershell'
@@ -106,6 +107,9 @@ function createPowerShellInitScript(pythonActivation: string | undefined): IShel
 	return { shell: 'powershell', script: lines.join('\n') };
 }
 
+/** Generated scripts are a few hundred bytes; anything near this is not one. */
+const MAX_SHELL_INIT_SCRIPT_LENGTH = 64 * 1024;
+
 /** Validates the client-pushed list before the agent host writes it to disk. */
 export function isShellInitScriptList(value: unknown): value is readonly IShellInitScript[] {
 	return Array.isArray(value)
@@ -117,6 +121,7 @@ export function isShellInitScriptList(value: unknown): value is readonly IShellI
 			const script = entry as Partial<IShellInitScript>;
 			return (script.shell === 'bash' || script.shell === 'powershell')
 				&& typeof script.script === 'string'
-				&& script.script.length > 0;
+				&& script.script.length > 0
+				&& script.script.length <= MAX_SHELL_INIT_SCRIPT_LENGTH;
 		});
 }

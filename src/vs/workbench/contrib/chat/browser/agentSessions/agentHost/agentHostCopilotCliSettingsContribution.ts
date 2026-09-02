@@ -8,7 +8,7 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { isObject } from '../../../../../../base/common/types.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostAutoModeTiersEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostMultiTurnContextRoutingEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotCliConfigKey, CopilotSubagentModelGuidanceEnabledSettingId, normalizeToolSearchDeferThreshold, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostAutoModeTiersEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostMultiTurnContextRoutingEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotCliConfigKey, CopilotSubagentModelGuidanceEnabledSettingId, normalizeToolSearchDeferThreshold, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
 import { AgentHostRootConfigForwarder, type IForwardedRootConfigKey } from './agentHostRootConfigForwarder.js';
@@ -80,6 +80,13 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 					return isObject(value) ? value : {};
 				},
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostCopilotModelCapabilityOverridesSettingId),
+			},
+			{
+				// The host applies a published shell init script only while this is
+				// true, so the setting is enforced host-side, whoever published.
+				key: CopilotCliConfigKey.EnableShellInitScript,
+				computeValue: () => this._configurationService.getValue<boolean>(AgentHostShellToolInitScriptEnabledSettingId) === true,
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostShellToolInitScriptEnabledSettingId),
 			},
 		];
 		this._forwarder = this._register(new AgentHostRootConfigForwarder(keys, agentHostService));

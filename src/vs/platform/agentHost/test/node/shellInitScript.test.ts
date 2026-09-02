@@ -76,7 +76,8 @@ suite('shellInitScript', () => {
 			isShellInitScriptList([{ shell: 'bash', script: 'x' }, { shell: 'bash', script: 'y' }]),
 			isShellInitScriptList([{ shell: 'zsh', script: 'x' }]),
 			isShellInitScriptList([{ shell: 'bash', script: '' }]),
-		], [true, true, false, false, false]);
+			isShellInitScriptList([{ shell: 'bash', script: 'x'.repeat(64 * 1024 + 1) }]),
+		], [true, true, false, false, false, false]);
 	});
 
 	(process.platform === 'win32' ? suite.skip : suite)('bash behavior', () => {

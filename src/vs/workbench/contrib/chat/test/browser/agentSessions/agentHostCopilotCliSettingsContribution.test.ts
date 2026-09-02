@@ -11,7 +11,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostMultiTurnContextRoutingEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotCliConfigKey, CopilotSubagentModelGuidanceEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostMultiTurnContextRoutingEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotCliConfigKey, CopilotSubagentModelGuidanceEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ClientAnnotationsAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ConfigPropertySchema, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -79,6 +79,7 @@ const fullSchema: Record<string, ConfigPropertySchema> = {
 	[CopilotCliConfigKey.MultiTurnContextRouting]: { type: 'boolean', title: 'Auto Multi-Turn Context Routing' },
 	[CopilotCliConfigKey.SubagentModelGuidance]: { type: 'boolean', title: 'Subagent Model Guidance' },
 	[CopilotCliConfigKey.ModelCapabilityOverrides]: { type: 'object', title: 'Model Capability Overrides' },
+	[CopilotCliConfigKey.EnableShellInitScript]: { type: 'boolean', title: 'Shell Init Script' },
 };
 
 /** Two microtask hops: one for the await on computeValue, one for the dispatch. */
@@ -123,13 +124,14 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[AgentHostReasoningSummaryEnabledSettingId]: true,
 			[AgentHostMultiTurnContextRoutingEnabledSettingId]: true,
 			[CopilotSubagentModelGuidanceEnabledSettingId]: true,
+			[AgentHostShellToolInitScriptEnabledSettingId]: true,
 		});
 		agentHostService.setRootState(makeRootStateWithSchema(fullSchema));
 		await flush();
 
 		// The shared forwarder dispatches one RootConfigChanged per key; merge them
 		// and assert the full forwarded set (order-independent).
-		assert.strictEqual(agentHostService.dispatchedActions.length, 8);
+		assert.strictEqual(agentHostService.dispatchedActions.length, 9);
 		const merged = Object.assign({}, ...agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
 		assert.deepStrictEqual(merged, {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
@@ -140,6 +142,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.MultiTurnContextRouting]: true,
 			[CopilotCliConfigKey.SubagentModelGuidance]: true,
 			[CopilotCliConfigKey.ModelCapabilityOverrides]: capabilityOverrides,
+			[CopilotCliConfigKey.EnableShellInitScript]: true,
 		});
 	});
 
@@ -196,6 +199,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.MultiTurnContextRouting]: false,
 			[CopilotCliConfigKey.SubagentModelGuidance]: false,
 			[CopilotCliConfigKey.ModelCapabilityOverrides]: { 'preview-model-x': { family: 'claude-opus-4-8' } },
+			[CopilotCliConfigKey.EnableShellInitScript]: false,
 		}));
 		await flush();
 

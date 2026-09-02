@@ -3086,16 +3086,16 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to flush edit attribution: ${error}`);
 		});
 		this._beginAbort();
-		// Remove the script only after the SDK session has disconnected, so a
-		// command that is still running can source it. A session that failed
+		// Remove the script only once the SDK session's disconnect has settled,
+		// so a command that is still running can source it, and remove it even
+		// when disconnect fails so nothing is left behind. A session that failed
 		// before its wrapper existed has nothing to disconnect or remove, and
 		// dispose must never throw ahead of the base disposal below.
 		const wrapper: CopilotSessionWrapper | undefined = this._wrapper;
 		if (wrapper) {
-			void wrapper.disconnect().then(
-				() => this._disposeShellInitScript(),
-				error => this._logService.warn(`[Copilot:${this.sessionId}] Failed to disconnect before shell init cleanup: ${getErrorMessage(error)}`),
-			);
+			void wrapper.disconnect()
+				.catch(error => this._logService.warn(`[Copilot:${this.sessionId}] Failed to disconnect before shell init cleanup: ${getErrorMessage(error)}`))
+				.then(() => this._disposeShellInitScript());
 		}
 		super.dispose();
 	}
@@ -3767,6 +3767,8 @@ export class CopilotAgentSession extends Disposable {
 	private _subscribeToPermissionConfigChanges(): void {
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			void this._syncPermissionModeAfterConfigChange();
+			// The forwarded shell init setting lives in root config.
+			void this._syncShellInitScript();
 		}));
 		this._register(this._configurationService.onDidSessionConfigChange(event => {
 			if (event.session !== this._ownerSessionUri.toString()) {
@@ -3887,19 +3889,17 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		try {
-			const ownConfigValues = this._configurationService.getSessionConfigValues(this._ownerSessionUri.toString());
-			const ownConfigured = ownConfigValues?.[SessionConfigKey.ShellInitSnippets];
-			if (ownConfigValues && Object.hasOwn(ownConfigValues, SessionConfigKey.ShellInitSnippets) && !isShellInitScriptList(ownConfigured)) {
+			// Session-only by construction: root and parent-session values are
+			// never consulted. The workbench forwards its setting as root config,
+			// so the host applies nothing while it is off, whoever published.
+			const own = this._configurationService.getSessionConfigValues(this._ownerSessionUri.toString())?.[SessionConfigKey.ShellInitSnippets];
+			if (own !== undefined && !isShellInitScriptList(own)) {
 				// Keep the last valid registration rather than clearing it.
 				this._logService.warn(`[Copilot:${this.sessionId}] Ignoring malformed shell init script config`);
 				return;
 			}
-			const configured = this._configurationService.getEffectiveValue(this._ownerSessionUri.toString(), platformSessionSchema, SessionConfigKey.ShellInitSnippets);
-			if (configured !== undefined && !isShellInitScriptList(configured)) {
-				this._logService.warn(`[Copilot:${this.sessionId}] Ignoring malformed inherited shell init script config`);
-				return;
-			}
-			const snippets = configured ?? [];
+			const enabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableShellInitScript) === true;
+			const snippets = enabled ? (own ?? []) : [];
 			const serialized = JSON.stringify(snippets);
 			if (this._lastAppliedShellInitScripts === serialized) {
 				return;

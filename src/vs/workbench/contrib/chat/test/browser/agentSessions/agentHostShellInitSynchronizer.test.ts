@@ -290,8 +290,15 @@ suite('AgentHostShellInitSynchronizer', () => {
 		assert.deepStrictEqual(dispatched, [{ [SessionConfigKey.ShellInitSnippets]: [] }]);
 	});
 
-	test('does not publish a script from the Agents window', async () => {
-		const { synchronizer, dispatched } = create({ enabled: true, sessionsWindow: true, folders: [] });
+	test('does not publish a script from the Agents window even when it owns the session folder', async () => {
+		// The Agents window mounts the active session folder into its workspace,
+		// so folder ownership alone would otherwise qualify it as a publisher.
+		const { synchronizer, dispatched } = create({
+			enabled: true,
+			sessionsWindow: true,
+			folders: [folderA],
+			collection: collection([{ variable: ACTIVATION_VARIABLE, value: 'activate-a', folder: folderA }]),
+		});
 		await register(synchronizer, state());
 		assert.deepStrictEqual(dispatched, []);
 	});
