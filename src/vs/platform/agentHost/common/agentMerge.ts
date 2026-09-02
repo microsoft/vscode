@@ -299,9 +299,9 @@ export const agentMergeDisableReasons = {
 		log: 'the same pull request blockers remained after repeated repair attempts',
 		notice: localize('agentMerge.disabled.repairBudgetExhausted', "Agent Merge was turned off because the same pull request blockers remained after repeated repair attempts."),
 	}),
-	pullRequestMerged: (): AgentMergeDisableReason => ({
+	pullRequestMerged: (pullRequestNumber: number, pullRequestUrl: string): AgentMergeDisableReason => ({
 		log: 'the pull request was merged',
-		notice: localize('agentMerge.disabled.pullRequestMerged', "Agent Merge merged its pull request and turned itself off."),
+		notice: localize('agentMerge.pullRequestMerged', "Agent Merge merged pull request [#{0}]({1}).", pullRequestNumber, pullRequestUrl),
 	}),
 } as const;
 

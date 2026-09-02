@@ -17,6 +17,8 @@ export const enum AgentSystemNotificationKind {
 	AgentMergeConfigurationChanged = 'agentMergeConfigurationChanged',
 	/** Agent Merge stopped monitoring the session, usually on its own. */
 	AgentMergeDisabled = 'agentMergeDisabled',
+	/** Agent Merge merged the pull request it was monitoring. */
+	AgentMergePullRequestMerged = 'agentMergePullRequestMerged',
 }
 
 export const enum AgentSystemNotificationSeverity {
@@ -31,6 +33,7 @@ const knownKinds: ReadonlySet<string> = new Set<string>([
 	AgentSystemNotificationKind.AgentMergeEnabled,
 	AgentSystemNotificationKind.AgentMergeConfigurationChanged,
 	AgentSystemNotificationKind.AgentMergeDisabled,
+	AgentSystemNotificationKind.AgentMergePullRequestMerged,
 ]);
 
 interface IHasSystemNotificationMeta {

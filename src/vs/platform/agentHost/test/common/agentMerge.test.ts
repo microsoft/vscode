@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentMergeConfiguration, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeEnabledNotice, evaluateAgentMerge, getNonMergeSessionConfigValues, isAgentMergePullRequestReadyForReview, readAgentMergeSessionState, shouldStopMergingAfterAgentChanges } from '../../common/agentMerge.js';
+import { AgentMergeConfiguration, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeEnabledNotice, evaluateAgentMerge, getNonMergeSessionConfigValues, isAgentMergePullRequestReadyForReview, readAgentMergeSessionState, shouldStopMergingAfterAgentChanges } from '../../common/agentMerge.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
 
@@ -279,6 +279,13 @@ suite('Agent Merge gate', () => {
 			'After each update, it will wait for new CI results and review comments.',
 			'It will not merge the pull request automatically and will keep monitoring it.',
 		].map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n'));
+	});
+
+	test('reports when Agent Merge merges a pull request', () => {
+		assert.strictEqual(
+			agentMergeDisableReasons.pullRequestMerged(123, 'https://github.com/octo/repo/pull/123').notice,
+			'Agent Merge merged pull request [#123](https://github.com/octo/repo/pull/123).',
+		);
 	});
 
 	test('describes effective Agent Merge configuration changes', () => {

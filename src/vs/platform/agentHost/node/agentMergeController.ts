@@ -815,7 +815,13 @@ export class AgentMergeController extends Disposable {
 		}
 		const result = await this._gitHubService.mutations.merge(preparation, { method, authorization }, runtime.abortController.signal);
 		this._logService.info(`[AgentMergeController] Pull request merged natively: session=${session}, method=${method}, outcome=${result.outcome}`);
-		this._disable(session, currentState, agentMergeDisableReasons.pullRequestMerged());
+		const mergedPullRequest = preparation.snapshot.core.value!;
+		this._disable(
+			session,
+			currentState,
+			agentMergeDisableReasons.pullRequestMerged(mergedPullRequest.number, mergedPullRequest.url),
+			AgentSystemNotificationKind.AgentMergePullRequestMerged,
+		);
 	}
 
 	private async _completeTurn(session: string): Promise<void> {
@@ -950,14 +956,14 @@ export class AgentMergeController extends Disposable {
 		});
 	}
 
-	private _disable(session: string, current: AgentMergeSessionState, reason: AgentMergeDisableReason): void {
+	private _disable(session: string, current: AgentMergeSessionState, reason: AgentMergeDisableReason, notificationKind = AgentSystemNotificationKind.AgentMergeDisabled): void {
 		this._logService.info(`[AgentMergeController] Disabling Agent Merge for ${session}: ${reason.log}`);
 		this._activeTurns.delete(session);
 		// Claim the transition before the config write re-enters `_doSyncSession`,
 		// so the reasoned notice below is the only one the user sees.
 		this._monitoredSessions.delete(session);
 		this._announcedConfigurations.delete(session);
-		this._postNotice(session, AgentSystemNotificationKind.AgentMergeDisabled, reason.notice);
+		this._postNotice(session, notificationKind, reason.notice);
 		const patch: Record<string, unknown> = {
 			[SessionConfigKey.AgentMerge]: {
 				enabled: false,
