@@ -1264,6 +1264,7 @@ export class PluginListWidget extends Disposable {
 
 		const content = this.createCardScrollContent();
 		const installedPlugins = this.installedItems;
+		const hasMarketplaceInstalledPlugins = this.pluginMarketplaceService.installedPlugins.get().length > 0;
 
 		this.renderDiscoverySnapshot(content);
 		if (shouldLoadPluginMarketplaceSnapshot(this.visible, this.marketplaceSnapshot.state, this.isBrowseMarketplaceAvailable())) {
@@ -1276,7 +1277,7 @@ export class PluginListWidget extends Disposable {
 			undefined,
 			'installed-plugins-section',
 			installedPlugins.length,
-			header => this.renderInstalledSectionActions(header, installedPlugins.length > 0),
+			header => this.renderInstalledSectionActions(header, hasMarketplaceInstalledPlugins),
 		);
 		installedList.classList.add('plugin-inventory-list');
 		if (installedPlugins.length === 0) {
