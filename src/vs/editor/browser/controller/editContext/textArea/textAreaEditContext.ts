@@ -207,12 +207,8 @@ export class TextAreaEditContext extends AbstractEditContext {
 		const textAreaInputHost: ITextAreaInputHost = {
 			context: this._context,
 			getScreenReaderContent: (): TextAreaState => {
-				if (this._accessibilitySupport !== AccessibilitySupport.Enabled) {
-					// No screen reader is known to be attached. `writeNativeTextAreaContent` already
-					// treats this case as "no screen reader" and skips render-time writes (#192278);
-					// handing it the paged content anyway put several rows of text into a one-row
-					// textarea, and during IME composition WebKit scrolls that textarea to keep its
-					// caret visible, fighting the row alignment `_render` maintains (monaco-editor#4796).
+				if (this._accessibilitySupport === AccessibilitySupport.Disabled || (this._accessibilitySupport === AccessibilitySupport.Unknown && !browser.isAndroid)) {
+					// No screen reader is known to be attached; a page here gives WebKit an overflow to scroll during IME composition (monaco-editor#4796)
 					// On OSX, we write the character before the cursor to allow for "long-press" composition
 					// Also on OSX, we write the word before the cursor to allow for the Accessibility Keyboard to give good hints
 					const selection = this._selections[0];
@@ -567,8 +563,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 		// we will size the textarea to match the width used for wrapping points computation (see `domLineBreaksComputer.ts`).
 		// This is because screen readers will read the text in the textarea and we'd like that the
 		// wrapping points in the textarea match the wrapping points in the editor.
-		// Without one, the textarea only ever holds the short content `getScreenReaderContent` writes,
-		// and there is nothing to wrap.
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		const wrappingColumn = layoutInfo.wrappingColumn;
 		if (wrappingColumn !== -1 && this._accessibilitySupport === AccessibilitySupport.Enabled) {
@@ -768,9 +762,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 					strikethrough: presentation.strikethrough,
 					fontSize
 				});
-				// After `_doRender`, the way the non-composition branch below orders it: a scroll
-				// offset is clamped against the textarea's size at the time it is written, and it is
-				// `_doRender` that gives the textarea its size for this row.
+				// After `_doRender`, as the branch below does: the offsets are clamped against the size it just set
 				this.textArea.domNode.scrollTop = lineCount * lineHeight;
 				this.textArea.domNode.scrollLeft = scrollLeft;
 			}
