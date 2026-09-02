@@ -194,13 +194,13 @@ suite('Chat Paste Providers', () => {
 			leavesShortHtmlToHtmlPaste: undefined,
 			leavesCopiedChatAttachmentsToAttachmentPaste: undefined,
 			githubIssue: {
-				insertText: '[microsoft/vscode#334061](<https://github.com/microsoft/vscode/issues/334061>)',
+				insertText: 'https://github.com/microsoft/vscode/issues/334061',
 				title: 'Paste GitHub Link',
 				kind: provider.kind,
 				handledMimeType: Mimes.text,
 			},
 			githubPullRequest: {
-				insertText: '[microsoft/vscode#333953](<https://github.com/microsoft/vscode/pull/333953#issuecomment-123>)',
+				insertText: 'https://github.com/microsoft/vscode/pull/333953#issuecomment-123',
 				title: 'Paste GitHub Link',
 				kind: provider.kind,
 				handledMimeType: Mimes.text,

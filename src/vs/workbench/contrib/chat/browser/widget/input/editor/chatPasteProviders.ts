@@ -371,7 +371,7 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 		const githubLink = getGitHubIssueOrPullRequestLink(textdata);
 		if (githubLink) {
 			return createEditSession({
-				insertText: `[${githubLink.label}](<${githubLink.url}>)`,
+				insertText: githubLink,
 				title: localize('pasteGitHubLink', "Paste GitHub Link"),
 				kind: this.kind,
 				handledMimeType: Mimes.text,
@@ -466,17 +466,9 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 	}
 }
 
-function getGitHubIssueOrPullRequestLink(text: string): { readonly label: string; readonly url: string } | undefined {
+function getGitHubIssueOrPullRequestLink(text: string): string | undefined {
 	const url = text.trim();
-	const match = /^https:\/\/github\.com\/(?<owner>[a-z\d](?:[a-z\d-]{0,38}))\/(?<repository>[a-z\d._-]+)\/(?:issues|pull)\/(?<number>\d+)(?:[/?#][^\s]*)?$/i.exec(url);
-	if (!match?.groups) {
-		return undefined;
-	}
-
-	return {
-		label: `${match.groups.owner}/${match.groups.repository}#${match.groups.number}`,
-		url,
-	};
+	return /^https:\/\/github\.com\/[a-z\d](?:[a-z\d-]{0,38})\/[a-z\d._-]+\/(?:issues|pull)\/\d+(?:[/?#][^\s]*)?$/i.test(url) ? url : undefined;
 }
 
 export function createPastedTextArtifact(
