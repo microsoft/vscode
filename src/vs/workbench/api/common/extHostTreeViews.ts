@@ -147,6 +147,10 @@ export class ExtHostTreeViews extends Disposable implements ExtHostTreeViewsShap
 			reveal: (element: T, options?: IRevealOptions): Promise<void> => {
 				return treeView.reveal(element, options);
 			},
+			clearSelection: (): void => {
+				checkProposedApiEnabled(extension, 'treeViewClearSelection');
+				treeView.clearSelection();
+			},
 			dispose: async () => {
 				// Wait for the registration promise to finish before doing the dispose.
 				await registerPromise;
@@ -526,6 +530,10 @@ class ExtHostTreeView<T> extends Disposable {
 		} else {
 			return this._proxy.$reveal(this._viewId, undefined, { select, focus, expand });
 		}
+	}
+
+	clearSelection(): void {
+		this._proxy.$clearSelection(this._viewId);
 	}
 
 	private _message: string | vscode.MarkdownString = '';

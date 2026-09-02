@@ -85,6 +85,16 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 			});
 	}
 
+	$clearSelection(treeViewId: string): void {
+		this.logService.trace('MainThreadTreeViews#$clearSelection', treeViewId);
+
+		// Unlike `$reveal`, this does not open the view: clearing a selection is not a
+		// request for the user's attention. If the view was never created there is no
+		// selection to clear.
+		const viewer = this.getTreeView(treeViewId);
+		viewer?.setSelection([]);
+	}
+
 	$refresh(treeViewId: string, itemsToRefreshByHandle: { [treeItemHandle: string]: ITreeItem }): Promise<void> {
 		this.logService.trace('MainThreadTreeViews#$refresh', treeViewId, itemsToRefreshByHandle);
 
