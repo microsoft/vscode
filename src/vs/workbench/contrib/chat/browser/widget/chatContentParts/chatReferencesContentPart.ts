@@ -9,7 +9,7 @@ import { IListOptions } from '../../../../../../base/browser/ui/list/listWidget.
 import { coalesce } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { matchesSomeScheme, Schemas } from '../../../../../../base/common/network.js';
 import { basename } from '../../../../../../base/common/path.js';
@@ -46,6 +46,8 @@ import { ChatTreeItem, IChatWidgetService } from '../../chat.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
+import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
+import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 
@@ -64,14 +66,14 @@ export type IChatCollapsibleListItem = IChatReferenceListItem | IChatWarningMess
 export class ChatCollapsibleListContentPart extends ChatCollapsibleContentPart {
 
 	constructor(
-		private readonly data: ReadonlyArray<IChatCollapsibleListItem>,
+		protected readonly data: ReadonlyArray<IChatCollapsibleListItem>,
 		labelOverride: IMarkdownString | string | undefined,
 		context: IChatContentPartRenderContext,
 		private readonly contentReferencesListPool: CollapsibleListPool,
 		hoverMessage: IMarkdownString | undefined,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -165,11 +167,30 @@ export class ChatUsedReferencesListContentPart extends ChatCollapsibleListConten
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
+		@IMarkdownRendererService private readonly chatContentMarkdownRenderer: IMarkdownRendererService,
 	) {
 		super(data, labelOverride, context, contentReferencesListPool, undefined, openerService, menuService, instantiationService, contextMenuService, hoverService, configurationService);
 		if (data.length === 0) {
 			dom.hide(this.domNode);
 		}
+	}
+
+	protected override init(): HTMLElement {
+		const domNode = super.init();
+		if (this.data.length === 1 && this.data[0].kind === 'reference') {
+			const reference = this.data[0];
+			const uri = getReferenceUri(reference.reference);
+			if (uri && isGitHubIssueOrPullRequest(uri)) {
+				const title = reference.title ?? uri.toString(true);
+				const link = new MarkdownString();
+				link.appendLink(uri, title);
+				this.setTitleWithWidgets(link, this.instantiationService, this.chatMarkdownAnchorService, this.chatContentMarkdownRenderer);
+				this.setExpandable(false);
+				(this.element as IChatResponseViewModel).usedReferencesExpanded = false;
+			}
+		}
+		return domNode;
 	}
 
 	protected override isExpanded(): boolean {
@@ -518,6 +539,19 @@ function getResourceForElement(element: IChatCollapsibleListItem): URI | null {
 	} else {
 		return reference.uri;
 	}
+}
+
+function getReferenceUri(reference: IChatContentReference['reference']): URI | undefined {
+	if (URI.isUri(reference)) {
+		return reference;
+	}
+	return typeof reference === 'object' && 'uri' in reference ? reference.uri : undefined;
+}
+
+export function isGitHubIssueOrPullRequest(uri: URI): boolean {
+	return uri.scheme === Schemas.https
+		&& isEqualAuthority(uri.authority, 'github.com')
+		&& /^\/[^/]+\/[^/]+\/(?:issues|pull)\/[^/]+\/?$/.test(uri.path);
 }
 
 //#region Resource context menu

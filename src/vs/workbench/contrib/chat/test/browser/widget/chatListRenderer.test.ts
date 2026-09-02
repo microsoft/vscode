@@ -40,12 +40,22 @@ import { ToolDataSource } from '../../../common/tools/languageModelToolsService.
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { shouldRenderGeneratedImageResult, shouldRenderSessionCreatedResult } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { getGeneratedImageResultParts, getGeneratedImageResultPartsFromContent } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
+import { isGitHubIssueOrPullRequest } from '../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
 import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 
 suite('ChatListRenderer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('identifies GitHub issue and pull request references', () => {
+		assert.deepStrictEqual([
+			isGitHubIssueOrPullRequest(URI.parse('https://github.com/microsoft/vscode/issues/334064')),
+			isGitHubIssueOrPullRequest(URI.parse('https://github.com/microsoft/vscode/pull/334064')),
+			isGitHubIssueOrPullRequest(URI.parse('https://github.com/microsoft/vscode/tree/main/src')),
+			isGitHubIssueOrPullRequest(URI.parse('https://example.com/microsoft/vscode/issues/334064')),
+		], [true, true, false, false]);
+	});
 
 	suite('shouldScheduleInitialHeightChange', () => {
 		test('only schedules first measurement updates when needed to avoid clipping', () => {
