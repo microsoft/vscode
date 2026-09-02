@@ -2427,7 +2427,7 @@ suite('CopilotAgent', () => {
 
 			assert.deepStrictEqual(authRequests, [{
 				resource: GITHUB_COPILOT_PROTECTED_RESOURCE,
-				reason: 'required',
+				reason: 'expired',
 			}]);
 		} finally {
 			await disposeAgent(agent);
@@ -2450,7 +2450,7 @@ suite('CopilotAgent', () => {
 
 			assert.deepStrictEqual(agent.authenticationRequired.get(), {
 				resource: GITHUB_COPILOT_PROTECTED_RESOURCE,
-				reason: 'required',
+				reason: 'expired',
 			});
 		} finally {
 			await disposeAgent(agent);

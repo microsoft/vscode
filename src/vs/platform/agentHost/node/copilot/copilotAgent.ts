@@ -1571,7 +1571,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// `_handleCopilotSessionAuthRequired`.
 			this._authenticationRequired.set({
 				resource: this._gitHubEndpointService.getCopilotResource(),
-				reason: AuthRequiredReason.Required,
+				reason: AuthRequiredReason.Expired,
 			}, undefined);
 			await this._requestClientRestart('GitHub authentication cleared');
 			void this._scheduleModelRefresh();
