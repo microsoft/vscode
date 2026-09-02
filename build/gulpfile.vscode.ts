@@ -38,6 +38,7 @@ import globCallback from 'glob';
 import rceditCallback from 'rcedit';
 import { spawnTsgo } from './lib/tsgo.ts';
 import { runEsbuildTranspile, runEsbuildBundle } from './lib/esbuild.ts';
+import { generateNodeCompileCache, shouldGenerateNodeCompileCache } from './lib/nodeCompileCache.ts';
 
 
 const glob = promisify(globCallback);
@@ -153,6 +154,7 @@ const vscodeResources = [
 ];
 
 const bootstrapEntryPoints = [
+	'out-build/codeCache.js',
 	'out-build/main.js',
 	'out-build/cli.js',
 	'out-build/bootstrap-fork.js'
@@ -318,7 +320,11 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		}
 
 		const name = product.nameShort;
-		const packageJsonUpdates: Record<string, unknown> = { name, version };
+		const packageJsonUpdates: Record<string, unknown> = {
+			name,
+			version,
+			main: quality ? './out/codeCache.js' : './out/main.js'
+		};
 
 		if (platform === 'linux') {
 			packageJsonUpdates.desktopName = `${product.applicationName}.desktop`;
@@ -696,6 +702,17 @@ function prepareCopilotRipgrepShimTask(platform: string, arch: string, destinati
 	};
 }
 
+function generateNodeCompileCacheTask(platform: string, destinationFolderName: string) {
+	const outputDirectory = path.join(path.dirname(root), destinationFolderName);
+
+	return () => generateNodeCompileCache(
+		platform,
+		outputDirectory,
+		util.getVersionedResourcesFolder(platform, commit!),
+		product
+	);
+}
+
 const buildRoot = path.dirname(root);
 
 const BUILD_TARGETS = [
@@ -726,6 +743,9 @@ BUILD_TARGETS.forEach(buildTarget => {
 
 		if (platform === 'win32') {
 			packageTasks.push(patchWin32DependenciesTask(destinationFolderName));
+		}
+		if (shouldGenerateNodeCompileCache(platform, arch, product)) {
+			packageTasks.push(generateNodeCompileCacheTask(platform, destinationFolderName));
 		}
 
 		const vscodeTaskCI = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(...packageTasks));

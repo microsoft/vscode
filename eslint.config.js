@@ -2062,7 +2062,7 @@ export default defineConfig(
 					]
 				},
 				{
-					'target': 'src/{bootstrap-cli.ts,bootstrap-esm.ts,bootstrap-fork.ts,bootstrap-import.ts,bootstrap-meta.ts,bootstrap-node.ts,bootstrap-server.ts,cli.ts,main.ts,server-cli.ts,server-main.ts}',
+					'target': 'src/{bootstrap-cli.ts,bootstrap-esm.ts,bootstrap-fork.ts,bootstrap-import.ts,bootstrap-meta.ts,bootstrap-node.ts,bootstrap-server.ts,cli.ts,codeCache.ts,main.ts,server-cli.ts,server-main.ts}',
 					'restrictions': [
 						'vs/**/common/*',
 						'vs/**/node/*',

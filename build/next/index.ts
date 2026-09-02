@@ -144,6 +144,7 @@ const serverEntryPoints = [
 
 // Bootstrap files per target
 const bootstrapEntryPointsDesktop = [
+	'codeCache',
 	'main',
 	'cli',
 	'bootstrap-fork',
