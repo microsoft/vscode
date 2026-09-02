@@ -611,6 +611,33 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 	});
 
+	test('uses global GitHub context search when a selected folder has no GitHub remote', async () => {
+		const calls: { commandId: string; repoId: unknown }[] = [];
+		const harness: IGitHubContextBrowseHarness = {
+			commandService: new class extends mock<ICommandService>() {
+				override async executeCommand<T>(commandId: string, repoId?: unknown): Promise<T | undefined> {
+					calls.push({ commandId, repoId });
+					return undefined;
+				}
+			}(),
+			gitService: upcastPartial<IGitService>({ openRepository: async () => undefined }),
+		};
+		const root = URI.file('/test/not-a-github-repository');
+		const workspace: ISessionWorkspace = {
+			uri: root,
+			label: 'not-a-github-repository',
+			icon: Codicon.folder,
+			group: SESSION_WORKSPACE_GROUP_LOCAL,
+			folders: [{ root, workingDirectory: root, name: 'not-a-github-repository', description: undefined, gitRepository: undefined }],
+			requiresWorkspaceTrust: true,
+			isVirtualWorkspace: false,
+		};
+
+		await browseForGitHubContext.call(harness, 'openIssue', Codicon.issues, workspace);
+
+		assert.deepStrictEqual(calls, [{ commandId: 'openIssue', repoId: undefined }]);
+	});
+
 	test('sessionTypes excludes Local', () => {
 		const provider = createProvider(disposables, model);
 		assert.ok(!provider.sessionTypes.some(type => type.id === SessionType.Local));
