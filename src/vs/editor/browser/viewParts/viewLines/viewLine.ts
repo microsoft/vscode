@@ -644,6 +644,7 @@ class RenderedViewLine implements IRenderedViewLine {
 
 		const domPosition = this._characterMapping.getDomPosition(column);
 
+		// So column here is a code-unit column into this.input.lineContent
 		if (this.input.forceFullwidthCharacterWidth && column <= this.input.lineContent.length && isFullWidthCharacterToCenter(this.input.lineContent, column - 1)) {
 			// The glyph is centered inside a box that is exactly two character cells wide, so a
 			// collapsed text range would report the edge of the glyph instead of the edge of the cell.

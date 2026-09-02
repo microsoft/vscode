@@ -1076,8 +1076,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 		const partRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && part.isWhitespace());
 		const partRendersWhitespaceWithWidth = partRendersWhitespace && !fontIsMonospace && (partType === 'mtkw'/*only whitespace*/ || !containsForeignElements);
 		const partIsEmptyAndHasPseudoAfter = (charIndex === partEndIndex && part.isPseudoAfter());
-		// `splitFullWidthCharacters` has already isolated every centered character in a part of its own.
-		const partIsFullWidth = (fullwidthCharacterWidth > 0 && partEndIndex - charIndex === 1 && isFullWidthCharacterToCenter(lineContent, charIndex));
+		const partIsFullWidth = (fullwidthCharacterWidth > 0 && isFullWidthCharacterToCenter(lineContent, charIndex));
 		charOffsetInPart = 0;
 
 		sb.appendString('<span ');
