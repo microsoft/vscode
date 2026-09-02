@@ -33,7 +33,7 @@ import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientMcpServers, buildOptions, toClaudeMcpServers, type ClaudeDeniedMcpServerSpec } from './claudeSdkOptions.js';
 import { claudeTransportForProvider, parseClaudeModelSelection, toClaudeSdkModelId } from './claudeModelSelection.js';
 import { buildServerToolMcpServer, CLAUDE_SERVER_TOOL_MCP_SERVER_NAME, serverToolAllowList } from './claudeServerToolMcpServer.js';
-import { convertToolCallResult } from './clientTools/claudeClientToolResult.js';
+import { CLIENT_TOOL_UNAVAILABLE_ERROR_CODE, convertToolCallResult } from './clientTools/claudeClientToolResult.js';
 import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
 import { SessionClientCustomizationsDiff } from './customizations/claudeSessionClientCustomizationsModel.js';
@@ -432,6 +432,25 @@ export class ClaudeAgentSession extends Disposable {
 		return { ...signal, action: { ...signal.action, contributor: { kind: ToolCallContributorKind.MCP, customizationId } } };
 	}
 
+	/**
+	 * The mapper fails a client tool call that no connected client provides, but the SDK
+	 * still asks permission for it and then parks its MCP handler. Answer both up front.
+	 */
+	private _unblockOwnerlessClientToolCall(signal: AgentSignal): void {
+		if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatToolCallComplete) {
+			return;
+		}
+		const { toolCallId, result } = signal.action;
+		const error = result.error;
+		if (error?.code !== CLIENT_TOOL_UNAVAILABLE_ERROR_CODE) {
+			return;
+		}
+		this._logService.warn(`[Claude:${this.sessionId}] client tool call ${toolCallId} has no connected client; failing it immediately`);
+		// The host drops a permission ask for an already-failed call without answering it.
+		this._pendingPermissions.respondOrBuffer(toolCallId, true);
+		this._pendingClientToolCalls.respondOrBuffer(toolCallId, { content: [{ type: 'text', text: error.message }], isError: true });
+	}
+
 	constructor(
 		readonly sessionId: string,
 		chatChannelUri: URI,
@@ -682,7 +701,10 @@ export class ClaudeAgentSession extends Disposable {
 			await warm[Symbol.asyncDispose]();
 			throw err;
 		}
-		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithMcpContributor(this._enrichSignalWithCredits(s)))));
+		this._register(pipeline.onDidProduceSignal(s => {
+			this._unblockOwnerlessClientToolCall(s);
+			this._onDidSessionProgress.fire(this._enrichSignalWithMcpContributor(this._enrichSignalWithCredits(s)));
+		}));
 		this._pipeline = pipeline;
 		this._register(this._configurationService.onDidSessionConfigChange(event => {
 			if (!event.origin || event.session !== ctx.configResource.toString()) {
