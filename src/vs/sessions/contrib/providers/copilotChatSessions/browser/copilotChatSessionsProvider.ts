@@ -902,6 +902,22 @@ function githubRemoteRepoLabel(uri: URI): string | undefined {
 	return parts.length >= 2 ? `${parts[0]}/${parts[1]}` : undefined;
 }
 
+async function resolveGitHubRepositoryId(folder: ISessionFolder, gitService: Pick<IGitService, 'openRepository'>): Promise<string | undefined> {
+	const gitHubInfo = folder.gitRepository?.gitHubInfo.get();
+	if (gitHubInfo) {
+		return `${gitHubInfo.owner}/${gitHubInfo.repo}`;
+	}
+
+	const remoteRepositoryId = githubRemoteRepoLabel(folder.root);
+	if (remoteRepositoryId || !folder.gitRepository) {
+		return remoteRepositoryId;
+	}
+
+	const repository = await gitService.openRepository(folder.gitRepository.uri);
+	const repositoryInfo = repository && getGitHubRemoteInfo(repository.state.get());
+	return repositoryInfo ? `${repositoryInfo.owner}/${repositoryInfo.repo}` : undefined;
+}
+
 /**
  * Adapts an existing {@link IAgentSession} from the chat layer into the new {@link ICopilotChatSession} facade.
  */
@@ -2726,10 +2742,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	private async _browseForGitHubContext(commandId: string, icon: ThemeIcon, currentWorkspace: ISessionWorkspace | undefined): Promise<ISessionWorkspace | undefined> {
 		const repositoryIds = new Set<string>();
 		for (const folder of currentWorkspace?.folders ?? []) {
-			const gitHubInfo = folder.gitRepository?.gitHubInfo.get();
-			const repositoryId = gitHubInfo
-				? `${gitHubInfo.owner}/${gitHubInfo.repo}`
-				: githubRemoteRepoLabel(folder.root);
+			const repositoryId = await resolveGitHubRepositoryId(folder, this.gitService);
 			if (repositoryId) {
 				repositoryIds.add(repositoryId);
 			}

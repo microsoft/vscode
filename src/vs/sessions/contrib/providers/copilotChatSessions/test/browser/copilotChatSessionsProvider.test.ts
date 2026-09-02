@@ -36,7 +36,7 @@ import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/com
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { IGitRepository, IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { CloudSandboxEnabledSettingId, type ICloudSandboxCreateSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
@@ -62,6 +62,7 @@ import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest } fr
 
 interface IGitHubContextBrowseHarness {
 	readonly commandService: Pick<ICommandService, 'executeCommand'>;
+	readonly gitService: Pick<IGitService, 'openRepository'>;
 }
 
 const browseForGitHubContext = Reflect.get(CopilotChatSessionsProvider.prototype, '_browseForGitHubContext') as (
@@ -456,6 +457,7 @@ suite('CopilotChatSessionsProvider', () => {
 					} as T;
 				}
 			}(),
+			gitService: upcastPartial<IGitService>({ openRepository: async () => undefined }),
 		};
 		const repositoryRoot = URI.from({
 			scheme: GITHUB_REMOTE_FILE_SCHEME,
@@ -511,6 +513,7 @@ suite('CopilotChatSessionsProvider', () => {
 					} as T;
 				}
 			}(),
+			gitService: upcastPartial<IGitService>({ openRepository: async () => undefined }),
 		};
 		const repositoryRoot = (repositoryId: string) => URI.from({
 			scheme: GITHUB_REMOTE_FILE_SCHEME,
@@ -552,6 +555,64 @@ suite('CopilotChatSessionsProvider', () => {
 			],
 			issue: { uri: 'https://github.com/microsoft/vscode/issues/1', label: 'microsoft/vscode#1' },
 			pullRequest: { uri: 'https://github.com/microsoft/vscode/pull/2', label: 'microsoft/vscode#2' },
+		});
+	});
+
+	test('resolves an initially unknown GitHub remote before browsing context', async () => {
+		const calls: { commandId: string; repoId: unknown }[] = [];
+		const repositoryState = observableValue('repositoryState', {
+			HEAD: undefined,
+			remotes: [{ name: 'origin', fetchUrl: 'https://github.com/microsoft/vscode.git', pushUrl: undefined, isReadOnly: false }],
+			mergeChanges: [],
+			indexChanges: [],
+			workingTreeChanges: [],
+			untrackedChanges: [],
+		});
+		const harness: IGitHubContextBrowseHarness = {
+			commandService: new class extends mock<ICommandService>() {
+				override async executeCommand<T>(commandId: string, repoId?: unknown): Promise<T | undefined> {
+					calls.push({ commandId, repoId });
+					return {
+						repoId: 'microsoft/vscode',
+						url: 'https://github.com/microsoft/vscode/issues/1',
+						label: 'microsoft/vscode#1',
+					} as T;
+				}
+			}(),
+			gitService: upcastPartial<IGitService>({
+				openRepository: async () => upcastPartial<IGitRepository>({ state: repositoryState }),
+			}),
+		};
+		const root = URI.file('/test/vscode');
+		const workspace: ISessionWorkspace = {
+			uri: root,
+			label: 'vscode',
+			icon: Codicon.folder,
+			group: SESSION_WORKSPACE_GROUP_LOCAL,
+			folders: [{
+				root,
+				workingDirectory: root,
+				name: 'vscode',
+				description: undefined,
+				gitRepository: {
+					uri: root,
+					workTreeUri: root,
+					baseBranchName: undefined,
+					gitHubInfo: constObservable(undefined),
+				},
+			}],
+			requiresWorkspaceTrust: true,
+			isVirtualWorkspace: false,
+		};
+
+		const issue = await browseForGitHubContext.call(harness, 'openIssue', Codicon.issues, workspace);
+
+		assert.deepStrictEqual({
+			calls,
+			issue: { uri: issue?.uri.toString(), label: issue?.label },
+		}, {
+			calls: [{ commandId: 'openIssue', repoId: 'microsoft/vscode' }],
+			issue: { uri: 'https://github.com/microsoft/vscode/issues/1', label: 'microsoft/vscode#1' },
 		});
 	});
 
