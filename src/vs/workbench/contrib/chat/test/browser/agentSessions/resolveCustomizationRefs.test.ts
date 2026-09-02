@@ -19,19 +19,19 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { resolveCustomizationRefs, resolveLocalCustomAgents } from '../../../browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
 import { type ISyncableFile, type ISyncableMcpServer, type SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
-import { BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationSources, BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { type IAgentPlugin, type IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { type IPromptPath, type IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { type IMcpServer, type IMcpService, McpCollectionDefinition, McpServerLaunch, McpServerTransportType } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression } from '../../../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 
-function makePromptPath(uri: URI, type: PromptsType, storage: PromptsStorage): IPromptPath {
-	return { uri, type, storage } as IPromptPath;
+function makePromptPath(uri: URI, type: PromptsType, storage: PromptsStorage, source?: PromptFileSource): IPromptPath {
+	return { uri, type, storage, source } as IPromptPath;
 }
 
 /**
@@ -230,6 +230,39 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		]);
 		assert.strictEqual(refs.length, 1);
 		assert.strictEqual(refs[0].name, 'Open Plugin');
+	});
+
+	test('bundles configured locations without bundling default workspace files', async () => {
+		const defaultWorkspaceAgent = URI.file('/workspace/.github/agents/default.agent.md');
+		const configuredWorkspaceAgent = URI.file('/workspace/custom/agents/configured.agent.md');
+		const configuredPersonalSkill = URI.file('/home/user/custom/skills/configured/SKILL.md');
+		const promptsService = makePromptsService(new Map([
+			[`${PromptsType.agent}/${PromptsStorage.local}`, [
+				makePromptPath(defaultWorkspaceAgent, PromptsType.agent, PromptsStorage.local, PromptFileSource.GitHubWorkspace),
+				makePromptPath(configuredWorkspaceAgent, PromptsType.agent, PromptsStorage.local, PromptFileSource.ConfigWorkspace),
+			]],
+			[`${PromptsType.skill}/${PromptsStorage.user}`, [
+				makePromptPath(configuredPersonalSkill, PromptsType.skill, PromptsStorage.user, PromptFileSource.ConfigPersonal),
+			]],
+		]));
+		const bundler = new FakeBundler();
+
+		await resolveCustomizationRefs(
+			makeFileService(),
+			promptsService,
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			makeMcpService(),
+			makeConfigurationResolverService(),
+			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+			undefined,
+		);
+
+		assert.deepStrictEqual(bundler.received[0].map(file => ({ uri: file.uri.toString(), type: file.type, source: file.source })), [
+			{ uri: configuredWorkspaceAgent.toString(), type: PromptsType.agent, source: AICustomizationSources.local },
+			{ uri: configuredPersonalSkill.toString(), type: PromptsType.skill, source: AICustomizationSources.user },
+		]);
 	});
 
 	test('omits disabled built-in skills from the bundle', async () => {
