@@ -802,6 +802,21 @@ export interface IChatToolInputInvocationData {
 	rawInput: any;
 	/** Optional MCP App UI metadata for rendering during and after tool execution */
 	mcpAppData?: ChatMcpAppData;
+	/**
+	 * Whether the user may edit {@link rawInput} before confirming.
+	 *
+	 * Omitted means editable, the historical behavior: the confirmation editor
+	 * writes back into `rawInput`, and for an extension-contributed tool
+	 * `ILanguageModelToolsService` then invokes it with that value as its
+	 * parameters. That path always honours an edit, which is why no opt-out
+	 * existed before.
+	 *
+	 * A producer whose confirmation does not run through it — an agent-host
+	 * session, whose edit would have to travel back as
+	 * `chat/toolCallConfirmed.editedToolInput` — MUST set `false`. Inviting an
+	 * edit and then running the original is worse than showing none.
+	 */
+	editable?: boolean;
 }
 
 export const enum ToolConfirmKind {

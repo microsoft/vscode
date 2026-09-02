@@ -7,7 +7,6 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { formatTokenCount } from '../../../../../../base/common/numbers.js';
 import { localize } from '../../../../../../nls.js';
 import { readAgentModelNoticesMeta } from '../../../../../../platform/agentHost/common/agentModelNotices.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -17,20 +16,6 @@ import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../..
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
-
-/**
- * Config key naming the context-window tier a host accepts on a model selection. Its values are
- * tier names (`default` / `long_context`), because a host driving the Copilot SDK has no per-model
- * token counts to offer.
- */
-const CONTEXT_TIER_CONFIG_KEY = 'contextTier';
-
-/**
- * Config key naming the numeric context-window picker the workbench's own Copilot catalogue
- * synthesizes from CAPI billing. Read here only as the source of the token counts used to label
- * {@link CONTEXT_TIER_CONFIG_KEY}; it is never surfaced to a host, which would not understand it.
- */
-const CONTEXT_SIZE_CONFIG_KEY = 'contextSize';
 
 /**
  * Returns whether an agent host provider exposes a synthetic "Auto" model to
@@ -171,7 +156,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 							toolCalling: true,
 							agentMode: true,
 						},
-						configurationSchema: this._toLanguageModelConfigurationSchema(m.configSchema, known),
+						configurationSchema: this._toLanguageModelConfigurationSchema(m.configSchema),
 					},
 				};
 			});
@@ -180,14 +165,14 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	/**
 	 * The workbench catalogue entry describing the same model, when one is known.
 	 *
-	 * A host that derives its model list from the Copilot SDK advertises only what the SDK gave it:
-	 * no billing, and no per-tier context windows. The workbench already holds that detail for the
-	 * same models — the Copilot vendor's catalogue is CAPI-backed — so the two are matched by model
-	 * id and the host's list is enriched from it, which is how the GitHub desktop app renders real
-	 * token counts for a sandbox session.
+	 * Compatibility shim, not a durable design. A host driving the Copilot SDK advertises no
+	 * billing and incomplete token counts, so the CAPI-backed Copilot catalogue fills the gaps.
 	 *
-	 * Restricted to models billed through Copilot (a `copilot` picker group), so a model reached
-	 * over a direct third-party transport is never labelled with Copilot's prices.
+	 * Matching by raw model id does not prove the two describe the same offering — they can differ
+	 * by entitlement, policy, rollout or billing route — so this is restricted to models billed
+	 * through Copilot and only ever fills fields the host left absent.
+	 *
+	 * Remove once the agent host publishes its own token counts and billing metadata.
 	 */
 	private _catalogueEntryFor(model: SessionModelInfo, group: ILanguageModelChatMetadata['modelGroup']): ILanguageModelChatMetadata | undefined {
 		if (!this._catalogue || group?.id !== COPILOT_VENDOR_ID) {
@@ -203,45 +188,17 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	}
 
 	/**
-	 * The distinct context-window sizes a catalogue entry offers, ascending, or `undefined` when it
-	 * offers no real choice. Sourced from the numeric `contextSize` picker the Copilot catalogue
-	 * synthesizes from CAPI billing, which is the only place these token counts exist.
-	 */
-	private static _contextWindowTiers(metadata: ILanguageModelChatMetadata | undefined): number[] | undefined {
-		const values = metadata?.configurationSchema?.properties?.[CONTEXT_SIZE_CONFIG_KEY]?.enum;
-		if (!values?.length) {
-			return undefined;
-		}
-		const sizes = [...new Set(values.filter((value): value is number => typeof value === 'number'))].sort((a, b) => a - b);
-		return sizes.length > 1 ? sizes : undefined;
-	}
-
-	/**
-	 * Labels for a host's `contextTier` enum, as token counts rather than tier names.
+	 * Translate a host's model {@link ConfigSchema} into the picker's schema shape.
 	 *
-	 * The host names the tiers (`default` / `long_context`) because the SDK exposes no per-model
-	 * windows, but the picker is far more useful showing "264K" / "1M" — what the GitHub desktop
-	 * app displays for the same session. The wire value stays the tier name the host accepts; only
-	 * the label changes.
+	 * Values and display text belong to the producer; the workbench only picks the group
+	 * ({@link _groupForConfigKey}). The one exception is a reasoning-effort enum with no display
+	 * text at all, labelled locally rather than rendering raw values like `xhigh`.
 	 *
-	 * Returns `undefined` when the catalogue offers no distinct long-context tier (or does not know
-	 * the model), which drops the property and hides the picker rather than offering a choice that
-	 * has no effect — matching how the desktop app suppresses it.
+	 * A property is never dropped for want of local enrichment: a host advertises one because it
+	 * will honour it, and a new model, a staged rollout and an unresolved catalogue all look
+	 * identical from here.
 	 */
-	private static _contextTierLabels(values: readonly unknown[] | undefined, known: ILanguageModelChatMetadata | undefined): string[] | undefined {
-		const tiers = AgentHostLanguageModelProvider._contextWindowTiers(known);
-		if (!tiers || !values?.length) {
-			return undefined;
-		}
-		// The host orders its tiers from smallest window to largest, so they align with the sorted
-		// sizes by position. A tier list of a different length is not one this mapping understands.
-		if (values.length !== tiers.length || !values.every(value => typeof value === 'string')) {
-			return undefined;
-		}
-		return tiers.map(formatTokenCount);
-	}
-
-	private _toLanguageModelConfigurationSchema(schema: ConfigSchema | undefined, known?: ILanguageModelChatMetadata): ILanguageModelConfigurationSchema | undefined {
+	private _toLanguageModelConfigurationSchema(schema: ConfigSchema | undefined): ILanguageModelConfigurationSchema | undefined {
 		if (!schema) {
 			return undefined;
 		}
@@ -255,25 +212,13 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				? AgentHostLanguageModelProvider._reasoningEffortDisplay(key, property.enum)
 				: undefined;
 
-			let enumItemLabels = property.enumLabels ?? effortDisplay?.labels;
-			if (key === CONTEXT_TIER_CONFIG_KEY) {
-				const tierLabels = AgentHostLanguageModelProvider._contextTierLabels(property.enum, known);
-				if (!tierLabels) {
-					// No real choice to offer (or no catalogue entry to size it with): drop the
-					// property so the picker hides rather than showing tier names that read as a
-					// setting the user cannot evaluate.
-					continue;
-				}
-				enumItemLabels = tierLabels;
-			}
-
 			properties[key] = {
 				type: property.type,
 				title: property.title,
 				description: property.description,
 				default: property.default,
 				enum: property.enum,
-				enumItemLabels,
+				enumItemLabels: property.enumLabels ?? effortDisplay?.labels,
 				enumDescriptions: property.enumDescriptions ?? effortDisplay?.descriptions,
 				readOnly: property.readOnly,
 				group: AgentHostLanguageModelProvider._groupForConfigKey(key),
@@ -332,7 +277,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 			// choose a thinking level or a context window.
 			case 'reasoningEffort': return 'navigation';
 			case 'contextSize':
-			case CONTEXT_TIER_CONFIG_KEY: return 'tokens';
+			case 'contextTier': return 'tokens';
 			default: return undefined;
 		}
 	}

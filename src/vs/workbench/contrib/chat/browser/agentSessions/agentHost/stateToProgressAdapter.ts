@@ -2354,7 +2354,11 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 			if (toolInput) {
 				let rawInput: unknown;
 				try { rawInput = JSON.parse(toolInput); } catch { rawInput = { input: toolInput }; }
-				toolSpecificData = { kind: 'input', rawInput };
+				// Read-only regardless of `tc.editable`: approving with an edited input means
+				// sending it back as `chat/toolCallConfirmed.editedToolInput`, which this adapter
+				// does not do, so an editable field would collect a change and then run the
+				// command the agent originally proposed.
+				toolSpecificData = { kind: 'input', rawInput, editable: false };
 			}
 		}
 
