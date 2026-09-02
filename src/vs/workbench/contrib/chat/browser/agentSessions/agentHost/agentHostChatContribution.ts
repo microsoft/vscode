@@ -285,9 +285,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const ahService = this._agentHostService;
 
 		// Chat session contribution.
-		// Keep the delegation picker available for local agent host sessions in
-		// both VS Code and the Agents app so users can hand off (continue) their
-		// conversation to any other agent host session or remote target.
 		store.add(this._chatSessionsService.registerChatSessionContribution({
 			type: sessionType,
 			name: agentId,
@@ -310,7 +307,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			},
 			onDidChangeRequiresCopilotSignIn: Event.signal(Event.filter(this._protectedResourcesService.onDidChange, provider => provider === agent.provider, store)),
 			agentHostProviderId: agent.provider,
-			supportsDelegation: true,
+			supportsDelegation: false,
 			capabilities: {
 				supportsCheckpoints: true,
 				supportsPromptAttachments: true,
@@ -366,7 +363,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const vendorDescriptor = { vendor, displayName: agent.displayName, configuration: undefined, managementCommand: undefined, when: undefined };
 		this._languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
 		store.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
-		const modelProvider = store.add(new AgentHostLanguageModelProvider(sessionType, vendor));
+		const modelProvider = store.add(new AgentHostLanguageModelProvider(sessionType, vendor, this._languageModelsService));
 		this._modelProviders.set(agent.provider, modelProvider);
 		store.add(toDisposable(() => this._modelProviders.delete(agent.provider)));
 		store.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));

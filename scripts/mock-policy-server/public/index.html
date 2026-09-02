@@ -31,22 +31,6 @@
 					</div>
 					<a id="policies-nav" href="#policies" aria-current="page">Policies</a>
 				</nav>
-				<details class="cache-command-picker">
-					<summary class="btn-header">Clear SDK Policy Cache</summary>
-					<div class="cache-command-popover">
-						<p class="helper-text">Copy the command for the client platform, then run it in a terminal.</p>
-						<details class="cache-platform">
-							<summary>macOS</summary>
-							<code id="macos-cache-command" class="block cache-command"></code>
-							<button id="copy-macos-cache-command" type="button" class="btn-secondary">Copy macOS Command</button>
-						</details>
-						<details class="cache-platform">
-							<summary>Windows (PowerShell)</summary>
-							<code id="windows-cache-command" class="block cache-command"></code>
-							<button id="copy-windows-cache-command" type="button" class="btn-secondary">Copy PowerShell Command</button>
-						</details>
-					</div>
-				</details>
 			</div>
 		</div>
 	</header>
@@ -61,7 +45,10 @@
 				<div>
 					<p class="eyebrow">Connect a client</p>
 					<h2 id="setup-title">Route policy requests to this server</h2>
-					<p class="setup-lede">Select a connection method below to enable its steps. You can switch methods at any time.</p>
+					<p class="setup-lede">
+						Learn about <a href="https://docs.github.com/en/copilot/how-tos/administer-copilot/manage-for-enterprise/manage-agents/configure-enterprise-managed-settings" target="_blank" rel="noopener">configuring GitHub Copilot managed settings</a>
+						and review the <a href="https://docs.github.com/en/copilot/reference/enterprise-administrators/enterprise-managed-settings" target="_blank" rel="noopener">managed settings schema and supported agent policy keys</a>.
+					</p>
 				</div>
 			</div>
 
@@ -72,12 +59,16 @@
 					<div class="method-heading">
 						<div class="method-choice">
 							<input id="setup-method-proxy" type="radio" name="setup-method" value="proxy" checked>
-							<label class="method-label" for="setup-method-proxy">
-								<span class="method-badge">Recommended</span>
-								<h3>System Proxy</h3>
-								<span class="method-recommendation">Recommended on macOS and Windows: Proxyman</span>
-								<p>Routes policy requests from Code OSS, Stable, Insiders, Copilot CLI, and SDK/runtime clients. VS Code clients also require the proxy setting shown below.</p>
-							</label>
+							<div class="method-copy">
+								<label class="method-label" for="setup-method-proxy">
+									<span class="method-badge">Recommended</span>
+									<h3>System Proxy</h3>
+								</label>
+								<span class="method-recommendation">Any HTTP debugging proxy that can rewrite HTTPS requests works. I suggest <a href="https://proxyman.com/" target="_blank" rel="noreferrer">Proxyman</a>.</span>
+								<label class="method-description" for="setup-method-proxy">
+									Routes policy requests from Code OSS, Stable, Insiders, Copilot CLI, and SDK/runtime clients. VS Code clients also require the proxy setting shown below.
+								</label>
+							</div>
 						</div>
 						<div class="method-status">
 							<div id="proxy-status" class="status-pill" data-state="checking" role="status" aria-live="polite">Checking…</div>
@@ -90,7 +81,7 @@
 							<div class="step-number" aria-hidden="true">1</div>
 							<div class="step-content">
 								<h4>Configure the system proxy</h4>
-								<p>Redirect the managed settings URL to this local server. In Proxyman, create a Map Remote rule using these values.</p>
+								<p>Configure an HTTPS rewrite from the managed settings URL to this local server. In Proxyman, create a Map Remote rule using these values.</p>
 								<div class="mapping-grid">
 									<div class="code-field">
 										<span class="label-small">Map from</span>
@@ -103,7 +94,7 @@
 									</div>
 								</div>
 								<button id="copy-map" type="button" class="btn-secondary">Copy Mapping</button>
-								<details>
+								<details data-persist-expanded="proxy-tips">
 									<summary>Proxyman tips</summary>
 									<ul>
 										<li>Keep the source and destination paths identical.</li>
@@ -141,44 +132,17 @@
 								<h4>Request fresh policy in VS Code</h4>
 								<p>Open the Command Palette and run <code>&gt; Developer: Sync Account Policy</code>.</p>
 								<p>To refresh the policy used by Local Agent Host, also run <code>&gt; Developer: Restart Local Agent Host</code>.</p>
-								<p class="helper-text">If no request appears under Live Requests on the Policies page, open Clear SDK Policy Cache in the header, copy the command for your platform, run it in a terminal, and then run the commands again.</p>
+								<p class="helper-text">If no request appears under Live Requests on the Policies page, open Troubleshooting in the right sidebar, clear the SDK policy cache for your platform, and then run the commands again.</p>
 							</div>
 						</li>
 					</ol>
-				</article>
-
-				<div class="setup-alternatives">
-				<article id="overrides-method" class="setup-method alternative" data-selected="false">
-					<div class="method-heading">
-						<div class="method-choice">
-							<input id="setup-method-overrides" type="radio" name="setup-method" value="overrides">
-							<label class="method-label" for="setup-method-overrides">
-								<span class="method-badge secondary">Code OSS only</span>
-								<h3>Product overrides</h3>
-								<p>The fastest option for Code OSS built from this checkout. It does not route SDK/runtime requests.</p>
-							</label>
-						</div>
-						<div id="override-status" class="status-pill" data-state="pending" role="status" aria-live="polite">Not applied</div>
-					</div>
-
-					<ol id="overrides-method-steps" class="setup-steps compact" inert>
-						<li>
-							<div class="step-number" aria-hidden="true">1</div>
-							<div class="step-content">
-								<h4>Apply the local endpoint URLs</h4>
-								<p>The server updates <code>product.overrides.json</code> and preserves any other top-level overrides.</p>
-								<button id="overrides-action" type="button" class="btn-primary">Apply Overrides</button>
-							</div>
-						</li>
-						<li>
-							<div class="step-number" aria-hidden="true">2</div>
-							<div class="step-content">
-								<h4>Reload and request policy</h4>
-								<p>Reload Code OSS, sign in, open the Command Palette, and run <code>&gt; Developer: Sync Account Policy</code>.</p>
-								<p class="helper-text">If no request appears under Live Requests on the Policies page, open Clear SDK Policy Cache in the header, copy the command for your platform, run it in a terminal, and then run the command again.</p>
-							</div>
-						</li>
-					</ol>
+					<aside class="setup-warning" aria-labelledby="setup-probe-title">
+						<h4 id="setup-probe-title"><span aria-hidden="true">&#x26A0;</span> Automatic probe requests are expected</h4>
+						<p>While this page is open, it sends an unauthenticated request every five seconds with this shape:</p>
+						<code id="setup-probe-shape" class="block"></code>
+						<p>The probe must pass through the same proxy mapping as real policy traffic. The page only reports the proxy as connected when the mapped response returns this mock server's identifying header.</p>
+						<p>This server excludes probes from Live Requests. To also hide them in Proxyman, use the display-filter regex <code>^(?!.*mockPolicySetupProbe).*managed_settings.*</code>. Use it only as a display filter&mdash;do not exclude probes from the Map Remote rule.</p>
+					</aside>
 				</article>
 
 				<article id="file-method" class="setup-method alternative" data-selected="false">
@@ -201,9 +165,9 @@
 							<div class="step-number" aria-hidden="true">1</div>
 							<div class="step-content">
 								<h4>Write the policy file</h4>
-								<p>On the Policies page, edit the Managed Settings response body, then expand <strong>Deploy as a file</strong> to copy the command for the client platform and run it in a terminal.</p>
+								<p>On the Policies page, edit the Managed Settings response body, then copy the command for the client platform from <strong>File Deployment</strong> and run it in a terminal.</p>
 								<button id="file-deploy-goto" type="button" class="btn-secondary">Go to Deploy as a File</button>
-								<details>
+								<details data-persist-expanded="file-locations">
 									<summary>File locations</summary>
 									<ul>
 										<li>macOS: <code>/Library/Application Support/GitHubCopilot/managed-settings.json</code></li>
@@ -224,7 +188,6 @@
 						</li>
 					</ol>
 				</article>
-				</div>
 				</div>
 			</fieldset>
 
@@ -284,45 +247,17 @@
 							<div class="form-group">
 								<div class="label-row">
 									<label for="editor">Response body (JSON)</label>
-									<span id="save-state" class="save-state" aria-live="polite"></span>
+									<div class="editor-toolbar">
+										<button id="format-editor" type="button" class="btn-link" aria-keyshortcuts="Alt+Shift+F"
+											title="Format JSON (Alt+Shift+F)">Format JSON</button>
+										<span id="save-state" class="save-state" aria-live="polite"></span>
+									</div>
 								</div>
 								<textarea id="editor" spellcheck="false" autocomplete="off"
-									aria-describedby="editor-status"></textarea>
+									aria-describedby="editor-status"
+									aria-keyshortcuts="Tab Shift+Tab Alt+Shift+F Escape"></textarea>
 								<p id="editor-status" class="status" aria-live="polite"></p>
 								<div id="validation-results" hidden></div>
-							</div>
-
-							<div id="file-deploy-section" class="section-block file-deploy-section" hidden>
-								<h2 class="file-deploy-heading">
-									<button type="button" class="section-header section-header-toggle" id="file-deploy-toggle"
-										aria-expanded="false" aria-controls="file-deploy-details">
-										<span class="chevron" id="file-deploy-chevron" aria-hidden="true">&#9654;</span>
-										<span>Deploy as a file</span>
-										<span class="file-deploy-badge">managed-settings.json</span>
-									</button>
-								</h2>
-								<div id="file-deploy-details" class="file-deploy-details" hidden>
-									<p class="helper-text">Write the current response body to <code>managed-settings.json</code> on the client device to enforce it as file-based settings &mdash; no proxy required. The client reads the file at startup, so these requests never reach this server and won't appear in Live Requests. Deploy it alongside a server-managed response to test precedence. <a href="https://docs.github.com/en/copilot/how-tos/administer-copilot/manage-for-enterprise/manage-agents/configure-enterprise-managed-settings#deploying-file-based-settings" target="_blank" rel="noopener">Deploying file-based settings</a></p>
-									<p class="helper-text">Run the command for the client platform in a terminal, then restart the client. On macOS and Linux <code>sudo</code> writes the root-owned, non-writable file that Copilot CLI requires; run the PowerShell command in an elevated terminal.</p>
-									<div id="file-deploy-commands" class="file-deploy-commands">
-										<details class="file-deploy-platform">
-											<summary>macOS</summary>
-											<code id="macos-file-command" class="block file-deploy-command"></code>
-											<button id="copy-macos-file-command" type="button" class="btn-secondary">Copy macOS Command</button>
-										</details>
-										<details class="file-deploy-platform">
-											<summary>Windows (PowerShell)</summary>
-											<code id="windows-file-command" class="block file-deploy-command"></code>
-											<button id="copy-windows-file-command" type="button" class="btn-secondary">Copy PowerShell Command</button>
-										</details>
-										<details class="file-deploy-platform">
-											<summary>Linux</summary>
-											<code id="linux-file-command" class="block file-deploy-command"></code>
-											<button id="copy-linux-file-command" type="button" class="btn-secondary">Copy Linux Command</button>
-										</details>
-									</div>
-									<p id="file-deploy-hint" class="helper-text" hidden>Enter a valid JSON body above to generate the deploy commands.</p>
-								</div>
 							</div>
 						</div>
 					</div>
@@ -336,6 +271,78 @@
 						</div>
 						<p id="log-empty" class="helper-text">No requests yet.</p>
 						<ul id="log" class="log" aria-labelledby="live-requests-title"></ul>
+					</div>
+					<details id="troubleshooting-section" class="section-block troubleshooting-section" data-persist-expanded="troubleshooting" hidden>
+						<summary class="section-header">
+							<span class="section-title">Troubleshooting</span>
+							<span class="troubleshooting-chevron" aria-hidden="true">&#x25B6;</span>
+						</summary>
+						<div class="troubleshooting-content">
+							<div class="section-header troubleshooting-content-header">
+								<h3>Clear SDK policy cache</h3>
+								<div class="info-tooltip-container">
+									<button type="button" class="info-button" aria-label="About the SDK policy cache"
+										aria-describedby="policy-cache-tooltip">i</button>
+									<div id="policy-cache-tooltip" class="info-tooltip" role="tooltip">
+										The Copilot SDK maintains its own managed-settings cache outside of VS Code. If a client keeps using stale policy or no policy request appears in Live Requests, run the command for its platform to delete that SDK cache file, then request policy again. These commands do not delete VS Code settings or the deployed <code>managed-settings.json</code> file.
+									</div>
+								</div>
+							</div>
+							<details class="cache-platform" data-persist-expanded="cache-macos">
+								<summary>macOS</summary>
+								<code id="macos-cache-command" class="block cache-command"></code>
+								<button id="copy-macos-cache-command" type="button" class="btn-secondary">Copy macOS Command</button>
+							</details>
+							<details class="cache-platform" data-persist-expanded="cache-windows">
+								<summary>Windows (PowerShell)</summary>
+								<code id="windows-cache-command" class="block cache-command"></code>
+								<button id="copy-windows-cache-command" type="button" class="btn-secondary">Copy PowerShell Command</button>
+							</details>
+						</div>
+					</details>
+					<div id="file-deploy-section" class="section-block file-deploy-section" hidden>
+						<div class="section-header file-deploy-header">
+							<h2>File Deployment</h2>
+							<div class="info-tooltip-container">
+								<button type="button" class="info-button" aria-label="About File Deployment"
+									aria-describedby="file-deploy-tooltip">i</button>
+								<div id="file-deploy-tooltip" class="info-tooltip" role="tooltip">
+									Generate a ready-to-run command that deploys the current JSON as file-based Managed Settings in the correct location for your operating system. Commands update automatically as you edit the response. Run <strong>Install or update</strong> in an elevated terminal, then restart the client. Run <strong>Remove</strong> to unset the file-based policy. See <strong>Setup</strong> to learn when to use this delivery method.
+								</div>
+							</div>
+						</div>
+						<div id="file-deploy-details" class="file-deploy-details">
+							<div id="file-deploy-commands" class="file-deploy-commands">
+								<details class="file-deploy-platform" data-persist-expanded="deploy-macos">
+									<summary>macOS</summary>
+									<span class="label-small file-deploy-command-label">Install or update</span>
+									<code id="macos-file-command" class="block file-deploy-command"></code>
+									<button id="copy-macos-file-command" type="button" class="btn-secondary">Copy macOS Command</button>
+									<span class="label-small file-deploy-command-label">Remove</span>
+									<code id="macos-file-remove-command" class="block file-deploy-command"></code>
+									<button id="copy-macos-file-remove-command" type="button" class="btn-secondary">Copy Remove Command</button>
+								</details>
+								<details class="file-deploy-platform" data-persist-expanded="deploy-windows">
+									<summary>Windows (PowerShell)</summary>
+									<span class="label-small file-deploy-command-label">Install or update</span>
+									<code id="windows-file-command" class="block file-deploy-command"></code>
+									<button id="copy-windows-file-command" type="button" class="btn-secondary">Copy PowerShell Command</button>
+									<span class="label-small file-deploy-command-label">Remove</span>
+									<code id="windows-file-remove-command" class="block file-deploy-command"></code>
+									<button id="copy-windows-file-remove-command" type="button" class="btn-secondary">Copy Remove Command</button>
+								</details>
+								<details class="file-deploy-platform" data-persist-expanded="deploy-linux">
+									<summary>Linux</summary>
+									<span class="label-small file-deploy-command-label">Install or update</span>
+									<code id="linux-file-command" class="block file-deploy-command"></code>
+									<button id="copy-linux-file-command" type="button" class="btn-secondary">Copy Linux Command</button>
+									<span class="label-small file-deploy-command-label">Remove</span>
+									<code id="linux-file-remove-command" class="block file-deploy-command"></code>
+									<button id="copy-linux-file-remove-command" type="button" class="btn-secondary">Copy Remove Command</button>
+								</details>
+							</div>
+							<p id="file-deploy-hint" class="helper-text" hidden>Enter a valid JSON body to generate the deploy commands.</p>
+						</div>
 					</div>
 				</aside>
 			</div>

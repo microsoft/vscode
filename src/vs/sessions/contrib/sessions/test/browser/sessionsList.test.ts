@@ -6,8 +6,9 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -27,19 +28,23 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IPreferencesService, IOpenSettingsOptions } from '../../../../../workbench/services/preferences/common/preferences.js';
+import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionSectionRenderer, SessionsFlatList, SessionsList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { getSessionSummaryHoverData } from '../../browser/sessionHoverContent.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
+import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
@@ -50,9 +55,10 @@ function createSession(id: string, opts: {
 	isAutomation?: boolean;
 	isExternal?: boolean;
 	resource?: URI;
-}): ISession {
+}): ISession & { readonly isArchived: ISettableObservable<boolean, void> } {
 	const createdAt = opts.createdAt ?? new Date();
 	const updatedAt = opts.updatedAt ?? createdAt;
+	const isArchived = observableValue(`isArchived-${id}`, opts.isArchived ?? false);
 	return {
 		sessionId: id,
 		resource: opts.resource ?? URI.parse(`session://${id}`),
@@ -79,7 +85,7 @@ function createSession(id: string, opts: {
 		modelId: observableValue(`modelId-${id}`, undefined),
 		mode: observableValue(`mode-${id}`, undefined),
 		loading: observableValue(`loading-${id}`, false),
-		isArchived: observableValue(`isArchived-${id}`, opts.isArchived ?? false),
+		isArchived,
 		isRead: observableValue(`isRead-${id}`, opts.isRead ?? true),
 		description: observableValue(`description-${id}`, undefined),
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
@@ -246,16 +252,26 @@ suite('Sessions - SessionsList', () => {
 				}], undefined);
 				statuses.push(renderer.automationStatus.get());
 			}
+			session.isArchived.set(true, undefined);
+			const archivedStatus = renderer.automationStatus.get();
+			session.isArchived.set(false, undefined);
+			const restoredStatus = renderer.automationStatus.get();
 
 			assert.deepStrictEqual({
 				resourcesAreDistinct: session.resource.toString() !== runResource.toString(),
 				resourcesAreEquivalent: uriIdentityService.extUri.isEqual(session.resource, runResource),
 				statuses,
+				archivedStatus,
+				restoredStatus,
+				isRead: session.isRead.get(),
 				managementCalls,
 			}, {
 				resourcesAreDistinct: true,
 				resourcesAreEquivalent: true,
 				statuses: [SessionStatus.Completed, SessionStatus.Completed],
+				archivedStatus: undefined,
+				restoredStatus: SessionStatus.Completed,
+				isRead: false,
 				managementCalls: [],
 			});
 		});
@@ -966,6 +982,103 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	suite('session pull request icon', () => {
+		test('shows an open pull request while Agent Merge handles CI failures and review comments', () => {
+			const stateBySession = new Map<string, AgentMergeSessionState>([['handled', { enabled: true }]]);
+			const enablementEmitters = new Map<string, Emitter<void>>();
+			const enablementObservables = new Map<string, IObservable<AgentMergeSessionState>>();
+			const observerCounts = new Map<string, number>();
+			const getEnablementObservable = (sessionId: string) => {
+				let observable = enablementObservables.get(sessionId);
+				if (!observable) {
+					const emitter = disposables.add(new Emitter<void>({
+						onDidAddListener: () => observerCounts.set(sessionId, (observerCounts.get(sessionId) ?? 0) + 1),
+						onWillRemoveListener: () => observerCounts.set(sessionId, (observerCounts.get(sessionId) ?? 1) - 1),
+					}));
+					enablementEmitters.set(sessionId, emitter);
+					observable = observableFromEvent(disposables, emitter.event, () => stateBySession.get(sessionId) ?? { enabled: false });
+					enablementObservables.set(sessionId, observable);
+				}
+				return observable;
+			};
+			const setState = (sessionId: string, state: AgentMergeSessionState) => {
+				stateBySession.set(sessionId, state);
+				enablementEmitters.get(sessionId)?.fire();
+			};
+			const provider = new class extends mock<IAgentHostSessionsProvider>() {
+				override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+				override getAgentMergeClientStateObservable(sessionId: string) { return getEnablementObservable(sessionId); }
+			};
+			const completedStateIcon = observableValue('completedStateIcon', computePullRequestIcon(GitHubPullRequestState.Open, { hasFailingChecks: true }));
+			const base = createTestSession('Agent Merge', { resourceId: 'handled' }).session;
+			const session: ISession = {
+				...base,
+				providerId: provider.id,
+				completedStateIcon,
+			};
+			const healthyBase = createTestSession('Healthy Pull Request', { resourceId: 'healthy' }).session;
+			const healthySession: ISession = {
+				...healthyBase,
+				providerId: provider.id,
+				completedStateIcon: constObservable(computePullRequestIcon(GitHubPullRequestState.Open)),
+			};
+			const harness = createListHarness(disposables, [session, healthySession], instantiationService => {
+				instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+					override readonly onDidChangeProviders = Event.None;
+					override getProviders() { return [provider]; }
+					override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
+						return (providerId === provider.id ? provider : undefined) as T | undefined;
+					}
+				});
+			});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const currentIconId = (title: string) => {
+				const row = [...container.querySelectorAll<HTMLElement>('.session-item')]
+					.find(item => item.querySelector('.session-title')?.textContent === title);
+				const icon = row?.querySelector<HTMLElement>('.session-icon')?.lastElementChild;
+				return icon && [...icon.classList].find(className => className.startsWith('codicon-git-pull-request'));
+			};
+
+			const failingCI = currentIconId('Agent Merge');
+			setState(session.sessionId, { enabled: true, overrides: { fixCI: false } });
+			const unhandledCI = currentIconId('Agent Merge');
+			setState(session.sessionId, { enabled: true });
+			completedStateIcon.set(computePullRequestIcon(GitHubPullRequestState.Open, { hasUnresolvedComments: true }), undefined);
+			const reviewComments = currentIconId('Agent Merge');
+			setState(session.sessionId, { enabled: true, overrides: { addressReviews: false } });
+			const unhandledComments = currentIconId('Agent Merge');
+			setState(session.sessionId, { enabled: false });
+			const disabled = currentIconId('Agent Merge');
+			setState(session.sessionId, { enabled: true });
+
+			assert.deepStrictEqual({
+				observerCounts: Object.fromEntries(observerCounts),
+				failingCI,
+				unhandledCI,
+				reviewComments,
+				unhandledComments,
+				disabled,
+				reEnabled: currentIconId('Agent Merge'),
+				healthy: currentIconId('Healthy Pull Request'),
+			}, {
+				observerCounts: { handled: 1 },
+				failingCI: 'codicon-git-pull-request',
+				unhandledCI: 'codicon-git-pull-request-error',
+				reviewComments: 'codicon-git-pull-request',
+				unhandledComments: 'codicon-git-pull-request-comment',
+				disabled: 'codicon-git-pull-request-comment',
+				reEnabled: 'codicon-git-pull-request',
+				healthy: 'codicon-git-pull-request',
+			});
+		});
+	});
+
 	suite('session row spacing', () => {
 		test('reserves spacing only in the main sessions list', () => {
 			const sessions = [
@@ -1147,6 +1260,30 @@ suite('Sessions - SessionsList', () => {
 				])
 			), {
 				'Active chat': { hasProgress: true, hasDot: false, hasDiscussion: false, ariaLabel: 'Active chat, chat, updated now, State: In Progress' },
+			});
+		});
+
+		test('parent session row shows progress while one non-main chat needs input and another is in progress', () => {
+			const main = createChat('Main chat');
+			const waiting = createChat('Waiting chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
+			const active = createChat('Active chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.InProgress);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				status: constObservable(SessionStatus.NeedsInput),
+				chats: constObservable([main, waiting, active]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+
+			const container = renderSessionChats(session, undefined, true);
+
+			assert.deepStrictEqual({
+				session: sessionRowSnapshot(container),
+				hasProgress: !!container.querySelector('.session-item .session-icon > .monaco-pixel-spinner'),
+			}, {
+				session: { inProgress: true, needsInput: false, ariaLabel: 'Session, updated now, State: In Progress' },
+				hasProgress: true,
 			});
 		});
 

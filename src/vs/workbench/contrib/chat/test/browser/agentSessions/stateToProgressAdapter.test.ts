@@ -15,7 +15,7 @@ import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHo
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, fromAgentHostUri, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
@@ -157,6 +157,7 @@ suite('stateToProgressAdapter', () => {
 			fullName: '#42 Improve sessions',
 			icon: Codicon.gitPullRequest,
 			tooltip: 'Pull request #42 by @author',
+			readyMessage: 'Session ready',
 			value: '{"number":42}',
 			uri: URI.parse('https://github.com/owner/repo/pull/42'),
 		};
@@ -177,6 +178,7 @@ suite('stateToProgressAdapter', () => {
 			value: restored.value,
 			uri: restored.kind === 'transcriptContext' ? restored.uri.toString() : undefined,
 			tooltip: restored.kind === 'transcriptContext' ? restored.tooltip : undefined,
+			readyMessage: restored.kind === 'transcriptContext' ? restored.readyMessage : undefined,
 		}, {
 			kind: 'transcriptContext',
 			name: '#42 Improve sessions',
@@ -185,6 +187,7 @@ suite('stateToProgressAdapter', () => {
 			value: '{"number":42}',
 			uri: 'https://github.com/owner/repo/pull/42',
 			tooltip: 'Pull request #42 by @author',
+			readyMessage: 'Session ready',
 		});
 	});
 
@@ -340,6 +343,25 @@ suite('stateToProgressAdapter', () => {
 				modelId: undefined,
 				variableData: undefined,
 				isHidden: true,
+			});
+		});
+
+		test('request-only hidden turn keeps its response visible when restored from protocol history', () => {
+			const markedMessage = withMessageRequestHiddenFromTranscript(message('Carry this response'), true);
+			const turn = createTurn({
+				message: { ...markedMessage, _meta: undefined },
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1');
+
+			assert.deepStrictEqual(history[0], {
+				id: turn.id,
+				type: 'request',
+				prompt: '<!-- vscode-request-hidden-from-transcript -->\nCarry this response',
+				participant: 'participant-1',
+				modelId: undefined,
+				variableData: undefined,
+				isRequestHidden: true,
 			});
 		});
 
@@ -543,7 +565,10 @@ suite('stateToProgressAdapter', () => {
 				responseParts: [{
 					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
 						toolInput: '{"query":"terminal activation"}',
-						content: [{ type: ToolResultContentType.Text, text: 'Use shell integration.' }],
+						content: [
+							{ type: ToolResultContentType.Text, text: ' \n{"matches":1}' },
+							{ type: ToolResultContentType.Text, text: 'Use shell integration.' },
+						],
 					})
 				} as ToolCallResponsePart],
 			});
@@ -558,7 +583,10 @@ suite('stateToProgressAdapter', () => {
 			assertInputOutputDetails(details);
 			assert.strictEqual(details.input, '{"query":"terminal activation"}');
 			assert.strictEqual(details.inputLanguage, 'json');
-			assert.deepStrictEqual(details.output, [{ type: 'embed', value: 'Use shell integration.', isText: true, mimeType: 'text/plain' }]);
+			assert.deepStrictEqual(details.output, [
+				{ type: 'embed', value: ' \n{"matches":1}', isText: true, mimeType: 'application/json' },
+				{ type: 'embed', value: 'Use shell integration.', isText: true, mimeType: 'text/plain' },
+			]);
 			assert.strictEqual(details.isError, false);
 		});
 
@@ -1920,6 +1948,18 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('toolCallStateToStreamingInvocation preserves search rendering before ready', () => {
+			const invocation = toolCallStateToStreamingInvocation({
+				toolCallId: 'tc-rg',
+				toolName: 'rg',
+				displayName: 'Search',
+				status: ToolCallStatus.Streaming,
+				_meta: { toolKind: 'search' },
+			}, undefined);
+
+			assert.deepStrictEqual(invocation.toolSpecificData, { kind: 'search' });
+		});
+
 		test('toolCallStateToStreamingInvocation preserves subagent metadata before ready', () => {
 			const sessionResource = URI.parse('copilotcli:/session-1');
 			const invocation = toolCallStateToStreamingInvocation({
@@ -2495,6 +2535,24 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('styles automatic approval review terminal states', () => {
+			const notice = (kind: AgentSystemNotificationKind) => activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: 'Automatic approval review changed state',
+				_meta: toAgentSystemNotificationMeta({ kind }),
+			}]), undefined)[0];
+
+			assert.deepStrictEqual({
+				timedOut: notice(AgentSystemNotificationKind.AutomaticApprovalReviewTimedOut),
+				aborted: notice(AgentSystemNotificationKind.AutomaticApprovalReviewAborted),
+				interrupted: notice(AgentSystemNotificationKind.AutomaticApprovalReviewInterrupted),
+			}, {
+				timedOut: { kind: 'systemNotification', content: new MarkdownString('Automatic approval review changed state'), icon: Codicon.clock, collapsible: true },
+				aborted: { kind: 'systemNotification', content: new MarkdownString('Automatic approval review changed state'), icon: Codicon.circleSlash, collapsible: true },
+				interrupted: { kind: 'systemNotification', content: new MarkdownString('Automatic approval review changed state'), icon: Codicon.warning },
+			});
+		});
+
 		test('gives each Agent Merge notice an icon that matches what it reports', () => {
 			const notice = (kind: AgentSystemNotificationKind) => activeTurnToProgress(URI.file('/'), createActiveTurnState([{
 				kind: ResponsePartKind.SystemNotification,
@@ -2504,7 +2562,9 @@ suite('stateToProgressAdapter', () => {
 
 			assert.deepStrictEqual({
 				enabled: notice(AgentSystemNotificationKind.AgentMergeEnabled),
+				configurationChanged: notice(AgentSystemNotificationKind.AgentMergeConfigurationChanged),
 				disabled: notice(AgentSystemNotificationKind.AgentMergeDisabled),
+				pullRequestMerged: notice(AgentSystemNotificationKind.AgentMergePullRequestMerged),
 				// An unrecognized kind must still render, using the default check.
 				unknown: activeTurnToProgress(URI.file('/'), createActiveTurnState([{
 					kind: ResponsePartKind.SystemNotification,
@@ -2512,8 +2572,10 @@ suite('stateToProgressAdapter', () => {
 					_meta: { kind: 'somethingNewer' },
 				}]), undefined)[0],
 			}, {
-				enabled: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.gitMerge },
-				disabled: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.circleSlash },
+				enabled: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.gitMerge, collapsible: true, renderInlineTiming: true },
+				configurationChanged: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.settingsGear, collapsible: true, renderInlineTiming: true },
+				disabled: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.circleSlash, renderInlineTiming: true },
+				pullRequestMerged: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.gitMerge, renderInlineTiming: true },
 				unknown: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state') },
 			});
 		});

@@ -23,6 +23,7 @@ export const AGENT_HOST_SYNC_CHANGESET_OPERATION_ID = 'sync';
  */
 export const AgentHostPullRequestOperationId = {
 	MarkReady: 'pr-mark-ready',
+	MarkReadyWithAgentMerge: 'pr-mark-ready-with-agent-merge',
 	Merge: 'pr-merge',
 	EnableAutoMerge: 'pr-enable-auto-merge',
 	DisableAutoMerge: 'pr-disable-auto-merge',

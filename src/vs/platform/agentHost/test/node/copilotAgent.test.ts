@@ -953,6 +953,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 			_serviceBrand: undefined,
 			userHome: options?.userHome ?? URI.from({ scheme: Schemas.inMemory, path: '/mock-home' }),
 			tmpDir: URI.from({ scheme: Schemas.inMemory, path: '/mock-tmp' }),
+			userDataPath: '/mock-userdata',
 		} as INativeEnvironmentService;
 		services.set(INativeEnvironmentService, environmentService);
 	}
@@ -3364,6 +3365,42 @@ suite('CopilotAgent', () => {
 				list: [repoA.toString()],
 				meta: [repoA.toString()],
 			});
+		});
+	});
+
+	suite('prewarmSessionMetadata cache', () => {
+		test('serves getChatMetadata from one bulk list, falls back on miss, and reverts after disposal', async () => {
+			const sessionA = AgentSession.uri('copilotcli', 'prewarm-a');
+			const sessionB = AgentSession.uri('copilotcli', 'prewarm-b');
+			const sessionMissing = AgentSession.uri('copilotcli', 'prewarm-missing');
+			const client = new TestCopilotClient([sdkSession('prewarm-a'), sdkSession('prewarm-b')]);
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				const read = (session: URI) => agent.getChatMetadata(defaultChatUri(session), exactChatContext(session, defaultChatUri(session), session));
+
+				const warm = await agent.prewarmSessionMetadata();
+				// One bulk list warmed the cache; a hit is served without a per-session RPC.
+				await read(sessionA);
+				const afterHit = { listCalls: client.listSessionCallCount, rpcCalls: [...client.getSessionMetadataCalls] };
+
+				// A session absent from the bulk list falls back to a per-session RPC.
+				await read(sessionMissing);
+				const afterMiss = [...client.getSessionMetadataCalls];
+
+				// After disposal the cache is cleared and normal per-session reads resume.
+				warm.dispose();
+				await read(sessionB);
+				const afterDisposal = [...client.getSessionMetadataCalls];
+
+				assert.deepStrictEqual({ afterHit, afterMiss, afterDisposal }, {
+					afterHit: { listCalls: 1, rpcCalls: [] },
+					afterMiss: ['prewarm-missing'],
+					afterDisposal: ['prewarm-missing', 'prewarm-b'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
 		});
 	});
 
@@ -8347,6 +8384,61 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('materialization passes prompt and tool description overrides to the SDK', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
+			client.createSession = async config => {
+				capturedConfig = config;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+
+			const { agent, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
+			try {
+				configurationService.updateRootConfig({
+					[CopilotCliConfigKey.ModelCapabilityOverrides]: {
+						'*': {
+							promptOverrideString: [
+								'systemPrompt: You are an evaluation agent.',
+								'toolDescriptions:',
+								'  test_tool:',
+								'    description: Overridden tool description.',
+							].join('\n'),
+						},
+					},
+				});
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const result = await provisionSession(agent, {
+					session: AgentSession.uri('copilotcli', 'system-message-override-session'),
+					workingDirectories: [URI.file('/workspace')],
+					activeClient: {
+						clientId: 'client-1',
+						tools: [{ name: 'test_tool', description: 'Original tool description.', inputSchema: { type: 'object' } }],
+						customizations: [],
+					},
+				});
+				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, defaultChatUri(result.session), result.session));
+
+				const testTool = capturedConfig?.tools?.find(tool => tool.name === 'test_tool');
+				assert.deepStrictEqual({
+					systemMessage: capturedConfig?.systemMessage,
+					tool: testTool && { name: testTool.name, description: testTool.description },
+				}, {
+					systemMessage: {
+						mode: 'replace',
+						content: 'You are an evaluation agent.',
+					},
+					tool: {
+						name: 'test_tool',
+						description: 'Overridden tool description.',
+					},
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('materialization applies the per-model capability overrides without changing the wire model', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
@@ -11637,6 +11729,40 @@ suite('CopilotAgent', () => {
 		type AgentInternals = {
 			_resumeSession: (id: string) => Promise<CopilotAgentSession>;
 		};
+
+		test('resume replaces the complete SDK system message when configured', async () => {
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/resume-system-message-`);
+			const promptOverrideFile = '/prompt.yaml';
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession('s1', workingDirectory)]);
+			let capturedSystemMessage: Parameters<ITestCopilotClient['resumeSession']>[1]['systemMessage'];
+			client.resumeSession = async (_sessionId, options) => {
+				capturedSystemMessage = options.systemMessage;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			const { agent, configurationService, fileService } = createTestAgentContext(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService });
+			const provider = disposables.add(new InMemoryFileSystemProvider());
+			disposables.add(fileService.registerProvider(Schemas.file, provider));
+			await fileService.writeFile(URI.file(promptOverrideFile), VSBuffer.fromString('systemPrompt: |-\n  You are an evaluation agent.\n'));
+			const internals = agent as unknown as AgentInternals;
+			try {
+				configurationService.updateRootConfig({
+					[CopilotCliConfigKey.ModelCapabilityOverrides]: {
+						'*': { promptOverrideFile },
+					},
+				});
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				await internals._resumeSession('s1');
+
+				assert.deepStrictEqual(capturedSystemMessage, {
+					mode: 'replace',
+					content: 'You are an evaluation agent.',
+				});
+			} finally {
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
 
 		test('does not restore a persisted custom agent that is absent from the current plugin snapshot', async () => {
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/resume-agent-`);

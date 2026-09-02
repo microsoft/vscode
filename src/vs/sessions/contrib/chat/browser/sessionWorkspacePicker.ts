@@ -172,6 +172,8 @@ export class WorkspacePicker extends Disposable {
 	readonly onDidSelectWorkspace: Event<URI | undefined> = this._onDidSelectWorkspace.event;
 	protected readonly _onDidChangeSelection = this._register(new Emitter<void>());
 	readonly onDidChangeSelection: Event<void> = this._onDidChangeSelection.event;
+	private readonly _onDidChangeChatPetPlatform = this._register(new Emitter<void>());
+	readonly onDidChangeChatPetPlatform = Event.any(this.onDidChangeSelection, this._onDidChangeChatPetPlatform.event);
 	private readonly _onDidSelectContext = this._register(new Emitter<ISessionWorkspace>());
 	readonly onDidSelectContext: Event<ISessionWorkspace> = this._onDidSelectContext.event;
 	private readonly _onDidSelectFolderContext = this._register(new Emitter<URI>());
@@ -472,8 +474,20 @@ export class WorkspacePicker extends Disposable {
 			slot.classList.toggle('sessions-workspace-picker-trigger', options.reflectsWorkspace === true);
 			this._renderDisposables.add(this._addTrigger(slot, options));
 		}
+		const platformObserver = this._renderDisposables.add(new dom.DisposableResizeObserver(
+			'WorkspacePicker.chatPetPlatforms',
+			() => this._onDidChangeChatPetPlatform.fire(),
+			dom.getWindow(row),
+		));
+		for (const trigger of this._triggerElements) {
+			this._renderDisposables.add(platformObserver.observe(trigger));
+		}
 
 		return row;
+	}
+
+	getChatPetPlatformElements(): readonly HTMLElement[] {
+		return Array.from(this._triggerElements);
 	}
 
 	/**

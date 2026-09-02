@@ -23,7 +23,7 @@ import { supportsAgentHostDetachedWorktrees } from '../../../../../platform/agen
 import { withAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { workspacelessScratchDir } from '../../../../../platform/agentHost/common/workspacelessScratchDir.js';
-import type { AgentCustomization, ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { type AgentCustomization, type ISessionGitState, readSessionEhcliAdoptable } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -46,7 +46,6 @@ import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../.
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, type IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
-import { ResourceLabelHomeStore } from '../../../../../workbench/services/label/common/resourceLabelHomeStore.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { ChatModelSource, IGitHubInfo, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
@@ -124,8 +123,6 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	private _automationSessionResources = new ResourceSet();
 	private readonly _devContainerAvailableDrafts = new Set<string>();
 	private readonly _devContainerDrafts = new Set<string>();
-	private readonly _resourceLabelHomes: ResourceLabelHomeStore;
-
 	override get order(): number {
 		return -1;
 	}
@@ -148,14 +145,25 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		if (!isLegacyMigrationEnabledAtStartup(this._configurationService)) {
 			return undefined;
 		}
-		const rawId = getCopilotCliSessionRawId(migratedCopilotCliResource(resource));
-		if (rawId && this._sessionCache.has(rawId)) {
-			return migratedCopilotCliResource(resource); // already adopted; no round-trip
+		const twin = migratedCopilotCliResource(resource);
+		const rawId = getCopilotCliSessionRawId(twin);
+		// An un-adopted legacy chat still carries the adoptable marker and must take
+		// the migration probe; only a surfaced external / already-adopted session
+		// short-circuits, since opening its twin is a plain (non-migrating) open.
+		const adoptable = rawId ? readSessionEhcliAdoptable(this._getSessionMetadataByRawId(rawId)) : false;
+		if (rawId && this._sessionCache.has(rawId) && !adoptable) {
+			return twin; // already surfaced and not an un-adopted legacy chat; no round-trip
 		}
 		// Startup restore reopens persisted slots against a cold host, where the
 		// first catalog pass is far slower than an interactive open.
 		const timeoutMs = reason === 'restore' ? LEGACY_MIGRATION_RESTORE_TIMEOUT_MS : LEGACY_MIGRATION_TIMEOUT_MS;
-		return adoptLegacyCopilotCliResource(this.connection, resource, this._logService, this._configurationService, this._telemetryService, reason ?? 'open', timeoutMs);
+		const adopted = await adoptLegacyCopilotCliResource(this.connection, resource, this._logService, this._configurationService, this._telemetryService, reason ?? 'open', timeoutMs);
+		// On decline or timeout, redirect only a non-adoptable (external /
+		// already-adopted) session to its surfaced twin so it opens as-is instead
+		// of the extension-host resource. An adoptable session that failed to adopt
+		// keeps the original `undefined` behavior and opens unmigrated. Mirrors the
+		// chat-editor open path.
+		return adopted ?? (adoptable ? undefined : twin);
 	}
 
 	constructor(
@@ -182,7 +190,6 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		@IPathService pathService: IPathService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService);
-		this._resourceLabelHomes = this._register(instantiationService.createInstance(ResourceLabelHomeStore));
 		const legacyAutomations = this._register(instantiationService.createInstance(AutomationStore, providerAutomationStorageKey(this.id)));
 		const automations = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, legacyAutomations, {
 			toHost: resource => resource,
@@ -204,6 +211,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		// authentication settling below) reconciles them.
 		this._enableSessionCachePersistence(LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY, LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY_LEGACY);
 
+		const onDidChangeResourceLabelHomes = Event.any(this._onDidChangeSessionsImmediately, this._onDidChangeDraftSessions.event);
 		const updateResourceLabelHomes = () => {
 			const homes = this.getResourceLabelHomes();
 			const userHome = pathService.userHome({ preferLocal: true });
@@ -227,10 +235,10 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 					}
 				}
 			}
-			this._resourceLabelHomes.set(homes);
+
+			this.updateResourceLabelHomeFormatters(homes, this._labelService, onDidChangeResourceLabelHomes);
 		};
-		this._register(this._onDidChangeSessionsImmediately(updateResourceLabelHomes));
-		this._register(this._onDidChangeDraftSessions.event(updateResourceLabelHomes));
+		this._register(onDidChangeResourceLabelHomes(updateResourceLabelHomes));
 		updateResourceLabelHomes();
 		this._register(autorun(reader => {
 			this._automationSessionResources = new ResourceSet(this.automations.runs.read(reader).flatMap(run => run.sessionResource ? [run.sessionResource] : []));

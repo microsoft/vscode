@@ -98,6 +98,7 @@ import { ICustomViewService } from '../../../../services/customView/browser/cust
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { Menus } from '../../../../browser/menus.js';
 import { getSessionConversationStatusAriaLabel } from '../../../../browser/sessionConversationGroups.js';
+import { getAgentMergeAwarePullRequestIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../../../../browser/sessionAgentMerge.js';
 
 const $ = DOM.$;
 
@@ -213,9 +214,16 @@ function getSessionListChats(session: ISession, reader?: IReader): readonly ICha
 	);
 }
 
-/** Returns the main-chat status for trees with chat rows, otherwise the aggregate session status. */
+/** Returns in-progress when any chat is active, then the main-chat status for trees with chat rows. */
 function getSessionRowStatus(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean): SessionStatus {
-	return deriveFromMainChat ? session.mainChat.read(reader).status.read(reader) : session.status.read(reader);
+	const sessionStatus = session.status.read(reader);
+	if (!deriveFromMainChat) {
+		return sessionStatus;
+	}
+	if (session.chats.read(reader).some(chat => chat.status.read(reader) === SessionStatus.InProgress)) {
+		return SessionStatus.InProgress;
+	}
+	return session.mainChat.read(reader).status.read(reader);
 }
 
 function isSessionGroupItem(item: SessionListItem): item is ISessionGroupItem {
@@ -752,6 +760,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		private readonly ciFixModel: ISessionCIFixModel | undefined,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
+		private readonly configurationService: IConfigurationService,
 		private readonly markdownRendererService: IMarkdownRendererService,
 		private readonly hoverService: IHoverService,
 		private readonly sessionsProvidersService: ISessionsProvidersService,
@@ -959,6 +968,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// recreates the autorun. Without template-level tracking, the selector
 		// resets to undefined and the DOM is rebuilt every time, restarting the
 		// CSS spin animation.
+		let agentMergeConfiguration: IObservable<ISessionAgentMergeConfiguration | undefined> | undefined;
 		template.elementDisposables.add(autorun(reader => {
 			const sessionStatus = getSessionRowStatus(element, reader, !!this.options.deriveStatusFromMainChat);
 			template.statusContext.set(sessionStatus);
@@ -970,8 +980,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.supportsDeleteContext.set(capabilities.supportsDelete === true);
 			const gitHubInfo = element.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			const isQuickChat = element.isQuickChat?.read(reader) ?? false;
-			const completedStateIcon = element.completedStateIcon?.read(reader)
+			let completedStateIcon = element.completedStateIcon?.read(reader)
 				?? getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
+			if (completedStateIcon && isAgentMergePullRequestIcon(completedStateIcon)) {
+				agentMergeConfiguration ??= getSessionAgentMergeConfigurationObservable(element, this.sessionsProvidersService, this.configurationService);
+				completedStateIcon = getAgentMergeAwarePullRequestIcon(completedStateIcon, agentMergeConfiguration.read(reader));
+			}
 
 			// The status icon widget snaps on row recycling and cross-fades real state changes.
 			template.statusIcon.setStatus(sessionStatus, isRead, isArchived, completedStateIcon, element.resource);
@@ -1289,7 +1303,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			}
 			const sessionResource = run.sessionResource;
 			const session = automationSessions.find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, sessionResource));
-			return !!session && !session.isRead.read(reader);
+			return !!session && !session.isRead.read(reader) && !session.isArchived.read(reader);
 		});
 		if (hasUnreadRun) {
 			return SessionStatus.Completed;
@@ -2484,6 +2498,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			undefined,
 			instantiationService,
 			contextKeyService,
+			this.configurationService,
 			markdownRendererService,
 			hoverService,
 			sessionsProvidersService,
@@ -4504,6 +4519,7 @@ export class SessionsFlatList extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IVoicePlaybackService voicePlaybackService: IVoicePlaybackService,
 		@IAgentHostConnectionsService agentHostConnectionsService: IAgentHostConnectionsService,
@@ -4544,6 +4560,7 @@ export class SessionsFlatList extends Disposable {
 			this.options.ciFixModel,
 			instantiationService,
 			contextKeyService,
+			configurationService,
 			markdownRendererService,
 			hoverService,
 			sessionsProvidersService,

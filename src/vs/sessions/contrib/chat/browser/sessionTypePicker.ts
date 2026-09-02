@@ -132,6 +132,8 @@ export class SessionTypePicker extends Disposable {
 	 */
 	protected readonly _onDidChangeSelectedPick = this._register(new Emitter<IPreferredSessionType | undefined>());
 	readonly onDidChangeSelectedPick = this._onDidChangeSelectedPick.event;
+	private readonly _onDidChangeChatPetPlatform = this._register(new Emitter<void>());
+	readonly onDidChangeChatPetPlatform = this._onDidChangeChatPetPlatform.event;
 	private readonly _modelTargetChatSessionType = observableValue<string | undefined>(this, undefined);
 	readonly modelTargetChatSessionType: IObservable<string | undefined> = this._modelTargetChatSessionType;
 
@@ -371,6 +373,19 @@ export class SessionTypePicker extends Disposable {
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
 		this._triggerElement = trigger;
+		this._renderDisposables.add({
+			dispose: () => {
+				if (this._triggerElement === trigger) {
+					this._triggerElement = undefined;
+				}
+			},
+		});
+		const platformObserver = this._renderDisposables.add(new dom.DisposableResizeObserver(
+			'SessionTypePicker.chatPetPlatform',
+			() => this._onDidChangeChatPetPlatform.fire(),
+			dom.getWindow(trigger),
+		));
+		this._renderDisposables.add(platformObserver.observe(trigger));
 		// Onboarding spotlight target — id is referenced by the "new session view"
 		// tour in vs/sessions/contrib/onboardingTours.
 		this._renderDisposables.add(markOnboardingTarget(trigger, 'sessions.newSession.harnessPicker', {
@@ -392,6 +407,10 @@ export class SessionTypePicker extends Disposable {
 				this._showPicker();
 			}
 		}));
+	}
+
+	getChatPetPlatformElements(): readonly HTMLElement[] {
+		return this._triggerElement ? [this._triggerElement] : [];
 	}
 
 	/**
