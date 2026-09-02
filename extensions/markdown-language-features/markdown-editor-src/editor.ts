@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AsyncClipboardStrategy, CommentModeController, CommentsModel, CommentsView, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, Selection, StringEdit, StringReplacement, StringValue, commands, findNodeOffsetById, vscodeHostKeyboardProfile, vscodeLocalKeyboardProfile, type CodeBlockAstNode, type LinkPresentationKind } from '@vscode/markdown-editor';
-import { VirtualizedIframeEmbeddedEditorFactory, type IframeEmbeddedEditorProvider, type IframeEmbeddedEditorProviderSelector, type ResolvedIframeEmbeddedEditor } from '@vscode/markdown-editor/web-editors';
+import { VirtualizedIframeEmbeddedEditorFactory, type IframeEmbeddedEditorHostTransport, type IframeEmbeddedEditorProvider, type IframeEmbeddedEditorProviderSelector, type ResolvedIframeEmbeddedEditor } from '@vscode/markdown-editor/web-editors';
 import { Disposable, autorun, observableValue } from '@vscode/observables';
 import 'katex/dist/katex.min.css';
 import '@vscode/markdown-editor/editor.css';
@@ -47,6 +47,68 @@ interface InitialState {
 	readonly linkPresentationRules: readonly { id: string; source: string; flags: string; kind: LinkPresentationKind }[];
 }
 
+class CodeBlockEditorHostTransport implements IframeEmbeddedEditorHostTransport {
+	readonly #listeners = new Set<(message: unknown) => void>();
+	readonly #pendingMessages: unknown[] = [];
+	readonly #postMessage: (message: unknown) => void;
+	readonly #onDispose: () => void;
+	#activated = false;
+	#disposed = false;
+
+	readonly onMessage: IframeEmbeddedEditorHostTransport['onMessage'] = listener => {
+		if (this.#disposed) {
+			throw new Error('Code block editor host transport is disposed');
+		}
+		this.#listeners.add(listener);
+		if (!this.#activated) {
+			this.#activated = true;
+			for (const message of this.#pendingMessages.splice(0)) {
+				listener(message);
+			}
+		}
+		return { dispose: () => this.#listeners.delete(listener) };
+	};
+
+	constructor(
+		readonly runtimeId: string,
+		postMessage: (message: unknown) => void,
+		onDispose: () => void,
+	) {
+		this.#postMessage = postMessage;
+		this.#onDispose = onDispose;
+	}
+
+	sendMessage(message: unknown): void {
+		if (this.#disposed) {
+			throw new Error('Code block editor host transport is disposed');
+		}
+		this.#postMessage(message);
+	}
+
+	acceptMessage(message: unknown): void {
+		if (this.#disposed) {
+			return;
+		}
+		if (!this.#activated) {
+			this.#pendingMessages.push(message);
+			return;
+		}
+		for (const listener of this.#listeners) {
+			listener(message);
+		}
+	}
+
+	dispose(): void {
+		if (this.#disposed) {
+			return;
+		}
+		this.#disposed = true;
+		this.#pendingMessages.length = 0;
+		this.#listeners.clear();
+		this.#onDispose();
+	}
+}
+
 class Editor extends Disposable {
 	readonly model = new EditorModel();
 	isUpdatingFromExtension = false;
@@ -54,7 +116,9 @@ class Editor extends Disposable {
 	#mermaidCounter = 0;
 	#codeBlockEditorProviders: readonly CodeBlockEditorProviderDefinition[] = [];
 	#nextCodeBlockEditorRequestId = 1;
+	#nextCodeBlockEditorRuntimeId = 1;
 	readonly #codeBlockEditorRequests = new Map<number, (descriptor: ResolvedIframeEmbeddedEditor | undefined) => void>();
+	readonly #codeBlockEditorHostTransports = new Map<string, CodeBlockEditorHostTransport>();
 	#controller: EditorController | undefined;
 	#view: EditorView | undefined;
 	#embeddedCodeEditorFactory: VirtualizedIframeEmbeddedEditorFactory | undefined;
@@ -126,6 +190,12 @@ class Editor extends Disposable {
 					}
 					break;
 				}
+				case 'codeBlockEditorHostTransportMessage': {
+					if (typeof message.runtimeId === 'string') {
+						this.#codeBlockEditorHostTransports.get(message.runtimeId)?.acceptMessage(message.message);
+					}
+					break;
+				}
 				case 'gutterMarkers': {
 					const markers: GutterMarker[] = message.markers.map((marker: { start: number; endExclusive: number; type: GutterMarker['type'] }) => ({
 						range: OffsetRange.fromTo(marker.start, marker.endExclusive),
@@ -168,6 +238,9 @@ class Editor extends Disposable {
 					resolve(undefined);
 				}
 				this.#codeBlockEditorRequests.clear();
+				for (const transport of Array.from(this.#codeBlockEditorHostTransports.values())) {
+					transport.dispose();
+				}
 			},
 		});
 	}
@@ -393,10 +466,38 @@ class Editor extends Disposable {
 		return definitions.map(definition => ({
 			id: definition.id,
 			selector: definition.selector,
+			createHostTransport: runtimeKey => this.#createCodeBlockEditorHostTransport(definition.id, runtimeKey),
 			resolve: definition.source.kind === 'static'
 				? async () => definition.source.kind === 'static' ? definition.source.descriptor : undefined
 				: language => this.#resolveCodeBlockEditor(definition.id, language),
 		}));
+	}
+
+	#createCodeBlockEditorHostTransport(providerId: string, runtimeKey: string): CodeBlockEditorHostTransport {
+		const runtimeId = `${providerId}:${this.#nextCodeBlockEditorRuntimeId++}`;
+		const transport = new CodeBlockEditorHostTransport(
+			runtimeId,
+			message => this.#vscode.postMessage({
+				type: 'codeBlockEditorHostTransportMessage',
+				runtimeId,
+				message,
+			}),
+			() => {
+				this.#codeBlockEditorHostTransports.delete(runtimeId);
+				this.#vscode.postMessage({
+					type: 'disposeCodeBlockEditorHostTransport',
+					runtimeId,
+				});
+			},
+		);
+		this.#codeBlockEditorHostTransports.set(runtimeId, transport);
+		this.#vscode.postMessage({
+			type: 'createCodeBlockEditorHostTransport',
+			runtimeId,
+			providerId,
+			runtimeKey,
+		});
+		return transport;
 	}
 
 	#resolveCodeBlockEditor(providerId: string, language: string): Promise<ResolvedIframeEmbeddedEditor | undefined> {
@@ -515,6 +616,10 @@ function readResolvedCodeBlockEditor(value: unknown): ResolvedIframeEmbeddedEdit
 	const descriptor = value as Record<string, unknown>;
 	if (
 		typeof descriptor.html !== 'string'
+		|| typeof descriptor.runtimeKey !== 'string'
+		|| descriptor.runtimeKey.length === 0
+		|| (descriptor.resourceBaseUrl !== undefined && typeof descriptor.resourceBaseUrl !== 'string')
+		|| (descriptor.hostTransport !== undefined && typeof descriptor.hostTransport !== 'boolean')
 		|| (descriptor.contentType !== 'text' && descriptor.contentType !== 'json')
 		|| (descriptor.cacheKey !== undefined && typeof descriptor.cacheKey !== 'string')
 		|| (descriptor.initialHeight !== undefined && (typeof descriptor.initialHeight !== 'number' || !Number.isFinite(descriptor.initialHeight) || descriptor.initialHeight <= 0))

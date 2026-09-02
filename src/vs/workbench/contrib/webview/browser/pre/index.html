@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-FFQoOVVa2tOE3uqUvirwaMNT20TZmrHcL2aaOjJ8BUo=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-NDdxj93lukza2qOTD0F7vgfe6gwSBPEyomXcdWJHRME=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -1036,15 +1036,12 @@
 					allowRules.push('clipboard-read;', 'clipboard-write;');
 				}
 				newFrame.setAttribute('allow', allowRules.join(' '));
-				// We should just be able to use srcdoc, but I wasn't
-				// seeing the service worker applying properly.
-				// Fake load an empty on the correct origin and then write real html
-				// into it to get around this.
-				const fakeUrlParams = new URLSearchParams({ id: ID });
+				// Bootstrap on the correct origin before writing the real HTML so the service worker applies.
+				const iframeBootstrapUrlParams = new URLSearchParams({ id: ID });
 				if (globalThis.crossOriginIsolated) {
-					fakeUrlParams.set('vscode-coi', '3'); /*COOP+COEP*/
+					iframeBootstrapUrlParams.set('vscode-coi', '3'); /*COOP+COEP*/
 				}
-				newFrame.src = `./fake.html?${fakeUrlParams.toString()}`;
+				newFrame.src = `./iframe-bootstrap.html?${iframeBootstrapUrlParams.toString()}`;
 
 				newFrame.style.cssText = 'display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden';
 				document.body.appendChild(newFrame);
@@ -1083,7 +1080,7 @@
 						}
 
 						const contentDocument = assertIsDefined(newFrame.contentDocument);
-						if (contentDocument.location.pathname.endsWith('/fake.html') && contentDocument.readyState !== 'loading') {
+						if (contentDocument.location.pathname.endsWith('/iframe-bootstrap.html') && contentDocument.readyState !== 'loading') {
 							clearInterval(interval);
 							onFrameLoaded(contentDocument);
 						}
