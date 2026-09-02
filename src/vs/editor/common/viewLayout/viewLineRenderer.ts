@@ -45,6 +45,7 @@ export interface IRenderLineInputOptions {
 	textDirection: TextDirection | null;
 	verticalScrollbarSize: number;
 	renderNewLineWhenEmpty: boolean;
+	forceFullwidthCharacterWidth: boolean;
 }
 
 export class RenderLineInput {
@@ -79,6 +80,10 @@ export class RenderLineInput {
 	 * When rendering an empty line, whether to render a new line instead
 	 */
 	public readonly renderNewLineWhenEmpty: boolean;
+	/**
+	 * Whether full-width characters should be rendered centered in exactly two character cells.
+	 */
+	public readonly forceFullwidthCharacterWidth: boolean;
 
 	public get isLTR(): boolean {
 		return !this.containsRTL && this.textDirection !== TextDirection.RTL;
@@ -107,6 +112,7 @@ export class RenderLineInput {
 		textDirection: TextDirection | null,
 		verticalScrollbarSize: number,
 		renderNewLineWhenEmpty: boolean = false,
+		forceFullwidthCharacterWidth: boolean = false,
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.canUseHalfwidthRightwardsArrow = canUseHalfwidthRightwardsArrow;
@@ -136,6 +142,7 @@ export class RenderLineInput {
 		this.fontLigatures = fontLigatures;
 		this.selectionsOnLine = selectionsOnLine && selectionsOnLine.sort((a, b) => a.start < b.start ? -1 : 1);
 		this.renderNewLineWhenEmpty = renderNewLineWhenEmpty;
+		this.forceFullwidthCharacterWidth = forceFullwidthCharacterWidth;
 		this.textDirection = textDirection;
 		this.verticalScrollbarSize = verticalScrollbarSize;
 
@@ -196,6 +203,7 @@ export class RenderLineInput {
 			&& this.textDirection === other.textDirection
 			&& this.verticalScrollbarSize === other.verticalScrollbarSize
 			&& this.renderNewLineWhenEmpty === other.renderNewLineWhenEmpty
+			&& this.forceFullwidthCharacterWidth === other.forceFullwidthCharacterWidth
 		);
 	}
 }
@@ -457,6 +465,11 @@ class ResolvedRenderLineInput {
 		public readonly renderSpaceCharCode: number,
 		public readonly renderWhitespace: RenderWhitespace,
 		public readonly renderControlCharacters: boolean,
+		/**
+		 * The pixel width to give to each centered full-width character, or `0` when
+		 * full-width characters should be rendered as-is.
+		 */
+		public readonly fullwidthCharacterWidth: number,
 	) {
 		//
 	}
@@ -518,6 +531,13 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		tokens = splitLeadingWhitespaceFromRTL(lineContent, tokens);
 	}
 
+	// A full-width character can only be centered in its own part, so it has to be isolated
+	// from its neighbours. Basic ASCII lines can never contain one, so they are skipped.
+	const fullwidthCharacterWidth = (input.forceFullwidthCharacterWidth && input.isLTR && !input.isBasicASCII) ? 2 * input.spaceWidth : 0;
+	if (fullwidthCharacterWidth > 0) {
+		tokens = splitFullWidthCharacters(lineContent, tokens);
+	}
+
 	return new ResolvedRenderLineInput(
 		input.useMonospaceOptimizations,
 		input.canUseHalfwidthRightwardsArrow,
@@ -533,8 +553,45 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		input.spaceWidth,
 		input.renderSpaceCharCode,
 		input.renderWhitespace,
-		input.renderControlCharacters
+		input.renderControlCharacters,
+		fullwidthCharacterWidth
 	);
+}
+
+/**
+ * Whether the character at `offset` is a full-width character that can safely be rendered
+ * on its own. Splitting is skipped when the character starts a longer grapheme cluster,
+ * because pulling it into its own element would break the cluster apart.
+ */
+export function isFullWidthCharacterToCenter(lineContent: string, offset: number): boolean {
+	return strings.isFullWidthCharacter(lineContent.charCodeAt(offset)) && strings.nextCharLength(lineContent, offset) === 1;
+}
+
+/**
+ * Splits parts such that every full-width character ends up in a part of its own.
+ */
+function splitFullWidthCharacters(lineContent: string, parts: LinePart[]): LinePart[] {
+	const result: LinePart[] = [];
+	let startOffset = 0;
+	for (const part of parts) {
+		let didSplit = false;
+		for (let offset = startOffset; offset < part.endIndex; offset++) {
+			if (!isFullWidthCharacterToCenter(lineContent, offset)) {
+				continue;
+			}
+			if (offset > startOffset) {
+				result.push(new LinePart(offset, part.type, part.metadata, part.containsRTL));
+			}
+			result.push(new LinePart(offset + 1, part.type, part.metadata, part.containsRTL));
+			startOffset = offset + 1;
+			didSplit = true;
+		}
+		if (!didSplit || part.endIndex > startOffset) {
+			result.push(part);
+		}
+		startOffset = part.endIndex;
+	}
+	return result;
 }
 
 /**
@@ -996,6 +1053,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 	const renderSpaceCharCode = input.renderSpaceCharCode;
 	const renderWhitespace = input.renderWhitespace;
 	const renderControlCharacters = input.renderControlCharacters;
+	const fullwidthCharacterWidth = input.fullwidthCharacterWidth;
 
 	const characterMapping = new CharacterMapping(len + 1, parts.length);
 	let lastCharacterMappingDefined = false;
@@ -1018,11 +1076,17 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 		const partRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && part.isWhitespace());
 		const partRendersWhitespaceWithWidth = partRendersWhitespace && !fontIsMonospace && (partType === 'mtkw'/*only whitespace*/ || !containsForeignElements);
 		const partIsEmptyAndHasPseudoAfter = (charIndex === partEndIndex && part.isPseudoAfter());
+		// `splitFullWidthCharacters` has already isolated every centered character in a part of its own.
+		const partIsFullWidth = (fullwidthCharacterWidth > 0 && partEndIndex - charIndex === 1 && isFullWidthCharacterToCenter(lineContent, charIndex));
 		charOffsetInPart = 0;
 
 		sb.appendString('<span ');
 		if (partContainsRTL) {
 			sb.appendString('style="unicode-bidi:isolate" ');
+		} else if (partIsFullWidth) {
+			sb.appendString('style="display:inline-block;box-sizing:border-box;text-align:center;width:');
+			sb.appendString(String(fullwidthCharacterWidth));
+			sb.appendString('px" ');
 		}
 		sb.appendString('class="');
 		sb.appendString(partRendersWhitespaceWithWidth ? 'mtkz' : partType);

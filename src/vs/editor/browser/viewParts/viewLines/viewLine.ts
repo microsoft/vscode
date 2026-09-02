@@ -11,7 +11,7 @@ import { RangeUtil } from './rangeUtil.js';
 import { StringBuilder } from '../../../common/core/stringBuilder.js';
 import { FloatHorizontalRange, VisibleRanges } from '../../view/renderingContext.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
-import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, DomPosition, RenderWhitespace } from '../../../common/viewLayout/viewLineRenderer.js';
+import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, DomPosition, RenderWhitespace, isFullWidthCharacterToCenter } from '../../../common/viewLayout/viewLineRenderer.js';
 import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { EditorFontLigatures } from '../../../common/config/editorOptions.js';
@@ -169,7 +169,9 @@ export class ViewLine implements IVisibleLine {
 			options.fontLigatures !== EditorFontLigatures.OFF,
 			selectionsOnLine,
 			lineData.textDirection,
-			options.verticalScrollbarSize
+			options.verticalScrollbarSize,
+			false,
+			options.forceFullwidthCharacterWidth
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
@@ -641,6 +643,13 @@ class RenderedViewLine implements IRenderedViewLine {
 		}
 
 		const domPosition = this._characterMapping.getDomPosition(column);
+
+		if (this.input.forceFullwidthCharacterWidth && column <= this.input.lineContent.length && isFullWidthCharacterToCenter(this.input.lineContent, column - 1)) {
+			// The glyph is centered inside a box that is exactly two character cells wide, so a
+			// collapsed text range would report the edge of the glyph instead of the edge of the cell.
+			const r = RangeUtil.readHorizontalRangeForElement(this._getReadingTarget(domNode), domPosition.partIndex, context);
+			return r ? r.left : -1;
+		}
 
 		const r = RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), domPosition.partIndex, domPosition.charIndex, domPosition.partIndex, domPosition.charIndex, context);
 		if (!r || r.length === 0) {

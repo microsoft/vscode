@@ -3722,6 +3722,11 @@ declare namespace monaco.editor {
 		 */
 		formatOnPaste?: boolean;
 		/**
+		 * Render full-width characters in exactly two monospace character cells.
+		 * Defaults to false.
+		 */
+		forceFullwidthCharacterWidth?: boolean;
+		/**
 		 * Controls whether double-clicking next to a bracket or quote selects the content inside.
 		 * Defaults to true.
 		 */
@@ -5257,7 +5262,9 @@ declare namespace monaco.editor {
 		effectiveEditContext = 170,
 		scrollOnMiddleClick = 171,
 		effectiveAllowVariableFonts = 172,
-		doubleClickSelectsBlock = 173
+		doubleClickSelectsBlock = 173,
+		forceFullwidthCharacterWidth = 174,
+		effectiveForceFullwidthCharacterWidth = 175
 	}
 
 	export const EditorOptions: {
@@ -5333,6 +5340,7 @@ declare namespace monaco.editor {
 		fontVariations: IEditorOption<EditorOption.fontVariations, string>;
 		formatOnPaste: IEditorOption<EditorOption.formatOnPaste, boolean>;
 		formatOnType: IEditorOption<EditorOption.formatOnType, boolean>;
+		forceFullwidthCharacterWidth: IEditorOption<EditorOption.forceFullwidthCharacterWidth, boolean>;
 		glyphMargin: IEditorOption<EditorOption.glyphMargin, boolean>;
 		gotoLocation: IEditorOption<EditorOption.gotoLocation, Readonly<Required<IGotoLocationOptions>>>;
 		hideCursorInOverviewRuler: IEditorOption<EditorOption.hideCursorInOverviewRuler, boolean>;
@@ -5435,6 +5443,7 @@ declare namespace monaco.editor {
 		wrappingStrategy: IEditorOption<EditorOption.wrappingStrategy, 'simple' | 'advanced'>;
 		effectiveEditContextEnabled: IEditorOption<EditorOption.effectiveEditContext, boolean>;
 		effectiveAllowVariableFonts: IEditorOption<EditorOption.effectiveAllowVariableFonts, boolean>;
+		effectiveForceFullwidthCharacterWidth: IEditorOption<EditorOption.effectiveForceFullwidthCharacterWidth, boolean>;
 	};
 
 	type EditorOptionsType = typeof EditorOptions;

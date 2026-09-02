@@ -10,6 +10,7 @@ import { assertSnapshot } from '../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
+import { TextDirection } from '../../../common/model.js';
 import { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
 import { CharacterMapping, DomPosition, IRenderLineInputOptions, RenderLineInput, RenderLineOutput2, renderViewLine2 as renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
@@ -77,7 +78,8 @@ const defaultRenderLineInputOptions: IRenderLineInputOptions = {
 	selectionsOnLine: null,
 	textDirection: null,
 	verticalScrollbarSize: 14,
-	renderNewLineWhenEmpty: false
+	renderNewLineWhenEmpty: false,
+	forceFullwidthCharacterWidth: false
 };
 
 function createRenderLineInputOptions(opts: IRelaxedRenderLineInputOptions): IRenderLineInputOptions {
@@ -111,7 +113,8 @@ function createRenderLineInput(opts: IRelaxedRenderLineInputOptions): RenderLine
 		options.selectionsOnLine,
 		options.textDirection,
 		options.verticalScrollbarSize,
-		options.renderNewLineWhenEmpty
+		options.renderNewLineWhenEmpty,
+		options.forceFullwidthCharacterWidth
 	);
 }
 
@@ -1645,5 +1648,215 @@ suite('renderViewLine2', () => {
 		testGetColumnOfLinePartOffset(1, 8, 6, 9);
 		testGetColumnOfLinePartOffset(1, 8, 7, 10);
 		testGetColumnOfLinePartOffset(1, 8, 8, 11);
+	});
+});
+
+suite('renderViewLine - forceFullwidthCharacterWidth', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	/**
+	 * The style attribute emitted for a character that is centered in two character cells.
+	 */
+	function cell(width: number): string {
+		return ` style="display:inline-block;box-sizing:border-box;text-align:center;width:${width}px"`;
+	}
+
+	function render(lineContent: string, opts: IRelaxedRenderLineInputOptions = {}): string[] {
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent,
+			isBasicASCII: strings.isBasicASCII(lineContent),
+			containsRTL: strings.containsRTL(lineContent),
+			lineTokens: createViewLineTokens([createPart(lineContent.length, 1)]),
+			forceFullwidthCharacterWidth: true,
+			...opts
+		}));
+		return inflateRenderLineOutput(actual).html;
+	}
+
+	test('a lone full-width character is centered in two cells', () => {
+		assert.deepStrictEqual(render('漢'), [
+			`<span${cell(20)} class="mtk1">漢</span>`
+		]);
+	});
+
+	test('every full-width character of a run gets its own cell', () => {
+		assert.deepStrictEqual(render('漢字'), [
+			`<span${cell(20)} class="mtk1">漢</span>`,
+			`<span${cell(20)} class="mtk1">字</span>`
+		]);
+	});
+
+	test('narrow characters around a full-width character stay in shared parts', () => {
+		assert.deepStrictEqual(render('ab漢cd'), [
+			`<span class="mtk1">ab</span>`,
+			`<span${cell(20)} class="mtk1">漢</span>`,
+			`<span class="mtk1">cd</span>`
+		]);
+	});
+
+	test('a full-width character at either end of the line is centered', () => {
+		assert.deepStrictEqual(render('漢a漢'), [
+			`<span${cell(20)} class="mtk1">漢</span>`,
+			`<span class="mtk1">a</span>`,
+			`<span${cell(20)} class="mtk1">漢</span>`
+		]);
+	});
+
+	test('full-width forms of ASCII characters are centered', () => {
+		assert.deepStrictEqual(render('Ａ１！'), [
+			`<span${cell(20)} class="mtk1">Ａ</span>`,
+			`<span${cell(20)} class="mtk1">１</span>`,
+			`<span${cell(20)} class="mtk1">！</span>`
+		]);
+	});
+
+	test('CJK punctuation is centered', () => {
+		assert.deepStrictEqual(render('あ、い。'), [
+			`<span${cell(20)} class="mtk1">あ</span>`,
+			`<span${cell(20)} class="mtk1">、</span>`,
+			`<span${cell(20)} class="mtk1">い</span>`,
+			`<span${cell(20)} class="mtk1">。</span>`
+		]);
+	});
+
+	test('half-width katakana is left alone', () => {
+		assert.deepStrictEqual(render('ｱｲｳ'), [
+			`<span class="mtk1">ｱｲｳ</span>`
+		]);
+	});
+
+	test('non-ASCII narrow characters are left alone', () => {
+		assert.deepStrictEqual(render('Ünïcödé'), [
+			`<span class="mtk1">Ünïcödé</span>`
+		]);
+	});
+
+	test('the cell width follows the space width', () => {
+		assert.deepStrictEqual(render('漢', { spaceWidth: 7.5 }), [
+			`<span${cell(15)} class="mtk1">漢</span>`
+		]);
+	});
+
+	test('nothing changes when the setting is off', () => {
+		assert.deepStrictEqual(render('ab漢cd', { forceFullwidthCharacterWidth: false }), [
+			`<span class="mtk1">ab漢cd</span>`
+		]);
+	});
+
+	test('basic ASCII lines are untouched', () => {
+		assert.deepStrictEqual(render('abcd'), [
+			`<span class="mtk1">abcd</span>`
+		]);
+	});
+
+	test('RTL lines are untouched', () => {
+		assert.deepStrictEqual(render('漢عربى'), [
+			`<span style="unicode-bidi:isolate" class="mtk1">漢عربى</span>`
+		]);
+	});
+
+	test('lines forced to render right-to-left are untouched', () => {
+		assert.deepStrictEqual(render('漢a', { textDirection: TextDirection.RTL }), [
+			`<span class="mtk1">漢a</span>`
+		]);
+	});
+
+	// The guard: centering a character that only forms half of a grapheme cluster would tear
+	// the cluster apart, so such characters are rendered the way they are today.
+	test('a full-width character carrying a combining mark is not centered', () => {
+		assert.deepStrictEqual(render('あ́い'), [
+			`<span class="mtk1">あ́</span>`,
+			`<span${cell(20)} class="mtk1">い</span>`
+		]);
+	});
+
+	test('a full-width character followed by a variation selector is not centered', () => {
+		assert.deepStrictEqual(render('神︀社'), [
+			`<span class="mtk1">神︀</span>`,
+			`<span${cell(20)} class="mtk1">社</span>`
+		]);
+	});
+
+	test('astral plane characters are not centered', () => {
+		assert.deepStrictEqual(render('𠀋漢'), [
+			`<span class="mtk1">𠀋</span>`,
+			`<span${cell(20)} class="mtk1">漢</span>`
+		]);
+	});
+
+	test('token boundaries are preserved', () => {
+		assert.deepStrictEqual(render('ab漢cd', {
+			lineTokens: createViewLineTokens([createPart(3, 1), createPart(5, 2)])
+		}), [
+			`<span class="mtk1">ab</span>`,
+			`<span${cell(20)} class="mtk1">漢</span>`,
+			`<span class="mtk2">cd</span>`
+		]);
+	});
+
+	test('a token boundary in the middle of a run of full-width characters is preserved', () => {
+		assert.deepStrictEqual(render('漢字', {
+			lineTokens: createViewLineTokens([createPart(1, 1), createPart(2, 2)])
+		}), [
+			`<span${cell(20)} class="mtk1">漢</span>`,
+			`<span${cell(20)} class="mtk2">字</span>`
+		]);
+	});
+
+	test('inline decorations are preserved', () => {
+		assert.deepStrictEqual(render('a漢b', {
+			lineDecorations: [new LineDecoration(1, 4, 'link', InlineDecorationType.Regular)]
+		}), [
+			`<span class="mtk1 link">a</span>`,
+			`<span${cell(20)} class="mtk1 link">漢</span>`,
+			`<span class="mtk1 link">b</span>`
+		]);
+	});
+
+	test('before and after decorations keep their empty parts', () => {
+		assert.deepStrictEqual(render('漢', {
+			lineDecorations: [
+				new LineDecoration(1, 1, 'ced-before', InlineDecorationType.Before),
+				new LineDecoration(2, 2, 'ced-after', InlineDecorationType.After)
+			]
+		}), [
+			`<span class="mtk1 ced-before"></span>`,
+			`<span${cell(20)} class="mtk1">漢</span>`,
+			`<span class="ced-after"></span>`
+		]);
+	});
+
+	test('rendered whitespace next to a full-width character is preserved', () => {
+		assert.deepStrictEqual(render('  漢', { useMonospaceOptimizations: true, renderWhitespace: 'all' }), [
+			`<span class="mtkw">·‌·‌</span>`,
+			`<span${cell(20)} class="mtk1">漢</span>`
+		]);
+	});
+
+	test('stopRenderingLineAfter truncates before centering', () => {
+		assert.deepStrictEqual(render('漢字漢字', { stopRenderingLineAfter: 2 }), [
+			`<span${cell(20)} class="mtk1">漢</span>`,
+			`<span${cell(20)} class="mtk1">字</span>`,
+			`<span class="mtkoverflow">Show more (2 chars)</span>`
+		]);
+	});
+
+	// The character mapping already treats a full-width character as two columns wide; centering
+	// the glyph is what makes the rendered line agree with it.
+	test('the character mapping is unaffected by the extra parts', () => {
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: 'a漢b',
+			isBasicASCII: false,
+			lineTokens: createViewLineTokens([createPart(3, 1)]),
+			forceFullwidthCharacterWidth: true
+		}));
+
+		assertCharacterMapping3(actual.characterMapping, [
+			[0, [0, 0]],
+			[1, [1, 0]],
+			[3, [2, 0]],
+			[4, [2, 1]]
+		]);
 	});
 });

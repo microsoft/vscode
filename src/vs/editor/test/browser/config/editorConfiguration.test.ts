@@ -7,7 +7,8 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IEnvConfiguration } from '../../../browser/config/editorConfiguration.js';
 import { migrateOptions } from '../../../browser/config/migrateOptions.js';
-import { ConfigurationChangedEvent, EditorOption, IEditorHoverOptions, IQuickSuggestionsOptions } from '../../../common/config/editorOptions.js';
+import { ConfigurationChangedEvent, EditorFontLigatures, EditorFontVariations, EditorOption, IEditorHoverOptions, IQuickSuggestionsOptions } from '../../../common/config/editorOptions.js';
+import { FontInfo } from '../../../common/config/fontInfo.js';
 import { EditorZoom } from '../../../common/config/editorZoom.js';
 import { TestConfiguration } from './testConfiguration.js';
 import { AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
@@ -266,6 +267,60 @@ suite('Common Editor Config', () => {
 				allowedLocales: { '_os': true, '_vscode': true }
 			}
 		);
+		config.dispose();
+	});
+
+	class TestProportionalFontConfiguration extends TestConfiguration {
+		protected override _readFontInfo(): FontInfo {
+			return new FontInfo({
+				pixelRatio: 1,
+				fontFamily: 'mockProportionalFont',
+				fontWeight: 'normal',
+				fontSize: 14,
+				fontFeatureSettings: EditorFontLigatures.OFF,
+				fontVariationSettings: EditorFontVariations.OFF,
+				lineHeight: 19,
+				letterSpacing: 1.5,
+				isMonospace: false,
+				typicalHalfwidthCharacterWidth: 10,
+				typicalFullwidthCharacterWidth: 20,
+				canUseHalfwidthRightwardsArrow: true,
+				spaceWidth: 10,
+				middotWidth: 10,
+				wsmiddotWidth: 10,
+				maxDigitWidth: 10,
+			}, true);
+		}
+	}
+
+	function assertForceFullwidthCharacterWidth(config: TestConfiguration, expected: boolean): void {
+		assert.strictEqual(config.options.get(EditorOption.effectiveForceFullwidthCharacterWidth), expected);
+		config.dispose();
+	}
+
+	test('forceFullwidthCharacterWidth is off by default', () => {
+		assertForceFullwidthCharacterWidth(new TestConfiguration({}), false);
+	});
+
+	test('forceFullwidthCharacterWidth takes effect with a monospace font', () => {
+		assertForceFullwidthCharacterWidth(new TestConfiguration({ forceFullwidthCharacterWidth: true }), true);
+	});
+
+	test('forceFullwidthCharacterWidth is ignored with a proportional font', () => {
+		assertForceFullwidthCharacterWidth(new TestProportionalFontConfiguration({ forceFullwidthCharacterWidth: true }), false);
+	});
+
+	test('forceFullwidthCharacterWidth stays off with a proportional font', () => {
+		assertForceFullwidthCharacterWidth(new TestProportionalFontConfiguration({}), false);
+	});
+
+	test('forceFullwidthCharacterWidth is recomputed when the setting changes', () => {
+		const config = new TestConfiguration({});
+		config.updateOptions({ forceFullwidthCharacterWidth: true });
+		assert.strictEqual(config.options.get(EditorOption.effectiveForceFullwidthCharacterWidth), true);
+
+		config.updateOptions({ forceFullwidthCharacterWidth: false });
+		assert.strictEqual(config.options.get(EditorOption.effectiveForceFullwidthCharacterWidth), false);
 		config.dispose();
 	});
 });
