@@ -227,8 +227,8 @@ export class ClaudeToolCallRegistry {
 	 * once per orphan. A `tool_use` whose `tool_result` never arrives
 	 * — model misbehavior, transport drop, future cancellation —
 	 * would otherwise survive in the maps for the lifetime of the
-	 * session and accumulate across turns. Called from `mapResult`
-	 * on every `result` envelope.
+	 * session and accumulate across turns. Called via
+	 * `ClaudeMapperState.clearPendingToolCalls` at the end of the protocol turn.
 	 */
 	clearPending(logService: ILogService): void {
 		if (this._entries.size === 0) {
