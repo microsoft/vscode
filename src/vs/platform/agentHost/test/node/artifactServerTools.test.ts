@@ -62,10 +62,12 @@ suite('Artifact Server Tools', () => {
 			definition: addDefinition?.description?.includes(classification),
 			input: addDefinition?.inputSchema?.properties?.isArtifact.description?.includes(classification),
 			instruction: ARTIFACT_TOOLS_INSTRUCTION.includes(classification),
+			reference: ARTIFACT_TOOLS_INSTRUCTION.includes('something you did not produce but the user should look at because of this task'),
 		}, {
 			definition: true,
 			input: true,
 			instruction: true,
+			reference: true,
 		});
 	});
 
