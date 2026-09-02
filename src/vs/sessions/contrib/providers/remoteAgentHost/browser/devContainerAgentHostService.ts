@@ -233,6 +233,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			const provider = providerStore.add(this._createProvider({
 				address: connected.address,
 				name: connected.name,
+				devContainerWorktreeScope: key,
 				omitHostFromWorkspaceLabel: true,
 			}));
 			providerStore.add(this._sessionsProvidersService.registerProvider(provider));

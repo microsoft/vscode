@@ -371,13 +371,20 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		return this._nativeRequire;
 	}
 
-	protected _resolveShellEnvironment(): Promise<typeof process.env> {
-		this._shellEnvironment ??= getResolvedShellEnv(
+	protected _resolveUserShellEnvironment(): Promise<typeof process.env> {
+		return getResolvedShellEnv(
 			this._configurationService,
 			this._logService,
 			{ ...this._environmentService.args, 'force-user-env': true },
 			process.env,
 		);
+	}
+
+	protected _resolveShellEnvironment(): Promise<typeof process.env> {
+		this._shellEnvironment ??= this._resolveUserShellEnvironment().catch(error => {
+			this._logService.error(`${LOG_PREFIX} Unable to resolve shell environment; using inherited environment`, error);
+			return process.env;
+		});
 		return this._shellEnvironment;
 	}
 

@@ -208,7 +208,7 @@ suite('CodexAgent model refresh', () => {
 	});
 
 	test('restored model waits for an authentication refresh queued behind activation', async () => {
-		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', supported_endpoints: ['/responses'] }] as CCAModel[];
+		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', model_picker_enabled: true, supported_endpoints: ['/responses'] }] as CCAModel[];
 		const firstRefreshStarted = new DeferredPromise<void>();
 		const releaseFirstRefresh = new DeferredPromise<void>();
 		const authenticatedRefreshStarted = new DeferredPromise<void>();
@@ -260,7 +260,7 @@ suite('CodexAgent model refresh', () => {
 	});
 
 	test('model resolution starts discovery when the catalog is empty', async () => {
-		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', supported_endpoints: ['/responses'] }] as CCAModel[];
+		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', model_picker_enabled: true, supported_endpoints: ['/responses'] }] as CCAModel[];
 		const agent = createAgent(disposables, async () => copilotModels);
 		agent['_githubToken'] = 'token';
 		agent['_isSdkResolvableWithoutDownload'] = async () => false;
@@ -299,7 +299,7 @@ suite('CodexAgent model refresh', () => {
 	});
 
 	test('queues a fresh model refresh when Codex activates during an ambient refresh', async () => {
-		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', supported_endpoints: ['/responses'] }] as CCAModel[];
+		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', model_picker_enabled: true, supported_endpoints: ['/responses'] }] as CCAModel[];
 		const ambientRefreshStarted = new DeferredPromise<void>();
 		const ambientCodexRefreshFinished = new DeferredPromise<void>();
 		const releaseAmbientRefresh = new DeferredPromise<void>();
@@ -836,6 +836,22 @@ suite('CodexAgent model refresh', () => {
 		});
 	});
 
+	test('does not publish Copilot models disabled for the model picker', async () => {
+		const models = [
+			{ id: 'picker-enabled', name: 'Picker Enabled', model_picker_enabled: true, supported_endpoints: ['/responses'] },
+			{ id: 'picker-disabled', name: 'Picker Disabled', model_picker_enabled: false, supported_endpoints: ['/responses'] },
+		] as CCAModel[];
+		const agent = createAgent(disposables, async () => models);
+		agent['_isSdkResolvableWithoutDownload'] = async () => false;
+
+		await agent.authenticate(agent.getProtectedResources()[0].resource, 'token');
+		await agent.refreshModels();
+
+		assert.deepStrictEqual(agent.models.get().map(model => model.id), [
+			toCodexModelSelectionId('vscode-proxy', 'picker-enabled'),
+		]);
+	});
+
 	test('waits for an app-server already starting when signed-out use becomes enabled', async () => {
 		const agent = createAgent(disposables, async () => [], {});
 		const connection = createChatGPTConnection();
@@ -857,7 +873,7 @@ suite('CodexAgent model refresh', () => {
 	});
 
 	test('publishes no ChatGPT models when the app server reports no account', async () => {
-		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', supported_endpoints: ['/responses'] }] as CCAModel[];
+		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', model_picker_enabled: true, supported_endpoints: ['/responses'] }] as CCAModel[];
 		const agent = createAgent(disposables, async () => copilotModels, { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true });
 		agent['_githubToken'] = 'token';
 		agent['_connection'] = createChatGPTConnection(null) as never;
@@ -895,7 +911,7 @@ suite('CodexAgent model refresh', () => {
 
 	test('keeps the last known-good models when a periodic refresh fails', async () => {
 		let shouldFail = false;
-		const models = [{ id: 'gpt-5.5', name: 'GPT-5.5', supported_endpoints: ['/responses'] }] as CCAModel[];
+		const models = [{ id: 'gpt-5.5', name: 'GPT-5.5', model_picker_enabled: true, supported_endpoints: ['/responses'] }] as CCAModel[];
 		const agent = createAgent(disposables, async () => {
 			if (shouldFail) {
 				throw new Error('transient failure');
@@ -915,7 +931,7 @@ suite('CodexAgent model refresh', () => {
 
 	test('retries Copilot model discovery after a transient authentication refresh failure', async () => {
 		let attempts = 0;
-		const models = [{ id: 'gpt-5.5', name: 'GPT-5.5', supported_endpoints: ['/responses'] }] as CCAModel[];
+		const models = [{ id: 'gpt-5.5', name: 'GPT-5.5', model_picker_enabled: true, supported_endpoints: ['/responses'] }] as CCAModel[];
 		const agent = createAgent(disposables, async () => {
 			attempts++;
 			if (attempts === 1) {
@@ -991,7 +1007,7 @@ suite('CodexAgent model refresh', () => {
 	});
 
 	test('omits the thinking level when a Copilot model advertises no reasoning efforts', async () => {
-		const model = { id: 'gpt-5.5', name: 'GPT-5.5', supported_endpoints: ['/responses'] } as CCAModel;
+		const model = { id: 'gpt-5.5', name: 'GPT-5.5', model_picker_enabled: true, supported_endpoints: ['/responses'] } as CCAModel;
 		const agent = createAgent(disposables, async () => [model]);
 
 		await agent.authenticate(agent.getProtectedResources()[0].resource, 'token');

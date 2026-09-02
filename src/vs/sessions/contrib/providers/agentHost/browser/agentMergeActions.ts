@@ -208,8 +208,8 @@ abstract class AgentMergeActionBase extends Action2 {
 }
 
 // The primary button only names the Agent Merge actions, so it is contributed
-// as a submenu: the changes button bar opens exactly these entries as a context
-// menu rather than its own dropdown, which also carries pull request operations.
+// as a submenu: its first entry is the primary invocation, while the button's
+// dropdown also carries the remaining pull request operations.
 //
 // Deliberately not gated on Agent Merge being enabled for the session: the
 // button stands in for the auto-merge operations either way, and enabling it is
@@ -225,8 +225,8 @@ MenuRegistry.appendMenuItem(Menus.ChangesOperationsDropdown, {
 	when: ContextKeyExpr.and(agentMergeMenuPrecondition, agentMergeOwnsPrimaryButton),
 });
 
-/** Menus the Agent Merge entries appear on: the operations dropdown, and their own context menu. */
-const agentMergeMenus = [Menus.ChangesOperationsDropdown, Menus.ChangesAgentMerge];
+/** Menus the top-level Agent Merge entries appear on: the operations dropdown, and their own context menu. */
+const agentMergeTopLevelMenus = [Menus.ChangesOperationsDropdown, Menus.ChangesAgentMerge];
 
 registerAction2(class EnableAgentMergeInSessionAction extends AgentMergeActionBase {
 	constructor() {
@@ -236,7 +236,7 @@ registerAction2(class EnableAgentMergeInSessionAction extends AgentMergeActionBa
 			// goes, so a check mark next to "Enable" would only be ambiguous.
 			title: localize2('agentMerge.enableInSession', "Enable Agent Merge"),
 			f1: false,
-			menu: agentMergeMenus.map(id => ({
+			menu: agentMergeTopLevelMenus.map(id => ({
 				id,
 				group: '1_agentMerge',
 				order: 1,
@@ -262,7 +262,7 @@ registerAction2(class DisableAgentMergeInSessionAction extends AgentMergeActionB
 			id: 'sessions.agentHost.agentMerge.disableInSession',
 			title: localize2('agentMerge.disableInSession', "Disable Agent Merge"),
 			f1: false,
-			menu: agentMergeMenus.map(id => ({
+			menu: agentMergeTopLevelMenus.map(id => ({
 				id,
 				group: '1_agentMerge',
 				order: 1,
@@ -282,6 +282,16 @@ registerAction2(class DisableAgentMergeInSessionAction extends AgentMergeActionB
 	}
 });
 
+for (const id of agentMergeTopLevelMenus) {
+	MenuRegistry.appendMenuItem(id, {
+		submenu: Menus.ChangesAgentMergeConfigure,
+		title: localize2('agentMerge.configure.submenu', "Configure Agent Merge"),
+		group: '1_agentMerge',
+		order: 2,
+		when: agentMergeMenuPrecondition,
+	});
+}
+
 for (const [index, action] of agentMergeRepairActions.entries()) {
 	registerAction2(class ToggleAgentMergeRepairAction extends AgentMergeActionBase {
 		constructor() {
@@ -290,12 +300,12 @@ for (const [index, action] of agentMergeRepairActions.entries()) {
 				title: { value: agentMergeActionLabels[action], original: agentMergeActionLabels[action] },
 				toggled: AgentMergeSessionActionContexts[action],
 				f1: false,
-				menu: agentMergeMenus.map(id => ({
-					id,
-					group: '2_agentMergeActions',
+				menu: [{
+					id: Menus.ChangesAgentMergeConfigure,
+					group: '1_agentMergeActions',
 					order: index,
 					when: agentMergeMenuPrecondition,
-				})),
+				}],
 			});
 		}
 
@@ -314,8 +324,7 @@ for (const [index, action] of agentMergeRepairActions.entries()) {
 // One submenu entry per value, so the title can name the current choice without
 // the user having to open it. Exactly one is ever visible.
 for (const value of agentMergeMergePullRequestValues) {
-	MenuRegistry.appendMenuItem(Menus.ChangesOperationsDropdown, mergePullRequestSubmenuItem(value));
-	MenuRegistry.appendMenuItem(Menus.ChangesAgentMerge, mergePullRequestSubmenuItem(value));
+	MenuRegistry.appendMenuItem(Menus.ChangesAgentMergeConfigure, mergePullRequestSubmenuItem(value));
 }
 
 function mergePullRequestSubmenuItem(value: AgentMergeMergePullRequest): ISubmenuItem {
@@ -323,7 +332,7 @@ function mergePullRequestSubmenuItem(value: AgentMergeMergePullRequest): ISubmen
 	return {
 		submenu: Menus.ChangesAgentMergeMergePullRequest,
 		title: { value: title, original: title },
-		group: '2_agentMergeActions',
+		group: '1_agentMergeActions',
 		order: agentMergeRepairActions.length,
 		when: ContextKeyExpr.and(agentMergeMenuPrecondition, AgentMergeSessionMergePullRequestContext.isEqualTo(value)),
 	};
@@ -358,12 +367,12 @@ registerAction2(class OpenAgentMergeDefaultsAction extends Action2 {
 			id: 'sessions.agentHost.agentMerge.openDefaults',
 			title: localize2('agentMerge.openDefaults', "Agent Merge Defaults"),
 			f1: false,
-			menu: agentMergeMenus.map(id => ({
-				id,
-				group: '3_agentMergeDefaults',
+			menu: [{
+				id: Menus.ChangesAgentMergeConfigure,
+				group: '2_agentMergeDefaults',
 				order: 1,
 				when: agentMergeMenuPrecondition,
-			})),
+			}],
 		});
 	}
 
