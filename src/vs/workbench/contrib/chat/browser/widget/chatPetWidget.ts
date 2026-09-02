@@ -232,6 +232,7 @@ interface ChatPetThrowBounds {
 interface ChatPetThrowGeometry {
 	readonly bounds: ChatPetThrowBounds;
 	readonly displaySize: number;
+	readonly inputTop: number;
 	readonly overlayLeft: number;
 	readonly overlayTop: number;
 	readonly platformLeft: number;
@@ -1034,6 +1035,10 @@ export function getChatPetPlatformTop(hostTop: number, inputTop: number, substan
 		return substantiveSurfaceTop;
 	}
 	return hostTop + getChatPetVerticalOffset(hostTop, inputTop);
+}
+
+export function getChatPetProjectedPlatformTop(hostTop: number, inputTop: number, overlayLeft: number, petLeft: number, petWidth: number, getPlatformTop: (petCenterX: number) => number | undefined): number {
+	return getChatPetPlatformTop(hostTop, inputTop, getPlatformTop(overlayLeft + petLeft + petWidth / 2));
 }
 
 export function getChatPetPillPlatformTop(petCenterX: number, pillBounds: readonly Pick<DOMRect, 'height' | 'left' | 'right' | 'top' | 'width'>[]): number | undefined {
@@ -1850,11 +1855,21 @@ export class ChatPetWidget extends Disposable {
 		this._button.element.classList.toggle('resisting', !landsOnPlatform);
 	}
 
-	private _getThrowGeometry(): ChatPetThrowGeometry {
+	private _getThrowGeometry(platformPetLeft?: number): ChatPetThrowGeometry {
 		const overlayBounds = this._overlay.getBoundingClientRect();
+		const inputBounds = this.dragBounds.getBoundingClientRect();
 		const movementBounds = this.movementBounds.getBoundingClientRect();
-		const platformBounds = this._getPlatformBounds(false);
 		const displaySize = this._getDisplaySize();
+		const platformTop = platformPetLeft === undefined
+			? getChatPetPlatformTop(overlayBounds.top, inputBounds.top)
+			: getChatPetProjectedPlatformTop(
+				overlayBounds.top,
+				inputBounds.top,
+				overlayBounds.left,
+				platformPetLeft,
+				displaySize,
+				petCenterX => this._host.get().getPlatformTop(petCenterX),
+			);
 		return {
 			bounds: {
 				minimumLeft: movementBounds.left - overlayBounds.left,
@@ -1862,11 +1877,12 @@ export class ChatPetWidget extends Disposable {
 				minimumTop: movementBounds.top - overlayBounds.top,
 			},
 			displaySize,
+			inputTop: inputBounds.top,
 			overlayLeft: overlayBounds.left,
 			overlayTop: overlayBounds.top,
-			platformLeft: platformBounds.left - overlayBounds.left,
-			platformRight: platformBounds.right - overlayBounds.left,
-			platformTop: platformBounds.top - overlayBounds.top,
+			platformLeft: inputBounds.left - overlayBounds.left,
+			platformRight: inputBounds.right - overlayBounds.left,
+			platformTop: platformTop - overlayBounds.top,
 			floorTop: movementBounds.bottom - overlayBounds.top - displaySize,
 		};
 	}
@@ -1996,7 +2012,15 @@ export class ChatPetWidget extends Disposable {
 			lastFrameTime = now;
 			const previousMotion = motion;
 			const step = advanceChatPetThrow(previousMotion, elapsed, geometry.bounds);
-			const landing = getChatPetThrowLanding(previousMotion.left, previousMotion.top, step.left, step.top, geometry.displaySize, geometry.displaySize, geometry.platformLeft, geometry.platformRight, geometry.platformTop, geometry.floorTop);
+			const platformTop = getChatPetProjectedPlatformTop(
+				geometry.overlayTop,
+				geometry.inputTop,
+				geometry.overlayLeft,
+				step.left,
+				geometry.displaySize,
+				petCenterX => this._host.get().getPlatformTop(petCenterX),
+			) - geometry.overlayTop;
+			const landing = getChatPetThrowLanding(previousMotion.left, previousMotion.top, step.left, step.top, geometry.displaySize, geometry.displaySize, geometry.platformLeft, geometry.platformRight, platformTop, geometry.floorTop);
 			const landingTime = landing && step.top !== previousMotion.top ? (landing.top - previousMotion.top) / (step.top - previousMotion.top) : undefined;
 			const cursorPosition = this._cursorPosition;
 			const mouseCollisionTime = isChatPetMouseBounceGracePeriodElapsed(now, this._mouseBounceAvailableAt) && this._mouseBounceArmed && !this._cursorContactingPet && cursorPosition
@@ -2064,7 +2088,7 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _getThrowSettleTarget(): { readonly top: number; readonly landsOnPlatform: true } {
-		const geometry = this._getThrowGeometry();
+		const geometry = this._getThrowGeometry(this._getCurrentLeft());
 		return {
 			top: geometry.platformTop - geometry.displaySize,
 			landsOnPlatform: true,
