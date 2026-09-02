@@ -1409,6 +1409,32 @@ suite('ChatService', () => {
 		]]);
 	});
 
+	test('syncPendingRequestsFromRemote settles the deferred of a request the remote dropped', async () => {
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		const kept = await testService.sendRequest(model.sessionResource, 'kept message', { queue: ChatRequestQueueKind.Queued, pauseQueue: true });
+		const dropped = await testService.sendRequest(model.sessionResource, 'dropped message', { queue: ChatRequestQueueKind.Queued, pauseQueue: true });
+		assert.ok(ChatSendResult.isQueued(kept));
+		assert.ok(ChatSendResult.isQueued(dropped));
+		const keptId = model.getPendingRequests()[0].request.id;
+
+		const settled: [string, ChatSendResult][] = [];
+		void kept.deferred.then(result => settled.push(['kept', result]));
+		void dropped.deferred.then(result => settled.push(['dropped', result]));
+
+		testService.syncPendingRequestsFromRemote(model.sessionResource, [
+			{ id: keptId, kind: ChatRequestQueueKind.Queued, message: 'kept message' },
+		]);
+		await timeout(0);
+
+		assert.deepStrictEqual({ settled, pending: model.getPendingRequests().map(p => p.request.id) }, {
+			settled: [['dropped', { kind: 'rejected', reason: 'Request was removed from queue' }]],
+			pending: [keptId],
+		});
+	});
+
 	test('sendPendingRequestImmediately cancels current and sends the queued message on local sessions', async () => {
 		const firstStarted = new DeferredPromise<void>();
 		const secondInvoked = new DeferredPromise<void>();
