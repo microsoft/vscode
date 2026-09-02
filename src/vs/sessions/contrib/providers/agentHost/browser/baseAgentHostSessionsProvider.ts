@@ -12,7 +12,7 @@ import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../.
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
-import { isEqual, isEqualOrParent, relativePath } from '../../../../../base/common/resources.js';
+import { basename, dirname, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { themeColorFromId, ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -36,6 +36,7 @@ import { ActionType, isChatAction, isSessionAction, NotificationType } from '../
 import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionGitHubState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -3200,7 +3201,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return sessions;
 	}
 
-	getResourceLabelHomes(): { readonly uri: URI; readonly label: string }[] {
+	protected getResourceLabelHomes(): { readonly uri: URI; readonly label: string }[] {
 		const homes: { readonly uri: URI; readonly label: string }[] = [];
 		for (const session of this.getKnownSessions()) {
 			if (session.isQuickChat?.get()) {
@@ -3212,9 +3213,66 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return homes;
 	}
 
+	private readonly _resourceLabelHomeRegistrations = this._register(new DisposableMap<string>());
+	private readonly _resourceLabelHomeLabels = new Map<string, Map<string, string>>();
+
+	protected updateResourceLabelHomeFormatters(homes: readonly { readonly uri: URI; readonly label: string }[], labelService: ILabelService, onDidChange: Event<void>): void {
+		const groups = new Map<string, { readonly parent: URI; readonly labels: Map<string, string> }>();
+		for (const home of homes) {
+			const parent = dirname(home.uri);
+			const key = getComparisonKey(parent);
+			let group = groups.get(key);
+			if (!group) {
+				group = { parent, labels: new Map() };
+				groups.set(key, group);
+			}
+			group.labels.set(basename(home.uri), home.label);
+		}
+
+		this._resourceLabelHomeLabels.clear();
+		const registrationKeys = new Set<string>();
+		for (const [key, group] of groups) {
+			this._resourceLabelHomeLabels.set(key, group.labels);
+			const separator = labelService.getSeparator(group.parent.scheme, group.parent.authority);
+			const templateKey = `template:${key}`;
+			if (group.labels.size > (group.labels.has('') ? 1 : 0)) {
+				registrationKeys.add(templateKey);
+				if (!this._resourceLabelHomeRegistrations.has(templateKey)) {
+					this._resourceLabelHomeRegistrations.set(templateKey, labelService.registerFormatter({
+						home: joinPath(group.parent, '${sessionId}'),
+						onDidChangeFormatting: onDidChange,
+						formatting: context => {
+							const label = this._resourceLabelHomeLabels.get(key)?.get(context.parameters.get('sessionId') ?? '');
+							return label === undefined ? undefined : { label, separator };
+						},
+					}));
+				}
+			}
+			const rootKey = `root:${key}`;
+			if (group.labels.has('')) {
+				registrationKeys.add(rootKey);
+				if (!this._resourceLabelHomeRegistrations.has(rootKey)) {
+					this._resourceLabelHomeRegistrations.set(rootKey, labelService.registerFormatter({
+						home: group.parent,
+						onDidChangeFormatting: onDidChange,
+						formatting: () => {
+							const label = this._resourceLabelHomeLabels.get(key)?.get('');
+							return label === undefined ? undefined : { label, separator };
+						},
+					}));
+				}
+			}
+		}
+		for (const [key] of this._resourceLabelHomeRegistrations) {
+			if (!registrationKeys.has(key)) {
+				this._resourceLabelHomeRegistrations.deleteAndDispose(key);
+			}
+		}
+	}
+
 	protected getResourceLabelHomeLabel(session: ISession): string {
 		const providerLabel = this.sessionTypes.find(type => type.id === session.sessionType)?.label ?? session.sessionType;
-		return `${providerLabel}/${localize('sessionHome', "Session")}`;
+		return `${providerLabel}/${session.title.get() || localize('sessionHome', "Session")}`;
 	}
 
 	protected getKnownSessions(): ISession[] {

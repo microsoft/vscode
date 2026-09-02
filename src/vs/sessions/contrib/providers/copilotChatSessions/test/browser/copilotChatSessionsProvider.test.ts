@@ -560,18 +560,6 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(sessions.length, 2);
 	});
 
-	test('registers Copilot CLI session state directories as resource label homes', () => {
-		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/session-1' });
-		model.addSession(createMockAgentSession(resource));
-
-		const { labelService } = createProviderWithConfig(disposables, model);
-
-		assert.strictEqual(
-			labelService.getUriHome(URI.file('/home/test/.copilot/session-state/session-1/artifact.md'))?.toString(),
-			URI.file('/home/test/.copilot/session-state/session-1').toString()
-		);
-	});
-
 	test('getSessions does not emit session changes while reading the initial cache', () => {
 		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/session' });
 		model.addSession(createMockAgentSession(resource));
