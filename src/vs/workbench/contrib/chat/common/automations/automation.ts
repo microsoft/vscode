@@ -68,10 +68,10 @@ export interface IAutomationDescriptor {
 	/** Optional language model identifier to seed the new session with. */
 	readonly modelId?: string;
 
-	/** Optional chat mode (`agent`/`ask`/`edit`). Defaults to provider's default; custom modes unsupported. */
+	/** Optional provider mode identifier. Defaults to the provider's mode. */
 	readonly mode?: string;
 
-	/** Optional permission level (`default`/`autoApprove`/`autopilot`). Overrides only for scheduled runs; defaults to provider's default. */
+	/** Optional permission level (`default`/`assisted`/`autoApprove`/`autopilot`). Defaults to the provider's level. */
 	readonly permissionLevel?: string;
 
 	readonly enabled: boolean;

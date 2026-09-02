@@ -23,7 +23,7 @@ import { MessageKind } from '../common/state/protocol/channels-chat/state.js';
 import { IAgentHostStateManager, type AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { nextAutomationCronOccurrence, validateAutomationCron } from './automationCron.js';
-import { AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY, AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY } from '../common/automationMigration.js';
+import { AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY, AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY, migrateLegacyAutomationSessionConfig } from '../common/automationMigration.js';
 import { isAgentHostLegacyAutomationImportPending } from '../common/meta/automationMeta.js';
 
 const STORAGE_KEY = 'automations';
@@ -107,7 +107,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._migrationCompletedAt = stored?.migration?.completedAt;
 		this._runs = new Map(stored?.runs?.map(run => [run.resource, run]));
 		this._catalog = stored?.catalog ? {
-			entries: stored.catalog.automations.map(automation => withRunWindow(automation, this._runs, RUN_HISTORY_PAGE_SIZE)),
+			entries: stored.catalog.automations.map(automation => withRunWindow(migrateStoredAutomation(automation), this._runs, RUN_HISTORY_PAGE_SIZE)),
 			...(stored.catalog._meta || this._migrationCompletedAt ? {
 				_meta: {
 					...stored.catalog._meta,
@@ -958,6 +958,21 @@ function isStoredAutomationCatalog(value: unknown): value is IStoredAutomationCa
 	return Array.isArray(automations)
 		&& automations.every(isAutomationEntry)
 		&& (meta === undefined || !!meta && typeof meta === 'object' && !Array.isArray(meta));
+}
+
+function migrateStoredAutomation(automation: AutomationEntry): AutomationEntry {
+	const session = automation.definition.session;
+	const config = migrateLegacyAutomationSessionConfig(session.provider, session.config);
+	if (config === session.config) {
+		return automation;
+	}
+	return {
+		...automation,
+		definition: {
+			...automation.definition,
+			session: { ...session, config },
+		},
+	};
 }
 
 function isStoredAutomations(value: unknown): value is IStoredAutomations {

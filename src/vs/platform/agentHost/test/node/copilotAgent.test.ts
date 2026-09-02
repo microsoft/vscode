@@ -1234,32 +1234,6 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('revalidates elevated session config against current policy', async () => {
-		const { agent, configurationService } = createTestAgentContext(disposables);
-		try {
-			const config = {
-				[SessionConfigKey.Mode]: 'autopilot',
-				[SessionConfigKey.AutoApprove]: 'assisted',
-			};
-			const selected = await agent.resolveChatConfig({ config });
-			configurationService.updateRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: true });
-			const restricted = await agent.resolveChatConfig({ config });
-
-			assert.deepStrictEqual({
-				selected: selected.values,
-				restricted: restricted.values,
-			}, {
-				selected: config,
-				restricted: {
-					[SessionConfigKey.Mode]: 'autopilot',
-					[SessionConfigKey.AutoApprove]: 'default',
-				},
-			});
-		} finally {
-			await disposeAgent(agent);
-		}
-	});
-
 	test('installs the GitHub telemetry callback in CopilotClientOptions', async () => {
 		const client = new TestCopilotClient([]);
 		const agent = createTestAgent(disposables, { copilotClient: client }) as TestableCopilotAgent;

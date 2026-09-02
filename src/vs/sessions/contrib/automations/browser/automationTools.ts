@@ -20,7 +20,7 @@ import { IAutomationRunDispatch, IAutomationRunner } from '../../../../workbench
 import { type AutomationMutationGuard, ConfigureAutomationToolReferenceName, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IChatAutomationConfiguredData } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -35,7 +35,6 @@ const deleteAutomationConfirmationId = 'delete';
 const manualRunLeaderWindowId = 0;
 const automationIntervals: readonly AutomationInterval[] = ['manual', 'hourly', 'daily', 'weekly'];
 const automationIsolationKinds: readonly AutomationWorkspaceIsolation['kind'][] = ['default', 'folder', 'worktree'];
-const chatModes: readonly ChatModeKind[] = [ChatModeKind.Agent, ChatModeKind.Ask, ChatModeKind.Edit];
 const chatPermissionLevels: readonly ChatPermissionLevel[] = [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted, ChatPermissionLevel.AutoApprove, ChatPermissionLevel.Autopilot];
 
 interface IAutomationToolOutput {
@@ -463,8 +462,8 @@ The change uses the current tool-approval policy. When approval is required, the
 						description: 'Language model ID, or null to use the provider default.',
 					},
 					mode: {
-						enum: [...chatModes, null],
-						description: 'Chat mode, or null to use the provider default.',
+						type: ['string', 'null'],
+						description: 'Provider mode identifier, or null to use the provider default.',
 					},
 					permissionLevel: {
 						enum: [...chatPermissionLevels, null],
@@ -666,7 +665,7 @@ The change uses the current tool-approval policy. When approval is required, the
 		const currentTarget = this.getCurrentSessionTarget(sessionResource);
 		const target = parseTarget(input, existing, currentTarget);
 		const modelId = readOptionalNullableNonEmptyString(input, 'modelId');
-		const mode = readOptionalNullableEnum(input, 'mode', chatModes);
+		const mode = readOptionalNullableNonEmptyString(input, 'mode');
 		const permissionLevel = readOptionalNullableEnum(input, 'permissionLevel', chatPermissionLevels);
 		const enabled = readOptionalBoolean(input, 'enabled');
 

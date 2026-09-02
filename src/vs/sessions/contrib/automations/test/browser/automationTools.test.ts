@@ -830,6 +830,32 @@ suite('AutomationTools', () => {
 		});
 	});
 
+	test('configureAutomation accepts a provider mode returned by listAutomations', async () => {
+		const existing = createAutomation({ mode: 'autopilot' });
+		const automationService = new FakeAutomationService([existing]);
+		const tool = new ConfigureAutomationTool(
+			automationService,
+			new FakeSessionsManagementService(undefined),
+			createConfigurationService(),
+		);
+		const parameters = {
+			automationId: existing.id,
+			mode: 'autopilot',
+		};
+		const prepared = await tool.prepareToolInvocation!({
+			parameters,
+			toolCallId: 'update-call',
+			chatSessionResource: SESSION_RESOURCE,
+		}, CancellationToken.None);
+
+		await invoke(tool, parameters, SESSION_RESOURCE, CancellationToken.None, undefined, prepared.toolSpecificData);
+
+		assert.deepStrictEqual(automationService.updated, [{
+			id: existing.id,
+			patch: { mode: 'autopilot' },
+		}]);
+	});
+
 	test('configureAutomation rejects editable changes made while awaiting approval', async () => {
 		const existing = createAutomation();
 		const automationService = new FakeAutomationService([existing]);

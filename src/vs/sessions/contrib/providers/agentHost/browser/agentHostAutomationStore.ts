@@ -12,7 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY } from '../../../../../platform/agentHost/common/automationMigration.js';
+import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY, migrateLegacyAutomationSessionConfig, supportsLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationMigration.js';
 import { isAgentHostAutomationCatalogMigrated, isAgentHostLegacyAutomationImport, isAgentHostLegacyAutomationImportPending } from '../../../../../platform/agentHost/common/meta/automationMeta.js';
 import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { type IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -25,7 +25,6 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import type { AutomationRunTrigger, AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationActiveRunError, type AutomationMutationGuard, type IAutomationRunClaim, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, isAutomationActiveRunError, serializeAutomationEditableState, type IUpdateAutomationOptions, type IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { publishAutomationMigration } from '../../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
-import { ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import type { IAutomation, IAutomationSnapshotImportResult, IGuardedAutomationSnapshotRemovalResult, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IAutomationStorageService } from '../../../automations/common/automationStorageService.js';
 
@@ -831,11 +830,14 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	}
 
 	private _definitionFromDescriptor(descriptor: IAutomationDescriptor, existing?: AutomationDefinition, imported = false, importPending?: boolean): AutomationDefinition {
-		const config = { ...existing?.session.config };
 		const provider = descriptor.target.sessionTypeId ?? this._providerFromModelId(descriptor.modelId);
-		const migratedConfig = migrateLegacyAutomationSessionConfig(descriptor.mode, descriptor.permissionLevel);
-		setOptional(config, SessionConfigKey.Mode, migratedConfig.mode);
-		setOptional(config, SessionConfigKey.AutoApprove, migratedConfig.autoApprove);
+		const existingSession = existing && existing.session.provider === provider ? existing.session : undefined;
+		const config = applyLegacyAutomationDescriptorConfig(
+			{ ...existingSession?.config },
+			provider,
+			descriptor.mode,
+			descriptor.permissionLevel,
+		);
 		if (descriptor.target.kind === 'workspace') {
 			setOptional(config, SessionConfigKey.Isolation, descriptor.target.isolation.kind === 'default' ? undefined : descriptor.target.isolation.kind);
 			setOptional(config, SessionConfigKey.Branch, descriptor.target.isolation.kind === 'worktree' ? descriptor.target.isolation.branch : undefined);
@@ -858,6 +860,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			session: {
 				provider,
 				model: descriptor.modelId ? { id: this._toHostModelId(descriptor.modelId, provider) } : undefined,
+				agent: existingSession?.agent,
 				workingDirectories: descriptor.target.kind === 'workspace'
 					? [(this._boundaryMapper?.toHost(descriptor.target.folderUri) ?? descriptor.target.folderUri).toString()]
 					: undefined,
@@ -917,8 +920,8 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			modelId: patch.modelId === null
 				? undefined
 				: patch.modelId ?? (targetAuthorityChanged ? undefined : current.modelId),
-			mode: patch.mode === null ? undefined : patch.mode ?? current.mode,
-			permissionLevel: patch.permissionLevel === null ? undefined : patch.permissionLevel ?? current.permissionLevel,
+			mode: patch.mode === null ? undefined : patch.mode ?? (targetAuthorityChanged ? undefined : current.mode),
+			permissionLevel: patch.permissionLevel === null ? undefined : patch.permissionLevel ?? (targetAuthorityChanged ? undefined : current.permissionLevel),
 			enabled,
 			updatedAt: now.toISOString(),
 		};
@@ -1227,14 +1230,20 @@ function readString(value: unknown): string | undefined {
 	return typeof value === 'string' ? value : undefined;
 }
 
-function migrateLegacyAutomationSessionConfig(mode: string | undefined, permissionLevel: string | undefined): { readonly mode: string | undefined; readonly autoApprove: string | undefined } {
-	const agentMode = mode && KNOWN_MODE_VALUES.has(mode) ? mode : undefined;
-	return permissionLevel === ChatPermissionLevel.Autopilot
-		? {
-			mode: agentMode === 'plan' ? agentMode : ChatPermissionLevel.Autopilot,
-			autoApprove: ChatPermissionLevel.Assisted,
+function applyLegacyAutomationDescriptorConfig(config: Record<string, unknown>, provider: string | undefined, mode: string | undefined, permissionLevel: string | undefined): Record<string, unknown> {
+	if (!supportsLegacyAutomationSessionConfig(provider)) {
+		if (permissionLevel === undefined || permissionLevel === 'default') {
+			delete config[SessionConfigKey.AutoApprove];
 		}
-		: { mode: agentMode, autoApprove: permissionLevel };
+		return config;
+	}
+	if (mode === undefined) {
+		delete config[SessionConfigKey.Mode];
+	} else if (KNOWN_MODE_VALUES.has(mode)) {
+		config[SessionConfigKey.Mode] = mode;
+	}
+	setOptional(config, SessionConfigKey.AutoApprove, permissionLevel);
+	return migrateLegacyAutomationSessionConfig(provider, config);
 }
 
 function setOptional(target: Record<string, unknown>, key: string, value: unknown): void {

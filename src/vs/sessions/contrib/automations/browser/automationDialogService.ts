@@ -22,6 +22,7 @@ import { createWorkbenchDialogOptions } from '../../../../workbench/browser/part
 import { AutomationTarget, IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted } from '../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -222,7 +223,11 @@ export class AutomationDialogService implements IAutomationDialogService {
 
 			const prompt = getPrompt();
 			const mode = getMode();
-			const permissionLevel = getPermissionLevel();
+			const selectedPermissionLevel = getPermissionLevel();
+			const permissionLevel = initial?.permissionLevel !== undefined
+				&& isAutoApproveValuePolicyRestricted(initial.permissionLevel, isAutoApprovePolicyRestricted(this.configurationService))
+				? initial.permissionLevel
+				: selectedPermissionLevel;
 			const modelId = getModelId();
 			const branch = getBranch();
 			const target = createAutomationTarget(state, branch);
