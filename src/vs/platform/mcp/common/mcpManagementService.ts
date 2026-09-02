@@ -534,6 +534,13 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 		throw new Error('Not supported');
 	}
 
+	override async uninstall(server: ILocalMcpServer, options?: Omit<UninstallOptions, 'mcpResource'>): Promise<void> {
+		if (server.location && !this.uriIdentityService.extUri.isEqual(URI.revive(server.location), this.getLocation(server.name, server.version))) {
+			throw new Error(`Invalid MCP server location for ${server.name}`);
+		}
+		await super.uninstall(server, options);
+	}
+
 	async updateMetadata(local: ILocalMcpServer, gallery: IGalleryMcpServer): Promise<ILocalMcpServer> {
 		await this.updateMetadataFromGallery(gallery);
 		await this.updateLocal(gallery);
@@ -608,8 +615,13 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 	}
 
 	protected getLocation(name: string, version?: string): URI {
-		name = name.replace('/', '.');
-		return this.uriIdentityService.extUri.joinPath(this.mcpLocation, version ? `${name}-${version}` : name);
+		name = name.replace(/[\\/]/g, '.');
+		version = version?.replace(/[\\/]/g, '.');
+		const location = this.uriIdentityService.extUri.joinPath(this.mcpLocation, version ? `${name}-${version}` : name);
+		if (this.uriIdentityService.extUri.isEqual(location, this.mcpLocation) || !this.uriIdentityService.extUri.isEqualOrParent(location, this.mcpLocation)) {
+			throw new Error(`Invalid MCP server location for ${name}`);
+		}
+		return location;
 	}
 
 	protected override installFromUri(uri: URI, options?: Omit<InstallOptions, 'mcpResource'>): Promise<ILocalMcpServer> {
