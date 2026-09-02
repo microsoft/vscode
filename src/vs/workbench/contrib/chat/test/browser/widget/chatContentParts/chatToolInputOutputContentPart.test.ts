@@ -252,7 +252,7 @@ suite('ChatCollapsibleInputOutputContentPart', () => {
 			'{"query":"test"}',
 			undefined,
 			[
-				{ type: 'embed', value: '# Heading', isText: true, mimeType: 'text/markdown; charset=utf-8' },
+				{ type: 'embed', value: '# Heading', isText: true, mimeType: ' Text/Markdown ; charset=utf-8' },
 				{ type: 'embed', value: '{"declared":true}', isText: true, mimeType: 'text/plain' },
 				{ type: 'embed', value: 'invalid JSON', isText: true, mimeType: 'application/problem+json' },
 				{ type: 'embed', value: '{"detected":true}', isText: true },

@@ -72,7 +72,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 
 		const getOutputLanguageId = (part: ToolInputOutputEmbedded): string => {
 			if (part.mimeType) {
-				const mimeType = normalizeMimeType(part.mimeType).split(';', 1)[0];
+				const mimeType = normalizeMimeType(part.mimeType).split(';', 1)[0].trim();
 				if (mimeType === Mimes.markdown) {
 					return 'markdown';
 				}
