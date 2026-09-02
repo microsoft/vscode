@@ -5937,7 +5937,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('registers provider-neutral resource label homes for quick chats and provider state', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const claudeHome = URI.file('/home/test/.agent/chats/claude-session');
+		const rootHome = URI.file('/');
 		agentHost.addSession(createSession('claude-session', { provider: 'claude', summary: 'Claude Quick Chat', quickChat: true, workingDirectory: claudeHome }));
+		agentHost.addSession(createSession('root-session', { provider: 'claude', summary: 'Root Quick Chat', quickChat: true, workingDirectory: rootHome }));
 		agentHost.addSession(createSession('copilot-session', { summary: 'Copilot Session' }));
 		const pathService = new TestPathService(URI.file('/home/test'));
 		const labelService = new MockLabelService();
@@ -5952,10 +5954,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		assert.deepStrictEqual({
 			quickChat: getHomeLabel(URI.joinPath(claudeHome, 'artifact.md')),
+			root: getHomeLabel(URI.file('/artifact.md')),
 			copilotState: getHomeLabel(URI.file('/home/test/.copilot/session-state/copilot-session/artifact.md')),
 		}, {
-			quickChat: 'claude/Session',
-			copilotState: 'Copilot/Session',
+			quickChat: 'claude/Claude Quick Chat',
+			root: 'claude/Root Quick Chat',
+			copilotState: 'Copilot/Copilot Session',
 		});
 
 		provider.dispose();

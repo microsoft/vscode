@@ -34,7 +34,6 @@ import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browse
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { ResourceLabelHomeStore } from '../../../../../workbench/services/label/common/resourceLabelHomeStore.js';
 import { IAgentHostConnectProgress, IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { IGitHubInfo, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
@@ -173,7 +172,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	private _connection: IAgentConnection | undefined;
 	private _defaultDirectory: string | undefined;
 	private readonly _connectionListeners = this._register(new DisposableStore());
-	private readonly _resourceLabelHomes: ResourceLabelHomeStore;
+	private readonly _onDidChangeResourceLabelHomes = Event.any(this._onDidChangeSessionsImmediately, this._onDidChangeDraftSessions.event);
 	private readonly _connectionAuthority: string;
 	private readonly _connectOnDemand: (() => Promise<void>) | undefined;
 	private readonly _disconnectOnDemand: (() => Promise<void>) | undefined;
@@ -217,7 +216,6 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService);
-		this._resourceLabelHomes = this._register(instantiationService.createInstance(ResourceLabelHomeStore));
 
 		this._connectionAuthority = agentHostAuthority(config.address);
 		this._connectOnDemand = config.connectOnDemand;
@@ -229,8 +227,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._devContainerWorktreeScope = config.devContainerWorktreeScope;
 		this.onDidReportConnectProgress = config.onDidReportConnectProgress;
 		this.canConnectOnDemand = !!config.connectOnDemand;
-		this._register(this._onDidChangeSessionsImmediately(() => this.updateResourceLabelHomes()));
-		this._register(this._onDidChangeDraftSessions.event(() => this.updateResourceLabelHomes()));
+		this._register(this._onDidChangeResourceLabelHomes(() => this.updateResourceLabelHomes()));
 		this.updateResourceLabelHomes();
 		const displayName = config.name || config.address;
 
@@ -656,7 +653,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 				}
 			}
 		}
-		this._resourceLabelHomes.set(homes);
+		this.updateResourceLabelHomeFormatters(homes, this._labelService, this._onDidChangeResourceLabelHomes);
 	}
 
 	/**

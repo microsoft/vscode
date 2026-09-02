@@ -368,7 +368,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			requiresCustomModels: true,
 			supportsAutoModel: agentHostProviderSupportsAutoModel(agent.provider),
 			agentHostProviderId: agent.provider,
-			supportsDelegation: true,
+			supportsDelegation: false,
 			capabilities: {
 				supportsCheckpoints: true,
 				supportsPromptAttachments: true,

@@ -17,6 +17,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
@@ -41,6 +42,7 @@ import { ISessionsManagementService, ICreateNewSessionOptions, inheritableSessio
 import { SessionsService } from '../../browser/sessionsService.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../browser/sessionOpenTelemetryService.js';
 import { ISessionsPartService } from '../../browser/sessionsPartService.js';
+import { AbstractCustomView } from '../../../customView/browser/customView.js';
 import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
 import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
@@ -228,12 +230,13 @@ function createSessionsManagementService(
 	workspaceTrustManagementService = new TestWorkspaceTrustManagementService(),
 	workspaceTrustRequestService?: IWorkspaceTrustRequestService,
 	configurationService: IConfigurationService = new TestConfigurationService(),
-): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService } {
+): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const chatWidgetService = new TestChatWidgetService();
 	const chatService = disposables.add(new TestChatService());
 	const providers = Array.isArray(provider) ? provider : [provider];
 	const contextKeyService = disposables.add(new MockContextKeyService());
+	const customViewService = disposables.add(new CustomViewService(new NullLogService(), disposables.add(new InMemoryStorageService())));
 
 	instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 	instantiationService.stub(ILogService, new NullLogService());
@@ -253,8 +256,8 @@ function createSessionsManagementService(
 	}
 
 	const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
-	const view = createView(instantiationService, service, disposables);
-	return { service, view, chatWidgetService, chatService, contextKeyService };
+	const view = createView(instantiationService, service, disposables, customViewService);
+	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService };
 }
 
 /**
@@ -268,15 +271,35 @@ class TestSessionsPartService extends mock<ISessionsPartService>() {
 	override focusSession(): void { }
 }
 
+class TestCustomView extends AbstractCustomView {
+	readonly title = constObservable('Test Custom View');
+
+	render(_container: HTMLElement): void { }
+	layout(_width: number, _height: number): void { }
+}
+
+function showTestCustomView(customViewService: ICustomViewService, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>): void {
+	disposables.add(customViewService.registerCustomView({
+		id: 'test.customView',
+		ctor: new SyncDescriptor(TestCustomView),
+	}));
+	customViewService.showCustomView('test.customView');
+}
+
 /**
  * Builds a {@link SessionsService} over an already-created management
  * service, stubbing the management service instance and a passive part so the
  * view's opening/restore/visible-session behaviour can be tested.
  */
-function createView(instantiationService: TestInstantiationService, service: ISessionsManagementService, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>): SessionsService {
+function createView(
+	instantiationService: TestInstantiationService,
+	service: ISessionsManagementService,
+	disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>,
+	customViewService: ICustomViewService = disposables.add(new CustomViewService(new NullLogService(), disposables.add(new InMemoryStorageService()))),
+): SessionsService {
 	instantiationService.stub(ISessionsManagementService, service);
 	instantiationService.stub(ISessionsPartService, new TestSessionsPartService());
-	instantiationService.stub(ICustomViewService, disposables.add(new CustomViewService(new NullLogService(), disposables.add(new InMemoryStorageService()))));
+	instantiationService.stub(ICustomViewService, customViewService);
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(ISessionOpenTelemetryService, disposables.add(new SessionOpenTelemetryService(NullTelemetryService)));
 	return disposables.add(instantiationService.createInstance(SessionsService));
@@ -389,6 +412,163 @@ suite('SessionsManagementService', () => {
 			{ activeId: view.activeSession.get()?.sessionId, otherRead: other.isRead.get() },
 			{ activeId: undefined, otherRead: false },
 		);
+	});
+
+	test('archiving the active session keeps the custom view open', async () => {
+		const isArchived = observableValue('isArchived', false);
+		const session = stubSession({ sessionId: 'active', providerId: 'test', isArchived });
+		const { customViewService, view } = createSessionsManagementService(session, disposables);
+
+		await view.openSession(session.resource);
+		showTestCustomView(customViewService, disposables);
+		isArchived.set(true, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			activeCustomView: customViewService.activeCustomView.get()?.id,
+			activeSession: view.activeSession.get()?.sessionId,
+		}, {
+			activeCustomView: 'test.customView',
+			activeSession: undefined,
+		});
+	});
+
+	test('automatic no-fallback removal keeps the custom view open', async () => {
+		const session = stubSession({ sessionId: 'active', providerId: 'test' });
+		const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+		const provider = new class extends TestSessionsProvider {
+			override readonly onDidChangeSessions = onDidChangeSessions.event;
+		}(session);
+		const { customViewService, view } = createSessionsManagementService(session, disposables, provider);
+
+		await view.openSession(session.resource);
+		showTestCustomView(customViewService, disposables);
+		onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			activeCustomView: customViewService.activeCustomView.get()?.id,
+			activeSession: view.activeSession.get()?.sessionId,
+		}, {
+			activeCustomView: 'test.customView',
+			activeSession: undefined,
+		});
+	});
+
+	test('automatic no-fallback removal stays inert during pending explicit navigation', async () => {
+		const active = stubSession({ sessionId: 'active', providerId: 'test' });
+		const target = stubSession({ sessionId: 'target', providerId: 'test' });
+		const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+		const resolutionStarted = new DeferredPromise<void>();
+		const targetResolution = new DeferredPromise<URI | undefined>();
+		const provider = new class extends TestSessionsProvider {
+			override readonly onDidChangeSessions = onDidChangeSessions.event;
+			override getSessions(): ISession[] { return [active, target]; }
+			override resolveSessionResource(resource: URI): Promise<URI | undefined> {
+				if (extUriBiasedIgnorePathCase.isEqual(resource, target.resource)) {
+					resolutionStarted.complete();
+					return targetResolution.p;
+				}
+				return Promise.resolve(undefined);
+			}
+		}(active);
+		const { view } = createSessionsManagementService(active, disposables, provider);
+
+		await view.openSession(active.resource);
+		const openTarget = view.openSession(target.resource);
+		await resolutionStarted.p;
+		onDidChangeSessions.fire({ added: [], removed: [active], changed: [] });
+		targetResolution.complete(undefined);
+		await openTarget;
+
+		assert.strictEqual(view.activeSession.get()?.sessionId, 'target');
+	});
+
+	test('removing the active session with a fallback keeps the custom view open', async () => {
+		const fallback = stubSession({ sessionId: 'fallback', providerId: 'test' });
+		const active = stubSession({ sessionId: 'active', providerId: 'test' });
+		const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+		const provider = new class extends TestSessionsProvider {
+			override readonly onDidChangeSessions = onDidChangeSessions.event;
+			override getSessions(): ISession[] { return [fallback, active]; }
+		}(active);
+		const { customViewService, view } = createSessionsManagementService(active, disposables, provider);
+
+		await view.openSession(fallback.resource);
+		await view.openSessionToSide(active);
+		showTestCustomView(customViewService, disposables);
+		onDidChangeSessions.fire({ added: [], removed: [active], changed: [] });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			activeCustomView: customViewService.activeCustomView.get()?.id,
+			activeSession: view.activeSession.get()?.sessionId,
+		}, {
+			activeCustomView: 'test.customView',
+			activeSession: 'fallback',
+		});
+	});
+
+	test('removing the active chat keeps the custom view open', async () => {
+		const sideChat: IChat = {
+			...stubChat,
+			resource: URI.parse('test:///side-chat'),
+			title: constObservable('Side Chat'),
+			status: constObservable(SessionStatus.Completed),
+		};
+		const chats = observableValue<readonly IChat[]>('chats', [stubChat, sideChat]);
+		const session = stubSession({
+			sessionId: 'active',
+			providerId: 'test',
+			status: constObservable(SessionStatus.Completed),
+			chats,
+		});
+		const { customViewService, view } = createSessionsManagementService(session, disposables);
+
+		await view.openChat(session, sideChat.resource);
+		showTestCustomView(customViewService, disposables);
+		chats.set([stubChat], undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			activeCustomView: customViewService.activeCustomView.get()?.id,
+			activeChat: view.activeSession.get()?.activeChat.get()?.resource.toString(),
+		}, {
+			activeCustomView: 'test.customView',
+			activeChat: stubChat.resource.toString(),
+		});
+	});
+
+	test('explicit session navigation dismisses the custom view', async () => {
+		const isArchived = observableValue('isArchived', false);
+		const session = stubSession({ sessionId: 'active', providerId: 'test', isArchived });
+		const { customViewService, view } = createSessionsManagementService(session, disposables);
+
+		await view.openSession(session.resource);
+		showTestCustomView(customViewService, disposables);
+		await view.openNewSession();
+		const afterOpenNewSession = customViewService.activeCustomView.get()?.id;
+
+		await view.openSession(session.resource);
+		customViewService.showCustomView('test.customView');
+		isArchived.set(true, undefined);
+		await timeout(0);
+		await view.openNewSession();
+		const afterOpenNewSessionWithoutActiveSession = customViewService.activeCustomView.get()?.id;
+
+		customViewService.showCustomView('test.customView');
+		await view.openSession(session.resource);
+		const afterOpenSession = customViewService.activeCustomView.get()?.id;
+
+		assert.deepStrictEqual({
+			afterOpenNewSession,
+			afterOpenNewSessionWithoutActiveSession,
+			afterOpenSession,
+		}, {
+			afterOpenNewSession: undefined,
+			afterOpenNewSessionWithoutActiveSession: undefined,
+			afterOpenSession: undefined,
+		});
 	});
 
 	test('does not change active session when added session is not displayed in any widget', async () => {
