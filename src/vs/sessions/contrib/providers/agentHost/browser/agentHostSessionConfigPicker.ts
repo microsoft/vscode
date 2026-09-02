@@ -39,7 +39,7 @@ import { IChatInputPickerResponsiveState } from '../../../../../workbench/contri
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { Menus } from '../../../../browser/menus.js';
-import { DevContainerWorktreeEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
+import { DevContainerWorktreeEnabledSettingId } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
