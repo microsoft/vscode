@@ -196,7 +196,7 @@ export function rtrim(haystack: string, needle: string): string {
 }
 
 export function convertSimple2RegExpPattern(pattern: string): string {
-	return pattern.replace(/[\-\\\{\}\+\?\|\^\$\.\,\[\]\(\)\#\s]/g, '\\$&').replace(/[\*]/g, '.*');
+	return pattern.replace(/[\-\\\{\}\+\?\|\^\$\.\,\[\]\(\)\#\s]/g, '\\$&').replace(/\*+/g, '.*');
 }
 
 export interface RegExpOptions {
