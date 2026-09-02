@@ -34,7 +34,7 @@ import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../
 import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
-import { IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
+import { AGENT_SESSIONS_CONSOLIDATED_REMOTE_WORKSPACES_SETTING, IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from '../../browser/webWorkspacePicker.js';
 import { NewSessionWorkspacePreselectionSource } from '../../browser/newSessionComposerService.js';
 import { ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
@@ -2977,6 +2977,10 @@ class TestablePicker extends WorkspacePicker {
 		return this.getItems().flatMap(entry => entry.label ? [entry.label] : []);
 	}
 
+	showsFilter(): boolean {
+		return this._buildListOptions(this.getItems(), undefined).showFilter === true;
+	}
+
 	async select(label: string): Promise<void> {
 		const entry = this.getItems().find(candidate => candidate.label === label);
 		assert.ok(entry?.item, `Expected picker item '${label}'`);
@@ -3001,6 +3005,7 @@ function createTestablePicker(
 	options: IWorkspacePickerOptions = {},
 	commandService: Partial<ICommandService> = { executeCommand: async () => { } },
 	storageService: IStorageService = disposables.add(new TestStorageService()),
+	consolidatedRemoteWorkspaces = false,
 ): TestablePicker {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stub(IActionWidgetService, { isVisible: false, hide: () => { }, show: () => { } });
@@ -3013,7 +3018,10 @@ function createTestablePicker(
 	instantiationService.stub(IClipboardService, {});
 	instantiationService.stub(IPreferencesService, {});
 	instantiationService.stub(IOutputService, {});
-	instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: remoteAgentHostsEnabled }));
+	instantiationService.stub(IConfigurationService, new TestConfigurationService({
+		[RemoteAgentHostsEnabledSettingId]: remoteAgentHostsEnabled,
+		[AGENT_SESSIONS_CONSOLIDATED_REMOTE_WORKSPACES_SETTING]: consolidatedRemoteWorkspaces,
+	}));
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IFileService, upcastPartial<IFileService>({
@@ -3098,6 +3106,44 @@ suite('WorkspacePicker - Tab discovery', () => {
 		]);
 		const picker = createTestablePicker(disposables, providersService);
 		assert.deepStrictEqual(picker.getAvailableTabs(), [SESSION_WORKSPACE_GROUP_LOCAL, 'Cloud', SESSION_WORKSPACE_GROUP_REMOTE]);
+	});
+
+	test('combines GitHub and Remote groups with search when enabled', () => {
+		providersService.setProviders([
+			createMockProvider('remote', { browseActions: [makeBrowseAction('remote', SESSION_WORKSPACE_GROUP_REMOTE, 'Select Remote...')] }),
+			createMockProvider('github', { browseActions: [{ ...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Repository...'), attachesContext: false }] }),
+			{ ...createMockProvider('local'), supportsLocalWorkspaces: true },
+		]);
+		const picker = createTestablePicker(disposables, providersService, true, {}, undefined, undefined, true);
+
+		picker.selectWorkspaceActions();
+		picker.selectTab(SESSION_WORKSPACE_GROUP_REMOTE);
+
+		assert.deepStrictEqual({
+			tabs: picker.getAvailableTabs(),
+			items: picker.getItemLabels(),
+			showsFilter: picker.showsFilter(),
+		}, {
+			tabs: [SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE],
+			items: ['Select Remote...', 'Repository...'],
+			showsFilter: true,
+		});
+	});
+
+	test('keeps GitHub context actions separate when groups are combined', () => {
+		providersService.setProviders([
+			createMockProvider('github', {
+				browseActions: [
+					{ ...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Repository...'), attachesContext: false },
+					{ ...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Issue...'), attachesContext: true },
+				],
+			}),
+		]);
+		const picker = createTestablePicker(disposables, providersService, true, {}, undefined, undefined, true);
+
+		picker.selectWorkspaceGroup(SESSION_WORKSPACE_GROUP_GITHUB, true);
+
+		assert.deepStrictEqual(picker.getItemLabels(), ['Issue...']);
 	});
 
 	test('deduplicates groups contributed by multiple providers / actions', () => {

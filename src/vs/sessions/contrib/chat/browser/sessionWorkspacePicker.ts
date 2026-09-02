@@ -53,6 +53,8 @@ export type { IResolvedFolderWorkspace } from './sessionWorkspaceFallback.js';
 
 const FILTER_THRESHOLD = 10;
 
+export const AGENT_SESSIONS_CONSOLIDATED_REMOTE_WORKSPACES_SETTING = 'chat.agentSessions.consolidatedRemoteWorkspaces';
+
 /**
  * Fixed picker width when the categorical tab bar is shown. Keeps the tab
  * row and the list aligned and prevents horizontal jitter when switching
@@ -603,7 +605,7 @@ export class WorkspacePicker extends Disposable {
 		// so picking a tab during one open of the picker doesn't permanently
 		// override auto-tab.
 		if (preferredGroup === undefined && tabs.length > 0) {
-			const selectedGroup = this._selectedResolved?.workspace.group;
+			const selectedGroup = this._getTabGroup(this._selectedResolved?.workspace.group);
 			if (!this._userPickedTab && selectedGroup && tabs.some(t => t.id === selectedGroup)) {
 				this._activeTab = selectedGroup;
 			}
@@ -656,8 +658,9 @@ export class WorkspacePicker extends Disposable {
 				if (action.group === SESSION_WORKSPACE_GROUP_REMOTE && !remoteAgentHostsEnabled) {
 					continue;
 				}
-				if (action.group && !byLabel.has(action.group)) {
-					byLabel.set(action.group, { id: action.group });
+				const group = this._getTabGroup(action.group);
+				if (group && !byLabel.has(group)) {
+					byLabel.set(group, { id: group });
 				}
 			}
 		}
@@ -689,8 +692,9 @@ export class WorkspacePicker extends Disposable {
 		};
 	}
 
-	private _buildListOptions(items: readonly IActionListItem<IWorkspacePickerItem>[], pickerWidth: number | undefined): IActionListOptions {
-		const showFilter = items.filter(i => i.kind === ActionListItemKind.Action).length > FILTER_THRESHOLD;
+	protected _buildListOptions(items: readonly IActionListItem<IWorkspacePickerItem>[], pickerWidth: number | undefined): IActionListOptions {
+		const showFilter = this._useConsolidatedRemoteWorkspaces()
+			|| items.filter(i => i.kind === ActionListItemKind.Action).length > FILTER_THRESHOLD;
 		return showFilter
 			? { showFilter: true, filterPlaceholder: localize('workspacePicker.filter', "Search Workspaces..."), reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true }
 			: { reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true };
@@ -753,7 +757,7 @@ export class WorkspacePicker extends Disposable {
 			createActionList: (tab) => {
 				this._activeTab = tab;
 				const items = this._buildItems();
-				return { items, listOptions: { inlineDescription: true, showGroupTitleOnFirstItem: true, hideDefaultKeybindingTooltip: true } };
+				return { items, listOptions: this._buildListOptions(items, undefined) };
 			},
 			delegate,
 			accessibilityProvider,
@@ -1191,9 +1195,26 @@ export class WorkspacePicker extends Disposable {
 			return all;
 		}
 		return all.filter(a =>
-			a.group === this._activeTab
+			this._isGroupInActiveTab(a.group)
 			&& (this._directPickerAttachesContext === undefined || Boolean(a.attachesContext) === this._directPickerAttachesContext)
 		);
+	}
+
+	private _useConsolidatedRemoteWorkspaces(): boolean {
+		return this.configurationService.getValue<boolean>(AGENT_SESSIONS_CONSOLIDATED_REMOTE_WORKSPACES_SETTING);
+	}
+
+	private _getTabGroup(group: string | undefined): string | undefined {
+		return this._useConsolidatedRemoteWorkspaces() && group === SESSION_WORKSPACE_GROUP_GITHUB
+			? SESSION_WORKSPACE_GROUP_REMOTE
+			: group;
+	}
+
+	private _isGroupInActiveTab(group: string | undefined): boolean {
+		if (this._directPickerGroup !== undefined) {
+			return group === this._directPickerGroup;
+		}
+		return this._getTabGroup(group) === this._activeTab;
 	}
 
 	/**
@@ -1253,9 +1274,13 @@ export class WorkspacePicker extends Disposable {
 		const providerIds = new Set(allProviders.map(p => p.id));
 		const availableTabs = this._getAvailableTabs();
 		const activeGroup = this._activeTab ?? (availableTabs.length === 1 ? availableTabs[0].id : undefined);
-		const workspaceGroupAction = this.options.getWorkspaceGroupAction?.(activeGroup);
+		let workspaceGroupAction = this.options.getWorkspaceGroupAction?.(activeGroup);
+		if (!workspaceGroupAction && activeGroup === SESSION_WORKSPACE_GROUP_REMOTE && this._useConsolidatedRemoteWorkspaces()) {
+			const gitHubGroupAction = this.options.getWorkspaceGroupAction?.(SESSION_WORKSPACE_GROUP_GITHUB);
+			workspaceGroupAction = gitHubGroupAction ? { ...gitHubGroupAction, hideWorkspaceItems: false } : undefined;
+		}
 		const tabFilter = this._isTabFiltered()
-			? (w: IResolvedFolderWorkspace) => w.workspace.group === this._activeTab
+			? (w: IResolvedFolderWorkspace) => this._isGroupInActiveTab(w.workspace.group)
 			: undefined;
 		// Own recents first, then VS Code recents (merged and deduplicated by the service)
 		const recentWorkspaces = workspaceGroupAction?.hideWorkspaceItems
@@ -1338,7 +1363,7 @@ export class WorkspacePicker extends Disposable {
 				&& this._getActivePickerGroup() === SESSION_WORKSPACE_GROUP_LOCAL;
 			const canAttachRepository = isRepositoryAction
 				&& this._selectedFolderUri
-				&& this._getActivePickerGroup() === SESSION_WORKSPACE_GROUP_GITHUB;
+				&& this._isGroupInActiveTab(SESSION_WORKSPACE_GROUP_GITHUB);
 			if (canAttachFolder || canAttachRepository) {
 				items.push({
 					kind: ActionListItemKind.Action,
