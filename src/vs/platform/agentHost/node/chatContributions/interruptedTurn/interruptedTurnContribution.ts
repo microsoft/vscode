@@ -66,13 +66,26 @@ export class InterruptedTurnContribution extends Disposable implements IAgentHos
 			if (!raw || this._stateManager.getChatState(context.chat)?.activeTurn) {
 				return turns;
 			}
-			await ref.object.setMetadata(OPEN_TURN_METADATA_KEY, '');
-			return this._markInterruptedTurn(context.chat, turns, parseOpenTurnMarker(raw));
+			const marked = this._markInterruptedTurn(context.chat, turns, parseOpenTurnMarker(raw));
+			await this._clearMarker(ref.object, context.chat);
+			return marked;
 		} catch (err) {
 			this._logService.warn(`[InterruptedTurnContribution] Failed to resolve the open turn for ${context.chat}`, err);
 			return turns;
 		} finally {
 			ref.dispose();
+		}
+	}
+
+	/**
+	 * Clears the marker so later `getMessages` calls do not re-mark. Best effort: a marker that
+	 * survives is re-read by the next hydrate, which marks the same turn again.
+	 */
+	private async _clearMarker(database: ISessionDatabase, chat: ProtocolURI): Promise<void> {
+		try {
+			await database.setMetadata(OPEN_TURN_METADATA_KEY, '');
+		} catch (err) {
+			this._logService.warn(`[InterruptedTurnContribution] Failed to clear the open turn marker for ${chat}`, err);
 		}
 	}
 

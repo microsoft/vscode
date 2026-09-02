@@ -22,9 +22,18 @@ const SESSION = 'agent-host-session://test';
 const CHAT = buildDefaultChatUri(SESSION);
 const INTERRUPTED_PART = { kind: ResponsePartKind.Error, error: { errorType: 'executionInterrupted', message: 'The agent was interrupted before this request finished.' } };
 
-function createContributions(disposables: Pick<DisposableStore, 'add'>) {
+/** A database that accepts the open-turn marker but fails every attempt to clear it. */
+class ClearFailingSessionDatabase extends TestSessionDatabase {
+	override async setMetadata(key: string, value: string): Promise<void> {
+		if (key === OPEN_TURN_METADATA_KEY && value === '') {
+			throw new Error('metadata write failed');
+		}
+		return super.setMetadata(key, value);
+	}
+}
+
+function createContributions(disposables: Pick<DisposableStore, 'add'>, database: TestSessionDatabase = new TestSessionDatabase()) {
 	const logService = new NullLogService();
-	const database = new TestSessionDatabase();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const services = new ServiceCollection(
 		[ILogService, logService],
@@ -200,6 +209,33 @@ suite('InterruptedTurnContribution', () => {
 
 		assert.deepStrictEqual(turns, restored);
 		assert.deepStrictEqual(JSON.parse((await contributions.marker())!), { turnId: 'turn-1', startedAt: at(0) });
+	});
+
+	test('still marks the trailing turn when clearing the marker fails', async () => {
+		const contributions = createContributions(disposables, new ClearFailingSessionDatabase());
+		contributions.service.didDispatchAction(dispatched(CHAT, turnStarted('turn-1', at(0))));
+		await tick();
+		const restored = [restoredTurn('turn-1', at(0))];
+
+		const turns = await contributions.service.hydrateTurns(hydrationContext(), restored);
+
+		assert.deepStrictEqual(turns, [{ ...restored[0], state: TurnState.Error, responseParts: [...restored[0].responseParts, INTERRUPTED_PART] }]);
+		assert.deepStrictEqual(JSON.parse((await contributions.marker())!), { turnId: 'turn-1', startedAt: at(0) });
+	});
+
+	test('re-marks the same turn after a failed clear without duplicating the error part', async () => {
+		const contributions = createContributions(disposables, new ClearFailingSessionDatabase());
+		contributions.service.didDispatchAction(dispatched(CHAT, turnStarted('turn-1', at(0))));
+		await tick();
+		const restored = [restoredTurn('turn-1', at(0))];
+		const marked = await contributions.service.hydrateTurns(hydrationContext(), restored);
+
+		const reprovided = await contributions.service.hydrateTurns(hydrationContext(), restored);
+		const rehydrated = await contributions.service.hydrateTurns(hydrationContext(), marked);
+
+		assert.deepStrictEqual(marked.at(-1)?.responseParts.at(-1), INTERRUPTED_PART);
+		assert.deepStrictEqual(reprovided, marked);
+		assert.deepStrictEqual(rehydrated, marked);
 	});
 
 	test('does not touch subagent chats', async () => {
