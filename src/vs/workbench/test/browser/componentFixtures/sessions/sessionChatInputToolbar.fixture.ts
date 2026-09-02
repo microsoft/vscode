@@ -40,7 +40,7 @@ import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISessionA
 import { IActiveSession } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, type ServiceRegistration } from '../fixtureUtils.js';
 import { registerChatFixtureServices } from '../chat/chatFixtureUtils.js';
 import { IFixtureMessage, renderChatWidget } from '../chat/chatWidget.fixture.js';
 
@@ -162,6 +162,35 @@ function createBrowserViewService(inputs: readonly BrowserEditorInput[]): IBrows
 	}();
 }
 
+function registerSessionChatPillFixtureServices(registration: ServiceRegistration, sessionMock: IMockSessionAndChat): void {
+	registration.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+		override getProvider() { return undefined; }
+	}());
+	registration.defineInstance(IBrowserViewWorkbenchService, createBrowserViewService(sessionMock.browsers));
+	registration.defineInstance(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+		override revealEditorPartExplicitly(): void { }
+	}());
+	registration.defineInstance(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+		override async openChangesEditor(): Promise<undefined> { return undefined; }
+	}());
+	registration.defineInstance(IGitHubService, new class extends mock<IGitHubService>() {
+		override readonly activeSessionPullRequestObs = constObservable(undefined);
+		override readonly activeSessionPullRequestCIObs = constObservable(undefined);
+		override readonly activeSessionPullRequestReviewThreadsObs = constObservable(undefined);
+		override createPullRequestModelReference(owner: string, repo: string, prNumber: number) {
+			const model = new class extends mock<GitHubPullRequestModel>() {
+				override readonly pullRequest = constObservable(undefined);
+				override readonly owner = owner;
+				override readonly repo = repo;
+				override readonly prNumber = prNumber;
+				override refresh(): Promise<void> { return Promise.resolve(); }
+				override startPolling() { return Disposable.None; }
+			}();
+			return { object: model, dispose: () => { } };
+		}
+	}());
+}
+
 // ============================================================================
 // Render helpers
 // ============================================================================
@@ -177,32 +206,7 @@ function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndC
 			// services) the artifact pill needs, on top of the base editor services
 			// (which register a partial ISessionsService).
 			registerChatFixtureServices(reg);
-			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
-				override getProvider() { return undefined; }
-			}());
-			reg.defineInstance(IBrowserViewWorkbenchService, createBrowserViewService(sessionMock.browsers));
-			reg.defineInstance(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
-				override revealEditorPartExplicitly(): void { }
-			}());
-			reg.defineInstance(ISessionChangesService, new class extends mock<ISessionChangesService>() {
-				override async openChangesEditor(): Promise<undefined> { return undefined; }
-			}());
-			reg.defineInstance(IGitHubService, new class extends mock<IGitHubService>() {
-				override readonly activeSessionPullRequestObs = constObservable(undefined);
-				override readonly activeSessionPullRequestCIObs = constObservable(undefined);
-				override readonly activeSessionPullRequestReviewThreadsObs = constObservable(undefined);
-				override createPullRequestModelReference(owner: string, repo: string, prNumber: number) {
-					const model = new class extends mock<GitHubPullRequestModel>() {
-						override readonly pullRequest = constObservable(undefined);
-						override readonly owner = owner;
-						override readonly repo = repo;
-						override readonly prNumber = prNumber;
-						override refresh(): Promise<void> { return Promise.resolve(); }
-						override startPolling() { return Disposable.None; }
-					}();
-					return { object: model, dispose: () => { } };
-				}
-			}());
+			registerSessionChatPillFixtureServices(reg, sessionMock);
 			if (options?.debugData) {
 				reg.defineInstance(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
 					override readonly onDidChangeFeedback = Event.None;
@@ -240,6 +244,7 @@ async function renderChatViewWithPills(ctx: ComponentFixtureContext, mock: IMock
 		messages,
 		height: options?.height,
 		persistentContentHeight: SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
+		additionalServices: registration => registerSessionChatPillFixtureServices(registration, mock),
 		onRendered: scrollOffsetFromBottom
 			? handle => {
 				const maximumScrollTop = Math.max(0, handle.listWidget.scrollHeight - handle.listWidget.renderHeight);
@@ -645,6 +650,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 				messages: FULL_VIEW_MESSAGES,
 				inputVisible: false,
 				persistentContentHeight: SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
+				additionalServices: registration => registerSessionChatPillFixtureServices(registration, mock),
 				decorateInputPart: (inputPart, instantiationService) => {
 					instantiationService.invokeFunction(accessor => {
 						(accessor.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.TurnStatusPills, true);
