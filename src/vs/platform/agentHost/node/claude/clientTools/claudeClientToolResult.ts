@@ -5,6 +5,7 @@
 
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { ToolResultContentType, type ToolCallResult, type ToolResultContent, type ToolResultEmbeddedResourceContent } from '../../../common/state/protocol/channels-chat/state.js';
+import { localize } from '../../../../../nls.js';
 
 /**
  * Stable URI scheme used when an `EmbeddedResource` content block must be
@@ -89,7 +90,7 @@ export const CLIENT_TOOL_UNAVAILABLE_ERROR_CODE = 'toolUnavailable';
 export function clientToolUnavailableResult(toolName: string): ToolCallResult {
 	return {
 		success: false,
-		pastTenseMessage: `${toolName} failed`,
-		error: { message: `No client was connected to run ${toolName}`, code: CLIENT_TOOL_UNAVAILABLE_ERROR_CODE },
+		pastTenseMessage: localize('claude.clientTool.unavailable.pastTense', "{0} failed", toolName),
+		error: { message: localize('claude.clientTool.unavailable.message', "No client was connected to run {0}", toolName), code: CLIENT_TOOL_UNAVAILABLE_ERROR_CODE },
 	};
 }

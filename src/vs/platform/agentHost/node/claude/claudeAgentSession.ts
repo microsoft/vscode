@@ -279,6 +279,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * {@link Options.canUseTool}. Keyed by SDK `tool_use_id`.
 	 */
 	private readonly _pendingPermissions = new PendingRequestRegistry<boolean>();
+	private readonly _ownerlessClientToolCallIds = new Set<string>();
 	private _agentMergeTurn = false;
 
 	/**
@@ -433,22 +434,36 @@ export class ClaudeAgentSession extends Disposable {
 	}
 
 	/**
-	 * The mapper fails a client tool call that no connected client provides, but the SDK
-	 * still asks permission for it and then parks its MCP handler. Answer both up front.
+	 * Records a client tool call the mapper failed for want of a connected client, and buffers
+	 * the failure so the SDK's MCP handler resolves instead of parking. The buffer is swept on
+	 * turn completion for modes that never run that handler.
 	 */
-	private _unblockOwnerlessClientToolCall(signal: AgentSignal): void {
-		if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatToolCallComplete) {
+	private _handleOwnerlessClientToolSignal(signal: AgentSignal): void {
+		if (signal.kind !== 'action') {
+			return;
+		}
+		if (signal.action.type === ActionType.ChatTurnComplete) {
+			this._discardOwnerlessClientToolCalls();
+			return;
+		}
+		if (signal.action.type !== ActionType.ChatToolCallComplete) {
 			return;
 		}
 		const { toolCallId, result } = signal.action;
-		const error = result.error;
-		if (error?.code !== CLIENT_TOOL_UNAVAILABLE_ERROR_CODE) {
+		if (result.error?.code !== CLIENT_TOOL_UNAVAILABLE_ERROR_CODE) {
 			return;
 		}
 		this._logService.warn(`[Claude:${this.sessionId}] client tool call ${toolCallId} has no connected client; failing it immediately`);
-		// The host drops a permission ask for an already-failed call without answering it.
-		this._pendingPermissions.respondOrBuffer(toolCallId, true);
-		this._pendingClientToolCalls.respondOrBuffer(toolCallId, { content: [{ type: 'text', text: error.message }], isError: true });
+		this._ownerlessClientToolCallIds.add(toolCallId);
+		this._pendingClientToolCalls.respondOrBuffer(toolCallId, { content: [{ type: 'text', text: result.error.message }], isError: true });
+	}
+
+	/** Drop any ownerless client-tool failure buffers the SDK never consumed (modes that skip the handler). */
+	private _discardOwnerlessClientToolCalls(): void {
+		for (const toolCallId of this._ownerlessClientToolCallIds) {
+			this._pendingClientToolCalls.discardBufferedResult(toolCallId);
+		}
+		this._ownerlessClientToolCallIds.clear();
 	}
 
 	constructor(
@@ -702,7 +717,7 @@ export class ClaudeAgentSession extends Disposable {
 			throw err;
 		}
 		this._register(pipeline.onDidProduceSignal(s => {
-			this._unblockOwnerlessClientToolCall(s);
+			this._handleOwnerlessClientToolSignal(s);
 			this._onDidSessionProgress.fire(this._enrichSignalWithMcpContributor(this._enrichSignalWithCredits(s)));
 		}));
 		this._pipeline = pipeline;
@@ -1320,6 +1335,10 @@ export class ClaudeAgentSession extends Disposable {
 		/** Phase 12 step 5 — when the confirmation belongs to a subagent context, route it to the subagent session. */
 		readonly parentToolCallId?: string;
 	}): Promise<boolean> {
+		if (this._ownerlessClientToolCallIds.has(args.toolUseID)) {
+			// Already failed by the mapper; allow so the SDK reads the buffered failure.
+			return Promise.resolve(true);
+		}
 		if (!this._pipeline || this._pipeline.isAborted) {
 			return Promise.resolve(false);
 		}
