@@ -340,7 +340,7 @@ class OpenIntegratedBrowserAction extends Action2 {
 
 class OpenFileInIntegratedBrowserAction extends Action2 {
 	constructor() {
-		const IS_LOCAL_HTML_FILE = ContextKeyExpr.and(
+		const IS_SUPPORTED_LOCAL_BROWSER_FILE = ContextKeyExpr.and(
 			ResourceContextKey.Scheme.isEqualTo(Schemas.file),
 			ContextKeyExpr.regex(ResourceContextKey.Extension.key, /\.(?:html?|mht(?:ml)?)$/i),
 		);
@@ -350,25 +350,25 @@ class OpenFileInIntegratedBrowserAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.globe,
 			f1: true,
-			precondition: IS_LOCAL_HTML_FILE,
+			precondition: IS_SUPPORTED_LOCAL_BROWSER_FILE,
 			menu: [
 				{
 					id: MenuId.ExplorerContext,
 					group: 'navigation',
 					order: 29,
-					when: IS_LOCAL_HTML_FILE,
+					when: IS_SUPPORTED_LOCAL_BROWSER_FILE,
 				},
 				{
 					id: MenuId.EditorTitleContext,
 					group: '1_open',
 					order: 5,
-					when: IS_LOCAL_HTML_FILE,
+					when: IS_SUPPORTED_LOCAL_BROWSER_FILE,
 				},
 				{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
 					order: 99,
-					when: IS_LOCAL_HTML_FILE,
+					when: IS_SUPPORTED_LOCAL_BROWSER_FILE,
 				},
 			]
 		});
