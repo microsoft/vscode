@@ -365,18 +365,7 @@ export async function exportAgentHostDebugLogs(
 		try {
 			const savedResource = await exportService.save(logs.exportName, logs.files, logs.hostArtifact);
 			if (savedResource) {
-				const savedPath = savedResource.scheme === Schemas.file ? savedResource.fsPath : savedResource.toString(true);
-				notificationService.notify({
-					severity: Severity.Warning,
-					message: chatEntitlementService.isInternal
-						? localize('exportDebugLogs.privacyWarning.internal', "Note: This log may contain personal information such as auth tokens, file contents, or terminal output. It MUST be shared privately via Slack or in an issue filed on the microsoft/vscode-internalbacklog repo.")
-						: localize('exportDebugLogs.privacyWarning', "Note: This log may contain personal information such as auth tokens, file contents, or terminal output. Please consider sharing privately or reviewing the contents carefully before sharing."),
-					actions: {
-						primary: [
-							new Action('copyAgentHostDebugLogsPath', localize('exportDebugLogs.copyPath', "Copy Path"), undefined, true, () => clipboardService.writeText(savedPath)),
-						],
-					},
-				});
+				notifyAgentHostDebugLogsExported(notificationService, clipboardService, chatEntitlementService.isInternal, savedResource);
 			}
 		} catch (error) {
 			notificationService.notify({
@@ -398,6 +387,26 @@ export async function exportAgentHostDebugLogs(
 			}
 		}
 	}
+}
+
+export function notifyAgentHostDebugLogsExported(
+	notificationService: INotificationService,
+	clipboardService: IClipboardService,
+	isInternal: boolean,
+	savedResource: URI,
+): void {
+	const savedPath = savedResource.scheme === Schemas.file ? savedResource.fsPath : savedResource.toString(true);
+	notificationService.notify({
+		severity: Severity.Warning,
+		message: isInternal
+			? localize('exportDebugLogs.privacyWarning.internal', "Note: This log may contain personal information such as auth tokens, file contents, or terminal output. It MUST be shared privately via Slack or in an issue filed on the microsoft/vscode-internalbacklog repo.")
+			: localize('exportDebugLogs.privacyWarning', "Note: This log may contain personal information such as auth tokens, file contents, or terminal output. Please consider sharing privately or reviewing the contents carefully before sharing."),
+		actions: {
+			primary: [
+				new Action('copyAgentHostDebugLogsPath', localize('exportDebugLogs.copyPath', "Copy Path"), undefined, true, () => clipboardService.writeText(savedPath)),
+			],
+		},
+	});
 }
 
 /**
