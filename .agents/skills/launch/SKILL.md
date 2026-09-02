@@ -37,6 +37,8 @@ The clone is **slim**: workspace storage, browser caches, file history, cached V
 
 > The launcher always sets `files.simpleDialog.enable: true` in the launched profile's `User/settings.json`. This is required for automation: VS Code's native OS file dialogs cannot be driven via `@playwright/cli` over CDP and are completely unreachable over SSH on headless macOS. The simple (quick-input) dialog can be navigated with `press` and clipboard paste. The override is per-launch and only affects throwaway profiles.
 
+> The launcher also appends a session description to `window.title` in the throwaway profile so the window is easy to associate with the agent session that created it. If the current session title is available, **always pass it with `--session-title <title>`**. Do not invent a different label. If no title is available, omit the option and the launcher uses its unique run identifier.
+
 > For unattended automation, pass `--disable-workspace-trust` so a trust dialog cannot block the flow or extension-host startup. The override is process-scoped and does not modify the source profile. Only use it with content you trust.
 
 ## Launch
@@ -45,8 +47,9 @@ The launcher script lives next to this SKILL.md at `scripts/launch.sh` (macOS/Li
 
 ```bash
 # LAUNCH=<dir-of-this-SKILL.md>/scripts/launch.sh
-"$LAUNCH"                                    # default: workbench
-"$LAUNCH" --agents                           # Agents window
+"$LAUNCH" --session-title "Fix chat focus"           # default: workbench
+"$LAUNCH" --agents --session-title "Fix chat focus"  # Agents window
+"$LAUNCH"                                            # title unavailable: use unique launch ID
 "$LAUNCH" -- <workspace-path>                # forward extra args to code.sh
 "$LAUNCH" --source-user-data-dir <path>      # pick a specific authed profile
 "$LAUNCH" --repo <vscode-repo-root>          # if not run from the repo
@@ -61,8 +64,9 @@ On Windows, invoke the PowerShell launcher with the same flags:
 ```powershell
 $skillDir = '<dir-of-this-SKILL.md>'
 $launch = Join-Path $skillDir 'scripts\launch.ps1'
-& $launch                                      # default: workbench
-& $launch --agents                             # Agents window
+& $launch --session-title 'Fix chat focus'            # default: workbench
+& $launch --agents --session-title 'Fix chat focus'   # Agents window
+& $launch                                             # title unavailable: use unique launch ID
 & $launch -- --use-mock-keychain               # forward extra args to code.bat
 & $launch --source-user-data-dir C:\path\to\profile
 & $launch --repo C:\path\to\vscode
