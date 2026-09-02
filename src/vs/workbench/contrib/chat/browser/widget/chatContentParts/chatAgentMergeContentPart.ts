@@ -174,8 +174,6 @@ export class ChatAgentMergeContentPart extends Disposable {
 
 	private _createHeader(parent: HTMLElement): void {
 		const header = dom.append(parent, dom.$('.chat-agent-merge-header'));
-		this._register(dom.addDisposableListener(header, dom.EventType.MOUSE_ENTER, () => this.domNode.classList.add('header-hovered')));
-		this._register(dom.addDisposableListener(header, dom.EventType.MOUSE_LEAVE, () => this.domNode.classList.remove('header-hovered')));
 		const preventPointerFocus = (button: Button) => {
 			this._register(dom.addDisposableGenericMouseDownListener(button.element, event => {
 				event.preventDefault();

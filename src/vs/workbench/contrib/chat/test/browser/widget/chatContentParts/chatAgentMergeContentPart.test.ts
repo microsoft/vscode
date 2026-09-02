@@ -139,19 +139,6 @@ suite('ChatAgentMergeContentPart file labels', () => {
 		]);
 	});
 
-	test('tracks hover only over the header content', () => {
-		const part = store.add(createPart(summary()));
-		const header = part.domNode.querySelector<HTMLElement>('.chat-agent-merge-header');
-		assert.ok(header);
-
-		header.dispatchEvent(new MouseEvent('mouseenter'));
-		const whileHovered = part.domNode.classList.contains('header-hovered');
-		header.dispatchEvent(new MouseEvent('mouseleave'));
-		const afterLeaving = part.domNode.classList.contains('header-hovered');
-
-		assert.deepStrictEqual([whileHovered, afterLeaving], [true, false]);
-	});
-
 	test('attaches the status hover to the interactive disclosure', () => {
 		let hoverTarget: HTMLElement | undefined;
 		const part = store.add(createPart(summary(), {

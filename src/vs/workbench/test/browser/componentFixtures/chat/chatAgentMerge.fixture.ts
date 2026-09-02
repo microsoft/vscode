@@ -158,6 +158,7 @@ interface IRenderAgentMergeOptions {
 function renderAgentMerge({ container, disposableStore, theme }: ComponentFixtureContext, options: IRenderAgentMergeOptions): void {
 	container.style.width = '640px';
 	container.style.padding = '8px';
+	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
 
 	// The widget only looks up mirrors where the Agents window registered the
 	// feedback commands, so a fixture with mirrors registers them for real; the

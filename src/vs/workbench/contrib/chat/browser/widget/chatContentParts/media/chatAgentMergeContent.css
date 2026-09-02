@@ -8,7 +8,8 @@
 	flex-direction: column;
 	align-self: flex-start;
 	margin: var(--vscode-spacing-size40) 0;
-	border: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
+	background-color: var(--vscode-chat-statusBackground);
+	border: var(--vscode-strokeThickness) solid transparent;
 	border-radius: var(--vscode-cornerRadius-medium);
 	overflow: hidden;
 	font-size: var(--vscode-fontSize-label1);
@@ -17,17 +18,8 @@
 	max-width: 100%;
 }
 
-.chat-agent-merge.collapsed {
-	border-color: transparent;
-}
-
-.hc-black .chat-agent-merge.collapsed,
-.hc-light .chat-agent-merge.collapsed {
-	border-color: var(--vscode-chat-requestBorder);
-}
-
-.chat-agent-merge.collapsed.header-hovered,
-.chat-agent-merge.collapsed:focus-within {
+.hc-black .chat-agent-merge,
+.hc-light .chat-agent-merge {
 	border-color: var(--vscode-chat-requestBorder);
 }
 
@@ -219,7 +211,6 @@ which sits either on an ancestor or on the workbench element itself. */
 	flex-direction: column;
 	gap: var(--vscode-spacing-size80);
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size120) var(--vscode-spacing-size120);
-	border-top: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
 }
 
 .chat-agent-merge.collapsed > .chat-agent-merge-body {
