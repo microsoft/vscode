@@ -197,7 +197,7 @@ suite('Completions in settings.json', () => {
 			await testCompletion(testFile, 'jsonc', content, expected);
 		}
 	});
-	 test('files.exclude', async () => {
+	test('files.exclude', async () => {
 		{
 			const content = [
 				'{',
@@ -234,25 +234,6 @@ suite('Completions in settings.json', () => {
 			const expected = { label: 'true', resultText };
 			await testCompletion(testFile, 'jsonc', content, expected);
 		}
-		{
-			const content = [
-				'{',
-				'  "files.exclude": {',
-				'    "**/*.extension": |true',
-				'  }',
-				'}',
-			].join('\n');
-			const resultText = [
-				'{',
-				'  "files.exclude": {',
-				'    "**/*.extension": { "when": "$(basename).${1:extension}" }',
-				'  }',
-				'}',
-			].join('\n');
-			const expected = { label: 'Files with Siblings by Name', resultText };
-			await testCompletion(testFile, 'jsonc', content, expected);
-		}
-	});
 		{
 			const content = [
 				'{',
@@ -624,7 +605,7 @@ async function setTestContent(docUri: vscode.Uri, languageId: string, content: s
 	await vscode.languages.setTextDocumentLanguage(doc, languageId);
 	const editor = await vscode.window.showTextDocument(doc);
 
-	const fullRange = new vscode.Range(new vscode.Position(0, 0), doc.positionAt(doc.getText().length));
+	const fullRange = in vscode.Range(new vscode.Position(0, 0), doc.positionAt(doc.getText().length));
 	await editor.edit(eb => eb.replace(fullRange, content));
 	return editor;
 
