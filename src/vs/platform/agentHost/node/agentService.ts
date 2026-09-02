@@ -4243,11 +4243,11 @@ export class AgentService extends Disposable implements IAgentService {
 					}
 				}
 			}
-			if (!snapshot) {
-				throw new Error(`Cannot subscribe to unknown resource: ${resourceStr}`);
-			}
 			if (this._store.isDisposed || (isActive && !isActive())) {
 				throw new SubscriptionCancelledError(resourceStr);
+			}
+			if (!snapshot) {
+				throw new Error(`Cannot subscribe to unknown resource: ${resourceStr}`);
 			}
 			this._sessionResidency.touch(resource);
 			void this._sessionResidency.reconcile();

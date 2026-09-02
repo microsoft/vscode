@@ -11388,6 +11388,59 @@ suite('AgentService (node dispatcher)', () => {
 				await assert.rejects(subscribePromise, /Cannot subscribe to unknown resource/);
 			});
 		});
+
+		test('a cancelled subscribe whose subagent chat never materializes reports cancellation, not an unknown resource', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				registerTestAgentProvider(service, copilotAgent);
+				const session = await service.createSession({ provider: 'copilot' });
+				const parentChat = buildDefaultChatUri(session.toString());
+				startParentTurn(session, 'turn-1');
+
+				copilotAgent.fireProgress({
+					kind: 'action', resource: URI.parse(parentChat),
+					action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: 'subagent', language: undefined } },
+				});
+				copilotAgent.fireProgress({
+					kind: 'action', resource: URI.parse(parentChat),
+					action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-sub', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded },
+				});
+
+				const subagentUri = buildSubagentChatUri(session.toString(), 'tc-sub');
+				let isActive = true;
+				const subscribePromise = service.subscribe(URI.parse(subagentUri), 'client-cancelled', () => isActive);
+				let settled = false;
+				void subscribePromise.then(() => { settled = true; }, () => { settled = true; });
+				await timeout(0);
+				assert.strictEqual(settled, false, 'subscribe should be parked on the pending subagent chat that never spawns');
+
+				isActive = false;
+				await assert.rejects(subscribePromise, (err: unknown) => err instanceof SubscriptionCancelledError);
+			});
+		});
+
+		test('a live subscription whose subagent chat never materializes still reports an unknown resource', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				registerTestAgentProvider(service, copilotAgent);
+				const session = await service.createSession({ provider: 'copilot' });
+				const parentChat = buildDefaultChatUri(session.toString());
+				startParentTurn(session, 'turn-1');
+
+				copilotAgent.fireProgress({
+					kind: 'action', resource: URI.parse(parentChat),
+					action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: 'subagent', language: undefined } },
+				});
+				copilotAgent.fireProgress({
+					kind: 'action', resource: URI.parse(parentChat),
+					action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-sub', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded },
+				});
+
+				const subagentUri = buildSubagentChatUri(session.toString(), 'tc-sub');
+				await assert.rejects(
+					service.subscribe(URI.parse(subagentUri), 'client-live', () => true),
+					/Cannot subscribe to unknown resource/,
+				);
+			});
+		});
 	});
 
 	// ---- peer-chat catalog persistence (B2: orchestrator-owned) ---------
