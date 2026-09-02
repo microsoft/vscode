@@ -845,15 +845,24 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
+		let pruned = 0;
+		let changed = false;
 		for (const session of staleExternalSessions) {
-			await this._sessionRegistry.unregister(session);
-			await this._sessionDataService.deleteSessionData(session, this._configurationService.getEffectiveWorkingDirectories(session.toString()));
+			try {
+				// The row is the only handle that can name this data later, so it outlives the delete.
+				await this._sessionDataService.deleteSessionData(session, this._configurationService.getEffectiveWorkingDirectories(session.toString()));
+				changed = true;
+				await this._sessionRegistry.unregister(session);
+				pruned++;
+			} catch (error) {
+				this._logService.warn(`[AgentService] Failed to prune stale external session ${session.toString()}`, error);
+			}
 		}
-		if (staleExternalSessions.length > 0) {
+		if (changed) {
 			this._invalidateSessionList();
 			this._queueSessionListReconciliation();
 		}
-		this._logService.info(`[AgentService] pruned ${staleExternalSessions.length} stale external session row(s) older than ${EXTERNAL_SESSION_MAX_AGE_MS / DAY_MS} days`);
+		this._logService.info(`[AgentService] pruned ${pruned} of ${staleExternalSessions.length} stale external session row(s) older than ${EXTERNAL_SESSION_MAX_AGE_MS / DAY_MS} days`);
 	}
 
 	/** Reclaims session data that no registry row or live session owns. Nothing is deleted unless the registry lists at least one session. */

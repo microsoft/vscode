@@ -3673,6 +3673,70 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		testWithExternalSessionClock('a failed data delete keeps the stale row so a later prune retries it', async () => {
+			const day = 24 * 60 * 60 * 1000;
+			const now = Date.now();
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			const locked = agent.addSession('stale-locked', now - 30 * day - 1);
+			const other = agent.addSession('stale-other', now - 30 * day - 1);
+			const deleted: string[] = [];
+			const svc = createExternalSessionService({
+				...createSessionDataService(),
+				deleteSessionData: async session => {
+					if (session.toString() === locked.toString()) {
+						throw new Error('session data is locked');
+					}
+					deleted.push(session.toString());
+				},
+			});
+			registerTestAgentProvider(svc, agent);
+			const sessionRegistry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			await sessionRegistry.register(locked, { provider: 'copilot', startTime: now - 30 * day - 1, source: 'discovery' }, { checkTombstone: true });
+			await sessionRegistry.register(other, { provider: 'copilot', startTime: now - 30 * day - 1, source: 'discovery' }, { checkTombstone: true });
+
+			await (svc as unknown as { _pruneStaleExternalSessions(): Promise<void> })._pruneStaleExternalSessions();
+
+			assert.deepStrictEqual({
+				deleted,
+				registered: (await sessionRegistry.list()).map(entry => entry.session.toString()),
+			}, {
+				deleted: [other.toString()],
+				registered: [locked.toString()],
+			});
+		});
+
+		testWithExternalSessionClock('a failed data delete does not suppress the session list invalidation', async () => {
+			const day = 24 * 60 * 60 * 1000;
+			const now = Date.now();
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			const locked = agent.addSession('invalidate-locked', now - 30 * day - 1);
+			const other = agent.addSession('invalidate-other', now - 30 * day - 1);
+			const svc = createExternalSessionService({
+				...createSessionDataService(),
+				deleteSessionData: async session => {
+					if (session.toString() === locked.toString()) {
+						throw new Error('session data is locked');
+					}
+				},
+			});
+			registerTestAgentProvider(svc, agent);
+			const sessionRegistry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			await sessionRegistry.register(locked, { provider: 'copilot', startTime: now - 30 * day - 1, source: 'discovery' }, { checkTombstone: true });
+			await sessionRegistry.register(other, { provider: 'copilot', startTime: now - 30 * day - 1, source: 'discovery' }, { checkTombstone: true });
+			const epoch = () => (svc as unknown as { _registryEpoch: number })._registryEpoch;
+			const epochBeforePrune = epoch();
+
+			await (svc as unknown as { _pruneStaleExternalSessions(): Promise<void> })._pruneStaleExternalSessions();
+
+			assert.deepStrictEqual({
+				invalidated: epoch() > epochBeforePrune,
+				registered: (await sessionRegistry.list()).map(entry => entry.session.toString()),
+			}, {
+				invalidated: true,
+				registered: [locked.toString()],
+			});
+		});
+
 		test('startup cleanup sweeps orphaned session data with the registered sessions', async () => {
 			const sweeps: string[][] = [];
 			const svc = createExternalSessionService({ ...createSessionDataService(), cleanupOrphanedData: async known => { sweeps.push(known.map(session => session.toString()).sort()); } });
