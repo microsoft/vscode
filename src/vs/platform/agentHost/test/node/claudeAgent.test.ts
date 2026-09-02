@@ -6995,6 +6995,25 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		});
 	});
 
+	test('a client tool never reaches the pending_confirmation channel', async () => {
+		const { ctx, canUseTool } = await materialize();
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidChatProgress(signal => signals.push(signal)));
+		const input = { path: '/work/a.ts' };
+
+		const promise = canUseTool('mcp__client__editFile', input, makeOptions('tu_client_tool'));
+		await tick();
+		const pendingConfirmations = signals.filter(signal => signal.kind === 'pending_confirmation').length;
+		// Settles the parked request if the host wrongly prompted, so the test fails instead of hanging.
+		ctx.agent.respondToPermissionRequest('tu_client_tool', false);
+		const result = await promise;
+
+		assert.deepStrictEqual({ result, pendingConfirmations }, {
+			result: { behavior: 'allow', updatedInput: input },
+			pendingConfirmations: 0,
+		});
+	});
+
 	// Tests 3 and 4 (bypassPermissions / acceptEdits auto-allow) intentionally
 	// omitted: the SDK auto-approves under those modes BEFORE invoking
 	// `canUseTool`, so there is no host-side branch to exercise. See

@@ -15,6 +15,7 @@ import { extractServerToolName } from './claudeServerToolMcpServer.js';
 import { buildAskUserSessionInputQuestions, buildExitPlanModeConfirmationState, flattenAskUserAnswers, parseAskUserQuestionInput } from './claudeInteractiveTools.js';
 import { CLAUDE_PLAN_DECLINED_MESSAGE, CLAUDE_QUESTION_CANCELLED_MESSAGE, CLAUDE_USER_DECLINED_MESSAGE } from './claudeToolDenial.js';
 import { getClaudeConfirmationTitle, getClaudeInvocationMessage, getClaudePermissionKind, getClaudeToolDisplayName, getClaudeToolInputString, getClaudeToolPath, INTERACTIVE_CLAUDE_TOOLS, buildClaudeToolMeta } from './claudeToolDisplay.js';
+import { hasClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
 
 /**
  * Dependencies for {@link handleCanUseTool}. Kept narrow: a session
@@ -71,7 +72,8 @@ export interface IClaudeCanUseToolOptions {
  * ([sdk.d.ts:1558](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L1558))
  * and only invokes `canUseTool` for tools it has decided the host
  * needs to surface. The bridge additionally allows a server tool when its
- * current session state has nothing to confirm. The interactive built-ins (`AskUserQuestion`,
+ * current session state has nothing to confirm, and any client tool, since the
+ * workbench confirms those itself. The interactive built-ins (`AskUserQuestion`,
  * `ExitPlanMode`) are exempt from auto-approval and always reach
  * `canUseTool` regardless of mode — their "permission" is itself the
  * user-facing question.
@@ -135,6 +137,11 @@ async function dispatchCanUseTool(
 	// `requestUserInput` / `ChatInputRequested`.
 	if (INTERACTIVE_CLAUDE_TOOLS.has(toolName)) {
 		return handleInteractiveTool(deps, session, toolName, input, options);
+	}
+
+	if (hasClientToolNamePrefix(toolName)) {
+		// The workbench owns confirmation for its own client tools; a host-side prompt here would surface the call twice (#330683).
+		return { behavior: 'allow', updatedInput: input };
 	}
 
 	const serverToolName = extractServerToolName(toolName);
