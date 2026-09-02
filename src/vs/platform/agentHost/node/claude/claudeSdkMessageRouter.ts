@@ -14,7 +14,7 @@ import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTel
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { hydrateAttribution, type IClaudeAttributionSeed } from './claudeAttributionResolver.js';
 import { ClaudeFileEditObserver } from './claudeFileEditObserver.js';
-import { ClaudeMapperState, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
+import { ClaudeMapperState, isReplayedUserMessage, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 
 interface IClaudeSdkMessageContext {
@@ -100,6 +100,10 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		if (this._attributionSeed) {
 			await this._attributionSeed;
 			this._attributionSeed = undefined;
+		}
+		// Replayed transcript history: neither the file-edit observer nor the mapper may re-attribute it.
+		if (message.type === 'user' && isReplayedUserMessage(message)) {
+			return;
 		}
 		if (message.type === 'assistant') {
 			this._editObserver.observeAssistant(message, context?.mode, context?.clientContext);

@@ -638,8 +638,10 @@ export class ClaudeSdkPipeline extends Disposable {
 		this._abortController = built.abortController;
 		this._wireAbortHandler(built.abortController);
 		this._queue.resetForRebind();
-		// An aborted turn never delivers a `result`, so this is its only turn-end drain.
-		this._router.clearPendingTurnState();
+		// `reason` is only why the caller asked; `_needsRebind` is whether the replaced query abandoned a turn.
+		if (this._needsRebind) {
+			this._router.clearPendingTurnState();
+		}
 		this._needsRebind = false;
 		// New SDK starts with the materializer's `Options.model` / effort /
 		// permissionMode but we don't trust that to match `_currentModel`

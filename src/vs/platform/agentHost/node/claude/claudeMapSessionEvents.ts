@@ -329,6 +329,14 @@ function mapAssistantCanonical(
 }
 
 /**
+ * Whether the SDK marked this user envelope as replayed transcript history rather than
+ * a live turn event. Replayed blocks were already attributed when they first landed.
+ */
+export function isReplayedUserMessage(message: Extract<SDKMessage, { type: 'user' }>): boolean {
+	return hasKey(message, { isReplay: true }) && message.isReplay;
+}
+
+/**
  * Handle synthetic `user` messages whose `message.content` carries
  * `tool_result` blocks. The SDK delivers these as the response to a
  * prior `tool_use`. Per Phase 7 S3.3.4, each such block emits a
@@ -347,8 +355,8 @@ function mapUserMessage(
 	logService: ILogService,
 	registry: SubagentRegistry,
 ): AgentSignal[] {
-	// A replayed envelope is transcript history; its tool_results were attributed when they first landed.
-	if (hasKey(message, { isReplay: true }) && message.isReplay) {
+	// Defence in depth: the router already drops these ahead of the file-edit observer.
+	if (isReplayedUserMessage(message)) {
 		return [];
 	}
 	const content = message.message.content;

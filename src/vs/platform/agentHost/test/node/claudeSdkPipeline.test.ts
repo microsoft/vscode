@@ -21,6 +21,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
+import type { IClaudeAttributionSeed } from '../../node/claude/claudeAttributionResolver.js';
 import { ClaudeSdkPipeline, IRematerializer } from '../../node/claude/claudeSdkPipeline.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
@@ -190,6 +191,7 @@ interface IPipelineHarness {
 function createPipeline(
 	disposables: Pick<DisposableStore, 'add'>,
 	warmOrFactory: FakeWarmQuery | ((signal: AbortSignal) => FakeWarmQuery) = new FakeWarmQuery(),
+	logService: ILogService = new NullLogService(),
 ): IPipelineHarness {
 	const controller = new AbortController();
 	const warm = typeof warmOrFactory === 'function' ? warmOrFactory(controller.signal) : warmOrFactory;
@@ -201,7 +203,7 @@ function createPipeline(
 	const dbRef: IReference<ISessionDatabase> = { object: db, dispose: () => { } };
 
 	const services = new ServiceCollection(
-		[ILogService, new NullLogService()],
+		[ILogService, logService],
 		[IFileService, fileService],
 		[IDiffComputeService, createZeroDiffComputeService()],
 	);
@@ -558,6 +560,48 @@ suite('ClaudeSdkPipeline', () => {
 			assert.strictEqual(controller.signal.aborted, true);
 			assert.strictEqual(warm.asyncDisposeCount, 1);
 			store.dispose();
+		});
+	});
+
+	suite('replay attribution seed', () => {
+
+		/** Captures the per-orphan warn `clearPendingTurnState` emits, the observable proof a drain ran. */
+		class CapturingLogService extends NullLogService {
+			readonly warns: string[] = [];
+			override warn(message: string): void { this.warns.push(message); }
+		}
+
+		/** The seed shape `buildAttributionSeed` produces for one replayed tool_use that never got a result. */
+		function pendingReadSeed(toolUseId: string, turnId: string): IClaudeAttributionSeed {
+			return {
+				pending: [{ toolUseId, turnId, toolName: 'Read', isClientTool: false, parsedInput: { file_path: '/tmp/x' }, isSubagentSpawn: false, resultSeen: false }],
+				dead: [],
+				spawns: [],
+			};
+		}
+
+		test('a restart rebind preserves the hydrated seed; only a rebind that replaced an abandoned turn drains it', async () => {
+			const log = new CapturingLogService();
+			const { pipeline } = createPipeline(disposables, new FakeWarmQuery(), log);
+			pipeline.attachRematerializer(async () => ({ warm: new FakeWarmQuery(), abortController: new AbortController() }));
+			pipeline.seedReplayAttribution(Promise.resolve(pendingReadSeed('tu_pre_restart', 'u1')));
+			await flushMicrotasks();
+
+			await pipeline.rebindForRestart();
+			const drainedByRestart = log.warns.some(w => w.includes('ended with pending tool_use tu_pre_restart'));
+
+			// The entry can only be drained here if the healthy restart above left it in place.
+			pipeline.abort();
+			pipeline.send(makePrompt('p1'), 'turn-2').catch(() => { /* the stub query ends without a result */ });
+			await flushMicrotasks();
+
+			assert.deepStrictEqual({
+				drainedByRestart,
+				drainedByRecover: log.warns.some(w => w.includes('ended with pending tool_use tu_pre_restart')),
+			}, {
+				drainedByRestart: false,
+				drainedByRecover: true,
+			});
 		});
 	});
 
