@@ -43,6 +43,11 @@ Archived
 - A valid custom-group membership places an unpinned, unarchived session in that group, including a quick chat.
 - Remaining unpinned quick chats appear in the dedicated chats section.
 - Remaining sessions follow the selected workspace or date grouping.
+- A regular session created by another regular session is initially placed
+  immediately after its creator. While it has neither custom-group membership
+  nor an explicit ungrouped preference, it inherits the creator's custom group
+  when one becomes available. Subsequent user grouping, ungrouping, and
+  reordering are ordinary persisted list state.
 
 The active session remains visible even when a filter would otherwise exclude it.
 
@@ -80,7 +85,7 @@ Stale entries that match no current session are inert and may be compacted by th
 
 The list supports created-time and updated-time sorting. Manual ordering stores list-owned sort keys for each mode without changing provider timestamps.
 
-Filters compose across session type, status, archive/read state, and provider. The find widget matches session and section labels and bypasses presentation capping while a search is active.
+Filters compose across session type, status, archive/read state, and provider. The agent host filter scopes to every provider the selected host entry covers, which is more than one when that entry groups several hosts and none while such a group is empty. The find widget matches session and section labels and bypasses presentation capping while a search is active.
 
 ## Drag and drop
 

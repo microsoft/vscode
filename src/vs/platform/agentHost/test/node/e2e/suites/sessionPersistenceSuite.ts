@@ -9,9 +9,10 @@ import { tmpdir } from 'os';
 import { retry, timeout } from '../../../../../../base/common/async.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import type { ListSessionsResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import type { SessionSummaryChangedParams } from '../../../../common/state/protocol/channels-root/notifications.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, ROOT_STATE_URI, type ChatState, type SessionState } from '../../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, ROOT_STATE_URI, SessionStatus, type ChatState, type SessionState } from '../../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { createRealSession, driveTurnToCompletion, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
@@ -93,9 +94,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		}, 50, 20);
 	}
 
-	// Codex starts the restored follow-up but intermittently never completes it across replay platforms.
-	const sessionPersistenceEnabled = config.provider !== 'codex' || context.runKnownIssueTests;
-	(sessionPersistenceEnabled ? test : test.skip)('session metadata history and provider context survive a host restart', async function () {
+	test('session metadata history and provider context survive a host restart', async function () {
 		this.timeout(240_000);
 		const workspace = fs.mkdtempSync(`${tmpdir()}/ahp-persistence-`);
 		tempDirs.push(workspace);
@@ -130,6 +129,41 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 				'Remember the exact code word VIOLET_REHYDRATE. Reply exactly "READY".',
 			],
 			followupRemembersCodeWord: true,
+		});
+	});
+
+	test('archiving a never-restored session survives a host restart', async function () {
+		this.timeout(240_000);
+		const workspace = fs.mkdtempSync(`${tmpdir()}/ahp-archive-unrestored-`);
+		tempDirs.push(workspace);
+		const sessionUri = await createRealSession(context.client, config, `archive-unrestored-${config.provider}`, createdSessions, URI.file(workspace));
+		await driveTurnToCompletion(context.client, sessionUri, 'turn-archive-unrestored-seed', 'Reply exactly "READY".', 1);
+		await restartAndInitialize(`archive-unrestored-reconnect-${config.provider}`, workspace);
+		await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+		const before = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
+		assert.strictEqual(before.items.some(item => item.resource === sessionUri), true);
+		context.client.clearReceived();
+		context.client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: { type: ActionType.SessionIsArchivedChanged, isArchived: true },
+		});
+		await context.client.waitForNotification(notification =>
+			notification.method === 'root/sessionSummaryChanged'
+			&& (notification.params as SessionSummaryChangedParams).session === sessionUri
+			&& (((notification.params as SessionSummaryChangedParams).changes.status ?? 0) & SessionStatus.IsArchived) !== 0,
+		);
+
+		await restartAndInitialize(`archive-unrestored-verify-${config.provider}`, workspace);
+		const after = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI, includeArchived: true });
+		const restored = after.items.find(item => item.resource === sessionUri);
+
+		assert.deepStrictEqual({
+			restored: restored !== undefined,
+			isArchived: restored !== undefined && (restored.status & SessionStatus.IsArchived) !== 0,
+		}, {
+			restored: true,
+			isArchived: true,
 		});
 	});
 

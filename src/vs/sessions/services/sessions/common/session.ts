@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { arrayEquals } from '../../../../base/common/equals.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
@@ -156,6 +157,8 @@ export interface ISessionGitRepository {
 	readonly hasGitOperationInProgress?: boolean;
 	/** GitHub information associated with the repository. */
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
+	/** Starts resolving GitHub information when the repository exposes it lazily. */
+	readonly resolveGitHubInfo?: () => void;
 }
 
 /**
@@ -234,7 +237,7 @@ export function getSessionWorkspaceKind(workspace: ISessionWorkspace | undefined
 }
 
 /**
- * The kinds of artifact an agent can record on a session.
+ * The kinds of artifact or reference an agent can record on a session.
  */
 export const enum SessionArtifactKind {
 	PullRequest = 'pullRequest',
@@ -250,6 +253,11 @@ export interface ISessionArtifact {
 	readonly id: string;
 	readonly kind: SessionArtifactKind;
 	readonly label: string;
+	/**
+	 * `true` for an artifact — something the session produced — and `false` for
+	 * a reference, something it only points the user at.
+	 */
+	readonly isArtifact: boolean;
 	/** Link opened when activating a pull request, issue, commit or website. */
 	readonly link?: URI;
 	/** Resource opened when activating a file or resource artifact. */
@@ -296,8 +304,14 @@ export interface IGitHubInfo {
 		readonly number: number;
 		/** URI of the pull request. */
 		readonly uri: URI;
+		/** Last host-observed pull request state. */
+		readonly state?: 'open' | 'closed' | 'merged';
+		/** State from the live workbench pull request model, when resolved. */
+		readonly liveState?: 'open' | 'closed' | 'merged';
 		/** Icon reflecting the PR state. */
 		readonly icon?: ThemeIcon;
+		/** Pull request title, when known. */
+		readonly title?: string;
 		/** Object ID of the base ref (merge target) commit. */
 		readonly baseRefOid?: string;
 		/** Object ID of the head ref (PR branch) commit. */
@@ -322,6 +336,10 @@ export interface IGitHubPullRequestRef {
 	readonly uri: URI;
 	/** Icon reflecting the last known PR state. */
 	readonly icon?: ThemeIcon;
+	/** Last host-observed pull request state. */
+	readonly state?: 'open' | 'closed' | 'merged';
+	/** State from the live workbench pull request model, when resolved. */
+	readonly liveState?: 'open' | 'closed' | 'merged';
 	/**
 	 * Pull request title, when the session recorded one. Absent for pull requests
 	 * discovered from git state, which carry no title until they are fetched live.
@@ -332,6 +350,52 @@ export interface IGitHubPullRequestRef {
 	 * inherited from the checkout it started from or merely referenced by the agent.
 	 */
 	readonly createdByThisSession?: boolean;
+}
+
+/** Returns all pull requests associated with GitHub info, including its legacy single-PR shape. */
+export function getGitHubPullRequestRefs(gitHubInfo: IGitHubInfo | undefined): readonly IGitHubPullRequestRef[] {
+	if (gitHubInfo?.pullRequests?.length) {
+		return gitHubInfo.pullRequests;
+	}
+	if (!gitHubInfo?.pullRequest) {
+		return [];
+	}
+	return [{
+		owner: gitHubInfo.owner,
+		repo: gitHubInfo.repo,
+		number: gitHubInfo.pullRequest.number,
+		uri: gitHubInfo.pullRequest.uri,
+		icon: gitHubInfo.pullRequest.icon,
+		state: gitHubInfo.pullRequest.state,
+		liveState: gitHubInfo.pullRequest.liveState,
+		title: gitHubInfo.pullRequest.title,
+	}];
+}
+
+const pullRequestIconPriority = new Map<string, number>([
+	[Codicon.gitPullRequestError.id, 6],
+	[Codicon.gitPullRequestComment.id, 5],
+	[Codicon.gitPullRequest.id, 4],
+	[Codicon.gitPullRequestDraft.id, 3],
+	[Codicon.gitPullRequestDone.id, 2],
+	[Codicon.gitPullRequestClosed.id, 1],
+]);
+
+/** Returns the most important status icon across a session's pull requests. */
+export function getHighestPriorityPullRequestIcon(icons: readonly (ThemeIcon | undefined)[]): ThemeIcon | undefined {
+	let result: ThemeIcon | undefined;
+	let resultPriority = -1;
+	for (const icon of icons) {
+		if (!icon) {
+			continue;
+		}
+		const priority = pullRequestIconPriority.get(icon.id) ?? 0;
+		if (priority > resultPriority) {
+			result = icon;
+			resultPriority = priority;
+		}
+	}
+	return result;
 }
 
 /** A GitHub issue referenced by a session. */
@@ -360,46 +424,19 @@ export type ISessionTurnFileChange = ISessionFileChange & {
 };
 
 /**
- * The kind of change applied to a {@link ISessionFile}.
- *
- * A file that is first created and then edited during the session is reported
- * as {@link Created}. A file that is deleted is reported as {@link Deleted}
- * regardless of any earlier creation or edit.
- */
-export const enum SessionFileOperation {
-	/** The file was created during the session (and possibly edited afterwards). */
-	Created = 'created',
-	/** The file existed before the session and was modified during it. */
-	Modified = 'modified',
-	/** The file was deleted during the session. */
-	Deleted = 'deleted',
-}
-
-/**
- * A file that was created, edited or deleted **outside** the session workspace
- * folders during the session. These are surfaced separately from
- * {@link ISession.changes} because they are not part of the workspace and will
- * not be committed.
- */
-export interface ISessionFile {
-	/** The file URI (after-state for create/modify, the deleted path for delete). */
-	readonly uri: URI;
-	/** The kind of change applied to the file during the session. */
-	readonly operation: SessionFileOperation;
-	/**
-	 * URI from which the file's pre-session content can be read, when known.
-	 * Used to render a diff for {@link SessionFileOperation.Modified} files.
-	 */
-	readonly originalUri?: URI;
-}
-
-/**
  * Well-known id of the changeset that holds the diff between a session's branch
  * and its base (e.g. `main...feature`). Shared so that consumers which always
  * want the branch diff — regardless of the changeset currently selected in the
  * Changes view — can locate it in {@link ISession.changesets} by id.
  */
 export const BRANCH_CHANGES_CHANGESET_ID = 'branchChanges';
+
+/**
+ * Well-known id of the changeset that holds uncommitted working-tree changes.
+ *
+ * Must match the agent host provider's `ChangesetKind.Uncommitted` value.
+ */
+export const UNCOMMITTED_CHANGES_CHANGESET_ID = 'uncommitted';
 
 /**
  * Well-known id of the changeset that holds the diff made during the session's
@@ -716,6 +753,8 @@ export interface ISession {
 	readonly isAutomation?: IObservable<boolean>;
 	/** Whether this session was discovered in an application other than the current host. Absent means `false`. */
 	readonly isExternal?: IObservable<boolean>;
+	/** Session turn that created this session, when it was created by another agent session. */
+	readonly createdBySession?: IObservable<ISessionCreationReference | undefined>;
 
 	// Reactive properties
 
@@ -734,19 +773,19 @@ export interface ISession {
 	/** Changesets produced by the session. */
 	readonly changesets: IObservable<readonly ISessionChangeset[] | undefined>;
 	/**
-	 * Files created, edited or deleted **outside** the session workspace folders
-	 * during the session (e.g. config files in the user's home directory). These
-	 * are not part of {@link changes} and will not be committed. Providers that
-	 * cannot determine this report an empty array (or omit the observable).
+	 * The artifacts and references the agent recorded for this session (pull
+	 * requests, issues, files, …). Both categories share this observable and are
+	 * told apart by {@link ISessionArtifact.isArtifact}, so a consumer that
+	 * surfaces only one of them must filter on that field.
 	 */
-	readonly externalChanges?: IObservable<readonly ISessionFile[]>;
-	/** Artifacts the agent recorded for this session (pull requests, issues, files, …). */
 	readonly artifacts?: IObservable<readonly ISessionArtifact[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	/** Whether the session is still initializing (e.g., resolving git repository). */
 	readonly loading: IObservable<boolean>;
+	/** Whether the first request lifecycle is in progress. Used to present a still-untitled draft as active during preparation. Absent means `false`. */
+	readonly isNewSessionRequestInProgress?: IObservable<boolean>;
 	/** Whether the session is archived. */
 	readonly isArchived: IObservable<boolean>;
 	/** Whether the session has been read. */
@@ -766,6 +805,12 @@ export interface ISession {
 	 * arrives after the session's first state update).
 	 */
 	readonly capabilities: IObservable<ISessionCapabilities>;
+}
+
+export interface ISessionCreationReference {
+	readonly session: URI;
+	readonly chat?: URI;
+	readonly turnId?: string;
 }
 
 /** Returns whether any chat or session-level fallback reports file changes. */
@@ -881,8 +926,18 @@ export interface ISessionWorkspaceBrowseAction {
 	readonly icon: ThemeIcon;
 	/** The provider that owns this action. */
 	readonly providerId: string;
-	/** Execute the browse action and return the selected workspace, or undefined if cancelled. */
-	run(): Promise<ISessionWorkspace | undefined>;
+	/**
+	 * Whether the selected workspace should also be attached as prompt context.
+	 * Context selections remain attached when the user chooses a different
+	 * execution workspace.
+	 */
+	readonly attachesContext?: boolean;
+	/**
+	 * Execute the browse action and return the selected workspace, or undefined
+	 * if cancelled. The current execution workspace is provided so context
+	 * pickers can scope results to its repository.
+	 */
+	run(currentWorkspace?: ISessionWorkspace): Promise<ISessionWorkspace | undefined>;
 	/**
 	 * Optional method to enumerate folders inline (e.g. for a phone-friendly
 	 * picker that shows a folder list with search-as-you-type instead of
@@ -980,12 +1035,17 @@ export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | und
 			x.repo === y.repo &&
 			x.number === y.number &&
 			isEqual(x.uri, y.uri) &&
+			x.state === y.state &&
+			x.liveState === y.liveState &&
 			x.title === y.title &&
 			x.createdByThisSession === y.createdByThisSession &&
 			(x.icon === y.icon || (!!x.icon && !!y.icon && ThemeIcon.isEqual(x.icon, y.icon)))) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
 		isEqual(a.pullRequest?.uri, b.pullRequest?.uri) &&
+		a.pullRequest?.state === b.pullRequest?.state &&
+		a.pullRequest?.liveState === b.pullRequest?.liveState &&
 		(aIcon === bIcon || (!!aIcon && !!bIcon && ThemeIcon.isEqual(aIcon, bIcon))) &&
+		a.pullRequest?.title === b.pullRequest?.title &&
 		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
 		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid;
 }

@@ -45,7 +45,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
+import { AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
@@ -68,7 +68,7 @@ import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../..
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostAuthenticationService, type IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
-import { createTestAgentService, getTestAgentStateManager } from './agentServiceTestUtils.js';
+import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { makeMcpServerCustomization } from '../../../agentPlugins/common/pluginParsers.js';
 import { ClaudeAgent, fromSdkModelInfo } from '../../node/claude/claudeAgent.js';
@@ -2156,7 +2156,7 @@ suite('ClaudeAgent', () => {
 			createNoopGitService(),
 		));
 
-		service.registerProvider(agent);
+		registerTestAgentProvider(service, agent);
 
 		// AgentSideEffects publishes registered providers into root state
 		// on the next autorun tick. The state manager exposes the root
@@ -4962,7 +4962,7 @@ suite('ClaudeAgent', () => {
 			modifiedB: b?.modifiedTime,
 			sdkCalls: sdk.listSessionsCallCount,
 			availabilityRequests: sdk.ensureAvailableCalls,
-			migrationChats: chatsToMigrate?.map(r => sessionIdOfChat(r.chat)),
+			migrationChats: chatsToMigrate === AgentChatMigrationDeferred ? undefined : chatsToMigrate?.map(r => sessionIdOfChat(r.chat)),
 		}, {
 			count: 3,
 			ids: ['a', 'b', 'c'],
@@ -5250,6 +5250,7 @@ suite('ClaudeAgent', () => {
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 		const discoveredChats: number[] = [];
 		disposables.add(agent.onDidDiscoverChats(chats => discoveredChats.push(chats.length)));
+		void agent.startChatDiscovery();
 
 		const sessionUri = AgentSession.uri('claude', 'materialized');
 		const chat = defaultChatUri(sessionUri);
@@ -6228,13 +6229,12 @@ suite('ClaudeAgent — agent SDK setup channel', () => {
 		const ctx = createTestContext(disposables);
 		ctx.sdk.canLoadWithoutDownloadResult = false;
 		ctx.sdk.sessionList = [{ sessionId: 'from-claude-code', summary: 'An existing chat', lastModified: 1000, createdAt: 900 }];
-		// Subscribing is what starts discovery.
 		const discovered: number[] = [];
 		disposables.add(ctx.agent.onDidDiscoverChats(chats => discovered.push(chats.length)));
+		void ctx.agent.startChatDiscovery();
 		await settle();
 		const cold = {
 			discovered: [...discovered],
-			// `undefined` is "ask again later", as distinct from "nothing to migrate".
 			migratable: await ctx.agent.listChatsToMigrate(),
 			fetches: ctx.sdk.ensureAvailableCalls,
 		};
@@ -6251,7 +6251,7 @@ suite('ClaudeAgent — agent SDK setup channel', () => {
 		await settle();
 
 		assert.deepStrictEqual({ cold, inFlight, after: discovered, migratable: await ctx.agent.listChatsToMigrate() }, {
-			cold: { discovered: [], migratable: undefined, fetches: 0 },
+			cold: { discovered: [], migratable: AgentChatMigrationDeferred, fetches: 0 },
 			inFlight: [],
 			after: [1],
 			migratable: [],
@@ -7636,7 +7636,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 
 		const promise = onElicitation(
 			{ serverName: 'test-mcp', message: 'Pick a side', mode: 'form', requestedSchema: { type: 'object', properties: { side: { type: 'string' } } } },
-			{ signal: new AbortController().signal },
+			{ signal: new AbortController().signal, requestId: 'elicitation-accept' },
 		);
 		await tick();
 
@@ -7647,10 +7647,12 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 		});
 
 		assert.deepStrictEqual({
+			id: inputRequest.id,
 			message: inputRequest.message,
 			questions: inputRequest.questions?.map(q => ({ id: q.id, kind: q.kind } as const)),
 			result: await promise,
 		}, {
+			id: 'elicitation-accept',
 			message: 'Pick a side',
 			questions: [{ id: 'side', kind: 'text' }],
 			result: { action: 'accept', content: { side: 'left' } },
@@ -7662,7 +7664,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 
 		const promise = onElicitation(
 			{ serverName: 'm', message: 'q', mode: 'form', requestedSchema: { type: 'object', properties: { side: { type: 'string' } } } },
-			{ signal: new AbortController().signal },
+			{ signal: new AbortController().signal, requestId: 'elicitation-decline' },
 		);
 		await tick();
 		ctx.agent.respondToUserInputRequest(inputRequests.at(-1)!.id, ChatInputResponseKind.Decline);
@@ -7676,7 +7678,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 		const controller = new AbortController();
 		const promise = onElicitation(
 			{ serverName: 'm', message: 'q', mode: 'form', requestedSchema: { type: 'object', properties: { side: { type: 'string' } } } },
-			{ signal: controller.signal },
+			{ signal: controller.signal, requestId: 'elicitation-abort' },
 		);
 		await tick();
 		assert.ok(inputRequests.at(-1), 'the elicitation parked as a ChatInputRequested action');
@@ -7690,7 +7692,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 
 		const promise = onElicitation(
 			{ serverName: 'm', message: 'Authorize', mode: 'url', url: 'https://example.com/auth' },
-			{ signal: new AbortController().signal },
+			{ signal: new AbortController().signal, requestId: 'elicitation-url' },
 		);
 		await tick();
 
@@ -7717,7 +7719,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 		controller.abort();
 		const result = await onElicitation(
 			{ serverName: 'm', message: 'q', mode: 'form', requestedSchema: { type: 'object', properties: { side: { type: 'string' } } } },
-			{ signal: controller.signal },
+			{ signal: controller.signal, requestId: 'elicitation-pre-aborted' },
 		);
 
 		assert.deepStrictEqual({ result, parked: inputRequests.length }, { result: { action: 'cancel' }, parked: 0 });
@@ -7728,7 +7730,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 
 		const result = await onElicitation(
 			{ serverName: 'm', message: 'Authorize', mode: 'url' },
-			{ signal: new AbortController().signal },
+			{ signal: new AbortController().signal, requestId: 'elicitation-missing-url' },
 		);
 
 		assert.deepStrictEqual({ result, parked: inputRequests.length }, { result: { action: 'cancel' }, parked: 0 });
@@ -7739,7 +7741,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 
 		const result = await onElicitation(
 			{ serverName: 'm', message: 'q', mode: 'form', requestedSchema: { type: 'object', properties: {} } },
-			{ signal: new AbortController().signal },
+			{ signal: new AbortController().signal, requestId: 'elicitation-empty-form' },
 		);
 
 		assert.deepStrictEqual({ result, parked: inputRequests.length }, { result: { action: 'cancel' }, parked: 0 });
@@ -7759,14 +7761,14 @@ suite('ClaudeAgent (Phase 8 — file edit tracking via SDK message stream)', () 
 		return { ctx, sessionId, sessionUri: created.session };
 	}
 
-	test('Options carries enableFileCheckpointing and only the transient host-context hook', async () => {
+	test('Options carries enableFileCheckpointing and host hooks', async () => {
 		// Phase 8 refactor. Pins the Options shape that
 		// `_materializeProvisional` ships to the SDK: file checkpointing
 		// must be on (a startup option, not user-bypassable). File-edit
 		// tracking remains wired
 		// through `ClaudeAgentSession._observeAssistantMessage` /
-		// `_observeUserMessage` in the message-pump loop; the only SDK hook
-		// adds transient host context to a submitted prompt.
+		// `_observeUserMessage` in the message-pump loop; SDK hooks add
+		// transient host context and enforce Agent Merge tool restrictions.
 		const { ctx } = await materialize();
 		const opts = ctx.sdk.capturedStartupOptions[0];
 		assert.ok(opts, 'Options captured');
@@ -7777,7 +7779,7 @@ suite('ClaudeAgent (Phase 8 — file edit tracking via SDK message stream)', () 
 			userPromptSubmitHooks: opts.hooks?.UserPromptSubmit?.[0].hooks.length,
 		}, {
 			enableFileCheckpointing: true,
-			hookNames: ['UserPromptSubmit'],
+			hookNames: ['PreToolUse', 'UserPromptSubmit'],
 			userPromptSubmitHooks: 1,
 		});
 	});

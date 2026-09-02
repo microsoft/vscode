@@ -11,7 +11,6 @@ import { ContextKeyValue } from '../../../../platform/contextkey/common/contextk
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { Selection } from '../../../common/core/selection.js';
-import { IDiffEditorViewModel } from '../../../common/editorCommon.js';
 import { IModelService } from '../../../common/services/model.js';
 import { DiffEditorOptions } from '../diffEditor/diffEditorOptions.js';
 import { DiffEditorViewModel } from '../diffEditor/diffEditorViewModel.js';
@@ -35,7 +34,7 @@ export class MultiDiffEditorViewModel extends Disposable {
 
 	public readonly focusedDiffItem = derived(this, reader => this.items.read(reader).find(i => i.isFocused.read(reader)));
 	public readonly activeDiffItem = derivedObservableWithWritableCache<DocumentDiffItemViewModel | undefined>(this,
-		(reader, lastValue) => this.focusedDiffItem.read(reader) ?? (lastValue && this.items.read(reader).indexOf(lastValue) !== -1) ? lastValue : undefined
+		(reader, lastValue) => this.focusedDiffItem.read(reader) ?? (lastValue && this.items.read(reader).indexOf(lastValue) !== -1 ? lastValue : undefined)
 	);
 
 	public async waitForDiffOr1s(): Promise<void> {
@@ -122,22 +121,27 @@ export class DocumentDiffItemViewModel extends Disposable {
 	/**
 	 * The diff editor view model keeps its inner objects alive.
 	*/
-	public readonly diffEditorViewModelRef: RefCounted<IDiffEditorViewModel>;
-	public get diffEditorViewModel(): IDiffEditorViewModel {
+	public readonly diffEditorViewModelRef: RefCounted<DiffEditorViewModel>;
+	public get diffEditorViewModel(): DiffEditorViewModel {
 		return this.diffEditorViewModelRef.object;
 	}
 	public readonly waitForInitialDiffOr1s: ObservablePromise<void>;
 	public readonly collapsed = observableValue<boolean>(this, false);
 
-	public readonly lastTemplateData = observableValue<{ contentHeight: number; selections: Selection[] | undefined }>(
+	public readonly lastTemplateData = observableValue<{ expandedContentHeight: number; selections: Selection[] | undefined }>(
 		this,
-		{ contentHeight: 500, selections: undefined, }
+		{ expandedContentHeight: 500, selections: undefined, }
 	);
 
 	public get originalUri(): URI | undefined { return this.documentDiffItem.original?.uri; }
 	public get modifiedUri(): URI | undefined { return this.documentDiffItem.modified?.uri; }
 
 	public readonly isActive: IObservable<boolean> = derived(this, reader => this._editorViewModel.activeDiffItem.read(reader) === this);
+	public readonly isFirst: IObservable<boolean> = derived(this, reader => this._editorViewModel.items.read(reader)[0] === this);
+
+	public setActive(tx: ITransaction | undefined): void {
+		this._editorViewModel.activeDiffItem.setCache(this, tx);
+	}
 
 	private readonly _isFocusedSource = observableValue<IObservable<boolean>>(this, constObservable(false));
 	public readonly isFocused = derived(this, reader => this._isFocusedSource.read(reader).read(reader));

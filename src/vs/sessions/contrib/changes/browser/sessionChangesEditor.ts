@@ -31,7 +31,7 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/servic
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
-import { IMultiDiffEditorOptions, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorOptions, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { MultiDiffEditorLogger } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorLogging.js';
 import { IDiffEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
@@ -67,9 +67,16 @@ const CHANGES_DIFF_EDITOR_OPTIONS: IDiffEditorOptions = {
 	lineNumbersMinChars: 3,
 };
 
+const CHANGES_LIST_BOTTOM_PADDING_PX = 24;
+const CHANGES_ENTRY_HEADER_HEIGHT_PX = 32;
+const CHANGES_ENTRY_CONTENT_BOTTOM_PADDING_PX = 8;
+
 class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 
 	readonly headerClickToCollapse = true;
+	readonly diffEditorItemHorizontalInsets = { left: 0, right: 0 };
+	readonly diffEditorItemHeaderHeight = CHANGES_ENTRY_HEADER_HEIGHT_PX;
+	readonly diffEditorItemContentBottomPadding = CHANGES_ENTRY_CONTENT_BOTTOM_PADDING_PX;
 
 	constructor(
 		private readonly changesObs: IObservable<readonly ISessionFileChange[]>,
@@ -261,6 +268,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			paneInstantiationService.createInstance(SessionChangesUIElementFactory, this._scopedChangesObs),
 			CHANGES_DIFF_EDITOR_OPTIONS,
 		));
+		this.widget.setPaddingBottom(CHANGES_LIST_BOTTOM_PADDING_PX);
 		this._register(autorun(reader => {
 			this.widget?.setRenderSideBySide(this.diffEditorOptionsService.renderSideBySide.read(reader), { useInlineViewWhenSpaceIsLimited: true });
 		}));
@@ -273,6 +281,10 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	 */
 	tryGetCodeEditor(resource: URI): { diffEditor: IDiffEditor; editor: ICodeEditor } | undefined {
 		return this.widget?.tryGetCodeEditor(resource);
+	}
+
+	getLayoutDebugState(): IObservable<IMultiDiffEditorLayoutDebugState> {
+		return this.widget!.getLayoutDebugState();
 	}
 
 	/** Creates the classic (non-single-pane) internal header toolbars. */
@@ -297,6 +309,9 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 	override async setInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
+		if (token.isCancellationRequested) {
+			return;
+		}
 		const sessionResource = this.sessionChangesService.getSessionResource(input.multiDiffSource);
 		this._inputSessionResource.set(sessionResource, undefined);
 		const viewModel = await input.getViewModel();

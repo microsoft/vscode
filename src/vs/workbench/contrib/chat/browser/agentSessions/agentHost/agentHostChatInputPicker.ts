@@ -288,7 +288,10 @@ export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema
  * included so the generic lane does not invent a chip for it.
  *
  * Host-owned worktree configuration also has no chip. Including those properties
- * here keeps the generic lane from surfacing them in the chat input.
+ * here keeps the generic lane from surfacing them in the chat input. The same
+ * applies to `ShellInitScripts`, which is generated rather than user-edited:
+ * `readOnly` keeps it out of the session-settings file but does not by itself
+ * suppress the generic chip.
  */
 export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>([
 	SessionConfigKey.Mode,
@@ -300,6 +303,7 @@ export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>
 	SessionConfigKey.WorktreeBranchTrack,
 	SessionConfigKey.WorktreeCreateNewBranch,
 	SessionConfigKey.WorktreeIncludeFiles,
+	SessionConfigKey.ShellInitScripts,
 	ClaudeSessionConfigKey.PermissionMode,
 	CodexSessionConfigKey.PermissionsPreset,
 ]);
@@ -416,6 +420,10 @@ export class AgentHostChatInputPicker extends Disposable {
 		this._renderChip();
 	}
 
+	show(anchor: HTMLElement): void {
+		void this._showPicker(anchor);
+	}
+
 	private _reattach(): void {
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		const provisionalBackend = sessionResource ? this._provisional.get(sessionResource) : undefined;
@@ -504,6 +512,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		this._trigger = undefined;
 		this._renderDisposables.clear();
 		dom.clearNode(this._container);
+		this._container.classList.remove('agent-host-chat-input-picker-has-icon');
 
 		const ctx = this._readContext();
 		// For sessions that have already started (i.e. no longer untitled —
@@ -548,6 +557,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		dom.clearNode(trigger);
 
 		const icon = getConfigIcon(this._property, value);
+		this._container?.classList.toggle('agent-host-chat-input-picker-has-icon', !!icon);
 		if (icon) {
 			dom.append(trigger, renderIcon(getCompactCodicon(icon)));
 		}

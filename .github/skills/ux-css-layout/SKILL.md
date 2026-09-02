@@ -263,8 +263,8 @@ For `IconLabel` and list/tree renderers, this is handled automatically. For cust
 ## 10. Design-System Size Tokens (spacing, radius, font, codicon, stroke)
 
 VS Code ships a design-system **size** ramp, registered in
-`src/vs/platform/theme/common/sizes/baseSizes.ts` (agents font ramp in
-`src/vs/sessions/common/sizes.ts`) and emitted as `--vscode-*` CSS variables.
+`src/vs/platform/theme/common/sizes/baseSizes.ts` and emitted as `--vscode-*` CSS
+variables.
 When writing or editing CSS, prefer the token var over a raw px value wherever a
 token exists. The full tables + rationale live in the auto-injected
 `.github/instructions/design-tokens.instructions.md` (canonical source — keep
@@ -312,8 +312,8 @@ scale value, **ties round up** (`5px → 6px`, `3px → 4px`, `1px → 2px`,
 
 ### Font size & weight
 
-Generic UI ramp — pair a **size** token with a **weight** token (mirrors the
-agents ramp; "Strong" = matching size token + `semiBold`, never a separate size):
+Generic UI ramp — pair a **size** token with a **weight** token ("Strong" =
+matching size token + `semiBold`, never a separate size):
 
 | px | Size var | Weight |
 |----|----------|--------|
@@ -333,28 +333,14 @@ Generic weights: `--vscode-fontWeight-regular` (400),
 `--vscode-bodyFontSize-small` (12) → `--vscode-fontSize-label1`,
 `--vscode-bodyFontSize-xSmall` (11) → `--vscode-fontSize-body2`.
 
-Agents window (`src/vs/sessions/**`) ramp — identical values, `agents-`-prefixed:
-
-| px | Size var | Weight |
-|----|----------|--------|
-| 26 | `--vscode-agents-fontSize-heading1` | semiBold |
-| 18 | `--vscode-agents-fontSize-heading2` | semiBold |
-| 13 | `--vscode-agents-fontSize-heading3` | semiBold |
-| 13 | `--vscode-agents-fontSize-body1` | regular |
-| 11 | `--vscode-agents-fontSize-body2` | regular |
-| 12 | `--vscode-agents-fontSize-label1` | regular |
-| 11 | `--vscode-agents-fontSize-label2` | regular |
-| 10 | `--vscode-agents-fontSize-label3` | regular |
-
-Both weight ramps are **two weights only**: `regular` (400) and
-`semiBold` (600) — generic `--vscode-fontWeight-*`, agents
-`--vscode-agents-fontWeight-*`.
+The legacy Agents-specific `--vscode-agents-fontSize-*` and
+`--vscode-agents-fontWeight-*` tokens are also deprecated; use the matching
+generic tokens.
 
 - **No medium (500).** `font-weight: 500` is off the ramp — snap to `semiBold`.
   Likewise `700`/`bold` → round to the nearer of 400/600.
 - **"Strong" is not a separate size.** "Body 1 Strong" = the matching
-  `--vscode-fontSize-*` (or `--vscode-agents-fontSize-*`) size token + `semiBold`.
-  Never add a strong *size*.
+  `--vscode-fontSize-*` size token + `semiBold`. Never add a strong *size*.
 - `normal` ≡ 400 → `regular`. Leave `inherit`, `lighter`, `bolder`,
   `var()`/`calc()` untouched.
 

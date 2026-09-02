@@ -15,7 +15,7 @@ import { ResourceMap } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { IObservable, autorun, constObservable, derived, observableFromEvent, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable } from '../../../../../base/common/observable.js';
+import { IObservable, autorun, constObservable, derived, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { hasKey, WithDefinedProps } from '../../../../../base/common/types.js';
 import { URI, UriDto } from '../../../../../base/common/uri.js';
@@ -142,6 +142,8 @@ export interface IChatRequestModel {
 	readonly userSelectedTools?: UserSelectedTools;
 	readonly isSystemInitiated?: boolean;
 	readonly isHiddenFromTranscript: boolean;
+	/** Whether only the request row is hidden. Full-turn hiding also implies this. */
+	readonly isRequestHiddenFromTranscript: boolean;
 	readonly systemInitiatedLabel?: string;
 	readonly terminalExecutionId?: string;
 	readonly origin?: IChatRequestOrigin;
@@ -335,6 +337,7 @@ export interface IChatResponseModel {
 	setVote(vote: ChatAgentVoteDirection): void;
 	setUsage(usage: IChatUsage): void;
 	setElapsedMs(elapsedMs: number): void;
+	setResult(result: IChatAgentResult): void;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): boolean;
 	resolveInlineReference(resolveId: string, resolvedReference: IChatContentInlineReference): boolean;
 	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatExternalToolInvocationUpdate, quiet?: boolean): void;
@@ -392,6 +395,7 @@ export interface IChatRequestModelParameters {
 	userSelectedTools?: UserSelectedTools;
 	isSystemInitiated?: boolean;
 	isHiddenFromTranscript?: boolean;
+	isRequestHiddenFromTranscript?: boolean;
 	systemInitiatedLabel?: string;
 	terminalExecutionId?: string;
 	origin?: IChatRequestOrigin;
@@ -412,6 +416,7 @@ export class ChatRequestModel implements IChatRequestModel {
 	public readonly userSelectedTools?: UserSelectedTools;
 	public readonly isSystemInitiated?: boolean;
 	public readonly isHiddenFromTranscript: boolean;
+	public readonly isRequestHiddenFromTranscript: boolean;
 	public readonly systemInitiatedLabel?: string;
 	public readonly terminalExecutionId?: string;
 	public readonly isTerminalCommand: boolean;
@@ -490,6 +495,7 @@ export class ChatRequestModel implements IChatRequestModel {
 		this.userSelectedTools = params.userSelectedTools;
 		this.isSystemInitiated = params.isSystemInitiated;
 		this.isHiddenFromTranscript = params.isHiddenFromTranscript ?? false;
+		this.isRequestHiddenFromTranscript = this.isHiddenFromTranscript || params.isRequestHiddenFromTranscript === true;
 		this.systemInitiatedLabel = params.systemInitiatedLabel;
 		this.terminalExecutionId = params.terminalExecutionId;
 		this.isTerminalCommand = params.isTerminalCommand ?? false;
@@ -1001,6 +1007,16 @@ export class Response extends AbstractResponse implements IDisposable {
 				this._responseParts[idx] = progress;
 			}
 			this._contentChanged(quiet);
+		} else if (progress.kind === 'autoModeResolution') {
+			// Auto can route more than once per turn: a resolved part replaces the
+			// row that is still routing, and any later route starts a new row.
+			const idx = this._responseParts.findIndex(p => p.kind === 'autoModeResolution' && !p.resolved);
+			if (idx === -1) {
+				this._responseParts.push(progress);
+			} else {
+				this._responseParts[idx] = progress;
+			}
+			this._contentChanged(quiet);
 		} else {
 			this._responseParts.push(progress);
 			this._contentChanged(quiet);
@@ -1200,6 +1216,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	private _completionTimestamp: number | undefined;
 	private _timeSpentWaitingAccumulator: number;
 	private _elapsedMs: number | undefined;
+	private readonly _timingChanged = observableSignal(this);
 
 	public confirmationAdjustedTimestamp: IObservable<number>;
 
@@ -1471,6 +1488,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 		let lastStartedWaitingAt: number | undefined = undefined;
 		this.confirmationAdjustedTimestamp = derived(reader => {
+			this._timingChanged.read(reader);
 			const pending = this.isPendingConfirmation.read(reader);
 			if (pending) {
 				this._modelState.set({ value: ResponseModelState.NeedsInput }, undefined);
@@ -1637,6 +1655,25 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	completeWithoutTimestamp(): void {
 		this._complete(Date.now(), undefined);
+	}
+
+	reopen(): void {
+		if (!this.isComplete) {
+			return;
+		}
+		this._response.clear();
+		if (this._result?.errorDetails) {
+			const { errorDetails: _errorDetails, ...result } = this._result;
+			this._result = result;
+		}
+		if (this.completedAt !== undefined) {
+			this._timeSpentWaitingAccumulator += Math.max(0, Date.now() - this.completedAt);
+			this._timingChanged.trigger(undefined);
+		}
+		this._completionTimestamp = undefined;
+		this._elapsedMs = undefined;
+		this._modelState.set({ value: ResponseModelState.Pending }, undefined);
+		this._onDidChange.fire(defaultChatResponseModelChangeReason);
 	}
 
 	private _complete(completedAt: number, completionTimestamp: number | undefined): void {
@@ -1869,6 +1906,7 @@ export interface ISerializableChatRequestData extends ISerializableChatResponseD
 	/**Old, persisted name for shouldBeRemovedOnSend */
 	isHidden?: boolean;
 	hiddenFromTranscript?: boolean;
+	requestHiddenFromTranscript?: boolean;
 	shouldBeRemovedOnSend?: IChatRequestDisablement;
 	agent?: ISerializableChatAgentData;
 	// responseErrorDetails: IChatResponseErrorDetails | undefined;
@@ -2913,6 +2951,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			modeInfo: raw.modeInfo,
 			isSystemInitiated: raw.isSystemInitiated,
 			isHiddenFromTranscript: raw.hiddenFromTranscript,
+			isRequestHiddenFromTranscript: raw.requestHiddenFromTranscript,
 			systemInitiatedLabel: raw.systemInitiatedLabel,
 			terminalExecutionId: raw.terminalExecutionId,
 			origin: reviveChatRequestOrigin(raw.origin),
@@ -3121,6 +3160,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		timestamp?: number | null,
 		hideFromTranscript?: boolean,
 		origin?: IChatRequestOrigin,
+		isRequestHiddenFromTranscript?: boolean,
 	): ChatRequestModel {
 		const editedFileEvents = [...this.currentEditedFileEvents.values()];
 		this.currentEditedFileEvents.clear();
@@ -3147,6 +3187,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			userSelectedTools,
 			isSystemInitiated,
 			isHiddenFromTranscript: hideFromTranscript,
+			isRequestHiddenFromTranscript,
 			systemInitiatedLabel,
 			terminalExecutionId,
 			isTerminalCommand,
@@ -3311,6 +3352,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					modeInfo: r.modeInfo,
 					isSystemInitiated: r.isSystemInitiated || undefined,
 					hiddenFromTranscript: r.isHiddenFromTranscript || undefined,
+					...(r.isRequestHiddenFromTranscript && !r.isHiddenFromTranscript ? { requestHiddenFromTranscript: true } : {}),
 					systemInitiatedLabel: r.systemInitiatedLabel,
 					terminalExecutionId: r.terminalExecutionId,
 					origin: r.origin ? serializeChatRequestOrigin(r.origin) : undefined,

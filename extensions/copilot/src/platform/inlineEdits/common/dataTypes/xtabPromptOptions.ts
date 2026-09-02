@@ -542,8 +542,11 @@ export enum PromptingStrategy {
 	PatchBased02 = 'patchBased02',
 	/** PatchBased02 variant: line numbers on recent docs. */
 	PatchBased02WithRecentLineNumbers = 'patchBased02WithRecentLineNumbers',
-	/** Optimized PatchBased02 variant with line numbers on recent docs. */
-	PatchBased02Optimized = 'patchBased02Optimized',
+	/**
+	 * PatchBased02 variant, with line numbers on recent docs, for a model that also handles inline
+	 * completions itself: it bakes in the client and latency knobs that treatment was tuned for.
+	 */
+	PatchBased02Unified = 'patchBased02Unified',
 	/** PatchBased02 variant: no line numbers on recent docs. */
 	PatchBased02WithoutRecentLineNumbers = 'patchBased02WithoutRecentLineNumbers',
 	/**
@@ -610,7 +613,7 @@ export namespace ResponseFormat {
 			case PromptingStrategy.PatchBased01:
 			case PromptingStrategy.PatchBased02:
 			case PromptingStrategy.PatchBased02WithRecentLineNumbers:
-			case PromptingStrategy.PatchBased02Optimized:
+			case PromptingStrategy.PatchBased02Unified:
 			case PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
 				return ResponseFormat.CustomDiffPatch;
 			case PromptingStrategy.Xtab275EditIntent:
@@ -808,7 +811,7 @@ const STRATEGY_CONFIG: Partial<Record<PromptingStrategy, Partial<ModelConfigurat
 	[PromptingStrategy.PatchBased02WithRecentLineNumbers]: PATCH_BASED_02_WITH_RECENT_LINE_NUMBERS_CONFIG,
 	// Inherits everything from PatchBased02WithRecentLineNumbers and additionally bakes in the
 	// client/latency knobs that this unified model was tuned to run with.
-	[PromptingStrategy.PatchBased02Optimized]: {
+	[PromptingStrategy.PatchBased02Unified]: {
 		...PATCH_BASED_02_WITH_RECENT_LINE_NUMBERS_CONFIG,
 		patchModelPredictionKind: PatchModelPrediction.CurrentLineCompleted,
 		splitPatchOnDiff: true,

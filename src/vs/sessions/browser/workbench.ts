@@ -774,7 +774,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		}
 	}
 
-	private _loadPartVisibility(storageService: IStorageService): { editor?: boolean; auxiliaryBar?: boolean; sidebar?: boolean } {
+	private _loadPartVisibility(storageService: IStorageService): { editor?: boolean; auxiliaryBar?: boolean; sidebar?: boolean; panel?: boolean } {
 		if (this.layoutPolicy.viewportClass.get() === 'phone') {
 			return {};
 		}
@@ -803,6 +803,12 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.partVisibility.editor = savedPartVisibility.editor ?? this.partVisibility.editor;
 		this.partVisibility.auxiliaryBar = savedPartVisibility.auxiliaryBar ?? this.partVisibility.auxiliaryBar;
 		this.partVisibility.sidebar = savedPartVisibility.sidebar ?? this.partVisibility.sidebar;
+		// The single-pane layout governs the bottom panel at the workbench level
+		// (like the side pane), so its visibility is restored here. The classic
+		// layout remembers the panel per session and never persists it here.
+		if (this.isSinglePaneLayoutEnabled) {
+			this.partVisibility.panel = savedPartVisibility.panel ?? this.partVisibility.panel;
+		}
 	}
 
 	protected _savePartVisibility(): void {
@@ -814,6 +820,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			editor: this.partVisibility.editor,
 			auxiliaryBar: this.partVisibility.auxiliaryBar,
 			sidebar: this.partVisibility.sidebar,
+			// Only the single-pane layout persists panel visibility at the workbench
+			// level; the classic layout tracks it per session instead.
+			panel: this.isSinglePaneLayoutEnabled ? this.partVisibility.panel : undefined,
 		}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
@@ -1867,9 +1876,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	protected _layoutGrid(): void {
 		const mobileTopBarHeight = this.mobileTopBarElement?.offsetHeight ?? 0;
-		// Keep in sync with the desktop grid margin in workbench.css.
+		// Keep the desktop grid margin stable when sidebar visibility changes.
 		const isPhone = this.layoutPolicy.viewportClass.get() === 'phone';
-		const gridGutterW = isPhone ? 0 : AGENTS_FLOATING_PANEL_GAP + (this.partVisibility.sidebar ? 0 : AGENTS_FLOATING_PANEL_GAP);
+		const gridGutterW = isPhone ? 0 : AGENTS_FLOATING_PANEL_GAP;
 		const gridGutterH = isPhone ? 0 : AGENTS_FLOATING_PANEL_GAP;
 		this.workbenchGrid.layout(
 			this._mainContainerDimension.width - gridGutterW,
@@ -2465,6 +2474,13 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				this.focusPart(Parts.PANEL_PART);
 			}
 		}
+
+		// The single-pane layout governs the panel at the workbench level, so its
+		// visibility persists across reloads (like the side pane). The classic
+		// layout remembers it per session and never persists it here.
+		if (this.isSinglePaneLayoutEnabled) {
+			this._savePartVisibility();
+		}
 	}
 
 	private setSessionsHidden(hidden: boolean): void {
@@ -2510,11 +2526,14 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			};
 		}
 
+		// Suspend chat content before any custom view transition can trigger layout.
+		this.sessionsPartService.setContentVisible(false);
 		this.customViewGridPartService.setView(descriptor);
 		this.partVisibility.customViewGrid = visible;
 		this._customViewVisibleKey.set(visible);
 
 		if (!this.workbenchGrid) {
+			this.sessionsPartService.setContentVisible(!visible);
 			return; // still starting up; the grid descriptor picks this state up
 		}
 
@@ -2534,6 +2553,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				}
 			});
 		} finally {
+			this.sessionsPartService.setContentVisible(!visible);
 			this._applyingCustomViewGridVisibility = false;
 		}
 

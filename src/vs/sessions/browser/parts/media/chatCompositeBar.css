@@ -74,8 +74,8 @@
 	overflow: hidden;
 	display: flex;
 	align-items: center;
-	font-weight: var(--vscode-agents-fontWeight-regular, 400);
-	font-size: var(--vscode-agents-fontSize-heading3, 13px);
+	font-weight: var(--vscode-fontWeight-regular, 400);
+	font-size: var(--vscode-fontSize-heading3, 13px);
 	color: var(--chat-tab-active-foreground, var(--session-view-foreground));
 	border-radius: var(--vscode-cornerRadius-small);
 	min-height: 22px;
@@ -185,37 +185,6 @@
 	height: 100%;
 }
 
-.chat-composite-bar-new-chat {
-	display: flex;
-	align-items: center;
-	flex-shrink: 0;
-}
-
-.chat-composite-bar-new-chat.hidden {
-	display: none;
-}
-
-.chat-composite-bar-new-chat .action-item .action-label {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: var(--editor-group-tab-height, var(--vscode-spacing-size240));
-	height: var(--editor-group-tab-height, var(--vscode-spacing-size240));
-	padding: 0;
-	border-radius: var(--vscode-cornerRadius-small);
-	color: var(--chat-tab-inactive-foreground, currentColor);
-}
-
-.chat-composite-bar-new-chat .action-item .action-label:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--chat-tab-active-foreground);
-}
-
-.chat-composite-bar-new-chat .action-item .action-label:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: calc(-1 * var(--vscode-strokeThickness));
-}
-
 .session-chat-tabs-actions {
 	display: flex;
 	align-items: center;
@@ -277,6 +246,16 @@
 	user-select: none;
 	flex-shrink: 0;
 	max-width: var(--chat-tab-max-width);
+}
+
+/* Keep keyboard focus on the rounded fill; high-contrast styling is provided by the shared tab styles. */
+.monaco-workbench .session-chat-tabs-bar .chat-composite-bar-tab:focus {
+	outline: none;
+}
+
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-chat-tabs-bar .chat-composite-bar-tab:focus-visible > .chat-composite-bar-tab-fill {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .session-chat-tabs-bar .chat-composite-bar-tab-fill {

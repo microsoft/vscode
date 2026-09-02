@@ -27,7 +27,6 @@ export const ChangesetReviewedFilesContext = new RawContextKey<string[]>('sessio
 export const ChangesetHasOperationsContext = new RawContextKey<boolean>('sessions.changesetHasOperations', false);
 
 const DEFAULT_SECTION_COLLAPSE_STATE: IChangesViewSectionCollapseState = Object.freeze({
-	otherFiles: false,
 	checks: true,
 });
 
@@ -274,7 +273,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		}
 
 		const next = { ...current, [section]: collapsed };
-		if (next.otherFiles === DEFAULT_SECTION_COLLAPSE_STATE.otherFiles && next.checks === DEFAULT_SECTION_COLLAPSE_STATE.checks) {
+		if (next.checks === DEFAULT_SECTION_COLLAPSE_STATE.checks) {
 			this._sectionCollapseStateBySession.delete(sessionResource);
 		} else {
 			this._sectionCollapseStateBySession.set(sessionResource, next);
@@ -380,11 +379,19 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			// Pull request state
 			const gitHubInfo = gitRepository?.gitHubInfo.read(reader);
 			const hasPullRequest = gitHubInfo?.pullRequest?.uri !== undefined;
-			const hasOpenPullRequest = hasPullRequest &&
-				(gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestDraft.id ||
-					gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequest.id ||
-					gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestError.id ||
-					gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestComment.id);
+			const hostPullRequestState = gitHubInfo?.pullRequest?.state;
+			const livePullRequestState = gitHubInfo?.pullRequest?.liveState;
+			const hasTerminalPullRequestState = hostPullRequestState === 'closed'
+				|| hostPullRequestState === 'merged'
+				|| livePullRequestState === 'closed'
+				|| livePullRequestState === 'merged';
+			const hasOpenPullRequest = hasPullRequest && !hasTerminalPullRequestState
+				&& (hostPullRequestState === 'open'
+					|| livePullRequestState === 'open'
+					|| gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestDraft.id
+					|| gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequest.id
+					|| gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestError.id
+					|| gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestComment.id);
 
 			// Repository state
 			const hasGitHubRemote = gitRepository?.hasGitHubRemote ?? false;

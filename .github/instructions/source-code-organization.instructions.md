@@ -64,4 +64,6 @@ class MyComponent {
 }
 ```
 
+Decorated service parameters must use their canonical service interface. Do not invent local subset interfaces or `Pick<...>` aliases in production to simplify tests; keep partial stubs, adapters, and other test-only conveniences in test code.
+
 Services are provided via `registerSingleton(IMyService, MyServiceImpl, InstantiationType.Delayed)`.
