@@ -85,6 +85,11 @@ const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.session
 const STORAGE_KEY_SESSION_APPROVE_ALL = 'sessions.agentHost.sessionApproveAll';
 /** Upper bound on {@link STORAGE_KEY_SESSION_APPROVE_ALL} so the record cannot grow without limit. */
 const SESSION_APPROVE_ALL_MAX_ENTRIES = 200;
+
+/** One queued approve-all write, used to keep a session's writes ordered. */
+interface IApproveAllRequest {
+	done: Promise<void>;
+}
 const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const SESSION_CHANGE_NOTIFICATION_DEBOUNCE_MS = 50;
 
@@ -2741,8 +2746,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected readonly _runningSessionConfigs = new Map<string, ResolveSessionConfigResult>();
 	private readonly _runningSessionConfigResolveSeq = new Map<string, number>();
 
-	/** Sessions with an approve-all toggle on the wire, so a re-assert cannot overtake it. */
-	private readonly _approveAllInFlight = new Set<string>();
+	/** Sessions with an approve-all write in flight, so writes stay ordered and a re-apply cannot overtake one. */
+	private readonly _approveAllInFlight = new Map<string, IApproveAllRequest>();
 
 	/**
 	 * Last authoritatively-resolved schemas for {@link SEEDED_CONFIG_SCHEMA_KEYS},
@@ -3840,26 +3845,58 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/**
 	 * Applies approve-all to a session and records the result.
 	 *
+	 * Writes for one session are serialized and only the newest one's result is
+	 * kept, so rapid toggling settles on what the user asked for last rather
+	 * than on whichever request happened to resolve last.
+	 *
 	 * The record is written only after the host accepts, so a failed call leaves
 	 * the picker showing the previous level rather than one that never took
 	 * effect. Failure is also the safe direction: the host's own default is
 	 * off, so a dropped enable means the user keeps being asked.
 	 */
-	async setSessionApproveAll(sessionId: string, enabled: boolean): Promise<void> {
+	setSessionApproveAll(sessionId: string, enabled: boolean): Promise<void> {
 		const connection = this.connection;
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (!connection?.setSessionApproveAll || !cached) {
-			throw new Error(`[${this.id}] Session '${sessionId}' cannot apply approve-all`);
+			return Promise.reject(new Error(`[${this.id}] Session '${sessionId}' cannot apply approve-all`));
 		}
-		this._approveAllInFlight.add(sessionId);
-		try {
-			await connection.setSessionApproveAll(cached.backendUri, enabled);
-		} finally {
-			this._approveAllInFlight.delete(sessionId);
+		if (enabled && isAutoApprovePolicyRestricted(this._baseConfigurationService)) {
+			// The config path clamps elevated approvals under policy; this path
+			// must not be a way around it.
+			return Promise.reject(new Error(`[${this.id}] Approve-all is disabled by policy`));
 		}
-		this._recordSessionApproveAll(sessionId, enabled);
-		this._onDidChangeSessionConfig.fire(sessionId);
+		const request = this._queueSessionApproveAll(sessionId, async () => {
+			await connection.setSessionApproveAll!(cached.backendUri, enabled);
+			// Only the newest request owns the recorded value. An older one that
+			// resolves late must not overwrite it with a stale answer.
+			if (this._approveAllInFlight.get(sessionId) === request) {
+				this._recordSessionApproveAll(sessionId, enabled);
+				this._onDidChangeSessionConfig.fire(sessionId);
+			}
+		});
+		return request.done;
+	}
+
+	/**
+	 * Chains an approve-all write after any write already in flight for the same
+	 * session, so the host observes them in the order the user made them.
+	 */
+	private _queueSessionApproveAll(sessionId: string, run: () => Promise<void>): IApproveAllRequest {
+		const previous = this._approveAllInFlight.get(sessionId);
+		const request: IApproveAllRequest = { done: Promise.resolve() };
+		// Swallow the predecessor's rejection here only to sequence past it; the
+		// caller that issued it still receives it through its own `done`.
+		request.done = (previous?.done ?? Promise.resolve())
+			.catch(() => { })
+			.then(run)
+			.finally(() => {
+				if (this._approveAllInFlight.get(sessionId) === request) {
+					this._approveAllInFlight.delete(sessionId);
+				}
+			});
+		this._approveAllInFlight.set(sessionId, request);
+		return request;
 	}
 
 	/**
@@ -3876,6 +3913,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// *after* the user's `false` and leave the session auto-approving —
 		// the one direction this must never fail in.
 		if (!connection.setSessionApproveAll || this._approveAllInFlight.has(sessionId) || !this.getSessionApproveAll(sessionId)) {
+			return;
+		}
+		// Policy can turn off elevated approvals between runs, so a value
+		// remembered under the old policy must not be replayed under the new
+		// one. Drop the record too, so the picker stops claiming a level the
+		// user is no longer allowed to hold.
+		if (isAutoApprovePolicyRestricted(this._baseConfigurationService)) {
+			this._recordSessionApproveAll(sessionId, false);
+			this._onDidChangeSessionConfig.fire(sessionId);
 			return;
 		}
 		connection.setSessionApproveAll(sessionUri, true).catch(err => {

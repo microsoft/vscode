@@ -691,14 +691,20 @@ suite('AgentHostPermissionPickerDelegate approve-all is confined to Copilot sess
 	test('claims a Copilot session with no approvals axis, local or remote', () => {
 		const local = setupAgent('copilotcli', configWithApprovalsProperty('mode', ['interactive', 'plan']));
 		const remote = setupAgent('remote-my-host-copilotcli', configWithApprovalsProperty('mode', ['interactive', 'plan']));
+		// The Copilot agent is served by two provider ids: `copilotcli` for the
+		// agent host bundled with VS Code, `copilot` for the Copilot host. This
+		// is a real session type observed from a cloud sandbox.
+		const sandbox = setupAgent('remote-cloudsandbox__04d3ab60-c364-42a8-bea8-6bd80ccd2ac8-copilot', configWithApprovalsProperty('mode', ['interactive', 'plan']));
 
 		assert.deepStrictEqual({
 			local: local.delegate.isApplicable.get(),
 			remote: remote.delegate.isApplicable.get(),
-			levels: remote.delegate.availableLevels,
+			sandbox: sandbox.delegate.isApplicable.get(),
+			levels: sandbox.delegate.availableLevels,
 		}, {
 			local: true,
 			remote: true,
+			sandbox: true,
 			levels: [ChatPermissionLevel.Default, ChatPermissionLevel.AutoApprove],
 		});
 	});

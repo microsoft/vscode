@@ -7564,15 +7564,19 @@ suite('LocalAgentHostSessionsProvider - approve-all', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** A provider with one discovered session, ready to accept approve-all. */
-	async function withSession(storageService?: IStorageService) {
+	async function withSession(storageService?: IStorageService, configurationService?: IConfigurationService) {
 		agentHost.addSession(createSession('approve-all', { summary: 'Approve All' }));
-		const provider = createProvider(disposables, agentHost, undefined, storageService ? { storageService } : undefined);
+		const provider = createProvider(disposables, agentHost, undefined, {
+			...(storageService ? { storageService } : {}),
+			...(configurationService ? { configurationService } : {}),
+		});
 		provider.getSessions();
 		await timeout(0);
 		const session = provider.getSessions().find(candidate => candidate.title.get() === 'Approve All');
 		assert.ok(session);
 		return { provider, sessionId: session.sessionId };
 	}
+
 
 	test('records the value only after the host accepts it', async () => {
 		const { provider, sessionId } = await withSession();
@@ -7675,6 +7679,86 @@ suite('LocalAgentHostSessionsProvider - approve-all across providers', () => {
 		}, {
 			first: true,
 			second: true,
+		});
+	});
+});
+
+suite('LocalAgentHostSessionsProvider - approve-all ordering and policy', () => {
+	const disposables = new DisposableStore();
+	let agentHost: MockAgentHostService;
+
+	setup(() => {
+		agentHost = disposables.add(new MockAgentHostService());
+	});
+
+	teardown(() => {
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function withSession(options?: { storageService?: IStorageService; configurationService?: IConfigurationService }) {
+		agentHost.addSession(createSession('ordering', { summary: 'Ordering' }));
+		const provider = createProvider(disposables, agentHost, undefined, options);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(candidate => candidate.title.get() === 'Ordering');
+		assert.ok(session);
+		return { provider, sessionId: session.sessionId };
+	}
+
+
+	test('settles on the last requested value when toggled rapidly', async () => {
+		const { provider, sessionId } = await withSession();
+
+		// Issued back to back without awaiting: the second must win regardless
+		// of the order the two requests resolve in.
+		const first = provider.setSessionApproveAll(sessionId, true);
+		const second = provider.setSessionApproveAll(sessionId, false);
+		await Promise.all([first, second]);
+
+		assert.deepStrictEqual({
+			recorded: provider.getSessionApproveAll(sessionId),
+			wireOrder: agentHost.approveAllCalls.map(call => call.enabled),
+		}, {
+			recorded: false,
+			wireOrder: [true, false],
+		});
+	});
+
+	test('refuses to enable approve-all under enterprise policy', async () => {
+		const { provider, sessionId } = await withSession({ configurationService: createPolicyRestrictedConfigurationService() });
+
+		await assert.rejects(() => provider.setSessionApproveAll(sessionId, true), /disabled by policy/);
+
+		assert.deepStrictEqual({
+			recorded: provider.getSessionApproveAll(sessionId),
+			// Nothing reached the host: the request is refused before the wire.
+			calls: agentHost.approveAllCalls.length,
+		}, {
+			recorded: false,
+			calls: 0,
+		});
+	});
+
+	test('drops a remembered value when policy turns elevated approvals off', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const before = await withSession({ storageService });
+		await before.provider.setSessionApproveAll(before.sessionId, true);
+		agentHost.approveAllCalls.length = 0;
+
+		// A later window opens under a policy that forbids it. The remembered
+		// value must not be replayed, and must not keep claiming the level.
+		const after = await withSession({ storageService, configurationService: createPolicyRestrictedConfigurationService() });
+		after.provider.getSessionConfig(after.sessionId);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			replayed: agentHost.approveAllCalls.length,
+			stillRecorded: after.provider.getSessionApproveAll(after.sessionId),
+		}, {
+			replayed: 0,
+			stillRecorded: false,
 		});
 	});
 });

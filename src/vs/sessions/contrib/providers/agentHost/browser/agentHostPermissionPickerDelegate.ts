@@ -7,6 +7,7 @@ import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/
 import { derived, IObservable, IReader, observableSignal } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, getAgentHostCopilotSandboxSettingId } from '../../../../../platform/agentHost/common/agentService.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -32,8 +33,13 @@ const REQUIRED_PERMISSION_MODE_VALUE = 'default';
 const REQUIRED_CODEX_APPROVALS_VALUE = 'default';
 
 /**
- * Whether a session type identifies a Copilot agent session, local
- * (`copilotcli`) or remote (`remote-<authority>-copilotcli`).
+ * Whether a session type identifies a Copilot agent session.
+ *
+ * Two provider ids qualify, because two different hosts serve the Copilot
+ * agent: `copilotcli` for the agent host bundled with VS Code, and `copilot`
+ * for the Copilot host (what a cloud sandbox runs). Session types are either
+ * the bare provider id for a local session or `remote-<authority>-<provider>`
+ * for a remote one.
  *
  * Used to confine Copilot-specific host extensions to Copilot sessions. A
  * remote agent host advertises every agent it hosts, so the connection alone
@@ -43,8 +49,8 @@ export function isCopilotAgentSessionType(sessionType: string | undefined): bool
 	if (!sessionType) {
 		return false;
 	}
-	return sessionType === CopilotCLISessionType.id
-		|| parseRemoteAgentHostHarness(sessionType) === CopilotCLISessionType.id;
+	const provider = parseRemoteAgentHostHarness(sessionType) ?? sessionType;
+	return provider === CopilotCLISessionType.id || provider === CLOUD_SANDBOX_AGENT_PROVIDER;
 }
 
 /**
