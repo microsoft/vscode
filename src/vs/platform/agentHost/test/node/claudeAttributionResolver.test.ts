@@ -55,16 +55,17 @@ suite('claudeAttributionResolver', () => {
 		};
 	}
 
-	test('buildAttributionSeed: pending tool_use in a non-tail turn is dead, pending in the tail turn is hydrated', () => {
+	test('buildAttributionSeed: an unresolved tool_use in a non-tail turn is retained as pending, not dead, because a later steer may still return its result', () => {
+		// u2 may be a steer folded into u1 (M10), whose preempted u1 tool can still return, so tu_early stays pending.
 		const messages: SessionMessage[] = [
 			makeUser('u1', 'first'),
-			makeAssistantToolUse('a1', 'tu_dead', 'Bash', { command: 'sleep 100' }),
+			makeAssistantToolUse('a1', 'tu_early', 'Bash', { command: 'sleep 100' }),
 			makeAssistantToolUse('a2', 'tu_task_done', 'Task', { description: 'explore' }),
 			makeUserToolResult('r1', 'tu_task_done', 'agentId: agentaaa'),
 			makeUser('u2', 'second'),
 			makeAssistantToolUse('a3', 'tu_settled', 'Read', { file_path: '/tmp/x' }),
 			makeUserToolResult('r2', 'tu_settled', 'contents'),
-			makeAssistantToolUse('a4', 'tu_pending', 'Grep', { pattern: 'x' }),
+			makeAssistantToolUse('a4', 'tu_tail_pending', 'Grep', { pattern: 'x' }),
 			makeAssistantToolUse('a5', 'tu_task_pending', 'Task', { description: 'still running' }),
 		];
 
@@ -75,21 +76,21 @@ suite('claudeAttributionResolver', () => {
 			dead: seed.dead.map(e => e.toolUseId),
 			spawns: seed.spawns.map(e => [e.toolUseId, e.resultSeen, e.agentId]),
 		}, {
-			pending: ['tu_pending', 'tu_task_pending'],
-			dead: ['tu_dead'],
+			pending: ['tu_early', 'tu_tail_pending', 'tu_task_pending'],
+			dead: [],
 			spawns: [['tu_task_done', true, 'agentaaa'], ['tu_task_pending', false, undefined]],
 		});
 	});
 
-	test('hydrateAttribution seeds registry info so pastTenseMessage parity holds and records spawns', () => {
+	test('hydrateAttribution seeds registry info so pastTenseMessage parity holds, hydrates non-tail pending entries, and records spawns', () => {
 		const command = 'git status';
 		const messages: SessionMessage[] = [
 			makeUser('u1', 'first'),
-			makeAssistantToolUse('a1', 'tu_dead', 'Bash', { command }),
+			makeAssistantToolUse('a1', 'tu_early', 'Bash', { command }),
 			makeUser('u2', 'second'),
 			makeAssistantToolUse('a2', 'tu_settled', 'Bash', { command }),
 			makeUserToolResult('r1', 'tu_settled', 'clean'),
-			makeAssistantToolUse('a3', 'tu_pending', 'Bash', { command }),
+			makeAssistantToolUse('a3', 'tu_tail_pending', 'Bash', { command }),
 			makeAssistantToolUse('a4', 'tu_task_done', 'Task', { subagent_type: 'Explore', description: 'count files', prompt: 'count them' }),
 			makeUserToolResult('r2', 'tu_task_done', 'agentId: agentaaa'),
 			makeAssistantToolUse('a5', 'tu_task_pending', 'Task', { subagent_type: 'Plan', description: 'plan it', prompt: 'make a plan' }),
@@ -104,25 +105,26 @@ suite('claudeAttributionResolver', () => {
 		const replayedPastTense = settledPart?.kind === ResponsePartKind.ToolCall && settledPart.toolCall.status === ToolCallStatus.Completed
 			? settledPart.toolCall.pastTenseMessage
 			: undefined;
-		const hydrated = state.toolCalls.lookup('tu_pending');
+		const hydrated = state.toolCalls.lookup('tu_tail_pending');
 		const livePastTense = hydrated?.info
 			? getClaudePastTenseMessage(hydrated.info.toolName, hydrated.info.displayName, hydrated.info.parsedInput, true, 'clean')
 			: undefined;
+		const early = state.toolCalls.lookup('tu_early');
 		const spawnPending = registry.getSpawn('tu_task_pending');
 
 		assert.deepStrictEqual({
 			hydrated: { turnId: hydrated?.turnId, toolName: hydrated?.toolName, restored: hydrated?.restored, toolInput: hydrated?.info?.toolInput },
+			early: { turnId: early?.turnId, restored: early?.restored },
 			livePastTense,
 			replayedPastTense,
-			dead: state.toolCalls.lookup('tu_dead'),
 			settled: state.toolCalls.lookup('tu_settled'),
 			spawnDone: { agentId: registry.getSpawn('tu_task_done')?.agentId, subagentType: registry.getSpawn('tu_task_done')?.subagentType },
 			spawnPending: spawnPending && { agentId: spawnPending.agentId, subagentType: spawnPending.subagentType, description: spawnPending.description, prompt: spawnPending.prompt },
 		}, {
 			hydrated: { turnId: 'u2', toolName: 'Bash', restored: true, toolInput: 'git status' },
+			early: { turnId: 'u1', restored: true },
 			livePastTense: { markdown: 'Ran `git status`' },
 			replayedPastTense: { markdown: 'Ran `git status`' },
-			dead: undefined,
 			settled: undefined,
 			spawnDone: { agentId: 'agentaaa', subagentType: 'Explore' },
 			spawnPending: { agentId: undefined, subagentType: 'Plan', description: 'plan it', prompt: 'make a plan' },

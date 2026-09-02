@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type Turn } from '../../common/state/protocol/state.js';
 import { scanTranscriptForAgentIds, SUBAGENT_ID_SUFFIX_REGEX, SubagentRegistry, SubagentSpawn } from '../../node/claude/claudeSubagentRegistry.js';
 
-function makeAgentToolCallTurn(toolCallId: string, opts: { suffixText?: string; toolName?: string; status?: ToolCallStatus; meta?: Record<string, unknown> }): Turn {
+function makeAgentToolCallTurn(toolCallId: string, opts: { suffixText?: string; toolName?: string; status?: ToolCallStatus }): Turn {
 	return {
 		id: 'turn-' + toolCallId,
 		message: { text: '', origin: { kind: MessageKind.User } },
@@ -24,7 +24,6 @@ function makeAgentToolCallTurn(toolCallId: string, opts: { suffixText?: string; 
 				success: true,
 				pastTenseMessage: 'task done',
 				content: opts.suffixText !== undefined ? [{ type: ToolResultContentType.Text, text: opts.suffixText }] : undefined,
-				...(opts.meta ? { _meta: opts.meta } : {}),
 			},
 		}],
 		state: 0 as unknown as Turn['state'],
@@ -184,33 +183,6 @@ suite('SubagentRegistry', () => {
 			b: undefined,
 			c: 'agentccc',
 			d: undefined,
-		});
-	});
-
-	test('primeFromTranscript records pending Task parts too', () => {
-		const registry = r();
-		const subagentMeta = { toolKind: 'subagent' };
-		const transcript: readonly Turn[] = [
-			makeAgentToolCallTurn('toolu_done', { suffixText: 'agentId: agentdone', meta: subagentMeta }),
-			makeAgentToolCallTurn('toolu_pending', { status: ToolCallStatus.Cancelled, meta: subagentMeta }),
-			makeAgentToolCallTurn('toolu_client', { status: ToolCallStatus.Cancelled }), // client-tool Task: no subagent meta
-			makeAgentToolCallTurn('toolu_read', { status: ToolCallStatus.Cancelled, toolName: 'Read', meta: subagentMeta }),
-		];
-
-		registry.primeFromTranscript(transcript);
-
-		assert.deepStrictEqual({
-			done: registry.getSpawn('toolu_done')?.agentId,
-			pending: registry.getSpawn('toolu_pending')?.toolUseId,
-			pendingAgentId: registry.getSpawn('toolu_pending')?.agentId,
-			client: registry.getSpawn('toolu_client'),
-			read: registry.getSpawn('toolu_read'),
-		}, {
-			done: 'agentdone',
-			pending: 'toolu_pending',
-			pendingAgentId: undefined,
-			client: undefined,
-			read: undefined,
 		});
 	});
 

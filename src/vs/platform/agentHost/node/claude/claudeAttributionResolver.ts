@@ -9,7 +9,9 @@ import type { ISubagentSpawnInit, SubagentRegistry } from './claudeSubagentRegis
 
 /**
  * Replayed tool uses partitioned by what a restored session must do with them.
- * `pending` and `dead` are both unresolved; only `pending` can still receive a result.
+ * `pending` entries may still receive a result and are hydrated; `spawns` are every
+ * subagent-spawn tool call. `dead` is reserved for entries a future, steer-aware
+ * transcript can prove will never resolve; today it stays empty.
  */
 export interface IClaudeAttributionSeed {
 	readonly pending: readonly IClaudeReplayToolUse[];
@@ -18,8 +20,10 @@ export interface IClaudeAttributionSeed {
 }
 
 /**
- * Partition the replay index. An unresolved `tool_use` is only pending in the tail
- * turn; in any earlier turn a later user envelope exists, so its result can never arrive.
+ * Partition the replay index. Every unresolved `tool_use` is retained as pending: a
+ * later user envelope can be a steer folded into the same request (M10) whose preempted
+ * tool still returns, and replay data cannot tell that apart from a genuine later turn,
+ * so dropping it would lose attribution a late result needs.
  */
 export function buildAttributionSeed(attribution: IClaudeReplayAttribution): IClaudeAttributionSeed {
 	const pending: IClaudeReplayToolUse[] = [];
@@ -29,13 +33,8 @@ export function buildAttributionSeed(attribution: IClaudeReplayAttribution): ICl
 		if (entry.isSubagentSpawn) {
 			spawns.push(entry);
 		}
-		if (entry.resultSeen) {
-			continue;
-		}
-		if (entry.turnId === attribution.tailTurnId) {
+		if (!entry.resultSeen) {
 			pending.push(entry);
-		} else {
-			dead.push(entry);
 		}
 	}
 	return { pending, dead, spawns };
