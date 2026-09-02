@@ -266,25 +266,7 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 		picker.matchOnDescription = true;
 		picker.sortByLabel = false;
 
-		const staticPicks: (IContextQuickPickItem | IQuickPickSeparator)[] = [
-			...contextActions.map(action => ({
-				label: action.label,
-				description: action.description,
-				iconClass: ThemeIcon.asClassName(action.icon),
-				contextAction: action,
-			})),
-			...(contextActions.length > 0 ? [{ type: 'separator' as const }] : []),
-			{
-				label: localize('files', "Files..."),
-				iconClass: ThemeIcon.asClassName(Codicon.file),
-				id: 'sessions.filesAndFolders',
-			},
-			{
-				label: localize('imageFromClipboard', "Image from Clipboard"),
-				iconClass: ThemeIcon.asClassName(Codicon.fileMedia),
-				id: 'sessions.imageFromClipboard',
-			},
-		];
+		const staticPicks = this._getStaticPicks(contextActions);
 
 		picker.items = staticPicks;
 		picker.show();
@@ -354,6 +336,28 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 			picker.dispose();
 			disposables.dispose();
 		}));
+	}
+
+	private _getStaticPicks(contextActions: readonly IWorkspacePickerContextAction[]): (IContextQuickPickItem | IQuickPickSeparator)[] {
+		return [
+			{
+				label: localize('files', "Files..."),
+				iconClass: ThemeIcon.asClassName(Codicon.file),
+				id: 'sessions.filesAndFolders',
+			},
+			{
+				label: localize('imageFromClipboard', "Image from Clipboard"),
+				iconClass: ThemeIcon.asClassName(Codicon.fileMedia),
+				id: 'sessions.imageFromClipboard',
+			},
+			...(contextActions.length > 0 ? [{ type: 'separator' as const }] : []),
+			...contextActions.map(action => ({
+				label: action.label,
+				description: action.description,
+				iconClass: ThemeIcon.asClassName(action.icon),
+				contextAction: action,
+			})),
+		];
 	}
 
 	private async _collectFilePicks(rootUri: URI, filePattern?: string, token?: CancellationToken): Promise<IQuickPickItem[]> {

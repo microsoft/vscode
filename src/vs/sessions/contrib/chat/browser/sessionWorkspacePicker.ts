@@ -501,10 +501,6 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	getContextPickerActions(): readonly IWorkspacePickerContextAction[] {
-		if (this._getCurrentRepositoryId() === undefined) {
-			return [];
-		}
-
 		return this.sessionsProvidersService.getProviders()
 			.flatMap(provider => provider.browseActions)
 			.filter(action => action.attachesContext === true)

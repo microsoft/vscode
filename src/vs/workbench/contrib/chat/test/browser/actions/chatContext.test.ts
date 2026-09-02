@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -11,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { GitHubContextValuePick, shouldShowOpenEditorsContext } from '../../../browser/actions/chatContext.js';
+import { ChatContextPickService } from '../../../browser/attachments/chatContextPickService.js';
 import { IChatWidget } from '../../../browser/chat.js';
 import { IGitRepository, IGitService } from '../../../../git/common/gitService.js';
 
@@ -69,7 +71,7 @@ class TestGitHubContextValuePick extends GitHubContextValuePick {
 
 suite('ChatContext', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('shows Open Editors for regular Copilot CLI sessions with eligible editors', () => {
 		assert.strictEqual(
@@ -179,5 +181,27 @@ suite('ChatContext', () => {
 			repositoryPicks: ['microsoft/typescript', 'microsoft/vscode'],
 			commandRepoId: 'microsoft/vscode',
 		});
+	});
+
+	test('orders sessions before GitHub context picks', () => {
+		const service = new ChatContextPickService();
+		disposables.add(service.registerChatContextItem(new GitHubContextValuePick(
+			'issue',
+			new TestGitService([]),
+			new class extends mock<IQuickInputService>() { }(),
+			new TestCommandService(),
+		)));
+		disposables.add(service.registerChatContextItem({
+			type: 'valuePick',
+			label: 'Sessions...',
+			icon: Codicon.comment,
+			ordinal: -400,
+			asAttachment: async () => undefined,
+		}));
+
+		assert.deepStrictEqual(Array.from(service.items, item => item.label), [
+			'Sessions...',
+			'Issue...',
+		]);
 	});
 });

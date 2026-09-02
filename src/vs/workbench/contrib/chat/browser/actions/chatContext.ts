@@ -113,7 +113,7 @@ export class GitHubContextValuePick implements IChatContextValueItem {
 	readonly type = 'valuePick';
 	readonly label: string;
 	readonly icon: ThemeIcon;
-	readonly ordinal = 600;
+	readonly ordinal = -450;
 
 	private readonly _commandId: string;
 
