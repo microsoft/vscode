@@ -119,11 +119,11 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		this._changesetOperationService.updateOperations(sessionStr);
 	}
 
-	private onDidChangeSessionConfig(session: URI, previous: SessionConfigState | undefined, current: SessionConfigState | undefined): void {
+	private onDidChangeSessionConfig(session: string, previous: SessionConfigState | undefined, current: SessionConfigState | undefined): void {
 		const wasEnabled = readAgentMergeSessionState(previous?.values)?.enabled === true;
 		const isEnabled = readAgentMergeSessionState(current?.values)?.enabled === true;
 		if (wasEnabled !== isEnabled) {
-			this._changesets.refreshChangesetCatalog(session.toString());
+			this._changesets.refreshChangesetCatalog(session);
 		}
 	}
 
