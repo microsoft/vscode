@@ -207,8 +207,12 @@ export class TextAreaEditContext extends AbstractEditContext {
 		const textAreaInputHost: ITextAreaInputHost = {
 			context: this._context,
 			getScreenReaderContent: (): TextAreaState => {
-				if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
-					// We know for a fact that a screen reader is not attached
+				if (this._accessibilitySupport !== AccessibilitySupport.Enabled) {
+					// No screen reader is known to be attached. `writeNativeTextAreaContent` already
+					// treats this case as "no screen reader" and skips render-time writes (#192278);
+					// handing it the paged content anyway put several rows of text into a one-row
+					// textarea, and during IME composition WebKit scrolls that textarea to keep its
+					// caret visible, fighting the row alignment `_render` maintains (monaco-editor#4796).
 					// On OSX, we write the character before the cursor to allow for "long-press" composition
 					// Also on OSX, we write the word before the cursor to allow for the Accessibility Keyboard to give good hints
 					const selection = this._selections[0];
@@ -559,13 +563,15 @@ export class TextAreaEditContext extends AbstractEditContext {
 			this._accessibilityPageSize = accessibilityPageSize;
 		}
 
-		// When wrapping is enabled and a screen reader might be attached,
+		// When wrapping is enabled and a screen reader is attached,
 		// we will size the textarea to match the width used for wrapping points computation (see `domLineBreaksComputer.ts`).
 		// This is because screen readers will read the text in the textarea and we'd like that the
 		// wrapping points in the textarea match the wrapping points in the editor.
+		// Without one, the textarea only ever holds the short content `getScreenReaderContent` writes,
+		// and there is nothing to wrap.
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		const wrappingColumn = layoutInfo.wrappingColumn;
-		if (wrappingColumn !== -1 && this._accessibilitySupport !== AccessibilitySupport.Disabled) {
+		if (wrappingColumn !== -1 && this._accessibilitySupport === AccessibilitySupport.Enabled) {
 			const fontInfo = options.get(EditorOption.fontInfo);
 			this._textAreaWrapping = true;
 			this._textAreaWidth = Math.round(wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
