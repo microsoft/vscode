@@ -4,16 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IFocusTracker } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { IUserInteractionService, MockUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
 import { CodeEditorWidget } from '../../../browser/widget/codeEditor/codeEditorWidget.js';
-// Loaded for its side effect: the diff editor stylesheet declares `cursor` with `!important`,
-// which the hidden mouse pointer state has to win against.
+// Load the diff editor cursor styles covered by the computed-style test.
 import '../../../browser/widget/diffEditor/style.css';
 import { IEditorOptions } from '../../../common/config/editorOptions.js';
 import { Range } from '../../../common/core/range.js';
@@ -32,38 +27,8 @@ suite('CodeEditorWidget', () => {
 
 		const HIDDEN_CLASS_NAME = 'monaco-editor-hide-mouse-cursor';
 
-		class TestFocusTracker extends Disposable implements IFocusTracker {
-			private readonly _onDidFocus = this._register(new Emitter<void>());
-			readonly onDidFocus = this._onDidFocus.event;
-			private readonly _onDidBlur = this._register(new Emitter<void>());
-			readonly onDidBlur = this._onDidBlur.event;
-			refreshState(): void { }
-			fireFocus(): void { this._onDidFocus.fire(); }
-			fireBlur(): void { this._onDidBlur.fire(); }
-		}
-
-		/**
-		 * The editor tracks focus through {@link IUserInteractionService}, which lets tests drive
-		 * focus changes without depending on the test host actually owning the keyboard focus.
-		 */
-		class TestUserInteractionService extends MockUserInteractionService {
-			private _focusTracker: TestFocusTracker | undefined;
-
-			get focusTracker(): TestFocusTracker {
-				assert.ok(this._focusTracker, 'the editor should track focus of its container');
-				return this._focusTracker;
-			}
-
-			override createDomFocusTracker(): IFocusTracker {
-				return this._focusTracker = new TestFocusTracker();
-			}
-		}
-
 		function createEditor(options: IEditorOptions = { hideMouseCursorOnTyping: true }) {
-			const services = new ServiceCollection();
-			const userInteractionService = new TestUserInteractionService();
-			services.set(IUserInteractionService, userInteractionService);
-			const instantiationService = createCodeEditorServices(disposables, services);
+			const instantiationService = createCodeEditorServices(disposables);
 
 			const container = document.createElement('div');
 			document.body.appendChild(container);
@@ -76,6 +41,8 @@ suite('CodeEditorWidget', () => {
 				{ contributions: [] }
 			));
 			editor.setModel(disposables.add(instantiateTextModel(instantiationService, 'hello world')));
+			editor.focus();
+			assert.strictEqual(editor.hasTextFocus(), true, 'the editor should have text focus');
 
 			const isHidden = () => container.classList.contains(HIDDEN_CLASS_NAME);
 			const type = (text: string = 'a', source: string = 'keyboard') => editor.trigger(source, Handler.Type, { text });
@@ -83,8 +50,13 @@ suite('CodeEditorWidget', () => {
 				type();
 				assert.strictEqual(isHidden(), true, 'the mouse pointer should be hidden after typing');
 			};
+			const blurTextInput = () => {
+				const input = container.querySelector<HTMLElement>('.native-edit-context, textarea.inputarea');
+				assert.ok(input, 'the editor should render a keyboard input element');
+				input.dispatchEvent(new FocusEvent('blur'));
+			};
 
-			return { instantiationService, userInteractionService, container, editor, isHidden, type, typeAndAssertHidden };
+			return { instantiationService, container, editor, isHidden, type, typeAndAssertHidden, blurTextInput };
 		}
 
 		test('is off by default', () => {
@@ -148,6 +120,14 @@ suite('CodeEditorWidget', () => {
 			const { isHidden, type } = createEditor();
 
 			type('');
+
+			assert.strictEqual(isHidden(), false);
+		});
+
+		test('read-only text input does not hide the mouse pointer', () => {
+			const { isHidden, type } = createEditor({ hideMouseCursorOnTyping: true, readOnly: true });
+
+			type();
 
 			assert.strictEqual(isHidden(), false);
 		});
@@ -223,18 +203,19 @@ suite('CodeEditorWidget', () => {
 			assert.strictEqual(isHidden(), false);
 		});
 
-		test('editor blur reveals the mouse pointer', () => {
-			const { userInteractionService, container, editor, isHidden, typeAndAssertHidden } = createEditor();
-
-			userInteractionService.focusTracker.fireFocus();
-			assert.strictEqual(editor.hasWidgetFocus(), true, 'the editor should be focused');
+		test('editor text blur reveals the mouse pointer', () => {
+			const { blurTextInput, editor, isHidden, typeAndAssertHidden } = createEditor();
 			typeAndAssertHidden();
 
-			userInteractionService.focusTracker.fireBlur();
+			blurTextInput();
 
-			assert.strictEqual(editor.hasWidgetFocus(), false);
-			assert.strictEqual(isHidden(), false);
-			assert.strictEqual(container.classList.contains(HIDDEN_CLASS_NAME), false);
+			assert.deepStrictEqual({
+				hasTextFocus: editor.hasTextFocus(),
+				isHidden: isHidden()
+			}, {
+				hasTextFocus: false,
+				isHidden: false
+			});
 		});
 
 		test('disabling the option reveals the mouse pointer', () => {
@@ -306,10 +287,22 @@ suite('CodeEditorWidget', () => {
 		test('a composition interrupted by a model change does not block hiding', () => {
 			const { instantiationService, editor, typeAndAssertHidden } = createEditor();
 
-			// The view and its IME input element are destroyed without a matching composition end.
 			editor.trigger('keyboard', Handler.CompositionStart, {});
 			editor.setModel(disposables.add(instantiateTextModel(instantiationService, 'other')));
 
+			assert.strictEqual(editor.inComposition, false);
+			editor.focus();
+			typeAndAssertHidden();
+		});
+
+		test('a composition interrupted by editor blur does not block hiding', () => {
+			const { blurTextInput, editor, typeAndAssertHidden } = createEditor();
+
+			editor.trigger('keyboard', Handler.CompositionStart, {});
+			blurTextInput();
+			assert.strictEqual(editor.inComposition, false);
+
+			editor.focus();
 			typeAndAssertHidden();
 		});
 
@@ -323,7 +316,7 @@ suite('CodeEditorWidget', () => {
 			descendant.style.cursor = 'pointer';
 			editorNode.appendChild(descendant);
 
-			// A diff editor unchanged region control, which declares its cursor with `!important`.
+			// A diff editor unchanged region control with its own resize cursor.
 			const hiddenLines = document.createElement('div');
 			hiddenLines.className = 'diff-hidden-lines';
 			const unchangedRegionControl = document.createElement('div');

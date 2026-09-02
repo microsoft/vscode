@@ -27,11 +27,7 @@
 	overflow-wrap: initial;
 }
 
-/*
- * Hides the mouse pointer over an editor while its user is typing (`editor.hideMouseCursorOnTyping`).
- * The class is owned by `CodeEditorWidget` and is only ever set on the editor container element.
- * `!important` is required because editor descendants set their own cursors, e.g. `.view-lines`.
- */
+/* Descendants define their own cursor styles, so the hidden state must override them. */
 .monaco-editor-hide-mouse-cursor,
 .monaco-editor-hide-mouse-cursor * {
 	cursor: none !important;

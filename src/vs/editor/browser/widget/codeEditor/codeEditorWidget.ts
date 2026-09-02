@@ -68,11 +68,6 @@ import { IUserInteractionService } from '../../../../platform/userInteraction/br
 
 const MOUSE_CURSOR_HIDDEN_CSS_CLASS_NAME = 'monaco-editor-hide-mouse-cursor';
 
-/**
- * Bubbling DOM events which reveal the mouse pointer again after it was hidden by keyboard typing.
- * These are only observed while the pointer is actually hidden. Pointer moves and pointer leaves
- * are handled separately because they also occur without the pointer actually moving.
- */
 const MOUSE_CURSOR_REVEAL_EVENT_TYPES = ['pointerdown', 'wheel', 'contextmenu'] as const;
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
@@ -277,10 +272,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	public inComposition: boolean = false;
 
-	/**
-	 * Whether this editor currently hides the mouse pointer because of keyboard typing.
-	 * Only the editor which owns the hidden state may reveal the pointer again.
-	 */
 	private _mouseCursorHidden: boolean = false;
 	private readonly _mouseCursorRevealListeners = this._register(new MutableDisposable<DisposableStore>());
 
@@ -331,6 +322,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			if (e.hasChanged(EditorOption.hideMouseCursorOnTyping) && !options.get(EditorOption.hideMouseCursorOnTyping)) {
 				this._showMouseCursor();
 			}
+		}));
+		this._register(this.onDidBlurEditorText(() => {
+			// Composition end is routed through the focused editor, so blur must clear stale state.
+			this.inComposition = false;
+			this._showMouseCursor();
 		}));
 		this._register(toDisposable(() => this._showMouseCursor()));
 
@@ -431,28 +427,25 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._modelData?.view.writeScreenReaderContent(reason);
 	}
 
-	/**
-	 * Hides the mouse pointer over this editor's DOM until the next pointer or focus activity.
-	 * Does nothing when the option is off, while an IME composition is active, or when the
-	 * pointer is already hidden.
-	 */
 	private _hideMouseCursor(): void {
-		if (this._mouseCursorHidden || this.inComposition || !this._configuration.options.get(EditorOption.hideMouseCursorOnTyping)) {
+		if (
+			this._mouseCursorHidden
+			|| this.inComposition
+			|| !this.hasTextFocus()
+			|| this._configuration.options.get(EditorOption.readOnly)
+			|| !this._configuration.options.get(EditorOption.hideMouseCursorOnTyping)
+		) {
 			return;
 		}
 		this._mouseCursorHidden = true;
-		this._domElement.classList?.add(MOUSE_CURSOR_HIDDEN_CSS_CLASS_NAME);
+		this._domElement.classList.add(MOUSE_CURSOR_HIDDEN_CSS_CLASS_NAME);
 
-		// High frequency listeners are only attached while the pointer is actually hidden.
-		// Capture is used so that the pointer is revealed even if a descendant stops propagation.
 		const store = new DisposableStore();
 		const reveal = () => this._showMouseCursor();
 		for (const eventType of MOUSE_CURSOR_REVEAL_EVENT_TYPES) {
 			store.add(dom.addDisposableListener(this._domElement, eventType, reveal, { capture: true }));
 		}
-		// Typing re-renders the lines below a resting pointer, which makes the browser re-dispatch
-		// a pointer move at the very same position. Only an actual movement may reveal the pointer.
-		// This is why we need to check if there has been movement.
+		// Ignore pointer moves caused only by rendering new content below a stationary pointer.
 		let lastPointerPosition: { readonly screenX: number; readonly screenY: number } | undefined;
 		store.add(dom.addDisposableListener(this._domElement, 'pointermove', (e: PointerEvent) => {
 			const hasMoved = e.movementX !== 0 || e.movementY !== 0
@@ -462,26 +455,18 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				reveal();
 			}
 		}, { capture: true }));
-		// Leaving the editor must reveal the pointer, because the CSS stops applying outside of it
-		// and the class would otherwise hide it again on re-entry.
 		store.add(dom.addDisposableListener(this._domElement, 'pointerleave', reveal));
-		// Element focus alone is not enough: switching windows or applications can leave the
-		// active element untouched.
 		store.add(dom.addDisposableListener(dom.getWindow(this._domElement), 'blur', reveal));
-		store.add(this.onDidBlurEditorWidget(reveal));
 		this._mouseCursorRevealListeners.value = store;
 	}
 
-	/**
-	 * Reveals the mouse pointer again, but only when this editor currently owns the hidden state.
-	 */
 	private _showMouseCursor(): void {
 		if (!this._mouseCursorHidden) {
 			return;
 		}
 		this._mouseCursorHidden = false;
 		this._mouseCursorRevealListeners.clear();
-		this._domElement.classList?.remove(MOUSE_CURSOR_HIDDEN_CSS_CLASS_NAME);
+		this._domElement.classList.remove(MOUSE_CURSOR_HIDDEN_CSS_CLASS_NAME);
 	}
 
 	protected _createConfiguration(isSimpleWidget: boolean, contextMenuId: MenuId, options: Readonly<IEditorConstructionOptions>, accessibilityService: IAccessibilityService): EditorConfiguration {
@@ -1268,9 +1253,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 		this._modelData.viewModel.type(text, source);
 		if (source === 'keyboard') {
-			// Hide based on produced text instead of raw key events, so that navigation keys,
-			// modifiers, keyboard shortcuts and programmatic edits never hide the pointer.
-			// For these keys the text is empty or falsy.
 			this._hideMouseCursor();
 			this._onDidType.fire(text);
 		}
@@ -2091,8 +2073,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	private _detachModel(): ITextModel | null {
-		// The hidden pointer belongs to a single focused editor, model and typing interaction,
-		// so it must never survive detaching, replacing or disposing the model.
+		this.inComposition = false;
 		this._showMouseCursor();
 		this._contributionsDisposable?.dispose();
 		this._contributionsDisposable = undefined;

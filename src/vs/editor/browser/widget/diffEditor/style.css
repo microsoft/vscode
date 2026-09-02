@@ -32,11 +32,6 @@
 	/*cursor: n-resize;*/
 }
 
-/*
- * The resize cursors of the idle unchanged region controls. Nothing else declares a cursor for
- * these elements, so they must not use `!important`: that would outrank rules which hide the
- * mouse pointer over the whole editor, such as `.monaco-editor-hide-mouse-cursor` in `editor.css`.
- */
 .monaco-editor .diff-hidden-lines .top.canMoveTop:not(.canMoveBottom),
 .monaco-editor .diff-hidden-lines .bottom.canMoveTop:not(.canMoveBottom) {
 	cursor: n-resize;
@@ -52,10 +47,7 @@
 	cursor: ns-resize;
 }
 
-/*
- * While a region is dragged, the whole editor shows the resize cursor. Here `!important` is
- * required to override the cursors which the individual descendants declare for themselves.
- */
+/* Active drags override cursor styles declared by descendants. */
 .monaco-editor.draggingUnchangedRegion.canMoveTop:not(.canMoveBottom) * {
 	cursor: n-resize !important;
 }
