@@ -455,10 +455,10 @@ export interface ISessionDataService {
 	readonly onWillDeleteSessionData: Event<IWillDeleteSessionDataEvent>;
 
 	/**
-	 * Deletes data directories that do not correspond to any known session.
-	 * Called at startup; safe to call multiple times.
+	 * Deletes data directories that neither `knownSessions` nor their chat
+	 * channels own. Chat backing sessions are recognised by their marker and kept.
 	 */
-	cleanupOrphanedData(knownSessionIds: Set<string>): Promise<void>;
+	cleanupOrphanedData(knownSessions: readonly URI[]): Promise<void>;
 
 	/**
 	 * Resolves once all in-flight write operations across every currently

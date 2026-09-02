@@ -3649,6 +3649,77 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(registered, [fresh.toString(), staleAdoptable.toString()].sort());
 		});
 
+		testWithExternalSessionClock('prune deletes the session data of every stale external row', async () => {
+			const day = 24 * 60 * 60 * 1000;
+			const now = Date.now();
+			const deleted: string[] = [];
+			const svc = createExternalSessionService({ ...createSessionDataService(), deleteSessionData: async session => { deleted.push(session.toString()); } });
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			const stale = agent.addSession('stale-data', now - 30 * day - 1);
+			const fresh = agent.addSession('fresh-data', now - 29 * day);
+			registerTestAgentProvider(svc, agent);
+			const sessionRegistry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			await sessionRegistry.register(stale, { provider: 'copilot', startTime: now - 30 * day - 1, source: 'discovery' }, { checkTombstone: true });
+			await sessionRegistry.register(fresh, { provider: 'copilot', startTime: now - 29 * day, source: 'discovery' }, { checkTombstone: true });
+
+			await (svc as unknown as { _pruneStaleExternalSessions(): Promise<void> })._pruneStaleExternalSessions();
+
+			assert.deepStrictEqual({
+				deleted,
+				registered: (await sessionRegistry.list()).map(entry => entry.session.toString()),
+			}, {
+				deleted: [stale.toString()],
+				registered: [fresh.toString()],
+			});
+		});
+
+		test('startup cleanup sweeps orphaned session data with the registered sessions', async () => {
+			const sweeps: string[][] = [];
+			const svc = createExternalSessionService({ ...createSessionDataService(), cleanupOrphanedData: async known => { sweeps.push(known.map(session => session.toString()).sort()); } });
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			const now = Date.now();
+			const first = agent.addSession('swept-first', now);
+			const second = agent.addSession('swept-second', now);
+			registerTestAgentProvider(svc, agent);
+			const sessionRegistry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			await sessionRegistry.register(first, { provider: 'copilot', startTime: now, source: 'explicit' }, { checkTombstone: false });
+			await sessionRegistry.register(second, { provider: 'copilot', startTime: now, source: 'explicit' }, { checkTombstone: false });
+
+			svc.markStartupComplete();
+			await svc.listSessions();
+			await svc.whenDeferredWorkSettled();
+
+			assert.deepStrictEqual(sweeps, [[first.toString(), second.toString()].sort()]);
+		});
+
+		test('startup cleanup is skipped while the registry is empty', async () => {
+			const sweeps: number[] = [];
+			const svc = createExternalSessionService({ ...createSessionDataService(), cleanupOrphanedData: async known => { sweeps.push(known.length); } });
+			registerTestAgentProvider(svc, disposables.add(new TimedExternalAgent('copilot')));
+
+			svc.markStartupComplete();
+			await svc.listSessions();
+			await svc.whenDeferredWorkSettled();
+
+			assert.deepStrictEqual(sweeps, []);
+		});
+
+		test('startup cleanup deletes nothing when the registry cannot be enumerated', async () => {
+			class UnreadableRegistryDatabase extends TransientRegistryWriteDatabase {
+				override listSessions(): Promise<readonly IAgentHostDatabaseSession[]> {
+					return Promise.reject(new Error('registry unavailable'));
+				}
+			}
+			const sweeps: number[] = [];
+			const svc = createExternalSessionService({ ...createSessionDataService(), cleanupOrphanedData: async known => { sweeps.push(known.length); } }, new UnreadableRegistryDatabase());
+
+			await assert.rejects(
+				(svc as unknown as { _cleanupOrphanedSessionData(): Promise<void> })._cleanupOrphanedSessionData(),
+				/registry unavailable/,
+			);
+			assert.deepStrictEqual(sweeps, []);
+		});
+
 		test('external session mode time boundaries are inclusive', () => {
 			const day = 24 * 60 * 60 * 1000;
 			const now = Date.UTC(2026, 0, 1);

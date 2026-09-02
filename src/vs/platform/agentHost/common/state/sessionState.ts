@@ -1987,6 +1987,12 @@ export const AH_META_IS_DONE_DB_KEY = 'isDone';
  */
 export const AH_META_IS_READ_DB_KEY = 'isRead';
 
+/**
+ * Session-database metadata key written on a chat's backing SDK session so it is
+ * never surfaced as a top-level session. The value is the owning chat URI.
+ */
+export const AH_META_CHAT_BACKING_DB_KEY = 'peerChatBacking';
+
 /** Returns `status` with `flag` set or cleared. */
 export function withSessionStatusFlag(status: SessionStatus, flag: SessionStatus, set: boolean): SessionStatus {
 	return set ? (status | flag) : (status & ~flag);
