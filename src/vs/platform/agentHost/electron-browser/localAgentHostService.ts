@@ -217,9 +217,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				AgentHostProtocolClient,
 				LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
 				() => this._createTransport(),
-				undefined,
-				this.clientId,
-				this._clientInfo,
+				{ clientId: this.clientId, clientInfo: this._clientInfo },
 			));
 			this._register(this._protocolClient.onDidChangeConnectionState(state => this._handleConnectionState(state)));
 			this._register(this._protocolClient.onDidFatalClose(() => {
@@ -420,6 +418,26 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			return promise;
 		}
 		return this._requireClient().createSession(config);
+	}
+
+	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
+		return this._getManagementService().createDetachedWorktree(session, prompt);
+	}
+
+	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {
+		return this._getManagementService().setDetachedWorktreeArchived(handle, archived);
+	}
+
+	claimDetachedWorktree(handle: string): Promise<void> {
+		return this._getManagementService().claimDetachedWorktree(handle);
+	}
+
+	deleteDetachedWorktree(handle: string): Promise<void> {
+		return this._getManagementService().deleteDetachedWorktree(handle);
+	}
+
+	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
+		return this._getManagementService().reconcileDetachedWorktrees(scope, activeHandles);
 	}
 
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {

@@ -15,6 +15,8 @@ import { AgentHostPullRequestOperationHandler, type PullRequestCreatedEvent } fr
 import { AgentHostPullRequestLifecycleOperationHandler } from './agentHostPullRequestLifecycleOperationHandler.js';
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import { AgentMergeConfigKey, agentMergeRootConfigSchema } from '../common/agentMerge.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
 
 export class AgentHostPullRequestOperationContribution extends Disposable implements IChangesetOperationContribution {
 
@@ -28,6 +30,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@IAgentHostPullRequestStatusService private readonly _pullRequestStatusService: IAgentHostPullRequestStatusService,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -40,16 +43,18 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		const getSessionState = (sessionKey: string) => this._stateManager.getSessionState(sessionKey);
 		const resolveBaseBranchName = (sessionKey: string) => this._gitStateService.resolveSessionBaseBranchName(sessionKey);
 		const onCreated = (event: PullRequestCreatedEvent) => this._onPullRequestCreated(event);
-		const createPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, undefined, getSessionState, resolveBaseBranchName, onCreated);
-		const createDraftPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, true, undefined, getSessionState, resolveBaseBranchName, onCreated);
-		const createAutoMergePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, 'MERGE', getSessionState, resolveBaseBranchName, onCreated);
-		const createAutoSquashPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, 'SQUASH', getSessionState, resolveBaseBranchName, onCreated);
-		const createAutoRebasePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, 'REBASE', getSessionState, resolveBaseBranchName, onCreated);
+		const createPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, undefined, false, getSessionState, resolveBaseBranchName, onCreated);
+		const createDraftPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, true, undefined, false, getSessionState, resolveBaseBranchName, onCreated);
+		const createAutoMergePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, 'MERGE', false, getSessionState, resolveBaseBranchName, onCreated);
+		const createAutoSquashPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, 'SQUASH', false, getSessionState, resolveBaseBranchName, onCreated);
+		const createAutoRebasePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, 'REBASE', false, getSessionState, resolveBaseBranchName, onCreated);
+		const createAgentMergePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, undefined, true, getSessionState, resolveBaseBranchName, onCreated);
 		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR, createPrHandler));
 		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_DRAFT_PR, createDraftPrHandler));
 		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR_AUTO_MERGE, createAutoMergePrHandler));
 		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR_AUTO_SQUASH, createAutoSquashPrHandler));
 		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR_AUTO_REBASE, createAutoRebasePrHandler));
+		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR_AGENT_MERGE, createAgentMergePrHandler));
 
 		for (const [operationId, action] of [
 			[AgentHostPullRequestLifecycleOperationHandler.OPERATION_MARK_READY, 'mark-ready'],
@@ -61,6 +66,17 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		}
 
 		store.add(this._pullRequestStatusService.onDidChangePullRequestStatus(sessionKey => registry.onDidChangeOperations(sessionKey)));
+		let agentMergeEnabled = this._isAgentMergeEnabled();
+		store.add(this._configurationService.onDidRootConfigChange(() => {
+			const nextAgentMergeEnabled = this._isAgentMergeEnabled();
+			if (agentMergeEnabled === nextAgentMergeEnabled) {
+				return;
+			}
+			agentMergeEnabled = nextAgentMergeEnabled;
+			for (const sessionKey of this._stateManager.getSessionUris()) {
+				registry.onDidChangeOperations(sessionKey);
+			}
+		}));
 		store.add({ dispose: () => { this._registry = undefined; } });
 		return store;
 	}
@@ -128,6 +144,14 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 			scopes: [ChangesetOperationScope.Changeset],
 			status: ChangesetOperationStatus.Idle,
 		},
+		...(this._isAgentMergeEnabled() ? [{
+			id: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR_AGENT_MERGE,
+			label: localize('agentHost.changeset.createPRAgentMerge', "Create PR & Enable Agent Merge"),
+			icon: 'git-merge',
+			group: 'pull-request',
+			scopes: [ChangesetOperationScope.Changeset],
+			status: ChangesetOperationStatus.Idle,
+		}] : []),
 		{
 			id: 'create-draft-pr',
 			label: localize('agentHost.changeset.createDraftPR', "Create Draft PR"),
@@ -136,6 +160,10 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 			scopes: [ChangesetOperationScope.Changeset],
 			status: ChangesetOperationStatus.Idle,
 		}] satisfies ChangesetOperation[];
+	}
+
+	private _isAgentMergeEnabled(): boolean {
+		return this._configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.Enabled) === true;
 	}
 
 	/**

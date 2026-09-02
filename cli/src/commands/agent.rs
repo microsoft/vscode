@@ -366,6 +366,7 @@ async fn authenticate_from_error(
 					resource: resource.resource.clone(),
 					token: credential.access_token().to_string(),
 					scopes: None,
+					meta: None,
 				},
 			)
 			.await

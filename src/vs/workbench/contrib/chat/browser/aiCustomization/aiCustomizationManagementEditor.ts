@@ -360,6 +360,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	// Embedded MCP server detail view
 	private mcpDetailContainer: HTMLElement | undefined;
 	private embeddedMcpDetail: EmbeddedMcpServerDetail | undefined;
+	private mcpDetailBackButton: HTMLButtonElement | undefined;
 	private readonly mcpDetailDisposables = this._register(new DisposableStore());
 
 	// Embedded plugin detail view
@@ -3228,7 +3229,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.embeddedMcpDetail = this.editorDisposables.add(this.instantiationService.createInstance(EmbeddedMcpServerDetail, detailBody));
 
 		// Back button rendered into the detail's leading slot
-		const backButton = DOM.append(this.embeddedMcpDetail.leadingSlot, $('button.editor-back-button'));
+		const backButton = DOM.append(this.embeddedMcpDetail.leadingSlot, $<HTMLButtonElement>('button.editor-back-button'));
+		this.mcpDetailBackButton = backButton;
 		backButton.setAttribute('type', 'button');
 		backButton.setAttribute('aria-label', localize('backToMcpList', "Back to MCP servers"));
 		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToMcpListTooltip', "Back to MCP servers")));
@@ -3256,7 +3258,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.dimension) {
 			this.layout(this.dimension);
 		}
-		this.embeddedMcpDetail.focus();
+		this.mcpDetailBackButton?.focus();
 	}
 
 	private goBackFromMcpDetail(): void {

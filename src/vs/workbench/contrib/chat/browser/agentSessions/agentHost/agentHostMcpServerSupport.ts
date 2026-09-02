@@ -626,6 +626,7 @@ function projectMcpServerConfiguration(launch: McpServerLaunch): IMcpServerConfi
 		case McpServerTransportType.HTTP:
 			return {
 				type: McpServerType.REMOTE,
+				transport: launch.transport === 'sse' ? 'sse' : 'http',
 				url: launch.uri.toString(),
 				...(launch.headers.length > 0 ? { headers: Object.fromEntries(launch.headers) } : {}),
 			};

@@ -13,9 +13,10 @@ import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/con
 import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
+import { ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
-import { findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { findInitialTranscriptContextEntry, findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
@@ -52,6 +53,30 @@ suite('Sessions - Chat View', () => {
 		const label = dom.append(item, dom.$('.chat-input-picker-label'));
 
 		assert.strictEqual(dom.getWindow(label).getComputedStyle(label).display, 'none');
+	});
+
+	test('keeps the model configuration label beside the compact model icon', () => {
+		const toolbar = dom.append(document.body, dom.$('.sessions-chat-config-toolbar'));
+		disposables.add(toDisposable(() => toolbar.remove()));
+		const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
+		const item = dom.append(actionBar, dom.$('.action-item.chat-input-picker-item.compact-picker.model-picker-item'));
+		const picker = dom.append(item, dom.$('.action-label.model-picker-split.compact'));
+		const name = dom.append(picker, dom.$('.model-picker-section.model-picker-name'));
+		name.style.minWidth = '22px';
+		dom.append(name, dom.$('span.codicon'));
+		const config = dom.append(picker, dom.$('.model-picker-section.model-picker-config'));
+		const configLabel = dom.append(config, dom.$('span.chat-input-picker-label'));
+		configLabel.textContent = 'High';
+
+		assert.deepStrictEqual({
+			configVisible: dom.getWindow(configLabel).getComputedStyle(configLabel).display !== 'none',
+			configWidth: config.getBoundingClientRect().width > 0,
+			nameWidth: name.getBoundingClientRect().width,
+		}, {
+			configVisible: true,
+			configWidth: true,
+			nameWidth: 22,
+		});
 	});
 
 	test('keeps compact empty-state picker icons inside their action item', () => {
@@ -108,6 +133,49 @@ suite('Sessions - Chat View', () => {
 			iconWidth: 12,
 			iconOffset: 8,
 			iconEscapes: false,
+		});
+	});
+
+	test('keeps the voice toolbar visible when picker actions run out of space', () => {
+		const session = dom.append(document.body, dom.$('.interactive-session'));
+		disposables.add(toDisposable(() => session.remove()));
+		const toolbars = dom.append(session, dom.$('.chat-input-toolbars'));
+		toolbars.style.width = '180px';
+		const inputToolbar = dom.append(toolbars, dom.$('.monaco-toolbar.responsive.chat-input-toolbar'));
+		inputToolbar.style.width = '240px';
+		const executeToolbar = dom.append(toolbars, dom.$('.chat-execute-toolbar'));
+		executeToolbar.style.width = '70px';
+
+		assert.deepStrictEqual({
+			inputWidth: inputToolbar.getBoundingClientRect().width,
+			executeWidth: executeToolbar.getBoundingClientRect().width,
+			executeEscapes: executeToolbar.getBoundingClientRect().right > toolbars.getBoundingClientRect().right,
+		}, {
+			inputWidth: 108,
+			executeWidth: 70,
+			executeEscapes: false,
+		});
+	});
+
+	test('focuses the embedded composer frame only for editor focus', () => {
+		const workbench = dom.append(document.body, dom.$('.monaco-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		workbench.style.setProperty('--vscode-agentsChatInput-border', 'rgb(255, 0, 0)');
+		workbench.style.setProperty('--vscode-agentsChatInput-focusBorder', 'rgb(0, 255, 0)');
+		const widget = dom.append(workbench, dom.$('.new-chat-in-session'));
+		const inputArea = dom.append(widget, dom.$('.new-chat-input-area'));
+		const picker = dom.append(inputArea, dom.$<HTMLButtonElement>('button'));
+
+		picker.focus();
+		const pickerFocusedBorder = dom.getWindow(inputArea).getComputedStyle(inputArea).borderColor;
+		inputArea.classList.add('focused');
+
+		assert.deepStrictEqual({
+			pickerFocusedBorder,
+			editorFocusedBorder: dom.getWindow(inputArea).getComputedStyle(inputArea).borderColor,
+		}, {
+			pickerFocusedBorder: 'rgb(255, 0, 0)',
+			editorFocusedBorder: 'rgb(0, 255, 0)',
 		});
 	});
 
@@ -208,6 +276,55 @@ suite('Sessions - Chat View', () => {
 			layerPointerEvents: 'none',
 			hasIcons: true,
 			firstIconAriaHidden: 'true',
+		});
+	});
+
+	test('keeps existing codicons stable when the background grid resizes', () => {
+		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+		const part = dom.append(workbench, dom.$('.part.sessionspart'));
+		part.style.width = '960px';
+		part.style.height = '800px';
+		dom.getWindow(workbench).document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+		const renderer = disposables.add(new SessionsChatBackgroundRenderer(part));
+		renderer.setBackground({ kind: 'codicons' });
+		const layer = part.querySelector<HTMLElement>(':scope > .sessions-chat-background > .sessions-chat-codicon-background');
+		const firstIcon = layer?.querySelector<HTMLElement>('.codicon');
+		const firstIconLeft = firstIcon?.style.left;
+		const firstIconTop = firstIcon?.style.top;
+		const initialIconCount = layer?.querySelectorAll('.codicon').length;
+
+		part.style.width = '961px';
+		renderer.setBackground({ kind: 'codicons' });
+		const expandedFirstIcon = layer?.querySelector<HTMLElement>('.codicon');
+		const expandedIconCount = layer?.querySelectorAll('.codicon').length;
+
+		part.style.width = '960px';
+		renderer.setBackground({ kind: 'codicons' });
+		const shrunkFirstIcon = layer?.querySelector<HTMLElement>('.codicon');
+
+		assert.deepStrictEqual({
+			initialIconCount,
+			expandedIconCount,
+			shrunkIconCount: layer?.querySelectorAll('.codicon').length,
+			reusedFirstIconWhenExpanded: expandedFirstIcon === firstIcon,
+			reusedFirstIconWhenShrunk: shrunkFirstIcon === firstIcon,
+			firstIconPositions: [
+				{ left: firstIconLeft, top: firstIconTop },
+				{ left: expandedFirstIcon?.style.left, top: expandedFirstIcon?.style.top },
+				{ left: shrunkFirstIcon?.style.left, top: shrunkFirstIcon?.style.top },
+			],
+		}, {
+			initialIconCount: 109,
+			expandedIconCount: 117,
+			shrunkIconCount: 109,
+			reusedFirstIconWhenExpanded: true,
+			reusedFirstIconWhenShrunk: true,
+			firstIconPositions: [
+				{ left: '125.6px', top: '46.4px' },
+				{ left: '125.6px', top: '46.4px' },
+				{ left: '125.6px', top: '46.4px' },
+			],
 		});
 	});
 
@@ -511,6 +628,24 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('shows transcript preparation completion until visible content appears', () => {
+		assert.deepStrictEqual({
+			hiddenComplete: shouldShowTranscriptPreparationCompletion(1, 0, ResponseModelState.Complete, 'Session ready'),
+			hiddenPending: shouldShowTranscriptPreparationCompletion(1, 0, ResponseModelState.Pending, 'Session ready'),
+			hiddenFailed: shouldShowTranscriptPreparationCompletion(1, 0, ResponseModelState.Failed, 'Session ready'),
+			hiddenCancelled: shouldShowTranscriptPreparationCompletion(1, 0, ResponseModelState.Cancelled, 'Session ready'),
+			visibleRequest: shouldShowTranscriptPreparationCompletion(2, 1, ResponseModelState.Complete, 'Session ready'),
+			noReadyMessage: shouldShowTranscriptPreparationCompletion(1, 0, ResponseModelState.Complete, undefined),
+		}, {
+			hiddenComplete: true,
+			hiddenPending: false,
+			hiddenFailed: false,
+			hiddenCancelled: false,
+			visibleRequest: false,
+			noReadyMessage: false,
+		});
+	});
+
 	test('shows the session-list status message in the pre-request progress surface', () => {
 		assert.deepStrictEqual({
 			fallback: getTranscriptProgress(true, 'Working...'),
@@ -554,6 +689,27 @@ suite('Sessions - Chat View', () => {
 			variableData: { variables: [] },
 			attachedContext: [attachment],
 		}]), attachment);
+
+		const bootstrap = {
+			isRequestHiddenFromTranscript: true,
+			variableData: { variables: [] },
+			attachedContext: [attachment],
+		};
+		const requestOnlyHiddenNotice = {
+			isRequestHiddenFromTranscript: true,
+			variableData: { variables: [] },
+		};
+		const visibleRequest = {
+			isRequestHiddenFromTranscript: false,
+			variableData: { variables: [] },
+		};
+		assert.deepStrictEqual({
+			afterNotice: findInitialTranscriptContextEntry([bootstrap, requestOnlyHiddenNotice]),
+			afterVisibleRequest: findInitialTranscriptContextEntry([bootstrap, visibleRequest]),
+		}, {
+			afterNotice: attachment,
+			afterVisibleRequest: undefined,
+		});
 	});
 
 	test('the sub-session tip yields the space to a notification and comes back', () => {

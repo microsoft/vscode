@@ -61,6 +61,26 @@ Key points:
 - Always register created widgets with `disposableStore.add(...)` to prevent leaks
 - Pass `colorTheme: theme` to `createEditorServices` so theme colors render correctly
 
+### File icon themes
+
+Fixtures use Seti file icons by default. Select another built-in theme, or disable file icons, on the individual fixture:
+
+```typescript
+defineComponentFixture({ fileIconTheme: 'vs-minimal', render: renderMyComponent });
+defineComponentFixture({ fileIconTheme: 'none', render: renderMyComponent });
+```
+
+When the rendered component reads `IThemeService`, pass the selected theme from `ComponentFixtureContext` to `createEditorServices`:
+
+```typescript
+function renderMyComponent({ disposableStore, theme, fileIconTheme }: ComponentFixtureContext): void {
+	const instantiationService = createEditorServices(disposableStore, {
+		colorTheme: theme,
+		fileIconTheme,
+	});
+}
+```
+
 ## Utilities from fixtureUtils.ts
 
 | Export | Purpose |

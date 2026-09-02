@@ -48,7 +48,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { ChatInteractivity, ChatOriginKind, getChatCapabilities, getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -98,6 +98,7 @@ import { ICustomViewService } from '../../../../services/customView/browser/cust
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { Menus } from '../../../../browser/menus.js';
 import { getSessionConversationStatusAriaLabel } from '../../../../browser/sessionConversationGroups.js';
+import { getAgentMergeAwarePullRequestIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../../../../browser/sessionAgentMerge.js';
 
 const $ = DOM.$;
 
@@ -752,6 +753,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		private readonly ciFixModel: ISessionCIFixModel | undefined,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
+		private readonly configurationService: IConfigurationService,
 		private readonly markdownRendererService: IMarkdownRendererService,
 		private readonly hoverService: IHoverService,
 		private readonly sessionsProvidersService: ISessionsProvidersService,
@@ -959,6 +961,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// recreates the autorun. Without template-level tracking, the selector
 		// resets to undefined and the DOM is rebuilt every time, restarting the
 		// CSS spin animation.
+		let agentMergeConfiguration: IObservable<ISessionAgentMergeConfiguration | undefined> | undefined;
 		template.elementDisposables.add(autorun(reader => {
 			const sessionStatus = getSessionRowStatus(element, reader, !!this.options.deriveStatusFromMainChat);
 			template.statusContext.set(sessionStatus);
@@ -970,7 +973,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.supportsDeleteContext.set(capabilities.supportsDelete === true);
 			const gitHubInfo = element.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			const isQuickChat = element.isQuickChat?.read(reader) ?? false;
-			const completedStateIcon = element.completedStateIcon?.read(reader) ?? gitHubInfo?.pullRequest?.icon;
+			let completedStateIcon = element.completedStateIcon?.read(reader)
+				?? getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
+			if (completedStateIcon && isAgentMergePullRequestIcon(completedStateIcon)) {
+				agentMergeConfiguration ??= getSessionAgentMergeConfigurationObservable(element, this.sessionsProvidersService, this.configurationService);
+				completedStateIcon = getAgentMergeAwarePullRequestIcon(completedStateIcon, agentMergeConfiguration.read(reader));
+			}
 
 			// The status icon widget snaps on row recycling and cross-fades real state changes.
 			template.statusIcon.setStatus(sessionStatus, isRead, isArchived, completedStateIcon, element.resource);
@@ -1288,7 +1296,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			}
 			const sessionResource = run.sessionResource;
 			const session = automationSessions.find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, sessionResource));
-			return !!session && !session.isRead.read(reader);
+			return !!session && !session.isRead.read(reader) && !session.isArchived.read(reader);
 		});
 		if (hasUnreadRun) {
 			return SessionStatus.Completed;
@@ -2483,6 +2491,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			undefined,
 			instantiationService,
 			contextKeyService,
+			this.configurationService,
 			markdownRendererService,
 			hoverService,
 			sessionsProvidersService,
@@ -4379,23 +4388,26 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 
 /** Maximum number of sessions shown in the "Recent" date section. */
 const RECENT_SESSIONS_LIMIT = 10;
+const RECENT_SESSIONS_LIMIT_WITH_UPDATES = 15;
+const RECENTLY_UPDATED_SESSION_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 
 export function groupByDate(sessions: ISession[], sorting: SessionsSorting, getSortKey?: (session: ISession, sorting: SessionsSorting) => number): ISessionSection[] {
 	const key = getSortKey ?? defaultSortKey;
 	const now = new Date();
 	const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 	const startOfWeek = startOfToday - 7 * 86_400_000;
+	const recentlyUpdatedThreshold = now.getTime() - RECENTLY_UPDATED_SESSION_THRESHOLD_MS;
 
 	const recent: ISession[] = [];
 	const older: ISession[] = [];
 
-	// `sessions` arrive sorted most-recent-first, so the first sessions within
-	// the last 7 days (capped at RECENT_SESSIONS_LIMIT) form the "Recent"
-	// section; everything else falls into "Older".
 	for (const session of sessions) {
 		const time = key(session, sorting);
+		const wasRecentlyUpdated = sorting === SessionsSorting.Created && session.updatedAt.get().getTime() >= recentlyUpdatedThreshold;
+		const isWithinRecentLimit = recent.length < RECENT_SESSIONS_LIMIT && time >= startOfWeek;
+		const isWithinUpdatedRecentLimit = recent.length < RECENT_SESSIONS_LIMIT_WITH_UPDATES && wasRecentlyUpdated;
 
-		if (time >= startOfWeek && recent.length < RECENT_SESSIONS_LIMIT) {
+		if (isWithinRecentLimit || isWithinUpdatedRecentLimit) {
 			recent.push(session);
 		} else {
 			older.push(session);
@@ -4500,6 +4512,7 @@ export class SessionsFlatList extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IVoicePlaybackService voicePlaybackService: IVoicePlaybackService,
 		@IAgentHostConnectionsService agentHostConnectionsService: IAgentHostConnectionsService,
@@ -4540,6 +4553,7 @@ export class SessionsFlatList extends Disposable {
 			this.options.ciFixModel,
 			instantiationService,
 			contextKeyService,
+			configurationService,
 			markdownRendererService,
 			hoverService,
 			sessionsProvidersService,

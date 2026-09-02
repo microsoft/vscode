@@ -13,7 +13,7 @@ import { ActionEnvelope, ActionType, type AutomationAction, type AutomationRunAc
 import { automationReducer, automationRunReducer, changesetReducer, chatReducer, annotationsReducer, rootReducer, sessionReducer } from './sessionReducers.js';
 import { terminalReducer } from './protocol/reducers.js';
 import type { RootAction, SessionAction as IProtocolSessionAction, ChatAction as IProtocolChatAction, TerminalAction } from './protocol/action-origin.generated.js';
-import type { AnnotationsState, AutomationCatalogState, AutomationRunState, ChangesetState, ChatState, RootState, SessionState, TerminalState } from './protocol/state.js';
+import type { AnnotationsState, AutomationRunState, AutomationState, ChangesetState, ChatState, RootState, SessionState, TerminalState } from './protocol/state.js';
 import type { IStateSnapshot } from './sessionProtocol.js';
 import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isAhpRootChannel, ROOT_STATE_URI, StateComponents } from './sessionState.js';
 import { normalizeLegacyChatStateErrors } from './legacyProtocolCompatibility.js';
@@ -577,13 +577,13 @@ export class TerminalStateSubscription extends BaseAgentSubscription<TerminalSta
 }
 
 /** Subscription to the singleton host-owned automation catalogue. */
-export class AutomationCatalogSubscription extends BaseAgentSubscription<AutomationCatalogState> {
+export class AutomationCatalogSubscription extends BaseAgentSubscription<AutomationState> {
 
 	constructor(clientId: string, log: (msg: string) => void) {
 		super(clientId, log);
 	}
 
-	protected override _applyReducer(state: AutomationCatalogState, action: StateAction): AutomationCatalogState {
+	protected override _applyReducer(state: AutomationState, action: StateAction): AutomationState {
 		return automationReducer(state, action as AutomationAction, this._log);
 	}
 
@@ -1249,6 +1249,14 @@ export function isActionEnvelopeRelevantToSubscriptionUris(envelope: ActionEnvel
 	if (isAhpRootChannel(envelope.channel)) {
 		for (const uri of subscribedUris) {
 			if (isAhpRootChannel(uri)) {
+				return true;
+			}
+		}
+		return false;
+	}
+	if (isAhpAutomationCatalogChannel(envelope.channel)) {
+		for (const uri of subscribedUris) {
+			if (isAhpAutomationCatalogChannel(uri)) {
 				return true;
 			}
 		}

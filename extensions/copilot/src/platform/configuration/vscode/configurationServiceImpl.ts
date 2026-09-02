@@ -8,7 +8,6 @@ import * as vscode from 'vscode';
 import { distinct } from '../../../util/vs/base/common/arrays';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
 import { packageJson } from '../../env/common/packagejson';
-import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { AbstractConfigurationService, BaseConfig, Config, ConfigTarget, CopilotConfigPrefix, ExperimentBasedConfig, ExperimentBasedConfigType, globalConfigRegistry, InspectConfigResult } from '../common/configurationService';
 
 // Helper to avoid JSON.stringify quoting strings
@@ -259,48 +258,7 @@ export class ConfigurationServiceImpl extends AbstractConfigurationService {
 		return this.config.update(key.id, value, target === undefined ? this._getTargetFromInspect(inspect) : this._toVSCodeConfigurationTarget(target));
 	}
 
-	override getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: vscode.ConfigurationScope): T {
-		const configuredValue = this._getUserConfiguredValueForExperimentBasedConfig(key, scope);
-		if (configuredValue !== undefined) {
-			return configuredValue;
-		}
-
-		if (key.experimentName) {
-			const expValue = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(key.experimentName);
-			if (expValue !== undefined) {
-				return expValue;
-			}
-		}
-
-		// This is the pattern we've been using for a while now. We need to maintain it for older experiments.
-		const expValue = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(`copilotchat.config.${key.id}`);
-		if (expValue !== undefined) {
-			return expValue;
-		}
-
-		// This is the pattern vscode uses for settings using the `onExp` tag. But vscode only supports it for
-		// settings defined in package.json, so this is why we're also reading the value from exp here.
-		const expValue2 = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(`config.${key.fullyQualifiedId}`);
-		if (expValue2 !== undefined) {
-			return expValue2;
-		}
-
-		if (key.fullyQualifiedOldId) {
-			const oldExpValue = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(`copilotchat.config.${key.oldId}`);
-			if (oldExpValue !== undefined) {
-				return oldExpValue;
-			}
-
-			const oldExpValue2 = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(`config.${key.fullyQualifiedOldId}`);
-			if (oldExpValue2 !== undefined) {
-				return oldExpValue2;
-			}
-		}
-
-		return this.getDefaultValue(key);
-	}
-
-	private _getUserConfiguredValueForExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, scope?: vscode.ConfigurationScope): T | undefined {
+	protected override _getUserConfiguredExperimentBasedValue<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, scope?: vscode.ConfigurationScope): T | undefined {
 		if (key.options?.valueIgnoredForExternals && !this._isInternal) {
 			// If the setting is restricted to internal users and the user is not internal, we return the default value
 			return undefined;
@@ -353,16 +311,7 @@ export class ConfigurationServiceImpl extends AbstractConfigurationService {
 
 		// Fire simulated event which checks if a configuration is affected in the treatments
 		this._onDidChangeConfiguration.fire({
-			affectsConfiguration: (section: string, _scope?: vscode.ConfigurationScope) => {
-				if (treatments.some(t => t.startsWith(`config.${section}`))) {
-					return true;
-				}
-				const oldId = globalConfigRegistry.configs.get(section)?.fullyQualifiedOldId;
-				if (oldId && treatments.some(t => t.startsWith(`config.${oldId}`))) {
-					return true;
-				}
-				return false;
-			}
+			affectsConfiguration: (section: string, _scope?: vscode.ConfigurationScope) => this._treatmentsAffectConfiguration(treatments, section)
 		});
 	}
 
