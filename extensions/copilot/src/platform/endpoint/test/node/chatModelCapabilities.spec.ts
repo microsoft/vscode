@@ -47,6 +47,19 @@ describe('OpenAI prompt model classification', () => {
 			matches(`${family}.1`),
 		]).toEqual([true, true, true, false, false, false]);
 	});
+
+	test('uses a resolved fallback family for GPT-5.6 tool capabilities', () => {
+		const model = fakeModel('vega-alpha');
+		expect({
+			isGpt56: isGpt56(model, 'gpt-5.6'),
+			supportsApplyPatch: modelSupportsApplyPatch(model, 'gpt-5.6'),
+			canUseApplyPatchExclusively: modelCanUseApplyPatchExclusively(model, 'gpt-5.6'),
+		}).toEqual({
+			isGpt56: true,
+			supportsApplyPatch: true,
+			canUseApplyPatchExclusively: true,
+		});
+	});
 });
 
 describe('modelSupportsPDFDocuments', () => {

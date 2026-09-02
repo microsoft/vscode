@@ -204,10 +204,11 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	const logService = accessor.get<ILogService>(ILogService);
 
 	model ??= await endpointProvider.getChatEndpoint(request);
+	const fallbackModelFamily = await PromptRegistry.resolveFallbackModelFamily(model);
 
 	const allowTools: Record<string, boolean> = {};
 
-	const learned = editToolLearningService.getPreferredEndpointEditTool(model);
+	const learned = fallbackModelFamily ? undefined : editToolLearningService.getPreferredEndpointEditTool(model);
 	if (learned) { // a learning-enabled (BYOK) model, we should go with what it prefers
 		allowTools[ToolName.EditFile] = learned.includes(ToolName.EditFile);
 		allowTools[ToolName.ReplaceString] = learned.includes(ToolName.ReplaceString);
@@ -216,9 +217,9 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	} else {
 		allowTools[ToolName.EditFile] = true;
 		allowTools[ToolName.ReplaceString] = modelSupportsReplaceString(model);
-		allowTools[ToolName.ApplyPatch] = modelSupportsApplyPatch(model) && !!toolsService.getTool(ToolName.ApplyPatch);
+		allowTools[ToolName.ApplyPatch] = modelSupportsApplyPatch(model, fallbackModelFamily) && !!toolsService.getTool(ToolName.ApplyPatch);
 
-		if (allowTools[ToolName.ApplyPatch] && modelCanUseApplyPatchExclusively(model)) {
+		if (allowTools[ToolName.ApplyPatch] && modelCanUseApplyPatchExclusively(model, fallbackModelFamily)) {
 			allowTools[ToolName.EditFile] = false;
 		}
 
@@ -310,7 +311,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 		return undefined;
 	});
 
-	if (modelSupportsSimplifiedApplyPatchInstructions(model) && configurationService.getExperimentBasedConfig(ConfigKey.Advanced.Gpt5AlternativePatch, experimentationService)) {
+	if (modelSupportsSimplifiedApplyPatchInstructions(model, fallbackModelFamily) && configurationService.getExperimentBasedConfig(ConfigKey.Advanced.Gpt5AlternativePatch, experimentationService)) {
 		const ap = tools.findIndex(t => t.name === ToolName.ApplyPatch);
 		if (ap !== -1) {
 			tools[ap] = { ...tools[ap], description: applyPatch5Description };

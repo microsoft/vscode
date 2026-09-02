@@ -53,7 +53,7 @@ export interface AgentPromptCustomizations {
 export class AgentPromptRegistry {
 	private readonly promptsWithMatcher: PromptWithMatcher[] = [];
 	private readonly familyPrefixList: { prefix: string; prompt: IAgentPromptCtor }[] = [];
-	private readonly fallbackPrompts: { prompt: IAgentPromptCtor; matchesModel: PromptWithMatcher['matchesModel'] }[] = [];
+	private readonly fallbackPrompts: { prompt: IAgentPromptCtor; matchesModel: PromptWithMatcher['matchesModel']; modelFamily: string }[] = [];
 
 	registerPrompt(prompt: IAgentPromptCtor): void {
 		if (prompt.matchesModel) {
@@ -68,34 +68,38 @@ export class AgentPromptRegistry {
 	/**
 	 * Registers a fallback used only when no model matcher or family prefix matches.
 	 */
-	registerFallbackPrompt(prompt: IAgentPromptCtor, matchesModel: PromptWithMatcher['matchesModel']): void {
-		this.fallbackPrompts.push({ prompt, matchesModel });
+	registerFallbackPrompt(prompt: IAgentPromptCtor, matchesModel: PromptWithMatcher['matchesModel'], modelFamily: string): void {
+		this.fallbackPrompts.push({ prompt, matchesModel, modelFamily });
 	}
 
 	private async getPromptResolver(
 		endpoint: IChatEndpoint
-	): Promise<IAgentPromptCtor | undefined> {
+	): Promise<{ prompt: IAgentPromptCtor; modelFamily?: string } | undefined> {
 
 		for (const prompt of this.promptsWithMatcher) {
 			const matches = await prompt.matchesModel(endpoint);
 			if (matches) {
-				return prompt;
+				return { prompt };
 			}
 		}
 
 		for (const { prefix, prompt } of this.familyPrefixList) {
 			if (endpoint.family.startsWith(prefix)) {
-				return prompt;
+				return { prompt };
 			}
 		}
 
-		for (const { prompt, matchesModel } of this.fallbackPrompts) {
+		for (const { prompt, matchesModel, modelFamily } of this.fallbackPrompts) {
 			if (await matchesModel(endpoint)) {
-				return prompt;
+				return { prompt, modelFamily };
 			}
 		}
 
 		return undefined;
+	}
+
+	async resolveFallbackModelFamily(endpoint: IChatEndpoint): Promise<string | undefined> {
+		return (await this.getPromptResolver(endpoint))?.modelFamily;
 	}
 
 	/**
@@ -109,7 +113,7 @@ export class AgentPromptRegistry {
 		instantiationService: IInstantiationService,
 		endpoint: IChatEndpoint,
 	): Promise<AgentPromptCustomizations> {
-		const promptResolverCtor = await this.getPromptResolver(endpoint);
+		const promptResolverCtor = (await this.getPromptResolver(endpoint))?.prompt;
 		const agentPrompt = promptResolverCtor ? instantiationService.createInstance(promptResolverCtor) : undefined;
 
 		return {
