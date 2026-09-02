@@ -306,8 +306,122 @@ export const agentMergeDisableReasons = {
 } as const;
 
 /** The transcript notice shown once Agent Merge starts watching a branch. */
-export function agentMergeEnabledNotice(branchName: string): string {
-	return localize('agentMerge.notice.enabled', "Agent Merge is on and watching {0}.", appendEscapedMarkdownInlineCode(branchName));
+export function agentMergeEnabledNotice(target: Pick<AgentMergeTarget, 'branchName' | 'pullRequestUrl'>, configuration: AgentMergeConfiguration): string {
+	const lines = [
+		target.pullRequestUrl
+			? localize('agentMerge.notice.enabled.withPullRequest', "Agent Merge is on for {0} and is monitoring its pull request.", appendEscapedMarkdownInlineCode(target.branchName))
+			: localize('agentMerge.notice.enabled', "Agent Merge is on for {0}. It will wait for a pull request on this branch, then monitor it.", appendEscapedMarkdownInlineCode(target.branchName)),
+	];
+	if (configuration.addressReviews) {
+		lines.push(localize('agentMerge.notice.enabled.addressReviews', "It will ask the agent to address new pull request review comments."));
+	}
+	if (configuration.fixCI) {
+		lines.push(localize('agentMerge.notice.enabled.fixCI', "It will ask the agent to fix failing CI checks."));
+	}
+	if (configuration.resolveConflicts) {
+		lines.push(localize('agentMerge.notice.enabled.resolveConflicts', "It will ask the agent to resolve merge conflicts and update the branch when it falls behind."));
+	}
+	if (!configuration.addressReviews && !configuration.fixCI && !configuration.resolveConflicts) {
+		lines.push(localize('agentMerge.notice.enabled.noRepairs', "It will monitor the pull request but will not ask the agent to repair blockers."));
+	}
+	if (configuration.addressReviews) {
+		lines.push(configuration.replyAttribution
+			? localize('agentMerge.notice.enabled.replyAttribution', "Replies it posts will identify Agent Merge as the source.")
+			: localize('agentMerge.notice.enabled.noReplyAttribution', "Replies it posts will not identify Agent Merge as the source."));
+	}
+	lines.push(
+		configuration.addressReviews
+			? localize('agentMerge.notice.enabled.waiting', "After each update, it will wait for new CI results and review comments.")
+			: localize('agentMerge.notice.enabled.waitingForCI', "After each update, it will wait for new CI results."),
+		agentMergeMergeBehaviorNotice(configuration.mergePullRequest),
+	);
+	if (configuration.mergePullRequest !== 'never') {
+		lines.push(agentMergeMergeMethodNotice(configuration.mergeMethod));
+	}
+	return [lines[0], '', ...lines.slice(1).map(line => `- ${line}`)].join('\n');
+}
+
+/** The transcript notice shown when effective Agent Merge behavior changes. */
+export function agentMergeConfigurationChangedNotice(previous: AgentMergeConfiguration, current: AgentMergeConfiguration): string | undefined {
+	const changes: string[] = [];
+	if (previous.addressReviews !== current.addressReviews) {
+		changes.push(current.addressReviews
+			? localize('agentMerge.notice.configuration.addressReviews.enabled', "It will now address new pull request review comments.")
+			: localize('agentMerge.notice.configuration.addressReviews.disabled', "It will no longer address new pull request review comments or wait for them before merging."));
+	}
+	if (previous.fixCI !== current.fixCI) {
+		changes.push(current.fixCI
+			? localize('agentMerge.notice.configuration.fixCI.enabled', "It will now fix failing CI checks.")
+			: localize('agentMerge.notice.configuration.fixCI.disabled', "It will no longer fix failing CI checks."));
+	}
+	if (previous.resolveConflicts !== current.resolveConflicts) {
+		changes.push(current.resolveConflicts
+			? localize('agentMerge.notice.configuration.resolveConflicts.enabled', "It will now resolve merge conflicts and update the branch when it falls behind.")
+			: localize('agentMerge.notice.configuration.resolveConflicts.disabled', "It will no longer resolve merge conflicts or update a behind branch."));
+	}
+	if (previous.mergePullRequest !== current.mergePullRequest) {
+		changes.push(agentMergeMergeBehaviorChangedNotice(current.mergePullRequest));
+	}
+	if (current.mergePullRequest !== 'never'
+		&& (previous.mergeMethod !== current.mergeMethod || previous.mergePullRequest === 'never')) {
+		changes.push(agentMergeMergeMethodChangedNotice(current.mergeMethod));
+	}
+	if (previous.replyAttribution !== current.replyAttribution && current.addressReviews) {
+		changes.push(current.replyAttribution
+			? localize('agentMerge.notice.configuration.replyAttribution.enabled', "Replies it posts will now identify Agent Merge as the source.")
+			: localize('agentMerge.notice.configuration.replyAttribution.disabled', "Replies it posts will no longer identify Agent Merge as the source."));
+	}
+	return changes.length > 0
+		? [localize('agentMerge.notice.configuration.changed', "Agent Merge settings changed."), '', ...changes.map(change => `- ${change}`)].join('\n')
+		: undefined;
+}
+
+function agentMergeMergeBehaviorNotice(mergePullRequest: AgentMergeMergePullRequest): string {
+	switch (mergePullRequest) {
+		case 'always':
+			return localize('agentMerge.notice.merge.always', "When the pull request is ready, Agent Merge will merge it automatically.");
+		case 'ifUnchanged':
+			return localize('agentMerge.notice.merge.ifUnchanged', "When the pull request is ready, Agent Merge will merge it automatically only if it has not made changes.");
+		case 'never':
+			return localize('agentMerge.notice.merge.never', "It will not merge the pull request automatically and will keep monitoring it.");
+	}
+}
+
+function agentMergeMergeMethodChangedNotice(mergeMethod: AgentMergeMethod): string {
+	switch (mergeMethod) {
+		case 'auto':
+			return localize('agentMerge.notice.configuration.mergeMethod.auto', "It will now choose an available merge method automatically.");
+		case 'squash':
+			return localize('agentMerge.notice.configuration.mergeMethod.squash', "It will now squash-merge the pull request.");
+		case 'merge':
+			return localize('agentMerge.notice.configuration.mergeMethod.merge', "It will now create a merge commit.");
+		case 'rebase':
+			return localize('agentMerge.notice.configuration.mergeMethod.rebase', "It will now rebase and merge the pull request.");
+	}
+}
+
+function agentMergeMergeMethodNotice(mergeMethod: AgentMergeMethod): string {
+	switch (mergeMethod) {
+		case 'auto':
+			return localize('agentMerge.notice.mergeMethod.auto', "It will choose an available merge method automatically.");
+		case 'squash':
+			return localize('agentMerge.notice.mergeMethod.squash', "It will squash-merge the pull request.");
+		case 'merge':
+			return localize('agentMerge.notice.mergeMethod.merge', "It will create a merge commit.");
+		case 'rebase':
+			return localize('agentMerge.notice.mergeMethod.rebase', "It will rebase and merge the pull request.");
+	}
+}
+
+function agentMergeMergeBehaviorChangedNotice(mergePullRequest: AgentMergeMergePullRequest): string {
+	switch (mergePullRequest) {
+		case 'always':
+			return localize('agentMerge.notice.configuration.merge.always', "It will now merge the pull request automatically when it is ready.");
+		case 'ifUnchanged':
+			return localize('agentMerge.notice.configuration.merge.ifUnchanged', "It will now merge the pull request when it is ready, but only if Agent Merge has not made changes.");
+		case 'never':
+			return localize('agentMerge.notice.configuration.merge.never', "It will no longer merge the pull request automatically.");
+	}
 }
 
 /** The transcript notice shown when the user, rather than the controller, turns Agent Merge off. */

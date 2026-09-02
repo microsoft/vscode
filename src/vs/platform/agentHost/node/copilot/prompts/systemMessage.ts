@@ -64,10 +64,9 @@ export const COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS = [
  * Builds a {@link SystemMessageConfig} that fully replaces the CLI/SDK system
  * prompt with `content`.
  *
- * ⚠️ `replace` mode drops ALL SDK guardrails (including security restrictions);
- * prefer {@link sectionOverrides} unless the caller intends to own the entire
- * prompt. The registry still appends the universal layers afterwards, so a
- * replacement owns the prompt body but not the host's response-format contracts.
+ * ⚠️ `replace` mode drops ALL SDK guardrails (including security restrictions).
+ * The prompt registry appends its universal layers when this config passes
+ * through it; direct SDK callers receive only this replacement.
  */
 export function fullSystemPrompt(content: string): SystemMessageConfig {
 	return { mode: 'replace', content };

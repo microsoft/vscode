@@ -988,7 +988,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			orderedSources.push(nonGitDiffs);
 		}
 		const evaluation = evaluateMultiRootDiffSources(orderedSources);
-		if (evaluation.outcome === 'failed') {
+		if (evaluation.outcome !== 'complete') {
 			// No source produced diffs (total failure or no sources at all).
 			// Preserve the previously cached summary instead of clobbering it
 			// with a spurious zero aggregate.

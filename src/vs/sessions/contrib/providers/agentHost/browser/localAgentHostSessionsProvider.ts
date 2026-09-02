@@ -23,7 +23,7 @@ import { supportsAgentHostDetachedWorktrees } from '../../../../../platform/agen
 import { withAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { workspacelessScratchDir } from '../../../../../platform/agentHost/common/workspacelessScratchDir.js';
-import type { AgentCustomization, ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { type AgentCustomization, type ISessionGitState, readSessionEhcliAdoptable } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -148,14 +148,25 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		if (!isLegacyMigrationEnabledAtStartup(this._configurationService)) {
 			return undefined;
 		}
-		const rawId = getCopilotCliSessionRawId(migratedCopilotCliResource(resource));
-		if (rawId && this._sessionCache.has(rawId)) {
-			return migratedCopilotCliResource(resource); // already adopted; no round-trip
+		const twin = migratedCopilotCliResource(resource);
+		const rawId = getCopilotCliSessionRawId(twin);
+		// An un-adopted legacy chat still carries the adoptable marker and must take
+		// the migration probe; only a surfaced external / already-adopted session
+		// short-circuits, since opening its twin is a plain (non-migrating) open.
+		const adoptable = rawId ? readSessionEhcliAdoptable(this._getSessionMetadataByRawId(rawId)) : false;
+		if (rawId && this._sessionCache.has(rawId) && !adoptable) {
+			return twin; // already surfaced and not an un-adopted legacy chat; no round-trip
 		}
 		// Startup restore reopens persisted slots against a cold host, where the
 		// first catalog pass is far slower than an interactive open.
 		const timeoutMs = reason === 'restore' ? LEGACY_MIGRATION_RESTORE_TIMEOUT_MS : LEGACY_MIGRATION_TIMEOUT_MS;
-		return adoptLegacyCopilotCliResource(this.connection, resource, this._logService, this._configurationService, this._telemetryService, reason ?? 'open', timeoutMs);
+		const adopted = await adoptLegacyCopilotCliResource(this.connection, resource, this._logService, this._configurationService, this._telemetryService, reason ?? 'open', timeoutMs);
+		// On decline or timeout, redirect only a non-adoptable (external /
+		// already-adopted) session to its surfaced twin so it opens as-is instead
+		// of the extension-host resource. An adoptable session that failed to adopt
+		// keeps the original `undefined` behavior and opens unmigrated. Mirrors the
+		// chat-editor open path.
+		return adopted ?? (adoptable ? undefined : twin);
 	}
 
 	constructor(

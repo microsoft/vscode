@@ -2201,6 +2201,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 			currentWorkspace: currentWorkspace?.folders[0]?.root.path,
 			contexts: contexts.map(context => context.uri.toString()),
 			triggerSnapshots,
+			petPlatforms: picker.getChatPetPlatformElements().map(element => element.getAttribute('aria-label')),
 		}, {
 			selectedFolder: '/local/project',
 			currentWorkspace: '/local/project',
@@ -2214,6 +2215,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 				{ label: 'Issue/PR', icon: undefined, badge: '1', ariaLabel: 'Choose an issue or pull request, 1 attached' },
 				{ label: 'Issue/PR', icon: 'codicon codicon-add', badge: undefined, ariaLabel: 'Choose an issue or pull request' },
 			],
+			petPlatforms: ['Choose an issue or pull request'],
 		});
 	});
 

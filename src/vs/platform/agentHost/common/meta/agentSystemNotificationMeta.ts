@@ -7,6 +7,8 @@ export const enum AgentSystemNotificationKind {
 	WorktreeCreationFailure = 'worktreeCreationFailure',
 	/** Agent Merge started monitoring the session's branch. */
 	AgentMergeEnabled = 'agentMergeEnabled',
+	/** Effective Agent Merge behavior changed while monitoring. */
+	AgentMergeConfigurationChanged = 'agentMergeConfigurationChanged',
 	/** Agent Merge stopped monitoring the session, usually on its own. */
 	AgentMergeDisabled = 'agentMergeDisabled',
 }
@@ -18,6 +20,7 @@ export const enum AgentSystemNotificationSeverity {
 const knownKinds: ReadonlySet<string> = new Set<string>([
 	AgentSystemNotificationKind.WorktreeCreationFailure,
 	AgentSystemNotificationKind.AgentMergeEnabled,
+	AgentSystemNotificationKind.AgentMergeConfigurationChanged,
 	AgentSystemNotificationKind.AgentMergeDisabled,
 ]);
 

@@ -2312,7 +2312,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				session.setHostCustomizations(current.customizations);
 			}
 			const switchTransport = session.hasPendingTransportSwitch ? this._ensureAuthenticated(session.provisionalModel) : undefined;
-			await session.send(this._buildSdkPrompt(session.sessionId, prompt, attachments, effectiveTurnId), effectiveTurnId, current.configurationResource, workingDirectories, switchTransport, resolveAgentHostInstructions(operationContext), clientTelemetryContext);
+			await session.send(this._buildSdkPrompt(session.sessionId, prompt, attachments, effectiveTurnId), effectiveTurnId, current.configurationResource, workingDirectories, switchTransport, resolveAgentHostInstructions(operationContext), clientTelemetryContext, !!operationContext && !URI.isUri(operationContext) && operationContext.agentMergeTurn === true);
 			if (workingDirectories) {
 				await this._metadataStore.write(current.resource, { workingDirectories });
 			}

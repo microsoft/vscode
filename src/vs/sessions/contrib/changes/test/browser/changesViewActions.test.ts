@@ -95,6 +95,7 @@ suite('Changes View Actions', () => {
 			'create-pr-auto-merge',
 			'create-pr-auto-squash',
 			'create-pr-auto-rebase',
+			'create-pr-agent-merge',
 			'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR',
 			'workbench.action.agentSessions.runSkill.createPR',
 			'create-draft-pr',
@@ -103,8 +104,8 @@ suite('Changes View Actions', () => {
 		].map(actionId => unlockChatPetCreatePullRequestAchievement(actionId, chatPetService));
 
 		assert.deepStrictEqual({ results, attemptedUnlocks }, {
-			results: [true, true, true, true, true, true, false, false, false],
-			attemptedUnlocks: Array(6).fill(ChatPetAchievementIds.CreatePullRequest),
+			results: [true, true, true, true, true, true, true, false, false, false],
+			attemptedUnlocks: Array(7).fill(ChatPetAchievementIds.CreatePullRequest),
 		});
 	});
 
@@ -134,12 +135,12 @@ suite('Changes View Actions', () => {
 		]);
 	});
 
-	test('collapse all diffs is contributed to the editor title bar overflow menu', () => {
-		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
+	test('collapse all diffs is contributed to the editor header layout overflow menu', () => {
+		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agentSessions.collapseAllDiffs');
 
-		assert.ok(item, 'expected collapse all diffs action in the editor title bar overflow menu');
+		assert.ok(item, 'expected collapse all diffs action in the editor header layout overflow menu');
 		const when = item.when?.serialize() ?? '';
 		assert.deepStrictEqual({
 			group: item.group,
@@ -150,7 +151,7 @@ suite('Changes View Actions', () => {
 			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
-			group: '1_diff',
+			group: 'secondary/1_diff',
 			order: 10,
 			icon: Codicon.collapseAll.id,
 			hasSessionsWindowGate: true,
@@ -160,12 +161,12 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('expand all diffs is contributed to the editor title bar overflow menu', () => {
-		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
+	test('expand all diffs is contributed to the editor header layout overflow menu', () => {
+		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agentSessions.expandAllDiffs');
 
-		assert.ok(item, 'expected expand all diffs action in the editor title bar overflow menu');
+		assert.ok(item, 'expected expand all diffs action in the editor header layout overflow menu');
 		const when = item.when?.serialize() ?? '';
 		assert.deepStrictEqual({
 			group: item.group,
@@ -177,7 +178,7 @@ suite('Changes View Actions', () => {
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 			hasAllCollapsedGate: when.includes(EditorContextKeys.multiDiffEditorAllCollapsed.key),
 		}, {
-			group: '1_diff',
+			group: 'secondary/1_diff',
 			order: 10,
 			icon: Codicon.expandAll.id,
 			hasSessionsWindowGate: true,
@@ -188,12 +189,12 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('always show inline diff is contributed to the editor title bar overflow menu for multi-file and single-file diffs', () => {
-		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
+	test('always show inline diff is contributed to the editor header layout overflow menu for multi-file and single-file diffs', () => {
+		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'toggle.diff.renderSideBySide');
 
-		assert.ok(item, 'expected the preferred diff view action in the editor title bar overflow menu');
+		assert.ok(item, 'expected the preferred diff view action in the editor header layout overflow menu');
 		const when = item.when?.serialize() ?? '';
 		const toggled = item.command.toggled;
 		const toggledCondition = isICommandActionToggleInfo(toggled) ? toggled.condition : toggled;
@@ -227,7 +228,7 @@ suite('Changes View Actions', () => {
 		}, {
 			id: 'toggle.diff.renderSideBySide',
 			title: 'Always Show Inline Diff',
-			group: '1_diff',
+			group: 'secondary/1_diff',
 			order: 20,
 			icon: Codicon.diffSidebyside.id,
 			tooltip: 'Always uses inline layout.',
@@ -285,7 +286,7 @@ suite('Changes View Actions', () => {
 	}
 
 	test('Changes accessibility help describes the single-pane diff action', () => {
-		assert.strictEqual(getChangesAccessibilityHelp(true).includes('Use Always Show Inline Diff in the editor title bar\'s More Actions menu'), true);
+		assert.strictEqual(getChangesAccessibilityHelp(true).includes('Use Always Show Inline Diff in the editor header\'s More Actions menu'), true);
 	});
 
 	test('Changes accessibility help describes the classic diff action', () => {
