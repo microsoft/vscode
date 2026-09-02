@@ -252,6 +252,7 @@ class Editor extends Disposable {
 			providers: this.#createIframeProviders(this.#codeBlockEditorProviders),
 			scriptNonce,
 			themeCss: () => `:root { ${document.documentElement.getAttribute('style') ?? ''} }`,
+			iframeBootstrapUrl: location.href,
 			onAmbiguous: (language, providers) => this.#vscode.postMessage({
 				type: 'codeBlockEditorDiagnostic',
 				message: `Ambiguous providers for ${language}: ${providers.map(provider => provider.id).join(', ')}`,
