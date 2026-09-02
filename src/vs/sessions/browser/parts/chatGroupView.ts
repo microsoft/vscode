@@ -97,7 +97,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 	private readonly _currentView = this._register(new MutableDisposable<AbstractChatView>());
 	private readonly _contextDisposables = this._register(new DisposableStore());
-	private readonly _connection = this._register(this._instantiationService.createInstance(SessionRemoteConnection));
+	private readonly _connection: SessionRemoteConnection;
 
 	/** The configured wording for the archive/unarchive action (Archive vs Delete). */
 	private readonly _archiveActionWording: IObservable<ReturnType<typeof getChatSessionArchiveActionWording>>;
@@ -120,6 +120,11 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
+
+		// Assigned here rather than as a field initializer: `_instantiationService`
+		// is a parameter property of this class, which class-field semantics
+		// initialize after the field initializers run.
+		this._connection = this._register(this._instantiationService.createInstance(SessionRemoteConnection));
 
 		this._archiveActionWording = observableFromEvent(
 			this,
