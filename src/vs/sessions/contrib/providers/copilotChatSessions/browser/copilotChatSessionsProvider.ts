@@ -26,7 +26,7 @@ import { IChatResponseModel } from '../../../../../workbench/contrib/chat/common
 import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatModelSource, ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, ISideChatSelection, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, gitHubInfoEqual, sessionWorkspaceEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_GITHUB, ISessionChangeset, IChatCheckpoints, ChatInteractivity, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
+import { basename, dirname, isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../../chat/browser/newSession.js';
 import { ILanguageModelToolsService } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
@@ -914,6 +914,9 @@ async function resolveGitHubRepositoryId(folder: ISessionFolder, gitService: Pic
 	}
 
 	const repository = await gitService.openRepository(folder.gitRepository?.uri ?? folder.root);
+	if (!repository || !isEqualOrParent(folder.root, repository.rootUri)) {
+		return undefined;
+	}
 	const repositoryInfo = repository && getGitHubRemoteInfo(repository.state.get());
 	return repositoryInfo ? `${repositoryInfo.owner}/${repositoryInfo.repo}` : undefined;
 }
@@ -2748,12 +2751,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			}
 		}
 
-		let repoId = repositoryIds.size === 1 ? repositoryIds.values().next().value : undefined;
-		if (repositoryIds.size > 1 || !currentWorkspace) {
-			repoId = await this.commandService.executeCommand<string>(OPEN_REPO_COMMAND);
-			if (!repoId) {
-				return undefined;
-			}
+		const repoId = repositoryIds.size === 1
+			? repositoryIds.values().next().value
+			: await this.commandService.executeCommand<string>(OPEN_REPO_COMMAND);
+		if (!repoId) {
+			return undefined;
 		}
 
 		const selection = await this.commandService.executeCommand<IGitHubContextSelection>(commandId, repoId);
