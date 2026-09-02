@@ -140,7 +140,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	private _getViewInfo(view: BrowserView): IBrowserViewInfo {
 		return {
 			id: view.id,
-			hostWindowId: view.hostWindowId,
+			host: view.host,
 			owner: view.owner,
 			associatedResource: view.associatedResource,
 			state: view.getState()
@@ -150,7 +150,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	async getBrowserViews(windowId?: number): Promise<IBrowserViewInfo[]> {
 		const result: IBrowserViewInfo[] = [];
 		for (const [, view] of this.browserViews) {
-			if (windowId !== undefined && view.hostWindowId !== windowId) {
+			if (windowId !== undefined && view.host.windowId !== windowId) {
 				continue;
 			}
 			result.push(this._getViewInfo(view));
@@ -188,6 +188,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	onDynamicDidChangeFavicon(id: string) {
 		return this._getBrowserView(id).onDidChangeFavicon;
+	}
+
+	onDynamicDidChangeOwner(id: string) {
+		return this._getBrowserView(id).onDidChangeOwner;
 	}
 
 	onDynamicDidFindInPage(id: string) {
@@ -262,6 +266,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	async destroyBrowserView(id: string): Promise<void> {
 		return this.browserViews.deleteAndDispose(id);
+	}
+
+	async setOwner(id: string, owner: IBrowserViewOwner): Promise<void> {
+		this._getBrowserView(id).setOwner(owner);
 	}
 
 	async layout(id: string, bounds: IBrowserViewBounds): Promise<void> {
@@ -397,7 +405,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		this._ensureWindowCloseSubscription(windowId);
 
 		for (const [, view] of this.browserViews) {
-			if (view.hostWindowId === windowId) {
+			if (view.host.windowId === windowId) {
 				if (didThemeChange) {
 					view.inspector.setTheme(config.theme);
 				}
@@ -445,13 +453,13 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	/**
 	 * Create a browser view backed by the given {@link BrowserSession}.
 	 */
-	private _createNativeBrowserView(id: string, hostWindowId: number, owner: IBrowserViewOwner, browserSession: BrowserSession, associatedResource?: URI, options?: Electron.WebContentsViewConstructorOptions): BrowserView {
+	private _createNativeBrowserView(id: string, host: IBrowserViewCreationContext['host'], owner: IBrowserViewOwner, browserSession: BrowserSession, associatedResource?: URI, options?: Electron.WebContentsViewConstructorOptions): BrowserView {
 		if (this.browserViews.has(id)) {
 			throw new Error(`Browser view with id ${id} already exists`);
 		}
 
 		browserSession.connectStorage(this.applicationStorageMainService);
-		const windowConfiguration = this._windowConfigurations.get(hostWindowId);
+		const windowConfiguration = this._windowConfigurations.get(host.windowId);
 		if (typeof windowConfiguration?.maxHistoryEntries === 'number') {
 			browserSession.history.setMaxEntries(windowConfiguration.maxHistoryEntries);
 		}
@@ -462,15 +470,15 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		const view = this.instantiationService.createInstance(
 			BrowserView,
 			id,
-			hostWindowId,
+			host,
 			owner,
 			associatedResource,
 			browserSession,
 			// Child views share their host, owner, and storage, but do not implicitly inherit agent access.
-			(url, electronOptions, editorOptions) => {
+			(childOwner, url, electronOptions, editorOptions) => {
 				return this._createBrowserView(generateUuid(), {
-					hostWindowId,
-					owner,
+					host,
+					owner: childOwner,
 					session: browserSession.id,
 					initialUrl: url || undefined
 				}, editorOptions, electronOptions);
@@ -493,11 +501,11 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	private _createBrowserView(id: string, options: IBrowserViewCreateOptions, editorOpenRequest?: IBrowserViewEditorOpenOptions, electronOptions?: Electron.WebContentsViewConstructorOptions): BrowserView {
 		const hasAgentAccess = options.owner.type === 'agent' || options.initialAudiences?.some(audience => audience.type === 'agent') === true;
-		const browserSession = this._resolveBrowserSession(id, options.hostWindowId, options.session);
+		const browserSession = this._resolveBrowserSession(id, options.host.windowId, options.session);
 		if (hasAgentAccess) {
 			this.validateAgentStorageScope(browserSession.storageScope);
 		}
-		const view = this._createNativeBrowserView(id, options.hostWindowId, options.owner, browserSession, URI.revive(options.associatedResource), electronOptions);
+		const view = this._createNativeBrowserView(id, options.host, options.owner, browserSession, URI.revive(options.associatedResource), electronOptions);
 		if (options.initialAudiences) {
 			view.setAudiences(options.initialAudiences);
 		}
@@ -558,7 +566,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			return;
 		}
 
-		const windowConfiguration = this._windowConfigurations.get(view.hostWindowId);
+		const windowConfiguration = this._windowConfigurations.get(view.host.windowId);
 		const inspectTarget = windowConfiguration?.aiFeaturesDisabled
 			? undefined
 			: params.frame && await view.inspector.getElementHandle(BrowserViewInspectElementId.ContextMenuTarget, params.frame);
@@ -569,7 +577,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 				label: localize('browser.contextMenu.openLinkInNewTab', 'Open Link in New Tab'),
 				click: () => {
 					void this.openNew(params.linkURL, {
-						hostWindowId: view.hostWindowId,
+						host: view.host,
 						owner: view.owner,
 						session: view.session.id,
 					}, { preserveFocus: true, background: true }, 'browserLinkBackground');
@@ -599,7 +607,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 				label: localize('browser.contextMenu.openImageInNewTab', 'Open Image in New Tab'),
 				click: () => {
 					void this.openNew(params.srcURL!, {
-						hostWindowId: view.hostWindowId,
+						host: view.host,
 						owner: view.owner,
 						session: view.session.id,
 					}, { preserveFocus: true, background: true }, 'browserLinkBackground');

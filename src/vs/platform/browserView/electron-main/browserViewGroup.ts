@@ -58,7 +58,7 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 		super();
 
 		this._register(this.browserViewMainService.onDidCreateBrowserView(({ info }) => {
-			if (info.hostWindowId !== this.targetContext.hostWindowId) {
+			if (info.host.windowId !== this.targetContext.host.windowId) {
 				return;
 			}
 
@@ -92,7 +92,7 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 		this._validateAgentGroupStorageScope();
 		this._isActive = true;
 
-		const views = await this.browserViewMainService.getBrowserViews(this.targetContext.hostWindowId);
+		const views = await this.browserViewMainService.getBrowserViews(this.targetContext.host.windowId);
 		await Promise.all(views.map(async info => {
 			const view = this.browserViewMainService.tryGetBrowserView(info.id);
 			if (view) {
@@ -245,7 +245,7 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 		const view = target.view.getWebContentsView();
 		const viewBounds = view.getBounds();
 		return {
-			windowId: this.targetContext.hostWindowId,
+			windowId: this.targetContext.host.windowId,
 			bounds: {
 				left: viewBounds.x,
 				top: viewBounds.y,

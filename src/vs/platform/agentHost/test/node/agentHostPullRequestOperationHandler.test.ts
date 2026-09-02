@@ -24,6 +24,9 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import type { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import type { IAgentBranchNameGenerator, IAgentBranchNameGeneratorRequest } from '../../node/shared/agentBranchNameGenerator.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import type { AgentMergeControllerState, AgentMergeSessionOverrides } from '../../common/agentMerge.js';
+import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 
 class TestCopilotApiService implements ICopilotApiService {
 	declare readonly _serviceBrand: undefined;
@@ -206,11 +209,12 @@ function createAuthenticationService(withCopilotToken = false): IAgentHostAuthen
 	};
 }
 
-function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, octoKitService: TestOctoKitService, options?: { copilotApiService?: TestCopilotApiService; withCopilotToken?: boolean; turns?: Turn[]; draft?: boolean; autoMergeMethod?: AutoMergeMethod; baseBranch?: string; branchPrefix?: string }): { handler: AgentHostPullRequestOperationHandler; session: URI; createdEvents: string[]; createdBranches: string[]; copilotApiService: TestCopilotApiService; branchNameGenerator: TestBranchNameGenerator } {
+function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, octoKitService: TestOctoKitService, options?: { copilotApiService?: TestCopilotApiService; withCopilotToken?: boolean; turns?: Turn[]; draft?: boolean; autoMergeMethod?: AutoMergeMethod; enableAgentMerge?: boolean; agentMergeOverrides?: AgentMergeSessionOverrides; agentMergeControllerState?: AgentMergeControllerState; baseBranch?: string; branchPrefix?: string }): { handler: AgentHostPullRequestOperationHandler; session: URI; createdEvents: string[]; createdBranches: string[]; sessionConfigUpdates: Record<string, unknown>[]; copilotApiService: TestCopilotApiService; branchNameGenerator: TestBranchNameGenerator } {
 	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	const session = URI.parse('agent:/session');
 	const createdEvents: string[] = [];
 	const createdBranches: string[] = [];
+	const sessionConfigUpdates: Record<string, unknown>[] = [];
 	stateManager.createSession({
 		resource: session.toString(),
 		provider: 'copilot',
@@ -244,10 +248,22 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 	stateManager.setSessionMeta(session.toString(), sessionMeta);
 	const copilotApiService = options?.copilotApiService ?? new TestCopilotApiService();
 	const branchNameGenerator = new TestBranchNameGenerator();
+	const configurationService = new class extends mock<IAgentConfigurationService>() {
+		override getSessionConfigValues(): Record<string, unknown> {
+			return {
+				...(options?.agentMergeOverrides ? { [SessionConfigKey.AgentMerge]: { enabled: false, overrides: options.agentMergeOverrides } } : {}),
+				...(options?.agentMergeControllerState ? { [SessionConfigKey.AgentMergeController]: options.agentMergeControllerState } : {}),
+			};
+		}
+		override updateSessionConfig(_session: string, patch: Record<string, unknown>): void {
+			sessionConfigUpdates.push(patch);
+		}
+	}();
 	return {
 		handler: new AgentHostPullRequestOperationHandler(
 			options?.draft ?? false,
 			options?.autoMergeMethod,
+			options?.enableAgentMerge ?? false,
 			sessionKey => {
 				const state = stateManager.getSessionState(sessionKey);
 				if (state && options?.turns) {
@@ -260,10 +276,11 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 				createdEvents.push(`${event.sessionKey}:${event.pullRequestUrl}`);
 				createdBranches.push(event.branchName);
 			},
-			createAuthenticationService(options?.withCopilotToken), gitService, octoKitService, createTestGitHubEndpointService(), copilotApiService, branchNameGenerator, new NullLogService()),
+			createAuthenticationService(options?.withCopilotToken), gitService, octoKitService, createTestGitHubEndpointService(), copilotApiService, branchNameGenerator, configurationService, new NullLogService()),
 		session,
 		createdEvents,
 		createdBranches,
+		sessionConfigUpdates,
 		copilotApiService,
 		branchNameGenerator,
 	};
@@ -306,6 +323,42 @@ suite('AgentHostPullRequestOperationHandler', () => {
 				'createPullRequest:false',
 			],
 			createdEvents: ['agent:/session:https://github.com/microsoft/vscode/pull/123'],
+		});
+	});
+
+	test('enables Agent Merge after creating the pull request, preserves overrides, and clears stale controller state', async () => {
+		const gitService = new TestGitService();
+		const octoKitService = new TestOctoKitService();
+		const overrides: AgentMergeSessionOverrides = { fixCI: false };
+		const { handler, session, createdEvents, sessionConfigUpdates } = setup(disposables, gitService, octoKitService, {
+			enableAgentMerge: true,
+			agentMergeOverrides: overrides,
+			agentMergeControllerState: {
+				target: {
+					branchName: 'previous-branch',
+					pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1',
+					enabledAt: new Date(1).toISOString(),
+					commentWatermark: '',
+				},
+			},
+		});
+
+		const result = await handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR_AGENT_MERGE }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			message: result.message,
+			createdEvents,
+			sessionConfigUpdates,
+		}, {
+			message: { markdown: 'Created pull request [#123](https://github.com/microsoft/vscode/pull/123) and enabled Agent Merge.' },
+			createdEvents: ['agent:/session:https://github.com/microsoft/vscode/pull/123'],
+			sessionConfigUpdates: [{
+				[SessionConfigKey.AgentMerge]: {
+					enabled: true,
+					overrides,
+				},
+				[SessionConfigKey.AgentMergeController]: {},
+			}],
 		});
 	});
 

@@ -5,11 +5,11 @@
 
 import { localize, localize2 } from '../../../../../nls.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Action2, ISubmenuItem, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { AgentMergeConfiguration, AgentMergeMergePullRequest, AgentMergeRepairAction, AgentMergeSessionOverrides, AgentMergeSettingId, agentMergeMergePullRequestValues, AGENT_MERGE_SETTING_TAG, defaultAgentMergeConfiguration, isAgentMergeMergePullRequest, resolveAgentMergeConfiguration } from '../../../../../platform/agentHost/common/agentMerge.js';
+import { AgentMergeMergePullRequest, AgentMergeRepairAction, AgentMergeSessionOverrides, AgentMergeSettingId, agentMergeMergePullRequestValues, AGENT_MERGE_SETTING_TAG, resolveAgentMergeConfiguration } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostPullRequestOperationId } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -27,6 +27,7 @@ import { CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP } from '../../../changes/brow
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { getGlobalAgentMergeConfiguration, getSessionAgentMergeConfigurationObservable } from '../../../../browser/sessionAgentMerge.js';
 
 const agentMergeCommandPrecondition = ContextKeyExpr.and(
 	IsSessionsWindowContext,
@@ -128,41 +129,23 @@ class AgentMergeContextContribution extends Disposable implements IWorkbenchCont
 		const enabledKey = SessionAgentMergeEnabledContext.bindTo(contextKeyService);
 		const actionKeys = new Map(agentMergeRepairActions.map(action => [action, AgentMergeSessionActionContexts[action].bindTo(contextKeyService)]));
 		const mergePullRequestKey = AgentMergeSessionMergePullRequestContext.bindTo(contextKeyService);
-		const providerListener = this._register(new MutableDisposable());
-		const configurationListener = this._register(new MutableDisposable());
 		let lastLogged: string | undefined;
 		this._register(autorun(reader => {
 			const session = sessionsService.activeSession.read(reader);
-			const provider = session && sessionsProvidersService.getProvider(session.providerId);
-			const agentHostProvider = provider && isAgentHostProvider(provider) ? provider : undefined;
-			const update = () => {
-				const state = session && agentHostProvider ? agentHostProvider.getAgentMergeSessionState(session.sessionId) : undefined;
-				enabledKey.set(state?.enabled === true);
-				const effective = resolveAgentMergeConfiguration(getGlobalConfiguration(configurationService), state?.overrides);
-				for (const [action, key] of actionKeys) {
-					key.set(effective[action]);
-				}
-				mergePullRequestKey.set(effective.mergePullRequest);
-				// Explains both the toggle state of the dropdown entries and
-				// whether Agent Merge can claim the primary button at all.
-				const authorized = agentMergeRepairActions.filter(action => effective[action]);
-				const signature = `${session?.sessionId ?? 'none'}|${state?.enabled === true}|${authorized.join(',')}|${effective.mergePullRequest}`;
-				if (lastLogged !== signature) {
-					lastLogged = signature;
-					logService.info(`[AgentMergeActions] Session state: session=${session?.sessionId ?? 'none'}, enabled=${state?.enabled === true}, authorizedActions=[${authorized.join(', ') || 'none'}], mergePullRequest=${effective.mergePullRequest}`);
-				}
-			};
-			providerListener.value = agentHostProvider?.onDidChangeSessionConfig(changed => {
-				if (changed === session?.sessionId) {
-					update();
-				}
-			});
-			configurationListener.value = configurationService.onDidChangeConfiguration(event => {
-				if (Object.values(AgentMergeSettingId).some(settingId => event.affectsConfiguration(settingId))) {
-					update();
-				}
-			});
-			update();
+			const state = session ? getSessionAgentMergeConfigurationObservable(session, sessionsProvidersService, configurationService).read(reader) : undefined;
+			const enabled = state?.enabled === true;
+			const effective = state?.actions ?? getGlobalAgentMergeConfiguration(configurationService);
+			enabledKey.set(enabled);
+			for (const [action, key] of actionKeys) {
+				key.set(effective[action]);
+			}
+			mergePullRequestKey.set(effective.mergePullRequest);
+			const authorized = agentMergeRepairActions.filter(action => effective[action]);
+			const signature = `${session?.sessionId ?? 'none'}|${enabled}|${authorized.join(',')}|${effective.mergePullRequest}`;
+			if (lastLogged !== signature) {
+				lastLogged = signature;
+				logService.info(`[AgentMergeActions] Session state: session=${session?.sessionId ?? 'none'}, enabled=${enabled}, authorizedActions=[${authorized.join(', ') || 'none'}], mergePullRequest=${effective.mergePullRequest}`);
+			}
 		}));
 	}
 }
@@ -194,7 +177,7 @@ abstract class AgentMergeActionBase extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		const logService = accessor.get(ILogService);
 		const state = active.provider.getAgentMergeSessionState(active.session.sessionId);
-		const effective = resolveAgentMergeConfiguration(getGlobalConfiguration(configurationService), state?.overrides);
+		const effective = resolveAgentMergeConfiguration(getGlobalAgentMergeConfiguration(configurationService), state?.overrides);
 		const overrides: AgentMergeSessionOverrides = {
 			addressReviews: effective.addressReviews,
 			fixCI: effective.fixCI,
@@ -208,8 +191,8 @@ abstract class AgentMergeActionBase extends Action2 {
 }
 
 // The primary button only names the Agent Merge actions, so it is contributed
-// as a submenu: the changes button bar opens exactly these entries as a context
-// menu rather than its own dropdown, which also carries pull request operations.
+// as a submenu: its first entry is the primary invocation, while the button's
+// dropdown also carries the remaining pull request operations.
 //
 // Deliberately not gated on Agent Merge being enabled for the session: the
 // button stands in for the auto-merge operations either way, and enabling it is
@@ -225,8 +208,8 @@ MenuRegistry.appendMenuItem(Menus.ChangesOperationsDropdown, {
 	when: ContextKeyExpr.and(agentMergeMenuPrecondition, agentMergeOwnsPrimaryButton),
 });
 
-/** Menus the Agent Merge entries appear on: the operations dropdown, and their own context menu. */
-const agentMergeMenus = [Menus.ChangesOperationsDropdown, Menus.ChangesAgentMerge];
+/** Menus the top-level Agent Merge entries appear on: the operations dropdown, and their own context menu. */
+const agentMergeTopLevelMenus = [Menus.ChangesOperationsDropdown, Menus.ChangesAgentMerge];
 
 registerAction2(class EnableAgentMergeInSessionAction extends AgentMergeActionBase {
 	constructor() {
@@ -236,7 +219,7 @@ registerAction2(class EnableAgentMergeInSessionAction extends AgentMergeActionBa
 			// goes, so a check mark next to "Enable" would only be ambiguous.
 			title: localize2('agentMerge.enableInSession', "Enable Agent Merge"),
 			f1: false,
-			menu: agentMergeMenus.map(id => ({
+			menu: agentMergeTopLevelMenus.map(id => ({
 				id,
 				group: '1_agentMerge',
 				order: 1,
@@ -262,7 +245,7 @@ registerAction2(class DisableAgentMergeInSessionAction extends AgentMergeActionB
 			id: 'sessions.agentHost.agentMerge.disableInSession',
 			title: localize2('agentMerge.disableInSession', "Disable Agent Merge"),
 			f1: false,
-			menu: agentMergeMenus.map(id => ({
+			menu: agentMergeTopLevelMenus.map(id => ({
 				id,
 				group: '1_agentMerge',
 				order: 1,
@@ -282,6 +265,16 @@ registerAction2(class DisableAgentMergeInSessionAction extends AgentMergeActionB
 	}
 });
 
+for (const id of agentMergeTopLevelMenus) {
+	MenuRegistry.appendMenuItem(id, {
+		submenu: Menus.ChangesAgentMergeConfigure,
+		title: localize2('agentMerge.configure.submenu', "Configure Agent Merge"),
+		group: '1_agentMerge',
+		order: 2,
+		when: agentMergeMenuPrecondition,
+	});
+}
+
 for (const [index, action] of agentMergeRepairActions.entries()) {
 	registerAction2(class ToggleAgentMergeRepairAction extends AgentMergeActionBase {
 		constructor() {
@@ -290,12 +283,12 @@ for (const [index, action] of agentMergeRepairActions.entries()) {
 				title: { value: agentMergeActionLabels[action], original: agentMergeActionLabels[action] },
 				toggled: AgentMergeSessionActionContexts[action],
 				f1: false,
-				menu: agentMergeMenus.map(id => ({
-					id,
-					group: '2_agentMergeActions',
+				menu: [{
+					id: Menus.ChangesAgentMergeConfigure,
+					group: '1_agentMergeActions',
 					order: index,
 					when: agentMergeMenuPrecondition,
-				})),
+				}],
 			});
 		}
 
@@ -305,7 +298,7 @@ for (const [index, action] of agentMergeRepairActions.entries()) {
 				return;
 			}
 			const state = active.provider.getAgentMergeSessionState(active.session.sessionId);
-			const effective = resolveAgentMergeConfiguration(getGlobalConfiguration(accessor.get(IConfigurationService)), state?.overrides);
+			const effective = resolveAgentMergeConfiguration(getGlobalAgentMergeConfiguration(accessor.get(IConfigurationService)), state?.overrides);
 			await this.updateOverrides(accessor, { [action]: !effective[action] });
 		}
 	});
@@ -314,8 +307,7 @@ for (const [index, action] of agentMergeRepairActions.entries()) {
 // One submenu entry per value, so the title can name the current choice without
 // the user having to open it. Exactly one is ever visible.
 for (const value of agentMergeMergePullRequestValues) {
-	MenuRegistry.appendMenuItem(Menus.ChangesOperationsDropdown, mergePullRequestSubmenuItem(value));
-	MenuRegistry.appendMenuItem(Menus.ChangesAgentMerge, mergePullRequestSubmenuItem(value));
+	MenuRegistry.appendMenuItem(Menus.ChangesAgentMergeConfigure, mergePullRequestSubmenuItem(value));
 }
 
 function mergePullRequestSubmenuItem(value: AgentMergeMergePullRequest): ISubmenuItem {
@@ -323,7 +315,7 @@ function mergePullRequestSubmenuItem(value: AgentMergeMergePullRequest): ISubmen
 	return {
 		submenu: Menus.ChangesAgentMergeMergePullRequest,
 		title: { value: title, original: title },
-		group: '2_agentMergeActions',
+		group: '1_agentMergeActions',
 		order: agentMergeRepairActions.length,
 		when: ContextKeyExpr.and(agentMergeMenuPrecondition, AgentMergeSessionMergePullRequestContext.isEqualTo(value)),
 	};
@@ -358,12 +350,12 @@ registerAction2(class OpenAgentMergeDefaultsAction extends Action2 {
 			id: 'sessions.agentHost.agentMerge.openDefaults',
 			title: localize2('agentMerge.openDefaults', "Agent Merge Defaults"),
 			f1: false,
-			menu: agentMergeMenus.map(id => ({
-				id,
-				group: '3_agentMergeDefaults',
+			menu: [{
+				id: Menus.ChangesAgentMergeConfigure,
+				group: '2_agentMergeDefaults',
 				order: 1,
 				when: agentMergeMenuPrecondition,
-			})),
+			}],
 		});
 	}
 
@@ -440,7 +432,7 @@ registerAction2(class ConfigureAgentMergeAction extends AgentMergeActionBase {
 		const quickInputService = accessor.get(IQuickInputService);
 		const logService = accessor.get(ILogService);
 		const notificationService = accessor.get(INotificationService);
-		const defaults = getGlobalConfiguration(configurationService);
+		const defaults = getGlobalAgentMergeConfiguration(configurationService);
 		const current = active.provider.getAgentMergeSessionState(active.session.sessionId);
 		const effective = resolveAgentMergeConfiguration(defaults, current?.overrides);
 		const picks: IAgentMergeActionPick[] = agentMergeRepairActions.map(action => ({
@@ -497,24 +489,6 @@ function pickAgentMergeActions(
 		}));
 		quickPick.show();
 	});
-}
-
-function getGlobalConfiguration(configurationService: IConfigurationService): AgentMergeConfiguration {
-	const mergePullRequest = configurationService.getValue<unknown>(AgentMergeSettingId.MergePullRequest);
-	return {
-		addressReviews: configurationService.getValue<boolean>(AgentMergeSettingId.AddressReviews) ?? defaultAgentMergeConfiguration.addressReviews,
-		fixCI: configurationService.getValue<boolean>(AgentMergeSettingId.FixCI) ?? defaultAgentMergeConfiguration.fixCI,
-		resolveConflicts: configurationService.getValue<boolean>(AgentMergeSettingId.ResolveConflicts) ?? defaultAgentMergeConfiguration.resolveConflicts,
-		// Tolerates the retired boolean form so a profile that has not run the
-		// settings migration yet still shows the right entry as selected.
-		mergePullRequest: isAgentMergeMergePullRequest(mergePullRequest)
-			? mergePullRequest
-			: typeof mergePullRequest === 'boolean'
-				? (mergePullRequest ? 'always' : 'never')
-				: defaultAgentMergeConfiguration.mergePullRequest,
-		mergeMethod: configurationService.getValue<AgentMergeConfiguration['mergeMethod']>(AgentMergeSettingId.MergeMethod) ?? defaultAgentMergeConfiguration.mergeMethod,
-		replyAttribution: configurationService.getValue<boolean>(AgentMergeSettingId.ReplyAttribution) ?? defaultAgentMergeConfiguration.replyAttribution,
-	};
 }
 
 function toOverrides(selected: ReadonlySet<AgentMergeRepairAction>, mergePullRequest: AgentMergeMergePullRequest): AgentMergeSessionOverrides {

@@ -379,11 +379,19 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			// Pull request state
 			const gitHubInfo = gitRepository?.gitHubInfo.read(reader);
 			const hasPullRequest = gitHubInfo?.pullRequest?.uri !== undefined;
-			const hasOpenPullRequest = hasPullRequest &&
-				(gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestDraft.id ||
-					gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequest.id ||
-					gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestError.id ||
-					gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestComment.id);
+			const hostPullRequestState = gitHubInfo?.pullRequest?.state;
+			const livePullRequestState = gitHubInfo?.pullRequest?.liveState;
+			const hasTerminalPullRequestState = hostPullRequestState === 'closed'
+				|| hostPullRequestState === 'merged'
+				|| livePullRequestState === 'closed'
+				|| livePullRequestState === 'merged';
+			const hasOpenPullRequest = hasPullRequest && !hasTerminalPullRequestState
+				&& (hostPullRequestState === 'open'
+					|| livePullRequestState === 'open'
+					|| gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestDraft.id
+					|| gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequest.id
+					|| gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestError.id
+					|| gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestComment.id);
 
 			// Repository state
 			const hasGitHubRemote = gitRepository?.hasGitHubRemote ?? false;

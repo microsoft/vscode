@@ -279,17 +279,27 @@ export function isAhpAutomationRunChannel(uri: string): boolean {
 
 const MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY = 'vscode.chat.hiddenFromTranscript';
 const MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX = '<!-- vscode-hidden-from-transcript -->\n';
+const MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_META_KEY = 'vscode.chat.requestHiddenFromTranscript';
+const MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_PREFIX = '<!-- vscode-request-hidden-from-transcript -->\n';
 
-function readMessageMeta(message: Message): { readonly hiddenFromTranscript: boolean } {
+function readMessageMeta(message: Message): { readonly hiddenFromTranscript: boolean; readonly requestHiddenFromTranscript: boolean } {
 	const meta = message._meta;
+	const hiddenFromTranscript = meta?.[MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY] === true
+		|| message.text.startsWith(MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX);
 	return {
-		hiddenFromTranscript: meta?.[MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY] === true,
+		hiddenFromTranscript,
+		requestHiddenFromTranscript: meta?.[MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_META_KEY] === true
+			|| message.text.startsWith(MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_PREFIX),
 	};
 }
 
 export function isMessageHiddenFromTranscript(message: Message): boolean {
-	return readMessageMeta(message).hiddenFromTranscript
-		|| message.text.startsWith(MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX);
+	return readMessageMeta(message).hiddenFromTranscript;
+}
+
+/** Whether only the message's request row is hidden while its response remains visible. */
+export function isMessageRequestHiddenFromTranscript(message: Message): boolean {
+	return readMessageMeta(message).requestHiddenFromTranscript;
 }
 
 export function withMessageHiddenFromTranscript(message: Message, hidden: boolean | undefined): Message {
@@ -302,6 +312,21 @@ export function withMessageHiddenFromTranscript(message: Message, hidden: boolea
 		_meta: {
 			...message._meta,
 			[MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY]: true,
+		},
+	};
+}
+
+/** Marks only the message's request row as hidden while preserving its response. */
+export function withMessageRequestHiddenFromTranscript(message: Message, hidden: boolean | undefined): Message {
+	if (!hidden || isMessageHiddenFromTranscript(message)) {
+		return message;
+	}
+	return {
+		...message,
+		text: message.text.startsWith(MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_PREFIX) ? message.text : MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_PREFIX + message.text,
+		_meta: {
+			...message._meta,
+			[MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_META_KEY]: true,
 		},
 	};
 }
@@ -1609,6 +1634,10 @@ export interface ISessionGitHubState {
 	readonly initialPullRequestUrls?: readonly string[];
 	/** Pull requests explicitly associated through user intent, most recent first. */
 	readonly associatedPullRequestUrls?: readonly string[];
+	/** Last host-observed state of {@link pullRequestStateUrl}. */
+	readonly pullRequestState?: 'open' | 'closed' | 'merged';
+	/** Pull request URL to which {@link pullRequestState} applies. */
+	readonly pullRequestStateUrl?: string;
 	/**
 	 * The name of the branch the most recent {@link pullRequestUrls} entry was found (or created) for.
 	 * A pull request always relates to a branch: when the working copy switches
@@ -1663,10 +1692,15 @@ export function withMostRecentSessionPullRequest(gitHubState: ISessionGitHubStat
 		pullRequestUrl,
 		...(gitHubState?.pullRequestUrls ?? [])
 	]);
+	const normalizedPullRequestUrl = pullRequestUrls[0]?.toLowerCase();
+	const stateApplies = gitHubState?.pullRequestStateUrl?.toLowerCase() === normalizedPullRequestUrl;
 
 	return {
 		pullRequestUrls,
 		pullRequestBranchName: branchName,
+		...(stateApplies && gitHubState?.pullRequestState && gitHubState.pullRequestStateUrl
+			? { pullRequestState: gitHubState.pullRequestState, pullRequestStateUrl: gitHubState.pullRequestStateUrl }
+			: {}),
 	};
 }
 
@@ -1799,6 +1833,8 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 		pullRequestUrls?: readonly string[];
 		initialPullRequestUrls?: readonly string[];
 		associatedPullRequestUrls?: readonly string[];
+		pullRequestState?: 'open' | 'closed' | 'merged';
+		pullRequestStateUrl?: string;
 		pullRequestBranchName?: string;
 	} = {};
 
@@ -1821,6 +1857,10 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 			result.associatedPullRequestUrls = associatedPullRequestUrls;
 		}
 	}
+	if (raw['pullRequestState'] === 'open' || raw['pullRequestState'] === 'closed' || raw['pullRequestState'] === 'merged') {
+		result.pullRequestState = raw['pullRequestState'];
+	}
+	if (typeof raw['pullRequestStateUrl'] === 'string') { result.pullRequestStateUrl = raw['pullRequestStateUrl']; }
 	if (typeof raw['pullRequestBranchName'] === 'string') { result.pullRequestBranchName = raw['pullRequestBranchName']; }
 	return result;
 }

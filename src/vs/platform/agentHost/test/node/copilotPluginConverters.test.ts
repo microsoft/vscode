@@ -697,6 +697,21 @@ suite('copilotPluginConverters', () => {
 			assert.strictEqual(parsedPluginsEqual([a], [b]), false);
 		});
 
+		test('returns false for different skill invocation metadata', () => {
+			const makeSkill = (flags: Pick<IParsedSkill, 'disableModelInvocation' | 'disableUserInvocation'>): IParsedSkill => ({
+				uri: URI.file('/a/SKILL.md'),
+				name: 'a',
+				...flags,
+				customization: { ...stubSkillCustomization('a'), ...flags },
+			});
+			const defaults = makePlugin({ skills: [makeSkill({})] });
+
+			assert.deepStrictEqual([
+				parsedPluginsEqual([defaults], [makePlugin({ skills: [makeSkill({ disableModelInvocation: true })] })]),
+				parsedPluginsEqual([defaults], [makePlugin({ skills: [makeSkill({ disableUserInvocation: true })] })]),
+			], [false, false]);
+		});
+
 		test('returns false for different MCP default cwd URIs', () => {
 			const definition = (defaultCwd: URI): IMcpServerDefinition => ({
 				name: 'server',

@@ -315,6 +315,17 @@
 	overflow: visible;
 }
 
+.monaco-workbench .sessions-chat-config-toolbar .action-label:focus,
+.monaco-workbench .new-chat-bottom-container .sessions-chat-picker-slot > .action-label:focus {
+	outline: none;
+}
+
+.monaco-workbench .sessions-chat-config-toolbar .action-label:focus-visible,
+.monaco-workbench .new-chat-bottom-container .sessions-chat-picker-slot > .action-label:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
 .sessions-chat-config-toolbar .action-label:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);
