@@ -448,10 +448,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		const store = new DisposableStore();
 		const reveal = () => this._showMouseCursor();
 		for (const eventType of MOUSE_CURSOR_REVEAL_EVENT_TYPES) {
-			store.add(dom.addDisposableListener(this._domElement, eventType, reveal, { capture: true, passive: true }));
+			store.add(dom.addDisposableListener(this._domElement, eventType, reveal, { capture: true }));
 		}
 		// Typing re-renders the lines below a resting pointer, which makes the browser re-dispatch
 		// a pointer move at the very same position. Only an actual movement may reveal the pointer.
+		// This is why we need to check if there has been movement.
 		let lastPointerPosition: { readonly screenX: number; readonly screenY: number } | undefined;
 		store.add(dom.addDisposableListener(this._domElement, 'pointermove', (e: PointerEvent) => {
 			const hasMoved = e.movementX !== 0 || e.movementY !== 0
@@ -460,13 +461,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			if (hasMoved) {
 				reveal();
 			}
-		}, { capture: true, passive: true }));
+		}, { capture: true }));
 		// Leaving the editor must reveal the pointer, because the CSS stops applying outside of it
-		// and the class would otherwise hide it again on re-entry. This listener deliberately does
-		// not capture: `pointerleave` does not bubble, but it still travels the capture phase, and
-		// re-rendering the lines below a resting pointer makes descendants fire it without the
-		// pointer having moved. Only leaving the editor container itself may reveal the pointer.
-		store.add(dom.addDisposableListener(this._domElement, 'pointerleave', reveal, { passive: true }));
+		// and the class would otherwise hide it again on re-entry.
+		store.add(dom.addDisposableListener(this._domElement, 'pointerleave', reveal));
 		// Element focus alone is not enough: switching windows or applications can leave the
 		// active element untouched.
 		store.add(dom.addDisposableListener(dom.getWindow(this._domElement), 'blur', reveal));
@@ -1272,6 +1270,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (source === 'keyboard') {
 			// Hide based on produced text instead of raw key events, so that navigation keys,
 			// modifiers, keyboard shortcuts and programmatic edits never hide the pointer.
+			// For these keys the text is empty or falsy.
 			this._hideMouseCursor();
 			this._onDidType.fire(text);
 		}
@@ -2095,8 +2094,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		// The hidden pointer belongs to a single focused editor, model and typing interaction,
 		// so it must never survive detaching, replacing or disposing the model.
 		this._showMouseCursor();
-		// The view (and with it the IME input element) goes away, so no composition can be active.
-		this.inComposition = false;
 		this._contributionsDisposable?.dispose();
 		this._contributionsDisposable = undefined;
 		if (!this._modelData) {
