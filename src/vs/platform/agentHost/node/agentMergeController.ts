@@ -420,7 +420,11 @@ export class AgentMergeController extends Disposable {
 		let target = agentMerge.target;
 		if (!target) {
 			const now = new Date().toISOString();
-			target = { branchName, enabledAt: now, commentWatermark: now };
+			const currentGitHubState = readSessionGitHubState(this._stateManager.getSessionState(session)?._meta);
+			const pullRequestUrl = currentGitHubState?.pullRequestBranchName === branchName
+				? getSessionRelatedPullRequestUrls(currentGitHubState)[0]
+				: undefined;
+			target = { branchName, enabledAt: now, commentWatermark: now, ...(pullRequestUrl ? { pullRequestUrl } : {}) };
 			this._logService.info(`[AgentMergeController] Captured session branch and feedback watermark: session=${session}`);
 			// Announce only on the first capture: a resumed session already has a
 			// target, so restarting the host must not repeat the notice.
