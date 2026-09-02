@@ -184,7 +184,7 @@ suite('AgentHostChangesetOperationService', () => {
 		return disposables.add(new AgentHostChangesetOperationService(
 			stateManager,
 			new TestGitStateService(),
-			new AgentHostChangesetSubscriptionService(),
+			disposables.add(new AgentHostChangesetSubscriptionService()),
 			configurationService,
 		));
 	}

@@ -8,7 +8,7 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
+import { constObservable, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
@@ -90,6 +90,7 @@ class TestActiveSession extends mock<IActiveSession>() {
 	override readonly mainChat: IObservable<IChat>;
 	override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: true });
 	override readonly isCreated: IObservable<boolean>;
+	override readonly isNewSessionRequestInProgress = observableValue(this, false);
 	override readonly isArchived: IObservable<boolean> = constObservable(false);
 	override readonly loading: IObservable<boolean> = constObservable(false);
 
@@ -172,7 +173,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 
 suite('Sessions - ChatGroupsView', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-	const options = { renderSessionTypePickerInControls: constObservable(false) };
+	const options = {};
 
 	test('opens a session with an active child chat after initial layout', () => {
 		const { view, chatViewFactory } = createHarness(disposables);
@@ -204,6 +205,30 @@ suite('Sessions - ChatGroupsView', () => {
 			focusedKind: 'chat',
 			activeTab: child.resource.toString(),
 			tabs: [main.resource.toString(), child.resource.toString()],
+		});
+	});
+
+	test('does not lay out chat views while the session is hidden', () => {
+		const { view, chatViewFactory } = createHarness(disposables);
+		view.setSession(new TestActiveSession([createChat('main')]), options);
+		const chatView = chatViewFactory.views.find(candidate => candidate.kind === 'chat')!;
+
+		view.layout(800, 600, 0, 0);
+		const initialLayoutCount = chatView.layoutCount;
+		view.setSessionVisible(false);
+		view.layout(640, 480, 0, 0);
+		const hiddenLayoutCount = chatView.layoutCount;
+		view.setSessionVisible(true);
+		view.layout(640, 480, 0, 0);
+
+		assert.deepStrictEqual({
+			initialLayoutCount,
+			hiddenLayoutCount,
+			shownLayoutCount: chatView.layoutCount,
+		}, {
+			initialLayoutCount: 1,
+			hiddenLayoutCount: 1,
+			shownLayoutCount: 2,
 		});
 	});
 
@@ -266,6 +291,25 @@ suite('Sessions - ChatGroupsView', () => {
 		}, {
 			groupCount: 1,
 			viewKind: 'newSession',
+		});
+	});
+
+	test('new session request activity switches the draft to the chat view', () => {
+		const { view } = createHarness(disposables);
+		const draft = new TestActiveSession([createChat('draft', SessionStatus.Untitled)], undefined, false);
+		view.setSession(draft, options);
+		const viewKinds = () => Array.from(view.element.querySelectorAll<HTMLElement>('.chat-view')).map(element => element.dataset.kind);
+
+		const before = viewKinds();
+		draft.isNewSessionRequestInProgress.set(true, undefined);
+		const during = viewKinds();
+		draft.isNewSessionRequestInProgress.set(false, undefined);
+		const after = viewKinds();
+
+		assert.deepStrictEqual({ before, during, after }, {
+			before: ['newSession'],
+			during: ['chat'],
+			after: ['newSession'],
 		});
 	});
 
@@ -437,6 +481,52 @@ suite('Sessions - ChatGroupsView', () => {
 			groupCount: 1,
 			focusInRemainingGroup: true,
 			activeChat: main.resource.toString(),
+		});
+	});
+
+	test('removing an empty split group does not create a transient new chat view', () => {
+		const { chatViewFactory, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const session = new TestActiveSession([main, secondary]);
+		view.setSession(session, options);
+		view.splitChatToSide(secondary.resource);
+		const viewCountBeforeClose = chatViewFactory.views.length;
+
+		session.visibleChatTabs.set([main], undefined);
+
+		assert.deepStrictEqual({
+			groupCount: view.groupCount.get(),
+			newViews: chatViewFactory.views.slice(viewCountBeforeClose).map(createdView => createdView.kind),
+		}, {
+			groupCount: 1,
+			newViews: [],
+		});
+	});
+
+	test('atomically replacing the active split chat preserves its group', () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const tertiary = createChat('tertiary');
+		const session = new TestActiveSession([main, secondary, tertiary], [main, secondary]);
+		view.setSession(session, options);
+		view.splitChatToSide(secondary.resource);
+
+		transaction(tx => {
+			session.visibleChatTabs.set([main, tertiary], tx);
+			session.activeChat.set(tertiary, tx);
+		});
+
+		const groups = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'));
+		assert.deepStrictEqual({
+			groupCount: view.groupCount.get(),
+			groupTabs: groups.map(group => Array.from(group.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource)),
+			activeChat: session.activeChat.get().resource.toString(),
+		}, {
+			groupCount: 2,
+			groupTabs: [[main.resource.toString()], [tertiary.resource.toString()]],
+			activeChat: tertiary.resource.toString(),
 		});
 	});
 

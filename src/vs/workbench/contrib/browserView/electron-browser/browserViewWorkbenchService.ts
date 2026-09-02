@@ -175,7 +175,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 		// Listen for new browser views
 		this._register(this._browserViewService.onDidCreateBrowserView(e => {
-			if (e.info.hostWindowId !== this._mainWindowId) {
+			if (e.info.host.windowId !== this._mainWindowId) {
 				return; // Not for this window
 			}
 
@@ -363,7 +363,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 				const info = await this._browserViewService.getOrCreateBrowserView(
 					id,
 					{
-						hostWindowId: this._mainWindowId,
+						host: {
+							windowId: this._mainWindowId
+						},
 						owner: createOptions?.owner ?? { type: 'user' },
 						associatedResource,
 						session: createOptions?.session ?? { scope: await this._resolveStorageScope() },
@@ -451,7 +453,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			: initialUrl
 				? { ...info.state, url: initialUrl }
 				: info.state;
-		const model = this.instantiationService.createInstance(BrowserViewModel, info.id, info.owner, associatedResource, state, this._browserViewService);
+		const model = this.instantiationService.createInstance(BrowserViewModel, info.id, info.host, info.owner, associatedResource, state, this._browserViewService);
 
 		// Sanity: both pass and assign the model to be sure. It will no-op if already set.
 		this._getOrCreateLazy({ id: info.id, associatedResource, url: initialUrl }, model).model = model;

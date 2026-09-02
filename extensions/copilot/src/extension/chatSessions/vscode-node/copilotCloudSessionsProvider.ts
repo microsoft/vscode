@@ -50,6 +50,25 @@ interface ConfirmationMetadata {
 	chatContext: vscode.ChatContext;
 }
 
+const GITHUB_CONTEXT_ID_PREFIX = 'github-context:';
+const ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX = 'sessions-additional-folder:';
+const ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX = 'sessions-additional-repository:';
+
+export function formatNewSessionContextReference(reference: vscode.ChatPromptReference): string | undefined {
+	if (reference.id.startsWith(GITHUB_CONTEXT_ID_PREFIX)) {
+		const uri = reference.id.slice(GITHUB_CONTEXT_ID_PREFIX.length);
+		return uri ? `GitHub resource: ${uri}` : undefined;
+	}
+	if (reference.id.startsWith(ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX)) {
+		const uri = reference.id.slice(ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX.length);
+		return uri ? `GitHub repository: ${uri}` : undefined;
+	}
+	if (reference.id.startsWith(ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX) && reference.value instanceof vscode.Uri) {
+		return `Folder: ${reference.value.fsPath}`;
+	}
+	return undefined;
+}
+
 type InitialSessionOption = {
 	readonly optionId: string;
 	readonly value: string | vscode.ChatSessionProviderOptionItem;
@@ -204,9 +223,30 @@ const DEFAULT_REPOSITORY_ID = '___vscode_repository_default___';
 
 const SEEN_DELEGATION_PROMPT_KEY = 'seenDelegationPromptBefore';
 const OPEN_REPOSITORY_COMMAND_ID = 'github.copilot.chat.cloudSessions.openRepository';
+const OPEN_ISSUE_COMMAND_ID = 'github.copilot.chat.cloudSessions.openIssue';
+const OPEN_PULL_REQUEST_COMMAND_ID = 'github.copilot.chat.cloudSessions.openPullRequest';
 const CLEAR_CACHES_COMMAND_ID = 'github.copilot.chat.cloudSessions.clearCaches';
 const CREATE_PULL_REQUEST_FOR_TASK_COMMAND_ID = 'github.copilot.chat.cloudSessions.createPullRequestForTask';
 const OPEN_PULL_REQUEST_FOR_TASK_COMMAND_ID = 'github.copilot.chat.cloudSessions.openPullRequestForTask';
+
+export function parseGitHubContextUrl(value: string, kind: 'issue' | 'pullRequest'): { readonly repoId: string; readonly url: string; readonly label: string } | undefined {
+	const match = /^https:\/\/(?:www\.)?github\.com\/(?<owner>[^/?#]+)\/(?<repository>[^/?#]+)\/(?<resource>issues|pull)\/(?<number>[1-9]\d*)\/?(?:[?#].*)?$/i.exec(value.trim());
+	if (!match?.groups) {
+		return undefined;
+	}
+	const resource = match.groups.resource.toLowerCase();
+	if ((resource === 'issues') !== (kind === 'issue')) {
+		return undefined;
+	}
+
+	const repoId = `${match.groups.owner}/${match.groups.repository}`;
+	return {
+		repoId,
+		url: `https://github.com/${repoId}/${resource}/${match.groups.number}`,
+		label: `${repoId}#${match.groups.number}`,
+	};
+}
+
 /** Context key gating the chat-input "Create pull request" toolbar action: true while the viewed cloud task is settled and has no PR yet. */
 const CAN_CREATE_PULL_REQUEST_CONTEXT_KEY = 'github.copilot.chat.cloudTaskCanCreatePullRequest';
 /** Context key gating the chat-input "Open pull request" toolbar action: true once the viewed cloud task has a pull request. */
@@ -614,6 +654,121 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			});
 		};
 		this._register(vscode.commands.registerCommand(OPEN_REPOSITORY_COMMAND_ID, openRepositoryCommand));
+
+		type GitHubContextQuickPickItem = vscode.QuickPickItem & {
+			readonly selection: {
+				readonly repoId: string;
+				readonly url: string;
+				readonly label: string;
+			};
+		};
+		const openGitHubContext = (kind: 'issue' | 'pullRequest', repoId?: string): Promise<GitHubContextQuickPickItem['selection'] | undefined> => {
+			const quickPick = vscode.window.createQuickPick<GitHubContextQuickPickItem>();
+			const quickPickDisposables = new DisposableStore();
+			quickPick.placeholder = repoId
+				? (kind === 'issue'
+					? l10n.t('Search issues in {0}...', repoId)
+					: l10n.t('Search pull requests in {0}...', repoId))
+				: (kind === 'issue'
+					? l10n.t('Search for an issue...')
+					: l10n.t('Search for a pull request...'));
+			quickPick.matchOnDescription = true;
+			quickPick.matchOnDetail = true;
+			quickPick.busy = true;
+			quickPick.show();
+
+			let searchTimeout: ReturnType<typeof setTimeout> | undefined;
+			let searchGeneration = 0;
+			return new Promise(resolve => {
+				let resolved = false;
+				const doResolve = (value: GitHubContextQuickPickItem['selection'] | undefined) => {
+					if (!resolved) {
+						resolved = true;
+						resolve(value);
+					}
+				};
+				const search = async (query: string, generation: number) => {
+					quickPick.busy = true;
+					try {
+						const qualifier = kind === 'issue' ? 'is:issue' : 'is:pr';
+						const repositoryScope = repoId ? `repo:${repoId}` : '';
+						const scope = query ? `${query} ${repositoryScope}` : (repositoryScope || 'involves:@me');
+						const results = await this._octoKitService.searchIssuesAndPullRequests(`${scope} ${qualifier}`, {});
+						if (generation !== searchGeneration) {
+							return;
+						}
+						quickPick.items = results
+							.filter(result => result.isPullRequest === (kind === 'pullRequest'))
+							.map(result => ({
+								label: `#${result.number} ${result.title}`,
+								description: `${result.owner}/${result.repository}`,
+								selection: {
+									repoId: `${result.owner}/${result.repository}`,
+									url: result.url,
+									label: `${result.owner}/${result.repository}#${result.number}`,
+								},
+							}));
+					} catch (error) {
+						this.logService.error(`Error searching GitHub ${kind === 'issue' ? 'issues' : 'pull requests'}: ${error}`);
+						if (generation === searchGeneration) {
+							quickPick.items = [];
+						}
+					} finally {
+						if (generation === searchGeneration) {
+							quickPick.busy = false;
+						}
+					}
+				};
+				void search('', ++searchGeneration);
+				quickPickDisposables.add(quickPick.onDidChangeValue(value => {
+					if (searchTimeout) {
+						clearTimeout(searchTimeout);
+					}
+					const query = value.trim();
+					const pastedSelection = parseGitHubContextUrl(query, kind);
+					if (pastedSelection) {
+						searchGeneration++;
+						quickPick.busy = false;
+						quickPick.items = [{
+							label: pastedSelection.label,
+							description: pastedSelection.repoId,
+							alwaysShow: true,
+							selection: pastedSelection,
+						}];
+						return;
+					}
+					if (query.length < 2) {
+						if (query.length === 0) {
+							void search('', ++searchGeneration);
+						} else {
+							searchGeneration++;
+							quickPick.items = [];
+							quickPick.busy = false;
+						}
+						return;
+					}
+					const generation = ++searchGeneration;
+					searchTimeout = setTimeout(() => {
+						void search(query, generation);
+					}, 300);
+				}));
+				quickPickDisposables.add(quickPick.onDidAccept(() => {
+					doResolve(quickPick.selectedItems[0]?.selection);
+					quickPick.hide();
+				}));
+				quickPickDisposables.add(quickPick.onDidHide(() => {
+					if (searchTimeout) {
+						clearTimeout(searchTimeout);
+					}
+					searchGeneration++;
+					quickPickDisposables.dispose();
+					quickPick.dispose();
+					doResolve(undefined);
+				}));
+			});
+		};
+		this._register(vscode.commands.registerCommand(OPEN_ISSUE_COMMAND_ID, (repoId?: string) => openGitHubContext('issue', repoId)));
+		this._register(vscode.commands.registerCommand(OPEN_PULL_REQUEST_COMMAND_ID, (repoId?: string) => openGitHubContext('pullRequest', repoId)));
 
 		this._register(vscode.commands.registerCommand(CLEAR_CACHES_COMMAND_ID, () => {
 			this.logService.debug('copilotCloudSessionsProvider#clearCaches: clearing all cloud agent caches');
@@ -2203,10 +2358,15 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		// 'file:///Users/jospicer/dev/joshbot/.github/workflows/build-vsix.yml'  -> '.github/workflows/build-vsix.yml'
 		const fileRefs: string[] = [];
 		const fullFileParts: string[] = [];
+		const newSessionContextRefs: string[] = [];
 		const processedReferences: vscode.ChatPromptReference[] = [];
 		const git = this._gitExtensionService.getExtensionApi();
 		for (const ref of references || []) {
-			if (ref.value instanceof vscode.Uri && ref.value.scheme === 'file') {
+			const newSessionContext = formatNewSessionContextReference(ref);
+			if (newSessionContext) {
+				newSessionContextRefs.push(` - ${newSessionContext}`);
+				processedReferences.push(ref);
+			} else if (ref.value instanceof vscode.Uri && ref.value.scheme === 'file') {
 				const fileUri = ref.value;
 				const repositoryForFile = git?.getRepository(fileUri);
 				if (repositoryForFile) {
@@ -2266,7 +2426,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 		const parts: string[] = [
 			...(fullFileParts.length ? ['The user has attached the following uncommitted or modified files as relevant context:', ...fullFileParts] : []),
-			...(fileRefs.length ? ['The user has attached the following file paths as relevant context:', ...fileRefs] : [])
+			...(fileRefs.length ? ['The user has attached the following file paths as relevant context:', ...fileRefs] : []),
+			...(newSessionContextRefs.length ? ['The user has attached the following new-session context:', ...newSessionContextRefs] : []),
 		];
 
 		this.logService.debug(`Cloud agent knew how to process ${processedReferences.length} of the ${references?.length || 0} provided references.`);

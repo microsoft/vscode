@@ -327,7 +327,7 @@ suite('ChatToolProgressSubPart', () => {
 		assert.strictEqual(createInstanceStub.firstCall.args[0], ChatAutomationConfiguredResultSubPart);
 	});
 
-	test('renders a created session as a plain title link', () => {
+	test('renders a created session as a rich session link', () => {
 		const updateHover = sinon.spy();
 		const setupManagedHoverStub = sinon.stub(mockHoverService, 'setupManagedHover').returns({
 			dispose() { },
@@ -357,17 +357,17 @@ suite('ChatToolProgressSubPart', () => {
 		const link = part.domNode.querySelector<HTMLAnchorElement>('a.monaco-link');
 
 		assert.deepStrictEqual({
-			text: link?.textContent,
+			title: link?.querySelector('.chat-rich-link-title')?.textContent,
 			href: link?.getAttribute('href'),
 			hoverTitle: updateHover.lastCall.args[0],
-			role: link?.getAttribute('role'),
-			hasButton: !!part.domNode.querySelector('.monaco-button'),
+			kind: link?.dataset.chatRichLinkKind,
+			hasRichLink: link?.classList.contains('chat-rich-link'),
 		}, {
-			text: `${runningTitle.slice(0, 57)}…`,
+			title: runningTitle,
 			href: 'agent-host-session://copilot/task-a',
 			hoverTitle: runningTitle,
-			role: null,
-			hasButton: false,
+			kind: 'session',
+			hasRichLink: true,
 		});
 
 		sessionLinkPresentation.set({
@@ -376,10 +376,10 @@ suite('ChatToolProgressSubPart', () => {
 			status: { kind: 'success', label: 'Completed' },
 		}, undefined);
 		assert.deepStrictEqual({
-			text: link?.textContent,
+			title: link?.querySelector('.chat-rich-link-title')?.textContent,
 			hoverTitle: updateHover.lastCall.args[0],
 		}, {
-			text: 'Finished weather session',
+			title: 'Finished weather session',
 			hoverTitle: 'Finished weather session',
 		});
 	});
@@ -398,7 +398,7 @@ suite('ChatToolProgressSubPart', () => {
 				text: button?.textContent,
 				ariaLabel: button?.getAttribute('aria-label'),
 				tabIndex: button?.tabIndex,
-				watchIconIsChild: !!button?.querySelector('.codicon-watch'),
+				calendarIconIsChild: !!button?.querySelector('.codicon-calendar'),
 				// `codicon-*` on the root would restyle the label text.
 				rootCarriesCodiconClass: button?.classList.contains('codicon'),
 				injectedIcons: [...button?.querySelectorAll('.codicon') ?? []]
@@ -411,17 +411,17 @@ suite('ChatToolProgressSubPart', () => {
 				text: 'Created an automation: $(error)',
 				ariaLabel: 'Open automation $(error)',
 				tabIndex: 0,
-				watchIconIsChild: true,
+				calendarIconIsChild: true,
 				rootCarriesCodiconClass: false,
-				injectedIcons: ['codicon-watch'],
+				injectedIcons: ['codicon-calendar'],
 			},
 			{
 				text: 'Created an automation: a \\$(error) b',
 				ariaLabel: 'Open automation a \\$(error) b',
 				tabIndex: 0,
-				watchIconIsChild: true,
+				calendarIconIsChild: true,
 				rootCarriesCodiconClass: false,
-				injectedIcons: ['codicon-watch'],
+				injectedIcons: ['codicon-calendar'],
 			},
 		]);
 	});

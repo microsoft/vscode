@@ -91,8 +91,8 @@ export function createChangesets(
 
 	const sessionChangesets: ISessionChangeset[] = [];
 
-	// Select the "Branch Changes" changeset as the default, if it exists; otherwise just the first one.
-	const defaultChangeset = changesets.find(c => c.changeKind === ChangesetKind.Branch) ?? changesets[0];
+	const defaultKind = options.defaultChangesetKind ?? ChangesetKind.Branch;
+	const defaultChangeset = changesets.find(c => c.changeKind === defaultKind) ?? changesets[0];
 
 	for (const catalogueEntry of changesets) {
 		const isDefault = catalogueEntry === defaultChangeset;
@@ -232,6 +232,8 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 
 	readonly capabilities: ISessionChangesetCapabilities;
 
+	private readonly _locallyRunningOperationCounts = observableValue<ReadonlyMap<string, number>>(this, new Map());
+
 	protected abstract readonly channelUriObs: IObservable<URI | undefined>;
 	protected abstract readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined | null>>;
 	private readonly _changesetFilesObs: IObservable<readonly ChangesetFile[] | undefined>;
@@ -338,7 +340,10 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		});
 
 		this.operations = derivedOpts({ equalsFn: arrayEqualsC(structuralEquals) }, reader => {
-			return operationsObs.read(reader) ?? [];
+			const locallyRunningOperationCounts = this._locallyRunningOperationCounts.read(reader);
+			return operationsObs.read(reader).map(operation => locallyRunningOperationCounts.has(operation.id) && operation.status !== SessionChangesetOperationStatus.Running
+				? { ...operation, status: SessionChangesetOperationStatus.Running }
+				: operation);
 		});
 	}
 
@@ -381,16 +386,34 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			}
 		}
 
-		await connection.invokeChangesetOperation({
-			operationId,
-			channel: channel.toString(),
-			target: target?.kind === 'resource'
-				? {
-					kind: ChangesetOperationTargetKind.Resource,
-					resource: target.resource.toString()
-				}
-				: undefined,
-		});
+		this._setOperationLocallyRunning(operationId, true);
+		try {
+			await connection.invokeChangesetOperation({
+				operationId,
+				channel: channel.toString(),
+				target: target?.kind === 'resource'
+					? {
+						kind: ChangesetOperationTargetKind.Resource,
+						resource: target.resource.toString()
+					}
+					: undefined,
+			});
+		} finally {
+			this._setOperationLocallyRunning(operationId, false);
+		}
+	}
+
+	private _setOperationLocallyRunning(operationId: string, running: boolean): void {
+		const counts = new Map(this._locallyRunningOperationCounts.get());
+		const count = counts.get(operationId) ?? 0;
+		if (running) {
+			counts.set(operationId, count + 1);
+		} else if (count <= 1) {
+			counts.delete(operationId);
+		} else {
+			counts.set(operationId, count - 1);
+		}
+		this._locallyRunningOperationCounts.set(counts, undefined);
 	}
 
 	setReviewState(resources: readonly URI[], reviewed: boolean): void {

@@ -390,10 +390,10 @@ describe('AutomodeService', () => {
 			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
 			await Promise.all([
-				route('session-a', 'max'),
-				route('session-b', 'max'),
-				route('session-a', 'eco'),
-				route('session-a', 'max', [{ value: { mimeType: 'image/png' } }]),
+				route('session-a', 'intelligence'),
+				route('session-b', 'intelligence'),
+				route('session-a', 'efficiency'),
+				route('session-a', 'intelligence', [{ value: { mimeType: 'image/png' } }]),
 			]);
 
 			expect(autoCalls()).toHaveLength(4);
@@ -632,10 +632,10 @@ describe('AutomodeService', () => {
 				location: ChatLocation.Editor,
 				prompt: 'test prompt',
 				sessionId: 'session-auto-inline-tier',
-				modelConfiguration: { tier: 'max' },
+				modelConfiguration: { tier: 'intelligence' },
 			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
-			expect(autoRequestBodies()).toEqual([{ prompt: 'test prompt', tier: 'max' }]);
+			expect(autoRequestBodies()).toEqual([{ prompt: 'test prompt', tier: 'intelligence' }]);
 		});
 
 		it('sends the tier picked in the model configuration', async () => {
@@ -648,10 +648,10 @@ describe('AutomodeService', () => {
 				location: ChatLocation.Panel,
 				prompt: 'test prompt',
 				sessionId: 'session-auto-tier',
-				modelConfiguration: { tier: 'max' },
+				modelConfiguration: { tier: 'intelligence' },
 			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
-			expect(autoRequestBodies()).toEqual([{ prompt: 'test prompt', tier: 'max' }]);
+			expect(autoRequestBodies()).toEqual([{ prompt: 'test prompt', tier: 'intelligence' }]);
 		});
 
 		it('falls back to the default tier when the configured tier is not user selectable', async () => {
@@ -667,7 +667,7 @@ describe('AutomodeService', () => {
 				modelConfiguration: { tier: 'fast' },
 			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
-			expect(autoRequestBodies()).toEqual([{ prompt: 'test prompt', tier: 'balanced' }]);
+			expect(autoRequestBodies()).toEqual([{ prompt: 'test prompt', tier: 'balance' }]);
 		});
 
 		it('re-routes the conversation when the tier changes', async () => {
@@ -680,27 +680,27 @@ describe('AutomodeService', () => {
 				location: ChatLocation.Panel,
 				prompt: 'test prompt',
 				sessionId: 'session-auto-tier-change',
-				modelConfiguration: { tier: 'eco' },
+				modelConfiguration: { tier: 'efficiency' },
 			} as unknown as ChatRequest;
 
 			await automodeService.resolveAutoModeEndpoint(chatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 			await automodeService.resolveAutoModeEndpoint({ ...chatRequest, prompt: 'second turn' } as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
-			await automodeService.resolveAutoModeEndpoint({ ...chatRequest, prompt: 'third turn', modelConfiguration: { tier: 'max' } } as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
+			await automodeService.resolveAutoModeEndpoint({ ...chatRequest, prompt: 'third turn', modelConfiguration: { tier: 'intelligence' } } as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
-			expect(autoRequestBodies().map(b => b.tier)).toEqual(['eco', 'max']);
+			expect(autoRequestBodies().map(b => b.tier)).toEqual(['efficiency', 'intelligence']);
 		});
 
 		it('lets the tier override win over the picker and the inline chat pin', async () => {
 			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
 			mockAuto(autoResponse('gpt-4o'));
 
-			setTierOverride('eco');
+			setTierOverride('efficiency');
 			automodeService = createService();
 			await automodeService.resolveAutoModeEndpoint({
 				location: ChatLocation.Panel,
 				prompt: 'panel turn',
 				sessionId: 'session-override-panel',
-				modelConfiguration: { tier: 'max' },
+				modelConfiguration: { tier: 'intelligence' },
 			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 			await automodeService.resolveAutoModeEndpoint({
 				location: ChatLocation.Editor,
@@ -708,7 +708,7 @@ describe('AutomodeService', () => {
 				sessionId: 'session-override-inline',
 			} as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
-			expect(autoRequestBodies().map(b => b.tier)).toEqual(['eco', 'eco']);
+			expect(autoRequestBodies().map(b => b.tier)).toEqual(['efficiency', 'efficiency']);
 		});
 
 		// The override is an internal/eval knob, so unlike the picker it may target
@@ -741,10 +741,10 @@ describe('AutomodeService', () => {
 				location: ChatLocation.Panel,
 				prompt: 'panel turn',
 				sessionId: 'session-override-bogus',
-				modelConfiguration: { tier: 'max' },
+				modelConfiguration: { tier: 'intelligence' },
 			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
-			expect(autoRequestBodies()).toEqual([{ prompt: 'panel turn', tier: 'max' }]);
+			expect(autoRequestBodies()).toEqual([{ prompt: 'panel turn', tier: 'intelligence' }]);
 		});
 
 		it('announces tier support when the setting changes', async () => {
@@ -755,7 +755,7 @@ describe('AutomodeService', () => {
 			const listener = automodeService.onDidChangeAutoModeTierSupport(() => announced++);
 			await configurationService.setConfig(ConfigKey.Advanced.AutoModeTiersEnabled, true);
 			// An unrelated change must not re-announce.
-			await configurationService.setConfig(ConfigKey.Advanced.AutoModeTierOverride, 'max');
+			await configurationService.setConfig(ConfigKey.Advanced.AutoModeTierOverride, 'intelligence');
 			listener.dispose();
 
 			expect({ announced, supported: automodeService.areAutoModeTiersSupported() }).toEqual({ announced: 1, supported: true });
@@ -771,18 +771,18 @@ describe('AutomodeService', () => {
 				location: ChatLocation.Panel,
 				prompt: 'first turn',
 				sessionId: 'session-auto-tier-error',
-				modelConfiguration: { tier: 'eco' },
+				modelConfiguration: { tier: 'efficiency' },
 			} as unknown as ChatRequest;
 			const first = await automodeService.resolveAutoModeEndpoint(chatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 			expect(first.model).toBe('gpt-4o');
 
-			// The tier changes and the re-route fails: the eco endpoint must not be
+			// The tier changes and the re-route fails: the efficiency endpoint must not be
 			// handed back as though it satisfied the new tier.
 			mockAuto({ error: 'server_error' }, 500);
 			await expect(automodeService.resolveAutoModeEndpoint({
 				...chatRequest,
 				prompt: 'second turn',
-				modelConfiguration: { tier: 'max' },
+				modelConfiguration: { tier: 'intelligence' },
 			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint])).rejects.toThrow();
 		});
 
@@ -798,7 +798,7 @@ describe('AutomodeService', () => {
 				location: ChatLocation.Panel,
 				prompt: 'first turn',
 				sessionId: 'session-auto-tier-discount',
-				modelConfiguration: { tier: 'eco' },
+				modelConfiguration: { tier: 'efficiency' },
 			} as unknown as ChatRequest;
 			await automodeService.resolveAutoModeEndpoint(chatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
@@ -806,7 +806,7 @@ describe('AutomodeService', () => {
 			await automodeService.resolveAutoModeEndpoint({
 				...chatRequest,
 				prompt: 'second turn',
-				modelConfiguration: { tier: 'max' },
+				modelConfiguration: { tier: 'intelligence' },
 			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
 			const discounts = (mockInstantiationService.createInstance as ReturnType<typeof vi.fn>).mock.calls.map(c => c[3]);
@@ -825,7 +825,7 @@ describe('AutomodeService', () => {
 					location,
 					prompt: 'test prompt',
 					sessionId: `session-tiers-off-${location}`,
-					modelConfiguration: { tier: 'max' },
+					modelConfiguration: { tier: 'intelligence' },
 				} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 			}
 
@@ -843,7 +843,7 @@ describe('AutomodeService', () => {
 			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
 			mockAuto(autoResponse('gpt-4o'));
 
-			setTierOverride('max');
+			setTierOverride('intelligence');
 			automodeService = createService();
 			await automodeService.resolveAutoModeEndpoint({
 				location: ChatLocation.Panel,
@@ -851,7 +851,50 @@ describe('AutomodeService', () => {
 				sessionId: 'session-override-tiers-off',
 			} as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
-			expect(autoRequestBodies()).toEqual([{ prompt: 'panel turn', tier: 'max' }]);
+			expect(autoRequestBodies()).toEqual([{ prompt: 'panel turn', tier: 'intelligence' }]);
+		});
+
+		// The override is a raw string setting, so a config left on a retired name by an
+		// eval or an internal user must keep working rather than silently fall back.
+		it('maps a retired tier name in the override to its current one', async () => {
+			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
+			mockAuto(autoResponse('gpt-4o'));
+
+			setTierOverride('eco');
+			automodeService = createService();
+			await automodeService.resolveAutoModeEndpoint({
+				location: ChatLocation.Panel,
+				prompt: 'panel turn',
+				sessionId: 'session-override-retired',
+			} as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
+
+			expect(autoRequestBodies()).toEqual([{ prompt: 'panel turn', tier: 'efficiency' }]);
+		});
+
+		// A picker value stored before the rename can be restored unfiltered while its model's
+		// schema is still loading, so it must upgrade rather than silently fall back.
+		it('maps a retired tier name in a persisted picker value to its current one', async () => {
+			enableTiers();
+			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
+			mockAuto(autoResponse('gpt-4o'));
+
+			automodeService = createService();
+			await automodeService.resolveAutoModeEndpoint({
+				location: ChatLocation.Panel,
+				prompt: 'panel turn',
+				sessionId: 'session-persisted-retired',
+				modelConfiguration: { tier: 'max' },
+			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
+			// `balanced` upgrades to the current default, which reads as "never picked", so the inline
+			// pin applies instead of being treated as an explicit selection.
+			await automodeService.resolveAutoModeEndpoint({
+				location: ChatLocation.Editor,
+				prompt: 'inline turn',
+				sessionId: 'session-persisted-retired-default',
+				modelConfiguration: { tier: 'balanced' },
+			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
+
+			expect(autoRequestBodies().map(b => b.tier)).toEqual(['intelligence', 'fast']);
 		});
 	});
 
@@ -875,7 +918,7 @@ describe('AutomodeService', () => {
 			for (let i = 0; i < 50; i++) {
 				await route(`session-${i}`, `turn ${i}`);
 			}
-			await route('session-49', 'retiered turn', 'max');
+			await route('session-49', 'retiered turn', 'intelligence');
 
 			const callsBefore = autoCalls().length;
 			await route('session-0', 'follow up');
