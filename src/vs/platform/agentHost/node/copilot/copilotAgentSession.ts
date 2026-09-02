@@ -3086,10 +3086,17 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to flush edit attribution: ${error}`);
 		});
 		this._beginAbort();
-		void this._wrapper.disconnect().then(
-			() => this._disposeShellInitScript(),
-			error => this._logService.warn(`[Copilot:${this.sessionId}] Failed to disconnect before shell init cleanup: ${getErrorMessage(error)}`),
-		);
+		// Remove the script only after the SDK session has disconnected, so a
+		// command that is still running can source it. A session that failed
+		// before its wrapper existed has nothing to disconnect or remove, and
+		// dispose must never throw ahead of the base disposal below.
+		const wrapper: CopilotSessionWrapper | undefined = this._wrapper;
+		if (wrapper) {
+			void wrapper.disconnect().then(
+				() => this._disposeShellInitScript(),
+				error => this._logService.warn(`[Copilot:${this.sessionId}] Failed to disconnect before shell init cleanup: ${getErrorMessage(error)}`),
+			);
+		}
 		super.dispose();
 	}
 
