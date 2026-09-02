@@ -30,7 +30,7 @@ class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExport
 		@ILogService private readonly logService: ILogService,
 	) { }
 
-	async save(exportName: string, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined): Promise<boolean> {
+	async save(exportName: string, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined): Promise<URI | undefined> {
 		const defaultUri = joinPath(await this.fileDialogService.preferredHome(Schemas.file), `${exportName}.zip`);
 		const saveUri = await this.fileDialogService.showSaveDialog({
 			title: localize('exportDebugLogs.saveDialogTitle', "Export Agent Host Debug Logs"),
@@ -40,7 +40,7 @@ class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExport
 		});
 
 		if (!saveUri) {
-			return false;
+			return undefined;
 		}
 
 		const zipFiles: INativeZipFile[] = files.map(file => {
@@ -93,7 +93,7 @@ class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExport
 				}
 			}
 		}
-		return true;
+		return saveUri;
 	}
 }
 

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Action } from '../../../../../base/common/actions.js';
 import { VSBuffer, newWriteableBufferStream, streamToBuffer, type VSBufferReadableStream } from '../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname, joinPath } from '../../../../../base/common/resources.js';
@@ -16,6 +17,7 @@ import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHos
 import { IAgentHostService, type AgentHostDebugLogsArtifactKind, type IAgentConnection, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService, remoteAgentHostLogOutputChannelId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { DEFAULT_CHAT_ID, getSessionChatResource, StateComponents, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsWebContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -82,7 +84,7 @@ export const IAgentHostDebugLogsExportService = createDecorator<IAgentHostDebugL
 export interface IAgentHostDebugLogsExportService {
 	readonly _serviceBrand: undefined;
 	readonly hostArtifactKind: AgentHostDebugLogsArtifactKind;
-	save(exportName: string, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined): Promise<boolean>;
+	save(exportName: string, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined): Promise<URI | undefined>;
 }
 
 export class BrowserAgentHostDebugLogsExportService implements IAgentHostDebugLogsExportService {
@@ -93,7 +95,7 @@ export class BrowserAgentHostDebugLogsExportService implements IAgentHostDebugLo
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
 
-	async save(exportName: string, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined): Promise<boolean> {
+	async save(exportName: string, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined): Promise<URI | undefined> {
 		return this.instantiationService.invokeFunction(accessor => exportFilesToLocalFolder(accessor, exportName, files, hostArtifact));
 	}
 }
@@ -349,6 +351,7 @@ export async function exportAgentHostDebugLogs(
 	const exportService = accessor.get(IAgentHostDebugLogsExportService);
 	const notificationService = accessor.get(INotificationService);
 	const chatEntitlementService = accessor.get(IChatEntitlementService);
+	const clipboardService = accessor.get(IClipboardService);
 	const fileService = accessor.get(IFileService);
 	const logService = accessor.get(ILogService);
 	const progressService = accessor.get(IProgressService);
@@ -360,11 +363,20 @@ export async function exportAgentHostDebugLogs(
 			delay: 500,
 		}, () => collectAgentHostDebugLogs(accessor, activeSession, artifact => hostArtifact = artifact));
 		try {
-			const saved = await exportService.save(logs.exportName, logs.files, logs.hostArtifact);
-			if (saved) {
-				notificationService.warn(chatEntitlementService.isInternal
-					? localize('exportDebugLogs.privacyWarning.internal', "Note: This log may contain personal information such as auth tokens, file contents, or terminal output. It MUST be shared privately via Slack or in an issue filed on the microsoft/vscode-internalbacklog repo.")
-					: localize('exportDebugLogs.privacyWarning', "Note: This log may contain personal information such as auth tokens, file contents, or terminal output. Please consider sharing privately or reviewing the contents carefully before sharing."));
+			const savedResource = await exportService.save(logs.exportName, logs.files, logs.hostArtifact);
+			if (savedResource) {
+				const savedPath = savedResource.scheme === Schemas.file ? savedResource.fsPath : savedResource.toString(true);
+				notificationService.notify({
+					severity: Severity.Warning,
+					message: chatEntitlementService.isInternal
+						? localize('exportDebugLogs.privacyWarning.internal', "Note: This log may contain personal information such as auth tokens, file contents, or terminal output. It MUST be shared privately via Slack or in an issue filed on the microsoft/vscode-internalbacklog repo.")
+						: localize('exportDebugLogs.privacyWarning', "Note: This log may contain personal information such as auth tokens, file contents, or terminal output. Please consider sharing privately or reviewing the contents carefully before sharing."),
+					actions: {
+						primary: [
+							new Action('copyAgentHostDebugLogsPath', localize('exportDebugLogs.copyPath', "Copy Path"), undefined, true, () => clipboardService.writeText(savedPath)),
+						],
+					},
+				});
 			}
 		} catch (error) {
 			notificationService.notify({
@@ -441,7 +453,7 @@ async function exportFilesToLocalFolder(
 	exportName: string,
 	files: readonly IAgentHostDebugLogFile[],
 	hostArtifact: IAgentHostDebugLogsHostArtifact | undefined,
-): Promise<boolean> {
+): Promise<URI | undefined> {
 	const fileDialogService = accessor.get(IFileDialogService);
 	const fileService = accessor.get(IFileService);
 	const logService = accessor.get(ILogService);
@@ -455,7 +467,7 @@ async function exportFilesToLocalFolder(
 
 	const parentFolder = folders?.[0];
 	if (!parentFolder) {
-		return false;
+		return undefined;
 	}
 
 	const exportFolder = joinPath(parentFolder, exportName);
@@ -489,7 +501,7 @@ async function exportFilesToLocalFolder(
 			await fileService.writeFile(target, source.value);
 		}
 	}
-	return true;
+	return exportFolder;
 }
 
 async function copyHostArtifactDirectory(
