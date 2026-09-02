@@ -25,7 +25,7 @@ import assert from 'assert';
 import { execFileSync } from 'child_process';
 import { existsSync, mkdtempSync, realpathSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
-import { dirname, join } from '../../../../../../base/common/path.js';
+import { join } from '../../../../../../base/common/path.js';
 import { getComparisonKey } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -41,6 +41,7 @@ import { isAgentDevContainerWorktreeHandle } from '../../../../common/meta/agent
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ROOT_STATE_URI, SessionLifecycle, type SessionState } from '../../../../common/state/sessionState.js';
+import { isWorktreeUnderRepository } from '../../../../common/worktreePaths.js';
 import { initTestGitRepo, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { vscodeAgentHostTarget } from '../harness/agentHostTarget.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
@@ -181,7 +182,7 @@ export function defineDetachedWorktreeTests(context: IAgentHostE2ETestContext): 
 		assert.deepStrictEqual({
 			sessionLifecycle: sessionState.lifecycle,
 			handleIsOpaqueId: isAgentDevContainerWorktreeHandle(created.handle),
-			inWorktreesContainer: pathComparisonKey(dirname(worktreePath)) === pathComparisonKey(`${workspace}.worktrees`),
+			inWorktreesContainer: isWorktreeUnderRepository(URI.file(worktreePath), URI.file(workspace)),
 			existsOnDisk: existsSync(worktreePath),
 			registeredWithGit: isRegisteredWorktree(workspace, worktreePath),
 			checkedOutRepositoryContent: existsSync(join(worktreePath, 'seed.txt')),
