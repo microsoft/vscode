@@ -210,23 +210,24 @@ export class ChatAgentMergeContentPart extends Disposable {
 			const agentMessageLabel = localize('chat.agentMerge.agentMessage', "Agent Message");
 			const showMessageLabel = localize('chat.agentMerge.showAgentMessage', "Show Agent Message");
 			const showDetailsLabel = localize('chat.agentMerge.showMergeDetails', "Show Merge Details");
-			messageButton = this._register(new Button(header, { ...transparentButtonStyles, title: false }));
-			messageButton.element.classList.add('chat-agent-merge-message-toggle');
-			messageButton.icon = Codicon.eye;
-			messageButton.setAriaLabel(agentMessageLabel);
-			messageButton.element.tabIndex = -1;
-			preventPointerFocus(messageButton);
+			const agentMessageButton = this._register(new Button(header, { ...transparentButtonStyles, title: false }));
+			messageButton = agentMessageButton;
+			agentMessageButton.element.classList.add('chat-agent-merge-message-toggle');
+			agentMessageButton.icon = Codicon.eye;
+			agentMessageButton.setAriaLabel(agentMessageLabel);
+			agentMessageButton.element.tabIndex = -1;
+			preventPointerFocus(agentMessageButton);
 			let showingAgentMessage = false;
 			const updateMessageVisibility = (visible: boolean) => {
 				showingAgentMessage = visible;
 				this.domNode.classList.toggle('showing-agent-message', visible);
-				messageButton.checked = visible;
+				agentMessageButton.checked = visible;
 			};
 			updateMessageVisibility(false);
-			this._register(this._hoverService.setupDelayedHover(messageButton.element, () => ({
+			this._register(this._hoverService.setupDelayedHover(agentMessageButton.element, () => ({
 				content: showingAgentMessage ? showDetailsLabel : showMessageLabel,
 			})));
-			this._register(messageButton.onDidClick(() => {
+			this._register(agentMessageButton.onDidClick(() => {
 				setExpanded(true);
 				updateMessageVisibility(!showingAgentMessage);
 			}));
