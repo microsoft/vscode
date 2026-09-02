@@ -364,7 +364,8 @@
 .interactive-item-container .value .rendered-markdown .chat-rich-link:is(
 	[data-chat-rich-link-kind='session'],
 	[data-chat-rich-link-kind='chat']
-) :is(.chat-rich-link-icon, .chat-rich-link-status-icon) {
+) .chat-rich-link-icon,
+.interactive-item-container .value .rendered-markdown .chat-rich-link .chat-rich-link-status-icon {
 	position: static;
 	top: auto;
 }
