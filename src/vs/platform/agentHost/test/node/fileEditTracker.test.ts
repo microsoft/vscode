@@ -8,9 +8,10 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
-import { IFileService } from '../../../files/common/files.js';
+import { IFileService, type IFileContent } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
@@ -121,7 +122,7 @@ suite('FileEditTracker', () => {
 		let readCount = 0;
 		const services = new ServiceCollection();
 		services.set(ILogService, new NullLogService());
-		services.set(IFileService, {
+		services.set(IFileService, upcastPartial<IFileService>({
 			_serviceBrand: undefined,
 			readFile: async () => {
 				readCount++;
@@ -129,9 +130,9 @@ suite('FileEditTracker', () => {
 					afterReadStarted.complete();
 					await releaseAfterRead.p;
 				}
-				return { value: VSBuffer.fromString(content) };
+				return upcastPartial<IFileContent>({ value: VSBuffer.fromString(content) });
 			},
-		} as IFileService);
+		}));
 		services.set(IDiffComputeService, new TestDiffComputeService());
 		services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());
 		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());

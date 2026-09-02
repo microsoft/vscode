@@ -7889,7 +7889,7 @@ Use the attached image as context.
 		test('parallel same-file edit lifecycles keep their snapshots isolated', async () => {
 			const workingDirectory = URI.file('/repo/project');
 			const filePath = join(workingDirectory.fsPath, 'edit.ts');
-			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { workingDirectory, resume: true });
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, { workingDirectory, resume: true });
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
 			const completed: Array<{ path: string; operationId: string | undefined }> = [];
 			const discarded: Array<{ path: string; operationId: string | undefined }> = [];
