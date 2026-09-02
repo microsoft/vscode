@@ -59,6 +59,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 
 	interface SchemaResult {
 		ok: boolean;
+		source: string;
 		resolved?: string;
 		error?: string;
 		schema?: JsonSchema;
@@ -107,6 +108,8 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	const responseConfiguration = $('response-configuration');
 	const responseStatusValidation = $('response-status-validation');
 	const presetSelect = $('preset') as HTMLSelectElement;
+	const schemaSourceInput = $('schema-source') as HTMLInputElement;
+	const loadSchemaButton = $('load-schema') as HTMLButtonElement;
 	const endpointMeta = $('endpoint-meta');
 	const editorStatus = $('editor-status');
 	const saveStateEl = $('save-state');
@@ -117,6 +120,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	const draftStoragePrefix = 'mock-policy-server.response-body.';
 	const synchronizedDraftStoragePrefix = 'mock-policy-server.synchronized-response-body.';
 	const disclosureStoragePrefix = 'mock-policy-server.expanded.';
+	const themeStorageKey = 'mock-policy-server.theme';
 
 	let endpoints: Endpoint[] = [];
 	let activeId = '';
@@ -137,6 +141,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	// tell an external change (control API, another tab) from our own edits.
 	let lastServerSignature = '';
 	let stateWritesInFlight = 0;
+	let followsSystemTheme = true;
 	const pendingSaves = new Map<string, ReturnType<typeof setTimeout>>();
 	let allowNextTabToMoveFocus = false;
 
@@ -146,6 +151,45 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 
 	function draftStorageKey(endpointId: string): string {
 		return `${draftStoragePrefix}${endpointId}`;
+	}
+
+	type Theme = 'light' | 'dark';
+
+	function systemTheme(): Theme {
+		return matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+	}
+
+	function applyTheme(theme: Theme): void {
+		document.documentElement.dataset.theme = theme;
+		const nextTheme = theme === 'dark' ? 'light' : 'dark';
+		const toggle = $('theme-toggle');
+		toggle.dataset.theme = theme;
+		toggle.setAttribute('aria-label', `Switch to ${nextTheme} mode`);
+		toggle.title = `Switch to ${nextTheme} mode`;
+	}
+
+	function restoreTheme(): void {
+		let persistedTheme: string | null = null;
+		try {
+			persistedTheme = localStorage.getItem(themeStorageKey);
+		} catch (error) {
+			reportBrowserStorageError(error);
+		}
+		const theme = persistedTheme === 'light' || persistedTheme === 'dark' ? persistedTheme : undefined;
+		followsSystemTheme = theme === undefined;
+		applyTheme(theme ?? systemTheme());
+	}
+
+	function toggleTheme(): void {
+		const currentTheme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+		const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+		followsSystemTheme = false;
+		applyTheme(nextTheme);
+		try {
+			localStorage.setItem(themeStorageKey, nextTheme);
+		} catch (error) {
+			reportBrowserStorageError(error);
+		}
 	}
 
 	function synchronizedDraftStorageKey(endpointId: string): string {
@@ -227,7 +271,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	}
 
 	function restoreDisclosureState(): void {
-		setExpandableSectionState('schema-details', 'schema-toggle', 'schema-chevron', 'schema', readExpandedState('schema'));
+		setExpandableSectionState('schema-details', 'schema-toggle', 'schema-chevron', 'schema', false);
 		for (const details of document.querySelectorAll<HTMLDetailsElement>('details[data-persist-expanded]')) {
 			const key = details.dataset.persistExpanded;
 			if (!key) {
@@ -812,9 +856,16 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	function selectSetupMethod(method: SetupMethod): void {
 		for (const candidate of ['proxy', 'file'] as const) {
 			const selected = candidate === method;
-			$(`${candidate}-method`).dataset.selected = String(selected);
-			$(`${candidate}-method-steps`).toggleAttribute('inert', !selected);
-			($(`setup-method-${candidate}`) as HTMLInputElement).checked = selected;
+			const panel = $(`${candidate}-method`);
+			panel.dataset.selected = String(selected);
+			panel.hidden = !selected;
+			panel.toggleAttribute('inert', !selected);
+			const content = $(`${candidate}-method-content`);
+			content.hidden = !selected;
+			content.toggleAttribute('inert', !selected);
+			const input = $(`setup-method-${candidate}`) as HTMLInputElement;
+			input.checked = selected;
+			input.setAttribute('aria-expanded', String(selected));
 		}
 	}
 
@@ -1183,30 +1234,46 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		}, 400));
 	}
 
-	async function loadSchema(): Promise<void> {
+	async function loadSchema(source?: string): Promise<void> {
 		const badgeEl = $('schema-badge');
+		const statusEl = $('schema-source-status');
+		badgeEl.textContent = 'Loading\u2026';
+		delete badgeEl.dataset.kind;
+		loadSchemaButton.disabled = true;
+		statusEl.textContent = '';
+		statusEl.dataset.kind = '';
 
 		try {
-			const result = await api<SchemaResult>('/api/schema');
+			const result = await api<SchemaResult>('/api/schema', source === undefined ? undefined : {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ source })
+			});
+			schemaSourceInput.value = result.source || result.resolved || source || '';
 			if (result.ok) {
 				schema = result.schema ?? null;
 				badgeEl.textContent = 'Loaded \u2713';
 				badgeEl.dataset.kind = 'ok';
 				badgeEl.dataset.tooltip = result.resolved || 'Schema loaded';
-				$('schema-source').textContent = result.resolved || '';
+				statusEl.textContent = source === undefined ? '' : 'Schema loaded.';
+				statusEl.dataset.kind = source === undefined ? '' : 'ok';
 			} else {
 				schema = null;
 				badgeEl.textContent = 'Not loaded';
 				badgeEl.dataset.kind = 'error';
 				badgeEl.dataset.tooltip = result.error || 'Schema unavailable';
-				$('schema-source').textContent = result.resolved || '';
+				statusEl.textContent = result.error || 'Schema unavailable.';
+				statusEl.dataset.kind = 'error';
 			}
 		} catch (e) {
 			schema = null;
 			badgeEl.textContent = 'Not loaded';
 			badgeEl.dataset.kind = 'error';
 			badgeEl.dataset.tooltip = e instanceof Error ? e.message : String(e);
-			$('schema-source').textContent = '';
+			statusEl.textContent = badgeEl.dataset.tooltip;
+			statusEl.dataset.kind = 'error';
+		} finally {
+			loadSchemaButton.disabled = false;
 		}
 		parseEditor();
 	}
@@ -1423,7 +1490,14 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		$('proxy-settings').textContent = vscodeProxySetting;
 		$('macos-cache-command').textContent = macOsCacheClearCommand;
 		$('windows-cache-command').textContent = windowsCacheClearCommand;
+		restoreTheme();
 		restoreDisclosureState();
+		$('theme-toggle').addEventListener('click', toggleTheme);
+		matchMedia('(prefers-color-scheme: light)').addEventListener('change', event => {
+			if (followsSystemTheme) {
+				applyTheme(event.matches ? 'light' : 'dark');
+			}
+		});
 
 		editor.addEventListener('input', () => {
 			drafts[activeId] = editor.value;
@@ -1486,11 +1560,6 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		}
 		$('setup-nav').addEventListener('click', openSetupDialog);
 		$('close-setup').addEventListener('click', () => setupDialog.close());
-		$('policies-nav').addEventListener('click', () => {
-			if (setupDialog.open) {
-				setupDialog.close();
-			}
-		});
 		setupDialog.addEventListener('close', () => {
 			$('setup-nav').setAttribute('aria-expanded', 'false');
 			if (location.hash === '#setup') {
@@ -1499,6 +1568,10 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		});
 		window.addEventListener('hashchange', syncSetupDialog);
 		$('schema-toggle').addEventListener('click', toggleSchemaSection);
+		$('schema-source-form').addEventListener('submit', event => {
+			event.preventDefault();
+			void loadSchema(schemaSourceInput.value);
+		});
 		$('hydrate-schema').addEventListener('click', () => {
 			if (!schema) {
 				setStatus('Schema unavailable.', 'error');
@@ -1517,7 +1590,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			parseEditor();
 			renderFileDeploy();
 			void save();
-			setStatus('Generated an example from the schema.', 'ok');
+			setStatus('Filled all response fields from the schema.', 'ok');
 		});
 		$('clear-log').addEventListener('click', async () => {
 			try {
