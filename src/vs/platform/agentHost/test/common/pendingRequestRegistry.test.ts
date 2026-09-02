@@ -150,6 +150,13 @@ suite('PendingRequestRegistry', () => {
 		assert.strictEqual(await promise, 'value');
 	});
 
+	test('rejectAll keeps buffered results when the requester will re-park', async () => {
+		const registry = new PendingRequestRegistry<string>();
+		registry.respondOrBuffer('k', 'value');
+		registry.rejectAll(new Error('rebind'), true);
+		assert.deepStrictEqual([registry.hasBufferedResult('k'), await registry.register('k')], [true, 'value']);
+	});
+
 	test('hasBufferedResult reports only unconsumed early results', async () => {
 		const registry = new PendingRequestRegistry<string>();
 		assert.strictEqual(registry.hasBufferedResult('k'), false);

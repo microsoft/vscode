@@ -155,14 +155,20 @@ export class PendingRequestRegistry<TResult, TMeta = void> {
 	 * supplied value — that is right for the permission-deny path where a
 	 * "deny" is itself a successful answer, but wrong for cancellation
 	 * where the awaited consumer must observe an error to unwind.
+	 *
+	 * Pass `keepBufferedResults` when the requester will come back and re-park
+	 * the same keys (a rebind), so an answer that already arrived is not thrown
+	 * away and re-asked for.
 	 */
-	rejectAll(error: Error): void {
+	rejectAll(error: Error, keepBufferedResults = false): void {
 		for (const [, entry] of this._entries) {
 			if (!entry.deferred.isSettled) {
 				entry.deferred.error(error);
 			}
 		}
 		this._entries.clear();
-		this._earlyResults.clear();
+		if (!keepBufferedResults) {
+			this._earlyResults.clear();
+		}
 	}
 }

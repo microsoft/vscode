@@ -76,6 +76,17 @@ suite('claudeClientToolMcpServer / buildClientToolMcpServer', () => {
 		assert.deepStrictEqual(await callPromise, expected);
 	});
 
+	test('handler forwards the tool name and the runtime arguments to awaitResult', async () => {
+		const { sdk, recorded } = makeSdk();
+		const calls: { id: string; name: string; args: unknown }[] = [];
+		await buildClientToolMcpServer([tool({ name: 'echo' })], async (id, name, args) => {
+			calls.push({ id, name, args });
+			return { content: [] };
+		}, sdk);
+		await recorded[0]!.handler({ msg: 'hi' }, { _meta: { 'claudecode/toolUseId': 'tu_1' } });
+		assert.deepStrictEqual(calls, [{ id: 'tu_1', name: 'echo', args: { msg: 'hi' } }]);
+	});
+
 	test('handler returns an error result when SDK omits the tool_use_id meta field', async () => {
 		const { sdk, recorded } = makeSdk();
 		const registry = new PendingRequestRegistry<CallToolResult>();

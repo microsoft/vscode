@@ -8,6 +8,13 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION = 30_000 * 10;
 
+/**
+ * Grace window a disconnected client gets before the host stops waiting on it:
+ * its active-client slot is released and the client tool calls it owed are
+ * failed. Also bounds a client tool call no connected client ever claims.
+ */
+export const CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT = 30_000;
+
 export interface IAgentHostClientConnectionCounts {
 	readonly connectedClientCount: number;
 	readonly connectedTransportCount: number;
