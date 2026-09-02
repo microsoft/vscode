@@ -1296,7 +1296,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			}
 			const sessionResource = run.sessionResource;
 			const session = automationSessions.find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, sessionResource));
-			return !!session && !session.isRead.read(reader);
+			return !!session && !session.isRead.read(reader) && !session.isArchived.read(reader);
 		});
 		if (hasUnreadRun) {
 			return SessionStatus.Completed;
