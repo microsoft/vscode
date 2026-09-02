@@ -153,8 +153,7 @@ suite('CodeEditorWidget', () => {
 			const { container, isHidden, typeAndAssertHidden } = createEditor();
 			typeAndAssertHidden();
 
-			// The browser re-dispatches a pointer move at the same position whenever the element
-			// below a resting pointer changes, which typing does on almost every keystroke.
+			// Rendering below a stationary pointer can cause the browser to re-dispatch `pointermove`.
 			container.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, screenX: 10, screenY: 20 }));
 			assert.strictEqual(isHidden(), true);
 
