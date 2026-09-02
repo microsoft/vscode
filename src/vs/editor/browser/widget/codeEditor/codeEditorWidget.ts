@@ -437,7 +437,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		store.add(dom.addDisposableListener(this._domElement, 'contextmenu', () => this._showMouseCursor(), { capture: true }));
 		store.add(dom.addDisposableListener(this._domElement, 'pointermove', () => this._showMouseCursor(), { capture: true }));
 		store.add(dom.addDisposableListener(this._domElement, 'pointerleave', () => this._showMouseCursor(), { capture: true }));
-		store.add(dom.addDisposableListener(dom.getWindow(this._domElement), 'blur', () => this._showMouseCursor(), { capture: true }));
 		this._mouseCursorRevealListeners.value = store;
 	}
 
