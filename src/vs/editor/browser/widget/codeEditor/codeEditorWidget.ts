@@ -1261,7 +1261,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return;
 		}
 		this._modelData.viewModel.compositionType(text, replacePrevCharCnt, replaceNextCharCnt, positionDelta, source);
-		if (source === 'keyboard') {
+		if (source === 'keyboard' && (text.length > 0 || replacePrevCharCnt !== 0 || replaceNextCharCnt !== 0)) {
 			this._hideMouseCursor();
 		}
 	}
