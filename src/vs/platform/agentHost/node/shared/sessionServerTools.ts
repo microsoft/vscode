@@ -407,13 +407,26 @@ function resolveWorkspace(workspace: string, sessions: readonly IAgentSessionMet
 	return parsed;
 }
 
-function createSessionWorkspaceNeedsCatalog(rawArgs: unknown): boolean {
+async function getCreateSessionCatalog(accessor: ISessionServerToolAccessor, rawArgs: unknown): Promise<readonly IAgentSessionMetadata[]> {
 	const args = (rawArgs ?? {}) as ICreateSessionArgs;
 	if (getCreateSessionRelationship(args) !== 'independent') {
-		return false;
+		return [];
 	}
 	const workspace = getOptionalString(args.workspace, 'workspace', SessionServerToolName.CreateSession);
-	return workspace !== undefined && parseWorkspaceUri(workspace) === undefined;
+	if (workspace === undefined) {
+		return [];
+	}
+	try {
+		// Prefer the catalog because a project display name can also be a valid URI.
+		return await accessor.listSessions();
+	} catch (error) {
+		// An explicit URI/path is self-contained, so it remains usable when a
+		// provider cannot enumerate its session catalog.
+		if (parseWorkspaceUri(workspace) !== undefined) {
+			return [];
+		}
+		throw error;
+	}
 }
 
 function resolveModel(modelName: string | undefined, models: readonly IAgentModelInfo[], provider?: AgentProvider): IAgentModelInfo | undefined {
@@ -729,10 +742,7 @@ export interface ICreateSessionResult {
  * Creates work with the requested relationship and sends its initial prompt.
  */
 export async function applyCreateSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI, sourceTurnId?: string): Promise<ICreateSessionResult> {
-	// A direct workspace URI/path is self-contained. Only a project display name
-	// needs the aggregate catalog, which may be temporarily unavailable for an
-	// otherwise healthy provider.
-	const sessions = createSessionWorkspaceNeedsCatalog(rawArgs) ? await accessor.listSessions() : [];
+	const sessions = await getCreateSessionCatalog(accessor, rawArgs);
 	const currentSession = source ? currentSessionUri(source.toString()) : undefined;
 	const currentProvider = currentSession ? AgentSession.provider(currentSession) : undefined;
 	const args = getCreateSessionArgs(rawArgs, sessions, accessor.getModels(), currentProvider);

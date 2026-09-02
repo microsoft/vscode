@@ -639,12 +639,16 @@ suite('SessionServerTools', () => {
 		store.dispose();
 	});
 
-	test('create_session with an explicit workspace does not depend on listing sessions', async () => {
+	test('create_session falls back to an explicit workspace when listing sessions fails', async () => {
 		const store = new DisposableStore();
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 		let created: IAgentCreateSessionConfig | undefined;
+		let catalogRequests = 0;
 		const accessor = createAccessor({
-			listSessions: async () => { throw new Error('Provider codex cannot enumerate its native session catalog yet'); },
+			listSessions: async () => {
+				catalogRequests++;
+				throw new Error('Provider codex cannot enumerate its native session catalog yet');
+			},
 			onCreate: config => { created = config; },
 		});
 		const group = createSessionServerToolGroup(accessor);
@@ -657,12 +661,39 @@ suite('SessionServerTools', () => {
 		});
 
 		assert.deepStrictEqual({
+			catalogRequests,
 			workingDirectories: created?.workingDirectories?.map(directory => directory.toString()),
 			result: text.startsWith('New session created'),
 		}, {
+			catalogRequests: 1,
 			workingDirectories: [workspace.toString()],
 			result: true,
 		});
+		store.dispose();
+	});
+
+	test('create_session prefers a URI-shaped project display name from the catalog', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		const project = URI.parse('file:///projects/repo-main');
+		let created: IAgentCreateSessionConfig | undefined;
+		const accessor = createAccessor({
+			listSessions: async () => [{
+				...sessionMeta('project', SessionStatus.Idle, URI.parse('file:///worktrees/repo-main')),
+				project: { uri: project, displayName: 'repo:main' },
+			}],
+			onCreate: config => { created = config; },
+		});
+		const group = createSessionServerToolGroup(accessor);
+
+		await group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, {
+			relationship: 'independent',
+			workspace: 'repo:main',
+			prompt: 'do it',
+			title: 'New Task',
+		});
+
+		assert.deepStrictEqual(created?.workingDirectories?.map(directory => directory.toString()), [project.toString()]);
 		store.dispose();
 	});
 
