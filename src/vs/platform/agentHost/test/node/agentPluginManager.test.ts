@@ -11,7 +11,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
-import { IFileDeleteOptions } from '../../../files/common/files.js';
+import { IFileDeleteOptions, IFileWriteOptions } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientUri.js';
@@ -28,6 +28,7 @@ class LockableInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 	readonly cacheReadStarted = new DeferredPromise<void>();
 	readonly operationLog: string[] = [];
 	cacheReadBarrier: DeferredPromise<void> | undefined;
+	cacheWriteFailures = 0;
 
 	override async delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
 		for (const locked of this.lockedPaths) {
@@ -53,6 +54,14 @@ class LockableInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 			this.operationLog.push('plugin-materialize');
 		}
 		return super.mkdir(resource);
+	}
+
+	override async writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
+		if (resource.path.endsWith('/agentPlugins/cache.json') && this.cacheWriteFailures > 0) {
+			this.cacheWriteFailures--;
+			throw new Error('cache write failed');
+		}
+		return super.writeFile(resource, content, opts);
 	}
 }
 
@@ -166,6 +175,18 @@ suite('AgentPluginManager', () => {
 			const result2 = await manager.syncCustomizations('test-client', [ref]);
 			assert.ok(result2[0].pluginDir);
 			assert.strictEqual(result1[0].pluginDir!.toString(), result2[0].pluginDir!.toString());
+		});
+
+		test('refreshes plugin content when nonce is absent', async () => {
+			await seedPluginDir('uncached', { 'index.js': 'v1' });
+			const ref = makeRef('uncached');
+			await manager.syncCustomizations('test-client', [ref]);
+
+			await seedPluginDir('uncached', { 'index.js': 'v2' });
+			const result = await manager.syncCustomizations('test-client', [ref]);
+			const content = await fileService.readFile(URI.joinPath(result[0].pluginDir!, 'index.js'));
+
+			assert.strictEqual(content.value.toString(), 'v2');
 		});
 
 		test('new nonce materializes a fresh subdirectory and evicts the stale one', async () => {
@@ -362,6 +383,27 @@ suite('AgentPluginManager', () => {
 			// Should be loaded from cache (nonce match), not error
 			assert.strictEqual((result[0].customization as PluginCustomization).load?.kind, 'loaded');
 			assert.ok(result[0].pluginDir);
+		});
+
+		test('does not report a plugin as synced until its cache entry is persisted', async () => {
+			await seedPluginDir('persist-retry', { 'index.js': 'v1' });
+			const ref = makeRef('persist-retry', 'nonce-persist-retry');
+			provider.cacheWriteFailures = 1;
+
+			const failed = await manager.syncCustomizations('test-client', [ref]);
+			const retried = await manager.syncCustomizations('test-client', [ref]);
+			const manager2 = new AgentPluginManager(basePath, fileService, new NullLogService());
+			const restored = await manager2.syncCustomizations('virtual-client', [ref]);
+
+			assert.deepStrictEqual({
+				failed: failed[0].customization.load?.kind,
+				retried: retried[0].customization.load?.kind,
+				restored: restored[0].customization.load?.kind,
+			}, {
+				failed: 'error',
+				retried: 'loaded',
+				restored: 'loaded',
+			});
 		});
 	});
 });

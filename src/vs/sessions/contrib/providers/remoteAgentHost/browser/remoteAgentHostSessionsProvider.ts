@@ -248,7 +248,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 				const scope = activeClientService.acquireScope(sessionType, roots);
 				try {
 					await scope.whenResolved();
-					return scope.activeClient(clientId).get();
+					return scope.hasSuccessfulResolution.get() ? scope.activeClient(clientId).get() : undefined;
 				} finally {
 					scope.dispose();
 				}

@@ -502,6 +502,32 @@ suite('AgentHostAutomationStore', () => {
 		});
 	});
 
+	test('does not publish an empty snapshot when active client resolution fails', async () => {
+		const connection = new TestAutomationConnection(true);
+		disposables.add(connection);
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, {
+			toHost: resource => resource,
+			fromHost: resource => resource,
+			resourceSchemeForProvider: provider => `agent-host-${provider}`,
+			resolveActiveClient: async () => undefined,
+		}, new NullLogService(), storage, NullTelemetryService, automationStorage));
+
+		await store.createAutomation({
+			name: 'Review changes',
+			prompt: 'Review the current changes.',
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+			target: { kind: 'workspace', providerId: 'local-agent-host', sessionTypeId: 'mock', folderUri: URI.file('/workspace'), isolation: { kind: 'default' } },
+		});
+		const create = connection.dispatched.find(entry => entry.action.type === ActionType.AutomationCreateRequested)?.action;
+		const publication = create?.type === ActionType.AutomationCreateRequested
+			? readAutomationCustomizationSnapshotPublication(create.definition._meta)
+			: undefined;
+
+		assert.strictEqual(publication, undefined);
+	});
+
 	test('publishes customization scope changes while the client is connected', async () => {
 		const connection = new TestAutomationConnection(true);
 		disposables.add(connection);

@@ -69,7 +69,7 @@ export interface IAgentHostAutomationBoundaryMapper {
 	resourceSchemeForProvider(provider: string): string;
 	providerForSessionScheme?(scheme: string): string;
 	providerForResourceScheme?(scheme: string): string | undefined;
-	resolveActiveClient?(sessionType: string, roots: readonly URI[], clientId: string): Promise<SessionActiveClient>;
+	resolveActiveClient?(sessionType: string, roots: readonly URI[], clientId: string): Promise<SessionActiveClient | undefined>;
 	watchActiveClient?(sessionType: string, roots: readonly URI[], clientId: string, onChange: (activeClient: SessionActiveClient) => void): IDisposable;
 }
 
@@ -919,6 +919,9 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		const roots = descriptor.target.kind === 'workspace' ? [descriptor.target.folderUri] : [];
 		const sessionType = mapper.resourceSchemeForProvider(definition.session.provider);
 		const activeClient = resolvedActiveClient ?? await resolveActiveClient(sessionType, roots, this._connection.clientId);
+		if (!activeClient) {
+			return definition;
+		}
 		const customizations = activeClient.customizations ?? [];
 		const revision = automationCustomizationSnapshotRevision(customizations);
 		const reference = readAutomationCustomizationSnapshotReference(definition._meta);
