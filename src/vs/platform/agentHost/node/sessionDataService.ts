@@ -13,16 +13,28 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agent.js';
 import { DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { ISessionDatabase, ISessionDataService, IWillDeleteSessionDataEvent, SESSION_DB_FILENAME } from '../common/sessionDataService.js';
-import { AH_META_CHAT_BACKING_DB_KEY } from '../common/state/sessionState.js';
+import { AH_META_CHAT_BACKING_DB_KEY, buildSubagentSessionUriPrefix } from '../common/state/sessionState.js';
 import { SessionDatabase } from './sessionDatabase.js';
 
 function sanitizeDataKey(key: string): string {
 	return key.replace(/[^a-zA-Z0-9_.-]/g, '-');
 }
 
+interface IDataOwner {
+	/** Directory name of the session itself. */
+	readonly key: string;
+	/** Directory name prefix of every subagent session of the session. */
+	readonly subagentPrefix: string;
+	/** Fragment every chat channel directory of the session carries (`<chatId>-<base64url(session)>`). */
+	readonly chatFragment: string;
+}
+
 /** Whether `name` belongs to the owner session, one of its subagent sessions, or one of its chat channels. */
-function isOwnedData(name: string, owner: { readonly key: string; readonly chatFragment: string }): boolean {
-	return name === owner.key || name.startsWith(`${owner.key}-`) || name.includes(owner.chatFragment);
+function isOwnedData(name: string, owner: IDataOwner): boolean {
+	return name === owner.key
+		|| name.startsWith(owner.subagentPrefix)
+		|| name.endsWith(owner.chatFragment)
+		|| name.includes(`${owner.chatFragment}-`);
 }
 
 class SessionDatabaseCollection extends ReferenceCollection<ISessionDatabase> {
@@ -95,10 +107,11 @@ export class SessionDataService implements ISessionDataService {
 		return sanitizeDataKey(this._dataKey(session));
 	}
 
-	/** The directory name of `session` plus the fragment shared by all of its chat channel directories. */
-	private _dataOwner(session: URI): { readonly key: string; readonly chatFragment: string } {
+	/** Derives every directory name shape owned by `session` through the same key derivation its producers use. */
+	private _dataOwner(session: URI): IDataOwner {
 		return {
 			key: this._sanitizedSessionKey(session),
+			subagentPrefix: this._sanitizedSessionKey(URI.parse(buildSubagentSessionUriPrefix(session))),
 			chatFragment: `-${sanitizeDataKey(encodeBase64(VSBuffer.fromString(session.toString()), false, true))}`,
 		};
 	}

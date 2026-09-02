@@ -14,7 +14,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
 import { SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
-import { AH_META_CHAT_BACKING_DB_KEY, buildChatUri, buildSubagentSessionUri } from '../../common/state/sessionState.js';
+import { AH_META_CHAT_BACKING_DB_KEY, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri } from '../../common/state/sessionState.js';
 import { SessionDataService } from '../../node/sessionDataService.js';
 
 suite('SessionDataService', () => {
@@ -79,9 +79,11 @@ suite('SessionDataService', () => {
 		const dirs = {
 			known: service.getSessionDataDir(known),
 			knownChat: service.getSessionDataDir(URI.parse(buildChatUri(known, 'chat-a'))),
+			knownSubagentChat: service.getSessionDataDir(URI.parse(buildSubagentChatUri(known, 'call-1'))),
 			knownSubagent: service.getSessionDataDir(URI.parse(buildSubagentSessionUri(known, 'call-1'))),
 			orphan: service.getSessionDataDir(orphan),
 			orphanChat: service.getSessionDataDir(URI.parse(buildChatUri(orphan, 'chat-b'))),
+			orphanSharingPrefix: service.getSessionDataDir(AgentSession.uri('copilot', 'keep-1-other')),
 			detachedWorktree: URI.joinPath(basePath, 'agentSessionData', 'devcontainer-worktree-detached'),
 		};
 		for (const dir of Object.values(dirs)) {
@@ -98,13 +100,32 @@ suite('SessionDataService', () => {
 			remaining: {
 				known: true,
 				knownChat: true,
+				knownSubagentChat: true,
 				knownSubagent: true,
 				orphan: false,
 				orphanChat: false,
+				orphanSharingPrefix: false,
 				detachedWorktree: true,
 			},
 			listedDetached: ['devcontainer-worktree-detached'],
 		});
+	});
+
+	test('cleanupOrphanedData does not mistake chats of a session whose URI extends a known one', async () => {
+		// base64url('copilot:/abc') is a prefix of base64url('copilot:/abcd'): the input is a multiple of three bytes.
+		const known = AgentSession.uri('copilot', 'abc');
+		const orphan = AgentSession.uri('copilot', 'abcd');
+		const knownChat = service.getSessionDataDir(URI.parse(buildChatUri(known, 'chat-a')));
+		const orphanChat = service.getSessionDataDir(URI.parse(buildChatUri(orphan, 'chat-b')));
+		await fileService.createFolder(knownChat);
+		await fileService.createFolder(orphanChat);
+
+		await service.cleanupOrphanedData([known]);
+
+		assert.deepStrictEqual({
+			knownChat: await fileService.exists(knownChat),
+			orphanChat: await fileService.exists(orphanChat),
+		}, { knownChat: true, orphanChat: false });
 	});
 
 	test('cleanupOrphanedData keeps the backing session of a chat', async () => {
