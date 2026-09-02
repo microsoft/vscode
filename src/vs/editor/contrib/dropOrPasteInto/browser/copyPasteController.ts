@@ -327,6 +327,13 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			return;
 		}
 
+		// When the copy was from an empty selection (full line copy), adjust the paste
+		// ranges to the beginning of each line. This mirrors the default paste behavior
+		// which inserts the line above the current line instead of at the cursor column.
+		if (metadata?.defaultPastePayload.pasteOnNewLine && selections.every(s => s.isEmpty())) {
+			selections = selections.map(s => Selection.fromPositions({ lineNumber: s.startLineNumber, column: 1 }));
+		}
+
 		const editorStateCts = new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection, undefined);
 
 		const p = createCancelablePromise(async (pToken) => {
