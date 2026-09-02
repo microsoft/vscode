@@ -29,10 +29,9 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 
 	interface ServerState {
 		endpoints: Endpoint[];
-		wired: boolean;
 		baseUrl?: string;
 		upstream?: string;
-		overridesPath?: string;
+		hasPersistedState?: boolean;
 	}
 
 	interface LogEntry {
@@ -83,7 +82,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		editorText: string;
 	}
 
-	type SetupMethod = 'proxy' | 'overrides' | 'file';
+	type SetupMethod = 'proxy' | 'file';
 
 	const $ = (id: string): HTMLElement => document.getElementById(id)!;
 	const tabs = $('tabs');
@@ -100,12 +99,15 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	const vscodeProxySetting = '"http.proxy": "http://localhost:9090"';
 	const macOsCacheClearCommand = 'rm -rf -- "${COPILOT_CACHE_HOME:-$HOME/Library/Caches/copilot}/managed-settings"';
 	const windowsCacheClearCommand = '$root = if ($env:COPILOT_CACHE_HOME) { $env:COPILOT_CACHE_HOME } elseif ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA \'copilot\' } else { Join-Path $HOME \'.cache\\copilot\' }; $path = Join-Path $root \'managed-settings\'; if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force }';
+	const draftStoragePrefix = 'mock-policy-server.response-body.';
+	const disclosureStoragePrefix = 'mock-policy-server.expanded.';
 
 	let endpoints: Endpoint[] = [];
 	let activeId = '';
 	const drafts: Record<string, string> = {};
+	const dirtyDrafts = new Set<string>();
+	let draftStorageErrorShown = false;
 	let schema: JsonSchema | null = null;
-	let overridesWired = false;
 	let proxyVerified = false;
 	let proxyBaseUrl = '';
 	let proxyUpstream = '';
@@ -118,9 +120,78 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	let lastServerSignature = '';
 	let stateWritesInFlight = 0;
 	const pendingSaves = new Map<string, ReturnType<typeof setTimeout>>();
+	let allowNextTabToMoveFocus = false;
 
 	function activeEndpoint(): Endpoint | undefined {
 		return endpoints.find(e => e.id === activeId);
+	}
+
+	function draftStorageKey(endpointId: string): string {
+		return `${draftStoragePrefix}${endpointId}`;
+	}
+
+	function reportBrowserStorageError(error: unknown): void {
+		console.error('Failed to access browser storage for mock policy server state.', error);
+		if (!draftStorageErrorShown) {
+			draftStorageErrorShown = true;
+			toast('Drafts and expanded sections cannot be stored in this browser session.', true);
+		}
+	}
+
+	function readPersistedDraft(endpointId: string): string | undefined {
+		try {
+			return localStorage.getItem(draftStorageKey(endpointId)) ?? undefined;
+		} catch (error) {
+			reportBrowserStorageError(error);
+			return undefined;
+		}
+	}
+
+	function persistDraft(endpointId: string, value: string): void {
+		if (!endpointId) {
+			return;
+		}
+		try {
+			localStorage.setItem(draftStorageKey(endpointId), value);
+		} catch (error) {
+			reportBrowserStorageError(error);
+		}
+	}
+
+	function readExpandedState(key: string): boolean {
+		try {
+			return localStorage.getItem(`${disclosureStoragePrefix}${key}`) === 'true';
+		} catch (error) {
+			reportBrowserStorageError(error);
+			return false;
+		}
+	}
+
+	function persistExpandedState(key: string, expanded: boolean): void {
+		try {
+			localStorage.setItem(`${disclosureStoragePrefix}${key}`, String(expanded));
+		} catch (error) {
+			reportBrowserStorageError(error);
+		}
+	}
+
+	function setExpandableSectionState(detailsId: string, toggleId: string, chevronId: string, storageKey: string, expanded: boolean): void {
+		$(detailsId).hidden = !expanded;
+		$(chevronId).classList.toggle('open', expanded);
+		$(toggleId).setAttribute('aria-expanded', String(expanded));
+		persistExpandedState(storageKey, expanded);
+	}
+
+	function restoreDisclosureState(): void {
+		setExpandableSectionState('schema-details', 'schema-toggle', 'schema-chevron', 'schema', readExpandedState('schema'));
+		for (const details of document.querySelectorAll<HTMLDetailsElement>('details[data-persist-expanded]')) {
+			const key = details.dataset.persistExpanded;
+			if (!key) {
+				continue;
+			}
+			details.open = readExpandedState(key);
+			details.addEventListener('toggle', () => persistExpandedState(key, details.open));
+		}
 	}
 
 	// File-based managed settings: instead of proxying, a client can read
@@ -139,6 +210,14 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		return `sudo mkdir -p /etc/github-copilot && sudo tee ${linuxManagedSettingsPath} >/dev/null <<'JSON'\n${body}\nJSON`;
 	}
 
+	function macOsFileRemoveCommand(): string {
+		return `sudo rm -f -- "${macOsManagedSettingsPath}"`;
+	}
+
+	function linuxFileRemoveCommand(): string {
+		return `sudo rm -f -- ${linuxManagedSettingsPath}`;
+	}
+
 	function windowsFileDeployCommand(body: string): string {
 		// A PowerShell here-string keeps the JSON literal; WriteAllText writes
 		// UTF-8 without a BOM on both Windows PowerShell 5.1 and PowerShell 7.
@@ -150,6 +229,10 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			'\'@',
 			'[System.IO.File]::WriteAllText((Join-Path $dir \'managed-settings.json\'), $json)'
 		].join('\n');
+	}
+
+	function windowsFileRemoveCommand(): string {
+		return '$path = Join-Path $env:ProgramFiles \'GitHubCopilot\\managed-settings.json\'; Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue';
 	}
 
 	function currentManagedSettingsBody(): string | null {
@@ -168,6 +251,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		// File-based deployment only maps to the managed-settings.json document.
 		const applies = activeEndpoint()?.id === 'managedSettings';
 		$('file-deploy-section').hidden = !applies;
+		$('troubleshooting-section').hidden = !applies;
 		if (!applies) {
 			return;
 		}
@@ -181,11 +265,106 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		$('macos-file-command').textContent = macOsFileDeployCommand(body);
 		$('windows-file-command').textContent = windowsFileDeployCommand(body);
 		$('linux-file-command').textContent = linuxFileDeployCommand(body);
+		$('macos-file-remove-command').textContent = macOsFileRemoveCommand();
+		$('windows-file-remove-command').textContent = windowsFileRemoveCommand();
+		$('linux-file-remove-command').textContent = linuxFileRemoveCommand();
 	}
 
 	function setStatus(message: string, kind?: string): void {
 		editorStatus.textContent = message;
 		editorStatus.dataset.kind = kind || '';
+	}
+
+	function notifyEditorChanged(): void {
+		editor.dispatchEvent(new Event('input', { bubbles: true }));
+	}
+
+	function formatEditor(): void {
+		const raw = editor.value.trim();
+		try {
+			editor.value = JSON.stringify(raw === '' ? {} : JSON.parse(raw), null, '\t');
+			notifyEditorChanged();
+			setStatus('Formatted JSON.', 'ok');
+		} catch (error) {
+			setStatus(`Cannot format invalid JSON: ${error instanceof Error ? error.message : String(error)}`, 'error');
+		}
+	}
+
+	function indentEditorSelection(outdent: boolean): void {
+		const value = editor.value;
+		const selectionStart = editor.selectionStart;
+		const selectionEnd = editor.selectionEnd;
+		if (!outdent && selectionStart === selectionEnd) {
+			editor.setRangeText('\t', selectionStart, selectionEnd, 'end');
+			notifyEditorChanged();
+			return;
+		}
+
+		const blockStart = value.lastIndexOf('\n', selectionStart - 1) + 1;
+		const selectionLastCharacter = selectionEnd > selectionStart && value[selectionEnd - 1] === '\n'
+			? selectionEnd - 1
+			: selectionEnd;
+		const nextLineBreak = value.indexOf('\n', selectionLastCharacter);
+		const blockEnd = nextLineBreak === -1 ? value.length : nextLineBreak;
+		const block = value.slice(blockStart, blockEnd);
+		const updated = block.split('\n').map(line => {
+			if (!outdent) {
+				return `\t${line}`;
+			}
+			return line.startsWith('\t') ? line.slice(1) : line.replace(/^ {1,4}/, '');
+		}).join('\n');
+		editor.setRangeText(updated, blockStart, blockEnd, 'select');
+		notifyEditorChanged();
+	}
+
+	function insertEditorNewLine(): void {
+		const value = editor.value;
+		const selectionStart = editor.selectionStart;
+		const selectionEnd = editor.selectionEnd;
+		const lineStart = value.lastIndexOf('\n', selectionStart - 1) + 1;
+		const indentation = /^\s*/.exec(value.slice(lineStart, selectionStart))?.[0] ?? '';
+		const before = value.slice(lineStart, selectionStart).trimEnd();
+		const after = value.slice(selectionEnd).split('\n', 1)[0].trimStart();
+		const opensObject = before.endsWith('{') && after.startsWith('}');
+		const opensArray = before.endsWith('[') && after.startsWith(']');
+		const opensBlock = before.endsWith('{') || before.endsWith('[');
+		const innerIndentation = opensBlock ? `${indentation}\t` : indentation;
+
+		if (opensObject || opensArray) {
+			const replacement = `\n${innerIndentation}\n${indentation}`;
+			editor.setRangeText(replacement, selectionStart, selectionEnd, 'end');
+			editor.selectionStart = editor.selectionEnd = selectionStart + innerIndentation.length + 1;
+		} else {
+			editor.setRangeText(`\n${innerIndentation}`, selectionStart, selectionEnd, 'end');
+		}
+		notifyEditorChanged();
+	}
+
+	function handleEditorKeyDown(event: KeyboardEvent): void {
+		if (event.key === 'Escape') {
+			allowNextTabToMoveFocus = true;
+			setStatus('Press Tab to move focus out of the editor.');
+			return;
+		}
+		if (event.key === 'Tab') {
+			if (allowNextTabToMoveFocus) {
+				allowNextTabToMoveFocus = false;
+				return;
+			}
+			event.preventDefault();
+			indentEditorSelection(event.shiftKey);
+			return;
+		}
+		allowNextTabToMoveFocus = false;
+		if (event.key === 'Enter') {
+			event.preventDefault();
+			insertEditorNewLine();
+			return;
+		}
+		if (event.altKey && event.shiftKey && event.key.toLowerCase() === 'f') {
+			event.preventDefault();
+			formatEditor();
+		}
 	}
 
 	function setSaveState(kind: 'live' | 'pending' | 'error', message: string): void {
@@ -431,13 +610,20 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			checkbox.type = 'checkbox';
 			checkbox.checked = endpoint.active === true;
 			checkbox.setAttribute('aria-label', `Mock ${endpoint.label}`);
+			const tooltipId = `${endpoint.id}-toggle-tooltip`;
+			checkbox.setAttribute('aria-describedby', tooltipId);
 			checkbox.addEventListener('change', () => {
 				void setEndpointActive(endpoint, checkbox.checked);
 			});
 			const track = document.createElement('span');
 			track.className = 'tab-toggle-track';
 			track.setAttribute('aria-hidden', 'true');
-			toggle.append(checkbox, track);
+			const tooltip = document.createElement('span');
+			tooltip.id = tooltipId;
+			tooltip.className = 'tab-toggle-tooltip';
+			tooltip.role = 'tooltip';
+			tooltip.textContent = `On: this server returns the ${endpoint.label} response JSON configured below, or the selected failure behavior. Off: requests pass through to api.github.com.`;
+			toggle.append(checkbox, track, tooltip);
 
 			item.append(tab, toggle);
 			tabs.appendChild(item);
@@ -448,6 +634,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		// Stash the current draft before switching.
 		if (activeId) {
 			drafts[activeId] = editor.value;
+			persistDraft(activeId, editor.value);
 		}
 		activeId = id;
 		const endpoint = activeEndpoint();
@@ -474,7 +661,15 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		responseModeSelect.value = endpoint.mode ?? 'json';
 		updateResponseConfigurationVisibility();
 		parseResponseStatus();
-		editor.value = drafts[id] ?? JSON.stringify(endpoint.body ?? {}, null, '\t');
+		const serverText = JSON.stringify(endpoint.body ?? {}, null, '\t');
+		const hasMemoryDraft = Object.prototype.hasOwnProperty.call(drafts, id);
+		const persistedDraft = hasMemoryDraft ? undefined : readPersistedDraft(id);
+		editor.value = hasMemoryDraft ? drafts[id] : persistedDraft ?? serverText;
+		drafts[id] = editor.value;
+		persistDraft(id, editor.value);
+		if (persistedDraft !== undefined && persistedDraft !== serverText) {
+			dirtyDrafts.add(id);
+		}
 		renderTabs();
 		renderPresets();
 		renderProxy();
@@ -484,6 +679,9 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		parseEditor();
 		renderFileDeploy();
 		renderSaveState();
+		if (persistedDraft !== undefined && persistedDraft !== serverText) {
+			debouncedSave();
+		}
 	}
 
 	function renderPresets(): void {
@@ -511,21 +709,12 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		parseResponseStatus();
 		editor.value = JSON.stringify(preset.body, null, '\t');
 		drafts[activeId] = editor.value;
+		dirtyDrafts.add(activeId);
+		persistDraft(activeId, editor.value);
 		parseEditor();
 		renderFileDeploy();
 		clearPendingSave(activeId);
 		void save();
-	}
-
-	function renderWired(state: ServerState): void {
-		overridesWired = state.wired;
-		const status = $('override-status');
-		status.textContent = state.wired ? 'Applied \u2713' : 'Not applied';
-		status.dataset.state = state.wired ? 'ready' : 'pending';
-		const action = $('overrides-action');
-		action.textContent = state.wired ? 'Restore Original' : 'Apply Overrides';
-		action.className = state.wired ? 'btn-secondary' : 'btn-primary';
-		updateReadiness();
 	}
 
 	function updateResponseConfigurationVisibility(): void {
@@ -563,7 +752,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	}
 
 	function selectSetupMethod(method: SetupMethod): void {
-		for (const candidate of ['proxy', 'overrides', 'file'] as const) {
+		for (const candidate of ['proxy', 'file'] as const) {
 			const selected = candidate === method;
 			$(`${candidate}-method`).dataset.selected = String(selected);
 			$(`${candidate}-method-steps`).toggleAttribute('inert', !selected);
@@ -572,12 +761,11 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	}
 
 	function updateReadiness(): void {
-		const connectionReady = proxyVerified || overridesWired;
 		const globalStatus = $('global-connection-status');
-		globalStatus.dataset.state = connectionReady ? 'ready' : proxyCheckInFlight ? 'checking' : 'error';
+		globalStatus.dataset.state = proxyVerified ? 'ready' : proxyCheckInFlight ? 'checking' : 'error';
 		$('global-connection-label').textContent = proxyVerified
 			? 'System proxy connected'
-			: overridesWired ? 'Code OSS overrides active' : proxyCheckInFlight ? 'Checking connection\u2026' : 'No connection detected';
+			: proxyCheckInFlight ? 'Checking connection\u2026' : 'No connection detected';
 	}
 
 	function renderProxyStatus(state: 'checking' | 'ready' | 'pending', message: string, detail: string): void {
@@ -656,10 +844,36 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		endpoints = state.endpoints;
 		proxyBaseUrl = state.baseUrl ?? '';
 		proxyUpstream = state.upstream ?? '';
-		renderWired(state);
 		renderProxy();
 		renderTabs();
 		lastServerSignature = stateSignature(state);
+	}
+
+	async function restoreBrowserDrafts(state: ServerState): Promise<ServerState> {
+		if (state.hasPersistedState !== false) {
+			return state;
+		}
+		const updates: Array<{ endpoint: string; body: unknown }> = [];
+		for (const endpoint of state.endpoints) {
+			const persistedDraft = readPersistedDraft(endpoint.id);
+			if (persistedDraft === undefined) {
+				continue;
+			}
+			drafts[endpoint.id] = persistedDraft;
+			try {
+				updates.push({ endpoint: endpoint.id, body: JSON.parse(persistedDraft) });
+			} catch {
+				dirtyDrafts.add(endpoint.id);
+			}
+		}
+		if (updates.length === 0) {
+			return state;
+		}
+		const restoredState = await updateState({ endpoints: updates });
+		for (const update of updates) {
+			dirtyDrafts.delete(update.endpoint);
+		}
+		return restoredState;
 	}
 
 	/**
@@ -671,7 +885,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		const endpoints = (state.endpoints ?? []).map(e => ({
 			id: e.id, status: e.status, mode: e.mode, active: e.active, body: e.body
 		}));
-		return JSON.stringify({ endpoints, wired: state.wired });
+		return JSON.stringify({ endpoints });
 	}
 
 	function isInteractingWithEditor(): boolean {
@@ -699,6 +913,14 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		if (stateWritesInFlight > 0 || pendingSaves.size > 0 || isInteractingWithEditor()) {
 			return;
 		}
+		if (state.hasPersistedState === false) {
+			try {
+				state = await restoreBrowserDrafts(state);
+			} catch (e) {
+				toast(`Failed to restore browser drafts: ${e instanceof Error ? e.message : String(e)}`, true);
+				return;
+			}
+		}
 		if (stateSignature(state) === lastServerSignature) {
 			return;
 		}
@@ -706,11 +928,13 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	}
 
 	function applyExternalState(state: ServerState): void {
-		// Only reached when the user is not editing, so replacing the editor
-		// contents and drafts from the new server truth is safe.
+		// Keep local drafts that have not reached the server yet.
 		applyState(state);
 		for (const endpoint of endpoints) {
-			drafts[endpoint.id] = JSON.stringify(endpoint.body ?? {}, null, '\t');
+			if (!dirtyDrafts.has(endpoint.id)) {
+				drafts[endpoint.id] = JSON.stringify(endpoint.body ?? {}, null, '\t');
+				persistDraft(endpoint.id, drafts[endpoint.id]);
+			}
 		}
 		const endpoint = activeEndpoint();
 		if (!endpoint) {
@@ -805,7 +1029,12 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 				active: snapshot.active
 			});
 			applyState(state);
-			drafts[snapshot.endpoint] = snapshot.editorText;
+			const currentDraft = drafts[snapshot.endpoint];
+			if (currentDraft === undefined || currentDraft === snapshot.editorText) {
+				drafts[snapshot.endpoint] = snapshot.editorText;
+				persistDraft(snapshot.endpoint, snapshot.editorText);
+				dirtyDrafts.delete(snapshot.endpoint);
+			}
 			if (snapshot.endpoint === activeId && editor.value === snapshot.editorText && !pendingSaves.has(snapshot.endpoint)) {
 				setLiveSaveState();
 			}
@@ -849,16 +1078,6 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		}, 400));
 	}
 
-	async function wire(wireIt: boolean): Promise<void> {
-		try {
-			const state = await api<ServerState>(wireIt ? '/api/wire' : '/api/unwire', { method: 'POST' });
-			applyState(state);
-			toast(wireIt ? 'Overrides applied — reload Code OSS' : 'Original file restored — reload Code OSS');
-		} catch (e) {
-			toast(`${wireIt ? 'Apply' : 'Restore'} failed: ${e instanceof Error ? e.message : String(e)}`, true);
-		}
-	}
-
 	async function loadSchema(): Promise<void> {
 		const badgeEl = $('schema-badge');
 
@@ -890,6 +1109,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	function renderValidationResults(parsed: Record<string, unknown>): void {
 		const container = $('validation-results');
 		const rows = schema ? validationRows(schema, parsed) : [];
+		const wasOpen = (container.querySelector('.validation-details') as HTMLDetailsElement | null)?.open ?? readExpandedState('schema-keys');
 
 		if (rows.length === 0) {
 			container.hidden = true;
@@ -964,34 +1184,34 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		const schemaRows = rows.filter(row => row.inSchema && !row.dynamic);
 		const presentCount = schemaRows.filter(row => row.inBody).length;
 		const unknownCount = rows.filter(row => row.inBody && !row.inSchema).length;
-		const summary = document.createElement('p');
-		summary.className = 'validation-summary';
+		const summary = document.createElement('span');
 		summary.textContent = `${presentCount} of ${schemaRows.length} schema keys set`
 			+ (unknownCount ? `, ${unknownCount} unknown` : '');
 		if (unknownCount) {
 			summary.classList.add('validation-warn');
 		}
 
-		container.replaceChildren(tableContainer, summary);
+		const details = document.createElement('details');
+		details.className = 'validation-details';
+		details.open = wasOpen;
+		details.addEventListener('toggle', () => persistExpandedState('schema-keys', details.open));
+		const detailsSummary = document.createElement('summary');
+		const chevron = document.createElement('span');
+		chevron.className = 'validation-details-chevron';
+		chevron.setAttribute('aria-hidden', 'true');
+		chevron.textContent = '\u25B6';
+		detailsSummary.append(chevron, 'Schema keys');
+		summary.classList.add('validation-details-summary');
+		detailsSummary.appendChild(summary);
+		details.append(detailsSummary, tableContainer);
+
+		container.replaceChildren(details);
 		container.hidden = false;
 		setStatus(unknownCount ? `${unknownCount} key${unknownCount > 1 ? 's' : ''} not in schema.` : '', unknownCount ? 'warn' : '');
 	}
 
 	function toggleSchemaSection(): void {
-		const detailsEl = $('schema-details');
-		// `hidden` can also be the string 'until-found', so normalize to boolean.
-		const willOpen = Boolean(detailsEl.hidden);
-		detailsEl.hidden = !willOpen;
-		$('schema-chevron').classList.toggle('open', willOpen);
-		$('schema-toggle').setAttribute('aria-expanded', String(willOpen));
-	}
-
-	function toggleFileDeploySection(): void {
-		const detailsEl = $('file-deploy-details');
-		const willOpen = Boolean(detailsEl.hidden);
-		detailsEl.hidden = !willOpen;
-		$('file-deploy-chevron').classList.toggle('open', willOpen);
-		$('file-deploy-toggle').setAttribute('aria-expanded', String(willOpen));
+		setExpandableSectionState('schema-details', 'schema-toggle', 'schema-chevron', 'schema', Boolean($('schema-details').hidden));
 	}
 
 	function openFileDeploy(): void {
@@ -1001,9 +1221,6 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			selectEndpoint('managedSettings');
 		}
 		setupDialog.close();
-		if ($('file-deploy-details').hidden) {
-			toggleFileDeploySection();
-		}
 		$('file-deploy-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
 	}
 
@@ -1101,13 +1318,19 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		$('proxy-settings').textContent = vscodeProxySetting;
 		$('macos-cache-command').textContent = macOsCacheClearCommand;
 		$('windows-cache-command').textContent = windowsCacheClearCommand;
+		restoreDisclosureState();
 
 		editor.addEventListener('input', () => {
 			drafts[activeId] = editor.value;
+			dirtyDrafts.add(activeId);
+			persistDraft(activeId, editor.value);
 			parseEditor();
 			renderFileDeploy();
 			debouncedSave();
 		});
+		editor.addEventListener('keydown', handleEditorKeyDown);
+		editor.addEventListener('blur', () => allowNextTabToMoveFocus = false);
+		$('format-editor').addEventListener('click', formatEditor);
 		responseStatusInput.addEventListener('input', () => {
 			// Re-run validation on status change too: schema warnings only apply
 			// to 2xx bodies, so the status decides whether they are shown.
@@ -1122,7 +1345,6 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			void setResponseMode(endpoint, responseModeSelect.value as EndpointResponseMode);
 		});
 		presetSelect.addEventListener('change', applyPreset);
-		$('overrides-action').addEventListener('click', () => wire(!overridesWired));
 		$('copy-map').addEventListener('click', e => {
 			copy(`${$('map-from').textContent}\n${$('map-to').textContent}`, e.currentTarget as HTMLElement);
 		});
@@ -1144,8 +1366,17 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		$('copy-linux-file-command').addEventListener('click', e => {
 			copy($('linux-file-command').textContent ?? '', e.currentTarget as HTMLElement);
 		});
+		$('copy-macos-file-remove-command').addEventListener('click', e => {
+			copy($('macos-file-remove-command').textContent ?? '', e.currentTarget as HTMLElement);
+		});
+		$('copy-windows-file-remove-command').addEventListener('click', e => {
+			copy($('windows-file-remove-command').textContent ?? '', e.currentTarget as HTMLElement);
+		});
+		$('copy-linux-file-remove-command').addEventListener('click', e => {
+			copy($('linux-file-remove-command').textContent ?? '', e.currentTarget as HTMLElement);
+		});
 		$('file-deploy-goto').addEventListener('click', openFileDeploy);
-		for (const method of ['proxy', 'overrides', 'file'] as const) {
+		for (const method of ['proxy', 'file'] as const) {
 			$(`setup-method-${method}`).addEventListener('change', () => selectSetupMethod(method));
 		}
 		$('setup-nav').addEventListener('click', openSetupDialog);
@@ -1163,7 +1394,6 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		});
 		window.addEventListener('hashchange', syncSetupDialog);
 		$('schema-toggle').addEventListener('click', toggleSchemaSection);
-		$('file-deploy-toggle').addEventListener('click', toggleFileDeploySection);
 		$('hydrate-schema').addEventListener('click', () => {
 			if (!schema) {
 				setStatus('Schema unavailable.', 'error');
@@ -1177,6 +1407,8 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			parseResponseStatus();
 			editor.value = JSON.stringify(hydrateFromSchema(schema), null, '\t');
 			drafts[activeId] = editor.value;
+			dirtyDrafts.add(activeId);
+			persistDraft(activeId, editor.value);
 			parseEditor();
 			renderFileDeploy();
 			void save();
@@ -1197,8 +1429,9 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		});
 
 		try {
-			const state = await api<ServerState>('/api/state');
-			selectSetupMethod(state.wired ? 'overrides' : 'proxy');
+			let state = await api<ServerState>('/api/state');
+			state = await restoreBrowserDrafts(state);
+			selectSetupMethod('proxy');
 			applyState(state);
 			if (endpoints.length) {
 				selectEndpoint(endpoints[0].id);
