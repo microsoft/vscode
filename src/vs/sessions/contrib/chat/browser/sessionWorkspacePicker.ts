@@ -501,6 +501,10 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	getContextPickerActions(): readonly IWorkspacePickerContextAction[] {
+		if (this._getCurrentRepositoryId() === undefined) {
+			return [];
+		}
+
 		return this.sessionsProvidersService.getProviders()
 			.flatMap(provider => provider.browseActions)
 			.filter(action => action.attachesContext === true)
@@ -780,7 +784,10 @@ export class WorkspacePicker extends Disposable {
 			createActionList: (tab) => {
 				this._activeTab = tab;
 				const items = this._buildItems();
-				return { items, listOptions: this._buildListOptions(items, undefined) };
+				const listOptions = this._useConsolidatedRemoteWorkspaces()
+					? this._buildListOptions(items, undefined)
+					: { inlineDescription: true, showGroupTitleOnFirstItem: true, hideDefaultKeybindingTooltip: true };
+				return { items, listOptions };
 			},
 			delegate,
 			accessibilityProvider,
