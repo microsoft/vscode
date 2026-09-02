@@ -41,6 +41,8 @@ import { IActiveSession, ISessionsManagementService } from '../../../../../sessi
 // eslint-disable-next-line local/code-import-patterns
 import { SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
 // eslint-disable-next-line local/code-import-patterns
+import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, type AutomationsNewBadgeStyle } from '../../../../../sessions/contrib/sessions/browser/automationsNewBadge.js';
+// eslint-disable-next-line local/code-import-patterns
 import { IsPhoneLayoutContext } from '../../../../../sessions/common/contextkeys.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
@@ -179,9 +181,10 @@ interface IRenderOptions {
 	readonly revealHierarchyGuides?: boolean;
 	readonly showAutomations?: boolean;
 	readonly automationRunStatus?: IAutomationRun['status'];
+	readonly automationBadgeStyle?: AutomationsNewBadgeStyle;
 }
 
-function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOptions): void {
+async function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOptions): Promise<void> {
 	const { container, disposableStore } = ctx;
 	const approvals = new Map<string, IAgentSessionApprovalInfo>();
 	const sessions = options.sessions.map(spec => createSession(spec, approvals));
@@ -286,6 +289,9 @@ function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOption
 	// Render terminal-approval labels as real (monospace) code blocks — otherwise
 	// the markdown renderer emits empty code-block spans and the command is blank.
 	(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('editor', { fontFamily: 'monospace' });
+	if (options.automationBadgeStyle) {
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(AUTOMATIONS_NEW_BADGE_STYLE_SETTING, options.automationBadgeStyle);
+	}
 	instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 
 	// Phone layout is driven by both a CSS class (visual) and a context key (row
@@ -337,6 +343,7 @@ function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOption
 			leaderWindowId: 1,
 		}], undefined);
 	}
+	await Promise.resolve();
 
 	if (options.revealHierarchyGuides) {
 		const sessionItem = listHost.querySelector<HTMLElement>('.session-item');
@@ -390,6 +397,26 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		render: ctx => renderSessionsList(ctx, {
 			sessions: [],
 			showAutomations: true,
+		}),
+	}),
+	SessionsList_AutomationsNewBadge_Accent: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The Automations row has a compact right-aligned NEW pill using the prominent activity badge colors, while the larger outlined New button remains visually distinct in the Sessions header.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [],
+			showAutomations: true,
+			automationBadgeStyle: 'accent',
+		}),
+	}),
+	SessionsList_AutomationsNewBadge_Soft: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The Automations row has a compact right-aligned NEW pill with a subtle neutral fill, while the larger outlined New button remains visually distinct in the Sessions header.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [],
+			showAutomations: true,
+			automationBadgeStyle: 'soft',
 		}),
 	}),
 	SessionsList_AutomationsNewBadge_Narrow: defineComponentFixture({

@@ -4,14 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, derived, observableValue } from '../../../../base/common/observable.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { IConfigurationService, isConfigured } from '../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { observableMemento, type ObservableMemento } from '../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import type { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import type { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
+import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
+import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from './automationsConstants.js';
 
 export const AUTOMATIONS_NEW_BADGE_SEEN_STORAGE_KEY = 'sessions.automations.newBadgeSeen';
+export const AUTOMATIONS_NEW_BADGE_STYLE_SETTING = 'sessions.automations.newBadgeStyle';
+export const AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT = 'agentSessionsAutomationsNewBadgeStyle';
+
+export type AutomationsNewBadgeStyle = 'accent' | 'soft' | 'outline';
+
+const DEFAULT_AUTOMATIONS_NEW_BADGE_STYLE: AutomationsNewBadgeStyle = 'outline';
 
 const automationsNewBadgeSeenMemento = observableMemento<boolean>({
 	key: AUTOMATIONS_NEW_BADGE_SEEN_STORAGE_KEY,
@@ -24,20 +34,26 @@ const automationsNewBadgeSeenMemento = observableMemento<boolean>({
 export class AutomationsNewBadgeState extends Disposable {
 
 	private readonly seen: ObservableMemento<boolean>;
-	private readonly initialized = observableValue(this, false);
+	private readonly resolvedStyle = observableValue<AutomationsNewBadgeStyle | undefined>(this, undefined);
 	private observingActiveView = false;
-	readonly showNewBadge = derived(this, reader => this.initialized.read(reader) && !this.seen.read(reader));
+	private initializationPromise: Promise<void> | undefined;
+	private styleRequest = 0;
+	readonly presentation = derived(this, reader => this.seen.read(reader) ? undefined : this.resolvedStyle.read(reader));
+	readonly showNewBadge = derived(this, reader => this.presentation.read(reader) !== undefined);
 
 	constructor(
-		private readonly automationService: IAutomationService,
-		private readonly customViewService: ICustomViewService,
-		storageService: IStorageService,
+		@IAutomationService private readonly automationService: IAutomationService,
+		@ICustomViewService private readonly customViewService: ICustomViewService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this.seen = this._register(automationsNewBadgeSeenMemento(StorageScope.APPLICATION, StorageTarget.MACHINE, storageService));
 	}
 
-	initialize(): void {
+	initialize(): Promise<void> {
 		if (!this.observingActiveView) {
 			this.observingActiveView = true;
 			this._register(autorun(reader => {
@@ -46,29 +62,69 @@ export class AutomationsNewBadgeState extends Disposable {
 				}
 			}));
 		}
-		if (this.initialized.get()) {
-			return;
+		if (!this.initializationPromise) {
+			this.initializationPromise = this.doInitialize();
+			this._register(this.configurationService.onDidChangeConfiguration(event => {
+				if (event.affectsConfiguration(AUTOMATIONS_NEW_BADGE_STYLE_SETTING)) {
+					void this.updateStyle().catch(onUnexpectedError);
+				}
+			}));
+			this._register(this.assignmentService.onDidRefetchAssignments(() => {
+				void this.updateStyle().catch(onUnexpectedError);
+			}));
 		}
+		return this.initializationPromise;
+	}
 
+	async reset(): Promise<void> {
+		this.seen.set(false, undefined);
+		this.storageService.remove(AUTOMATIONS_NEW_BADGE_SEEN_STORAGE_KEY, StorageScope.APPLICATION);
+		this.resolvedStyle.set(undefined, undefined);
+		await this.updateStyle();
+	}
+
+	private async doInitialize(): Promise<void> {
 		const hasPriorUse = this.seen.get()
 			|| this.automationService.automations.get().length > 0
 			|| this.automationService.runs.get().length > 0;
-		transaction(tx => {
-			if (hasPriorUse) {
-				this.seen.set(true, tx);
-			}
-			this.initialized.set(true, tx);
-		});
+		if (hasPriorUse) {
+			this.markSeen();
+			return;
+		}
+
+		await this.updateStyle();
 	}
 
-	markSeen(): void {
-		transaction(tx => {
-			if (!this.seen.get()) {
-				this.seen.set(true, tx);
-			}
-			if (!this.initialized.get()) {
-				this.initialized.set(true, tx);
-			}
-		});
+	private async updateStyle(): Promise<void> {
+		if (this.seen.get()) {
+			return;
+		}
+
+		const request = ++this.styleRequest;
+		const inspection = this.configurationService.inspect<string>(AUTOMATIONS_NEW_BADGE_STYLE_SETTING);
+		const value = isConfigured(inspection)
+			? inspection.value
+			: await this.assignmentService.getTreatment<string>(AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT);
+		if (request !== this.styleRequest || this.seen.get()) {
+			return;
+		}
+		this.resolvedStyle.set(this.normalizeStyle(value), undefined);
+	}
+
+	private normalizeStyle(value: string | undefined): AutomationsNewBadgeStyle {
+		if (value === undefined || value === DEFAULT_AUTOMATIONS_NEW_BADGE_STYLE) {
+			return DEFAULT_AUTOMATIONS_NEW_BADGE_STYLE;
+		}
+		if (value === 'accent' || value === 'soft') {
+			return value;
+		}
+		this.logService.warn(`[AutomationsNewBadgeState] Unsupported badge style treatment '${value}'; using '${DEFAULT_AUTOMATIONS_NEW_BADGE_STYLE}'.`);
+		return DEFAULT_AUTOMATIONS_NEW_BADGE_STYLE;
+	}
+
+	private markSeen(): void {
+		if (!this.seen.get()) {
+			this.seen.set(true, undefined);
+		}
 	}
 }
