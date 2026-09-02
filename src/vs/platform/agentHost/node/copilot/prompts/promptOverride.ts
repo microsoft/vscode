@@ -120,7 +120,7 @@ function getProperty(map: YamlMapNode, name: string): YamlNode | undefined {
 
 function getStringProperty(map: YamlMapNode, name: string): string | undefined {
 	const value = getProperty(map, name);
-	return value?.type === 'scalar' && value.rawValue.length > 0 ? value.value : undefined;
+	return value?.type === 'scalar' && value.value.length > 0 ? value.value : undefined;
 }
 
 function logPromptOverrideFailure(logService: ILogService, source: string, message: string, error: unknown): void {
