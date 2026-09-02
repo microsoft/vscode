@@ -338,6 +338,10 @@ export class ChatView extends AbstractChatView {
 			const activity = typeof statusMessage === 'string' ? statusMessage : statusMessage ? renderAsPlaintext(statusMessage) : undefined;
 			const model = chatModel.read(reader);
 			let showProgress: boolean;
+			let requestCount = 0;
+			let visibleRequestCount = 0;
+			let hiddenRequestIncomplete: boolean | undefined;
+			let readyMessage: string | undefined;
 			if (!resource) {
 				showProgress = false;
 			} else if (!model) {
@@ -345,14 +349,17 @@ export class ChatView extends AbstractChatView {
 			} else {
 				const requests = model.getRequests();
 				const lastRequest = model.lastRequestObs.read(reader);
-				const visibleRequestCount = requests.filter(request => !request.isHiddenFromTranscript).length;
-				const hiddenRequestIncomplete = lastRequest?.isHiddenFromTranscript
+				requestCount = requests.length;
+				visibleRequestCount = requests.filter(request => !request.isHiddenFromTranscript).length;
+				hiddenRequestIncomplete = lastRequest?.isHiddenFromTranscript
 					? lastRequest.response?.isIncomplete.read(reader)
 					: undefined;
-				showProgress = shouldShowTranscriptPreparationProgress(requests.length, visibleRequestCount, hiddenRequestIncomplete);
+				readyMessage = findTranscriptContextEntry(requests.filter(request => request.isHiddenFromTranscript))?.readyMessage?.trim();
+				showProgress = shouldShowTranscriptPreparationProgress(requestCount, visibleRequestCount, hiddenRequestIncomplete);
 			}
-			const progress = getTranscriptProgress(showProgress, activity);
-			this._widget.setTranscriptProgress(progress, progress);
+			const showCompletion = shouldShowTranscriptPreparationCompletion(requestCount, visibleRequestCount, hiddenRequestIncomplete, readyMessage);
+			const progress = showCompletion ? readyMessage : getTranscriptProgress(showProgress, activity);
+			this._widget.setTranscriptProgress(progress, progress, showCompletion ? { complete: true } : undefined);
 		}));
 	}
 
@@ -651,6 +658,10 @@ export class ChatView extends AbstractChatView {
 
 export function shouldShowTranscriptPreparationProgress(requestCount: number, visibleRequestCount: number, hiddenRequestIncomplete: boolean | undefined): boolean {
 	return requestCount === 0 || (visibleRequestCount === 0 && hiddenRequestIncomplete !== false);
+}
+
+export function shouldShowTranscriptPreparationCompletion(requestCount: number, visibleRequestCount: number, hiddenRequestIncomplete: boolean | undefined, readyMessage: string | undefined): boolean {
+	return requestCount > 0 && visibleRequestCount === 0 && hiddenRequestIncomplete === false && !!readyMessage;
 }
 
 export function getTranscriptProgress(showProgress: boolean, activity: string | undefined): string | undefined {

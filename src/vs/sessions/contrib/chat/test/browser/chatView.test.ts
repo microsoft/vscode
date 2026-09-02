@@ -15,7 +15,7 @@ import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workben
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
-import { findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
@@ -575,6 +575,20 @@ suite('Sessions - Chat View', () => {
 			hiddenPending: true,
 			hiddenComplete: false,
 			visiblePending: false,
+		});
+	});
+
+	test('shows transcript preparation completion until visible content appears', () => {
+		assert.deepStrictEqual({
+			hiddenComplete: shouldShowTranscriptPreparationCompletion(1, 0, false, 'Session ready'),
+			hiddenPending: shouldShowTranscriptPreparationCompletion(1, 0, true, 'Session ready'),
+			visibleRequest: shouldShowTranscriptPreparationCompletion(2, 1, false, 'Session ready'),
+			noReadyMessage: shouldShowTranscriptPreparationCompletion(1, 0, false, undefined),
+		}, {
+			hiddenComplete: true,
+			hiddenPending: false,
+			visibleRequest: false,
+			noReadyMessage: false,
 		});
 	});
 

@@ -1411,7 +1411,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return (this.viewModel?.getItems().length ?? 0) === 0;
 	}
 
-	setTranscriptProgress(message: string | undefined, ariaLabel = message): void {
+	setTranscriptProgress(message: string | undefined, ariaLabel = message, options?: { readonly complete?: boolean }): void {
 		if (!this.transcriptProgress) {
 			const container = dom.append(this.listContainer, $('.chat-transcript-progress'));
 			container.hidden = true;
@@ -1428,7 +1428,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const renderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
 			const renderedMessage = store.add(renderer.render(new MarkdownString().appendText(message)));
 			const progressPart = store.add(this.instantiationService.createInstance(ChatProgressSubPart, renderedMessage.element, Codicon.check, undefined));
-			progressPart.domNode.classList.add('shimmer-progress');
+			progressPart.domNode.classList.toggle('shimmer-progress', options?.complete !== true);
+			progressPart.domNode.classList.toggle('show-checkmarks', options?.complete === true);
 			dom.append(this.transcriptProgress.content, progressPart.domNode);
 			this.transcriptProgressPart.value = store;
 		}

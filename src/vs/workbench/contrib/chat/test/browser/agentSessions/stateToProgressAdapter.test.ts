@@ -157,6 +157,7 @@ suite('stateToProgressAdapter', () => {
 			fullName: '#42 Improve sessions',
 			icon: Codicon.gitPullRequest,
 			tooltip: 'Pull request #42 by @author',
+			readyMessage: 'Session ready',
 			value: '{"number":42}',
 			uri: URI.parse('https://github.com/owner/repo/pull/42'),
 		};
@@ -177,6 +178,7 @@ suite('stateToProgressAdapter', () => {
 			value: restored.value,
 			uri: restored.kind === 'transcriptContext' ? restored.uri.toString() : undefined,
 			tooltip: restored.kind === 'transcriptContext' ? restored.tooltip : undefined,
+			readyMessage: restored.kind === 'transcriptContext' ? restored.readyMessage : undefined,
 		}, {
 			kind: 'transcriptContext',
 			name: '#42 Improve sessions',
@@ -185,6 +187,7 @@ suite('stateToProgressAdapter', () => {
 			value: '{"number":42}',
 			uri: 'https://github.com/owner/repo/pull/42',
 			tooltip: 'Pull request #42 by @author',
+			readyMessage: 'Session ready',
 		});
 	});
 
