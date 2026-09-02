@@ -3196,6 +3196,10 @@ suite('WorkspacePicker - Tab discovery', () => {
 		};
 		providersService.setProviders([{
 			...provider,
+			resolveWorkspace: uri => {
+				const workspace = provider.resolveWorkspace(uri);
+				return workspace ? { ...workspace, group: SESSION_WORKSPACE_GROUP_GITHUB } : undefined;
+			},
 			browseActions: [{
 				...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Issue...'),
 				attachesContext: true,
@@ -3214,14 +3218,19 @@ suite('WorkspacePicker - Tab discovery', () => {
 		const selectedContexts: string[] = [];
 		disposables.add(picker.onDidSelectContext(context => selectedContexts.push(context.uri.toString())));
 
+		// Like the Issue/PR trigger they replace, the actions require a repository
+		const actionsWithoutRepository = picker.getContextPickerActions();
+		picker.setSelectedWorkspace(URI.file('/microsoft/vscode'), { fireEvent: false, persist: false });
 		const actions = picker.getContextPickerActions();
 		await actions[0].run();
 
 		assert.deepStrictEqual({
+			actionsWithoutRepository: actionsWithoutRepository.map(action => action.label),
 			actions: actions.map(action => action.label),
 			triggerHidden: container.querySelector('.sessions-workspace-category-picker-slot')?.hasAttribute('hidden'),
 			selectedContexts,
 		}, {
+			actionsWithoutRepository: [],
 			actions: ['Issue...'],
 			triggerHidden: true,
 			selectedContexts: [issueUri.toString()],
