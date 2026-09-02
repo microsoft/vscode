@@ -605,7 +605,7 @@ async function setTestContent(docUri: vscode.Uri, languageId: string, content: s
 	await vscode.languages.setTextDocumentLanguage(doc, languageId);
 	const editor = await vscode.window.showTextDocument(doc);
 
-	const fullRange = in vscode.Range(new vscode.Position(0, 0), doc.positionAt(doc.getText().length));
+	const fullRange = new vscode.Range(new vscode.Position(0, 0), doc.positionAt(doc.getText().length));
 	await editor.edit(eb => eb.replace(fullRange, content));
 	return editor;
 
