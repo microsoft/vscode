@@ -55,6 +55,8 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { createWorkbenchMcpServerDetailInput, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 import { createCustomizationCardPrimaryAction, CustomizationCardListController } from './customizationCardList.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 
 const $ = DOM.$;
 
@@ -985,15 +987,17 @@ function createBuiltinEntry(server: IMcpServer, activeSessionServer?: AgentHostM
 	};
 }
 
-function createInstalledMcpServerDetailInput(entry: IMcpInstalledEntry): IMcpServerDetailInput {
+export function createInstalledMcpServerDetailInput(entry: IMcpInstalledEntry): IMcpServerDetailInput {
 	if (entry.type === 'server-item') {
 		return createWorkbenchMcpServerDetailInput(entry.server);
 	}
 
 	const activeSessionServer = getActiveSessionServer(entry);
 	const localServer = entry.type === 'session-server-item' ? undefined : entry.localServer;
-	const localDefinition = localServer?.readDefinitions().get().server;
-	const localSource = localDefinition?.presentation?.origin;
+	const localDefinitions = localServer?.readDefinitions().get();
+	const localDefinition = localDefinitions?.server;
+	const collectionOrigin = localDefinitions?.collection?.presentation?.origin;
+	const localSource = localDefinition?.presentation?.origin ?? (collectionOrigin ? { uri: collectionOrigin } : undefined);
 	const activeSessionSource = activeSessionServer?.sourceUri
 		? {
 			uri: activeSessionServer.sourceUri,
@@ -1062,6 +1066,8 @@ export class McpListWidget extends Disposable {
 	private searchAndButtonContainer!: HTMLElement;
 	private searchInput!: InputBox;
 	private cardContainer!: HTMLElement;
+	private cardScrollable!: DomScrollableElement;
+	private cardScrollableNode!: HTMLElement;
 	private emptyContainer!: HTMLElement;
 	private emptyText!: HTMLElement;
 	private emptySubtext!: HTMLElement;
@@ -1084,7 +1090,6 @@ export class McpListWidget extends Disposable {
 	private visible = false;
 	private mcpAccessEnabled = false;
 	private firstCardFocusElement: HTMLElement | undefined;
-	private cardScrollElement: HTMLElement | undefined;
 	private availableSection: HTMLElement | undefined;
 	private narrowLayout = false;
 	private wideLayout = false;
@@ -1251,8 +1256,24 @@ export class McpListWidget extends Disposable {
 		disabledText.textContent = localize('mcpAccessDisabledTitle', "MCP servers are disabled");
 		this.disabledMessage = DOM.append(this.disabledContainer, $('.empty-subtext'));
 
-		this.cardContainer = DOM.append(this.element, $('.plugin-card-container'));
-		this.cardContainer.style.display = 'none';
+		this.cardContainer = $('.plugin-card-container');
+		this.cardScrollable = this._register(new DomScrollableElement(this.cardContainer, {
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
+			useShadows: false,
+		}));
+		this._register(DOM.addDisposableListener(this.cardContainer, DOM.EventType.SCROLL, () => {
+			this.cardScrollable.setScrollPosition({ scrollTop: this.cardContainer.scrollTop });
+		}));
+		this.cardScrollableNode = this.cardScrollable.getDomNode();
+		this.cardScrollableNode.classList.add('plugin-card-scrollable');
+		this.cardScrollableNode.style.display = 'none';
+		this.element.appendChild(this.cardScrollableNode);
+		const cardResizeObserver = this._register(new DOM.DisposableResizeObserver(
+			'McpListWidget.cardScrollable',
+			() => this.cardScrollable.scanDomNode(),
+		));
+		this._register(cardResizeObserver.observe(this.cardScrollableNode));
 
 		// Listen to MCP service changes
 		this._register(this.mcpWorkbenchService.onChange(() => {
@@ -1420,14 +1441,25 @@ export class McpListWidget extends Disposable {
 
 	private showCardSurface(): void {
 		this.emptyContainer.style.display = 'none';
-		this.cardContainer.style.display = '';
+		this.cardScrollableNode.style.display = '';
 	}
 
 	private showEmptySurface(message: string, detail: string): void {
-		this.cardContainer.style.display = 'none';
+		this.cardScrollableNode.style.display = 'none';
 		this.emptyContainer.style.display = 'flex';
 		this.emptyText.textContent = message;
 		this.emptySubtext.textContent = detail;
+	}
+
+	private createCardScrollContent(...classNames: string[]): HTMLElement {
+		const content = DOM.append(this.cardContainer, $('.plugin-card-scroll.plugin-card-scroll-content'));
+		content.classList.add(...classNames);
+		const resizeObserver = this.cardDisposables.add(new DOM.DisposableResizeObserver(
+			'McpListWidget.cardScrollContent',
+			() => this.cardScrollable.scanDomNode(),
+		));
+		this.cardDisposables.add(resizeObserver.observe(content));
+		return content;
 	}
 
 	private addSurfaceActivation(surface: HTMLElement, label: string, callback: () => void, ...classNames: string[]): HTMLButtonElement {
@@ -1471,7 +1503,7 @@ export class McpListWidget extends Disposable {
 		DOM.clearNode(this.cardContainer);
 		this.showCardSurface();
 
-		const content = this.cardScrollElement = DOM.append(this.cardContainer, $('.plugin-card-scroll'));
+		const content = this.createCardScrollContent();
 		this.renderFeaturedServers(content);
 
 		const installedList = this.renderCardSection(
@@ -1838,7 +1870,7 @@ export class McpListWidget extends Disposable {
 		this.availableSection = undefined;
 		DOM.clearNode(this.cardContainer);
 		this.showCardSurface();
-		const content = this.cardScrollElement = DOM.append(this.cardContainer, $('.plugin-card-scroll.plugin-search-results'));
+		const content = this.createCardScrollContent('plugin-search-results');
 		if (this.installedEntries.length > 0) {
 			const installedList = this.renderCardSection(content, localize('installedSearchHeader', "Installed"), undefined, 'installed-mcp-servers-section', this.installedEntries.length);
 			installedList.classList.add('plugin-inventory-list');
@@ -2003,7 +2035,8 @@ export class McpListWidget extends Disposable {
 		this.lastHeaderHeight = headerHeight;
 		const listHeight = Math.max(0, availableHeight - searchBarHeight - headerHeight);
 
-		this.cardContainer.style.height = `${listHeight}px`;
+		this.cardScrollableNode.style.height = `${listHeight}px`;
+		this.cardScrollable.scanDomNode();
 	}
 
 	/**
@@ -2017,16 +2050,14 @@ export class McpListWidget extends Disposable {
 	 * Scrolls the list so the last item is visible.
 	 */
 	revealLastItem(): void {
-		if (this.cardScrollElement) {
-			this.cardScrollElement.scrollTop = this.cardScrollElement.scrollHeight;
-		}
+		this.cardScrollable.setScrollPosition({ scrollTop: this.cardContainer.scrollHeight });
 	}
 
 	/**
 	 * Focuses the list.
 	 */
 	focus(): void {
-		if (this.cardContainer.style.display !== 'none') {
+		if (this.cardScrollableNode.style.display !== 'none') {
 			this.firstCardFocusElement?.focus();
 		}
 	}

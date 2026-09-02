@@ -70,6 +70,7 @@ suite('Sessions - Workbench', () => {
 	const toggleSecondarySideBar = Workbench.prototype.toggleSecondarySideBar as (this: ITestWorkbench) => void;
 	const restoreSessionsPartOnActivation = Reflect.get(Workbench.prototype, '_restoreSessionsPartOnActivation') as (this: ITestWorkbench) => void;
 	const restoreEditorPartOnActivation = Reflect.get(Workbench.prototype, '_restoreEditorPartOnActivation') as (this: ITestWorkbench) => void;
+	const layoutGrid = Reflect.get(Workbench.prototype, '_layoutGrid') as (this: IContainerResizeTestHarness) => void;
 	const layoutSinglePaneGrid = Reflect.get(SinglePaneWorkbench.prototype, '_layoutGrid') as (this: IContainerResizeTestHarness) => void;
 	const preserveSessionsEditorRatio = Reflect.get(SinglePaneWorkbench.prototype, '_preserveSessionsEditorRatio') as (this: IProportionalResizeTestHarness, previousSessionsWidth: number, previousEditorWidth: number) => void;
 	const registerNotificationRowHeight = Reflect.get(Workbench.prototype, 'registerNotificationRowHeight') as (this: {
@@ -90,7 +91,6 @@ suite('Sessions - Workbench', () => {
 		_restoreSidePaneEditorMaximizedOnShow: boolean;
 		_hasAppliedInitialEditorSplit: boolean;
 		_dockedAuxiliaryBarWidth: number;
-		_restoreEqualSplitOnDetailsHide: boolean;
 		_memento: DockedEditorSizeMemento;
 		readonly resizes: IViewSize[];
 		readonly distributions: object[];
@@ -307,7 +307,6 @@ suite('Sessions - Workbench', () => {
 			viewDescriptorService: options.viewDescriptorService ?? { getDefaultViewContainer: () => undefined },
 			// docked bookkeeping
 			_dockedAuxiliaryBarWidth: options.dockedWidth ?? DockedAuxiliaryBarController.DEFAULT_WIDTH,
-			_restoreEqualSplitOnDetailsHide: false,
 			_syncingEditorVisibility: false,
 			_memento: new DockedEditorSizeMemento(),
 			// stubs for the heavy base helpers the hooks call
@@ -649,6 +648,35 @@ suite('Sessions - Workbench', () => {
 			visibilityChanges: [false],
 			resizes: [],
 		});
+	});
+
+	test('sidebar visibility does not change the grid width passed to layout', () => {
+		const layoutCalls: IViewSize[] = [];
+		const host: IContainerResizeTestHarness = {
+			partVisibility: { sidebar: true, editor: false, auxiliaryBar: false },
+			mobileTopBarElement: undefined,
+			layoutPolicy: { viewportClass: { get: () => 'desktop' } },
+			_mainContainerDimension: { width: 1200, height: 800 },
+			sessionsPartView: { minimumWidth: 300 },
+			editorPartView: { minimumWidth: 300 },
+			workbenchGrid: {
+				getViewSize: () => ({ width: 0, height: 0 }),
+				resizeView: () => { },
+				isViewVisible: () => true,
+				layout: (width, height) => { layoutCalls.push({ width, height }); },
+			},
+			_runWithEditorResizeSyncSuspended: fn => fn(),
+		};
+		Object.setPrototypeOf(host, Workbench.prototype);
+
+		layoutGrid.call(host);
+		host.partVisibility.sidebar = false;
+		layoutGrid.call(host);
+
+		assert.deepStrictEqual(layoutCalls, [
+			{ width: 1196, height: 796 },
+			{ width: 1196, height: 796 },
+		]);
 	});
 
 	test('single-pane sidebar visibility leaves a detail-only pane width unchanged', () => {
@@ -1009,12 +1037,9 @@ suite('Sessions - Workbench', () => {
 	});
 
 	test('persisted editor width excludes the detail only when the detail is visible', () => {
-		// Editor + detail visible: the node includes the detail, so it is excluded
-		// to store the pure editor-content width (reconstructed by adding it back).
+		// The persisted editor width represents editor content; the descriptor adds
+		// Details back when reconstructing the shared side-pane node.
 		const withDetail = createHost({ single: true, dockedWidth: 300, partVisibility: { editor: true, auxiliaryBar: true } });
-		// Editor-only (detail closed): the node is pure editor content, so nothing
-		// is subtracted — otherwise the side pane would shrink by the detail width
-		// on every reload (compounding toward zero).
 		const editorOnly = createHost({ single: true, dockedWidth: 300, partVisibility: { editor: true, auxiliaryBar: false } });
 
 		assert.deepStrictEqual({
@@ -1443,13 +1468,11 @@ suite('Sessions - Workbench', () => {
 			existingWidths,
 			editorVisible: host.partVisibility.editor,
 			detailsVisible: host.partVisibility.auxiliaryBar,
-			persistedEditorWidth: host._savedPartSizes.editor,
 			snapshot: host._memento.dockedEditorSizeBeforeHide,
 		}, {
 			existingWidths: [758, 758],
 			editorVisible: true,
 			detailsVisible: false,
-			persistedEditorWidth: 758,
 			snapshot: undefined,
 		});
 	});
@@ -1500,7 +1523,6 @@ suite('Sessions - Workbench', () => {
 
 		assert.deepStrictEqual({
 			medium: SinglePaneWorkbench.prototype.getPreferredEditorPartWidth.call(medium),
-			mediumRestoreEqualSplitOnHide: medium._restoreEqualSplitOnDetailsHide,
 			wide: SinglePaneWorkbench.prototype.getPreferredEditorPartWidth.call(wide),
 			wideDetails: SinglePaneWorkbench.prototype.getPreferredEditorPartWidth.call(wideDetails),
 			constrained: SinglePaneWorkbench.prototype.getPreferredEditorPartWidth.call(constrained),
@@ -1510,7 +1532,6 @@ suite('Sessions - Workbench', () => {
 			editorHidden: SinglePaneWorkbench.prototype.getPreferredEditorPartWidth.call(editorHidden),
 		}, {
 			medium: 850,
-			mediumRestoreEqualSplitOnHide: true,
 			wide: 950,
 			wideDetails: 1050,
 			constrained: 650,
@@ -1521,7 +1542,7 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
-	test('closing Details after a no-op balanced sash reset restores an equal Sessions and Editor split', () => {
+	test('closing Details after a balanced sash reset leaves the side-pane boundary unchanged', () => {
 		const host = createHost({ single: true, sessionsWidth: 560, editorWidth: 840, dockedWidth: 280, partVisibility: { editor: true, auxiliaryBar: true } });
 
 		const resetWidth = SinglePaneWorkbench.prototype.getPreferredEditorPartWidth.call(host);
@@ -1529,16 +1550,14 @@ suite('Sessions - Workbench', () => {
 
 		assert.deepStrictEqual({
 			resetWidth,
-			restoreEqualSplitOnHide: host._restoreEqualSplitOnDetailsHide,
 			resizes: host.resizes,
 		}, {
 			resetWidth: 840,
-			restoreEqualSplitOnHide: false,
-			resizes: [{ width: 700, height: 800 }],
+			resizes: [],
 		});
 	});
 
-	test('hiding Details after a balanced reset uses the live width for an equal split', () => {
+	test('hiding Details after a balanced reset leaves a later sash resize unchanged', () => {
 		const host = createHost({ single: true, sessionsWidth: 560, editorWidth: 840, dockedWidth: 280, partVisibility: { editor: true, auxiliaryBar: true } });
 		SinglePaneWorkbench.prototype.getPreferredEditorPartWidth.call(host);
 		host.workbenchGrid.resizeView(host.sessionsPartView, { width: 800, height: 800 });
@@ -1547,16 +1566,10 @@ suite('Sessions - Workbench', () => {
 
 		setAuxiliaryBarHidden.call(host, true);
 
-		assert.deepStrictEqual({
-			restoreEqualSplitOnHide: host._restoreEqualSplitOnDetailsHide,
-			resizes: host.resizes,
-		}, {
-			restoreEqualSplitOnHide: false,
-			resizes: [{ width: 1000, height: 800 }],
-		});
+		assert.deepStrictEqual(host.resizes, []);
 	});
 
-	test('manual sash resize preserves the pending Details-hide reset behavior', () => {
+	test('manual sash resize does not make hiding Details move the side-pane boundary', () => {
 		const host = createHost({ single: true, sessionsWidth: 560, editorWidth: 840, dockedWidth: 280, partVisibility: { editor: true, auxiliaryBar: true } });
 		SinglePaneWorkbench.prototype.getPreferredEditorPartWidth.call(host);
 		host.workbenchGrid.resizeView(host.sessionsPartView, { width: 700, height: 800 });
@@ -1566,33 +1579,20 @@ suite('Sessions - Workbench', () => {
 		onEditorNodeResized.call(host, 700);
 		setAuxiliaryBarHidden.call(host, true);
 
-		assert.deepStrictEqual({
-			restoreEqualSplitOnHide: host._restoreEqualSplitOnDetailsHide,
-			resizes: host.resizes,
-		}, {
-			restoreEqualSplitOnHide: false,
-			resizes: [{ width: 700, height: 800 }],
-		});
+		assert.deepStrictEqual(host.resizes, []);
 	});
 
-	test('hiding Editor clears the pending Details-hide reset behavior', () => {
+	test('hiding Details after Editor restores the captured side-pane width', () => {
 		const host = createHost({ single: true, sessionsWidth: 560, editorWidth: 840, dockedWidth: 280, partVisibility: { editor: true, auxiliaryBar: true } });
 		SinglePaneWorkbench.prototype.getPreferredEditorPartWidth.call(host);
 
 		setEditorHidden.call(host, true, true);
 		setAuxiliaryBarHidden.call(host, true);
 
-		assert.deepStrictEqual({
-			restoreEqualSplitOnHide: host._restoreEqualSplitOnDetailsHide,
-			resizes: host.resizes,
-		}, {
-			restoreEqualSplitOnHide: false,
-			resizes: [
-				{ width: 280, height: 800 },
-				{ width: 840, height: 800 },
-				{ width: 560, height: 800 },
-			],
-		});
+		assert.deepStrictEqual(host.resizes, [
+			{ width: 280, height: 800 },
+			{ width: 840, height: 800 },
+		]);
 	});
 
 	test('single-pane editor part is a snap view only while editor content is hidden (docked detail-only)', () => {
@@ -2442,34 +2442,32 @@ suite('Sessions - Workbench', () => {
 
 	// --- Docked auxiliary bar visibility -----------------------------------
 
-	test('docked auxiliary bar takes its toggle width from the Sessions pane', () => {
-		const host = createHost({ single: true, editorWidth: 640, dockedWidth: 280, partVisibility: { editor: true, auxiliaryBar: false } });
+	test('docked auxiliary bar takes its toggle width from the editor area', () => {
+		const host = createHost({ single: true, sessionsWidth: 720, editorWidth: 640, dockedWidth: 280, partVisibility: { editor: true, auxiliaryBar: false } });
 
 		setAuxiliaryBarHidden.call(host, false);
 		setAuxiliaryBarHidden.call(host, true);
 
 		assert.deepStrictEqual({
 			auxiliaryBarVisible: host.partVisibility.auxiliaryBar,
+			sessionsWidth: host.workbenchGrid.getViewSize(host.sessionsPartView).width,
+			editorWidth: host.workbenchGrid.getViewSize(host.editorPartView).width,
 			resizes: host.resizes,
 		}, {
 			auxiliaryBarVisible: false,
-			resizes: [
-				{ width: 920, height: 800 },
-				{ width: 640, height: 800 },
-			],
+			sessionsWidth: 720,
+			editorWidth: 640,
+			resizes: [],
 		});
 	});
 
-	test('docked auxiliary bar takes its toggle width from Sessions even when the editor is wide', () => {
+	test('docked auxiliary bar leaves a wide editor node unchanged when toggled', () => {
 		const host = createHost({ single: true, editorWidth: 900, dockedWidth: 300, partVisibility: { editor: true, auxiliaryBar: false } });
 
 		setAuxiliaryBarHidden.call(host, false);
 		setAuxiliaryBarHidden.call(host, true);
 
-		assert.deepStrictEqual(host.resizes, [
-			{ width: 1200, height: 800 },
-			{ width: 900, height: 800 },
-		]);
+		assert.deepStrictEqual(host.resizes, []);
 	});
 
 	test('[reload] restoring docked auxiliary bar uses the persisted combined width without cumulative growth', () => {
@@ -2480,28 +2478,22 @@ suite('Sessions - Workbench', () => {
 			suppressionCount: 1,
 			partVisibility: { editor: true, auxiliaryBar: false }
 		});
-		host._savedPartSizes.editor = 600;
+		host._savedPartSizes.editor = 900;
 
 		setAuxiliaryBarHidden.call(host, false);
 		setAuxiliaryBarHiddenForResize.call(host, true);
 		setAuxiliaryBarHidden.call(host, false);
 
-		assert.deepStrictEqual(host.resizes, [
-			{ width: 900, height: 800 },
-			{ width: 900, height: 800 },
-		]);
+		assert.deepStrictEqual(host.resizes, []);
 	});
 
-	test('docked auxiliary bar returns its full width to Sessions when hidden', () => {
+	test('docked auxiliary bar returns its full width to the editor area when hidden', () => {
 		const host = createHost({ single: true, editorWidth: 420, dockedWidth: 300, partVisibility: { editor: true, auxiliaryBar: false } });
 
 		setAuxiliaryBarHidden.call(host, false);
 		setAuxiliaryBarHidden.call(host, true);
 
-		assert.deepStrictEqual(host.resizes, [
-			{ width: 720, height: 800 },
-			{ width: 420, height: 800 },
-		]);
+		assert.deepStrictEqual(host.resizes, []);
 	});
 
 	test('docked auxiliary bar hide reveals hidden editor content', () => {

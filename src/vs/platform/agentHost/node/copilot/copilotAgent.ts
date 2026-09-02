@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type GitHubTelemetryNotification, type ManagedSettingsResolvedData, type SessionMode as CopilotSdkMode } from '@github/copilot-sdk';
+import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type GitHubTelemetryNotification, type ManagedSettingsResolvedData, type SessionMetadata, type SessionMode as CopilotSdkMode } from '@github/copilot-sdk';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import { pathToFileURL } from 'url';
@@ -25,7 +25,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { localize } from '../../../../nls.js';
-import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parseAgentFile, parsePlugin, parseRuleFile, parseSkillFile, PluginFormat, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
+import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parseAgentFile, parsePlugin, parseRuleFile, parseSkillFile, PluginFormat, toSkillInvocationFlags, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
@@ -36,6 +36,7 @@ import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointSer
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
 import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
+import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
@@ -1538,7 +1539,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return false;
 		}
 		await this._authenticationSequencer.queue(async () => {
-			this._authenticationRequired.set(undefined, undefined);
+			// Only a supplied credential rearms the requirement. Clearing it for an
+			// empty token would silence the outstanding requirement when a second
+			// revocation arrives while the agent is already tokenless, because
+			// `_applyGitHubToken` returns early for an unchanged token.
+			if (token) {
+				this._authenticationRequired.set(undefined, undefined);
+			}
 			await this._applyGitHubToken(token || undefined);
 		});
 		return true;
@@ -1549,10 +1556,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		this._logService.info(`[Copilot] Auth token ${token ? 'updated' : 'cleared'}`);
+		this._telemetryService.setCommonProperty('copilotSku', undefined);
 		this._githubToken = token;
 		this._updateRestrictedTelemetry(token);
 		this._refreshProxy();
 		if (!token) {
+			// Losing the credential is the only moment this agent knows for certain
+			// that it is unauthenticated. Advertise it so clients can re-supply a
+			// token they still hold; another window may have revoked this one while
+			// its own authentication provider was still loading. Without this the
+			// host stays silently unauthenticated -- publishing an empty model list
+			// -- until a window reloads, because the resulting SDK failure is a
+			// local `InvalidArg` rather than a 401 and never reaches
+			// `_handleCopilotSessionAuthRequired`.
+			this._authenticationRequired.set({
+				resource: this._gitHubEndpointService.getCopilotResource(),
+				reason: AuthRequiredReason.Expired,
+			}, undefined);
 			await this._requestClientRestart('GitHub authentication cleared');
 			void this._scheduleModelRefresh();
 			return;
@@ -1597,7 +1617,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			const copilotSku = await this._copilotApiService.resolveCopilotSku?.(githubToken);
 			if (copilotSku && this._githubToken === githubToken) {
-				// __GDPR__COMMON__ "copilotSku" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The raw Copilot entitlement SKU of the authenticated GitHub account." }
 				this._telemetryService.setCommonProperty('copilotSku', copilotSku);
 			}
 		} catch (err) {
@@ -2296,11 +2315,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	/**
-	 * Builds the open `_meta` model picker bag from the SDK's billing and picker metadata.
-	 */
 	private _createModelPickerMeta(modelInfo: CopilotModelInfo, billing: ICAPIModelBilling | undefined): Record<string, unknown> | undefined {
-		return createPricingMetaFromBilling(billing, modelInfo.modelPickerPriceCategory, modelInfo.modelPickerCategory);
+		const pricing = createPricingMetaFromBilling(billing, modelInfo.modelPickerPriceCategory, modelInfo.modelPickerCategory);
+		const notices = isAutoModel(modelInfo.id) ? undefined : createAgentModelNoticesMeta(modelInfo);
+		return pricing || notices ? { ...pricing, ...notices } : undefined;
 	}
 
 	private _createModelConfigSchema(m: CopilotModelInfo, billing: ICAPIModelBilling | undefined): ConfigSchema | undefined {
@@ -2706,6 +2724,38 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
+	/**
+	 * Short-lived cache of per-session SDK metadata, warmed by
+	 * {@link prewarmSessionMetadata} from a single bulk `listSessions()` call so a
+	 * `listSessions` pass over a large catalogue serves {@link getChatMetadata}
+	 * from memory instead of one `getSessionMetadata` RPC per session. Ref-counted
+	 * so overlapping passes share one warm set and clear it once all release.
+	 */
+	private _prewarmedSessionMetadata: ReadonlyMap<string, SessionMetadata> | undefined;
+	private _prewarmSessionMetadataRefs = 0;
+
+	async prewarmSessionMetadata(): Promise<IDisposable> {
+		// One bulk read replaces N per-session `getSessionMetadata` round-trips
+		// during the metadata phase. Best-effort: when the client cannot enumerate
+		// (SDK not ready), callers transparently fall back to per-session reads.
+		const sessions = await this._listSdkSessions('prewarm session metadata', client => client.listSessions());
+		if (!sessions) {
+			return Disposable.None;
+		}
+		const byId = new Map<string, SessionMetadata>();
+		for (const metadata of sessions) {
+			byId.set(metadata.sessionId, metadata);
+		}
+		this._prewarmedSessionMetadata = byId;
+		this._prewarmSessionMetadataRefs++;
+		return toDisposable(() => {
+			if (--this._prewarmSessionMetadataRefs <= 0) {
+				this._prewarmSessionMetadataRefs = 0;
+				this._prewarmedSessionMetadata = undefined;
+			}
+		});
+	}
+
 	async getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined> {
 		const session = resolveAgentChatContext(context, chat).configurationResource;
 		const sessionId = providerData ? decodeProviderData(providerData)?.sdkSessionId : AgentSession.id(session);
@@ -2714,7 +2764,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const storedMetadata = await this._readStoredSessionMetadata(session);
 
-		const sessionMetadata = await this._retryAfterClosedConnection('getSessionMetadata', client => client.getSessionMetadata(sessionId), createCopilotFailureCorrelation(session, chat, undefined, sessionId));
+		// Serve from the bulk-warmed cache when available; otherwise fall back to a
+		// per-session RPC (also covers a session the bulk list transiently omitted).
+		const prewarmed = this._prewarmedSessionMetadata?.get(sessionId);
+		const sessionMetadata = prewarmed ?? await this._retryAfterClosedConnection('getSessionMetadata', client => client.getSessionMetadata(sessionId), createCopilotFailureCorrelation(session, chat, undefined, sessionId));
 		if (!sessionMetadata) {
 			return undefined;
 		}
@@ -3230,7 +3283,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (!entry) {
 				throw new Error(`[Copilot] resumeTurn for unavailable chat: ${chat.toString()}`);
 			}
-			await entry.resume(turnId, this._resolveSdkMode(current.configurationResource), senderClientId, clientType, clientTelemetryContext);
+			await entry.resume(turnId, this._resolveSdkMode(current.configurationResource), senderClientId, clientType, clientTelemetryContext, !URI.isUri(operationContext) && operationContext.agentMergeTurn === true);
 		});
 	}
 
@@ -3973,7 +4026,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			try {
 				const sdkMode = this._resolveSdkMode(current.configurationResource);
-				await entry.send(prompt, attachments, turnId, sdkMode, senderClientId, clientType, resolveAgentHostInstructions(operationContext), clientTelemetryContext);
+				await entry.send(prompt, attachments, turnId, sdkMode, senderClientId, clientType, resolveAgentHostInstructions(operationContext), clientTelemetryContext, !!operationContext && !URI.isUri(operationContext) && operationContext.agentMergeTurn === true);
 			} catch (err) {
 				const errCode = (err as { code?: number })?.code;
 				const errMsg = err instanceof Error ? err.message : String(err);
@@ -5733,6 +5786,7 @@ async function toDiscoveredChildCustomization(file: URI, type: DiscoveredType, f
 			uri,
 			name: skillInfo.name,
 			description: skillInfo.description,
+			...toSkillInvocationFlags(skillInfo.userInvocable, skillInfo.disableModelInvocation),
 		};
 		return skillCustomization;
 	}
@@ -5799,6 +5853,8 @@ export function mapToParsedPlugin(customizations: readonly DirectoryCustomizatio
 					uri: URI.parse(child.uri),
 					name: child.name,
 					description: child.description,
+					...(child.disableModelInvocation ? { disableModelInvocation: true } : {}),
+					...(child.disableUserInvocation ? { disableUserInvocation: true } : {}),
 					customization: child,
 				});
 				continue;

@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, McpServersLoadedServer, MessageOptions, PermissionMode, PermissionAssistedApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import { realpath as fsRealpath } from 'fs';
 import { cp, rm } from 'fs/promises';
-import { DeferredPromise, raceCancellation, RunOnceScheduler, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
+import { promisify } from 'util';
+import { DeferredPromise, firstParallel, raceCancellation, RunOnceScheduler, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -24,7 +26,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { IFileService } from '../../../files/common/files.js';
+import { FileOperationResult, FileSystemProviderCapabilities, IFileService, toFileOperationResult } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
@@ -44,6 +46,7 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { isShellInitScriptList, type IShellInitScript } from '../../common/shellInitScript.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS, streamingToolDisplayText } from '../../common/streamingToolCallDisplay.js';
@@ -59,7 +62,7 @@ import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { clientToolNamesFromSnapshot, isMcpServerExplicitlyProjected, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME } from './toolSearchDeferral.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
-import { AgentHostTelemetryReporter, toInitiatorTelemetry, type IAgentHostInitiatorClassification, type IAgentHostInitiatorTelemetry } from '../agentHostTelemetryReporter.js';
+import { AgentHostTelemetryReporter, toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry } from '../agentHostTelemetryReporter.js';
 import { AgentHostRepoInfoTelemetry } from '../agentHostRepoInfoTelemetry.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
@@ -68,6 +71,8 @@ import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './cop
 import { NonPtyShellTerminalStreams } from './copilotNonPtyShellTerminals.js';
 import { buildSandboxConfigForSdk, type SandboxConfig } from './sandboxConfigForSdk.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
+import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
+import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
@@ -249,6 +254,7 @@ type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
 type UserInputRequest = Parameters<UserInputHandler>[0];
 type UserInputResponse = Awaited<ReturnType<UserInputHandler>>;
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
+type PreToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPreToolUse']>>>;
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
 type ToolUseHookInput = PreToolUseHookInput | PostToolUseHookInput;
 
@@ -391,6 +397,33 @@ function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boole
 	return isCopilotSdkToolOutputFile(filePath);
 }
 
+const realpath = promisify(fsRealpath);
+
+function hasParentPathSegment(filePath: string): boolean {
+	return filePath.split(/[\\/]/).includes('..');
+}
+
+async function isPathWithinDirectory(filePath: string, directory: URI, resolveRealPath: (path: string) => Promise<string>): Promise<boolean> {
+	if (!isAbsolute(filePath) || hasParentPathSegment(filePath) || directory.scheme !== Schemas.file) {
+		return false;
+	}
+
+	const resource = normalizePath(URI.file(filePath));
+	const normalizedDirectory = normalizePath(directory);
+	if (!extUriBiasedIgnorePathCase.isEqualOrParent(resource, normalizedDirectory)) {
+		return false;
+	}
+
+	const [resolvedPath, resolvedDirectory] = await Promise.all([
+		resolveRealPath(filePath),
+		resolveRealPath(directory.fsPath),
+	]);
+	return extUriBiasedIgnorePathCase.isEqualOrParent(
+		normalizePath(URI.file(resolvedPath)),
+		normalizePath(URI.file(resolvedDirectory)),
+	);
+}
+
 /**
  * Options for constructing a {@link CopilotAgentSession}.
  */
@@ -451,6 +484,8 @@ export interface ICopilotAgentSessionOptions {
 	 * (notably that the sandbox is ignored on Windows) deterministically.
 	 */
 	readonly platform?: NodeJS.Platform;
+	/** Resolves symlinks for plugin resource permission checks. */
+	readonly realpath?: (path: string) => Promise<string>;
 }
 
 /**
@@ -836,6 +871,8 @@ export class CopilotAgentSession extends Disposable {
 	private _developmentRecoverableError: { readonly turnId: string; remainingFailures: number; readonly totalFailures: number } | undefined;
 	private readonly _developmentErrorInjectionEnabled: boolean;
 	private _dropLateRootTurnEvents = false;
+	private _agentMergeTurn = false;
+	private readonly _mcpServerNames: ReadonlySet<string>;
 	/** Monotonic 0-based ordinal assigned to each turn as it starts, for numeric `turnIndex` telemetry parity. */
 	private _nextTurnOrdinal = 0;
 	/**
@@ -965,6 +1002,7 @@ export class CopilotAgentSession extends Disposable {
 	/** Snapshot captured at session creation for refresh detection. */
 	private readonly _appliedSnapshot: IActiveClientSnapshot;
 	private readonly _appliedPluginSources: ReadonlySet<string>;
+	private readonly _appliedPluginDirectories: readonly URI[];
 	private readonly _projectedMcpServerLaunchEnablement: ReadonlyMap<string, boolean>;
 	private _mcpLaunchConfigurationDirty = false;
 	/** Secondary filesystem roots successfully applied by the launch transaction. */
@@ -993,6 +1031,19 @@ export class CopilotAgentSession extends Disposable {
 
 	private readonly _onDidSessionProgress: Emitter<AgentSignal>;
 	private readonly _sessionLauncher: ICopilotSessionLauncher;
+	/** Last config materialized and pushed, so unchanged turns do no file I/O or RPC. */
+	private _lastAppliedShellInitScripts: string | undefined;
+	/** Path registered with the SDK, so content-only changes rewrite the file without an RPC. */
+	private _registeredShellInitScriptPath: string | undefined;
+	/** Set once a script file may exist; gates the sandbox grant and dispose-time cleanup. */
+	private _shellInitScriptMaterialized = false;
+	private readonly _shellInitScriptSequencer = new Sequencer();
+	private _shellInitScriptDisposing = false;
+	/**
+	 * Scopes this instance's script files so a disposed predecessor's queued
+	 * cleanup for the same SDK session cannot delete a successor's live script.
+	 */
+	private readonly _shellInitScriptInstanceId = generateUuid().substring(0, 8);
 	private readonly _launchPlan: CopilotSessionLaunchPlan;
 	private _detectInterruptedTurnOnRestore: boolean;
 	private readonly _isLaunchTokenStillCurrent: () => boolean;
@@ -1040,6 +1091,7 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Platform used to compute the SDK sandbox policy (injectable for tests). */
 	private readonly _platform: NodeJS.Platform;
+	private readonly _realpath: (path: string) => Promise<string>;
 
 	get mcpServerStates() {
 		return this._mcpCustomizations.runtimeStates;
@@ -1090,11 +1142,18 @@ export class CopilotAgentSession extends Disposable {
 		this._serverToolHost = options.serverToolHost;
 		this._hostCustomizations = options.hostCustomizations ?? (() => []);
 		this._platform = options.platform ?? process.platform;
+		this._realpath = options.realpath ?? realpath;
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
 		this._repoInfoTelemetry = this._register(this._instantiationService.createInstance(AgentHostRepoInfoTelemetry, this._telemetryReporter));
 
 		this._appliedSnapshot = options.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} };
+		this._mcpServerNames = new Set([
+			GITHUB_MCP_SERVER_NAME,
+			...Object.keys(this._appliedSnapshot.mcpServers),
+			...this._appliedSnapshot.plugins.flatMap(plugin => plugin.mcpServers.map(server => server.name)),
+		]);
 		this._appliedPluginSources = new Set(this._appliedSnapshot.plugins.flatMap(plugin => plugin.sourceUri ? [plugin.sourceUri.toString()] : []));
+		this._appliedPluginDirectories = this._appliedSnapshot.plugins.flatMap(plugin => plugin.pluginDir?.scheme === Schemas.file ? [plugin.pluginDir] : []);
 		const disabledMcpServers = new Set([
 			...this._appliedSnapshot.plugins.flatMap(plugin => plugin.disabledMcpServers ?? []),
 			...(this._launchPlan.disabledRootMcpServers ?? []),
@@ -1620,6 +1679,7 @@ export class CopilotAgentSession extends Disposable {
 			this._resumingTurnAwaitingProviderStart = undefined;
 		}
 		this._currentTurn.clear();
+		this._agentMergeTurn = false;
 		this._streamingToolCalls.clear();
 		this._streamingToolDisplaySchedulers.clearAndDisposeAll();
 		try {
@@ -2114,6 +2174,7 @@ export class CopilotAgentSession extends Disposable {
 		this._subscribeForMemoInvalidation();
 		this._subscribeForInstructionsCollectedTelemetry();
 		this._subscribeToPermissionConfigChanges();
+		await this._syncShellInitScript();
 		this._promptCacheState = this._promptCache.read(this.resourceUri);
 		if (this._launchPlan.kind === 'resume') {
 			await this._refreshSessionUsageMetrics();
@@ -2338,8 +2399,9 @@ export class CopilotAgentSession extends Disposable {
 
 	// ---- session operations -------------------------------------------------
 
-	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, hostInstructions?: readonly string[], clientContext = createUnknownAgentHostClientTelemetryContext(clientType)): Promise<void> {
+	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, hostInstructions?: readonly string[], clientContext = createUnknownAgentHostClientTelemetryContext(clientType), agentMergeTurn = false): Promise<void> {
 		this._resetAbortToken();
+		this._agentMergeTurn = agentMergeTurn;
 		if (turnId && this._currentTurn.value?.id !== turnId) {
 			// Establish the `pending` turn for this message. Callers normally
 			// call `resetTurnState` just before `send()`; this covers the
@@ -2581,9 +2643,10 @@ export class CopilotAgentSession extends Disposable {
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
 
-	async resume(turnId: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, clientContext = createUnknownAgentHostClientTelemetryContext(clientType)): Promise<void> {
+	async resume(turnId: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, clientContext = createUnknownAgentHostClientTelemetryContext(clientType), agentMergeTurn = false): Promise<void> {
 		this._resetAbortToken();
 		this.resetTurnState(turnId, senderClientId, clientType, clientContext);
+		this._agentMergeTurn = agentMergeTurn;
 		if (this._tryContinueDevelopmentRecoverableError(turnId)) {
 			return;
 		}
@@ -2696,13 +2759,14 @@ export class CopilotAgentSession extends Disposable {
 	/**
 	 * Applies the per-turn SDK configuration shared by every operation that starts
 	 * an agent loop (normal `session.send` and the `/fleet` start path): agent mode,
-	 * permission mode, sandbox, and MCP enablement. Mode and sandbox keep their
-	 * existing best-effort semantics.
+	 * permission mode, sandbox, shell init script, and MCP enablement. Mode,
+	 * sandbox, and shell init keep their existing best-effort semantics.
 	 */
 	private async _prepareSdkTurn(mode: CopilotSdkMode | undefined): Promise<void> {
 		await this.applyMode(mode);
 		await this.syncPermissionMode('turn-start');
 		await this._applyEffectiveSandboxConfig();
+		await this._syncShellInitScript();
 		await this._reconcileMcpServerEnablement();
 	}
 
@@ -3070,6 +3134,19 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to flush edit attribution: ${error}`);
 		});
 		this._beginAbort();
+		this._shellInitScriptDisposing = true;
+		// Only a session that wrote a script has anything to remove; every other
+		// session keeps the plain dispose path. Remove it once the SDK session's
+		// disconnect has settled, so a command that is still running can source
+		// it, and even when disconnect fails so nothing is left behind. A session
+		// that failed before its wrapper existed has no script either, and
+		// dispose must never throw ahead of the base disposal below.
+		const wrapper: CopilotSessionWrapper | undefined = this._wrapper;
+		if (wrapper && this._shellInitScriptMaterialized) {
+			void wrapper.disconnect()
+				.catch(error => this._logService.warn(`[Copilot:${this.sessionId}] Failed to disconnect before shell init cleanup: ${getErrorMessage(error)}`))
+				.then(() => this._disposeShellInitScript());
+		}
 		super.dispose();
 	}
 
@@ -3086,6 +3163,7 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to flush edit attribution: ${error}`);
 		}
 		await this._wrapper.disconnect();
+		await this._disposeShellInitScript();
 	}
 
 	/**
@@ -3452,6 +3530,14 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 
+			// SDK plugin directories are discovery inputs, so the runtime does not otherwise trust their contents.
+			if (!managedApprovalRequired && !requestSandboxBypass && request.kind === 'read' && typeof request.path === 'string') {
+				if (await this._isReadWithinAppliedPluginDirectory(request.path)) {
+					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving read within an applied plugin directory: ${request.path}`);
+					return { kind: 'approve-once' };
+				}
+			}
+
 			const serverToolHost = this._serverToolHost;
 			const serverToolName = request.kind === 'custom-tool' && typeof request.toolName === 'string'
 				&& serverToolHost?.toolNames.includes(request.toolName)
@@ -3604,6 +3690,22 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
+	private async _isReadWithinAppliedPluginDirectory(filePath: string): Promise<boolean> {
+		const match = await firstParallel(
+			this._appliedPluginDirectories.map(async pluginDirectory => {
+				try {
+					return await isPathWithinDirectory(filePath, pluginDirectory, this._realpath);
+				} catch (error) {
+					this._logService.warn(`[Copilot:${this.sessionId}] Could not verify plugin resource containment: ${filePath}`, error);
+					return false;
+				}
+			}),
+			isMatch => isMatch,
+			false,
+		);
+		return match === true;
+	}
+
 	private _getInternalSessionResourcePath(request: PermissionRequest): string | undefined {
 		let permissionPath: string | undefined;
 		if (request.kind === 'read') {
@@ -3674,7 +3776,36 @@ export class CopilotAgentSession extends Disposable {
 			return undefined;
 		}
 		const sandbox = this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox);
-		return buildSandboxConfigForSdk(this._platform, sandbox);
+		return buildSandboxConfigForSdk(this._platform, sandbox, this._sandboxExtraReadonlyPaths());
+	}
+
+	/**
+	 * Grants the generated directory once a script has been materialized for
+	 * this instance and keeps it for the instance lifetime, so a command that
+	 * already holds the path can still read it after a clear. Sessions that
+	 * never configure a script see no policy change.
+	 */
+	private _sandboxExtraReadonlyPaths(): readonly string[] {
+		return this._shellInitScriptMaterialized ? [this._shellInitScriptDirectory().fsPath] : [];
+	}
+
+	/**
+	 * Session-scoped root granted to the sandbox; stable across instances of
+	 * the same SDK session so replacements do not churn the sandbox policy.
+	 */
+	private _shellInitScriptDirectory(): URI {
+		const sessionId = this.sessionId.replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').substring(0, 128) || 'session';
+		return URI.joinPath(URI.file(this._environmentService.userDataPath), 'agentHost', 'shellInit', sessionId);
+	}
+
+	/**
+	 * Where this instance writes and deletes its script. Instance-scoped because
+	 * {@link dispose} queues the deletion without awaiting it: a resumed
+	 * replacement for the same SDK session can register its script first, and a
+	 * shared directory would let the stale cleanup remove the live file.
+	 */
+	private _shellInitScriptInstanceDirectory(): URI {
+		return URI.joinPath(this._shellInitScriptDirectory(), this._shellInitScriptInstanceId);
 	}
 
 	/**
@@ -3709,12 +3840,32 @@ export class CopilotAgentSession extends Disposable {
 	private _subscribeToPermissionConfigChanges(): void {
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			void this._syncPermissionModeAfterConfigChange();
+			// The forwarded shell init setting lives in root config.
+			void this._syncShellInitScript();
 		}));
 		this._register(this._configurationService.onDidSessionConfigChange(event => {
-			if (event.session === this._ownerSessionUri.toString() && Object.hasOwn(event.config, SessionConfigKey.AutoApprove)) {
+			if (event.session !== this._ownerSessionUri.toString()) {
+				return;
+			}
+			if (Object.hasOwn(event.config, SessionConfigKey.AutoApprove)) {
 				void this._syncPermissionModeAfterConfigChange();
 			}
+			if (Object.hasOwn(event.config, SessionConfigKey.ShellInitScripts)) {
+				void this._syncShellInitScript();
+			}
 		}));
+	}
+
+	private _syncShellInitScript(): Promise<void> {
+		if (this._shellInitScriptDisposing) {
+			return Promise.resolve();
+		}
+		return this._shellInitScriptSequencer.queue(() => this._applyEffectiveShellInitScripts());
+	}
+
+	private _disposeShellInitScript(): Promise<void> {
+		this._shellInitScriptDisposing = true;
+		return this._shellInitScriptSequencer.queue(() => this._clearShellInitScript());
 	}
 
 	private async _syncPermissionModeAfterConfigChange(): Promise<void> {
@@ -3787,7 +3938,7 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		const sandbox = this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox);
-		const base = buildSandboxConfigForSdk(this._platform, sandbox);
+		const base = buildSandboxConfigForSdk(this._platform, sandbox, this._sandboxExtraReadonlyPaths());
 		const sandboxConfig: SandboxConfig = base ?? { enabled: false };
 		try {
 			const result = await this._wrapper.session.rpc.options.update({ sandboxConfig });
@@ -3799,6 +3950,107 @@ export class CopilotAgentSession extends Disposable {
 				throw err;
 			}
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to update sandbox config for request`, err);
+		}
+	}
+
+	/**
+	 * Applies the transient shell init script published by the active client.
+	 * Best-effort: failures are logged and retried on the next turn.
+	 */
+	private async _applyEffectiveShellInitScripts(): Promise<void> {
+		if (this._shellInitScriptDisposing) {
+			return;
+		}
+		try {
+			// Off states are decided before the payload is looked at, so a stale
+			// registration is always cleared: the forwarded setting is false, or
+			// the custom terminal tool has replaced the SDK's built-in shell.
+			const enabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableShellInitScript) === true
+				&& !this._isCustomTerminalToolEnabled();
+			// Session-only by construction: root and parent-session values are
+			// never consulted.
+			const own = enabled ? this._configurationService.getSessionConfigValues(this._ownerSessionUri.toString())?.[SessionConfigKey.ShellInitScripts] : undefined;
+			if (own !== undefined && !isShellInitScriptList(own)) {
+				// Keep the last valid registration rather than clearing it.
+				this._logService.warn(`[Copilot:${this.sessionId}] Ignoring malformed shell init script config`);
+				return;
+			}
+			const scripts = own ?? [];
+			const serialized = JSON.stringify(scripts);
+			if (this._lastAppliedShellInitScripts === serialized) {
+				return;
+			}
+			if (scripts.length === 0) {
+				// The file and its sandbox grant stay until dispose, so a command
+				// that already captured the path can still source it.
+				if (this._registeredShellInitScriptPath) {
+					const result = await this._wrapper.session.rpc.options.update({ shell: { initScripts: [] } });
+					if (!result.success) {
+						throw new Error('Copilot SDK rejected shell init script update');
+					}
+					this._registeredShellInitScriptPath = undefined;
+				}
+				this._lastAppliedShellInitScripts = serialized;
+				return;
+			}
+
+			this._shellInitScriptMaterialized = true;
+			const ref = await this._materializeShellInitScript(scripts[0]);
+			if (!ref) {
+				// Leave the cache unchanged so the next turn retries.
+				return;
+			}
+			// Changed content is rewritten in place and the runtime re-reads the
+			// file before each command, so only a new path needs the RPC.
+			if (ref.path !== this._registeredShellInitScriptPath) {
+				// The SDK requires init scripts to be readable when registered.
+				await this._applyEffectiveSandboxConfig(true);
+				const result = await this._wrapper.session.rpc.options.update({ shell: { initScripts: [ref] } });
+				if (!result.success) {
+					throw new Error('Copilot SDK rejected shell init script update');
+				}
+				this._registeredShellInitScriptPath = ref.path;
+			}
+			this._lastAppliedShellInitScripts = serialized;
+			this._logService.trace(`[Copilot:${this.sessionId}] Applied shell init script`);
+		} catch (err) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to update shell init scripts`, err);
+		}
+	}
+
+	private async _materializeShellInitScript(script: IShellInitScript): Promise<{ shell: IShellInitScript['shell']; path: string } | undefined> {
+		const resource = URI.joinPath(this._shellInitScriptInstanceDirectory(), script.shell === 'powershell' ? 'init.ps1' : 'init.sh');
+		const atomic = this._fileService.hasCapability(resource, FileSystemProviderCapabilities.FileAtomicWrite)
+			? { postfix: '.vsctmp' }
+			: false;
+		try {
+			await this._fileService.writeFile(resource, VSBuffer.fromString(script.script), { atomic });
+			return { shell: script.shell, path: resource.fsPath };
+		} catch (error) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to write shell init script: ${getErrorMessage(error)}`);
+			return undefined;
+		}
+	}
+
+	/** Removes this instance's script directory. Runs only on dispose, after the SDK session disconnected. */
+	private async _clearShellInitScript(): Promise<void> {
+		if (!this._shellInitScriptMaterialized) {
+			return;
+		}
+		try {
+			await this._fileService.del(this._shellInitScriptInstanceDirectory(), { recursive: true });
+		} catch (error) {
+			if (!(error instanceof Error) || toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+				this._logService.warn(`[Copilot:${this.sessionId}] Failed to remove shell init script: ${getErrorMessage(error)}`);
+			}
+		}
+		try {
+			// Non-recursive, so the session directory is only pruned once empty;
+			// while a successor instance still occupies it this fails, keeping
+			// that instance's script intact.
+			await this._fileService.del(this._shellInitScriptDirectory());
+		} catch {
+			// Occupied by a successor or already gone — both expected.
 		}
 	}
 
@@ -4218,8 +4470,20 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private async _handlePreToolUse(input: PreToolUseHookInput): Promise<void> {
+	private async _handlePreToolUse(input: PreToolUseHookInput): Promise<PreToolUseHookOutput> {
 		try {
+			const restriction = this._agentMergeTurn
+				? getAgentMergeGitHubToolRestriction(input.toolName, input.toolArgs)
+				?? (isCopilotMcpToolName(input.toolName, this._mcpServerNames) ? AGENT_MERGE_GITHUB_TOOL_RESTRICTION : undefined)
+				: undefined;
+			if (restriction) {
+				this._logService.warn(`[Copilot:${this.sessionId}] Denying restricted Agent Merge tool: ${input.toolName}`);
+				return {
+					permissionDecision: 'deny',
+					permissionDecisionReason: restriction,
+					additionalContext: restriction,
+				};
+			}
 			if (isEditTool(input.toolName, getToolCommand(input))) {
 				const filePaths = this._getEditFilePaths(input.toolArgs);
 				const mode = this._getConfiguredAgentMode();
@@ -5884,7 +6148,7 @@ export class CopilotAgentSession extends Disposable {
 					}
 				}
 
-				type AgentHostInstructionsCollectedEvent = IAgentHostInitiatorTelemetry & {
+				type AgentHostInstructionsCollectedEvent = IAgentHostEventTelemetry & {
 					provider: string;
 					agentSessionId: string;
 					isSubagentSession: boolean;
@@ -5894,7 +6158,7 @@ export class CopilotAgentSession extends Disposable {
 					referencedInstructionsCount: number;
 					claudeMdCount: number;
 				};
-				type AgentHostInstructionsCollectedClassification = IAgentHostInitiatorClassification & {
+				type AgentHostInstructionsCollectedClassification = IAgentHostEventClassification & {
 					provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider that emitted this event (e.g. copilotcli). Absent on local rows; use presence to distinguish AH from local.' };
 					agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host session identifier. Absent on local rows.' };
 					isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the emission was from a subagent session.' };

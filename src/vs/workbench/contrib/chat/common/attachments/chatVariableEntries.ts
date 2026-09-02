@@ -283,6 +283,8 @@ export interface IChatRequestTranscriptContextVariableEntry extends IBaseChatReq
 	readonly value: string;
 	readonly uri: URI;
 	readonly tooltip?: string;
+	/** Message shown when hidden transcript preparation for this context completes. */
+	readonly readyMessage?: string;
 }
 
 export interface IChatRequestWorkspaceVariableEntry extends IBaseChatRequestVariableEntry {
@@ -819,6 +821,7 @@ export function toChatTranscriptContextAttachmentMeta(entry: IChatRequestTranscr
 			iconId: entry.icon?.id,
 			tooltip: entry.tooltip,
 			fullName: entry.fullName,
+			readyMessage: entry.readyMessage,
 		},
 	};
 }
@@ -839,6 +842,7 @@ export function restoreChatTranscriptContextVariableEntry(label: string, value: 
 		...(typeof record.fullName === 'string' ? { fullName: record.fullName } : {}),
 		...(typeof record.iconId === 'string' ? { icon: ThemeIcon.fromId(record.iconId) } : {}),
 		...(typeof record.tooltip === 'string' ? { tooltip: record.tooltip } : {}),
+		...(typeof record.readyMessage === 'string' ? { readyMessage: record.readyMessage } : {}),
 		value,
 		uri: URI.parse(record.uri),
 		_meta: meta,

@@ -393,6 +393,10 @@
 	transition: opacity 0.1s ease-in-out;
 }
 
+.interactive-item-container.interactive-response.chat-system-notification-response:not(.chat-response-loading) .chat-footer-toolbar {
+	display: none;
+}
+
 /* Style the internal toolbar element to use flexbox */
 .interactive-item-container .chat-footer-toolbar .monaco-toolbar {
 	display: flex;
@@ -1859,7 +1863,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	across every view-line on each typed character. Scoped to non-compact
 	inputs because the inline-block + container query sizing breaks the
 	placeholder rendering in compact contexts (inline chat, quick chat). */
-.interactive-session .interactive-input-part:not(.compact) .chat-editor-container .monaco-editor [class^="ced-chat-session-detail"] {
+.interactive-session .interactive-input-part:not(.compact) .chat-editor-container .monaco-editor .ced-chat-session-detail-4 {
 	display: inline-block;
 	max-width: 100%;
 	/* fallback for environments without container query units */
@@ -3248,11 +3252,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.monaco-icon-label {
 		padding: 0 var(--vscode-spacing-size40);
-		gap: 2px;
 
 		&::before {
 			width: var(--vscode-codiconFontSize);
-			padding-right: 0;
 		}
 	}
 }

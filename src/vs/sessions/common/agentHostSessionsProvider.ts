@@ -25,6 +25,12 @@ export interface IAgentHostConnectProgress {
 	readonly message: string;
 }
 
+/** Agent Merge state that affects client-side presentation. */
+export interface IAgentMergeClientState {
+	readonly enabled: boolean;
+	readonly overrides?: AgentMergeSessionOverrides;
+}
+
 /**
  * Declares that a provider is one of many interchangeable members of a single
  * user-facing host. Members collapse into one `IAgentHostFilterEntry` that
@@ -177,6 +183,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	clearSessionConfig(sessionId: string): void;
 	/** Returns the persisted Agent Merge state for a running session. */
 	getAgentMergeSessionState(sessionId: string): AgentMergeSessionState | undefined;
+	/** Returns observable Agent Merge client state while retaining the required session subscription. */
+	getAgentMergeClientStateObservable(sessionId: string): IObservable<IAgentMergeClientState | undefined>;
 	/** Enables or disables Agent Merge while preserving the session's action overrides. */
 	setAgentMergeEnabled(sessionId: string, enabled: boolean): Promise<void>;
 	/** Replaces the session's Agent Merge action overrides; `undefined` follows global defaults. */

@@ -448,6 +448,8 @@ export interface IAgentChatContext {
 	readonly customizations?: readonly Customization[];
 	/** Per-operation host instructions that providers add to model context without persisting as user content. */
 	readonly hostInstructions?: readonly string[];
+	/** Whether the current turn is an automated Agent Merge repair turn. */
+	readonly agentMergeTurn?: boolean;
 }
 
 export type AgentChatOperationContext = URI | IAgentChatContext;
@@ -1227,6 +1229,16 @@ export interface IAgent {
 	listLegacyChatBackings?(configurationResource: URI): Promise<readonly IAgentLegacyChat[]>;
 
 	// ---- Metadata -----------------------------------------------------------
+
+	/**
+	 * Warms a short-lived, in-memory cache of per-session metadata from a single
+	 * bulk provider call, so a subsequent burst of {@link getChatMetadata} calls
+	 * (e.g. a `listSessions` pass over a large catalogue) can be served without
+	 * one provider round-trip per session. Returns a disposable that clears the
+	 * cache; callers dispose it once the burst is complete. Optional: providers
+	 * without a cheap bulk read simply omit it and pay per session.
+	 */
+	prewarmSessionMetadata?(): Promise<IDisposable>;
 
 	/** Retrieve metadata for an exact registered chat. Ambient catalogue reads never set {@link IAgentChatMetadataOptions.activation}. */
 	getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined>;

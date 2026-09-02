@@ -448,7 +448,7 @@
 .ai-customization-list-widget .list-container {
 	flex: 1;
 	min-height: 0;
-	overflow: auto;
+	overflow: hidden;
 }
 
 .ai-customization-list-widget .list-empty-message {
@@ -961,6 +961,9 @@ per-word capitalization does not survive translation. */
 	position: relative;
 	flex: 1;
 	min-height: 0;
+	width: 100%;
+	max-width: calc(840px + var(--vscode-spacing-size160));
+	margin-inline: auto;
 }
 
 .ai-customization-management-editor .prompt-migration-footer {
@@ -1068,7 +1071,8 @@ per-word capitalization does not survive translation. */
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
-	padding-bottom: var(--vscode-spacing-size60);
+	padding: 0 var(--vscode-spacing-size160) var(--vscode-spacing-size60) 0;
+	box-sizing: border-box;
 }
 
 .ai-customization-management-editor .prompt-migration-group {
@@ -1336,6 +1340,9 @@ per-word capitalization does not survive translation. */
 	position: relative;
 	flex: 1;
 	min-height: 0;
+	width: 100%;
+	max-width: calc(840px + var(--vscode-spacing-size160));
+	margin: 0 auto;
 }
 
 /* The scrolled element: bound it to the wrapper so clientHeight < scrollHeight when content overflows. */
@@ -1346,7 +1353,7 @@ per-word capitalization does not survive translation. */
 	display: flex;
 	flex-direction: column;
 	gap: var(--vscode-spacing-size240);
-	padding: 0 max(var(--vscode-spacing-size20), calc((100% - 840px) / 2)) var(--vscode-spacing-size200);
+	padding: 0 var(--vscode-spacing-size160) var(--vscode-spacing-size200) 0;
 	box-sizing: border-box;
 }
 
@@ -2769,11 +2776,31 @@ per-word capitalization does not survive translation. */
 	overflow: hidden;
 }
 
+.plugin-list-widget .plugin-card-scrollable {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	width: 100%;
+	max-width: calc(840px + var(--vscode-spacing-size160));
+	margin: 0 auto;
+}
+
+.plugin-list-widget .plugin-card-scrollable > .plugin-card-container {
+	position: absolute;
+	inset: 0;
+}
+
 .plugin-list-widget .plugin-card-scroll {
 	height: 100%;
 	overflow: auto;
 	padding: 0 max(var(--vscode-spacing-size20), calc((100% - 840px) / 2)) var(--vscode-spacing-size200);
 	box-sizing: border-box;
+}
+
+.plugin-list-widget .plugin-card-scroll-content {
+	height: auto;
+	overflow: visible;
+	padding: 0 var(--vscode-spacing-size160) var(--vscode-spacing-size200) 0;
 }
 
 .plugin-list-widget .plugin-marketplace-back-container {

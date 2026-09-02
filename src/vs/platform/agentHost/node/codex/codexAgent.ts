@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { CCAModel } from '@vscode/copilot-api';
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -24,6 +25,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostCodexMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMcpServersConfigKey, type ISchemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
 import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/agentModelPricing.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelGroupMeta, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
+import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import { AgentSdkSetupChannel } from '../agentSdkSetupChannel.js';
 import { CODEX_ACCOUNT_META_KEY, CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY, type ICodexAccountInfo } from '../../common/codexAccount.js';
@@ -75,6 +77,7 @@ import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js
 import { CodexAppServerClient, JsonRpcError, transportFromChildProcess, type ICodexAppServerClient, type ServerRequestHandlerResult } from './codexAppServerClient.js';
 import { ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
 import { GITHUB_MCP_SERVER_NAME, resolveGitHubMcpServerConfiguration } from '../shared/githubMcpServer.js';
+import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isGitHubMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangeOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageModelCallCompleted, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
 import type { ThreadTokenUsageUpdatedNotification } from './protocol/generated/v2/ThreadTokenUsageUpdatedNotification.js';
 import { unwrapShellInvocation } from './codexShellCommand.js';
@@ -144,7 +147,7 @@ import type { GuardianWarningNotification } from './protocol/generated/v2/Guardi
 import type { ThreadApproveGuardianDeniedActionResponse } from './protocol/generated/v2/ThreadApproveGuardianDeniedActionResponse.js';
 import type { ConfigReadResponse } from './protocol/generated/v2/ConfigReadResponse.js';
 import type { ConfigWriteResponse } from './protocol/generated/v2/ConfigWriteResponse.js';
-import { formatGuardianDenialNotification, summarizeGuardianReviewAction, toGuardianAssessmentEventJson } from './codexGuardianReview.js';
+import { formatGuardianDenialNotification, formatGuardianReviewStatusNotification, summarizeGuardianReviewAction, toGuardianAssessmentEventJson } from './codexGuardianReview.js';
 import { CODEX_COMPACT_SLASH_COMMAND } from '../codexCompactCommand.js';
 
 const CLIENT_INFO = {
@@ -163,6 +166,7 @@ const CODEX_THREAD_TURNS_PAGE_SIZE = 100;
 const CODEX_STARTUP_ACCOUNT_PROBE_TIMEOUT_MS = 30_000;
 const CODEX_DESKTOP_WORKSPACE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const CODEX_DESKTOP_SESSION_META_PATTERN = /"type"\s*:\s*"session_meta".*"payload"\s*:\s*\{[^}]*"originator"\s*:\s*"Codex Desktop"/s;
+const CODEX_GUARDIAN_TURN_INTERRUPTION_PREFIX = 'Automatic approval review rejected too many approval requests for this turn';
 
 function isCodexDesktopGeneratedWorkspace(cwd: string, userHome: URI): boolean {
 	const relativePath = extUriBiasedIgnorePathCase.relativePath(userHome, URI.file(cwd));
@@ -238,6 +242,17 @@ const CODEX_COPILOT_MODEL_PROVIDER = 'vscode-proxy';
 const CODEX_COPILOT_MODEL_GROUP = 'copilot';
 const CODEX_OPENAI_MODEL_PROVIDER = 'openai';
 const CODEX_MODEL_SELECTION_PREFIX = '@provider=';
+
+/**
+ * The Codex harness relies on OpenAI Responses semantics beyond the endpoint
+ * shape. Other vendors can advertise `/responses` without supporting the full
+ * Codex request lifecycle, so only publish OpenAI's picker-eligible models.
+ */
+function isCodexCompatibleCopilotModel(model: CCAModel): boolean {
+	return model.vendor.toLowerCase() === CODEX_OPENAI_MODEL_PROVIDER
+		&& !!model.model_picker_enabled
+		&& !!model.supported_endpoints?.includes(CODEX_RESPONSES_ENDPOINT);
+}
 
 export function toCodexModelSelectionId(modelProvider: string, modelId: string): string {
 	return `${CODEX_MODEL_SELECTION_PREFIX}${encodeURIComponent(modelProvider)}:${encodeURIComponent(modelId)}`;
@@ -590,9 +605,9 @@ interface ICodexSession {
 	 */
 	readonly acceptedForSession: Set<string>;
 	/**
-	 * Guardian (auto-review) `reviewId`s that have already been surfaced to
-	 * the user as a denied-action approval card. Guards against acting twice
-	 * on the same review if the completed notification is redelivered.
+	 * Guardian (auto-review) `reviewId`s whose terminal outcome has already
+	 * been surfaced. Guards against acting twice on the same review if the
+	 * completed notification is redelivered.
 	 */
 	readonly handledGuardianReviews: Set<string>;
 	/**
@@ -660,6 +675,8 @@ interface ICodexSession {
 	customizationDirectory: URI | undefined;
 	/** Workbench-facing turn id for the active turn. */
 	currentTurnId: string | undefined;
+	/** Whether the active turn must use only the dedicated Agent Merge GitHub tools. */
+	agentMergeTurn?: boolean;
 	/** Cumulative token-usage identity last observed for model-call deduplication. */
 	lastModelCallUsageId?: string;
 	/** Local monotonic timer for the active workbench-facing turn. */
@@ -1760,8 +1777,14 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private _turnStartOptions(session: ICodexSession, modelId: string, developerInstructions?: string, configResource: URI = session.sessionUri): Pick<TurnStartParams, 'approvalPolicy' | 'sandboxPolicy' | 'approvalsReviewer' | 'effort' | 'runtimeWorkspaceRoots' | 'personality' | 'summary' | 'collaborationMode'> {
 		const config = this._readSessionConfig(configResource);
-		const { approvalPolicy, sandboxMode, approvalsReviewer } = this._resolveSessionPermissions(configResource);
-		const sandboxPolicy = this._sandboxPolicy(session, config, sandboxMode);
+		const resolvedPermissions = this._resolveSessionPermissions(configResource);
+		const approvalPolicy = session.agentMergeTurn ? 'on-request' : resolvedPermissions.approvalPolicy;
+		const sandboxMode = session.agentMergeTurn && resolvedPermissions.sandboxMode === 'danger-full-access' ? 'workspace-write' : resolvedPermissions.sandboxMode;
+		const approvalsReviewer = resolvedPermissions.approvalsReviewer;
+		const resolvedSandboxPolicy = this._sandboxPolicy(session, config, sandboxMode);
+		const sandboxPolicy = session.agentMergeTurn && resolvedSandboxPolicy.type === 'workspaceWrite'
+			? { ...resolvedSandboxPolicy, networkAccess: false }
+			: resolvedSandboxPolicy;
 		const runtimeWorkspaceRoots = this._isMultiRootActive(session)
 			? this._runtimeWorkspaceRoots(session)
 			: (sandboxPolicy.type === 'workspaceWrite' ? sandboxPolicy.writableRoots : undefined);
@@ -1975,7 +1998,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			// OpenAI-shaped Responses endpoint. The chosen id is forwarded straight
 			// through; CAPI remains the authority on what the token may actually use.
 			const models = all
-				.filter(m => m.model_picker_enabled && m.supported_endpoints?.includes(CODEX_RESPONSES_ENDPOINT))
+				.filter(isCodexCompatibleCopilotModel)
 				.sort((a, b) => Number(b.is_chat_default) - Number(a.is_chat_default))
 				.map((m): IAgentModelInfo => ({
 					provider: CODEX_AGENT_PROVIDER_ID,
@@ -2452,11 +2475,12 @@ export class CodexAgent extends Disposable implements IAgent {
 		subscriptions.add(client.onNotification('thread/tokenUsage/updated', params => this._dispatchTokenUsageUpdated(params)));
 		subscriptions.add(client.onNotification('item/completed', params => this._dispatchItemCompleted(params)));
 		subscriptions.add(client.onNotification('turn/completed', params => this._dispatchTurnCompleted(params)));
-		// Auto-review (guardian) surfacing. The guardian warning is shown as a
-		// system notification; a completed *denied* review is turned into a
+		// Auto-review (guardian) surfacing. The guardian turn-interruption warning
+		// is shown as a system notification; terminal review failures are surfaced
+		// from the structured completion event, and a denied review also gets a
 		// retroactive "Approve anyway" tool-call card. The review lifecycle is
-		// non-blocking (codex does not wait on us), so the completed handler is
-		// async and resolves its session directly rather than via _dispatchByThread.
+		// non-blocking (codex does not wait on us), so the completed handler is async
+		// and resolves its session directly rather than via _dispatchByThread.
 		subscriptions.add(client.onNotification('guardianWarning', params => this._dispatchByThread(params.threadId, s => this._handleGuardianWarning(s, params))));
 		subscriptions.add(client.onNotification('item/autoApprovalReview/completed', params => { void this._handleGuardianReviewCompleted(client, params); }));
 
@@ -2532,13 +2556,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		const workspace = codexMcpServersFromDefinitions(this._sessionMcpDiscoveries.get(session.sessionId)?.discovery.definitions ?? []);
 		const enabledWorkspace = Object.fromEntries(Object.entries(workspace).filter(([name]) => this._isMcpServerEnabledForSdk(session, name)));
 		const clientPlugins = codexMcpServersFromPlugins(this._enabledClientPlugins(session), session.workingDirectory);
-		const enabledConfiguredServers = { ...root, ...enabledWorkspace, ...clientPlugins };
+		const enabledConfiguredServers = session.agentMergeTurn ? {} : { ...root, ...enabledWorkspace, ...clientPlugins };
 		const builtInGitHub = this._builtInGitHubMcpServer(session, enabledConfiguredServers);
 		return injectCodexMcpAuthTokens({ ...builtInGitHub, ...enabledConfiguredServers }, this._mcpAuthTokens);
 	}
 
 	private _builtInGitHubMcpServer(session: ICodexSession, configuredServers: Record<string, ICodexMcpServerConfigJson>): Record<string, ICodexMcpServerConfigJson> {
-		if (!this._githubMcpServerEnabled
+		if (session.agentMergeTurn
+			|| !this._githubMcpServerEnabled
 			|| !this._githubToken
 			|| !this._gitHubMcpServerConfiguration
 			|| !this._isMcpServerEnabledForSdk(session, GITHUB_MCP_SERVER_NAME)
@@ -2549,12 +2574,15 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _hasConfiguredGitHubMcpServer(configuredServers: Record<string, ICodexMcpServerConfigJson>): boolean {
+		return Object.entries(configuredServers).some(([name, server]) => this._isGitHubMcpServer(name, server));
+	}
+
+	private _isGitHubMcpServer(name: string, server: ICodexMcpServerConfigJson): boolean {
 		const builtInUrl = this._gitHubMcpServerConfiguration?.type === McpServerType.REMOTE
 			? normalizeCodexMcpResourceUrl(this._gitHubMcpServerConfiguration.url)
 			: undefined;
-		return Object.hasOwn(configuredServers, GITHUB_MCP_SERVER_NAME)
-			|| builtInUrl !== undefined && Object.values(configuredServers).some(server =>
-				server.url !== undefined && normalizeCodexMcpResourceUrl(server.url) === builtInUrl);
+		return name === GITHUB_MCP_SERVER_NAME
+			|| builtInUrl !== undefined && server.url !== undefined && normalizeCodexMcpResourceUrl(server.url) === builtInUrl;
 	}
 
 	private async _refreshSessionMcpDiscovery(session: ICodexSession): Promise<void> {
@@ -2661,6 +2689,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		const session = sessionId ? this._sessions.get(sessionId) : undefined;
 		if (!session) {
 			return { result: this._toolFailure(`Codex tool call for unknown thread ${params.threadId}`) };
+		}
+		if (session.agentMergeTurn && isGitHubMcpToolName(params.tool)) {
+			this._logService.warn(`[Codex:${session.sessionId}] Denying restricted Agent Merge tool: ${params.tool}`);
+			return { result: this._toolFailure(AGENT_MERGE_GITHUB_TOOL_RESTRICTION) };
 		}
 		// Server tools are executed in-process against the session's own state
 		// (no workbench round-trip). We register them under their bare name, so
@@ -2883,6 +2915,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (session.currentAppTurnId === appTurnId || session.currentTurnId === hostTurnId) {
 			session.currentTurnId = undefined;
 			session.currentAppTurnId = undefined;
+			session.agentMergeTurn = false;
 		}
 		session.hostTurnIdByAppTurnId.delete(appTurnId);
 		// Any steering still buffered was never echoed as a `userMessage`
@@ -3456,6 +3489,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			agent: parent.agent,
 			customizationDirectory: undefined,
 			currentTurnId: undefined,
+			agentMergeTurn: parent.agentMergeTurn,
 			turnStopWatch: undefined,
 			currentAppTurnId: undefined,
 			hostTurnIdByAppTurnId: new Map<string, string>(),
@@ -3530,6 +3564,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		// the accept-for-session memo key so it stays byte-identical to what
 		// Codex re-sends on the next request for the same command.
 		const displayCommand = unwrapShellInvocation(command);
+		const restriction = session.agentMergeTurn ? getAgentMergeGitHubToolRestriction('shell', { command: displayCommand }) : undefined;
+		if (restriction) {
+			this._logService.warn(`[Codex:${session.sessionId}] Denying restricted Agent Merge shell command`);
+			return 'decline';
+		}
 		// Accept-for-session memo: if the user previously accepted this
 		// exact command for the session, auto-accept without prompting.
 		if (command && session.acceptedForSession.has(command)) {
@@ -3562,6 +3601,11 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private async _handlePermissionsApprovalRequestRpc(params: PermissionsRequestApprovalParams): Promise<{ readonly result: PermissionsRequestApprovalResponse }> {
+		const target = this._resolveApprovalTarget(params.threadId);
+		if (target?.session.agentMergeTurn && params.permissions.network !== undefined && params.permissions.network !== null) {
+			this._logService.warn(`[Codex:${target.session.sessionId}] Denying network escalation during Agent Merge turn`);
+			return { result: { permissions: {}, scope: 'turn' } };
+		}
 		const decision = await this._requestItemApproval(params.threadId, params.itemId, params.reason ?? 'Grant elevated permissions');
 		const granted = decision === 'accept' || decision === 'acceptForSession';
 		return {
@@ -3635,6 +3679,11 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _handleGuardianWarning(session: ICodexSession, params: GuardianWarningNotification): ChatAction[] {
+		// Individual review outcomes are handled by the structured review event. The
+		// warning channel is only needed when the review circuit breaker ends a turn.
+		if (!params.message.startsWith(CODEX_GUARDIAN_TURN_INTERRUPTION_PREFIX)) {
+			return [];
+		}
 		const turnId = session.currentTurnId;
 		if (turnId === undefined) {
 			this._logService.trace(`[Codex:${session.sessionId}] guardianWarning without active turn; ignoring`);
@@ -3646,6 +3695,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			part: {
 				kind: ResponsePartKind.SystemNotification,
 				content: params.message,
+				_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.AutomaticApprovalReviewInterrupted }),
 			},
 		}];
 	}
@@ -3657,18 +3707,18 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._logService.trace(`[Codex] autoApprovalReview/completed for unknown threadId=${params.threadId}; ignoring`);
 			return;
 		}
-		if (params.review.status !== 'denied') {
+		const status = params.review.status;
+		if (status === 'approved' || status === 'inProgress') {
 			return;
 		}
 		if (session.handledGuardianReviews.has(params.reviewId)) {
 			return;
 		}
-		// Bind the denial surfacing to the review's OWN turn (mapped app→host),
+		// Bind review surfacing to the review's OWN turn (mapped app→host),
 		// not whatever turn happens to be current. An `autoApprovalReview/completed`
 		// that arrives out of order — after its turn ended, or once a later turn is
-		// active — must not mis-attribute the notice/card to a different turn, nor
-		// apply this review's stale action against it. When the review's turn is no
-		// longer the active turn there is nothing left to approve within it, so ignore.
+		// active — must not mis-attribute its notice to a different turn. A denied
+		// review's override also stops being actionable after its turn ends.
 		const turnId = this._hostTurnId(session, params.turnId);
 		if (session.currentTurnId !== turnId) {
 			this._logService.trace(`[Codex:${sessionId}] autoApprovalReview/completed for non-current turn ${turnId} (current=${session.currentTurnId ?? '(none)'}); ignoring reviewId=${params.reviewId}`);
@@ -3678,6 +3728,21 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.handledGuardianReviews.add(params.reviewId);
 
 		const summary = summarizeGuardianReviewAction(params.action);
+		if (status === 'timedOut' || status === 'aborted') {
+			const kind = status === 'timedOut'
+				? AgentSystemNotificationKind.AutomaticApprovalReviewTimedOut
+				: AgentSystemNotificationKind.AutomaticApprovalReviewAborted;
+			this._fire(session.sessionUri, {
+				type: ActionType.ChatResponsePart,
+				turnId,
+				part: {
+					kind: ResponsePartKind.SystemNotification,
+					content: formatGuardianReviewStatusNotification(summary, status, params.review.rationale),
+					_meta: toAgentSystemNotificationMeta({ kind }),
+				},
+			});
+			return;
+		}
 
 		// Durable record: a Markdown response part survives turn completion AND is
 		// rendered by the live streaming path (unlike a system-notification part,
@@ -3834,6 +3899,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			const appTurnId = session.currentAppTurnId;
 			session.currentTurnId = undefined;
 			session.currentAppTurnId = undefined;
+			session.agentMergeTurn = false;
 			if (appTurnId) {
 				session.hostTurnIdByAppTurnId.delete(appTurnId);
 			}
@@ -5411,6 +5477,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			throw new Error(`Codex session not found: ${sessionUri.toString()} (chat=${chat.toString()}, binding=${this._sessionIdByChatUri.get(chat.toString()) ?? 'none'}, sessions=${[...this._sessions.keys()].join(',') || 'none'})`);
 		}
 		const configResource = operationContext?.configurationResource ?? sessionUri;
+		session.agentMergeTurn = operationContext?.agentMergeTurn === true;
 		this._ensureModelProviderAuthenticated(session.model);
 		// The host hands us the complete resolved snapshot (index 0 = the process
 		// root) on every send. Adopt index 0 before first materialization locks the
@@ -5440,6 +5507,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			await this._materializeIfNeeded(session, configResource, true);
 			this._persistMaterializedSession(session);
 		} catch (err) {
+			session.agentMergeTurn = false;
 			const message = err instanceof Error ? err.message : String(err);
 			this._logService.error(`[Codex:${sessionId}] materialize failed: ${message}`);
 			const duration = this._clearTurnStopWatch(session);
@@ -5482,6 +5550,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				await this._restartThreadWithCurrentTools(session, configResource);
 				this._persistMaterializedSession(session);
 			} catch (err) {
+				session.agentMergeTurn = false;
 				const message = err instanceof Error ? err.message : String(err);
 				this._logService.error(`[Codex:${sessionId}] tool re-materialize failed: ${message}`);
 				const duration = this._clearTurnStopWatch(session);
@@ -5508,6 +5577,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			// exact connection that now owns the loaded thread into turn preparation.
 			conn = (await this._ensureThreadConnection(session, conn)).connection;
 		} catch (err) {
+			session.agentMergeTurn = false;
 			const duration = this._clearTurnStopWatch(session);
 			this._fire(sessionUri, {
 				type: ActionType.ChatError,
@@ -5577,6 +5647,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (turnRequestStarted && session.currentTurnId !== effectiveTurnId) {
 				return;
 			}
+			session.agentMergeTurn = false;
 			if (turnRequestStarted) {
 				session.currentTurnId = undefined;
 				session.currentAppTurnId = undefined;

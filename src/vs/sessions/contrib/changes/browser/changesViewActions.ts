@@ -266,8 +266,8 @@ class CollapseAllSessionChangesDiffsAction extends Action2 {
 			icon: Codicon.collapseAll,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorTitle,
-				group: '1_diff',
+				id: Menus.SessionsEditorHeaderLayout,
+				group: 'secondary/1_diff',
 				order: 10,
 				when: ContextKeyExpr.and(
 					singlePaneChangesEditorTitleVisible,
@@ -296,8 +296,8 @@ class ExpandAllSessionChangesDiffsAction extends Action2 {
 			icon: Codicon.expandAll,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorTitle,
-				group: '1_diff',
+				id: Menus.SessionsEditorHeaderLayout,
+				group: 'secondary/1_diff',
 				order: 10,
 				when: ContextKeyExpr.and(
 					singlePaneChangesEditorActive,
@@ -325,7 +325,7 @@ registerAction2(ExpandAllSessionChangesDiffsAction);
 
 // The action changes the preferred layout. Side by side still falls back to inline
 // when the editor is narrow, so the label must not promise an immediate layout.
-MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
+MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderLayout, {
 	command: {
 		id: TOGGLE_DIFF_SIDE_BY_SIDE,
 		title: localize('alwaysShowInlineDiff', "Always Show Inline Diff"),
@@ -333,7 +333,7 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
 		icon: Codicon.diffSidebyside,
 		toggled: SessionsDiffRenderSideBySideContext.negate(),
 	},
-	group: '1_diff',
+	group: 'secondary/1_diff',
 	order: 20,
 	when: singlePaneDiffEditorTitleVisible
 });
