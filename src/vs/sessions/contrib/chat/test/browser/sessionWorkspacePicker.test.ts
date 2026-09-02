@@ -3186,7 +3186,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 		});
 	});
 
-	test('moves GitHub context actions into Add Context when groups are combined', async () => {
+	test('exposes GitHub context actions through Add Context', async () => {
 		const provider = createMockProvider('github');
 		const issueUri = URI.parse('https://github.com/microsoft/vscode/issues/1');
 		const issueWorkspace = {
@@ -3202,15 +3202,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 				run: async () => issueWorkspace,
 			}],
 		}]);
-		const picker = createTestablePicker(disposables, providersService, true, {}, undefined, undefined, true);
-		const container = document.createElement('div');
-		picker.renderCategoryTriggers(container, [{
-			label: 'Issue/PR',
-			ariaLabel: 'Attach a GitHub issue or pull request',
-			group: SESSION_WORKSPACE_GROUP_GITHUB,
-			attachesContext: true,
-			hideWhenConsolidatedRemoteWorkspaces: true,
-		}]);
+		const picker = createTestablePicker(disposables, providersService);
 		const selectedContexts: string[] = [];
 		disposables.add(picker.onDidSelectContext(context => selectedContexts.push(context.uri.toString())));
 
@@ -3219,11 +3211,9 @@ suite('WorkspacePicker - Tab discovery', () => {
 
 		assert.deepStrictEqual({
 			actions: actions.map(action => action.label),
-			triggerHidden: container.querySelector('.sessions-workspace-category-picker-slot')?.hasAttribute('hidden'),
 			selectedContexts,
 		}, {
 			actions: ['Issue...'],
-			triggerHidden: true,
 			selectedContexts: [issueUri.toString()],
 		});
 	});

@@ -47,13 +47,14 @@ import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/b
 import { NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { type IResolvedFolderWorkspace, SessionWorkspaceFallback } from './sessionWorkspaceFallback.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX, ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX, getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
 
 export type { IResolvedFolderWorkspace } from './sessionWorkspaceFallback.js';
 
 const FILTER_THRESHOLD = 10;
 
-export const AGENT_SESSIONS_CONSOLIDATED_REMOTE_WORKSPACES_SETTING = 'chat.agentSessions.consolidatedRemoteWorkspaces';
+export const AGENT_SESSIONS_CONSOLIDATED_REMOTE_WORKSPACES_SETTING = ChatConfiguration.ConsolidatedRemoteWorkspaces;
 
 /**
  * Fixed picker width when the categorical tab bar is shown. Keeps the tab
@@ -116,7 +117,6 @@ export interface IWorkspacePickerTrigger {
 	readonly hideWhenWorkspaceSelected?: boolean;
 	readonly hideWhenNoWorkspaceSelected?: boolean;
 	readonly hideWhenNoGitHubRepository?: boolean;
-	readonly hideWhenConsolidatedRemoteWorkspaces?: boolean;
 }
 
 export interface IWorkspacePickerContextAction {
@@ -380,12 +380,6 @@ export class WorkspacePicker extends Disposable {
 		this._register(this._tabbedWidget.onDidHide(() => {
 			this._pickerGroupContext.reset();
 		}));
-		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(AGENT_SESSIONS_CONSOLIDATED_REMOTE_WORKSPACES_SETTING)) {
-				this._updateTriggerLabel();
-			}
-		}));
-
 		this._sessionWorkspaceFallback = this.options.restoreFromSessions === false
 			? undefined
 			: this._register(this.instantiationService.createInstance(SessionWorkspaceFallback, {
@@ -507,10 +501,6 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	getContextPickerActions(): readonly IWorkspacePickerContextAction[] {
-		if (!this._useConsolidatedRemoteWorkspaces()) {
-			return [];
-		}
-
 		return this.sessionsProvidersService.getProviders()
 			.flatMap(provider => provider.browseActions)
 			.filter(action => action.attachesContext === true)
@@ -1532,9 +1522,7 @@ export class WorkspacePicker extends Disposable {
 			const hideForMissingWorkspace = workspace === undefined && options.hideWhenNoWorkspaceSelected === true;
 			const hideForMissingGitHubRepository = options.hideWhenNoGitHubRepository === true
 				&& this._getCurrentRepositoryId() === undefined;
-			const hideForConsolidatedRemoteWorkspaces = options.hideWhenConsolidatedRemoteWorkspaces === true
-				&& this._useConsolidatedRemoteWorkspaces();
-			trigger.parentElement?.toggleAttribute('hidden', hideForSelectedWorkspace || hideForMissingWorkspace || hideForMissingGitHubRepository || hideForConsolidatedRemoteWorkspaces);
+			trigger.parentElement?.toggleAttribute('hidden', hideForSelectedWorkspace || hideForMissingWorkspace || hideForMissingGitHubRepository);
 			trigger.classList.toggle('selected', (reflectsWorkspace && workspace !== undefined) || isSelectedCategory || badgeCount > 0 || relatedGitHubInfo !== undefined);
 			const icon = (reflectsWorkspace ? workspace?.icon : undefined)
 				?? (relatedGitHubInfo ? Codicon.repo : (isSelectedCategory && workspace ? workspace.icon : options.icon));
