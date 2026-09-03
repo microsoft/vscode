@@ -552,8 +552,11 @@ export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
 
 export { ChatExternalSessionsMode as AgentHostExternalSessionsMode };
 
-/** Root config key controlling cleanup of inactive sessions with merged pull requests. */
+/** Root config key controlling automatic archival of inactive sessions with merged pull requests. */
 export const AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey = 'autoArchiveMergedSessionsAfterDays';
+
+/** Root config key controlling permanent deletion of automatically archived sessions with merged pull requests. */
+export const AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey = 'autoDeleteArchivedMergedSessionsAfterDays';
 
 /**
  * Root config key forwarded from the renderer that gates multiple-working-directory
@@ -873,8 +876,15 @@ export const platformRootSchema = createSchema({
 	}),
 	[AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey]: schemaProperty<number>({
 		type: 'number',
-		title: localize('agentHost.config.autoArchiveMergedSessionsAfterDays.title', "Merged Session Cleanup"),
-		description: localize('agentHost.config.autoArchiveMergedSessionsAfterDays.description', "Number of inactive days after which a session with a merged pull request is automatically archived. Archived sessions are permanently deleted after twice this period. Zero disables both operations."),
+		title: localize('agentHost.config.autoArchiveMergedSessionsAfterDays.title', "Auto-Archive Merged Sessions"),
+		description: localize('agentHost.config.autoArchiveMergedSessionsAfterDays.description', "Number of inactive days after which a session with a merged pull request is automatically archived. Zero disables automatic archival."),
+		enum: [0, 1, 7, 15, 30],
+		default: 0,
+	}),
+	[AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey]: schemaProperty<number>({
+		type: 'number',
+		title: localize('agentHost.config.autoDeleteArchivedMergedSessionsAfterDays.title', "Auto-Delete Archived Merged Sessions"),
+		description: localize('agentHost.config.autoDeleteArchivedMergedSessionsAfterDays.description', "Number of days after automatic archival before a session with a merged pull request is permanently deleted. Zero disables permanent deletion."),
 		enum: [0, 1, 7, 15, 30],
 		default: 0,
 	}),
