@@ -20,7 +20,7 @@
 
 /* Tabs host: the chat tab strip, shown only when the session has multiple chats. */
 .chat-composite-bar.session-chat-tabs-bar {
-	padding: 0 var(--vscode-spacing-size100);
+	padding: 0 var(--vscode-spacing-size20);
 	box-sizing: border-box;
 	container-type: inline-size;
 
@@ -165,7 +165,7 @@
 .chat-composite-bar-tabs-row {
 	display: flex;
 	align-items: center;
-	height: 35px;
+	height: var(--vscode-spacing-size320, 32px);
 	box-sizing: border-box;
 	overflow: hidden;
 }

@@ -110,6 +110,7 @@ interface IChatCompositeBarHarness {
 	readonly commandService: TestCommandService;
 	readonly sessionsService: TestSessionsService;
 	readonly bar: ChatCompositeBar;
+	readonly container: HTMLElement;
 	readonly session: IActiveSession;
 	readonly tabs: readonly HTMLElement[];
 	readonly chats: ISettableObservable<readonly IChat[]>;
@@ -158,7 +159,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	container.appendChild(bar.element);
 	const tabs = Array.from(bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab'));
 
-	return { store, instantiationService, commandService, sessionsService, bar, session, tabs, chats, activeChatResource, visible, showSessionActions };
+	return { store, instantiationService, commandService, sessionsService, bar, container, session, tabs, chats, activeChatResource, visible, showSessionActions };
 }
 
 suite('Sessions - ChatCompositeBar', () => {
@@ -189,6 +190,24 @@ suite('Sessions - ChatCompositeBar', () => {
 		const { bar } = createHarness(disposables);
 
 		assert.strictEqual(bar.element.querySelector('.chat-composite-bar-new-chat'), null);
+	});
+
+	test('matches the editor tab strip height', () => {
+		const { bar, container } = createHarness(disposables);
+		mainWindow.document.body.appendChild(container);
+
+		try {
+			const tabsRow = bar.element.querySelector<HTMLElement>('.chat-composite-bar-tabs-row');
+			assert.deepStrictEqual({
+				barHeight: mainWindow.getComputedStyle(bar.element).height,
+				tabsRowHeight: tabsRow && mainWindow.getComputedStyle(tabsRow).height,
+			}, {
+				barHeight: '32px',
+				tabsRowHeight: '32px',
+			});
+		} finally {
+			container.remove();
+		}
 	});
 
 	test('updates active, visibility, and session action state without rebuilding tabs', () => {
@@ -236,8 +255,8 @@ suite('Sessions - ChatCompositeBar', () => {
 		const observedHeights: number[] = [];
 		disposables.add(bar.onDidChangeHeight(() => observedHeights.push(bar.height)));
 
-		resizeObserver.fire(35);
-		resizeObserver.fire(35);
+		resizeObserver.fire(32);
+		resizeObserver.fire(32);
 		resizeObserver.fire(0);
 
 		assert.deepStrictEqual({
@@ -246,7 +265,7 @@ suite('Sessions - ChatCompositeBar', () => {
 			observedBox: resizeObserver.observedBox,
 		}, {
 			height: 0,
-			observedHeights: [35, 0],
+			observedHeights: [32, 0],
 			observedBox: 'border-box',
 		});
 	});

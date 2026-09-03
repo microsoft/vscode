@@ -27,6 +27,8 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { generateColorThemeCSS } from '../../../../../workbench/services/themes/browser/colorThemeCss.js';
 import { ColorThemeData } from '../../../../../workbench/services/themes/common/colorThemeData.js';
+import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
+import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/browserView/common/browserView.js';
 import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { openNewSearchEditor } from '../../../../../workbench/contrib/searchEditor/browser/searchEditorActions.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
@@ -34,7 +36,7 @@ import { ISessionWorkspace } from '../../../../services/sessions/common/session.
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
-import { NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../browser/addTabActions.js';
+import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../browser/addTabActions.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
 import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../../workbench/common/contextkeys.js';
 import { TestEnvironmentService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -121,6 +123,30 @@ suite('Sessions - Editor Contribution', () => {
 			pinned: options?.pinned,
 			index: options?.index
 		})), [{ isEmptyFileEditor: true, resource: workspaceFolder.toString(), pinned: true, index: 7 }]);
+	});
+
+	test('new browser tab action opens a pinned browser editor', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const browserInput = new class extends mock<BrowserEditorInput>() { };
+		const opened: { editor: unknown; options: IEditorOptions | undefined }[] = [];
+		instantiationService.stub(IBrowserViewWorkbenchService, new class extends mock<IBrowserViewWorkbenchService>() {
+			override getOrCreateLazy(): BrowserEditorInput {
+				return browserInput;
+			}
+		});
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override async openEditor(...args: unknown[]): Promise<undefined> {
+				opened.push({ editor: args[0], options: args[1] as IEditorOptions | undefined });
+				return undefined;
+			}
+		});
+
+		await new NewBrowserTabAction().run(instantiationService);
+
+		assert.deepStrictEqual(opened.map(({ editor, options }) => ({
+			isBrowserEditor: editor === browserInput,
+			pinned: options?.pinned,
+		})), [{ isBrowserEditor: true, pinned: true }]);
 	});
 
 	test('Add Tab menu stays available in dock-only mode', () => {

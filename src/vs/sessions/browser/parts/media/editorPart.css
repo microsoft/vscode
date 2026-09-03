@@ -21,6 +21,61 @@
 	overflow: hidden;
 }
 
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-container > .title.tabs {
+	--modern-ui-editor-tabs-border: var(--vscode-editorGroupHeader-tabsBorder, var(--vscode-editorGroup-border));
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .browser-root > .browser-navbar {
+	box-sizing: border-box;
+	min-height: var(--vscode-spacing-size320);
+	padding: var(--vscode-spacing-size40);
+	gap: var(--vscode-spacing-size40);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-editorGroupHeader-tabsBorder, var(--vscode-editorGroup-border));
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-tabs-compact-height .browser-root > .browser-navbar {
+	min-height: var(--vscode-spacing-size280);
+	padding-block: var(--vscode-spacing-size20);
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .search-editor > .query-container {
+	--search-editor-query-layout-offset: var(--vscode-spacing-size80, 8px);
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	column-gap: var(--vscode-spacing-size40);
+	box-sizing: border-box;
+	min-height: var(--vscode-spacing-size320);
+	margin: 0;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-editorGroupHeader-tabsBorder, var(--vscode-editorGroup-border));
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-tabs-compact-height .search-editor > .query-container {
+	min-height: var(--vscode-spacing-size280);
+	padding-block: var(--vscode-spacing-sizeNone);
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .search-editor > .query-container > .search-widget {
+	min-width: 0;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .search-editor > .query-container > .includes-excludes {
+	min-height: 0;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .search-editor > .query-container > .includes-excludes:not(.expanded) > .expand {
+	position: static;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .search-editor > .query-container > .includes-excludes.expanded {
+	grid-column: 1 / -1;
+	width: 100%;
+}
+
 /* Editor Layout Actions Toolbar */
 
 .agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
