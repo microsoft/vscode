@@ -133,12 +133,12 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		// `configType` may be a single type or a union (e.g. `['array', 'null']`).
 		// Normalize to an array and keep only the types we can represent as policies.
 		const configTypes = Array.isArray(configType) ? configType : [configType];
-		const supportedTypes = configTypes.filter(type => type === 'string' || type === 'number' || type === 'array' || type === 'object' || type === 'boolean');
+		const supportedTypes = configTypes.filter(type => type === 'string' || type === 'number' || type === 'integer' || type === 'array' || type === 'object' || type === 'boolean');
 		if (supportedTypes.length === 0) {
 			this.logService.warn(`PolicyConfiguration#updatePolicyDefinitions - policy '${policyName}' has unsupported type '${configType}'`);
 			return undefined;
 		}
-		return supportedTypes.includes('number') ? 'number' : supportedTypes.includes('boolean') ? 'boolean' : 'string';
+		return supportedTypes.includes('number') || supportedTypes.includes('integer') ? 'number' : supportedTypes.includes('boolean') ? 'boolean' : 'string';
 	}
 
 	private async updatePolicyDefinitions(properties: string[]): Promise<string[]> {
