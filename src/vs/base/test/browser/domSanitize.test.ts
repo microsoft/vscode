@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { sanitizeHtml } from '../../browser/domSanitize.js';
+import { sanitizeHtml, sanitizeSurvivingStalePolicy } from '../../browser/domSanitize.js';
 import { Schemas } from '../../common/network.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
+
+/** Derived from the function under test, since dompurify may not be imported directly. */
+type SanitizeConfig = Parameters<typeof sanitizeSurvivingStalePolicy>[1];
 
 suite('DomSanitize', () => {
 
@@ -260,45 +263,49 @@ suite('DomSanitize', () => {
 
 	suite('stale trusted types policy', () => {
 
+		const STALE_POLICY_ERROR = `Failed to execute 'createHTML' on 'TrustedTypePolicy': The provided callback is no longer runnable.`;
+
 		/**
-		 * The sanitizer keeps one Trusted Types policy for the lifetime of the module, and
-		 * its callback dies with the realm that created it. Standing in a policy that throws
-		 * the way a dead one does reproduces that without needing a destroyed realm.
+		 * Stands in for dompurify, failing the first call the way a policy whose creating
+		 * realm is gone fails. The sanitizer keeps one policy for the lifetime of the
+		 * module, so a stand-in policy installed after anything has sanitized is never
+		 * consulted; driving the call itself is what makes this independent of test order.
 		 */
-		function withStalePolicy(body: () => void): void {
-			const trustedTypes = (globalThis as { trustedTypes?: { createPolicy(name: string, options: object): unknown } }).trustedTypes;
-			if (!trustedTypes) {
-				return;
-			}
-			const originalCreatePolicy = trustedTypes.createPolicy;
-			let firstPolicy = true;
-			trustedTypes.createPolicy = function (name: string, options: object) {
-				if (firstPolicy) {
-					firstPolicy = false;
-					return {
-						name,
-						createHTML: () => { throw new Error(`Failed to execute 'createHTML' on 'TrustedTypePolicy': The provided callback is no longer runnable.`); },
-						createScriptURL: (value: string) => value,
-					};
+		function failingOnce(message: string) {
+			const configs: (SanitizeConfig | undefined)[] = [];
+			let failed = false;
+			const sanitize = (untrusted: string, config: SanitizeConfig) => {
+				configs.push(config);
+				if (!failed) {
+					failed = true;
+					throw new Error(message);
 				}
-				return originalCreatePolicy.call(trustedTypes, name, options);
+				return `sanitized:${untrusted}`;
 			};
-			try {
-				body();
-			} finally {
-				trustedTypes.createPolicy = originalCreatePolicy;
-			}
+			return { sanitize, configs };
 		}
 
-		test('recovers when the sanitizer policy stops working', () => {
-			withStalePolicy(() => {
-				const result = sanitizeHtml('<div>safe<script>alert(1)</script>content</div>');
-				const str = result.toString();
-				assert.deepStrictEqual(
-					{ keptSafeMarkup: str.includes('<div>'), strippedScript: !str.includes('<script>') },
-					{ keptSafeMarkup: true, strippedScript: true },
-				);
-			});
+		test('retries with a replacement policy when the sanitizer policy stops working', () => {
+			const { sanitize, configs } = failingOnce(STALE_POLICY_ERROR);
+
+			const result = sanitizeSurvivingStalePolicy('<div>safe</div>', {}, sanitize);
+
+			assert.deepStrictEqual(
+				{
+					result,
+					attempts: configs.length,
+					firstHadPolicy: configs[0]?.TRUSTED_TYPES_POLICY !== undefined,
+					retriedWithPolicy: typeof configs[1]?.TRUSTED_TYPES_POLICY?.createHTML === 'function',
+				},
+				{ result: 'sanitized:<div>safe</div>', attempts: 2, firstHadPolicy: false, retriedWithPolicy: true },
+			);
+		});
+
+		test('a failure that is not a stale policy is not retried', () => {
+			const { sanitize, configs } = failingOnce('Some other sanitizer failure');
+
+			assert.throws(() => sanitizeSurvivingStalePolicy('<div>safe</div>', {}, sanitize), /Some other sanitizer failure/);
+			assert.strictEqual(configs.length, 1);
 		});
 	});
 });

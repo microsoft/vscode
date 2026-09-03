@@ -11,6 +11,7 @@ import { getModelBadge } from '../../../../../browser/widget/input/modelPicker/m
 import { latestOfEachLine, parseModelLine } from '../../../../../browser/widget/input/modelPicker/modelPickerLineage.js';
 import { buildSpeedVariants, collapseSpeedVariants } from '../../../../../browser/widget/input/modelPicker/modelPickerVariants.js';
 import { buildModelPickerDestinations, buildModelPickerSections, hasPromotedModels, IModelPickerProviderPlaceholder } from '../../../../../browser/widget/input/modelPicker/modelPickerTabs.js';
+import { getProviderGroupKey } from '../../../../../browser/widget/input/modelPicker/modelPickerItemPrimitives.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry } from '../../../../../common/languageModels.js';
 
 interface IFixtureModelOptions {
@@ -103,6 +104,9 @@ suite('Model picker destinations', () => {
 		buildModelPickerDestinations(models, service, placeholders)
 			.map(destination => ({ id: destination.id, label: destination.label, models: destination.models.map(model => model.metadata.name) }));
 
+	/** The destination id a provider gets, keyed by identity rather than by display name. */
+	const providerId = (vendor: string, label: string) => `provider:${getProviderGroupKey(vendor, label)}`;
+
 	test('a host that relays the built-in provider keeps its models built in', () => {
 		// An agent host registers a vendor of its own and republishes the built-in
 		// provider's catalogue under it, so neither the vendor nor the BYOK flags say
@@ -127,7 +131,9 @@ suite('Model picker destinations', () => {
 			summarize([relayed, relayedNative, relayedByok]),
 			[
 				{ id: 'builtIn', label: 'GitHub Copilot', models: ['GPT-5.5', 'CLI Model'] },
-				{ id: 'provider:Ollama', label: 'Ollama', models: ['Llama 3'] },
+				// The relayed model carries the host's vendor, so that is the identity it
+				// is keyed by; only the group supplies the name the user reads.
+				{ id: providerId('agent-host-copilotcli', 'Ollama'), label: 'Ollama', models: ['Llama 3'] },
 			],
 		);
 	});
@@ -153,7 +159,7 @@ suite('Model picker destinations', () => {
 			summarize([gpt, llama]),
 			[
 				{ id: 'builtIn', label: 'GitHub Copilot', models: ['GPT-5.5'] },
-				{ id: 'provider:Ollama', label: 'Ollama', models: ['Llama 3'] },
+				{ id: providerId('ollama', 'Ollama'), label: 'Ollama', models: ['Llama 3'] },
 			],
 		);
 	});
@@ -163,8 +169,32 @@ suite('Model picker destinations', () => {
 			summarize([gpt, mistral, llama]),
 			[
 				{ id: 'builtIn', label: 'GitHub Copilot', models: ['GPT-5.5'] },
-				{ id: 'provider:Ollama', label: 'Ollama', models: ['Llama 3'] },
-				{ id: 'provider:OpenAI', label: 'OpenAI', models: ['Mistral Large'] },
+				{ id: providerId('ollama', 'Ollama'), label: 'Ollama', models: ['Llama 3'] },
+				{ id: providerId('openai', 'OpenAI'), label: 'OpenAI', models: ['Mistral Large'] },
+			],
+		);
+	});
+
+	test('two providers sharing a display name each keep their own tab', () => {
+		// Nothing stops two providers from presenting the same name, and merging them
+		// would file one provider's models under the other.
+		const sameName = createModel('local-1', 'Local One', { vendor: 'ollama', isBYOK: true });
+		const alsoSameName = createModel('local-2', 'Local Two', { vendor: 'openai', isBYOK: true });
+		const service = {
+			getVendors: () => [
+				{ vendor: 'copilot', displayName: 'GitHub Copilot', isDefault: true },
+				{ vendor: 'ollama', displayName: 'Local Models', isDefault: false },
+				{ vendor: 'openai', displayName: 'Local Models', isDefault: false },
+			],
+			getLanguageModelGroups: () => [],
+		} as unknown as ILanguageModelsService;
+
+		assert.deepStrictEqual(
+			buildModelPickerDestinations([sameName, alsoSameName], service)
+				.map(destination => ({ id: destination.id, label: destination.label, models: destination.models.map(model => model.metadata.name) })),
+			[
+				{ id: providerId('ollama', 'Local Models'), label: 'Local Models', models: ['Local One'] },
+				{ id: providerId('openai', 'Local Models'), label: 'Local Models', models: ['Local Two'] },
 			],
 		);
 	});
@@ -174,7 +204,7 @@ suite('Model picker destinations', () => {
 			summarize([gpt], [{ vendor: 'ollama', label: 'Ollama', message: 'Sign in to see available models.' }]),
 			[
 				{ id: 'builtIn', label: 'GitHub Copilot', models: ['GPT-5.5'] },
-				{ id: 'provider:Ollama', label: 'Ollama', models: [] },
+				{ id: providerId('ollama', 'Ollama'), label: 'Ollama', models: [] },
 			],
 		);
 	});
@@ -532,6 +562,31 @@ suite('Model picker destinations', () => {
 				suggested: ['GPT-5.5'],
 				unavailable: [{ id: 'example-opus-5', needsUpdate: false }, { id: 'gpt-6', needsUpdate: true }],
 			},
+		);
+	});
+
+	test('an offer on a model this build is too old to run does not break the shortlist', () => {
+		// The promoted model is gated, so it is not among the selectable models. Reaching
+		// for it regardless used to put a hole in the shortlist and crash the sort.
+		const base = createModel('gpt-6', 'GPT-6');
+		const gatedPromo = { ...base, metadata: { ...base.metadata, promo: { id: 'p', discountPercent: 25, message: 'Save now.' } } };
+		const sections = buildModelPickerSections({
+			models: [gatedPromo, gpt],
+			selectedModelId: undefined,
+			recentModelIds: [],
+			pinnedModelIds: [],
+			controlModels: { 'gpt-6': { label: 'GPT-6', featured: true, exists: true, minVSCodeVersion: '99.0.0' } },
+			showSuggested: true,
+			showUnavailable: true,
+			currentVSCodeVersion: '1.100.0',
+		});
+		assert.deepStrictEqual(
+			{
+				suggested: sections.suggested.map(model => model.metadata.name),
+				other: sections.other.map(model => model.metadata.name),
+				unavailable: sections.unavailable.map(entry => ({ id: entry.id, needsUpdate: entry.needsUpdate })),
+			},
+			{ suggested: ['GPT-5.5'], other: [], unavailable: [{ id: 'gpt-6', needsUpdate: true }] },
 		);
 	});
 

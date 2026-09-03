@@ -335,14 +335,25 @@ function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefine
 /** Names a replacement policy; Trusted Types rejects a name that is already taken. */
 let stalePolicyReplacementCount = 0;
 
+/** The sanitizer call this module recovers around. */
+type SanitizeCall = (untrusted: string, config: DomPurifyTypes.Config) => ReturnType<typeof dompurify.sanitize>;
+
 /**
  * Sanitizes HTML, replacing the sanitizer's Trusted Types policy first when the policy's
  * creating realm is gone and every call would otherwise throw. The replacement is kept
  * for later calls, so this recovers once rather than on every call.
+ *
+ * Exported, with `sanitize` injectable, only so a test can drive the recovery: dompurify
+ * caches one policy for the lifetime of the module, so once anything has sanitized, no
+ * later stand-in policy is ever consulted. Prefer {@link sanitizeHtml}.
  */
-function sanitizeSurvivingStalePolicy(untrusted: string, config: DomPurifyTypes.Config): string | DocumentFragment | TrustedHTML {
+export function sanitizeSurvivingStalePolicy(
+	untrusted: string,
+	config: DomPurifyTypes.Config,
+	sanitize: SanitizeCall = (html, cfg) => dompurify.sanitize(html, cfg),
+): string | DocumentFragment | TrustedHTML {
 	try {
-		return dompurify.sanitize(untrusted, config);
+		return sanitize(untrusted, config);
 	} catch (error) {
 		if (!isStaleTrustedTypesPolicy(error)) {
 			throw error;
@@ -358,7 +369,7 @@ function sanitizeSurvivingStalePolicy(untrusted: string, config: DomPurifyTypes.
 		// The two spell the same type, but the editor build resolves `trusted-types` twice
 		// and the branded declarations then do not unify.
 		const policy = replacement as unknown as DomPurifyTypes.Config['TRUSTED_TYPES_POLICY'];
-		return dompurify.sanitize(untrusted, { ...config, TRUSTED_TYPES_POLICY: policy });
+		return sanitize(untrusted, { ...config, TRUSTED_TYPES_POLICY: policy });
 	}
 }
 

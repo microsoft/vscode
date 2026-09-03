@@ -8,7 +8,7 @@ import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
 import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry } from '../../../../common/languageModels.js';
-import { buildModelToProviderGroupMap, getProviderGroupForModel, isVersionAtLeast } from './modelPickerItemPrimitives.js';
+import { buildModelToProviderGroupMap, getProviderGroupForModel, getProviderGroupKey, isVersionAtLeast } from './modelPickerItemPrimitives.js';
 import { isDeprecated } from './modelPickerBadges.js';
 import { isEarlyAccessModel, latestOfEachLine } from './modelPickerLineage.js';
 import { getProviderIconForIdentity } from './modelProviderIcons.js';
@@ -143,27 +143,34 @@ export function buildModelPickerDestinations(
 	}
 
 	const modelToGroup = buildModelToProviderGroupMap(languageModelsService);
-	const byProvider = new Map<string, { models: ILanguageModelChatMetadataAndIdentifier[]; placeholders: IModelPickerProviderPlaceholder[] }>();
-	const providerEntry = (label: string) => {
-		let entry = byProvider.get(label);
+	// Keyed by provider identity rather than by display name, so two providers that
+	// happen to share a name each keep their own tab instead of being merged.
+	const byProvider = new Map<string, { label: string; models: ILanguageModelChatMetadataAndIdentifier[]; placeholders: IModelPickerProviderPlaceholder[] }>();
+	const providerEntry = (key: string, label: string) => {
+		let entry = byProvider.get(key);
 		if (!entry) {
-			entry = { models: [], placeholders: [] };
-			byProvider.set(label, entry);
+			entry = { label, models: [], placeholders: [] };
+			byProvider.set(key, entry);
 		}
 		return entry;
 	};
 	for (const model of userModels) {
-		providerEntry(getModelProviderLabel(model, languageModelsService, modelToGroup)).models.push(model);
+		const { vendor, groupName } = getProviderGroupForModel(model, modelToGroup, languageModelsService);
+		providerEntry(getProviderGroupKey(vendor, groupName), groupName).models.push(model);
 	}
 	// A provider still signing in has no models yet, but it has earned its tab.
 	for (const placeholder of userPlaceholders) {
-		providerEntry(placeholder.label).placeholders.push(placeholder);
+		providerEntry(getProviderGroupKey(placeholder.vendor, placeholder.label), placeholder.label).placeholders.push(placeholder);
 	}
-	for (const [label, entry] of [...byProvider].sort(([left], [right]) => left.localeCompare(right))) {
+	// Ordered by the name the user reads, with the key breaking ties so that providers
+	// sharing a name keep a stable order.
+	const sortedProviders = [...byProvider].sort(([leftKey, left], [rightKey, right]) =>
+		left.label.localeCompare(right.label) || leftKey.localeCompare(rightKey));
+	for (const [key, entry] of sortedProviders) {
 		destinations.push({
-			id: `${PROVIDER_DESTINATION_PREFIX}${label}`,
-			label,
-			icon: getProviderIconForIdentity(label),
+			id: `${PROVIDER_DESTINATION_PREFIX}${key}`,
+			label: entry.label,
+			icon: getProviderIconForIdentity(entry.label),
 			models: entry.models,
 			placeholders: entry.placeholders,
 		});
@@ -215,8 +222,15 @@ export function buildModelPickerSections(options: IModelPickerSectionsOptions): 
 	const suggested: ILanguageModelChatMetadataAndIdentifier[] = [];
 	if (options.showSuggested) {
 		for (const model of options.models) {
-			if (model.metadata.promo && !placed.has(model.identifier)) {
-				suggested.push(take(model.identifier)!);
+			if (!model.metadata.promo) {
+				continue;
+			}
+			// Resolved through `take`, which draws only from the selectable models: an
+			// offer on a model this build is too old to run is surfaced as the update
+			// it needs rather than as a row that cannot be picked.
+			const promoted = take(model.identifier);
+			if (promoted) {
+				suggested.push(promoted);
 			}
 		}
 		// The newest model of each line leads. A line replaced by a different line rather

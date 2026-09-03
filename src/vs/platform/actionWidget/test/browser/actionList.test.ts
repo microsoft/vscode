@@ -557,6 +557,41 @@ suite('ActionListWidget', () => {
 		);
 	});
 
+	test('an expandable row names the panel it opens, and stops when it closes', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('auto'), hover: { content: 'panel', expandable: true } }, action('plain')],
+			listOptions: { reserveSubmenuSpace: 'always' },
+		});
+		const rows = () => Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row.action'));
+		const state = () => rows().map(row => ({
+			haspopup: row.getAttribute('aria-haspopup'),
+			expanded: row.getAttribute('aria-expanded'),
+		}));
+
+		const initial = state();
+		// The chevron is what opens the panel; ArrowRight does the same from the keyboard.
+		rows()[0].querySelector<HTMLElement>('.action-list-submenu-indicator.has-submenu')?.click();
+		const opened = state();
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel');
+		const panelRole = panel?.getAttribute('role');
+		const panelLabel = panel?.getAttribute('aria-label');
+		// Escape inside the panel is the way back to the row.
+		panel?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+		const closed = state();
+
+		assert.deepStrictEqual(
+			{ initial, opened, closed, panelRole, panelLabel },
+			{
+				// The plain row opens nothing, so it says nothing.
+				initial: [{ haspopup: 'dialog', expanded: 'false' }, { haspopup: null, expanded: null }],
+				opened: [{ haspopup: 'dialog', expanded: 'true' }, { haspopup: null, expanded: null }],
+				closed: [{ haspopup: 'dialog', expanded: 'false' }, { haspopup: null, expanded: null }],
+				panelRole: 'dialog',
+				panelLabel: 'auto',
+			},
+		);
+	});
+
 	test('the submenu gutter follows the items the list currently holds', () => {
 		const expandable = (id: string): IActionListItem<ITestActionItem> => ({ ...action(id), hover: { content: 'panel', expandable: true } });
 		const gutters = (widget: ActionListWidget<ITestActionItem>) =>

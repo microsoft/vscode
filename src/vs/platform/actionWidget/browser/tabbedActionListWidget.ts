@@ -240,7 +240,11 @@ export class TabbedActionListWidget extends Disposable {
 					button.dataset.id = tabAction.id;
 					button.title = tabAction.tooltip;
 					button.ariaLabel = tabAction.tooltip;
-					button.setAttribute('aria-pressed', String(!!tabAction.checked));
+					// Only an action with a real on/off state announces as a toggle. A
+					// momentary one would otherwise read as a toggle that is switched off.
+					if (tabAction.checked !== undefined) {
+						button.setAttribute('aria-pressed', String(tabAction.checked));
+					}
 					dom.append(button, dom.$(`span${ThemeIcon.asCSSSelector(tabAction.icon)}`));
 					renderDisposables.add(dom.addDisposableListener(button, dom.EventType.CLICK, e => {
 						dom.EventHelper.stop(e, true);
@@ -293,7 +297,14 @@ export class TabbedActionListWidget extends Disposable {
 
 				const width = list.layout(0);
 				widget.style.width = `${options.width ?? width}px`;
-				list.focus();
+				if (emptyBody) {
+					// The list is not in the DOM at all, so focusing it would drop focus
+					// out of the popup. The active tab is the nearest thing to act on, and
+					// it leads to the empty body's own action.
+					radio.focusActiveItem();
+				} else {
+					list.focus();
+				}
 
 				// Keyboard nav. Bound to the popup widget so we don't
 				// observe unrelated document-wide keypresses.
@@ -302,7 +313,11 @@ export class TabbedActionListWidget extends Disposable {
 					const onTabBar = !!target?.closest('.tabbed-action-list-tabbar');
 					const onFooter = !!target?.closest('.tabbed-action-list-footer');
 					const onEditable = !!target?.closest('input, textarea, [contenteditable="true"]');
-					const listNavigation = !onTabBar && !onFooter;
+					// The empty body and the hover panel carry controls of their own, e.g. a
+					// sign-in button or the detail card's pin. Keys pressed there belong to
+					// those controls rather than to the list sitting behind them.
+					const onOwnControls = !!target?.closest('.tabbed-action-list-empty, .action-list-submenu-panel');
+					const listNavigation = !onTabBar && !onFooter && !onOwnControls;
 
 					if (e.keyCode === KeyCode.Escape) {
 						dom.EventHelper.stop(e, true);
@@ -327,7 +342,7 @@ export class TabbedActionListWidget extends Disposable {
 					if (e.keyCode !== KeyCode.LeftArrow && e.keyCode !== KeyCode.RightArrow) {
 						return;
 					}
-					if (onFooter || (onEditable && !onTabBar)) {
+					if (onFooter || onOwnControls || (onEditable && !onTabBar)) {
 						return;
 					}
 					const currentIndex = options.tabs.findIndex(t => t.id === activeTab);

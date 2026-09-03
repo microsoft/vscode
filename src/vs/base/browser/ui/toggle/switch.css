@@ -46,6 +46,10 @@
 	transform: translateX(var(--vscode-spacing-size120));
 }
 
+/* The workbench marks high contrast with `.hc-black` / `.hc-light`; `.vscode-high-contrast`
+ * is the webview equivalent, and the switch is rendered in both. */
+.hc-black .monaco-switch,
+.hc-light .monaco-switch,
 .vscode-high-contrast .monaco-switch {
 	border-color: var(--vscode-contrastBorder);
 }

@@ -467,10 +467,12 @@
 	box-shadow: none;
 }
 
-/* The field replaces the tab strip and has no box of its own, so override the global input focus rule. */
+/* The field replaces the tab strip and has no box of its own, so the global input focus
+ * chrome is dropped. Focus still has to be visible, so it is drawn as a ring instead. */
 .action-widget.search-mode .chat-model-picker-tabbar .action-list-filter-row input.action-list-filter-input:focus,
 .action-widget.search-mode .chat-model-picker-tabbar .action-list-filter-row input.action-list-filter-input:focus-visible {
-	outline: none;
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
 }
 
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio {
