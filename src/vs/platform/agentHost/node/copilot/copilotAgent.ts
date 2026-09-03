@@ -1473,7 +1473,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._throwIfRecordedChatSharesConfiguration(chat, initial.configurationResource);
 		this._workingDirectoryMutations.set(initial.configurationResource, initial.entry);
 		try {
-			await this._queueChat(initial.configurationId, initial.sdkSessionId, async () => {
+			await this._queueChat(initial.configurationId, initial.sdkSessionId, 'setWorkingDirectory', async () => {
 				const current = this._resolveLiveWorkingDirectoryContext(chat, context);
 				if (current.entry !== initial.entry || current.sdkSessionId !== initial.sdkSessionId) {
 					throw new Error(`Cannot change the working directory: chat '${chat.toString()}' is no longer backed by the same live session`);

@@ -4140,8 +4140,8 @@ suite('CopilotAgent', () => {
 				})._registerLiveChat(chat, created.session, created.activeClient);
 				const writeStart = sessionDataService.metadataWrites(session).length;
 				blocker = (agent as unknown as {
-					_queueChat<T>(sessionId: string, chatKey: string, task: () => Promise<T>): Promise<T>;
-				})._queueChat(AgentSession.id(session), created.session.sessionId, async () => {
+					_queueChat<T>(sessionId: string, chatKey: string, operation: string, task: () => Promise<T>): Promise<T>;
+				})._queueChat(AgentSession.id(session), created.session.sessionId, 'testBlocker', async () => {
 					blockerEntered.complete();
 					await blockerGate.p;
 				});
@@ -4219,8 +4219,8 @@ suite('CopilotAgent', () => {
 				})._registerLiveChat(chat, created.session, created.activeClient);
 				const writeStart = sessionDataService.metadataWrites(session).length;
 				blocker = (agent as unknown as {
-					_queueChat<T>(sessionId: string, chatKey: string, task: () => Promise<T>): Promise<T>;
-				})._queueChat(AgentSession.id(session), created.session.sessionId, async () => {
+					_queueChat<T>(sessionId: string, chatKey: string, operation: string, task: () => Promise<T>): Promise<T>;
+				})._queueChat(AgentSession.id(session), created.session.sessionId, 'testBlocker', async () => {
 					blockerEntered.complete();
 					await blockerGate.p;
 				});
