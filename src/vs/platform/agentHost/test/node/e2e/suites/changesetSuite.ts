@@ -336,6 +336,27 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		}, 100, 100);
 	}
 
+	/**
+	 * Waits for `channel` to settle on an empty `ready` changeset.
+	 *
+	 * A bang command that rewrites a file back to its committed content passes
+	 * through a transient on-disk state — for example the zero-byte window a
+	 * `writeFileSync` truncate opens before the restoring write lands. A file
+	 * monitor recompute that samples the tree during that window publishes a
+	 * torn `changeset/contentChanged` that the turn-completion recompute then
+	 * supersedes with the settled empty diff. Asserting on the first
+	 * `contentChanged` therefore observes the torn intermediate rather than the
+	 * final state, so poll until the changeset reports `ready` with no files.
+	 */
+	async function waitForEmptyBranchChangeset(channel: string): Promise<void> {
+		await retry(async () => {
+			const state = await changesetState(channel);
+			if (state.status !== 'ready' || state.files.length !== 0) {
+				throw new Error(`Changeset ${channel} has not settled empty (status=${state.status}, files=${state.files.length})`);
+			}
+		}, 100, 100);
+	}
+
 	async function runBangTurn(sessionUri: string, turnId: string, command: string, clientSeq: number): Promise<void> {
 		context.client.clearReceived();
 		dispatchTurn(context.client, sessionUri, turnId, command, clientSeq);
@@ -623,16 +644,10 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 		await changesetState(branchUri);
 		context.client.clearReceived();
-		const changed = context.client.waitForNotification(n =>
-			isActionNotification(n, 'changeset/contentChanged') && getActionEnvelope(n).channel === branchUri,
-			60_000,
-		);
 
 		await runBangTurn(sessionUri, 'turn-changeset-ignored', writeFileCommand('ignored.log', 'ignored'), 1);
-		await changed;
-		const state = await changesetState(branchUri);
 
-		assert.deepStrictEqual(state.files, []);
+		await waitForEmptyBranchChangeset(branchUri);
 	});
 
 	conformanceTest(context, 'a file created and deleted in one turn leaves no branch change', async function () {
@@ -642,16 +657,10 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 		await changesetState(branchUri);
 		context.client.clearReceived();
-		const changed = context.client.waitForNotification(n =>
-			isActionNotification(n, 'changeset/contentChanged') && getActionEnvelope(n).channel === branchUri,
-			60_000,
-		);
 
 		await runBangTurn(sessionUri, 'turn-changeset-create-delete', '!node -e "const fs=require(\'fs\');fs.writeFileSync(\'temporary.txt\',\'temporary\');fs.unlinkSync(\'temporary.txt\')"', 1);
-		await changed;
-		const state = await changesetState(branchUri);
 
-		assert.deepStrictEqual(state.files, []);
+		await waitForEmptyBranchChangeset(branchUri);
 	});
 
 	conformanceTest(context, 'an edit restored in the same turn leaves no branch change', async function () {
@@ -661,16 +670,10 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 		await changesetState(branchUri);
 		context.client.clearReceived();
-		const changed = context.client.waitForNotification(n =>
-			isActionNotification(n, 'changeset/contentChanged') && getActionEnvelope(n).channel === branchUri,
-			60_000,
-		);
 
 		await runBangTurn(sessionUri, 'turn-changeset-edit-restore', writeFileTwiceBase64Command('seed.txt', 'changed', 'seed\n'), 1);
-		await changed;
-		const state = await changesetState(branchUri);
 
-		assert.deepStrictEqual(state.files, []);
+		await waitForEmptyBranchChangeset(branchUri);
 	});
 
 	conformanceTest(context, 'an added multiline file reports every added line', async function () {
