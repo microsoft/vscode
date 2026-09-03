@@ -16,6 +16,7 @@ import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 export interface IChatEditorTopologyGroup {
 	readonly editorTypeIds: readonly string[];
 	readonly activeEditorTypeId: string | undefined;
+	readonly visible: boolean;
 }
 
 /** Count-only topology of the main editor part. */
@@ -38,8 +39,8 @@ export function computeChatEditorTopologySnapshot(groups: readonly IChatEditorTo
 		const groupChatEditorCount = group.editorTypeIds.filter(typeId => typeId === ChatEditorInput.TypeID).length;
 		openChatEditorCount += groupChatEditorCount;
 		chatEditorGroupCount += groupChatEditorCount > 0 ? 1 : 0;
-		visibleEditorCount += group.activeEditorTypeId === undefined ? 0 : 1;
-		visibleChatEditorCount += group.activeEditorTypeId === ChatEditorInput.TypeID ? 1 : 0;
+		visibleEditorCount += group.visible && group.activeEditorTypeId !== undefined ? 1 : 0;
+		visibleChatEditorCount += group.visible && group.activeEditorTypeId === ChatEditorInput.TypeID ? 1 : 0;
 	}
 
 	return {
@@ -109,14 +110,18 @@ export class ChatEditorTopologyTelemetry extends Disposable implements IWorkbenc
 		this._register(this.editorService.onDidVisibleEditorsChange(scheduleLog));
 		this._register(mainPart.onDidAddGroup(scheduleLog));
 		this._register(mainPart.onDidRemoveGroup(scheduleLog));
+		this._register(mainPart.onDidChangeGroupMaximized(scheduleLog));
 
 		this.logCurrentSnapshot();
 	}
 
 	private logCurrentSnapshot(): void {
-		const snapshot = computeChatEditorTopologySnapshot(this.editorGroupsService.mainPart.groups.map(group => ({
+		const mainPart = this.editorGroupsService.mainPart;
+		const maximizedGroup = mainPart.hasMaximizedGroup() ? mainPart.activeGroup : undefined;
+		const snapshot = computeChatEditorTopologySnapshot(mainPart.groups.map(group => ({
 			editorTypeIds: group.editors.map(editor => editor.typeId),
 			activeEditorTypeId: group.activeEditor?.typeId,
+			visible: maximizedGroup === undefined || group === maximizedGroup,
 		})));
 		const previousSnapshot = this.previousSnapshot;
 		this.previousSnapshot = snapshot;

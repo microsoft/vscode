@@ -5,8 +5,8 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../../base/browser/window.js';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
@@ -165,21 +165,29 @@ suite('ChatWidget', () => {
 			requestBecameActive: false,
 			hasUnvisitedCompletion: active.hasUnvisitedCompletion,
 		});
-		const refocused = computeChatSessionStateIndicatorState({
+		const windowRefocusedElsewhere = computeChatSessionStateIndicatorState({
 			requestNeedsInput: false,
 			isIdle: true,
-			containsFocus: true,
+			containsFocus: false,
 			requestWasActive: completedWhileWindowBlurred.requestActive,
 			requestBecameActive: false,
 			hasUnvisitedCompletion: completedWhileWindowBlurred.hasUnvisitedCompletion,
+		});
+		const chatRefocused = computeChatSessionStateIndicatorState({
+			requestNeedsInput: false,
+			isIdle: true,
+			containsFocus: true,
+			requestWasActive: windowRefocusedElsewhere.requestActive,
+			requestBecameActive: false,
+			hasUnvisitedCompletion: windowRefocusedElsewhere.hasUnvisitedCompletion,
 		});
 		const needsInput = computeChatSessionStateIndicatorState({
 			requestNeedsInput: true,
 			isIdle: false,
 			containsFocus: true,
-			requestWasActive: refocused.requestActive,
+			requestWasActive: chatRefocused.requestActive,
 			requestBecameActive: false,
-			hasUnvisitedCompletion: refocused.hasUnvisitedCompletion,
+			hasUnvisitedCompletion: chatRefocused.hasUnvisitedCompletion,
 		});
 		const fastUnfocusedCompletion = computeChatSessionStateIndicatorState({
 			requestNeedsInput: false,
@@ -190,10 +198,11 @@ suite('ChatWidget', () => {
 			hasUnvisitedCompletion: false,
 		});
 
-		assert.deepStrictEqual({ active, completedWhileWindowBlurred, refocused, needsInput, fastUnfocusedCompletion }, {
+		assert.deepStrictEqual({ active, completedWhileWindowBlurred, windowRefocusedElsewhere, chatRefocused, needsInput, fastUnfocusedCompletion }, {
 			active: { state: 'inProgress', requestActive: true, hasUnvisitedCompletion: false },
 			completedWhileWindowBlurred: { state: 'idle', requestActive: false, hasUnvisitedCompletion: true },
-			refocused: { state: 'idle', requestActive: false, hasUnvisitedCompletion: false },
+			windowRefocusedElsewhere: { state: 'idle', requestActive: false, hasUnvisitedCompletion: true },
+			chatRefocused: { state: 'idle', requestActive: false, hasUnvisitedCompletion: false },
 			needsInput: { state: 'needsInput', requestActive: true, hasUnvisitedCompletion: false },
 			fastUnfocusedCompletion: { state: 'idle', requestActive: false, hasUnvisitedCompletion: true },
 		});
@@ -219,6 +228,41 @@ suite('ChatWidget', () => {
 			failed: true,
 			drained: true,
 		});
+	});
+
+	test('coalesces a queued request handoff without an idle completion state', async () => {
+		const onDidChange = store.add(new Emitter<'pendingChanged' | 'addRequest'>());
+		const states: ReturnType<typeof computeChatSessionStateIndicatorState>[] = [];
+		let pendingRequestCount = 1;
+		let requestInProgress = false;
+		store.add(Event.accumulate(onDidChange.event)(events => {
+			states.push(computeChatSessionStateIndicatorState({
+				requestNeedsInput: false,
+				isIdle: computeChatModelIsIdle({
+					requestInProgress,
+					requestNeedsInput: false,
+					pendingRequestCount,
+					lastResponseIsCanceled: false,
+					lastResponseHasError: false,
+				}),
+				containsFocus: false,
+				requestWasActive: true,
+				requestBecameActive: events.includes('addRequest'),
+				hasUnvisitedCompletion: false,
+			}));
+		}));
+
+		pendingRequestCount = 0;
+		onDidChange.fire('pendingChanged');
+		requestInProgress = true;
+		onDidChange.fire('addRequest');
+		await timeout(10);
+
+		assert.deepStrictEqual(states, [{
+			state: 'inProgress',
+			requestActive: true,
+			hasUnvisitedCompletion: false,
+		}]);
 	});
 
 	test('sticky request click survives synchronous template disposal during reveal', () => {

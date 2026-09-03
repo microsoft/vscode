@@ -1023,6 +1023,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.container.classList.toggle('chat-state-idle-unvisited', idleUnvisited);
 	}
 
+	private markSessionStateIndicatorVisited(): void {
+		if (!this._hasUnvisitedCompletion) {
+			return;
+		}
+
+		this._hasUnvisitedCompletion = false;
+		this.updateSessionStateIndicator();
+	}
+
 	get inputEditor(): ICodeEditor {
 		return this.input.inputEditor;
 	}
@@ -1084,12 +1093,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.container = dom.append(parent, $('.interactive-session'));
 		const targetWindow = dom.getWindow(this.container);
 		const focusTracker = this._register(dom.trackFocus(this.container));
-		this._register(focusTracker.onDidFocus(() => {
-			if (this._hasUnvisitedCompletion) {
-				this.updateSessionStateIndicator();
-			}
-		}));
-		this._register(dom.addDisposableListener(targetWindow, dom.EventType.FOCUS, () => this.updateSessionStateIndicator()));
+		this._register(focusTracker.onDidFocus(() => this.markSessionStateIndicatorVisited()));
+		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_DOWN, () => this.markSessionStateIndicatorVisited()));
 		this._register(dom.addDisposableListener(targetWindow, dom.EventType.BLUR, () => this.updateSessionStateIndicator()));
 		this.updateSessionStateIndicator();
 		if (this.viewOptions.persistentContentHeight) {
@@ -2799,7 +2804,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			this._onDidChangeFindableContent.fire();
 		})));
-		this.viewModelDisposables.add(this.viewModel.model.onDidChangePendingRequests(() => this.updateSessionStateIndicator()));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
 			// Ensure that view state is saved here, because we will load it again when a new model is assigned
 			if (this.viewModel?.editing) {

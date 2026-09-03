@@ -16,18 +16,22 @@ suite('ChatEditorTopologyTelemetry', () => {
 			{
 				editorTypeIds: [ChatEditorInput.TypeID, 'workbench.input.text'],
 				activeEditorTypeId: ChatEditorInput.TypeID,
+				visible: true,
 			},
 			{
 				editorTypeIds: ['workbench.input.text'],
 				activeEditorTypeId: 'workbench.input.text',
+				visible: true,
 			},
 			{
 				editorTypeIds: [ChatEditorInput.TypeID, ChatEditorInput.TypeID],
 				activeEditorTypeId: ChatEditorInput.TypeID,
+				visible: true,
 			},
 			{
 				editorTypeIds: [],
 				activeEditorTypeId: undefined,
+				visible: true,
 			},
 		]), {
 			openChatEditorCount: 3,
@@ -35,6 +39,27 @@ suite('ChatEditorTopologyTelemetry', () => {
 			chatEditorGroupCount: 2,
 			visibleEditorCount: 3,
 			editorGroupCount: 4,
+		});
+	});
+
+	test('excludes hidden siblings from visible counts when a group is maximized', () => {
+		assert.deepStrictEqual(computeChatEditorTopologySnapshot([
+			{
+				editorTypeIds: [ChatEditorInput.TypeID],
+				activeEditorTypeId: ChatEditorInput.TypeID,
+				visible: true,
+			},
+			{
+				editorTypeIds: [ChatEditorInput.TypeID, 'workbench.input.text'],
+				activeEditorTypeId: ChatEditorInput.TypeID,
+				visible: false,
+			},
+		]), {
+			openChatEditorCount: 2,
+			visibleChatEditorCount: 1,
+			chatEditorGroupCount: 2,
+			visibleEditorCount: 1,
+			editorGroupCount: 2,
 		});
 	});
 
