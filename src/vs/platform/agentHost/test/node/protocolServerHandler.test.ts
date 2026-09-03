@@ -43,6 +43,7 @@ import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.
 class MockProtocolTransport implements IProtocolTransport {
 	constructor(readonly transportKind = AgentHostTransportKind.Unknown) { }
 
+	isDisposed = false;
 	private readonly _onMessage = new Emitter<ProtocolMessage>();
 	readonly onMessage = this._onMessage.event;
 	private readonly _onDidSend = new Emitter<ProtocolMessage>();
@@ -66,6 +67,7 @@ class MockProtocolTransport implements IProtocolTransport {
 	}
 
 	dispose(): void {
+		this.isDisposed = true;
 		this._onMessage.dispose();
 		this._onDidSend.dispose();
 		this._onClose.dispose();
@@ -721,6 +723,15 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(resp.id, 7);
 		assert.strictEqual(resp.result, null);
 		transport.simulateClose();
+	});
+
+	test('dispose closes a connection before initialize', () => {
+		const transport = new MockProtocolTransport();
+		server.simulateConnection(transport);
+
+		handler.dispose();
+
+		assert.strictEqual(transport.isDisposed, true);
 	});
 
 	test('unknown requests return MethodNotFound before and after initialize', () => {

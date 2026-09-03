@@ -29,7 +29,7 @@ import { LoggerService } from '../../log/node/loggerService.js';
 import { OtlpEmitterLogger, OtlpLogEmitter } from '../common/otlp/otlpLogEmitter.js';
 import product from '../../product/common/product.js';
 import { IProductService } from '../../product/common/productService.js';
-import { flushAgentHostPersistenceBeforeShutdown } from './agentHostShutdown.js';
+import { shutdownAgentHostBeforeDispose } from './agentHostShutdown.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { createAgentHostRuntime } from './agentHostBootstrap.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -317,7 +317,7 @@ async function main(): Promise<void> {
 	const clientFileSystemProvider = disposables.add(new AgentHostClientFileSystemProvider());
 	disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, clientFileSystemProvider));
 	// Wire up protocol handler
-	disposables.add(instantiationService.createInstance(
+	const protocolHandler = disposables.add(instantiationService.createInstance(
 		ProtocolServerHandler,
 		agentService,
 		stateManager,
@@ -379,18 +379,17 @@ async function main(): Promise<void> {
 		}
 		shuttingDown = true;
 		logService.info('[AgentHostServer] Shutting down...');
-		// Close the WebSocket server first so no further actions can be
-		// dispatched while we wait for in-flight writes to flush — otherwise
-		// a late-arriving action could keep queuing DB writes and either
-		// undermine the flush or push us past the timeout.
+		// Stop protocol ingress before draining requests so no late action can
+		// race provider shutdown or queue persistence after the idle check.
+		protocolHandler.dispose();
 		wsServer.dispose();
-		// Wait for in-flight persistence writes to flush. Without this, a
-		// SIGTERM arriving during a session or agent-host storage write can
-		// drop the latest decision.
-		// Capped so a stuck write cannot hang shutdown indefinitely.
-		await flushAgentHostPersistenceBeforeShutdown(
-			[sessionDataService.whenIdle(), customizationEnablementService.whenIdle()],
-			3000,
+		// Providers such as Claude finish writing their transcripts during
+		// shutdown, so drain them before waiting for persistence to go idle.
+		await shutdownAgentHostBeforeDispose(
+			() => protocolHandler.whenIdle(),
+			() => agentService.shutdown(),
+			() => [sessionDataService.whenIdle(), customizationEnablementService.whenIdle()],
+			4500,
 			logService,
 		);
 		disposables.dispose();

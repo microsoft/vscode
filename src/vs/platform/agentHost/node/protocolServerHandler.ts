@@ -359,6 +359,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private readonly _replayBuffer: ActionEnvelope[] = [];
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
 	private readonly _managedSettingsOwnerId = generateUuid();
+	private readonly _connectionDisposables = this._register(new DisposableMap<IProtocolTransport, DisposableStore>());
 
 	private readonly _onDidChangeConnectionCount = this._register(new Emitter<number>());
 
@@ -423,6 +424,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 	private _handleNewConnection(transport: IProtocolTransport): void {
 		const disposables = new DisposableStore();
+		this._connectionDisposables.set(transport, disposables);
 		let client: IConnectedClient | undefined;
 
 		disposables.add(transport.onMessage(msg => {
@@ -562,7 +564,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					this._reportClientDisconnected(client, subscriptionCount);
 				}
 			}
-			disposables.dispose();
+			this._connectionDisposables.deleteAndDispose(transport);
 		}));
 
 		disposables.add(transport);
