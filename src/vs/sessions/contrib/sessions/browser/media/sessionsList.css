@@ -80,7 +80,7 @@
 		width: var(--vscode-spacing-size160);
 		height: var(--vscode-spacing-size160);
 		padding-right: 0;
-		font-size: 16px;
+		font-size: var(--vscode-codiconFontSize);
 		opacity: 0;
 		pointer-events: none;
 		transform: none;
@@ -201,8 +201,16 @@
 	}
 
 	&.sticky {
-		border-left: 2px solid var(--vscode-focusBorder);
-		padding-left: 4px;
+		&::before {
+			content: '';
+			position: absolute;
+			top: var(--vscode-spacing-size80);
+			bottom: var(--vscode-spacing-size80);
+			left: 0;
+			width: var(--vscode-spacing-size20);
+			border-radius: var(--vscode-cornerRadius-circle);
+			background-color: var(--vscode-focusBorder);
+		}
 	}
 
 	/* Quick-chat rows are compact single-line entries — no second (details) row.
@@ -490,7 +498,7 @@
 	top: var(--vscode-spacing-size280);
 	bottom: calc(-1 * var(--vscode-spacing-size20));
 	left: var(--vscode-spacing-size200);
-	border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
 	opacity: 0;
 }
 
@@ -520,18 +528,21 @@
 		top: 0;
 		bottom: calc(-1 * var(--vscode-spacing-size20));
 		left: var(--vscode-spacing-size200);
-		border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+		border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
 		opacity: 0;
 	}
 
 	&::after {
 		content: '';
 		position: absolute;
-		/* Align with the title row and stop before the status icon. */
-		top: calc(var(--session-chat-base-height) / 2);
+		box-sizing: border-box;
+		top: 0;
+		height: calc(var(--session-chat-base-height) / 2);
 		left: var(--vscode-spacing-size200);
 		width: var(--vscode-spacing-size120);
-		border-top: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+		border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
+		border-bottom: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
+		border-bottom-left-radius: var(--vscode-cornerRadius-small);
 		opacity: 0;
 	}
 
@@ -544,15 +555,6 @@
 
 	&.last-chat {
 		&::before {
-			/* Stop the vertical guide at the title row's center (its connector),
-				not at the middle of the taller approval-augmented row. */
-			bottom: calc(100% - var(--session-chat-base-height) / 2);
-			width: var(--vscode-spacing-size120);
-			border-bottom: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
-			border-bottom-left-radius: var(--vscode-cornerRadius-small);
-		}
-
-		&::after {
 			display: none;
 		}
 	}
@@ -1010,7 +1012,7 @@
 		line-height: 20px;
 
 		> .codicon {
-			font-size: 14px;
+			font-size: var(--vscode-codiconFontSize);
 			height: 20px;
 		}
 
