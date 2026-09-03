@@ -16,6 +16,11 @@ export type { ManagedSettingsData } from '../../../base/common/policy.js';
 
 export type RawManagedSettingsData = Readonly<Record<string, unknown>>;
 
+/** Whether a raw managed-settings document contains at least one top-level setting. */
+export function hasRawManagedSettings(data: RawManagedSettingsData | undefined): boolean {
+	return data !== undefined && Object.keys(data).length > 0;
+}
+
 /** Windows registry root for GitHub Copilot policies. */
 export const GITHUB_COPILOT_WIN32_REGISTRY_PATH = 'SOFTWARE\\Policies\\GitHubCopilot';
 
