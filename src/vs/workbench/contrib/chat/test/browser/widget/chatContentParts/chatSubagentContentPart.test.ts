@@ -30,7 +30,7 @@ import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../../../b
 import { IMarkdownString, isMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
-import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../../accessibility/browser/accessibilityConfiguration.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -340,6 +340,7 @@ suite('ChatSubagentContentPart', () => {
 		));
 		instantiationService.stub(IMenuService, menuService);
 		(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, true);
+		(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.SubagentsShowCreditUsage, true);
 
 		// Mock list pool and editor pool
 		mockListPool = {} as CollapsibleListPool;
@@ -521,6 +522,73 @@ suite('ChatSubagentContentPart', () => {
 			}, {
 				running: '1m 5s',
 				completed: '1m 5s',
+			});
+		});
+
+		test('should update displayed and accessible credit usage when the setting changes', () => {
+			const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			const setShowCreditUsage = (value: boolean) => {
+				configService.setUserConfiguration(ChatConfiguration.SubagentsShowCreditUsage, value);
+				configService.onDidChangeConfigurationEmitter.fire({
+					source: ConfigurationTarget.USER,
+					affectedKeys: new Set([ChatConfiguration.SubagentsShowCreditUsage]),
+					change: { keys: [ChatConfiguration.SubagentsShowCreditUsage], overrides: [] },
+					affectsConfiguration: key => key === ChatConfiguration.SubagentsShowCreditUsage,
+				} satisfies IConfigurationChangeEvent);
+			};
+			const action = store.add(new Action('openSubagent', 'Open Subagent'));
+			const viewItem = store.add(instantiationService.createInstance(
+				OpenSubagentChatActionViewItem,
+				{
+					chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
+					parentSessionResource: 'agent-host-copilotcli:/session',
+					startedAt: 1_000,
+					duration: 65_000,
+					credits: 2.5,
+				},
+				action,
+				{},
+				false,
+			));
+			const container = mainWindow.document.createElement('div');
+			viewItem.render(container);
+			const credits = container.querySelector('.chat-subagent-pill-credits');
+			const before = {
+				text: credits?.textContent,
+				hidden: credits?.classList.contains('hidden'),
+				ariaLabel: container.getAttribute('aria-label'),
+			};
+
+			setShowCreditUsage(false);
+			const hidden = {
+				text: credits?.textContent,
+				hidden: credits?.classList.contains('hidden'),
+				ariaLabel: container.getAttribute('aria-label'),
+			};
+
+			setShowCreditUsage(true);
+			const restored = {
+				text: credits?.textContent,
+				hidden: credits?.classList.contains('hidden'),
+				ariaLabel: container.getAttribute('aria-label'),
+			};
+
+			assert.deepStrictEqual({ before, hidden, restored }, {
+				before: {
+					text: '2.5 credits',
+					hidden: false,
+					ariaLabel: 'Open Subagent. Worked for 1m 5s. 2.5 credits',
+				},
+				hidden: {
+					text: '',
+					hidden: true,
+					ariaLabel: 'Open Subagent. Worked for 1m 5s',
+				},
+				restored: {
+					text: '2.5 credits',
+					hidden: false,
+					ariaLabel: 'Open Subagent. Worked for 1m 5s. 2.5 credits',
+				},
 			});
 		});
 
