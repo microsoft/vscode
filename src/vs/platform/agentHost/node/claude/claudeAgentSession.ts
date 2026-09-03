@@ -893,7 +893,7 @@ export class ClaudeAgentSession extends Disposable {
 			return { servers: {}, deniedServers: [] };
 		}
 		const definitions = new Map<string, IMcpServerDefinition>();
-		const connectors = await this._mcpConnectorsService.refresh();
+		const connectors = await this._mcpConnectorsService.getConnectors();
 		const connectorCustomizations = connectors.map(connector => createClaudeInternalMcpServerCustomization(connector.serverName));
 		const connectorResolution = resolveCustomizationEnablement(this._customizationEnablementService, this._configurationResource, connectorCustomizations);
 		const connectorEnablement = getSdkMcpServerEnablement(connectorResolution);

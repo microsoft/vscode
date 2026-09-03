@@ -2603,7 +2603,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private async _refreshSessionMcpDiscovery(session: ICodexSession): Promise<void> {
-		await this._mcpConnectorsService.refresh();
+		await this._mcpConnectorsService.getConnectors();
 		const roots = session.workingDirectories?.length
 			? session.workingDirectories
 			: session.workingDirectory ? [session.workingDirectory] : [];
