@@ -77,7 +77,7 @@ import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js'
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IAgentHostWorktreeIsolation, type IAgentHostWorktreeResumeService, SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
 import { buildSessionEventLogFromTurns } from './buildSessionEvents.js';
-import { CopilotAgentSession } from './copilotAgentSession.js';
+import { CopilotAgentSession, type ICopilotWorkingDirectoryChangeTransaction } from './copilotAgentSession.js';
 import { createCopilotCliEnvironment } from './copilotCliEnvironment.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
@@ -341,6 +341,22 @@ interface ICopilotAgentSessionIdentity {
 	readonly chatChannelUri: URI;
 	/** Host-chosen persistence/config scope (the {@link IAgentChatContext.resource}). */
 	readonly resource: URI;
+}
+
+interface IWorkingDirectoryMetadataSnapshot {
+	readonly workingDirectory: string | undefined;
+	readonly workingDirectories: string | undefined;
+	readonly customizationDirectory: string | undefined;
+}
+
+interface IWorkingDirectoryChangeTransactionOptions {
+	readonly resource: URI;
+	readonly activeClient: ActiveClient;
+	readonly workingDirectory: URI;
+	readonly previousWorkingDirectory: URI;
+	readonly previousCustomizationDirectory: URI;
+	readonly previousCustomizationAdditionalDirectories: readonly URI[];
+	readonly previousMetadata: IWorkingDirectoryMetadataSnapshot;
 }
 
 /** Stable empty host-customization snapshot used before the host publishes one. */
@@ -713,6 +729,7 @@ const NANO_AIU_PER_CREDIT = 1_000_000_000;
  */
 export class CopilotAgent extends Disposable implements IAgent {
 	readonly id = 'copilotcli' as const;
+	readonly agentHostCapabilities = { workspaceConversion: true } as const;
 	protected readonly _now = Date.now;
 
 	private readonly _onDidChatProgress = this._register(new Emitter<AgentSignal>());
@@ -1496,50 +1513,68 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 				const previousCustomizationDirectory = activeClient.pluginController.directory ?? previousWorkingDirectory;
 				const previousCustomizationAdditionalDirectories = [...activeClient.pluginController.additionalDirectories];
-				const metadataFor = (directory: URI) => ({
-					workingDirectory: directory.toString(),
-					workingDirectories: JSON.stringify([directory.toString()]),
-					customizationDirectory: directory.toString(),
+				const transaction = this._createWorkingDirectoryChangeTransaction({
+					resource,
+					activeClient,
+					workingDirectory,
+					previousWorkingDirectory,
+					previousCustomizationDirectory,
+					previousCustomizationAdditionalDirectories,
+					previousMetadata: storedMetadata.snapshot,
 				});
-				const applyProviderState = async (directory: URI, additionalDirectories: readonly URI[], metadata: {
-					readonly workingDirectory: string | undefined;
-					readonly workingDirectories: string | undefined;
-					readonly customizationDirectory: string | undefined;
-				}): Promise<void> => {
-					const errors: string[] = [];
-					try {
-						activeClient.pluginController.reanchor(directory);
-					} catch (error) {
-						errors.push(`customization anchor: ${getErrorMessage(error)}`);
-					}
-					try {
-						activeClient.pluginController.setAdditionalDirectories(additionalDirectories);
-					} catch (error) {
-						errors.push(`customization additional roots: ${getErrorMessage(error)}`);
-					}
-					try {
-						await this._storeWorkingDirectoryMetadataSnapshot(resource, metadata);
-					} catch (error) {
-						errors.push(`provider metadata: ${getErrorMessage(error)}`);
-					}
-					if (errors.length > 0) {
-						throw new Error(errors.join('; '));
-					}
-				};
-
-				await entry.setWorkingDirectory(workingDirectory, {
-					prepare: () => applyProviderState(workingDirectory, [], metadataFor(workingDirectory)),
-					revert: () => applyProviderState(previousCustomizationDirectory, previousCustomizationAdditionalDirectories, storedMetadata.snapshot),
-					reconcile: authoritativeWorkingDirectory => isEqual(authoritativeWorkingDirectory, previousWorkingDirectory)
-						? applyProviderState(previousCustomizationDirectory, previousCustomizationAdditionalDirectories, storedMetadata.snapshot)
-						: applyProviderState(authoritativeWorkingDirectory, [], metadataFor(authoritativeWorkingDirectory)),
-				});
+				await entry.setWorkingDirectory(workingDirectory, transaction);
 			});
 		} finally {
 			if (this._workingDirectoryMutations.get(initial.configurationResource) === initial.entry) {
 				this._workingDirectoryMutations.delete(initial.configurationResource);
 			}
 		}
+	}
+
+	private _createWorkingDirectoryChangeTransaction(options: IWorkingDirectoryChangeTransactionOptions): ICopilotWorkingDirectoryChangeTransaction {
+		const {
+			resource,
+			activeClient,
+			workingDirectory,
+			previousWorkingDirectory,
+			previousCustomizationDirectory,
+			previousCustomizationAdditionalDirectories,
+			previousMetadata,
+		} = options;
+		const metadataFor = (directory: URI): IWorkingDirectoryMetadataSnapshot => ({
+			workingDirectory: directory.toString(),
+			workingDirectories: JSON.stringify([directory.toString()]),
+			customizationDirectory: directory.toString(),
+		});
+		const applyProviderState = async (directory: URI, additionalDirectories: readonly URI[], metadata: IWorkingDirectoryMetadataSnapshot): Promise<void> => {
+			const errors: string[] = [];
+			try {
+				activeClient.pluginController.reanchor(directory);
+			} catch (error) {
+				errors.push(`customization anchor: ${getErrorMessage(error)}`);
+			}
+			try {
+				activeClient.pluginController.setAdditionalDirectories(additionalDirectories);
+			} catch (error) {
+				errors.push(`customization additional roots: ${getErrorMessage(error)}`);
+			}
+			try {
+				await this._storeWorkingDirectoryMetadataSnapshot(resource, metadata);
+			} catch (error) {
+				errors.push(`provider metadata: ${getErrorMessage(error)}`);
+			}
+			if (errors.length > 0) {
+				throw new Error(errors.join('; '));
+			}
+		};
+
+		return {
+			prepare: () => applyProviderState(workingDirectory, [], metadataFor(workingDirectory)),
+			rollback: () => applyProviderState(previousCustomizationDirectory, previousCustomizationAdditionalDirectories, previousMetadata),
+			reconcile: authoritativeWorkingDirectory => isEqual(authoritativeWorkingDirectory, previousWorkingDirectory)
+				? applyProviderState(previousCustomizationDirectory, previousCustomizationAdditionalDirectories, previousMetadata)
+				: applyProviderState(authoritativeWorkingDirectory, [], metadataFor(authoritativeWorkingDirectory)),
+		};
 	}
 
 	private _resolveLiveWorkingDirectoryContext(chat: URI, context: URI | IAgentChatContext): {
@@ -3424,7 +3459,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			const activeClient = this._activeClients.get(current.configurationResource);
 			const currentSnapshot = activeClient ? await activeClient.snapshot(current.chatKey) : undefined;
-			if (activeClient && currentSnapshot && await activeClient.requiresRestart(entry.appliedSnapshot, current.chatKey, currentSnapshot)) {
+			if (entry.requiresRestartAfterWorkingDirectoryChange || (activeClient && currentSnapshot && await activeClient.requiresRestart(entry.appliedSnapshot, current.chatKey, currentSnapshot))) {
 				await this._destroyLiveSession(entry, true);
 				entry = entry.sessionId === current.configurationId
 					? await this._resumeSession(current.configurationId, current.chat)
@@ -4142,7 +4177,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				[...new Set(entry.appliedDisabledRootMcpServers)].sort(),
 				[...new Set(currentDisabledRootMcpServers)].sort(),
 			);
-			if (entry && (rootsChanged || structuralConfigChanged || disabledRootMcpServersChanged || entry.requiresMcpLaunchConfigurationRefresh || entry.requiresControlPlaneResync)) {
+			if (entry && (entry.requiresRestartAfterWorkingDirectoryChange || rootsChanged || structuralConfigChanged || disabledRootMcpServersChanged || entry.requiresMcpLaunchConfigurationRefresh || entry.requiresControlPlaneResync)) {
 				this._logService.info(`[Copilot:${current.configurationId}] Session configuration changed, refreshing session. clients=[${activeClient ? [...activeClient.toolSet.clientIds()].join(', ') || '(none)' : '(none)'}]`);
 				// Finish disconnecting before resuming the SAME SDK session id with
 				// the updated config. Routing is preserved so the session identity
@@ -5621,11 +5656,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		workingDirectory?: URI;
 		workingDirectories?: readonly URI[];
 		customizationDirectory?: URI;
-		snapshot: {
-			readonly workingDirectory: string | undefined;
-			readonly workingDirectories: string | undefined;
-			readonly customizationDirectory: string | undefined;
-		};
+		snapshot: IWorkingDirectoryMetadataSnapshot;
 	}> {
 		const dbRef = await this._sessionDataService.tryOpenDatabase(session);
 		if (!dbRef) {
@@ -5660,11 +5691,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _storeWorkingDirectoryMetadataSnapshot(session: URI, metadata: {
-		readonly workingDirectory: string | undefined;
-		readonly workingDirectories: string | undefined;
-		readonly customizationDirectory: string | undefined;
-	}): Promise<void> {
+	private async _storeWorkingDirectoryMetadataSnapshot(session: URI, metadata: IWorkingDirectoryMetadataSnapshot): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(session);
 		try {
 			await dbRef.object.setMetadata(CopilotAgent._META_CWD, metadata.workingDirectory ?? '');

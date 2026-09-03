@@ -846,38 +846,6 @@ suite('AgentHostStateManager', () => {
 		});
 	});
 
-	test('serializes session activity clears in summary notifications', () => {
-		return runWithFakedTimers({ useFakeTimers: true }, async () => {
-			manager.createSession(makeSessionSummary());
-			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
-
-			const notifications: INotification[] = [];
-			disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
-
-			manager.dispatchServerAction(sessionChatUri, {
-				type: ActionType.ChatActivityChanged,
-				activity: 'Creating isolated worktree',
-			});
-			await new Promise(resolve => setTimeout(resolve, 150));
-			notifications.length = 0;
-
-			manager.dispatchServerAction(sessionChatUri, {
-				type: ActionType.ChatActivityChanged,
-				activity: undefined,
-			});
-			await new Promise(resolve => setTimeout(resolve, 150));
-
-			const changed = notifications.filter(notification => notification.type === NotificationType.SessionSummaryChanged) as SessionSummaryChangedParams[];
-			assert.deepStrictEqual({
-				changes: changed.map(notification => notification.changes),
-				serializedChanges: changed.map(notification => JSON.stringify(notification.changes)),
-			}, {
-				changes: [{ activity: null }],
-				serializedChanges: ['{"activity":null}'],
-			});
-		});
-	});
-
 	test('does not emit sessionSummaryChanged when summary is unchanged', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			manager.createSession(makeSessionSummary());

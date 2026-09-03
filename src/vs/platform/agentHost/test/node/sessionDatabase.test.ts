@@ -763,6 +763,27 @@ suite('SessionDatabase', () => {
 			assert.strictEqual(await db.getMetadata('customTitle'), 'Second');
 		});
 
+		test('deleteMetadata removes only the requested keys', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadataValues({
+				customTitle: 'Title',
+				customTitleSource: 'user',
+				unrelated: 'preserved',
+			});
+
+			await db.deleteMetadata(['customTitle', 'customTitleSource']);
+
+			assert.deepStrictEqual(await db.getMetadataObject({
+				customTitle: true,
+				customTitleSource: true,
+				unrelated: true,
+			}), {
+				customTitle: undefined,
+				customTitleSource: undefined,
+				unrelated: 'preserved',
+			});
+		});
+
 		test('setMetadataValues rolls back every key when one write fails', async () => {
 			const database = disposables.add(await TestableSessionDatabase.open(':memory:'));
 			db = database;

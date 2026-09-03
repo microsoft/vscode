@@ -2012,6 +2012,9 @@ export const SESSION_META_WORKSPACELESS_KEY = 'workspaceless';
  */
 export const AH_META_WORKSPACELESS_DB_KEY = 'agentHost.workspaceless';
 
+/** Blocks turns for a session whose provider could not be detached from an untrusted working directory. */
+export const AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY = 'agentHost.workspaceConversionQuarantined';
+
 /**
  * Session-database metadata key recording whether a session is archived. Written by
  * the AH orchestrator (`AgentSideEffects` on `SessionIsArchivedChanged`) and read by

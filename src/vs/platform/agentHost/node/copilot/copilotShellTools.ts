@@ -8,19 +8,15 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Disposable, DisposableStore, type IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { IEnvironmentService } from '../../../environment/common/environment.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
-import { IProductService } from '../../../product/common/productService.js';
-import { ISandboxHelperService } from '../../../sandbox/common/sandboxHelperService.js';
 import type { ITerminalSandboxResolvedNetworkDomains } from '../../../sandbox/common/terminalSandboxService.js';
 import { TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { TerminalClaimKind, TerminalLifecycleStatus, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
 import { parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
 import { isZsh } from '../agentHostShellUtils.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
-import { createAgentHostSandboxEngine } from './agentHostSandboxEngine.js';
-import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { AgentHostSandboxEngine } from './agentHostSandboxEngine.js';
 import { DEFAULT_SHELL_COMMAND_TIMEOUT_MS, executeShellCommand, isMultilineCommand, prefixForHistorySuppression, prepareOutputForModel, shellTypeForExecutable, type IShellCommandResult, type ShellType } from '../shared/shellCommandExecution.js';
 
 // Re-exported for consumers (and tests) that historically imported these
@@ -61,7 +57,7 @@ export class ShellManager extends Disposable {
 	private readonly _shells = new Map<string, IManagedShell>();
 	private readonly _toolCallShells = new Map<string, string>();
 	private _resolvedExecutable: Promise<string> | undefined;
-	private _sandboxEngine: TerminalSandboxEngine | undefined;
+	private _sandboxEngine: AgentHostSandboxEngine | undefined;
 	private _workingDirectory: URI | undefined;
 	private _pendingShellCreations = 0;
 	/** Set of shell ids currently executing a command and unsafe to share. */
@@ -71,7 +67,6 @@ export class ShellManager extends Disposable {
 
 	private readonly _onDidAssociateTerminal = this._register(new Emitter<{ toolCallId: string; terminalUri: string; displayName: string }>());
 	readonly onDidAssociateTerminal: Event<{ toolCallId: string; terminalUri: string; displayName: string }> = this._onDidAssociateTerminal.event;
-	private readonly _onDidChangeRoots = this._register(new Emitter<void>());
 
 	constructor(
 		private readonly _sessionUri: URI,
@@ -79,10 +74,6 @@ export class ShellManager extends Disposable {
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IProductService private readonly _productService: IProductService,
-		@IAgentConfigurationService private readonly _agentConfigurationService: IAgentConfigurationService,
-		@ISandboxHelperService private readonly _sandboxHelper: ISandboxHelperService,
 	) {
 		super();
 		this._workingDirectory = workingDirectory;
@@ -126,7 +117,7 @@ export class ShellManager extends Disposable {
 		this._shells.clear();
 		this._toolCallShells.clear();
 		this._workingDirectory = workingDirectory;
-		this._onDidChangeRoots.fire();
+		this._sandboxEngine?.setWorkingDirectory(workingDirectory);
 	}
 
 	/**
@@ -149,23 +140,18 @@ export class ShellManager extends Disposable {
 	getOrCreateSandboxEngine(): TerminalSandboxEngine {
 		if (!this._sandboxEngine) {
 			const sessionId = this._sessionUri.path.split('/').pop() ?? generateUuid();
-			const engine = createAgentHostSandboxEngine(
-				this._instantiationService,
-				this._environmentService,
-				this._productService,
-				this._agentConfigurationService,
-				this._sandboxHelper,
+			const sandboxEngine = this._instantiationService.createInstance(
+				AgentHostSandboxEngine,
 				sessionId,
-				() => this.workingDirectory,
-				this._onDidChangeRoots.event,
+				this._workingDirectory,
 			);
-			this._register(engine);
+			this._register(sandboxEngine);
 			this._register(toDisposable(() => {
-				void engine.cleanupTempDir().catch(err => this._logService.warn('[ShellManager] Sandbox temp dir cleanup failed', err));
+				void sandboxEngine.engine.cleanupTempDir().catch(err => this._logService.warn('[ShellManager] Sandbox temp dir cleanup failed', err));
 			}));
-			this._sandboxEngine = engine;
+			this._sandboxEngine = sandboxEngine;
 		}
-		return this._sandboxEngine;
+		return this._sandboxEngine.engine;
 	}
 
 	/**

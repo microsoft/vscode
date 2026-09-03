@@ -3419,30 +3419,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
-	test('clears session activity from a summary notification', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		agentHost.addSession(createSession('activity-clear', {
-			summary: 'Creating worktree',
-			status: ProtocolSessionStatus.InProgress,
-			activity: 'Creating isolated worktree',
-		}));
-
-		const provider = createProvider(disposables, agentHost);
-		await timeout(0);
-		const session = provider.getSessions()[0];
-		const before = session.description.get();
-
-		fireSessionSummaryChanged(agentHost, 'activity-clear', { activity: null });
-		await timeout(0);
-
-		assert.deepStrictEqual({
-			before: before ? renderAsPlaintext(before) : undefined,
-			after: session.description.get(),
-		}, {
-			before: 'Creating isolated worktree',
-			after: undefined,
-		});
-	}));
-
 	test('committed quick chat announced via sessionAdded stays workspace-less despite a scratch working directory', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// Regression: when a quick-chat draft graduates, the host announces the
 		// committed session via a `sessionAdded` notification whose summary

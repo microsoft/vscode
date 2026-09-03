@@ -43,8 +43,8 @@ import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/loca
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
 import { LocalCommandContribution } from '../../node/chatContributions/localCommand/localCommandContribution.js';
 import { QueueDrainContribution } from '../../node/chatContributions/queueDrain/queueDrainContribution.js';
-import { IQuickChatWorkspaceConversionService } from '../../node/chatContributions/quickChatWorkspaceConversion/quickChatWorkspaceConversionService.js';
-import { QuickChatWorkspaceConversionContribution } from '../../node/chatContributions/quickChatWorkspaceConversion/quickChatWorkspaceConversionContribution.js';
+import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { SessionWorkspaceConversionContribution } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionContribution.js';
 import { SessionTitleContribution } from '../../node/chatContributions/sessionTitle/sessionTitleContribution.js';
 import { SideChatContribution } from '../../node/chatContributions/sideChat/sideChatContribution.js';
 import { TurnDelegationContribution } from '../../node/chatContributions/turnDelegation/turnDelegationContribution.js';
@@ -834,13 +834,12 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		[IAgentHostWorktreeIsolation, new RecordingWorktreeIsolation(observed)],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 	);
-	services.set(IQuickChatWorkspaceConversionService, {
+	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
-		registerHost: () => Disposable.None,
-		schedule: () => { },
+		requestSessionWorkspaceUpdate: () => { },
 		isPending: () => false,
-		handleTurnEnd: async () => { observed?.push('quickChatWorkspaceConversion'); },
-		convertNow: async () => URI.file('/workspace'),
+		cancel: () => { },
+		updateSessionWorkspace: async () => { observed?.push('sessionWorkspaceConversion'); },
 	});
 	services.set(IAgentHostSessionTitleController, new RecordingTitleController(observed, enableSendInstructions ? 'rename instruction' : undefined));
 	const queueAgent = new MockAgent();
@@ -886,13 +885,12 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 	);
 	let conversionPending = false;
-	services.set(IQuickChatWorkspaceConversionService, {
+	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
-		registerHost: () => Disposable.None,
-		schedule: () => { },
+		requestSessionWorkspaceUpdate: () => { },
 		isPending: () => conversionPending,
-		handleTurnEnd: async () => { },
-		convertNow: async () => URI.file('/workspace'),
+		cancel: () => { },
+		updateSessionWorkspace: async () => { },
 	});
 	const mockAgent = new MockAgent();
 	let agent: MockAgent | undefined = mockAgent;
@@ -919,7 +917,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 		sendTurnMessage: options => admitted.push({ channel: options.turnChannel, message: options.message, clientId: options.senderClientId, hostLaunchKind: options.clientContext.hostLaunchKind }),
 	}));
 	disposables.add(service.registerContribution(LocalCommandContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
-	disposables.add(service.registerContribution(QuickChatWorkspaceConversionContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
+	disposables.add(service.registerContribution(SessionWorkspaceConversionContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
 	disposables.add(service.registerContribution(QueueDrainContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
 	return { service, stateManager, session, chat, pendingMessages, admitted, titleController, telemetryService, clearAgent: () => agent = undefined, setConversionPending: (pending: boolean) => conversionPending = pending };
 }
@@ -1118,7 +1116,7 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual([active.admitted, steering.admitted, empty.admitted], [[], [], []]);
 	});
 
-	test('queue drain waits while Quick Chat workspace conversion is pending', () => {
+	test('queue drain waits while session workspace conversion is pending', () => {
 		const queue = createQueueDrainContributions(disposables);
 		queue.stateManager.dispatchServerAction(queue.chat, queuedMessage('queued', 'queued'));
 		queue.setConversionPending(true);
@@ -1137,7 +1135,7 @@ suite('AgentHostChatContributions', () => {
 				kind: 'reject',
 				error: {
 					errorType: 'workspaceConversionPending',
-					message: 'Wait for the pending Quick Chat workspace conversion to finish before sending another message.',
+					message: 'Wait for workspace setup to finish before sending another message.',
 				},
 				stage: 'validation',
 			},
@@ -1309,7 +1307,7 @@ suite('AgentHostChatContributions', () => {
 		const contributions = createBuiltInContributions(disposables, observed);
 		contributions.service.turnEnd(turnEnd('built-in-order'));
 
-		assert.deepStrictEqual(observed, ['checkpointAndChangeset', 'quickChatWorkspaceConversion', 'queueDrain', 'githubReferences', 'sessionTitle', 'markUnread']);
+		assert.deepStrictEqual(observed, ['checkpointAndChangeset', 'sessionWorkspaceConversion', 'queueDrain', 'githubReferences', 'sessionTitle', 'markUnread']);
 	});
 
 	test('resumable errors defer checkpoint capture until the logical turn ends', () => {

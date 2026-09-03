@@ -64,6 +64,7 @@ suite('SessionServerTools', () => {
 		const depths = overrides?.depths ?? new Map<string, number>();
 		return {
 			isActiveAgentTitleGenerationEnabled: overrides?.isActiveAgentTitleGenerationEnabled ?? (() => true),
+			canConvertWorkspace: overrides?.canConvertWorkspace ?? (() => true),
 			listSessions: overrides?.listSessions ?? (async () => [sessionMeta('s1', SessionStatus.InProgress, workspace)]),
 			getSession: overrides?.getSession ?? (async session => session.toString() === 'copilot:/s1' ? sessionMeta('s1', SessionStatus.InProgress, workspace) : undefined),
 			createSession: overrides?.createSession ?? (async config => { overrides?.onCreate?.(config); return URI.parse('copilot:/new'); }),
@@ -77,7 +78,7 @@ suite('SessionServerTools', () => {
 			getChatContext: overrides?.getChatContext ?? (async () => undefined),
 			getSessionSpawnDepth: overrides?.getSessionSpawnDepth ?? (session => depths.get(session.toString()) ?? 0),
 			setSessionSpawnDepth: overrides?.setSessionSpawnDepth ?? ((session, depth) => { depths.set(session.toString(), depth); }),
-			scheduleQuickChatWorkspaceConversion: overrides?.scheduleQuickChatWorkspaceConversion ?? (() => { }),
+			requestSessionWorkspaceUpdate: overrides?.requestSessionWorkspaceUpdate ?? (() => { }),
 		};
 	}
 
@@ -128,7 +129,7 @@ suite('SessionServerTools', () => {
 			inputSchema: setWorkspaceDefinition?.inputSchema,
 		}, {
 			title: 'Set Workspace',
-			description: 'Set the current session\'s workspace when the task should continue in a workspace not yet attached to this session. This preserves the session, chat, and conversation history. Set `isolation` to true to create a managed Git worktree, or false to work directly in the folder. When changes are expected and the user\'s isolation preference is unclear, ask before calling this tool. The workspace change is deferred until the current turn ends, then the host automatically continues the original task in the selected workspace. Make this the final tool call of the turn.',
+			description: 'Set the current session\'s workspace when the task should continue in a workspace not yet attached to this session. This preserves the session, chat, and conversation history. Immediately before every call to this tool, always use the available user-input tool to ask the user to confirm both the workspace and whether the work should be isolated, even if the user previously mentioned or requested those choices. Tool approval is separate and does not replace this confirmation. Set `isolation` to true to create a managed Git worktree, or false to work directly in the folder. The workspace change is deferred until the current turn ends, then the host automatically continues the original task in the selected workspace. Make this the final tool call of the turn.',
 			inputSchema: {
 				type: 'object',
 				properties: {
@@ -138,7 +139,7 @@ suite('SessionServerTools', () => {
 					},
 					isolation: {
 						type: 'boolean',
-						description: 'Whether to create an isolated Git worktree and use it as the workspace. When the task may modify files and the user\'s preference is unclear, ask whether to isolate the work before calling this tool.',
+						description: 'Whether to create an isolated Git worktree and use it as the workspace. Include this choice in the required user confirmation immediately before calling this tool.',
 					},
 				},
 				required: ['workspaceFolder', 'isolation'],
@@ -170,11 +171,11 @@ suite('SessionServerTools', () => {
 		assert.throws(() => getSetWorkspaceArgs({ workspaceFolder: '/workspace/app' }), /isolation must be a boolean/);
 	});
 
-	test('set_workspace schedules the current chat and active turn', () => {
-		const scheduled: { chat: string; turnId: string; workspaceFolder: string; isolation: boolean }[] = [];
+	test('set_workspace requests an update for the current chat and active turn', () => {
+		const requests: { chat: string; turnId: string; workspaceFolder: string; isolation: boolean }[] = [];
 		const chat = URI.parse(buildDefaultChatUri('copilot:/s1'));
 		const accessor = createAccessor({
-			scheduleQuickChatWorkspaceConversion: (targetChat, turnId, workspaceFolder, isolation) => scheduled.push({
+			requestSessionWorkspaceUpdate: (targetChat, turnId, workspaceFolder, isolation) => requests.push({
 				chat: targetChat.toString(),
 				turnId,
 				workspaceFolder: workspaceFolder.toString(),
@@ -185,10 +186,10 @@ suite('SessionServerTools', () => {
 		const result = applySetWorkspaceTool(accessor, { workspaceFolder: '/workspace/app', isolation: true }, chat, 'turn-1');
 
 		assert.deepStrictEqual({
-			scheduled,
+			requests,
 			result,
 		}, {
-			scheduled: [{
+			requests: [{
 				chat: chat.toString(),
 				turnId: 'turn-1',
 				workspaceFolder: 'file:///workspace/app',
@@ -304,6 +305,70 @@ suite('SessionServerTools', () => {
 		stateManager.dispose();
 	});
 
+	test('set_workspace is not advertised or executable when the provider cannot change working directory', async () => {
+		const stateManager = new AgentHostStateManager(new NullLogService());
+		const session = 'claude:/s1';
+		stateManager.createSession({
+			resource: session,
+			provider: 'claude',
+			title: 'Session',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+		});
+		const host = new AgentServerToolHost(stateManager, [
+			createSessionServerToolGroup(createAccessor({ canConvertWorkspace: () => false })),
+		]);
+
+		host.advertise(session);
+		const advertisedTools = stateManager.getSessionState(session)?.serverTools?.map(tool => tool.name);
+		stateManager.dispatchServerAction(session, {
+			type: ActionType.SessionServerToolsChanged,
+			tools: sessionServerToolDefinitions,
+		});
+
+		await assert.rejects(
+			async () => host.executeTool(buildDefaultChatUri(session), SessionServerToolName.SetWorkspace, { workspaceFolder: '/workspace', isolation: false }),
+			/Server tool "set_workspace" is disabled/,
+		);
+		assert.deepStrictEqual({
+			advertisedTools,
+			restoredTools: host.getDefinitionsForSession(session).map(tool => tool.name),
+		}, {
+			advertisedTools: sessionServerToolDefinitions.filter(tool => tool.name !== SessionServerToolName.SetWorkspace).map(tool => tool.name),
+			restoredTools: sessionServerToolDefinitions.filter(tool => tool.name !== SessionServerToolName.SetWorkspace).map(tool => tool.name),
+		});
+		stateManager.dispose();
+	});
+
+	test('set_workspace is removed when the session can no longer be converted', async () => {
+		const stateManager = new AgentHostStateManager(new NullLogService());
+		const session = 'copilot:/s1';
+		stateManager.createSession({
+			resource: session,
+			provider: 'copilot',
+			title: 'Session',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+		});
+		let canConvertWorkspace = true;
+		const host = new AgentServerToolHost(stateManager, [
+			createSessionServerToolGroup(createAccessor({ canConvertWorkspace: () => canConvertWorkspace })),
+		]);
+
+		host.advertise(session);
+		canConvertWorkspace = false;
+		host.advertise(session);
+
+		await assert.rejects(
+			async () => host.executeTool(buildDefaultChatUri(session), SessionServerToolName.SetWorkspace, { workspaceFolder: '/workspace', isolation: false }),
+			/Server tool "set_workspace" is disabled/,
+		);
+		assert.ok(!stateManager.getSessionState(session)?.serverTools?.some(tool => tool.name === SessionServerToolName.SetWorkspace));
+		stateManager.dispose();
+	});
+
 	test('re-advertise updates dynamic groups while materialized session tools stay fixed', () => {
 		let sessionToolsEnabled = false;
 		let dynamicToolsEnabled = false;
@@ -320,6 +385,7 @@ suite('SessionServerTools', () => {
 		const dynamicGroup: IServerToolGroup = {
 			definitions: [{ name: 'dynamic_tool', description: 'Dynamic tool.', inputSchema: { type: 'object', properties: {} } }],
 			isEnabled: () => dynamicToolsEnabled,
+			isEnabledForSession: () => true,
 			execute: () => '',
 		};
 		const host = new AgentServerToolHost(stateManager, [

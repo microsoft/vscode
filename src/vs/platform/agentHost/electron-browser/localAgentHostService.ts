@@ -563,10 +563,6 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().readDebugLogsChunk(resource, position);
 	}
 
-	setSessionWorkingDirectoryForTesting(chat: URI, workingDirectory: URI): Promise<void> {
-		return this._getManagementService().setSessionWorkingDirectoryForTesting(chat, workingDirectory);
-	}
-
 	async restartAgentHost(): Promise<void> {
 		this._forwardOTelPolicy();
 		ipcRenderer.send(AgentHostRestartIpcChannel);

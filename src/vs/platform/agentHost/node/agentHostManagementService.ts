@@ -144,10 +144,6 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._agentService.readDebugLogsChunk(resource, position);
 	}
 
-	setSessionWorkingDirectoryForTesting(chat: URI, workingDirectory: URI): Promise<void> {
-		return this._runMutation(() => this._agentService.setSessionWorkingDirectoryForTesting(chat, workingDirectory));
-	}
-
 	startWebSocketServer(): Promise<IAgentHostSocketInfo> {
 		return this._connectionTrackerService.startWebSocketServer();
 	}

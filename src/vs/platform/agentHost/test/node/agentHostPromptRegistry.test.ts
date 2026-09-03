@@ -217,9 +217,11 @@ suite('AgentHostPromptRegistry', () => {
 			assert.deepStrictEqual({
 				usesSetWorkspace: COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('`set_workspace` is available, prefer attaching that workspace and continuing this same conversation'),
 				avoidsReplacementSession: COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Do not create another session solely to move the work'),
+				requiresConfirmation: COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Immediately before every `set_workspace` call, always use `ask_user` to confirm both the workspace and whether the work should be isolated'),
 			}, {
 				usesSetWorkspace: true,
 				avoidsReplacementSession: true,
+				requiresConfirmation: true,
 			});
 		});
 

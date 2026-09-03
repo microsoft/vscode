@@ -44,7 +44,7 @@ import { TerminalClaimKind } from '../../common/state/protocol/state.js';
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
-import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
+import { CopilotAgentSession, type ICopilotWorkingDirectoryChangeTransaction } from '../../node/copilot/copilotAgentSession.js';
 import { buildNonPtyShellTerminalUri } from '../../node/copilot/copilotNonPtyShellTerminals.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
@@ -76,6 +76,12 @@ import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilo
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import type { IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, IAgentHostInternalTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
+
+const noOpWorkingDirectoryChangeTransaction: ICopilotWorkingDirectoryChangeTransaction = {
+	prepare: async () => { },
+	rollback: async () => { },
+	reconcile: async () => { },
+};
 
 // ---- Mock CopilotSession (SDK level) ----------------------------------------
 
@@ -1261,7 +1267,7 @@ suite('CopilotAgentSession', () => {
 		const sessionId = session.sessionId;
 		mockSession.workingDirectorySetResults.push({ workingDirectory: '/workspace/next' });
 
-		await session.setWorkingDirectory(nextWorkingDirectory);
+		await session.setWorkingDirectory(nextWorkingDirectory, noOpWorkingDirectoryChangeTransaction);
 
 		assert.deepStrictEqual({
 			sessionId: session.sessionId,
@@ -1294,7 +1300,7 @@ suite('CopilotAgentSession', () => {
 		});
 		mockSession.workingDirectorySetErrors.push(new Error('SDK rejected cwd'));
 
-		await assert.rejects(() => session.setWorkingDirectory(nextWorkingDirectory), /SDK rejected cwd/);
+		await assert.rejects(() => session.setWorkingDirectory(nextWorkingDirectory, noOpWorkingDirectoryChangeTransaction), /SDK rejected cwd/);
 
 		assert.deepStrictEqual({
 			workingDirectory: session.workingDirectory?.toString(),
@@ -1315,15 +1321,15 @@ suite('CopilotAgentSession', () => {
 		const workingDirectory = URI.file('/workspace/original');
 		const nextWorkingDirectory = URI.file('/workspace/next');
 		const workspaceless = await createAgentSession(disposables);
-		await assert.rejects(() => workspaceless.session.setWorkingDirectory(nextWorkingDirectory), /without an existing working directory/);
+		await assert.rejects(() => workspaceless.session.setWorkingDirectory(nextWorkingDirectory, noOpWorkingDirectoryChangeTransaction), /without an existing working directory/);
 
 		const active = await createAgentSession(disposables, { workingDirectory });
 		active.session.resetTurnState('turn-1');
-		await assert.rejects(() => active.session.setWorkingDirectory(nextWorkingDirectory), /while a turn is active/);
+		await assert.rejects(() => active.session.setWorkingDirectory(nextWorkingDirectory, noOpWorkingDirectoryChangeTransaction), /while a turn is active/);
 
 		const busyShell = createTestShellManager(disposables, workingDirectory, new Error('shell is busy'));
 		const busy = await createAgentSession(disposables, { workingDirectory, shellManager: busyShell.shellManager });
-		await assert.rejects(() => busy.session.setWorkingDirectory(nextWorkingDirectory), /shell is busy/);
+		await assert.rejects(() => busy.session.setWorkingDirectory(nextWorkingDirectory, noOpWorkingDirectoryChangeTransaction), /shell is busy/);
 
 		assert.deepStrictEqual({
 			workspacelessRpcCalls: workspaceless.mockSession.workingDirectorySetCalls,
@@ -1345,8 +1351,8 @@ suite('CopilotAgentSession', () => {
 		const { session, mockSession } = await createAgentSession(disposables, { workingDirectory });
 		mockSession.workingDirectorySetGate = gate.p;
 
-		const mutation = session.setWorkingDirectory(nextWorkingDirectory);
-		await assert.rejects(() => session.setWorkingDirectory(URI.file('/workspace/other')), /another working directory change is in progress/);
+		const mutation = session.setWorkingDirectory(nextWorkingDirectory, noOpWorkingDirectoryChangeTransaction);
+		await assert.rejects(() => session.setWorkingDirectory(URI.file('/workspace/other'), noOpWorkingDirectoryChangeTransaction), /another working directory change is in progress/);
 		await assert.rejects(() => session.send('hello', undefined, 'turn-direct'), /working directory is changing/);
 		gate.complete();
 		await mutation;
@@ -1378,7 +1384,7 @@ suite('CopilotAgentSession', () => {
 				prepareStarted.complete();
 				await prepareGate.p;
 			},
-			revert: async () => { operationLog.push('revert'); },
+			rollback: async () => { operationLog.push('rollback'); },
 			reconcile: async () => { operationLog.push('reconcile'); },
 		});
 		await prepareStarted.p;
@@ -1400,7 +1406,7 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
-	test('reverts preparation without calling the SDK when preparation fails', async () => {
+	test('rolls back preparation without calling the SDK when preparation fails', async () => {
 		const workingDirectory = URI.file('/workspace/original');
 		const nextWorkingDirectory = URI.file('/workspace/next');
 		const { session, mockSession } = await createAgentSession(disposables, { workingDirectory });
@@ -1408,7 +1414,7 @@ suite('CopilotAgentSession', () => {
 
 		await assert.rejects(() => session.setWorkingDirectory(nextWorkingDirectory, {
 			prepare: async () => { calls.push('prepare'); throw new Error('prepare failed'); },
-			revert: async () => { calls.push('revert'); },
+			rollback: async () => { calls.push('rollback'); },
 			reconcile: async () => { calls.push('reconcile'); },
 		}), /prepare failed/);
 
@@ -1417,21 +1423,21 @@ suite('CopilotAgentSession', () => {
 			rpcCalls: mockSession.workingDirectorySetCalls,
 			workingDirectory: session.workingDirectory?.toString(),
 		}, {
-			calls: ['prepare', 'revert'],
+			calls: ['prepare', 'rollback'],
 			rpcCalls: [],
 			workingDirectory: workingDirectory.toString(),
 		});
 	});
 
-	test('preserves preparation and revert failures without calling the SDK', async () => {
+	test('preserves preparation and rollback failures without calling the SDK', async () => {
 		const workingDirectory = URI.file('/workspace/original');
 		const { session, mockSession } = await createAgentSession(disposables, { workingDirectory });
 
 		await assert.rejects(() => session.setWorkingDirectory(URI.file('/workspace/next'), {
 			prepare: async () => { throw new Error('prepare failed'); },
-			revert: async () => { throw new Error('revert failed'); },
+			rollback: async () => { throw new Error('rollback failed'); },
 			reconcile: async () => { },
-		}), /preparation failed.*prepare failed.*failed to revert.*revert failed/);
+		}), /preparation failed.*prepare failed.*failed to roll back.*rollback failed/);
 
 		assert.deepStrictEqual(mockSession.workingDirectorySetCalls, []);
 	});
@@ -1450,7 +1456,7 @@ suite('CopilotAgentSession', () => {
 				prepareStarted.complete();
 				await prepareGate.p;
 			},
-			revert: async () => { calls.push('revert'); },
+			rollback: async () => { calls.push('rollback'); },
 			reconcile: async () => { calls.push('reconcile'); },
 		});
 		await prepareStarted.p;
@@ -1470,7 +1476,7 @@ suite('CopilotAgentSession', () => {
 			rpcCalls: mockSession.workingDirectorySetCalls,
 			workingDirectory: session.workingDirectory?.toString(),
 		}, {
-			calls: ['prepare', 'revert'],
+			calls: ['prepare', 'rollback'],
 			currentTurnId: turnStarted.turnId,
 			turnStartedId: turnStarted.turnId,
 			rpcCalls: [],
@@ -1478,7 +1484,7 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
-	test('reverts prepared provider state when the single SDK mutation rejects', async () => {
+	test('rolls back prepared provider state when the single SDK mutation rejects', async () => {
 		const workingDirectory = URI.file('/workspace/original');
 		const nextWorkingDirectory = URI.file('/workspace/next');
 		const { session, mockSession } = await createAgentSession(disposables, { workingDirectory });
@@ -1487,7 +1493,7 @@ suite('CopilotAgentSession', () => {
 
 		await assert.rejects(() => session.setWorkingDirectory(nextWorkingDirectory, {
 			prepare: async () => { calls.push('prepare'); },
-			revert: async () => { calls.push('revert'); },
+			rollback: async () => { calls.push('rollback'); },
 			reconcile: async () => { calls.push('reconcile'); },
 		}), /SDK rejected cwd/);
 
@@ -1496,13 +1502,13 @@ suite('CopilotAgentSession', () => {
 			rpcCalls: mockSession.workingDirectorySetCalls,
 			workingDirectory: session.workingDirectory?.toString(),
 		}, {
-			calls: ['prepare', 'revert'],
+			calls: ['prepare', 'rollback'],
 			rpcCalls: [{ workingDirectory: nextWorkingDirectory.fsPath }],
 			workingDirectory: workingDirectory.toString(),
 		});
 	});
 
-	test('preserves SDK rejection and revert failures', async () => {
+	test('preserves SDK rejection and rollback failures', async () => {
 		const workingDirectory = URI.file('/workspace/original');
 		const nextWorkingDirectory = URI.file('/workspace/next');
 		const { session, mockSession } = await createAgentSession(disposables, { workingDirectory });
@@ -1510,9 +1516,9 @@ suite('CopilotAgentSession', () => {
 
 		await assert.rejects(() => session.setWorkingDirectory(nextWorkingDirectory, {
 			prepare: async () => { },
-			revert: async () => { throw new Error('revert failed'); },
+			rollback: async () => { throw new Error('rollback failed'); },
 			reconcile: async () => { },
-		}), /SDK working directory.*SDK rejected cwd.*failed to revert.*revert failed/);
+		}), /SDK working directory.*SDK rejected cwd.*failed to roll back.*rollback failed/);
 
 		assert.deepStrictEqual(mockSession.workingDirectorySetCalls, [{ workingDirectory: nextWorkingDirectory.fsPath }]);
 	});
@@ -1530,7 +1536,7 @@ suite('CopilotAgentSession', () => {
 
 		const mutation = session.setWorkingDirectory(nextWorkingDirectory, {
 			prepare: async () => { },
-			revert: async () => { },
+			rollback: async () => { },
 			reconcile: async authoritativeWorkingDirectory => {
 				reconcileCalls.push(authoritativeWorkingDirectory);
 				reconcileStarted.complete();
@@ -1572,7 +1578,7 @@ suite('CopilotAgentSession', () => {
 
 		await assert.rejects(() => session.setWorkingDirectory(nextWorkingDirectory, {
 			prepare: async () => { },
-			revert: async () => { },
+			rollback: async () => { },
 			reconcile: async () => { throw new Error('reconciliation failed'); },
 		}), /returned working directory.*actual.*runtime alignment failed.*failed to align.*shell alignment failed.*failed to reconcile.*reconciliation failed/);
 
@@ -1597,7 +1603,7 @@ suite('CopilotAgentSession', () => {
 		mockSession.workingDirectoryOptionUpdateSuccess = false;
 
 		await assert.rejects(
-			() => session.setWorkingDirectory(nextWorkingDirectory),
+			() => session.setWorkingDirectory(nextWorkingDirectory, noOpWorkingDirectoryChangeTransaction),
 			/runtime alignment failed.*SDK rejected the runtime working directory update/i
 		);
 
