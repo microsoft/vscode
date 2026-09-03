@@ -3586,7 +3586,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const activeClientScope = this._activeClientService.acquireScope(resourceScheme, workspace?.folders.map(folder => folder.root) ?? []);
 		const initialSessionTemplate = this._resolveAutomationSessionTemplate(sessionType.id, initialAutomationConfiguration);
 		const initialConfigValues = initialAutomationConfiguration
-			? this._normalizeAutomationSessionConfig(initialSessionTemplate?.config)
+			? {
+				...this._derivedNewSessionConfig(workspace),
+				...this._normalizeAutomationSessionConfig(initialSessionTemplate?.config),
+			}
 			: this._initialNewSessionConfig(workspace);
 		let newSession: NewSession;
 		try {
@@ -3872,18 +3875,24 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// here (rather than remembered) since it is derived from a setting, not
 		// a user pick; an empty value is omitted so the default branch naming
 		// is preserved.
+		Object.assign(remembered, this._derivedNewSessionConfig(workspace));
+
+		return Object.keys(remembered).length > 0 ? remembered : undefined;
+	}
+
+	private _derivedNewSessionConfig(workspace: ISessionWorkspace | undefined): Record<string, unknown> {
+		const config: Record<string, unknown> = {};
 		const resource = workspace?.folders[0]?.root;
 		const branchPrefix = this._baseConfigurationService.getValue<string>('git.branchPrefix', { resource });
 		if (typeof branchPrefix === 'string' && branchPrefix.length > 0) {
-			remembered[SessionConfigKey.WorktreeBranchPrefix] = branchPrefix;
+			config[SessionConfigKey.WorktreeBranchPrefix] = branchPrefix;
 		}
 
 		const worktreeIncludeFiles = this._baseConfigurationService.getValue<string[]>('git.worktreeIncludeFiles', { resource });
 		if (Array.isArray(worktreeIncludeFiles) && worktreeIncludeFiles.length > 0) {
-			remembered[SessionConfigKey.WorktreeIncludeFiles] = worktreeIncludeFiles;
+			config[SessionConfigKey.WorktreeIncludeFiles] = worktreeIncludeFiles;
 		}
-
-		return Object.keys(remembered).length > 0 ? remembered : undefined;
+		return config;
 	}
 
 	// -- Dynamic session config ----------------------------------------------

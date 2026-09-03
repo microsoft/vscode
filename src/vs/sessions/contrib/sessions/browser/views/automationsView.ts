@@ -1358,7 +1358,13 @@ registerAction2(class DuplicateAutomationAction extends Action2 {
 					prompt: automation.prompt,
 					schedule: automation.schedule,
 					target: automation.target,
-					sessionTemplate: automation.sessionTemplate,
+					...(automation.sessionTemplate
+						? { sessionTemplate: automation.sessionTemplate }
+						: {
+							modelId: automation.modelId,
+							mode: automation.mode,
+							permissionLevel: automation.permissionLevel,
+						}),
 					enabled: automation.enabled,
 				},
 			});

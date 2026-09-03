@@ -10,8 +10,9 @@ import { Menus } from '../../../browser/menus.js';
 import { ModelPicker, ModelPickerActionViewItem } from './modelPicker.js';
 
 /** Creates the provider/model toolbar shared by New Session configuration surfaces. */
-export function createNewSessionConfigToolbar(container: HTMLElement, instantiationService: IInstantiationService, compactModelPicker: IObservable<boolean>): MenuWorkbenchToolBar {
+export function createNewSessionConfigToolbar(container: HTMLElement, instantiationService: IInstantiationService, compactModelPicker: IObservable<boolean>, ariaLabel?: string): MenuWorkbenchToolBar {
 	return instantiationService.createInstance(MenuWorkbenchToolBar, container, Menus.NewSessionConfig, {
+		ariaLabel,
 		hiddenItemStrategy: HiddenItemStrategy.NoHide,
 		actionViewItemProvider: action => {
 			if (action.id === 'sessions.modelPicker') {
@@ -24,8 +25,9 @@ export function createNewSessionConfigToolbar(container: HTMLElement, instantiat
 }
 
 /** Creates the provider-owned control toolbar shared by New Session configuration surfaces. */
-export function createNewSessionControlToolbar(container: HTMLElement, instantiationService: IInstantiationService): MenuWorkbenchToolBar {
+export function createNewSessionControlToolbar(container: HTMLElement, instantiationService: IInstantiationService, ariaLabel?: string): MenuWorkbenchToolBar {
 	return instantiationService.createInstance(MenuWorkbenchToolBar, container, Menus.NewSessionControl, {
+		ariaLabel,
 		hiddenItemStrategy: HiddenItemStrategy.NoHide,
 	});
 }

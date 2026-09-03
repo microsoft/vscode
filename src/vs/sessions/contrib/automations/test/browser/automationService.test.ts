@@ -144,38 +144,69 @@ suite('AutomationService', () => {
 		assert.deepStrictEqual({
 			schemaVersion: persisted.schemaVersion,
 			template: restored.automations.get()[0].sessionTemplate,
+			modelId: restored.automations.get()[0].modelId,
+			mode: restored.automations.get()[0].mode,
+			permissionLevel: restored.automations.get()[0].permissionLevel,
 		}, {
 			schemaVersion: 4,
 			template: sessionTemplate,
+			modelId: undefined,
+			mode: undefined,
+			permissionLevel: undefined,
 		});
 	});
 
-	test('folds legacy field updates into an existing session template', async () => {
+	test('provider-neutral updates preserve opaque templates without projecting legacy aliases', async () => {
 		const { service } = createService();
+		const sessionTemplate = {
+			modelId: 'old-model',
+			config: { mode: 'ask', autoApprove: 'autopilot', providerOption: true },
+		};
+		const automation = await service.createAutomation({
+			name: 'Daily review',
+			prompt: 'Summarize what changed',
+			schedule: dailySchedule(),
+			target: { ...workspaceTarget(), providerId: 'default-copilot', sessionTypeId: 'copilotcli' },
+			sessionTemplate,
+			modelId: 'stale-model',
+			mode: 'interactive',
+			permissionLevel: 'default',
+		});
+
+		const updated = await service.updateAutomation(automation.id, { name: 'Updated review' });
+
+		assert.deepStrictEqual({
+			sessionTemplate: updated.sessionTemplate,
+			modelId: updated.modelId,
+			mode: updated.mode,
+			permissionLevel: updated.permissionLevel,
+		}, {
+			sessionTemplate,
+			modelId: undefined,
+			mode: undefined,
+			permissionLevel: undefined,
+		});
+	});
+
+	test('rejects legacy alias updates to a canonical session template', async () => {
+		const { service } = createService();
+		const sessionTemplate = {
+			modelId: 'model',
+			config: { mode: 'ask', autoApprove: 'autopilot' },
+		};
 		const automation = await service.createAutomation({
 			name: 'Daily review',
 			prompt: 'Summarize what changed',
 			schedule: dailySchedule(),
 			target: workspaceTarget(),
-			sessionTemplate: {
-				modelId: 'old-model',
-				config: { mode: 'autopilot', autoApprove: 'assisted', providerOption: true },
-			},
-			modelId: 'old-model',
-			mode: 'autopilot',
-			permissionLevel: 'assisted',
+			sessionTemplate,
 		});
 
-		const updated = await service.updateAutomation(automation.id, {
-			modelId: 'new-model',
-			mode: 'agent',
-			permissionLevel: 'autoApprove',
-		});
-
-		assert.deepStrictEqual(updated.sessionTemplate, {
-			modelId: 'new-model',
-			config: { mode: 'autopilot', autoApprove: 'autoApprove', providerOption: true },
-		});
+		await assert.rejects(
+			() => service.updateAutomation(automation.id, { mode: 'autopilot' }),
+			/cannot be updated through legacy configuration aliases/,
+		);
+		assert.deepStrictEqual(service.getAutomation(automation.id)?.sessionTemplate, sessionTemplate);
 	});
 
 	test('an explicit session template replaces stale legacy aliases', async () => {

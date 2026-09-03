@@ -1255,6 +1255,50 @@ suite('AutomationTools', () => {
 		});
 	});
 
+	test('configureAutomation bounds opaque provider configuration', async () => {
+		const tool = new ConfigureAutomationTool(
+			new FakeAutomationService(),
+			new FakeSessionsManagementService(undefined),
+			createConfigurationService(),
+		);
+		let deeplyNested: Record<string, unknown> = {};
+		for (let depth = 0; depth < 40; depth++) {
+			deeplyNested = { nested: deeplyNested };
+		}
+		const target = { kind: 'workspace', folderUri: FOLDER.toString() };
+		const deeplyNestedResult = await invoke(tool, {
+			name: 'Deep configuration',
+			prompt: 'Do not save',
+			schedule: { interval: 'manual' },
+			target,
+			sessionTemplate: { config: deeplyNested },
+		});
+		const oversizedResult = await invoke(tool, {
+			name: 'Large configuration',
+			prompt: 'Do not save',
+			schedule: { interval: 'manual' },
+			target,
+			sessionTemplate: { config: { value: 'x'.repeat(70_000) } },
+		});
+		const tooManyValuesResult = await invoke(tool, {
+			name: 'Wide configuration',
+			prompt: 'Do not save',
+			schedule: { interval: 'manual' },
+			target,
+			sessionTemplate: { config: { values: Array.from({ length: 10_001 }, () => null) } },
+		});
+
+		assert.deepStrictEqual({
+			depthBounded: typeof deeplyNestedResult.toolResultError === 'string' && deeplyNestedResult.toolResultError.includes('exceeds the maximum nesting depth of 32'),
+			sizeBounded: oversizedResult.toolResultError,
+			nodeCountBounded: tooManyValuesResult.toolResultError,
+		}, {
+			depthBounded: true,
+			sizeBounded: '"sessionTemplate.config" must not exceed 65536 characters.',
+			nodeCountBounded: '"sessionTemplate.config" must not contain more than 10000 values.',
+		});
+	});
+
 	test('disabled Automations cannot be listed, configured, run, or deleted', async () => {
 		const automationService = new FakeAutomationService([createAutomation()]);
 		const configurationService = createConfigurationService(false);

@@ -950,6 +950,33 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('duplicate preserves legacy flat configuration when no session template exists', async () => {
+		const { automationDialogService, automationService, instantiationService } = setup();
+		const source = automation({
+			name: 'Legacy review',
+			sessionTemplate: undefined,
+			modelId: 'legacy-model',
+			mode: 'ask',
+			permissionLevel: 'autopilot',
+		});
+		automationService.setAutomations([source]);
+		const command = CommandsRegistry.getCommand('sessions.automations.duplicate');
+		assert.ok(command);
+
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+
+		assert.deepStrictEqual(automationDialogService.lastOptions?.initialValues, {
+			name: 'Legacy review Copy',
+			prompt: source.prompt,
+			schedule: source.schedule,
+			target: source.target,
+			modelId: 'legacy-model',
+			mode: 'ask',
+			permissionLevel: 'autopilot',
+			enabled: source.enabled,
+		});
+	});
+
 	test('duplicate dialog failures are logged and reported to the user', async () => {
 		const { automationDialogService, automationService, dialogService, instantiationService, logService } = setup();
 		const source = automation();

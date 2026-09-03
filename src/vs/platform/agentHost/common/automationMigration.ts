@@ -51,6 +51,10 @@ export function migrateLegacyAutomationSessionConfig(provider: string | undefine
 		&& !KNOWN_MODE_VALUES.has(config[SessionConfigKey.Mode])) {
 		return { ...config, [SessionConfigKey.Mode]: 'autopilot' };
 	}
+	return migrateCombinedAutopilotConfig(config);
+}
+
+function migrateCombinedAutopilotConfig(config: Record<string, unknown>): Record<string, unknown> {
 	if (config[SessionConfigKey.AutoApprove] !== 'autopilot') {
 		return config;
 	}
@@ -78,5 +82,5 @@ export function applyLegacyAutomationSessionConfig(provider: string | undefined,
 	} else {
 		result[SessionConfigKey.AutoApprove] = permissionLevel;
 	}
-	return migrateLegacyAutomationSessionConfig(provider, result);
+	return migrateCombinedAutopilotConfig(result);
 }

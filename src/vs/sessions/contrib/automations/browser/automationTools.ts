@@ -36,6 +36,9 @@ const manualRunLeaderWindowId = 0;
 const automationIntervals: readonly AutomationInterval[] = ['manual', 'hourly', 'daily', 'weekly'];
 const automationIsolationKinds: readonly AutomationWorkspaceIsolation['kind'][] = ['default', 'folder', 'worktree'];
 const chatPermissionLevels: readonly ChatPermissionLevel[] = [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted, ChatPermissionLevel.AutoApprove, ChatPermissionLevel.Autopilot];
+const MAX_SESSION_TEMPLATE_CONFIG_DEPTH = 32;
+const MAX_SESSION_TEMPLATE_CONFIG_NODES = 10_000;
+const MAX_SESSION_TEMPLATE_CONFIG_LENGTH = 65_536;
 
 interface IAutomationToolOutput {
 	readonly id: string;
@@ -910,7 +913,12 @@ function parseSessionTemplate(input: Record<string, unknown>): IAutomationSessio
 		if (!isRecord(rawConfig)) {
 			throw new AutomationToolInputError('"sessionTemplate.config" must be an object or null.');
 		}
-		config = cloneJsonObject(rawConfig, 'sessionTemplate.config');
+		const cloneState = { nodes: 0 };
+		assertJsonComplexity('sessionTemplate.config', cloneState, 0);
+		config = cloneJsonObject(rawConfig, 'sessionTemplate.config', cloneState, 0);
+		if (JSON.stringify(config).length > MAX_SESSION_TEMPLATE_CONFIG_LENGTH) {
+			throw new AutomationToolInputError(`"sessionTemplate.config" must not exceed ${MAX_SESSION_TEMPLATE_CONFIG_LENGTH} characters.`);
+		}
 	}
 	return {
 		...(modelId ? { modelId } : {}),
@@ -919,15 +927,16 @@ function parseSessionTemplate(input: Record<string, unknown>): IAutomationSessio
 	};
 }
 
-function cloneJsonObject(value: Record<string, unknown>, field: string): Record<string, unknown> {
+function cloneJsonObject(value: Record<string, unknown>, field: string, state: { nodes: number }, depth: number): Record<string, unknown> {
 	const prototype = Object.getPrototypeOf(value);
 	if (prototype !== Object.prototype && prototype !== null) {
 		throw new AutomationToolInputError(`"${field}" must contain only JSON values.`);
 	}
-	return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, cloneJsonValue(entry, `${field}.${key}`)]));
+	return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, cloneJsonValue(entry, `${field}.${key}`, state, depth + 1)]));
 }
 
-function cloneJsonValue(value: unknown, field: string): unknown {
+function cloneJsonValue(value: unknown, field: string, state: { nodes: number }, depth: number): unknown {
+	assertJsonComplexity(field, state, depth);
 	if (value === null || typeof value === 'string' || typeof value === 'boolean') {
 		return value;
 	}
@@ -935,12 +944,22 @@ function cloneJsonValue(value: unknown, field: string): unknown {
 		return value;
 	}
 	if (Array.isArray(value)) {
-		return value.map((entry, index) => cloneJsonValue(entry, `${field}[${index}]`));
+		return value.map((entry, index) => cloneJsonValue(entry, `${field}[${index}]`, state, depth + 1));
 	}
 	if (isRecord(value)) {
-		return cloneJsonObject(value, field);
+		return cloneJsonObject(value, field, state, depth);
 	}
 	throw new AutomationToolInputError(`"${field}" must be JSON-safe.`);
+}
+
+function assertJsonComplexity(field: string, state: { nodes: number }, depth: number): void {
+	if (depth > MAX_SESSION_TEMPLATE_CONFIG_DEPTH) {
+		throw new AutomationToolInputError(`"${field}" exceeds the maximum nesting depth of ${MAX_SESSION_TEMPLATE_CONFIG_DEPTH}.`);
+	}
+	state.nodes++;
+	if (state.nodes > MAX_SESSION_TEMPLATE_CONFIG_NODES) {
+		throw new AutomationToolInputError(`"sessionTemplate.config" must not contain more than ${MAX_SESSION_TEMPLATE_CONFIG_NODES} values.`);
+	}
 }
 
 function parseUri(value: string, field: string): URI {

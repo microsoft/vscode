@@ -24,7 +24,7 @@ type AutomationCreateEvent = {
 
 type AutomationCreateClassification = {
 	intervalKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Cadence the user picked (manual/hourly/daily/weekly).' };
-	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Permission level chosen (default/autoApprove/autopilot).' };
+	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Legacy permission-level alias when available (default/assisted/autoApprove/autopilot).' };
 	isolationMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Isolation mode chosen (workspace/worktree).' };
 	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the automation was created in the enabled state.' };
 	owner: 'benvillalobos';
@@ -34,7 +34,7 @@ type AutomationCreateClassification = {
 export function publishAutomationCreated(telemetryService: ITelemetryService, automation: IAutomationDescriptor): void {
 	telemetryService.publicLog2<AutomationCreateEvent, AutomationCreateClassification>('automation.create', {
 		intervalKind: automation.schedule.interval,
-		permissionLevel: getAutomationPermissionLevel(automation),
+		permissionLevel: automation.permissionLevel ?? '',
 		isolationMode: getAutomationIsolationMode(automation),
 		enabled: automation.enabled,
 	});
@@ -98,7 +98,7 @@ type AutomationRunClassification = {
 	intervalKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Cadence of the automation that ran.' };
 	success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the run completed without error.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Wall-clock duration of the run kickoff (recordRunStart through completed/failed).' };
-	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Permission level applied to the run (default/autoApprove/autopilot).' };
+	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Legacy permission-level alias applied to the run when available (default/assisted/autoApprove/autopilot).' };
 	isolationMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Isolation mode applied to the run (workspace/worktree).' };
 	owner: 'benvillalobos';
 	comment: 'Tracks Automations run outcomes and timing.';
@@ -115,7 +115,7 @@ export function publishAutomationRun(telemetryService: ITelemetryService, args: 
 		intervalKind: args.automation.schedule.interval,
 		success: args.success,
 		durationMs: Math.max(0, Math.round(args.durationMs)),
-		permissionLevel: getAutomationPermissionLevel(args.automation),
+		permissionLevel: args.automation.permissionLevel ?? '',
 		isolationMode: getAutomationIsolationMode(args.automation),
 	});
 }
@@ -127,13 +127,6 @@ function getAutomationIsolationMode(automation: IAutomationDescriptor): string {
 	return automation.target.isolation.kind === 'folder'
 		? 'workspace'
 		: automation.target.isolation.kind === 'worktree' ? 'worktree' : '';
-}
-
-const automationPermissionLevels = new Set(['default', 'assisted', 'autoApprove', 'autopilot']);
-
-function getAutomationPermissionLevel(automation: IAutomationDescriptor): string {
-	const value = automation.sessionTemplate?.config?.['autoApprove'] ?? automation.permissionLevel;
-	return typeof value === 'string' && automationPermissionLevels.has(value) ? value : '';
 }
 
 type AutomationRunErrorEvent = {

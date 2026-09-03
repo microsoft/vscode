@@ -8,7 +8,6 @@ import { derived, IObservable, ISettableObservable, observableValue, transaction
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { applyLegacyAutomationSessionConfig } from '../../../../platform/agentHost/common/automationMigration.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IAutomation, IAutomationSnapshotImportResult, IGuardedAutomationSnapshotRemovalResult } from '../../../services/sessions/common/sessionsProvider.js';
@@ -188,10 +187,13 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 			prompt: options.prompt,
 			schedule: options.schedule,
 			target: normalizeAutomationTarget(options.target),
-			...(options.sessionTemplate ? { sessionTemplate: options.sessionTemplate } : {}),
-			modelId: options.modelId,
-			mode: options.mode,
-			permissionLevel: isChatPermissionLevel(options.permissionLevel) ? options.permissionLevel : undefined,
+			...(options.sessionTemplate
+				? { sessionTemplate: options.sessionTemplate }
+				: {
+					modelId: options.modelId,
+					mode: options.mode,
+					permissionLevel: isChatPermissionLevel(options.permissionLevel) ? options.permissionLevel : undefined,
+				}),
 			enabled: options.enabled ?? true,
 			createdAt: nowIso,
 			updatedAt: nowIso,
@@ -685,11 +687,11 @@ function deserializeLegacyAutomation(s: ILegacySerializedAutomation): IAutomatio
 }
 
 function createAutomationFromSerialized(s: ISerializedAutomationBase, target: AutomationTarget): IAutomationDescriptor {
-	// Default to most restrictive if the persisted value is invalid.
-	const permissionLevel = isChatPermissionLevel(s.permissionLevel)
-		? s.permissionLevel
-		: ChatPermissionLevel.Default;
 	const sessionTemplate = deserializeAutomationSessionTemplate(s.sessionTemplate);
+	// Default to most restrictive if the persisted value is invalid.
+	const permissionLevel = !sessionTemplate && isChatPermissionLevel(s.permissionLevel)
+		? s.permissionLevel
+		: sessionTemplate ? undefined : ChatPermissionLevel.Default;
 
 	return Object.freeze({
 		id: s.id,
@@ -698,8 +700,8 @@ function createAutomationFromSerialized(s: ISerializedAutomationBase, target: Au
 		schedule: s.schedule,
 		target,
 		...(sessionTemplate ? { sessionTemplate } : {}),
-		modelId: s.modelId,
-		mode: s.mode,
+		modelId: sessionTemplate ? undefined : s.modelId,
+		mode: sessionTemplate ? undefined : s.mode,
 		permissionLevel,
 		enabled: s.enabled,
 		createdAt: s.createdAt,
@@ -726,10 +728,14 @@ function mergeAutomation(current: IAutomationDescriptor, patch: IUpdateAutomatio
 	const target = patch.target ? normalizeAutomationTarget(patch.target) : current.target;
 	const targetAuthorityChanged = patch.target !== undefined
 		&& (target.providerId !== current.target.providerId || target.sessionTypeId !== current.target.sessionTypeId);
-	const currentModelId = current.sessionTemplate?.modelId ?? current.modelId;
-	const currentMode = readString(current.sessionTemplate?.config?.['mode']) ?? current.mode;
-	const currentPermissionLevel = readString(current.sessionTemplate?.config?.['autoApprove']) ?? current.permissionLevel;
 	const templatePatched = patch.sessionTemplate !== undefined;
+	const legacyConfigurationPatched = patch.modelId !== undefined || patch.mode !== undefined || patch.permissionLevel !== undefined;
+	if (current.sessionTemplate && !templatePatched && !targetAuthorityChanged && legacyConfigurationPatched) {
+		throw new Error('A canonical Automation session template cannot be updated through legacy configuration aliases.');
+	}
+	const currentModelId = current.sessionTemplate ? undefined : current.modelId;
+	const currentMode = current.sessionTemplate ? undefined : current.mode;
+	const currentPermissionLevel = current.sessionTemplate ? undefined : current.permissionLevel;
 	const modelId = templatePatched ? undefined : patch.modelId === null ? undefined : (patch.modelId ?? (targetAuthorityChanged ? undefined : currentModelId));
 	const mode = templatePatched ? undefined : patch.mode === null ? undefined : (patch.mode ?? (targetAuthorityChanged ? undefined : currentMode));
 	const permissionLevel = templatePatched || patch.permissionLevel === null
@@ -739,9 +745,9 @@ function mergeAutomation(current: IAutomationDescriptor, patch: IUpdateAutomatio
 			: targetAuthorityChanged ? ChatPermissionLevel.Default : currentPermissionLevel;
 	const sessionTemplate = patch.sessionTemplate === null
 		? undefined
-		: patch.sessionTemplate ?? (targetAuthorityChanged
+		: patch.sessionTemplate ?? (targetAuthorityChanged || legacyConfigurationPatched
 			? undefined
-			: synchronizeAutomationSessionTemplate(current.sessionTemplate, target.sessionTypeId, modelId, mode, permissionLevel));
+			: current.sessionTemplate);
 	return {
 		...current,
 		name: patch.name ?? current.name,
@@ -754,10 +760,6 @@ function mergeAutomation(current: IAutomationDescriptor, patch: IUpdateAutomatio
 		permissionLevel,
 		enabled: patch.enabled ?? current.enabled,
 	};
-}
-
-function readString(value: unknown): string | undefined {
-	return typeof value === 'string' ? value : undefined;
 }
 
 function normalizeAutomationTarget(target: AutomationTarget): AutomationTarget {
@@ -805,21 +807,6 @@ function deserializeAutomationSessionTemplate(value: unknown): IAutomationSessio
 		...(modelId !== undefined ? { modelId } : {}),
 		...(agent ? { agent } : {}),
 		...(config !== undefined ? { config: { ...config } } : {}),
-	};
-}
-
-function synchronizeAutomationSessionTemplate(template: IAutomationSessionTemplate | undefined, provider: string | undefined, modelId: string | undefined, mode: string | undefined, permissionLevel: string | undefined): IAutomationSessionTemplate | undefined {
-	if (!template) {
-		return undefined;
-	}
-	const config = applyLegacyAutomationSessionConfig(provider, template.config, mode, permissionLevel);
-	if (!modelId && !template.agent && Object.keys(config).length === 0) {
-		return undefined;
-	}
-	return {
-		...(modelId ? { modelId } : {}),
-		...(template.agent ? { agent: template.agent } : {}),
-		...(Object.keys(config).length > 0 ? { config } : {}),
 	};
 }
 

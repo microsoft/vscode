@@ -147,7 +147,7 @@ function createWorkspace(requiresWorkspaceTrust: boolean): ISessionWorkspace {
 	};
 }
 
-function createAutomationDraftService(captureSupported = true) {
+function createAutomationDraftService(captureSupported = true, captureError?: Error, capturePromise?: Promise<IAutomationSessionConfiguration | null | undefined>) {
 	const automationSession = observableValue<ISession | undefined>('automationSession', undefined);
 	const created: Array<{ kind: 'workspace' | 'quickChat'; providerId: string | undefined; sessionTypeId: string; folderUri?: string; sessionTemplate?: IAutomationSessionTemplate }> = [];
 	const discarded: string[] = [];
@@ -172,7 +172,15 @@ function createAutomationDraftService(captureSupported = true) {
 		automationSession,
 		createAutomationSession: (folderUri, options) => createDraft('workspace', options?.providerId, options?.sessionTypeId ?? 'default', folderUri, options?.sessionTemplate),
 		createAutomationQuickChat: options => createDraft('quickChat', options?.providerId, options?.sessionTypeId ?? 'default', undefined, options?.sessionTemplate),
-		getAutomationSessionConfiguration: async session => captureSupported ? sessionConfigurations.get(session.sessionId) : null,
+		getAutomationSessionConfiguration: async session => {
+			if (captureError) {
+				throw captureError;
+			}
+			if (capturePromise) {
+				return capturePromise;
+			}
+			return captureSupported ? sessionConfigurations.get(session.sessionId) : null;
+		},
 		discardAutomationSession: session => {
 			const current = automationSession.get();
 			if (!current || (session && session.sessionId !== current.sessionId)) {
@@ -244,46 +252,6 @@ suite('Automation session draft synchronization', () => {
 			sessionConfiguration: { sessionTemplate },
 		});
 
-		test('distinguishes a valid empty capture from unsupported capture', async () => {
-			const sessionConfiguration: IAutomationSessionConfiguration = {
-				sessionTemplate: {
-					modelId: 'model',
-					config: { mode: 'plan' },
-				},
-				modelId: 'model',
-				mode: 'plan',
-			};
-			const supported = createAutomationDraftService();
-			const supportedSynchronizer = disposables.add(new AutomationSessionDraftSynchronizer(supported.service, async () => true, () => { }));
-			supportedSynchronizer.update({
-				kind: 'workspace',
-				folderUri: URI.parse('file:///workspace'),
-				providerId: 'provider',
-				sessionTypeId: 'type',
-				sessionConfiguration,
-			});
-			await supportedSynchronizer.waitForSync();
-			const supportedSessionId = supported.service.automationSession.get()!.sessionId;
-			supported.sessionConfigurations.set(supportedSessionId, {});
-
-			const unsupported = createAutomationDraftService(false);
-			const unsupportedSynchronizer = disposables.add(new AutomationSessionDraftSynchronizer(unsupported.service, async () => true, () => { }));
-			unsupportedSynchronizer.update({
-				kind: 'workspace',
-				folderUri: URI.parse('file:///workspace'),
-				providerId: 'provider',
-				sessionTypeId: 'type',
-				sessionConfiguration,
-			});
-
-			assert.deepStrictEqual({
-				supported: await supportedSynchronizer.getSessionConfiguration(),
-				unsupported: await unsupportedSynchronizer.getSessionConfiguration(),
-			}, {
-				supported: {},
-				unsupported: sessionConfiguration,
-			});
-		});
 		const captured = await synchronizer.getSessionConfiguration();
 
 		assert.deepStrictEqual({
@@ -297,8 +265,137 @@ suite('Automation session draft synchronization', () => {
 				folderUri: 'file:///workspace',
 				sessionTemplate,
 			}],
-			captured: { sessionTemplate },
+			captured: { kind: 'captured', configuration: { sessionTemplate } },
 		});
+	});
+
+	test('distinguishes a valid empty capture from unsupported capture', async () => {
+		const sessionConfiguration: IAutomationSessionConfiguration = {
+			sessionTemplate: {
+				modelId: 'model',
+				config: { mode: 'plan' },
+			},
+			modelId: 'model',
+			mode: 'plan',
+		};
+		const supported = createAutomationDraftService();
+		const supportedSynchronizer = disposables.add(new AutomationSessionDraftSynchronizer(supported.service, async () => true, () => { }));
+		supportedSynchronizer.update({
+			kind: 'workspace',
+			folderUri: URI.parse('file:///workspace'),
+			providerId: 'provider',
+			sessionTypeId: 'type',
+			sessionConfiguration,
+		});
+		await supportedSynchronizer.waitForSync();
+		const supportedSessionId = supported.service.automationSession.get()!.sessionId;
+		supported.sessionConfigurations.set(supportedSessionId, {});
+
+		const unsupported = createAutomationDraftService(false);
+		const unsupportedSynchronizer = disposables.add(new AutomationSessionDraftSynchronizer(unsupported.service, async () => true, () => { }));
+		unsupportedSynchronizer.update({
+			kind: 'workspace',
+			folderUri: URI.parse('file:///workspace'),
+			providerId: 'provider',
+			sessionTypeId: 'type',
+			sessionConfiguration,
+		});
+
+		assert.deepStrictEqual({
+			supported: await supportedSynchronizer.getSessionConfiguration(),
+			unsupported: await unsupportedSynchronizer.getSessionConfiguration(),
+		}, {
+			supported: { kind: 'captured', configuration: {} },
+			unsupported: { kind: 'preserved', configuration: sessionConfiguration },
+		});
+	});
+
+	test('preserves known configuration when capture fails', async () => {
+		const sessionConfiguration: IAutomationSessionConfiguration = {
+			sessionTemplate: { config: { mode: 'plan' } },
+		};
+		const { service } = createAutomationDraftService(true, new Error('capture failed'));
+		let errorCount = 0;
+		const synchronizer = disposables.add(new AutomationSessionDraftSynchronizer(service, async () => true, () => errorCount++));
+		synchronizer.update({
+			kind: 'workspace',
+			folderUri: URI.parse('file:///workspace'),
+			providerId: 'provider',
+			sessionTypeId: 'type',
+			sessionConfiguration,
+		});
+
+		assert.deepStrictEqual({
+			capture: await synchronizer.getSessionConfiguration(),
+			errorCount,
+		}, {
+			capture: { kind: 'preserved', configuration: sessionConfiguration },
+			errorCount: 1,
+		});
+	});
+
+	test('bounds configuration capture and preserves known configuration on timeout', async () => {
+		const sessionConfiguration: IAutomationSessionConfiguration = {
+			sessionTemplate: { config: { mode: 'plan' } },
+		};
+		const { service } = createAutomationDraftService(true, undefined, new Promise(() => { }));
+		let errorCount = 0;
+		const synchronizer = disposables.add(new AutomationSessionDraftSynchronizer(service, async () => true, () => errorCount++, 1));
+		synchronizer.update({
+			kind: 'workspace',
+			folderUri: URI.parse('file:///workspace'),
+			providerId: 'provider',
+			sessionTypeId: 'type',
+			sessionConfiguration,
+		});
+
+		assert.deepStrictEqual({
+			capture: await synchronizer.getSessionConfiguration(),
+			errorCount,
+		}, {
+			capture: { kind: 'preserved', configuration: sessionConfiguration },
+			errorCount: 1,
+		});
+	});
+
+	test('carries captured configuration when returning to a previous target', async () => {
+		const initialConfiguration: IAutomationSessionConfiguration = {
+			sessionTemplate: { config: { mode: 'interactive' } },
+		};
+		const capturedConfiguration: IAutomationSessionConfiguration = {
+			sessionTemplate: { config: { mode: 'plan', autoApprove: 'assisted' } },
+		};
+		const { service, created, sessionConfigurations } = createAutomationDraftService();
+		const synchronizer = disposables.add(new AutomationSessionDraftSynchronizer(service, async () => true, () => { }));
+		const firstTarget = {
+			kind: 'workspace',
+			folderUri: URI.parse('file:///first'),
+			providerId: 'provider',
+			sessionTypeId: 'type',
+			sessionConfiguration: initialConfiguration,
+		} as const;
+
+		synchronizer.update(firstTarget);
+		await synchronizer.waitForSync();
+		sessionConfigurations.set(service.automationSession.get()!.sessionId, capturedConfiguration);
+		synchronizer.update({ kind: 'workspace', folderUri: URI.parse('file:///second'), providerId: 'provider', sessionTypeId: 'type' });
+		await synchronizer.waitForSync();
+		synchronizer.update(firstTarget);
+		await synchronizer.waitForSync();
+
+		assert.deepStrictEqual(created.map(entry => ({
+			folderUri: entry.folderUri,
+			sessionTemplate: entry.sessionTemplate,
+		})), [{
+			folderUri: 'file:///first',
+			sessionTemplate: initialConfiguration.sessionTemplate,
+		}, {
+			folderUri: 'file:///second',
+			sessionTemplate: undefined,
+		}, {
+			folderUri: 'file:///first',
+			sessionTemplate: capturedConfiguration.sessionTemplate,
+		}]);
 	});
 
 	test('ignores stale workspace validation', async () => {

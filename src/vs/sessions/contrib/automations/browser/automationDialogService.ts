@@ -25,7 +25,7 @@ import { IHostService } from '../../../../workbench/services/host/browser/host.j
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAutomationSessionConfiguration } from '../../../services/sessions/common/sessionsProvider.js';
-import { IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
+import { AutomationSessionConfigurationCapture, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
 
 const $ = DOM.$;
 
@@ -114,7 +114,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 		let cancelButton: IButton | undefined;
 		let revalidate: () => void = () => { };
 		let getPrompt: () => string = () => initial?.prompt ?? '';
-		let getSessionConfiguration = async () => initialSessionConfiguration;
+		let getSessionConfiguration = async (): Promise<AutomationSessionConfigurationCapture> => ({ kind: 'preserved', configuration: initialSessionConfiguration });
 		let getBranch: () => string | undefined = () => initialWorkspaceTarget?.isolation.kind === 'worktree' ? initialWorkspaceTarget.isolation.branch : undefined;
 		let waitForAutomationSessionSync: () => Promise<void> = async () => { };
 		let getFocusableElements: () => readonly HTMLElement[] = () => [];
@@ -220,7 +220,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 			};
 
 			const prompt = getPrompt();
-			const sessionConfiguration = await getSessionConfiguration();
+			const sessionConfigurationCapture = await getSessionConfiguration();
+			const sessionConfiguration = sessionConfigurationCapture.configuration;
 			const sessionTemplate = sessionConfiguration?.sessionTemplate;
 			const branch = getBranch();
 			const target = createAutomationTarget(state, branch);
@@ -234,7 +235,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					prompt,
 					schedule,
 					target,
-					...(sessionConfiguration ? {
+					...(sessionConfigurationCapture.kind === 'captured' ? {
 						sessionTemplate: sessionTemplate ?? null,
 					} : {}),
 					enabled: state.enabled,
@@ -247,7 +248,13 @@ export class AutomationDialogService implements IAutomationDialogService {
 				prompt,
 				schedule,
 				target,
-				sessionTemplate,
+				...(sessionTemplate
+					? { sessionTemplate }
+					: sessionConfiguration ? {
+						...(sessionConfiguration.modelId !== undefined ? { modelId: sessionConfiguration.modelId } : {}),
+						...(sessionConfiguration.mode !== undefined ? { mode: sessionConfiguration.mode } : {}),
+						...(sessionConfiguration.permissionLevel !== undefined ? { permissionLevel: sessionConfiguration.permissionLevel } : {}),
+					} : {}),
 				enabled: state.enabled,
 			};
 			return { kind: 'create', value: create };

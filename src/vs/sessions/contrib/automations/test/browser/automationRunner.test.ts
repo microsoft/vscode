@@ -597,7 +597,6 @@ suite('AutomationRunner', () => {
 			sessionTypeId: undefined,
 			sessionTemplate: undefined,
 			automationConfiguration: {
-				sessionTemplate: undefined,
 				modelId: undefined,
 				mode: 'agent',
 				permissionLevel: 'autopilot',
@@ -638,9 +637,6 @@ suite('AutomationRunner', () => {
 			sessionTemplate,
 			automationConfiguration: {
 				sessionTemplate,
-				modelId: 'model',
-				mode: 'plan',
-				permissionLevel: 'assisted',
 			},
 			isolationMode: undefined,
 			branch: undefined,

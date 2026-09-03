@@ -227,6 +227,12 @@
 	padding: 2px 2px 4px;
 }
 
+.automation-prompt-section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size100);
+}
+
 /*
  * Host for the embedded ChatInputPart. The composer brings its own
  * background, border, and rounded corners (see chat.css
@@ -306,6 +312,12 @@
 	min-width: 0;
 	min-height: 22px;
 	padding-top: var(--vscode-spacing-size40);
+}
+
+.automation-session-configuration.controls-unavailable .automation-session-config,
+.automation-session-configuration.controls-unavailable .automation-session-controls {
+	opacity: 0.5;
+	pointer-events: none;
 }
 
 .automation-session-config,
