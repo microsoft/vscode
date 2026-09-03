@@ -1370,7 +1370,6 @@ export class AgentSideEffects extends Disposable {
 					clientContext,
 					turnStopWatch,
 				});
-				break;
 			}
 			case ActionType.ChatTurnResume: {
 				if (!chatChannel || !resumedTurn) {
@@ -1779,6 +1778,7 @@ export class AgentSideEffects extends Disposable {
 			this._failSessionCreationIfStillCreating(sessionChannel, error);
 			return error;
 		}
+		return undefined;
 	}
 
 	private async _resolveChatAttachments(attachments: readonly MessageAttachment[] | undefined): Promise<readonly MessageAttachment[] | undefined> {

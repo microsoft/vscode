@@ -11867,8 +11867,9 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 
-			const workingDirectory = URI.file('/workspace');
-			const nonGitWorkingDirectory = URI.file('/workspace/non-git');
+			const workingDirectory = URI.from({ scheme: Schemas.inMemory, path: '/testDir' });
+			const nonGitWorkingDirectory = URI.from({ scheme: Schemas.inMemory, path: '/testDir/non-git' });
+			await fileService.createFolder(nonGitWorkingDirectory);
 			const gitService = createNoopGitService();
 			gitService.getRepositoryRoot = async candidate => candidate.toString() === workingDirectory.toString() ? workingDirectory : undefined;
 			gitService.revParse = async () => 'head';
@@ -11969,7 +11970,7 @@ suite('AgentService (node dispatcher)', () => {
 				sessionConfig: {
 					session: 'copilot',
 					model: { id: 'source-model' },
-					workingDirectories: [URI.file('/workspace').toString()],
+					workingDirectories: [workingDirectory.toString()],
 					config: {
 						[SessionConfigKey.AutoApprove]: 'autoApprove',
 						[SessionConfigKey.Permissions]: { allow: ['shell'], deny: ['write'] },

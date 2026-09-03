@@ -1037,7 +1037,7 @@ suite('SessionServerTools', () => {
 		}));
 
 		await assert.rejects(
-			group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, {
+			async () => group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, {
 				relationship: 'independent',
 				workspace: 'https://github.com/github/copilot-agent-runtime',
 				prompt: 'go',
