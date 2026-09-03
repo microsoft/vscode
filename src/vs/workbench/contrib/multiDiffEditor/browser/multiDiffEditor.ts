@@ -28,9 +28,10 @@ import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/com
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
-import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorOptions, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
+import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEditor.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';

@@ -25,6 +25,7 @@ import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../.
 import { IPaneCompositePartService } from '../../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IPaneComposite } from '../../../../../workbench/common/panecomposite.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
+import { IDecorationsService } from '../../../../../workbench/services/decorations/common/decorations.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IEditorWillOpenEvent, IUntypedEditorInput, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -350,9 +351,14 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		applyWorkingSetCalls: [],
 		saveWorkingSetCalls: [],
 		openChangesEditorCalls: [],
-		sessionChangesService: new SessionChangesService(new class extends mock<IEditorService>() { }, instaService, new class extends mock<IAgentWorkbenchLayoutService>() {
+		sessionChangesService: store.add(new SessionChangesService(new class extends mock<IEditorService>() { }, instaService, new class extends mock<IAgentWorkbenchLayoutService>() {
 			override get isSinglePaneLayoutEnabled(): boolean { return options.singlePaneLayoutEnabled ?? false; }
-		}, new class extends mock<IChangesViewService>() { }),
+		}, new class extends mock<IChangesViewService>() {
+			override readonly activeSessionResourceObs = constObservable<URI | undefined>(undefined);
+			override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([]);
+		}, new class extends mock<IDecorationsService>() {
+			override registerDecorationsProvider() { return toDisposable(() => { }); }
+		})),
 		contextKeyService,
 	};
 
