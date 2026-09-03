@@ -26,7 +26,7 @@ import { ILanguageModelsService } from '../../../common/languageModels.js';
 
 /** Everything one agent's {@link AgentSdkSetupState} is decided from. */
 export interface IAgentSdkSetupStateInputs {
-	/** The experimentation flag this whole feature stays behind. */
+	/** The experimentation flag the missing-account routes stay behind. Not the download offer. */
 	readonly allowSignedOutWhenUsable: boolean;
 	/** Whether the user is signed in to GitHub (Copilot models already work). */
 	readonly signedIn: boolean;
@@ -41,28 +41,29 @@ export interface IAgentSdkSetupStateInputs {
 
 /**
  * The whole decision, as one pure function: what the banner renders and what the
- * funnel records are two readings of this one state. A signed-in user already
- * has Copilot models, so there is nothing to offer and BYOK stays undiscoverable
- * for them (a deliberate v1 cut).
+ * funnel records are two readings of this one state.
+ *
+ * The download is offered before any other check, because it applies to
+ * everyone: we fetch a large SDK onto the user's machine, and that is worth
+ * saying whether or not they have models already.
  */
 export function getAgentSdkSetupState(inputs: IAgentSdkSetupStateInputs): AgentSdkSetupState | undefined {
+	if (inputs.download === 'notDownloaded') {
+		// A request we sent covers the gap before the host answers it, so standing
+		// consent (or a click) never flashes the offer it has already satisfied.
+		return inputs.downloadRequested ? undefined : 'downloadOffered';
+	}
+	// Everything below explains a missing account, which is the signed-out
+	// experiment and stays behind its flag.
 	if (!inputs.allowSignedOutWhenUsable || !inputs.entitlementResolved || inputs.signedIn) {
 		return undefined;
 	}
-	// Ahead of the download status because models are the honest end state: an
-	// agent that can enumerate a catalog has an account, whatever a status claims.
 	if (inputs.hasModels) {
 		return 'resolved';
 	}
-	switch (inputs.download) {
-		// A fetch in flight has nothing to ask for — the host drives its own
-		// progress notification while it runs.
-		case 'downloading': return undefined;
-		// A request we sent covers the gap before the host answers it, so standing
-		// consent (or a click) never flashes the offer it has already satisfied.
-		case 'notDownloaded': return inputs.downloadRequested ? undefined : 'downloadOffered';
-		case 'ready': return 'noAccount';
-	}
+	// A fetch in flight has nothing to ask for — the host drives its own
+	// progress notification while it runs.
+	return inputs.download === 'downloading' ? undefined : 'noAccount';
 }
 
 /**

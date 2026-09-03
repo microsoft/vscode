@@ -39,10 +39,17 @@ suite('Agent SDK setup banner', () => {
 			{ name: 'a request the host has not answered yet is not a fresh offer', inputs: { ...BLOCKED_USER, downloadRequested: true }, expected: undefined },
 			{ name: 'SDK on disk reporting no models means no account', inputs: { ...BLOCKED_USER, download: 'ready' }, expected: 'noAccount' },
 			{ name: 'models are the honest end state, whatever the status says', inputs: { ...BLOCKED_USER, download: 'ready', hasModels: true }, expected: 'resolved' },
-			{ name: 'a signed-in user already has Copilot models', inputs: { ...BLOCKED_USER, signedIn: true }, expected: undefined },
-			{ name: 'nothing shows until entitlement settles, since "signed out" is not yet a fact', inputs: { ...BLOCKED_USER, entitlementResolved: false }, expected: undefined },
-			{ name: 'the whole feature stays behind its flag', inputs: { ...BLOCKED_USER, allowSignedOutWhenUsable: false }, expected: undefined },
+			{ name: 'nothing shows until entitlement settles, since "signed out" is not yet a fact', inputs: { ...BLOCKED_USER, download: 'ready', entitlementResolved: false }, expected: undefined },
+			{ name: 'the missing-account explanation stays behind its flag', inputs: { ...BLOCKED_USER, download: 'ready', allowSignedOutWhenUsable: false }, expected: undefined },
+			{ name: 'a signed-in user is never told they have no account', inputs: { ...BLOCKED_USER, download: 'ready', signedIn: true }, expected: undefined },
 			{ name: 'a signed-in user mid-download is still shown nothing', inputs: { ...BLOCKED_USER, signedIn: true, download: 'downloading' }, expected: undefined },
+
+			// The download is offered to everyone: each of these users can work
+			// today, and still has an SDK we are about to fetch onto their machine.
+			{ name: 'a signed-in user is offered the download too', inputs: { ...BLOCKED_USER, signedIn: true }, expected: 'downloadOffered' },
+			{ name: 'having models does not hide the download', inputs: { ...BLOCKED_USER, signedIn: true, hasModels: true }, expected: 'downloadOffered' },
+			{ name: 'the download offer does not wait for entitlement', inputs: { ...BLOCKED_USER, entitlementResolved: false }, expected: 'downloadOffered' },
+			{ name: 'the download offer is not behind the signed-out flag', inputs: { ...BLOCKED_USER, allowSignedOutWhenUsable: false }, expected: 'downloadOffered' },
 		];
 
 		for (const { name, inputs, expected } of cases) {
