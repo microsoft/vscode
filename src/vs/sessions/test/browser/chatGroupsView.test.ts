@@ -1087,7 +1087,9 @@ suite('Sessions - ChatGroupsView', () => {
 
 			remoteConnectionStatus.set({ kind: 'reconnecting' }, undefined);
 			remoteConnectionStatus.set({ kind: 'connected' }, undefined);
-			await timeout(1_000);
+			// Past the delay, so this proves the settled connection suppresses the
+			// banner rather than the threshold simply not having elapsed.
+			await timeout(6_000);
 
 			assert.deepStrictEqual(readBanner(view), { visible: false, message: 'This chat is read-only', action: undefined });
 		});
@@ -1102,9 +1104,9 @@ suite('Sessions - ChatGroupsView', () => {
 			const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'reconnecting' });
 			view.setSession(session, options);
 
-			await timeout(500);
+			await timeout(3_000);
 			chat.status.set(SessionStatus.Error, undefined);
-			await timeout(500);
+			await timeout(3_000);
 
 			assert.deepStrictEqual(readBanner(view), {
 				visible: true,
@@ -1119,16 +1121,16 @@ suite('Sessions - ChatGroupsView', () => {
 			const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
 			const provider = new TestAgentHostProvider();
 			sessionsProvidersService.provider = provider;
-			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'reconnecting', nextAttemptAt: Date.now() + 6_000 });
+			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'reconnecting', nextAttemptAt: Date.now() + 12_000 });
 			view.setSession(session, options);
 			chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
 
-			await timeout(1_000);
+			await timeout(5_500);
 			const banner = readBanner(view);
 			view.element.querySelector<HTMLElement>('.session-readonly-banner-action-link')?.click();
 
 			assert.deepStrictEqual({ banner, reconnectNowCalls: provider.reconnectNowCalls }, {
-				banner: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 5s', action: 'Try Now' },
+				banner: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 7s', action: 'Try Now' },
 				reconnectNowCalls: 1,
 			});
 		});
@@ -1139,18 +1141,44 @@ suite('Sessions - ChatGroupsView', () => {
 			const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
 			const provider = new TestAgentHostProvider();
 			sessionsProvidersService.provider = provider;
-			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'reconnecting', nextAttemptAt: Date.now() + 7_000 });
+			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'reconnecting', nextAttemptAt: Date.now() + 13_000 });
 			view.setSession(session, options);
 			chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
 
-			await timeout(1_000);
+			await timeout(5_500);
 			const beforeTick = readBanner(view);
 			await timeout(1_000);
 
 			assert.deepStrictEqual({ beforeTick, afterTick: readBanner(view) }, {
-				beforeTick: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 6s', action: 'Try Now' },
-				afterTick: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 5s', action: 'Try Now' },
+				beforeTick: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 8s', action: 'Try Now' },
+				afterTick: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 7s', action: 'Try Now' },
 			});
+		});
+	});
+
+	test('stays quiet while a flapping transport keeps healing itself', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+			const provider = new TestAgentHostProvider();
+			sessionsProvidersService.provider = provider;
+			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'connected' });
+			const remoteConnectionStatus = session.remoteConnectionStatus;
+			assert.ok(remoteConnectionStatus);
+			view.setSession(session, options);
+			chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
+
+			// Every outage heals well inside the delay, so none is worth a banner.
+			const banners: boolean[] = [];
+			for (let i = 0; i < 5; i++) {
+				remoteConnectionStatus.set({ kind: 'reconnecting' }, undefined);
+				await timeout(2_100);
+				banners.push(readBanner(view).visible);
+				remoteConnectionStatus.set({ kind: 'connected' }, undefined);
+				await timeout(3_700);
+				banners.push(readBanner(view).visible);
+			}
+
+			assert.deepStrictEqual(banners, [false, false, false, false, false, false, false, false, false, false]);
 		});
 	});
 
@@ -1163,7 +1191,7 @@ suite('Sessions - ChatGroupsView', () => {
 			view.setSession(session, options);
 			chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
 
-			await timeout(1_000);
+			await timeout(6_000);
 
 			assert.deepStrictEqual(readBanner(view), {
 				visible: true,
@@ -1196,7 +1224,7 @@ suite('Sessions - ChatGroupsView', () => {
 			}
 
 			remoteConnectionStatus.set({ kind: 'reconnecting' }, undefined);
-			await timeout(1_000);
+			await timeout(6_000);
 
 			assert.deepStrictEqual({ connectCalls: provider.connectCalls, banner: readBanner(view) }, {
 				connectCalls: 1,
