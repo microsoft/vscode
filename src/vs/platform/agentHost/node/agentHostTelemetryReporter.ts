@@ -24,15 +24,14 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 export type AgentHostUserMessageSentSource = 'direct' | 'queued';
 
 /**
- * Who produced the message that started a turn. Extends the protocol's
- * {@link MessageKind} with `agentMerge`: Agent Merge drives its repair turns
- * with a host-generated message that carries the `systemNotification` origin,
- * and reporting those under their own value keeps automated merge work
- * separable from turns a person or an agent asked for.
+ * The message origin used for telemetry. Extends the protocol's
+ * {@link MessageKind} with host-owned classifications for Agent Merge repair
+ * turns and VS Code sessions marked ephemeral, which telemetry reports as
+ * `inline`.
  */
 export type AgentHostMessageOriginTelemetryKind = MessageKind | 'agentMerge' | 'inline';
 
-/** Classifies the actor that produced a turn's message for telemetry. */
+/** Classifies a turn's message origin, including host-owned session classifications. */
 export function getMessageOriginTelemetryKind(message: Message, isEphemeralSession: boolean): AgentHostMessageOriginTelemetryKind {
 	if (isEphemeralSession) {
 		return 'inline';
@@ -126,7 +125,7 @@ export type IAgentHostUserMessageSentClassification = IAgentHostCopilotSkuClassi
 	initiatorDevDeviceId?: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight'; endpoint: 'SqmMachineId'; comment: 'The initiating VS Code client development device identifier.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the message was sent directly or from the queued-message flow.' };
-	messageOriginKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of actor that produced the message: a user, an agent (session orchestration tools such as create_session/send_message), Agent Merge, a tool, an automation, or a system notification.' };
+	messageOriginKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The message origin: a user, an agent (session orchestration tools such as create_session/send_message), Agent Merge, an inline session (derived from the VS Code ephemeral-session marker), a tool, an automation, or a system notification.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the message was sent to a subagent session.' };
 	turnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of completed turns in the session when the message was sent.' };
 	activeClientId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the first active client for the session, if any.' };
@@ -252,7 +251,7 @@ export type IAgentHostTurnCompletedClassification = IAgentHostEventClassificatio
 	isBYOK: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the selected model is a bring-your-own-key model, when model context is available.' };
 	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool auto-approval level configured for the session at turn start (e.g. default, autoApprove, autopilot).' };
 	interactionMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host interaction mode configured at turn start.' };
-	messageOriginKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of actor that started the turn: a user, an agent (session orchestration tools such as create_session/create_chat/send_message), Agent Merge, a tool, an automation, or a system notification.' };
+	messageOriginKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The message origin that started the turn: a user, an agent (session orchestration tools such as create_session/create_chat/send_message), Agent Merge, an inline session (derived from the VS Code ephemeral-session marker), a tool, an automation, or a system notification.' };
 	errorType: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The structured agent host or provider error type when the turn fails.' };
 	failureStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded stage at which the agent host turn failed.' };
 	isMultiRoot: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the session spans more than one working directory.' };
