@@ -748,14 +748,24 @@ describe('makeUriConfirmationChecker', async () => {
 		expect(result).toBe(ConfirmationCheckResult.Sensitive); // Sensitive
 	});
 
-	test('always checks .vscode/*.json files', async () => {
+	test('always checks sensitive configuration files', async () => {
 		const workspaceFolder = URI.file('/workspace');
 		workspaceService = new TestWorkspaceService([workspaceFolder], []);
 
+		await configService.setNonExtensionConfig('chat.tools.edits.autoApprove', {
+			'**/.mcp.json': true,
+			'**/.npmrc': true,
+		});
+
 		const checker = makeUriConfirmationChecker(configService, workspaceService.getWorkspaceFolder.bind(workspaceService), customInstructionsService);
-		const settingsFile = URI.file('/workspace/.vscode/settings.json');
-		const result = await checker(settingsFile);
-		expect(result).toBe(ConfirmationCheckResult.Sensitive); // Sensitive - always requires confirmation
+		const files = [
+			URI.file('/workspace/.mcp.json'),
+			URI.file('/workspace/.npmrc'),
+			URI.file('/workspace/packages/nested/.npmrc'),
+			URI.file('/workspace/.vscode/settings.json'),
+		];
+		const results = await Promise.all(files.map(file => checker(file)));
+		expect(results).toEqual(files.map(() => ConfirmationCheckResult.Sensitive));
 	});
 
 	test('pattern precedence - later patterns override earlier ones', async () => {

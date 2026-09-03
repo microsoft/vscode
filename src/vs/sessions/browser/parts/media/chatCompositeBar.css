@@ -12,7 +12,7 @@
 	overflow: hidden;
 }
 
-/* Header host: title row + meta row. */
+/* Header host. */
 .chat-composite-bar.session-header-bar {
 	padding: 0 var(--vscode-spacing-size100);
 	box-sizing: border-box;
@@ -29,8 +29,7 @@
 	--chat-tab-max-width: min(200px, 40cqi);
 }
 
-/* Header: a status icon column next to a main column (title row + meta row).
-	Mirrors the sessions list so the meta row aligns under the title. */
+/* Header: a status icon column next to the title row. */
 .chat-composite-bar-header {
 	display: flex;
 	flex-direction: row;
@@ -39,7 +38,7 @@
 	border-bottom: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--session-view-foreground, var(--chat-tab-active-foreground)) 12%, transparent);
 }
 
-/* Main column stacks the title row and the meta row */
+/* Main column hosts the title row. */
 .chat-composite-bar-header-main {
 	display: flex;
 	flex-direction: column;
@@ -75,8 +74,8 @@
 	overflow: hidden;
 	display: flex;
 	align-items: center;
-	font-weight: var(--vscode-agents-fontWeight-regular, 400);
-	font-size: var(--vscode-agents-fontSize-heading3, 13px);
+	font-weight: var(--vscode-fontWeight-regular, 400);
+	font-size: var(--vscode-fontSize-heading3, 13px);
 	color: var(--chat-tab-active-foreground, var(--session-view-foreground));
 	border-radius: var(--vscode-cornerRadius-small);
 	min-height: 22px;
@@ -146,25 +145,10 @@
 	margin-left: auto;
 }
 
-/* Meta row: workspace + contributed changes / pull request buttons.
-	No `overflow: hidden` here — it would clip the meta buttons' focus ring at the
-	row's 22px height. The workspace label self-truncates via its own containers. */
-.chat-composite-bar-meta-row {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	height: 22px;
-	font-size: var(--vscode-agents-fontSize-label1, 12px);
-	font-weight: var(--vscode-agents-fontWeight-regular, 400);
-	line-height: 18px;
-	color: var(--chat-tab-inactive-foreground, var(--session-view-foreground));
-	white-space: nowrap;
-}
-
-/* Session header meta toolbar */
-.chat-composite-bar-meta-toolbar,
-.chat-composite-bar-meta-toolbar .monaco-action-bar,
-.chat-composite-bar-meta-toolbar .actions-container {
+/* Metadata action fixture host. */
+.session-metadata-pill-toolbar,
+.session-metadata-pill-toolbar .monaco-action-bar,
+.session-metadata-pill-toolbar .actions-container {
 	display: inline-flex;
 	align-items: center;
 	height: 100%;
@@ -172,8 +156,8 @@
 	max-width: 100%;
 }
 
-/* Spacing between the contributed meta buttons (e.g. changes · pull request). */
-.chat-composite-bar-meta-toolbar .actions-container {
+/* Spacing between contributed metadata buttons. */
+.session-metadata-pill-toolbar .actions-container {
 	gap: 6px;
 }
 
@@ -199,37 +183,6 @@
 	flex: 0 1 auto;
 	min-width: 0;
 	height: 100%;
-}
-
-.chat-composite-bar-new-chat {
-	display: flex;
-	align-items: center;
-	flex-shrink: 0;
-}
-
-.chat-composite-bar-new-chat.hidden {
-	display: none;
-}
-
-.chat-composite-bar-new-chat .action-item .action-label {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: var(--editor-group-tab-height, var(--vscode-spacing-size240));
-	height: var(--editor-group-tab-height, var(--vscode-spacing-size240));
-	padding: 0;
-	border-radius: var(--vscode-cornerRadius-small);
-	color: var(--chat-tab-inactive-foreground, currentColor);
-}
-
-.chat-composite-bar-new-chat .action-item .action-label:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--chat-tab-active-foreground);
-}
-
-.chat-composite-bar-new-chat .action-item .action-label:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .session-chat-tabs-actions {
@@ -293,6 +246,16 @@
 	user-select: none;
 	flex-shrink: 0;
 	max-width: var(--chat-tab-max-width);
+}
+
+/* Keep keyboard focus on the rounded fill; high-contrast styling is provided by the shared tab styles. */
+.monaco-workbench .session-chat-tabs-bar .chat-composite-bar-tab:focus {
+	outline: none;
+}
+
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-chat-tabs-bar .chat-composite-bar-tab:focus-visible > .chat-composite-bar-tab-fill {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .session-chat-tabs-bar .chat-composite-bar-tab-fill {

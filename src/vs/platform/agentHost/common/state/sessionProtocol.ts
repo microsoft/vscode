@@ -109,6 +109,12 @@ export const AHP_UNSUPPORTED_PROTOCOL_VERSION = -32005 as const;
 export const AHP_CONTENT_NOT_FOUND = -32006 as const;
 export const AHP_AUTH_REQUIRED = -32007 as const;
 
+/**
+ * A named resource does not exist on the host. Not always a failure: a client may address a
+ * session it is about to create.
+ */
+export const AHP_NOT_FOUND = -32008 as const;
+
 // ---- Type guards -----------------------------------------------------------
 
 import type { AhpRequest, AhpNotification, AhpSuccessResponse, ProtocolMessage, JsonRpcErrorResponse } from './protocol/messages.js';

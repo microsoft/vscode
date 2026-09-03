@@ -4,21 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { safeIntl } from '../../../../base/common/date.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { ChatEntitlement, IChatEntitlementService, IQuotaSnapshot, IRateLimitSnapshot } from '../../../services/chat/common/chatEntitlementService.js';
-import { getSelectedModelIdentifier, getSelectedModelMetadata, isSelectedModelCopilot, SELECTED_MODEL_STORAGE_KEY_PREFIX, SELECTED_MODEL_STORAGE_SCOPE } from '../common/chatSelectedModel.js';
-import { ILanguageModelsService, isAutoLanguageModel } from '../common/languageModels.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
+import { isByokModel } from '../common/chatSelectedModel.js';
+import { isAutoLanguageModel } from '../common/languageModels.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationBody, IChatInputNotificationCommandAction, IChatInputNotificationContext, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
 
 const QUOTA_NOTIFICATION_ID = 'copilot.quotaStatus';
 const THRESHOLDS = [50, 75, 90, 95];
 const SWITCH_TO_AUTO_TREATMENT_NAME = 'config.chatQuotaWarningSwitchToAuto';
+
+function isAutoEligible(context: IChatInputNotificationContext): boolean {
+	return !isAutoLanguageModel(context.modelState.currentModel) && context.modelState.models.some(isAutoLanguageModel);
+}
+
+function isQuotaNotificationVisible(context: IChatInputNotificationContext): boolean {
+	return !context.modelState.currentModel || !isByokModel(context.modelState.currentModel.metadata);
+}
 
 /**
  * Persisted flag remembering that the user dismissed the quota-exceeded
@@ -63,8 +70,6 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	constructor(
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@IChatInputNotificationService private readonly _chatInputNotificationService: IChatInputNotificationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService,
 		@ILogService private readonly _logService: ILogService,
@@ -74,18 +79,6 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		this._register(this._chatEntitlementService.onDidChangeQuotaRemaining(() => this._update()));
 		this._register(this._chatEntitlementService.onDidChangeQuotaExceeded(() => this._update()));
 		this._register(this._chatEntitlementService.onDidChangeEntitlement(() => this._update()));
-		this._register(this._languageModelsService.onDidChangeLanguageModels(() => this._refreshActiveQuotaApproachingWarning()));
-
-		// Re-evaluate when the selected model changes (e.g. switching between Copilot and BYOK).
-		// The chatModelId context key is widget-scoped and may not bubble to the global
-		// service, so we also listen for storage changes on the persisted model selection key.
-		const storageListener = this._register(new DisposableStore());
-		this._register(this._storageService.onDidChangeValue(SELECTED_MODEL_STORAGE_SCOPE, undefined, storageListener)(e => {
-			if (e.key.startsWith(SELECTED_MODEL_STORAGE_KEY_PREFIX)) {
-				this._refreshActiveQuotaApproachingWarning();
-				this._update();
-			}
-		}));
 
 		// Remember when the user dismisses the quota-exceeded notification so it
 		// does not re-appear on the next window reload while quota is still
@@ -104,7 +97,10 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		const treatment = await this._assignmentService.getTreatment<boolean>(SWITCH_TO_AUTO_TREATMENT_NAME);
 		this._switchToAutoTreatment = treatment;
 		if (treatment === true) {
-			this._refreshActiveQuotaApproachingWarning();
+			const warning = this._getActiveQuotaWarning();
+			if (warning) {
+				this._showQuotaApproachingWarning(warning);
+			}
 		}
 	}
 
@@ -144,27 +140,16 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _update(): void {
 		const entitlement = this._chatEntitlementService.entitlement;
-		const isCopilot = this._isCopilotModelSelected();
 
-		// Once quota recovers (credit is positively available again) drop any
-		// persisted dismissal so the quota-exceeded notification can show the next
-		// time quota runs out. Done before the Copilot/BYOK gate so a recovery is
-		// always observed, even while a BYOK model is selected. Guarded on a
-		// present snapshot so the transient "no quota data yet" state at
-		// startup/reload does not wipe the flag.
+		// Drop the persisted dismissal once quota recovers, so the banner can show again.
+		// Requires a real snapshot, so "no data yet" at startup doesn't wipe the flag.
 		if (this._isQuotaKnownAvailable()) {
 			this._clearExhaustedDismissed();
 		}
 
-		// Defer new notifications when a BYOK model is selected or the model
-		// selection hasn't loaded yet — quota only applies to Copilot models.
-		// Already-shown notifications stay visible.
-		if (!isCopilot) {
-			return;
-		}
-
 		// Skip quota notifications for PRU users — only show for UBB.
 		const isQuotaNotificationEligible = entitlement === ChatEntitlement.Unknown || this._isUBBEligible();
+		this._clearInactiveQuotaWarning(isQuotaNotificationEligible);
 
 		// Priority 0: Business/Enterprise org-blocked — hasQuota === false is the
 		// authoritative signal that the org has exceeded its budget, regardless of
@@ -174,6 +159,10 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 				this._showManagedPlanBlockedNotification();
 			}
 			return;
+		}
+
+		if (!isQuotaNotificationEligible && this._showingExhausted) {
+			this._hideNotification();
 		}
 
 		// Priority 1: Quota exhausted or fully used
@@ -341,20 +330,39 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			description = localize('quota.approaching.overageEnabled', "Additional budget is enabled to cover extra usage.");
 			actions = [];
 		} else {
-			const autoModelIdentifier = this._getAutoModelIdentifier();
-			const canSwitchToAuto = !!autoModelIdentifier && !this._isAutoModelSelected(autoModelIdentifier);
-			if (canSwitchToAuto) {
+			description = localize('quota.approaching.default', "Set additional budget to cover extra usage.");
+			const manageBudgetAction: IChatInputNotificationCommandAction = {
+				kind: ChatInputNotificationActionKind.Command,
+				label: localize('manageBudget3', "Manage Budget"),
+				commandId: 'workbench.action.chat.manageAdditionalSpend',
+			};
+			actions = [manageBudgetAction];
+			const defaultBody: IChatInputNotificationBody = { description, actions };
+			const autoBody: IChatInputNotificationBody = {
+				description: localize('quota.approaching.switchToAuto', "Switch to Auto to reduce credit usage."),
+				actions: [{ kind: ChatInputNotificationActionKind.SwitchToModel, label: localize('switchToAuto', "Switch to Auto"), matchesModel: isAutoLanguageModel }],
+			};
+			const resolveBody: IChatInputNotification['resolveBody'] = context => {
+				if (!isAutoEligible(context)) {
+					return defaultBody;
+				}
 				this._requestSwitchToAutoTreatment();
-			}
-			if (this._switchToAutoTreatment === true && canSwitchToAuto) {
-				description = localize('quota.approaching.switchToAuto', "Switch to Auto to reduce credit usage.");
-				actions = [{ kind: ChatInputNotificationActionKind.SwitchToModel, label: localize('switchToAuto', "Switch to Auto"), modelIdentifier: autoModelIdentifier }];
-			} else {
-				description = localize('quota.approaching.default', "Set additional budget to cover extra usage.");
-				actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('manageBudget3', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
-			}
+				return this._switchToAutoTreatment === true ? autoBody : defaultBody;
+			};
+
+			this._setQuotaApproachingNotification(warning, description, actions, resolveBody);
+			return;
 		}
 
+		this._setQuotaApproachingNotification(warning, description, actions);
+	}
+
+	private _setQuotaApproachingNotification(
+		warning: { percentUsed: number; threshold: number },
+		description: string,
+		actions: IChatInputNotification['actions'],
+		resolveBody?: IChatInputNotification['resolveBody'],
+	): void {
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
 			telemetryId: `quotaApproaching${warning.threshold}`,
@@ -362,6 +370,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			message: localize('quota.approaching.title', "Credits at {0}%", warning.percentUsed),
 			description,
 			actions,
+			resolveBody,
 			dismissible: true,
 			autoDismissOnMessage: true,
 		});
@@ -429,44 +438,18 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	// --- Helpers ------------------------------------------------------------
 
-	/**
-	 * Returns `true` only when a Copilot model is actively selected.
-	 * Returns `false` if no model is selected yet (widget not initialized)
-	 * or if the selected model is from a non-Copilot vendor (BYOK).
-	 */
-	private _isCopilotModelSelected(): boolean {
-		return isSelectedModelCopilot(this._contextKeyService, this._storageService, this._languageModelsService);
-	}
-
-	private _getAutoModelIdentifier(): string | undefined {
-		for (const identifier of this._languageModelsService.getLanguageModelIds()) {
-			const metadata = this._languageModelsService.lookupLanguageModel(identifier);
-			if (metadata && isAutoLanguageModel({ identifier, metadata })) {
-				return identifier;
-			}
+	private _clearInactiveQuotaWarning(eligible: boolean): void {
+		const warning = this._getActiveQuotaWarning();
+		const snapshot = this._getRelevantSnapshot();
+		if (warning && (!eligible || (snapshot && (snapshot.unlimited || 100 - snapshot.percentRemaining < warning.threshold)))) {
+			this._hideNotification();
 		}
-		return undefined;
 	}
 
-	private _isAutoModelSelected(autoModelIdentifier: string): boolean {
-		const identifier = getSelectedModelIdentifier(this._contextKeyService, this._storageService);
-		const autoModel = this._languageModelsService.lookupLanguageModel(autoModelIdentifier);
-		if (identifier === autoModelIdentifier || identifier === autoModel?.id) {
-			return true;
-		}
-		const metadata = getSelectedModelMetadata(this._contextKeyService, this._storageService, this._languageModelsService);
-		return !!metadata && isAutoLanguageModel({ identifier: identifier ?? '', metadata });
-	}
-
-	private _refreshActiveQuotaApproachingWarning(): void {
+	private _getActiveQuotaWarning(): { percentUsed: number; threshold: number } | undefined {
 		const warning = this._activeQuotaWarning;
-		if (!warning || !this._isCopilotModelSelected()) {
-			return;
-		}
 		const notification = this._chatInputNotificationService.getActiveNotification(candidate => candidate.id === QUOTA_NOTIFICATION_ID);
-		if (notification?.telemetryId === `quotaApproaching${warning.threshold}`) {
-			this._showQuotaApproachingWarning(warning);
-		}
+		return warning && notification?.telemetryId === `quotaApproaching${warning.threshold}` ? warning : undefined;
 	}
 
 	private _isManagedPlan(entitlement: ChatEntitlement): boolean {
@@ -504,7 +487,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	}
 
 	private _setNotification(notification: IChatInputNotification): void {
-		this._chatInputNotificationService.setNotification(notification);
+		this._chatInputNotificationService.setNotification({ ...notification, when: isQuotaNotificationVisible });
 	}
 
 	private _hideNotification(): void {

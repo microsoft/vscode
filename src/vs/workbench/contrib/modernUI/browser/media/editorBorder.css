@@ -31,6 +31,30 @@
 	background-color: var(--vscode-editor-background);
 }
 
+.monaco-workbench.modern-ui.floating-panels.modern-ui-compact > .monaco-grid-view .part.editor:not(.modal-editor-part) {
+	border-radius: 0;
+}
+
+.monaco-workbench.modern-ui.floating-panels.modern-ui-compact > .monaco-grid-view .part.editor.floating-editor-outer-left.floating-editor-outer-top:not(.modal-editor-part) {
+	border-top-left-radius: var(--vscode-cornerRadius-large);
+	--modern-ui-floating-card-corner-top-left-border-image: radial-gradient(circle at bottom right, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
+}
+
+.monaco-workbench.modern-ui.floating-panels.modern-ui-compact > .monaco-grid-view .part.editor.floating-editor-outer-right.floating-editor-outer-top:not(.modal-editor-part) {
+	border-top-right-radius: var(--vscode-cornerRadius-large);
+	--modern-ui-floating-card-corner-top-right-border-image: radial-gradient(circle at bottom left, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
+}
+
+.monaco-workbench.modern-ui.floating-panels.modern-ui-compact > .monaco-grid-view .part.editor.floating-editor-outer-left.floating-editor-outer-bottom:not(.modal-editor-part) {
+	border-bottom-left-radius: var(--vscode-cornerRadius-large);
+	--modern-ui-floating-card-corner-bottom-left-border-image: radial-gradient(circle at top right, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
+}
+
+.monaco-workbench.modern-ui.floating-panels.modern-ui-compact > .monaco-grid-view .part.editor.floating-editor-outer-right.floating-editor-outer-bottom:not(.modal-editor-part) {
+	border-bottom-right-radius: var(--vscode-cornerRadius-large);
+	--modern-ui-floating-card-corner-bottom-right-border-image: radial-gradient(circle at top left, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
+}
+
 /*
  * The editor part paints a separator shadow on its leading edge (via the
  * `::after` overlay) to set itself apart from the side bar. With the explicit
@@ -42,7 +66,21 @@
 
 /* Keep the editor frame aligned with the shared floating-surface border by default. */
 .monaco-workbench.modern-ui.floating-panels .part.editor {
-	border-color: var(--vscode-editor-border, var(--vscode-surface-border, var(--vscode-widget-border, transparent))) !important;
+	border-color: var(--modern-ui-editor-border-color, var(--vscode-editor-border, var(--vscode-surface-border, var(--vscode-widget-border, transparent)))) !important;
+}
+
+.monaco-workbench.modern-ui.floating-panels.modern-ui-compact .part.editor {
+	--modern-ui-floating-card-stroke-color: var(--vscode-editor-border, var(--vscode-surface-border, var(--vscode-widget-border, transparent)));
+	--modern-ui-floating-card-left-border-color: transparent;
+	--modern-ui-floating-card-top-border-color: transparent;
+}
+
+.monaco-workbench.modern-ui.floating-panels.modern-ui-compact .part.editor.floating-editor-outer-left {
+	--modern-ui-floating-card-left-border-color: var(--modern-ui-floating-card-stroke-color);
+}
+
+.monaco-workbench.modern-ui.floating-panels.modern-ui-compact .part.editor.floating-editor-outer-top {
+	--modern-ui-floating-card-top-border-color: var(--modern-ui-floating-card-stroke-color);
 }
 
 .monaco-workbench.modern-ui .chat-view-position-left > .voice-agent-controls-wrapper {

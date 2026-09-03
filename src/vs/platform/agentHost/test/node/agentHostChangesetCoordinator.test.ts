@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
 import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildUncommittedChangesetUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildSubagentSessionUri, SessionStatus, type ISessionFileDiff, type ISessionGitHubState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -68,7 +69,7 @@ suite('ChangesetSessionCoordinator', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const logService = new NullLogService();
 		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
-		const subscriptions = new AgentHostChangesetSubscriptionService();
+		const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
 		const changesets = new TestChangesetService(subscriptions);
 		const monitor = disposables.add(new TestFileMonitorService());
 		const gitService = gitServiceOverride ?? createGitService(root);
@@ -115,6 +116,28 @@ suite('ChangesetSessionCoordinator', () => {
 		// Removing the second root -> back to single-root: operations refresh again (restore).
 		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectoryRemoved, directory: 'file:///repoB' });
 		assert.deepStrictEqual(environment.updateOperationsCalls.slice(afterAdd), [session], 'removing a root refreshes the session operations');
+	});
+
+	test('refreshes the changeset catalogue when Agent Merge enablement changes', () => {
+		const { stateManager, changesets } = createEnvironment();
+		const session = AgentSession.uri('mock', 'agent-merge-catalog').toString();
+		createSession(stateManager, session);
+		stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: {} });
+
+		stateManager.dispatchServerAction(session, {
+			type: ActionType.SessionConfigChanged,
+			config: { mode: 'interactive' },
+		});
+		stateManager.dispatchServerAction(session, {
+			type: ActionType.SessionConfigChanged,
+			config: { [SessionConfigKey.AgentMerge]: { enabled: true } },
+		});
+		stateManager.dispatchServerAction(session, {
+			type: ActionType.SessionConfigChanged,
+			config: { [SessionConfigKey.AgentMerge]: { enabled: false } },
+		});
+
+		assert.deepStrictEqual(changesets.catalogRefreshes, [session, session]);
 	});
 
 	test('refreshes changeset operations when GitHub state changes', () => {
@@ -220,7 +243,7 @@ suite('ChangesetSessionCoordinator', () => {
 		});
 	});
 
-	test('forwards session changeset refresh to the changeset service and drains pending work on materialization', async () => {
+	test('forwards session changeset refresh and recomputes current subscriptions on materialization', async () => {
 		const session = AgentSession.uri('mock', 'session-1').toString();
 		const environment = createEnvironment();
 		createSession(environment.stateManager, session, undefined, false);
@@ -858,7 +881,6 @@ class TestGitStateService extends Disposable implements IAgentHostGitStateServic
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async recordSessionMerge(_sessionKey: string, _commit?: string): Promise<void> { }
 	async attachSessionGitHubPullRequest(_sessionKey: string): Promise<void> { }
-	async attachSessionGitHubReferences(_sessionKey: string, _text: string): Promise<void> { }
 
 	fireGitHubStateChanged(sessionKey: string): void {
 		this._onDidChangeSessionGitHubState.fire(sessionKey);
@@ -944,11 +966,11 @@ class TestChangesetService implements IAgentHostChangesetService {
 	declare readonly _serviceBrand: undefined;
 
 	readonly branchRefreshes: string[] = [];
+	readonly catalogRefreshes: string[] = [];
 	readonly uncommittedRefreshes: string[] = [];
 	readonly sessionRefreshes: string[] = [];
 	readonly workingDirectoryAvailable: string[] = [];
 	readonly recomputed: string[] = [];
-	readonly disposed: string[] = [];
 
 	constructor(private readonly _subscriptions: IAgentHostChangesetSubscriptionService) { }
 
@@ -959,7 +981,9 @@ class TestChangesetService implements IAgentHostChangesetService {
 	restorePersistedStaticChangesets(_sessionUri: string, _metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs { return {}; }
 	persistChangesSummary(_sessionUri: string, _summary: ChangesSummary): void { }
 	isStaticChangesetComputeActive(_changesetUri: string): boolean { return false; }
-	refreshChangesetCatalog(_session: string): void { }
+	refreshChangesetCatalog(session: string): void {
+		this.catalogRefreshes.push(session);
+	}
 	refreshBranchChangeset(session: string): void {
 		this.branchRefreshes.push(session);
 	}
@@ -991,9 +1015,6 @@ class TestChangesetService implements IAgentHostChangesetService {
 					break;
 			}
 		}
-	}
-	onSessionDisposed(session: string): void {
-		this.disposed.push(session);
 	}
 	async computeUncommittedChangeset(session: string): Promise<string> {
 		if (this._subscriptions.getSessionSubscriptions(session).has(URI.parse(buildUncommittedChangesetUri(session)).toString())) {

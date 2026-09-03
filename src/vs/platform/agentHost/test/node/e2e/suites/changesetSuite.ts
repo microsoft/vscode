@@ -30,12 +30,13 @@ import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { AgentMergeConfigKey } from '../../../../common/agentMerge.js';
 import type { ListSessionsResult, ResourceReadResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationResult } from '../../../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, readSessionGitState, ROOT_STATE_URI, type SessionState } from '../../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, readSessionGitState, ROOT_STATE_URI, type SessionState } from '../../../../common/state/sessionState.js';
 import {
 	ChangesetKind,
 	buildBranchChangesetUri,
@@ -44,7 +45,7 @@ import {
 	buildTurnChangesetUri,
 	buildUncommittedChangesetUri,
 } from '../../../../common/changesetUri.js';
-import { createRealSession, dispatchTurn, driveTurnToCompletion, initTestGitRepo, resolveGitHubToken, startBackgroundApprovalLoop } from '../harness/agentHostE2ETestHarness.js';
+import { createRealSession, dispatchTurn, driveChatTurnToCompletion, driveTurnToCompletion, initTestGitRepo, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
@@ -70,6 +71,7 @@ interface IOperationsChangedAction {
 
 interface IObservedOperation {
 	readonly id: string;
+	readonly group?: string;
 	readonly scopes: readonly string[];
 	readonly status: string;
 }
@@ -90,6 +92,15 @@ const CHANGESET_OPERATION_TIMEOUT_MS = 60_000;
 
 export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
+
+	function parityTest(title: string, run: Mocha.AsyncFunc): void {
+		if (context.tier === 'parity') {
+			test(title, function () {
+				this.timeout(180_000);
+				return run.call(this);
+			});
+		}
+	}
 
 	/**
 	 * Client sequence numbers must strictly increase for the lifetime of a
@@ -141,6 +152,21 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 
 	async function createSessionIn(workspace: string, prefix: string): Promise<string> {
 		return createRealSession(context.client, config, `${prefix}-${config.provider}`, createdSessions, URI.file(workspace));
+	}
+
+	async function setRootConfig(values: Readonly<Record<string, unknown>>): Promise<void> {
+		await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+		const clientSeq = nextClientSeq();
+		context.client.dispatch({
+			channel: ROOT_STATE_URI,
+			clientSeq,
+			action: { type: ActionType.RootConfigChanged, config: values },
+		});
+		await context.client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.RootConfigChanged)
+			&& getActionEnvelope(notification).channel === ROOT_STATE_URI
+			&& getActionEnvelope(notification).origin?.clientSeq === clientSeq,
+		);
 	}
 
 	async function createWorktreeSessionIn(workspace: string, prefix: string): Promise<string> {
@@ -789,6 +815,79 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		]);
 	});
 
+	parityTest('a GitHub remote with changes advertises pull request creation', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-pr-ops-');
+		execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/microsoft/vscode.git'], { cwd: workspace });
+		const sessionUri = await createSessionIn(workspace, 'changeset-pr-ops');
+		const uncommittedUri = buildUncommittedChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: uncommittedUri });
+		await driveTurnToCompletion(context.client, sessionUri, 'turn-changeset-pr-materialize', 'Reply exactly "ready".', nextClientSeq());
+		await runBangTurn(sessionUri, 'turn-changeset-pr-ops', writeFileCommand('pull-request.txt', 'PR'), nextClientSeq());
+
+		await waitForOperation(uncommittedUri, 'create-pr');
+		const operations = (await changesetState(uncommittedUri)).operations ?? [];
+		const pullRequestOperations = operations
+			.filter(operation => operation.id.startsWith('create-pr') || operation.id === 'create-draft-pr')
+			.map(operation => ({ id: operation.id, group: operation.group, scopes: operation.scopes }));
+
+		assert.deepStrictEqual(pullRequestOperations, [
+			{ id: 'create-pr', group: 'pull-request', scopes: ['changeset'] },
+			{ id: 'create-pr-auto-merge', group: 'pull-request', scopes: ['changeset'] },
+			{ id: 'create-pr-auto-squash', group: 'pull-request', scopes: ['changeset'] },
+			{ id: 'create-pr-auto-rebase', group: 'pull-request', scopes: ['changeset'] },
+			{ id: 'create-draft-pr', group: 'pull-request_draft', scopes: ['changeset'] },
+		]);
+	});
+
+	parityTest('enabling Agent Merge adds and removes its pull request operation', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-agent-merge-');
+		execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/microsoft/vscode.git'], { cwd: workspace });
+		const sessionUri = await createSessionIn(workspace, 'changeset-agent-merge');
+		const uncommittedUri = buildUncommittedChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: uncommittedUri });
+		await driveTurnToCompletion(context.client, sessionUri, 'turn-changeset-agent-merge-materialize', 'Reply exactly "ready".', nextClientSeq());
+		await runBangTurn(sessionUri, 'turn-changeset-agent-merge', writeFileCommand('agent-merge.txt', 'AGENT MERGE'), nextClientSeq());
+		await waitForOperation(uncommittedUri, 'create-pr');
+
+		try {
+			await setRootConfig({ [AgentMergeConfigKey.Enabled]: true });
+			const operation = await waitForOperation(uncommittedUri, 'create-pr-agent-merge');
+			assert.deepStrictEqual({
+				id: operation.id,
+				group: operation.group,
+				scopes: operation.scopes,
+			}, {
+				id: 'create-pr-agent-merge',
+				group: 'pull-request',
+				scopes: ['changeset'],
+			});
+		} finally {
+			await setRootConfig({ [AgentMergeConfigKey.Enabled]: false });
+		}
+
+		await waitForOperationRemoved(uncommittedUri, 'create-pr-agent-merge');
+	});
+
+	conformanceTest(context, 'a folder session advertises commit on its branch changeset', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-branch-commit-');
+		const sessionUri = await createSessionIn(workspace, 'changeset-branch-commit');
+		const branchUri = buildBranchChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
+		await runBangTurn(sessionUri, 'turn-changeset-branch-commit', writeFileCommand('branch-commit.txt', 'COMMIT'), 1);
+
+		const operation = await waitForOperation(branchUri, 'commit');
+
+		assert.deepStrictEqual({
+			id: operation.id,
+			group: operation.group,
+			scopes: operation.scopes,
+		}, {
+			id: 'commit',
+			group: 'commit',
+			scopes: ['changeset'],
+		});
+	});
+
 	conformanceTest(context, 'a branch with an upstream and no outgoing commits omits sync', async function () {
 		const { workspace } = createRemoteGitWorkspace('ahp-sync-none');
 		const sessionUri = await createSessionIn(workspace, 'sync-none');
@@ -1385,7 +1484,10 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	}, false);
 
 	if (context.tier === 'parity') {
-		(config.supportsMultipleChats && config.streamingFileCreateToolName ? test : test.skip)('session changeset aggregates provider edits from default and peer chats', async function () {
+		const supportsProviderFileEdits = config.streamingFileCreateToolName !== undefined || config.fileOperationStrategy === 'shell';
+		// Skip unstable Codex packaged-Linux shell replay while retaining recording and unaffected platforms.
+		const providerFileEditsEnabled = config.fileOperationStrategy !== 'shell' || context.portableShellToolReplayEnabled;
+		(config.supportsMultipleChats && supportsProviderFileEdits && providerFileEditsEnabled ? test : test.skip)('session changeset aggregates provider edits from default and peer chats', async function () {
 			this.timeout(240_000);
 			const workspace = createGitWorkspace(`ahp-provider-session-changeset-${config.provider}-`);
 			const sessionUri = await createSessionIn(workspace, 'provider-session-changeset');
@@ -1395,41 +1497,27 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			const sessionChangeset = buildSessionChangesetUri(sessionUri);
 			await context.client.call<SubscribeResult>('subscribe', { channel: sessionChangeset });
 
+			const createPrompt = (file: string, contents: string): string => {
+				if (config.fileOperationStrategy !== 'shell') {
+					return `Create ${file} containing exactly ${contents} using your file creation tool; do not run a shell command. Then reply exactly "created".`;
+				}
+				const command = `node -e "require('fs').writeFileSync('${file}','${contents}')"`;
+				return `Run exactly this shell command, with no modifications: \`${command}\`. Then reply exactly "created".`;
+			};
 			await driveTurnToCompletion(
 				context.client,
 				sessionUri,
 				'turn-provider-default-edit',
-				'Create default-provider.txt containing exactly DEFAULT_PROVIDER using your file creation tool; do not run a shell command. Then reply exactly "created".',
+				createPrompt('default-provider.txt', 'DEFAULT_PROVIDER'),
 				1,
 			);
-			const approval = startBackgroundApprovalLoop(context.client, {
-				approvalSeqStart: 100,
-				allow: [{ toolName: config.streamingFileCreateToolName! }],
-			});
-			try {
-				context.client.dispatch({
-					channel: peerUri,
-					clientSeq: 10,
-					action: {
-						type: ActionType.ChatTurnStarted,
-						turnId: 'turn-provider-peer-edit',
-						startedAt: '2025-01-01T00:00:00.000Z',
-						message: {
-							text: 'Create peer-provider.txt containing exactly PEER_PROVIDER using your file creation tool; do not run a shell command. Then reply exactly "created".',
-							origin: { kind: MessageKind.User },
-						},
-					},
-				});
-				await context.client.waitForNotification(n =>
-					isActionNotification(n, 'chat/turnComplete')
-					&& getActionEnvelope(n).channel === peerUri
-					&& (getActionEnvelope(n).action as { readonly turnId: string }).turnId === 'turn-provider-peer-edit',
-					90_000,
-				);
-			} finally {
-				await approval.stop();
-			}
-			assert.deepStrictEqual(approval.errors, []);
+			await driveChatTurnToCompletion(
+				context.client,
+				peerUri,
+				'turn-provider-peer-edit',
+				createPrompt('peer-provider.txt', 'PEER_PROVIDER'),
+				10,
+			);
 
 			const files = await retry(async () => {
 				const state = await changesetState(sessionChangeset);

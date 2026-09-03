@@ -1,0 +1,106 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-system-notification-disclosure {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
+	margin-bottom: var(--vscode-spacing-size160);
+	padding-top: var(--vscode-spacing-size20);
+}
+
+.chat-system-notification-disclosure-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	width: fit-content;
+	color: inherit;
+	cursor: pointer;
+}
+
+.chat-system-notification-disclosure-header.monaco-button {
+	padding: 0;
+}
+
+.chat-system-notification-disclosure-header:hover {
+	color: var(--vscode-foreground);
+}
+
+.chat-system-notification-disclosure-header:hover .chat-collapsible-hover-chevron,
+.chat-system-notification-disclosure-header:focus-visible .chat-collapsible-hover-chevron {
+	opacity: 1;
+}
+
+.chat-system-notification-disclosure-icon.codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.chat-system-notification-disclosure-icon.codicon-check-compact {
+	display: none;
+}
+
+.show-checkmarks .chat-system-notification-disclosure-icon.codicon-check-compact {
+	display: inline-flex;
+}
+
+.chat-system-notification-disclosure-summary > p {
+	margin: 0;
+}
+
+.chat-system-notification-disclosure-body {
+	margin: var(--vscode-spacing-size40) 0 0 var(--vscode-spacing-size120);
+}
+
+.chat-system-notification-disclosure-body > ul {
+	margin: 0;
+	padding-left: var(--vscode-spacing-size160);
+}
+
+.chat-system-notification-disclosure.collapsed > .chat-system-notification-disclosure-body {
+	display: none;
+}
+
+.chat-system-notification-layout {
+	display: flex;
+	align-items: last baseline;
+	gap: var(--vscode-spacing-size80);
+	margin-bottom: var(--vscode-spacing-size160);
+}
+
+.chat-system-notification-layout > .progress-container,
+.chat-system-notification-layout > .chat-system-notification-disclosure {
+	flex: 1;
+	min-width: 0;
+	margin-bottom: 0;
+}
+
+.chat-system-notification-timing {
+	display: flex;
+	flex-shrink: 0;
+	opacity: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-xs);
+	line-height: 16px;
+	transition: opacity 0.1s ease-in-out;
+}
+
+.chat-system-notification-timing.hidden {
+	display: none;
+}
+
+.interactive-item-container.chat-system-notification-response.group-hovered .chat-system-notification-timing,
+.interactive-item-container.chat-system-notification-response:focus-within .chat-system-notification-timing {
+	opacity: 0.7;
+}
+
+.chat-system-notification-timing:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chat-system-notification-timing {
+		transition: none;
+	}
+}

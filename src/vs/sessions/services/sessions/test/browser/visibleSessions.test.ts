@@ -12,7 +12,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { VisibleSession, VisibleSessions } from '../../browser/visibleSessions.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
 
 const stubChat: IChat = {
 	resource: URI.parse('test:///chat'),
@@ -88,7 +88,8 @@ suite('VisibleSessions', () => {
 		const hasGitRepository = observableValue('hasGitRepository', false);
 		const completedStateIcon = observableValue('completedStateIcon', Codicon.gitMerge);
 		const isExternal = observableValue('isExternal', true);
-		const session = { ...stubSession('A'), completedStateIcon, hasGitRepository, isExternal };
+		const remoteConnectionStatus = constObservable<SessionRemoteConnectionStatus>({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown });
+		const session = { ...stubSession('A'), completedStateIcon, hasGitRepository, isExternal, remoteConnectionStatus };
 		const model = createModel();
 		model.setActive(session);
 		const visible = model.activeSession.get();
@@ -101,6 +102,8 @@ suite('VisibleSessions', () => {
 			resourceOverrideCompletedStateIcon: resourceOverride.completedStateIcon === completedStateIcon,
 			visibleExternal: visible?.isExternal === isExternal,
 			resourceOverrideExternal: resourceOverride.isExternal === isExternal,
+			visibleRemoteConnectionStatus: visible?.remoteConnectionStatus === remoteConnectionStatus,
+			resourceOverrideRemoteConnectionStatus: resourceOverride.remoteConnectionStatus === remoteConnectionStatus,
 		}, {
 			visible: true,
 			resourceOverride: true,
@@ -108,6 +111,8 @@ suite('VisibleSessions', () => {
 			resourceOverrideCompletedStateIcon: true,
 			visibleExternal: true,
 			resourceOverrideExternal: true,
+			visibleRemoteConnectionStatus: true,
+			resourceOverrideRemoteConnectionStatus: true,
 		});
 	});
 
@@ -955,7 +960,6 @@ suite('VisibleSession - property forwarding', () => {
 	test('forwards every session property, including optional ones', () => {
 		const session: ISession = {
 			...stubSession('S'),
-			externalChanges: constObservable([]),
 			artifacts: constObservable([]),
 		};
 		const visible = disposables.add(new VisibleSession(session, stubChat));

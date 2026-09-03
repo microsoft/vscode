@@ -68,11 +68,18 @@ const CUSTOMIZATION_OVERVIEW_ITEM: ICustomizationItemConfig = {
 
 export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 	{
-		id: 'sessions.customization.agents',
-		label: localize('agents', "Agents"),
-		icon: agentIcon,
-		section: AICustomizationManagementSection.Agents,
-		modelSection: AICustomizationManagementSection.Agents,
+		id: 'sessions.customization.plugins',
+		label: localize('plugins', "Plugins"),
+		icon: pluginIcon,
+		section: AICustomizationManagementSection.Plugins,
+		isPlugins: true,
+	},
+	{
+		id: 'sessions.customization.mcpServers',
+		label: localize('mcpServers', "MCP Servers"),
+		icon: mcpServerIcon,
+		section: AICustomizationManagementSection.McpServers,
+		isMcp: true,
 	},
 	{
 		id: 'sessions.customization.skills',
@@ -89,25 +96,18 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		modelSection: AICustomizationManagementSection.Instructions,
 	},
 	{
+		id: 'sessions.customization.agents',
+		label: localize('agents', "Agents"),
+		icon: agentIcon,
+		section: AICustomizationManagementSection.Agents,
+		modelSection: AICustomizationManagementSection.Agents,
+	},
+	{
 		id: 'sessions.customization.hooks',
 		label: localize('hooks', "Hooks"),
 		icon: hookIcon,
 		section: AICustomizationManagementSection.Hooks,
 		modelSection: AICustomizationManagementSection.Hooks,
-	},
-	{
-		id: 'sessions.customization.mcpServers',
-		label: localize('mcpServers', "MCP Servers"),
-		icon: mcpServerIcon,
-		section: AICustomizationManagementSection.McpServers,
-		isMcp: true,
-	},
-	{
-		id: 'sessions.customization.plugins',
-		label: localize('plugins', "Plugins"),
-		icon: pluginIcon,
-		section: AICustomizationManagementSection.Plugins,
-		isPlugins: true,
 	},
 	{
 		id: 'sessions.customization.tools',
@@ -125,12 +125,13 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 ];
 
 export async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService): Promise<void> {
-	const sessionResource = sessionsService.activeSession.get()?.resource;
-	if (sessionResource) {
-		harnessService.setActiveSession(sessionResource);
+	const session = sessionsService.activeSession.get();
+	if (session) {
+		harnessService.setActiveSession(session.resource);
 	}
 
 	const input = AICustomizationManagementEditorInput.getOrCreate();
+	input.setTargetLabels(harnessService.getActiveDescriptor().label, session?.workspace.get()?.folders[0]?.name);
 	const pane = await editorService.openEditor(input, { pinned: true });
 	if (pane instanceof AICustomizationManagementEditor) {
 		pane.showWelcomePage();
@@ -138,12 +139,13 @@ export async function openCustomizationOverviewPage(editorService: IEditorServic
 }
 
 async function openCustomizationSectionPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService, section: typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection]): Promise<void> {
-	const sessionResource = sessionsService.activeSession.get()?.resource;
-	if (sessionResource) {
-		harnessService.setActiveSession(sessionResource);
+	const session = sessionsService.activeSession.get();
+	if (session) {
+		harnessService.setActiveSession(session.resource);
 	}
 
 	const input = AICustomizationManagementEditorInput.getOrCreate();
+	input.setTargetLabels(harnessService.getActiveDescriptor().label, session?.workspace.get()?.folders[0]?.name);
 	const pane = await editorService.openEditor(input, { pinned: true });
 	if (pane instanceof AICustomizationManagementEditor) {
 		pane.selectSectionById(section);

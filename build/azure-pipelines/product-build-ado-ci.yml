@@ -1,0 +1,456 @@
+pr:
+  branches:
+    include: ["release/msrc/*"]
+
+trigger: none
+
+parameters:
+  - name: VSCODE_QUALITY
+    displayName: Quality
+    type: string
+    default: insider
+    values:
+      - exploration
+      - insider
+      - stable
+  - name: NPM_REGISTRY
+    displayName: "Custom NPM Registry"
+    type: string
+    default: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
+  - name: CARGO_REGISTRY
+    displayName: "Custom Cargo Registry"
+    type: string
+    default: 'sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/'
+  - name: VSCODE_BUILD_WIN32
+    displayName: "🎯 Windows x64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_WIN32_ARM64
+    displayName: "🎯 Windows arm64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX
+    displayName: "🎯 Linux x64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX_SNAP
+    displayName: "🎯 Linux x64 Snap"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX_ARM64
+    displayName: "🎯 Linux arm64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX_ARMHF
+    displayName: "🎯 Linux armhf"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_ALPINE
+    displayName: "🎯 Alpine x64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_ALPINE_ARM64
+    displayName: "🎯 Alpine arm64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_MACOS
+    displayName: "🎯 macOS x64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_MACOS_ARM64
+    displayName: "🎯 macOS arm64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_MACOS_UNIVERSAL
+    displayName: "🎯 macOS universal"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_WEB
+    displayName: "🎯 Web"
+    type: boolean
+    default: true
+  - name: VSCODE_USE_LEGACY_OSS_NOTICE
+    displayName: "Use legacy OSS Notice"
+    type: boolean
+    default: false
+  # SDK -> VS Code integration: override the Copilot dependencies to a version
+  # already published to the private feed. 'none'/'auto' = normal build.
+  # See microsoft/vscode-engineering specs/sdk-vscode-integration.spec.md.
+  - name: VSCODE_SDK_CANARY_VERSION
+    displayName: "SDK canary: @github/copilot-sdk version ('none' = normal build)"
+    type: string
+    default: none
+  - name: VSCODE_CLI_CANARY_VERSION
+    displayName: "SDK canary: @github/copilot version ('auto' = infer from the SDK)"
+    type: string
+    default: auto
+
+variables:
+  - name: VSCODE_PRIVATE_BUILD
+    value: ${{ ne(variables['Build.Repository.Uri'], 'https://github.com/microsoft/vscode.git') }}
+  # Ensure test suites (e.g. test/smoke) are always compiled, regardless of
+  # any "step on it" fast-path that would otherwise skip this compile step.
+  - name: VSCODE_STEP_ON_IT
+    value: false
+  - name: NPM_REGISTRY
+    value: ${{ parameters.NPM_REGISTRY }}
+  # Normalize the canary sentinels ('none'/'auto') back to empty so the gated
+  # node-modules steps (condition: ne(..., '')) stay a no-op for normal builds
+  # and the override script infers the CLI when it is empty.
+  - name: VSCODE_SDK_CANARY_VERSION
+    ${{ if eq(parameters.VSCODE_SDK_CANARY_VERSION, 'none') }}:
+      value: ""
+    ${{ else }}:
+      value: ${{ parameters.VSCODE_SDK_CANARY_VERSION }}
+  - name: VSCODE_CLI_CANARY_VERSION
+    ${{ if eq(parameters.VSCODE_CLI_CANARY_VERSION, 'auto') }}:
+      value: ""
+    ${{ else }}:
+      value: ${{ parameters.VSCODE_CLI_CANARY_VERSION }}
+  - name: CARGO_REGISTRY
+    value: ${{ parameters.CARGO_REGISTRY }}
+  - name: VSCODE_QUALITY
+    value: ${{ parameters.VSCODE_QUALITY }}
+  - name: VSCODE_BUILD_STAGE_WINDOWS
+    value: ${{ or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
+  - name: VSCODE_BUILD_STAGE_LINUX
+    value: ${{ or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}
+  - name: VSCODE_BUILD_STAGE_ALPINE
+    value: ${{ or(eq(parameters.VSCODE_BUILD_ALPINE, true), eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true)) }}
+  - name: VSCODE_BUILD_STAGE_MACOS
+    value: ${{ or(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}
+  - name: VSCODE_BUILD_STAGE_WEB
+    value: ${{ eq(parameters.VSCODE_BUILD_WEB, true) }}
+  - name: VSCODE_PUBLISH_COUNTER_PREFIX
+    value: $[format('{0:yyyyMMdd}-{1}-{2}', pipeline.startTime, variables['VSCODE_QUALITY'], variables['Build.SourceBranch'])]
+  - name: VSCODE_PUBLISH_COUNTER
+    value: $[counter(variables['VSCODE_PUBLISH_COUNTER_PREFIX'], 1)]
+  # Derived as an explicit lowercase string literal so downloadNotice.ts's
+  # case-sensitive JS check (process.env['VSCODE_OVERWRITE_TPN'] === 'false')
+  # works. ${{ eq(...) }} would emit 'True'/'False' (capitalized) and silently
+  # fail that comparison. Checkbox on => keep legacy notice ('false' = no
+  # overwrite); off => apply CG notice ('true').
+  - name: VSCODE_OVERWRITE_TPN
+    ${{ if eq(parameters.VSCODE_USE_LEGACY_OSS_NOTICE, true) }}:
+      value: 'false'
+    ${{ else }}:
+      value: 'true'
+  - name: VSCODE_BUILD_MACOS_UNIVERSAL
+    value: ${{ and(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
+  - name: VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME
+    value: vscodeesrp
+  - name: PRSS_CDN_URL
+    value: https://vscode.download.prss.microsoft.com/dbazure/download
+  - name: VSCODE_ESRP_SERVICE_CONNECTION_ID
+    value: fe07e6ce-6ffb-4df9-8d27-d129523a3f3e
+  - name: VSCODE_ESRP_TENANT_ID
+    value: 975f013f-7f24-47e8-a7d3-abc4752bf346
+  - name: VSCODE_ESRP_CLIENT_ID
+    value: 4ac7ed59-b5e9-4f66-9c30-8d1afa72d32d
+  - name: ESRP_TENANT_ID
+    value: 975f013f-7f24-47e8-a7d3-abc4752bf346
+  - name: ESRP_CLIENT_ID
+    value: c24324f7-e65f-4c45-8702-ed2d4c35df99
+  - name: AZURE_DOCUMENTDB_ENDPOINT
+    value: https://vscode.documents.azure.com/
+  - name: VSCODE_MIXIN_REPO
+    value: microsoft/vscode-distro
+  - name: skipComponentGovernanceDetection
+    value: false
+  - name: ComponentDetection.Timeout
+    value: 600
+  - name: Codeql.SkipTaskAutoInjection
+    value: true
+  - name: ARTIFACT_PREFIX
+    value: ''
+
+name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
+
+resources:
+  repositories:
+    - repository: 1esPipelines
+      type: git
+      name: 1ESPipelineTemplates/1ESPipelineTemplates
+      ref: refs/tags/release
+    - repository: distro
+      type: github
+      name: microsoft/vscode-distro
+      endpoint: Monaco
+      ref: main
+    - repository: capi
+      type: github
+      name: microsoft/vscode-capi
+      endpoint: Monaco
+      ref: main
+    - repository: encrypt
+      type: github
+      name: microsoft/vscode-encrypt
+      endpoint: Monaco
+      ref: main
+    - repository: vsda
+      type: github
+      name: microsoft/vsda
+      endpoint: Monaco
+      ref: main
+    - repository: regexp
+      type: github
+      name: microsoft/vscode-regexp-languagedetection
+      endpoint: Monaco
+      ref: main
+    - repository: vscode_loc
+      type: github
+      name: microsoft/vscode-extensions-loc
+      endpoint: Monaco
+      ref: main
+
+extends:
+  template: v1/1ES.Unofficial.PipelineTemplate.yml@1esPipelines
+  parameters:
+    sdl:
+      sourceRepositoriesToScan:
+        exclude:
+          - repository: distro
+          - repository: capi
+          - repository: encrypt
+          - repository: vsda
+          - repository: regexp
+          - repository: vscode_loc
+      tsa:
+        enabled: true
+        configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
+      binskim:
+        analyzeTargetGlob: '+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.exe;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.dll;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.node;-:file|$(Agent.BuildDirectory)/VSCode-*/**/resources/**/*.exe;-:file|$(Agent.BuildDirectory)/VSCode-*/**/resources/**/*.node;-:file|$(Build.SourcesDirectory)/.build/**/system-setup/VSCodeSetup*.exe;-:file|$(Build.SourcesDirectory)/.build/**/user-setup/VSCodeUserSetup*.exe'
+      codeql:
+        runSourceLanguagesInSourceAnalysis: true
+        compiled:
+          enabled: false
+          justificationForDisabling: "CodeQL breaks ESRP CodeSign on macOS (ICM #520035761, githubcustomers/microsoft-codeql-support#198)"
+      credscan:
+        suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
+      eslint:
+        enabled: true
+        enableExclusions: true
+        exclusionsFilePath: $(Build.SourcesDirectory)/.eslint-ignore
+      sourceAnalysisPool: 1es-windows-2022-x64
+      createAdoIssuesForJustificationsForDisablement: false
+    containers:
+      ubuntu-2004-arm64:
+        image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
+    settings:
+      networkIsolationPolicy: Permissive,CFSClean,CFSClean2,CFSClean3
+    stages:
+      - stage: Validate
+        displayName: Validate Commit
+        dependsOn: []
+        jobs:
+          - job: CheckCommitTrailer
+            displayName: Check for Trailer
+            pool:
+              name: 1es-ubuntu-22.04-x64
+              os: linux
+            steps:
+              - checkout: self
+                path: s
+                fetchDepth: 0
+                fetchTags: false
+                persistCredentials: true
+                retryCountOnTaskFailure: 3
+                displayName: Checkout microsoft/vscode
+
+              - script: |
+                  set -euo pipefail
+
+                  # Only validate trailers for PR builds
+                  if [ "$(Build.Reason)" != "PullRequest" ]; then
+                    echo "Skipping trailer check for non-PR builds"
+                    exit 0
+                  fi
+
+                  # Azure normally checks out a synthetic merge commit for PR validation. Its first
+                  # parent is the target and its second parent is the PR head. Fall back to finding
+                  # the merge base when the provider checks out the PR head directly.
+                  parent_count=$(git rev-list --parents -n 1 HEAD | awk '{ print NF - 1 }')
+                  if [ "$parent_count" = "2" ]; then
+                    base_sha=$(git rev-parse HEAD^1)
+                    head_sha=$(git rev-parse HEAD^2)
+                  else
+                    target_branch="$(System.PullRequest.TargetBranch)"
+                    target_branch="${target_branch#refs/heads/}"
+                    git fetch origin "$target_branch:refs/remotes/origin/$target_branch"
+                    head_sha=$(git rev-parse HEAD)
+                    base_sha=$(git merge-base "origin/$target_branch" "$head_sha")
+                  fi
+
+                  # Check each commit in the PR for the Msrc-Case-Id trailer
+                  commits=$(git rev-list "$base_sha..$head_sha")
+                  commits_with_trailer=0
+                  total_commits=0
+
+                  for commit in $commits; do
+                    total_commits=$((total_commits + 1))
+
+                    # Extract Msrc-Case-Id trailer values from this commit
+                    mapfile -t trailer_values < <(
+                      git log -1 --pretty='format:%(trailers:key=Msrc-Case-Id,valueonly=true)' "$commit" |
+                        sed '/^[[:space:]]*$/d'
+                    )
+
+                    if [ "${#trailer_values[@]}" -gt 0 ]; then
+                      commits_with_trailer=$((commits_with_trailer + 1))
+
+                      # Validate all trailer values are numeric or N/A
+                      for value in "${trailer_values[@]}"; do
+                        if [[ ! "$value" =~ ^[0-9]+$ && "$value" != "N/A" ]]; then
+                          echo "##vso[task.logissue type=error]Commit $commit has an invalid 'Msrc-Case-Id' trailer value. Expected a number or N/A."
+                          printf "Use a numeric case id or N/A, for example:\n\n    Msrc-Case-Id: 12345\n\n"
+                          exit 1
+                        fi
+                      done
+
+                      echo "Commit $commit has the following 'Msrc-Case-Id' trailers: ${trailer_values[*]}"
+                    fi
+                  done
+
+                  # At least one commit must have the Msrc-Case-Id trailer
+                  if [ "$commits_with_trailer" -lt 1 ]; then
+                    echo "##vso[task.logissue type=error]Expected at least one commit with 'Msrc-Case-Id' trailer, but found $commits_with_trailer out of $total_commits commits with a trailer."
+                    printf "Add a trailer to at least one commit message, for example:\n\n    Msrc-Case-Id: 12345\n\nIf there is no associated case ID, use N/A:\n\n    Msrc-Case-Id: N/A\n\n"
+                    exit 1
+                  fi
+                displayName: Verify Commit and Trailer
+
+      - stage: Quality
+        dependsOn: []
+        pool:
+          name: 1es-ubuntu-22.04-x64
+          os: linux
+        jobs:
+          - template: build/azure-pipelines/product-quality-checks.yml@self
+
+      - stage: Copilot
+        dependsOn: []
+        pool:
+          name: 1es-ubuntu-22.04-x64
+          os: linux
+        jobs:
+          - template: build/azure-pipelines/product-copilot.yml@self
+            parameters:
+              VSCODE_PUBLISH: false
+              VSCODE_RELEASE: false
+
+      - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
+        - stage: Windows
+          dependsOn: []
+          pool:
+            name: 1es-windows-2022-x64
+            os: windows
+          jobs:
+            - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+              - template: build/azure-pipelines/win32/product-build-win32-cli.yml@self
+                parameters:
+                  VSCODE_ARCH: x64
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_CHECK_ONLY: true
+
+            - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_TEST_SUITE: Electron
+            - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_TEST_SUITE: Browser
+            - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_TEST_SUITE: Remote
+
+      - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
+        - stage: Linux
+          dependsOn: []
+          pool:
+            name: 1es-ubuntu-22.04-x64
+            os: linux
+          jobs:
+            - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+              - template: build/azure-pipelines/linux/product-build-linux-cli.yml@self
+                parameters:
+                  VSCODE_ARCH: x64
+                  VSCODE_CHECK_ONLY: true
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+            - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_TEST_SUITE: Electron
+            - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_TEST_SUITE: Browser
+            - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_TEST_SUITE: Remote
+
+      - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
+        - stage: macOS
+          dependsOn: []
+          pool:
+            name: AcesShared
+            os: macOS
+            demands:
+              - ImageOverride -equals ACES_VM_SharedPool_Sequoia
+          variables:
+            BUILDSECMON_OPT_IN: true
+          jobs:
+            - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
+              - template: build/azure-pipelines/darwin/product-build-darwin-cli.yml@self
+                parameters:
+                  VSCODE_ARCH: x64
+                  VSCODE_CHECK_ONLY: true
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_TEST_SUITE: Electron
+            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_TEST_SUITE: Browser
+            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_TEST_SUITE: Remote
+
+
+      - stage: node_modules
+        dependsOn: []
+        jobs:
+          - template: build/azure-pipelines/win32/product-build-win32-node-modules.yml@self
+            parameters:
+              VSCODE_ARCH: arm64
+          - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
+            parameters:
+              NPM_ARCH: arm64
+              VSCODE_ARCH: arm64
+          - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
+            parameters:
+              NPM_ARCH: arm
+              VSCODE_ARCH: armhf
+          - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
+            parameters:
+              VSCODE_ARCH: x64
+          - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
+            parameters:
+              VSCODE_ARCH: arm64
+          - template: build/azure-pipelines/darwin/product-build-darwin-node-modules.yml@self
+            parameters:
+              VSCODE_ARCH: x64
+          - template: build/azure-pipelines/web/product-build-web-node-modules.yml@self

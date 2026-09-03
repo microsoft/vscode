@@ -8,17 +8,18 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { agentHostUri } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, type AgentHostUriMapper, fromAgentHostUri, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
-import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IAgentHostService, type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
+import { IRemoteAgentHostService, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -33,13 +34,18 @@ import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browse
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { IAgentHostConnectProgress } from '../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostAutoConnect, IAgentHostConnectProgress, IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { IGitHubInfo, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { BaseAgentHostSessionsProvider } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
-import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { ReconnectableAgentHostAutomationStore } from '../../agentHost/browser/reconnectableAgentHostAutomationStore.js';
+import type { ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
+import { AutomationStore } from '../../../automations/browser/automationService.js';
+import { providerAutomationStorageKey } from '../../../automations/common/automationStorageService.js';
+import { remoteAgentHostSessionTypeAuthorityPrefix, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { readAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 
 /** Storage key prefix for cached session summaries, per remote address. */
 const CACHED_SESSIONS_STORAGE_PREFIX = 'remoteAgentHost.cachedSessions.v2.';
@@ -67,6 +73,8 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly disconnectOnDemand?: () => Promise<void>;
 	/** Optional progress messages during on-demand connect. */
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
+	/** Optional kind-scoped policy for automatically starting the host. */
+	readonly autoConnect?: IAgentHostAutoConnect;
 	/**
 	 * Set when the host addresses sessions under a scheme that differs from its agent provider, as
 	 * the cloud sandbox host does (sessions are `ahp-session:/<id>` while the agent is `copilot`).
@@ -81,6 +89,14 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly omitHostFromWorkspaceLabel?: boolean;
 	/** Type icon for this host's workspaces. See {@link ISessionWorkspace.typeIcon}. */
 	readonly workspaceTypeIcon?: ThemeIcon;
+	/** See {@link IAgentHostAdapterOptions.defaultChangesetKind}. */
+	readonly defaultChangesetKind?: ChangesetKind.Branch | ChangesetKind.Uncommitted | ChangesetKind.Session;
+	/**
+	 * Marks this connection as one member of a larger user-facing host, so the host filter shows
+	 * one entry for the whole group instead of one per connection. See {@link IAgentHostGroup}.
+	 */
+	readonly hostGroup?: IAgentHostGroup;
+	readonly devContainerWorktreeScope?: string;
 }
 
 /**
@@ -120,9 +136,13 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	readonly icon: ThemeIcon = Codicon.remote;
 	readonly remoteAddress: string;
 	readonly remoteLocationPreferenceKey: string;
+	readonly hostGroup: IAgentHostGroup | undefined;
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly canConnectOnDemand: boolean;
 	readonly onDidReportConnectProgress: Event<IAgentHostConnectProgress> | undefined;
+	readonly autoConnect?: IAgentHostAutoConnect;
+	readonly automations: ISessionsProviderAutomations;
+	private readonly _automationStore: ReconnectableAgentHostAutomationStore;
 
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
 	/**
@@ -133,12 +153,22 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	private readonly _readOnly = observableValue<boolean>('providerReadOnly', false);
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
 
+	protected override get remoteConnectionStatus(): IObservable<RemoteAgentHostConnectionStatus> {
+		return this.connectionStatus;
+	}
+
 	/**
 	 * `true` while we are still resolving and pushing tokens for the host's
 	 * `protectedResources`. Defaults to `true` so that sessions surface as
 	 * loading until the first authentication pass settles.
 	 */
 	private readonly _authenticationPending = observableValue('authenticationPending', true);
+	private readonly _effectiveAuthenticationPending = derived(this, reader => {
+		const status = this._connectionStatus.read(reader);
+		return this._authenticationPending.read(reader)
+			&& !RemoteAgentHostConnectionStatus.isDisconnected(status)
+			&& !RemoteAgentHostConnectionStatus.isIncompatible(status);
+	});
 	private _authenticationSettled = false;
 
 	private readonly _onDidDisconnect = this._register(new Emitter<void>());
@@ -155,12 +185,15 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	private _connection: IAgentConnection | undefined;
 	private _defaultDirectory: string | undefined;
 	private readonly _connectionListeners = this._register(new DisposableStore());
+	private readonly _onDidChangeResourceLabelHomes = Event.any(this._onDidChangeSessionsImmediately, this._onDidChangeDraftSessions.event);
 	private readonly _connectionAuthority: string;
 	private readonly _connectOnDemand: (() => Promise<void>) | undefined;
 	private readonly _disconnectOnDemand: (() => Promise<void>) | undefined;
 	private readonly _sessionSchemeAlias: ISessionSchemeAlias | undefined;
 	private readonly _omitHostFromWorkspaceLabel: boolean;
 	private readonly _workspaceTypeIcon: ThemeIcon | undefined;
+	private readonly _defaultChangesetKind: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind'];
+	private readonly _devContainerWorktreeScope: string | undefined;
 	/** Storage key used for persisting {@link _sessionCache} snapshots. */
 	private readonly _storageKey: string;
 	/**
@@ -171,6 +204,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	 * re-announced so the UI can repopulate.
 	 */
 	private _unpublished = false;
+	private readonly _detachedWorktreeDeletionTasks = new Map<string, Promise<void>>();
 
 
 	constructor(
@@ -178,6 +212,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
+		@IAgentHostService private readonly _localAgentHostService: IAgentHostService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IChatService chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
@@ -201,15 +236,33 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._sessionSchemeAlias = config.sessionSchemeAlias;
 		this._omitHostFromWorkspaceLabel = config.omitHostFromWorkspaceLabel === true;
 		this._workspaceTypeIcon = config.workspaceTypeIcon;
+		this._defaultChangesetKind = config.defaultChangesetKind;
+		this._devContainerWorktreeScope = config.devContainerWorktreeScope;
 		this.onDidReportConnectProgress = config.onDidReportConnectProgress;
+		this.autoConnect = config.autoConnect;
 		this.canConnectOnDemand = !!config.connectOnDemand;
+		this._register(this._onDidChangeResourceLabelHomes(() => this.updateResourceLabelHomes()));
+		this.updateResourceLabelHomes();
 		const displayName = config.name || config.address;
 
 		this.id = `agenthost-${this._connectionAuthority}`;
 		this.label = displayName;
 		this.remoteAddress = config.address;
 		this.remoteLocationPreferenceKey = config.preferenceKey ?? config.address;
+		this.hostGroup = config.hostGroup;
 		this._storageKey = `${CACHED_SESSIONS_STORAGE_PREFIX}${this._connectionAuthority}`;
+		const legacyAutomations = this._register(instantiationService.createInstance(AutomationStore, providerAutomationStorageKey(this.id)));
+		this._automationStore = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, legacyAutomations, {
+			toHost: resource => fromAgentHostUri(resource),
+			fromHost: resource => toAgentHostUri(resource, this._connectionAuthority),
+			resourceSchemeForProvider: provider => this.resourceSchemeForProvider(provider),
+			providerForSessionScheme: scheme => this._sessionSchemeAlias?.backend === scheme ? this._sessionSchemeAlias.ui : scheme,
+			providerForResourceScheme: scheme => {
+				const prefix = remoteAgentHostSessionTypeAuthorityPrefix(this._connectionAuthority);
+				return scheme.startsWith(prefix) ? scheme.slice(prefix.length) : undefined;
+			},
+		}));
+		this.automations = this._automationStore;
 
 		this.browseActions = [{
 			label: localize('folders', "Folders"),
@@ -222,6 +275,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		}];
 
 		this._enableSessionCachePersistence(this._storageKey, `${CACHED_SESSIONS_STORAGE_PREFIX_LEGACY}${this._connectionAuthority}`);
+		this.updateResourceLabelHomes();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('git.branchProtection')) {
 				this._refreshSessionWorkspaces();
@@ -229,11 +283,120 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		}));
 	}
 
+	override async archiveSession(sessionId: string): Promise<void> {
+		if (!this._hasSession(sessionId) || !this.connection) {
+			return;
+		}
+		await this._setDetachedWorktreeArchived(sessionId, true);
+		if (!this._setSessionArchived(sessionId, true)) {
+			await this._setDetachedWorktreeArchived(sessionId, false);
+		}
+	}
+
+	override async unarchiveSession(sessionId: string): Promise<void> {
+		if (!this._hasSession(sessionId) || !this.connection) {
+			return;
+		}
+		await this._setDetachedWorktreeArchived(sessionId, false);
+		if (!this._setSessionArchived(sessionId, false)) {
+			await this._setDetachedWorktreeArchived(sessionId, true);
+		}
+	}
+
+	override async deleteSessions(sessionIds: readonly string[]): Promise<void> {
+		const detachedWorktrees = sessionIds.filter(sessionId => this._hasSession(sessionId)).map(sessionId => ({
+			sessionId,
+			handle: this._getDetachedWorktreeHandle(sessionId),
+		})).filter((entry): entry is { sessionId: string; handle: string } => !!entry.handle);
+		let deleteError: unknown;
+		try {
+			await super.deleteSessions(sessionIds);
+		} catch (error) {
+			deleteError = error;
+		}
+		let worktreeError: unknown;
+		for (const { sessionId, handle } of detachedWorktrees) {
+			if (this._hasSession(sessionId)) {
+				continue;
+			}
+			try {
+				await this._deleteDetachedWorktree(handle);
+			} catch (error) {
+				worktreeError ??= error;
+			}
+		}
+		if (deleteError) {
+			throw deleteError;
+		}
+		if (worktreeError) {
+			throw worktreeError;
+		}
+	}
+
+	protected override _onNewSessionAbandoned(sessionId: string, reason: 'discarded' | 'sendFailed' | 'providerDisposed'): void {
+		if (reason === 'sendFailed') {
+			return;
+		}
+		const handle = this._getDetachedWorktreeHandle(sessionId);
+		if (handle) {
+			void this._deleteDetachedWorktree(handle).catch(error =>
+				this._logService.error(`[${this.id}] Failed to delete detached worktree for abandoned session '${sessionId}'.`, error));
+		}
+	}
+
+	protected override _onBackendSessionRemoved(rawId: string): void {
+		const handle = readAgentDevContainerWorktreeMetadata(this._getSessionMetadataByRawId(rawId))?.handle;
+		if (handle) {
+			void this._deleteDetachedWorktree(handle).catch(error =>
+				this._logService.error(`[${this.id}] Failed to delete detached worktree for remotely removed session '${rawId}'.`, error));
+		}
+	}
+
+	protected override _onHostReconciledSessions(rawIds: ReadonlySet<string>): void {
+		if (!this._devContainerWorktreeScope || !this._localAgentHostService.reconcileDetachedWorktrees) {
+			return;
+		}
+		const activeHandles = [...rawIds]
+			.map(rawId => readAgentDevContainerWorktreeMetadata(this._getSessionMetadataByRawId(rawId))?.handle)
+			.filter((handle): handle is string => !!handle);
+		void this._localAgentHostService.reconcileDetachedWorktrees(this._devContainerWorktreeScope, activeHandles).catch(error =>
+			this._logService.error(`[${this.id}] Failed to reconcile detached Dev Container worktrees.`, error));
+	}
+
+	private _getDetachedWorktreeHandle(sessionId: string): string | undefined {
+		return readAgentDevContainerWorktreeMetadata(this._getSessionMetadata(sessionId))?.handle;
+	}
+
+	private async _setDetachedWorktreeArchived(sessionId: string, archived: boolean): Promise<void> {
+		const handle = this._getDetachedWorktreeHandle(sessionId);
+		if (!handle) {
+			return;
+		}
+		if (!this._localAgentHostService.setDetachedWorktreeArchived) {
+			throw new Error(`Local Agent Host does not support ${archived ? 'archiving' : 'unarchiving'} prepared worktrees.`);
+		}
+		await this._localAgentHostService.setDetachedWorktreeArchived(handle, archived);
+	}
+
+	private _deleteDetachedWorktree(handle: string): Promise<void> {
+		const existing = this._detachedWorktreeDeletionTasks.get(handle);
+		if (existing) {
+			return existing;
+		}
+		if (!this._localAgentHostService.deleteDetachedWorktree) {
+			return Promise.reject(new Error('Local Agent Host does not support deleting prepared worktrees.'));
+		}
+		const task = this._localAgentHostService.deleteDetachedWorktree(handle)
+			.finally(() => this._detachedWorktreeDeletionTasks.delete(handle));
+		this._detachedWorktreeDeletionTasks.set(handle, task);
+		return task;
+	}
+
 	// -- BaseAgentHostSessionsProvider hooks ---------------------------------
 
 	protected get connection(): IAgentConnection | undefined { return this._connection; }
 
-	protected get authenticationPending(): IObservable<boolean> { return this._authenticationPending; }
+	protected get authenticationPending(): IObservable<boolean> { return this._effectiveAuthenticationPending; }
 
 	/**
 	 * Suspend cache-change tracking while sessions are unpublished (offline) so
@@ -249,6 +412,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		const typeIcon = this._workspaceTypeIcon;
 		return {
 			readOnly: this._readOnly,
+			defaultChangesetKind: this._defaultChangesetKind,
 			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
 				const primary = workingDirectories?.[0];
 				const uriForDescription = project?.uri ?? primary;
@@ -275,8 +439,10 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		return toLocalProjectUri(uri, this._connectionAuthority);
 	}
 
-	protected override _diffUriMapper(): (uri: URI) => URI {
-		return uri => toAgentHostUri(uri, this._connectionAuthority);
+	protected override _diffUriMapper(): AgentHostUriMapper {
+		return (uri, options) => options?.contentRef
+			? toAgentHostContentUri(uri, this._connectionAuthority)
+			: toAgentHostUri(uri, this._connectionAuthority);
 	}
 
 	protected override _validateBeforeCreate(_sessionType: ISessionType): void {
@@ -308,6 +474,10 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._remoteAgentHostService.reconnect(this.remoteAddress);
 	}
 
+	reconnectNow(): void {
+		this._remoteAgentHostService.reconnectNow(this.remoteAddress);
+	}
+
 	/**
 	 * Tear down the active connection for this host. Tunnel-backed providers
 	 * use their relay hook; other providers fall back to the generic remote
@@ -321,6 +491,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			await this._disconnectOnDemand();
 			return;
 		}
+		await removeWebSocketRemoteAgentHostEntry(this._configurationService, this.remoteAddress);
 		await this._remoteAgentHostService.removeRemoteAgentHost(this.remoteAddress);
 	}
 
@@ -394,6 +565,11 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		return alias && agentProvider === alias.ui ? alias.backend : agentProvider;
 	}
 
+	protected override _logicalSessionTypeForBackendScheme(backendScheme: string): string {
+		const alias = this._sessionSchemeAlias;
+		return alias && backendScheme === alias.backend ? alias.ui : backendScheme;
+	}
+
 	setAuthenticationPending(pending: boolean): void {
 		// Sticky: once the first authentication pass settles, never surface
 		// pending again. Subsequent re-auths happen silently in the background.
@@ -421,8 +597,10 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._connectionListeners.clear();
 		this._sessionStateSubscriptions.clearAndDisposeAll();
 		this._connection = connection;
+		this._automationStore.setConnection(connection);
 		this._defaultDirectory = defaultDirectory;
 		this._unpublished = false;
+		this.updateResourceLabelHomes();
 
 		this._syncRootState(connection.rootState.value);
 		this._connectionListeners.add(connection.rootState.onDidChange(() => {
@@ -454,7 +632,9 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._sessionStateSubscriptions.clearAndDisposeAll();
 		this._onDidDisconnect.fire();
 		this._connection = undefined;
+		this._automationStore.clearConnection();
 		this._defaultDirectory = undefined;
+		this.updateResourceLabelHomes();
 		this._disposeAllNewSessions();
 		this._syncRootState(undefined);
 
@@ -471,6 +651,27 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		// persisted entries we keep on disk).
 		this._cacheInitialized = false;
 		this._cancelSessionRefreshRetry();
+	}
+
+	private updateResourceLabelHomes(): void {
+		const homes = this.getResourceLabelHomes();
+		for (const session of this.getKnownSessions()) {
+			if (session.sessionType !== 'copilotcli') {
+				continue;
+			}
+			const label = this.getResourceLabelHomeLabel(session);
+			for (const artifact of session.artifacts?.get() ?? []) {
+				if (!artifact.uri) {
+					continue;
+				}
+				const artifactUri = artifact.uri.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(artifact.uri) : artifact.uri;
+				const match = /^(?<home>.*\/session-state\/[^/]+)(?:\/|$)/.exec(artifactUri.path);
+				if (match?.groups?.home) {
+					homes.push({ uri: toAgentHostUri(artifactUri.with({ path: match.groups.home, query: null, fragment: null }), this._connectionAuthority), label });
+				}
+			}
+		}
+		this.updateResourceLabelHomeFormatters(homes, this._labelService, this._onDidChangeResourceLabelHomes);
 	}
 
 	/**

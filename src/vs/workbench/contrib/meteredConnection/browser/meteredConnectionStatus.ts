@@ -56,6 +56,7 @@ export class MeteredConnectionStatusContribution extends Disposable implements I
 			text: '$(radio-tower)',
 			ariaLabel: localize('status.meteredConnection.ariaLabel', "Metered Connection Enabled"),
 			tooltip: localize('status.meteredConnection.tooltip', "Metered connection enabled. Some background network activity, including updates, Settings Sync, inline completions, telemetry, and automatic Git operations, is paused to reduce data usage."),
+			kind: 'warning',
 			command: {
 				id: 'workbench.action.configureMeteredConnection',
 				title: localize('status.meteredConnection.configure', "Configure")

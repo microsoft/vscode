@@ -53,6 +53,7 @@ export class ChatResourceGroupWidget extends Disposable {
 
 	constructor(
 		parts: IChatCollapsibleIODataPart[],
+		private readonly _options: { showImageInHover?: boolean } | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IFileService private readonly _fileService: IFileService,
@@ -107,7 +108,8 @@ export class ChatResourceGroupWidget extends Disposable {
 				variables: entries,
 				limit: 5,
 				contentReferences: undefined,
-				domNode: undefined
+				domNode: undefined,
+				showImageInHover: this._options?.showImageInHover,
 			}
 		));
 

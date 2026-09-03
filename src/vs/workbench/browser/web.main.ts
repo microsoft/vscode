@@ -69,7 +69,7 @@ import { DelayedLogChannel } from '../services/output/common/delayedLogChannel.j
 import { dirname, joinPath } from '../../base/common/resources.js';
 import { IUserDataProfile, IUserDataProfilesService } from '../../platform/userDataProfile/common/userDataProfile.js';
 import { IPolicyService } from '../../platform/policy/common/policy.js';
-import { IManagedSettingsService, INativeManagedSettingsService, NullNativeManagedSettingsService } from '../../platform/policy/common/copilotManagedSettings.js';
+import { IFileManagedSettingsService, IManagedSettingsService, INativeManagedSettingsService, NullFileManagedSettingsService, NullNativeManagedSettingsService } from '../../platform/policy/common/copilotManagedSettings.js';
 import { IRemoteExplorerService } from '../services/remote/common/remoteExplorerService.js';
 import { DisposableTunnel, TunnelProtocol } from '../../platform/tunnel/common/tunnel.js';
 import { ILabelService } from '../../platform/label/common/label.js';
@@ -368,7 +368,10 @@ export class BrowserMain extends Disposable {
 		serviceCollection.set(IDefaultAccountService, defaultAccountService);
 
 		// Policies
-		serviceCollection.set(INativeManagedSettingsService, new NullNativeManagedSettingsService());
+		const nativeManagedSettings = new NullNativeManagedSettingsService();
+		const fileManagedSettings = new NullFileManagedSettingsService();
+		serviceCollection.set(INativeManagedSettingsService, nativeManagedSettings);
+		serviceCollection.set(IFileManagedSettingsService, fileManagedSettings);
 		const policyService = new AccountPolicyService(logService, defaultAccountService);
 		serviceCollection.set(IPolicyService, policyService);
 		serviceCollection.set(IAccountPolicyGateService, policyService);

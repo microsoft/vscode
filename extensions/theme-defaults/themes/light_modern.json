@@ -151,9 +151,10 @@
 		// modern ui
 		"surface.border": "#E5E5E5",
 		"agentsPanel.border": "#E5E5E5",
-		"modernActivityBar.activeBackground": "#e4e6f1",
-		"modernActivityBar.hoverBackground": "#F2F2F2",
-		"modernActivityBar.activeForeground": "#3B3B3B",
-		"modernActivityBar.hoverForeground": "#3B3B3B"
+		"modernActivityBarItem.activeBackground": "#e4e6f1",
+		"modernActivityBarItem.hoverBackground": "#F2F2F2",
+		"modernActivityBarItem.activeForeground": "#3B3B3B",
+		"modernActivityBarItem.hoverForeground": "#3B3B3B",
+		"modernActivityBar.border": "#E5E5E5"
 	},
 }
