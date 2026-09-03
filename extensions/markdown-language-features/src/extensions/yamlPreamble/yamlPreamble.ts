@@ -90,7 +90,8 @@ const frontMatterRule = (state: MarkdownIt.StateBlock, startLine: number, endLin
 };
 
 function renderFrontMatter(tokens: Token[], idx: number, options: MarkdownIt.Options, env: unknown): string {
-	const meta = tokens[idx].meta as IFrontMatterMeta | undefined;
+	const token = tokens[idx];
+	const meta = token.meta as IFrontMatterMeta | undefined;
 	if (!meta) {
 		return '';
 	}
@@ -100,9 +101,9 @@ function renderFrontMatter(tokens: Token[], idx: number, options: MarkdownIt.Opt
 
 	switch (style) {
 		case 'codeBlock':
-			return renderAsCodeBlock(meta, options);
+			return renderAsCodeBlock(token, meta, options);
 		case 'table':
-			return renderAsTable(meta);
+			return renderAsTable(token, meta);
 		case 'hide':
 		default:
 			return '';
@@ -122,7 +123,7 @@ function getFrontMatterRenderStyle(resource: vscode.Uri | undefined): FrontMatte
 	}
 }
 
-function renderAsCodeBlock(meta: IFrontMatterMeta, options: MarkdownIt.Options): string {
+function renderAsCodeBlock(token: Token, meta: IFrontMatterMeta, options: MarkdownIt.Options): string {
 	let highlighted: string | undefined;
 	if (typeof options.highlight === 'function') {
 		try {
@@ -131,17 +132,18 @@ function renderAsCodeBlock(meta: IFrontMatterMeta, options: MarkdownIt.Options):
 			highlighted = undefined;
 		}
 	}
+	const attrs = frontMatterAttributes(token, 'frontmatter hljs');
 	if (highlighted?.startsWith('<pre')) {
-		return highlighted.replace(/^<pre\b/, `<pre ${frontMatterAttributes()}`) + '\n';
+		return restoreDiffMarkers(highlighted.replace(/^<pre\b[^>]*>/, `<pre ${attrs}>`)) + '\n';
 	}
-	const body = highlighted ?? escapeHtml(meta.content);
-	return `<pre class="frontmatter hljs" ${frontMatterAttributes()}><code class="language-yaml">${body}</code></pre>\n`;
+	const body = restoreDiffMarkers(highlighted ?? escapeHtml(meta.content));
+	return `<pre ${attrs}><code class="language-yaml">${body}</code></pre>\n`;
 }
 
-function renderAsTable(meta: IFrontMatterMeta): string {
+function renderAsTable(token: Token, meta: IFrontMatterMeta): string {
 	const result = parseEntries(meta);
 	if (result.error !== undefined) {
-		return renderError(result.error);
+		return renderError(token, result.error);
 	}
 	if (!result.entries.length) {
 		return '';
@@ -149,17 +151,33 @@ function renderAsTable(meta: IFrontMatterMeta): string {
 	const rows = result.entries.map(([key, value]) =>
 		`<tr><th>${escapeHtml(key)}</th><td>${formatValueHtml(value)}</td></tr>`
 	).join('');
-	return `<table class="frontmatter" ${frontMatterAttributes()}><tbody>${rows}</tbody></table>\n`;
+	return `<table ${frontMatterAttributes(token, 'frontmatter')}><tbody>${rows}</tbody></table>\n`;
 }
 
-function renderError(message: string): string {
+function renderError(token: Token, message: string): string {
 	const label = vscode.l10n.t('Failed to parse frontmatter');
-	return `<div class="frontmatter-error" role="alert" ${frontMatterAttributes()}><strong>${escapeHtml(label)}</strong><pre>${escapeHtml(message)}</pre></div>\n`;
+	return `<div ${frontMatterAttributes(token, 'frontmatter-error')} role="alert"><strong>${escapeHtml(label)}</strong><pre>${escapeHtml(message)}</pre></div>\n`;
 }
 
-function frontMatterAttributes(): string {
+function frontMatterAttributes(token: Token, extraClasses: string): string {
 	const label = escapeHtml(vscode.l10n.t('Frontmatter'));
-	return `title="${label}" data-vscode-context='${escapeHtml(FRONT_MATTER_CONTEXT)}'`;
+	const classes = [extraClasses];
+	const otherAttrs: string[] = [];
+
+	if (token.attrs) {
+		for (const [attrName, attrValue] of token.attrs) {
+			if (attrName === 'class') {
+				classes.push(attrValue);
+			} else {
+				otherAttrs.push(`${attrName}="${escapeHtml(attrValue)}"`);
+			}
+		}
+	}
+
+	const classAttr = `class="${escapeHtml(classes.filter(Boolean).join(' '))}"`;
+	const baseAttrs = `title="${label}" data-vscode-context='${escapeHtml(FRONT_MATTER_CONTEXT)}'`;
+	const extraAttrs = otherAttrs.length ? ' ' + otherAttrs.join(' ') : '';
+	return `${classAttr} ${baseAttrs}${extraAttrs}`;
 }
 
 interface IParseResult {
@@ -193,9 +211,13 @@ function formatValueHtml(value: unknown): string {
 		return `<ul>${value.map(v => `<li>${formatValueHtml(v)}</li>`).join('')}</ul>`;
 	}
 	if (typeof value === 'object') {
-		return `<code>${escapeHtml(yaml.stringify(value).trimEnd())}</code>`;
+		return `<code>${restoreDiffMarkers(escapeHtml(yaml.stringify(value).trimEnd()))}</code>`;
 	}
-	return escapeHtml(formatScalar(value));
+	return restoreDiffMarkers(escapeHtml(formatScalar(value)));
+}
+
+function restoreDiffMarkers(html: string): string {
+	return html.replace(/&lt;span data-diff-(start|end)=&quot;(\d+)&quot;&gt;&lt;\/span&gt;/g, '<span data-diff-$1="$2"></span>');
 }
 
 function formatScalar(value: unknown): string {
