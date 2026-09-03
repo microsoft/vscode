@@ -576,7 +576,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionsList_LightweightNewButton: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The Sessions header has an outlined New button whose keyboard shortcut is plain inline text without a nested keycap or chip background. The shortcut shares the New label typography and uses compact platform-native chord notation.'],
+		expectedVisualDescriptions: ['The Sessions header has an outlined New button whose keyboard shortcut is plain inline text without a nested keycap or chip background. The shortcut uses a quieter type role than New and compact platform-native chord notation.'],
 		render: ctx => renderSessionsList(ctx, {
 			sessions: [],
 			newSessionButtonStyle: 'lightweight',
@@ -585,7 +585,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionsList_LightweightNewButtonWithKeybindingBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The Sessions header has an outlined New button whose keyboard shortcut uses the same typography as the label and sits on a subtle grouped keybinding background.'],
+		expectedVisualDescriptions: ['The Sessions header has an outlined New button whose keyboard shortcut uses a quieter type role than New and sits on a subtle grouped keybinding background.'],
 		render: ctx => renderSessionsList(ctx, {
 			sessions: [],
 			newSessionButtonTreatment: 'lightweightWithKeybindingBackground',

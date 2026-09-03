@@ -63,7 +63,7 @@ unscoped so the widget renders identically wherever it is mounted. */
 	display: inline-flex;
 	align-items: center;
 	font-family: inherit;
-	font-size: inherit;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	line-height: inherit;
 	padding: 0;
 	border: 0;
