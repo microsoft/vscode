@@ -19,6 +19,7 @@ import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicator
 import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
+import { computeChatModelIsIdle } from '../../../common/model/chatModelIdle.js';
 import { IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
 import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
 import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
@@ -150,38 +151,73 @@ suite('ChatWidget', () => {
 	test('tracks unvisited completions and needs-input precedence', () => {
 		const active = computeChatSessionStateIndicatorState({
 			requestNeedsInput: false,
-			requestInProgress: true,
-			containsFocus: false,
+			isIdle: false,
+			containsFocus: true,
 			requestWasActive: false,
+			requestBecameActive: true,
 			hasUnvisitedCompletion: false,
 		});
-		const completed = computeChatSessionStateIndicatorState({
+		const completedWhileWindowBlurred = computeChatSessionStateIndicatorState({
 			requestNeedsInput: false,
-			requestInProgress: false,
+			isIdle: true,
 			containsFocus: false,
 			requestWasActive: active.requestActive,
+			requestBecameActive: false,
 			hasUnvisitedCompletion: active.hasUnvisitedCompletion,
 		});
-		const visited = computeChatSessionStateIndicatorState({
+		const refocused = computeChatSessionStateIndicatorState({
 			requestNeedsInput: false,
-			requestInProgress: false,
+			isIdle: true,
 			containsFocus: true,
-			requestWasActive: completed.requestActive,
-			hasUnvisitedCompletion: completed.hasUnvisitedCompletion,
+			requestWasActive: completedWhileWindowBlurred.requestActive,
+			requestBecameActive: false,
+			hasUnvisitedCompletion: completedWhileWindowBlurred.hasUnvisitedCompletion,
 		});
 		const needsInput = computeChatSessionStateIndicatorState({
 			requestNeedsInput: true,
-			requestInProgress: true,
+			isIdle: false,
 			containsFocus: true,
-			requestWasActive: visited.requestActive,
-			hasUnvisitedCompletion: visited.hasUnvisitedCompletion,
+			requestWasActive: refocused.requestActive,
+			requestBecameActive: false,
+			hasUnvisitedCompletion: refocused.hasUnvisitedCompletion,
+		});
+		const fastUnfocusedCompletion = computeChatSessionStateIndicatorState({
+			requestNeedsInput: false,
+			isIdle: true,
+			containsFocus: false,
+			requestWasActive: false,
+			requestBecameActive: true,
+			hasUnvisitedCompletion: false,
 		});
 
-		assert.deepStrictEqual({ active, completed, visited, needsInput }, {
+		assert.deepStrictEqual({ active, completedWhileWindowBlurred, refocused, needsInput, fastUnfocusedCompletion }, {
 			active: { state: 'inProgress', requestActive: true, hasUnvisitedCompletion: false },
-			completed: { state: 'idle', requestActive: false, hasUnvisitedCompletion: true },
-			visited: { state: 'idle', requestActive: false, hasUnvisitedCompletion: false },
+			completedWhileWindowBlurred: { state: 'idle', requestActive: false, hasUnvisitedCompletion: true },
+			refocused: { state: 'idle', requestActive: false, hasUnvisitedCompletion: false },
 			needsInput: { state: 'needsInput', requestActive: true, hasUnvisitedCompletion: false },
+			fastUnfocusedCompletion: { state: 'idle', requestActive: false, hasUnvisitedCompletion: true },
+		});
+	});
+
+	test('keeps queued work active unless an error or cancellation strands it', () => {
+		const base = {
+			requestInProgress: false,
+			requestNeedsInput: false,
+			pendingRequestCount: 1,
+			lastResponseIsCanceled: false,
+			lastResponseHasError: false,
+		};
+
+		assert.deepStrictEqual({
+			queued: computeChatModelIsIdle(base),
+			canceled: computeChatModelIsIdle({ ...base, lastResponseIsCanceled: true }),
+			failed: computeChatModelIsIdle({ ...base, lastResponseHasError: true }),
+			drained: computeChatModelIsIdle({ ...base, pendingRequestCount: 0 }),
+		}, {
+			queued: false,
+			canceled: true,
+			failed: true,
+			drained: true,
 		});
 	});
 
