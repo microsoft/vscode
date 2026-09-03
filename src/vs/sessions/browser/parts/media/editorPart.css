@@ -21,15 +21,15 @@
 	overflow: hidden;
 }
 
-.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-container > .title.tabs {
+.agent-sessions-workbench.dock-detail-panel .part.editor:not(.modal-editor-part) .editor-group-container > .title.tabs {
 	--modern-ui-editor-tabs-border: color-mix(in srgb, var(--vscode-activeSessionView-foreground, var(--vscode-agentsPanel-foreground)) 12%, transparent);
 }
 
-:is(.hc-black, .hc-light).agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-container > .title.tabs {
+:is(.hc-black, .hc-light).agent-sessions-workbench.dock-detail-panel .part.editor:not(.modal-editor-part) .editor-group-container > .title.tabs {
 	--modern-ui-editor-tabs-border: var(--vscode-contrastBorder);
 }
 
-.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.tabs-border-bottom::after {
+.agent-sessions-workbench.dock-detail-panel .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs > .tabs-and-actions-container::after {
 	right: var(--vscode-spacing-size20);
 	left: var(--vscode-spacing-size20);
 	width: auto;

@@ -6,9 +6,6 @@
 import assert from 'assert';
 import { mainWindow } from '../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import '../../../workbench/browser/parts/editor/media/multieditortabscontrol.css';
-import '../../browser/media/workbench.css';
-import '../../browser/parts/media/chatCompositeBar.css';
 import '../../browser/parts/media/editorPart.css';
 
 function appendElement(parent: HTMLElement, className: string): HTMLElement {
@@ -53,89 +50,4 @@ suite('Sessions - EditorPart', () => {
 		}
 	});
 
-	test('matches the chat tab container separator', () => {
-		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench modern-ui-tabs agent-sessions-workbench dock-detail-panel');
-		workbench.style.setProperty('--vscode-activeSessionView-foreground', 'rgb(100, 100, 100)');
-		workbench.style.setProperty('--vscode-agentsPanel-foreground', 'rgb(100, 100, 100)');
-		workbench.style.setProperty('--vscode-contrastBorder', 'rgb(255, 255, 255)');
-		workbench.style.setProperty('--vscode-spacing-size20', '2px');
-		workbench.style.setProperty('--vscode-strokeThickness', '1px');
-
-		const editorPart = appendElement(workbench, 'part editor');
-		const editorContent = appendElement(editorPart, 'content');
-		const editorGroupContainer = appendElement(editorContent, 'editor-group-container');
-		const title = appendElement(editorGroupContainer, 'title tabs');
-		const tabsAndActionsContainer = appendElement(title, 'tabs-and-actions-container tabs-border-bottom');
-		tabsAndActionsContainer.style.setProperty('--tabs-border-bottom-color', 'var(--modern-ui-editor-tabs-border)');
-
-		const sessionView = appendElement(workbench, 'session-view tabs-replace-header');
-		sessionView.style.setProperty('--session-view-foreground', 'rgb(100, 100, 100)');
-		const chatGroupsView = appendElement(sessionView, 'chat-groups-view single-group');
-		const chatBar = appendElement(chatGroupsView, 'chat-composite-bar session-chat-tabs-bar');
-		const chatTabsRow = appendElement(chatBar, 'chat-composite-bar-tabs-row');
-
-		try {
-			const getSeparatorStyles = () => {
-				const titleSeparatorStyle = mainWindow.getComputedStyle(tabsAndActionsContainer, '::after');
-				const chatBarStyle = mainWindow.getComputedStyle(chatBar);
-				const chatTabsRowStyle = mainWindow.getComputedStyle(chatTabsRow);
-				return {
-					sidePanel: {
-						color: titleSeparatorStyle.backgroundColor,
-						leftInset: titleSeparatorStyle.left,
-						rightInset: titleSeparatorStyle.right,
-						width: titleSeparatorStyle.height,
-					},
-					chat: {
-						color: chatTabsRowStyle.borderBottomColor,
-						leftInset: chatBarStyle.paddingLeft,
-						rightInset: chatBarStyle.paddingRight,
-						width: chatTabsRowStyle.borderBottomWidth,
-					},
-				};
-			};
-
-			const defaultTheme = getSeparatorStyles();
-			workbench.classList.add('hc-black');
-			const highContrastTheme = getSeparatorStyles();
-
-			assert.deepStrictEqual({
-				defaultTheme,
-				highContrastTheme,
-				hasDuplicateTitleSeparator: mainWindow.getComputedStyle(title, '::after').content !== 'none',
-			}, {
-				defaultTheme: {
-					sidePanel: {
-						color: defaultTheme.chat.color,
-						leftInset: '2px',
-						rightInset: '2px',
-						width: '1px',
-					},
-					chat: {
-						color: defaultTheme.chat.color,
-						leftInset: '2px',
-						rightInset: '2px',
-						width: '1px',
-					},
-				},
-				highContrastTheme: {
-					sidePanel: {
-						color: 'rgb(255, 255, 255)',
-						leftInset: '2px',
-						rightInset: '2px',
-						width: '1px',
-					},
-					chat: {
-						color: 'rgb(255, 255, 255)',
-						leftInset: '2px',
-						rightInset: '2px',
-						width: '1px',
-					},
-				},
-				hasDuplicateTitleSeparator: false,
-			});
-		} finally {
-			workbench.remove();
-		}
-	});
 });

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
@@ -44,6 +45,16 @@ import { IsQuickChatSessionContext, SinglePaneChangesTabAvailableContext, Single
 
 // Import editor contribution to trigger action registration.
 import '../../browser/editor.contribution.js';
+import '../../../../browser/media/workbench.css';
+import '../../../../browser/parts/media/chatCompositeBar.css';
+import '../../../../browser/parts/media/editorPart.css';
+
+function appendElement(parent: HTMLElement, className: string): HTMLElement {
+	const element = mainWindow.document.createElement('div');
+	element.className = className;
+	parent.appendChild(element);
+	return element;
+}
 
 suite('Sessions - Editor Contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -55,6 +66,118 @@ suite('Sessions - Editor Contribution', () => {
 		const css = generateColorThemeCSS(theme, '.sessions-tab-customization-theme', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
 
 		assert.strictEqual(css.includes('--modern-ui-editor-tab-active-background: #123456;'), true);
+	});
+
+	test('matches the chat separator with and without the theme border class', () => {
+		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench modern-ui-tabs agent-sessions-workbench dock-detail-panel');
+		workbench.style.setProperty('--vscode-activeSessionView-foreground', 'rgb(100, 100, 100)');
+		workbench.style.setProperty('--vscode-agentsPanel-foreground', 'rgb(200, 0, 0)');
+		workbench.style.setProperty('--vscode-contrastBorder', 'rgb(255, 255, 255)');
+		workbench.style.setProperty('--vscode-spacing-size20', '2px');
+		workbench.style.setProperty('--vscode-strokeThickness', '1px');
+
+		const editorPart = appendElement(workbench, 'part editor');
+		const editorContent = appendElement(editorPart, 'content');
+		const editorGroupContainer = appendElement(editorContent, 'editor-group-container');
+		const title = appendElement(editorGroupContainer, 'title tabs');
+		const tabsAndActionsContainer = appendElement(title, 'tabs-and-actions-container');
+
+		const modalEditorPart = appendElement(workbench, 'part editor modal-editor-part');
+		const modalEditorContent = appendElement(modalEditorPart, 'content');
+		const modalEditorGroupContainer = appendElement(modalEditorContent, 'editor-group-container');
+		const modalTitle = appendElement(modalEditorGroupContainer, 'title tabs');
+		const modalTabsAndActionsContainer = appendElement(modalTitle, 'tabs-and-actions-container');
+
+		const sessionView = appendElement(workbench, 'session-view tabs-replace-header');
+		sessionView.style.setProperty('--session-view-foreground', 'rgb(100, 100, 100)');
+		const chatGroupsView = appendElement(sessionView, 'chat-groups-view single-group');
+		const chatBar = appendElement(chatGroupsView, 'chat-composite-bar session-chat-tabs-bar');
+		const chatTabsRow = appendElement(chatBar, 'chat-composite-bar-tabs-row');
+
+		const expectedColorReference = appendElement(workbench, 'expected-color-reference');
+		expectedColorReference.style.color = 'color-mix(in srgb, rgb(100, 100, 100) 12%, transparent)';
+
+		try {
+			const getSidePanelSeparatorStyles = () => {
+				const style = mainWindow.getComputedStyle(tabsAndActionsContainer, '::after');
+				return {
+					color: style.backgroundColor,
+					leftInset: style.left,
+					rightInset: style.right,
+					width: style.height,
+				};
+			};
+			const chatBarStyle = mainWindow.getComputedStyle(chatBar);
+			const chatTabsRowStyle = mainWindow.getComputedStyle(chatTabsRow);
+			const chatSeparatorStyles = {
+				color: chatTabsRowStyle.borderBottomColor,
+				leftInset: chatBarStyle.paddingLeft,
+				rightInset: chatBarStyle.paddingRight,
+				width: chatTabsRowStyle.borderBottomWidth,
+			};
+			const expectedColor = mainWindow.getComputedStyle(expectedColorReference).color;
+			const withoutThemeBorderClass = getSidePanelSeparatorStyles();
+
+			tabsAndActionsContainer.classList.add('tabs-border-bottom');
+			tabsAndActionsContainer.style.setProperty('--tabs-border-bottom-color', 'rgb(200, 0, 0)');
+			const withThemeBorderClass = getSidePanelSeparatorStyles();
+
+			workbench.classList.add('hc-black');
+			const highContrast = getSidePanelSeparatorStyles();
+			const highContrastChatColor = mainWindow.getComputedStyle(chatTabsRow).borderBottomColor;
+			const modalTitleStyle = mainWindow.getComputedStyle(modalTitle);
+			const modalSeparatorStyle = mainWindow.getComputedStyle(modalTabsAndActionsContainer, '::after');
+
+			assert.deepStrictEqual({
+				expectedColorIsTransparent: expectedColor === 'rgba(0, 0, 0, 0)',
+				withoutThemeBorderClass,
+				withThemeBorderClass,
+				chatSeparatorStyles,
+				highContrast,
+				highContrastChatColor,
+				hasDuplicateTitleSeparator: mainWindow.getComputedStyle(title, '::after').content !== 'none',
+				modal: {
+					borderColor: modalTitleStyle.getPropertyValue('--modern-ui-editor-tabs-border'),
+					leftInset: modalSeparatorStyle.left,
+					rightInset: modalSeparatorStyle.right,
+				},
+			}, {
+				expectedColorIsTransparent: false,
+				withoutThemeBorderClass: {
+					color: expectedColor,
+					leftInset: '2px',
+					rightInset: '2px',
+					width: '1px',
+				},
+				withThemeBorderClass: {
+					color: expectedColor,
+					leftInset: '2px',
+					rightInset: '2px',
+					width: '1px',
+				},
+				chatSeparatorStyles: {
+					color: expectedColor,
+					leftInset: '2px',
+					rightInset: '2px',
+					width: '1px',
+				},
+				highContrast: {
+					color: 'rgb(255, 255, 255)',
+					leftInset: '2px',
+					rightInset: '2px',
+					width: '1px',
+				},
+				highContrastChatColor: 'rgb(255, 255, 255)',
+				hasDuplicateTitleSeparator: false,
+				modal: {
+					borderColor: 'transparent',
+					leftInset: '0px',
+					rightInset: '0px',
+				},
+			});
+		} finally {
+			workbench.remove();
+		}
 	});
 
 	function stubEditorGroupCount(instantiationService: TestInstantiationService, count: number): void {
