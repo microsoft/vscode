@@ -384,7 +384,6 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 
 	sb.appendString('</div>');
 
-	console.log('sb ', sb.build());
 	return [charOffsets, visibleColumns, spanStartOffsets];
 }
 
