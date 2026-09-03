@@ -147,30 +147,31 @@ suite('AgentHostCatalogProjection', () => {
 			chatOrder: [0, 1],
 		});
 
-		test('retains detached-head state and the newest bounded artifact suffix', () => {
-			const data = createData();
-			const artifacts = Array.from({ length: AGENT_HOST_CATALOG_ARTIFACT_LIMIT + 2 }, (_, index) => ({
-				id: `artifact-${index}`,
-				type: 'file' as const,
-				label: `Artifact ${index}`,
-				uri: index === AGENT_HOST_CATALOG_ARTIFACT_LIMIT + 1 ? `src/${index}.ts` : `file:///workspace/${index}`,
-			}));
-			const encoded = encode({
-				...data,
-				_meta: {
-					...data._meta,
-					[SESSION_META_GIT_KEY]: { isDetachedHead: true },
-					[SESSION_META_ARTIFACTS_KEY]: artifacts,
-				},
-			});
+	});
 
-			assert.deepStrictEqual({
-				git: encoded.data._meta?.[SESSION_META_GIT_KEY],
-				artifacts: encoded.data._meta?.[SESSION_META_ARTIFACTS_KEY],
-			}, {
-				git: { isDetachedHead: true },
-				artifacts: artifacts.slice(-AGENT_HOST_CATALOG_ARTIFACT_LIMIT),
-			});
+	test('retains detached-head state and the newest bounded artifact suffix', () => {
+		const data = createData();
+		const artifacts = Array.from({ length: AGENT_HOST_CATALOG_ARTIFACT_LIMIT + 2 }, (_, index) => ({
+			id: `artifact-${index}`,
+			type: 'file' as const,
+			label: `Artifact ${index}`,
+			uri: index === AGENT_HOST_CATALOG_ARTIFACT_LIMIT + 1 ? `src/${index}.ts` : `file:///workspace/${index}`,
+		}));
+		const encoded = encode({
+			...data,
+			_meta: {
+				...data._meta,
+				[SESSION_META_GIT_KEY]: { isDetachedHead: true },
+				[SESSION_META_ARTIFACTS_KEY]: artifacts,
+			},
+		});
+
+		assert.deepStrictEqual({
+			git: encoded.data._meta?.[SESSION_META_GIT_KEY],
+			artifacts: encoded.data._meta?.[SESSION_META_ARTIFACTS_KEY],
+		}, {
+			git: { isDetachedHead: true },
+			artifacts: artifacts.slice(-AGENT_HOST_CATALOG_ARTIFACT_LIMIT),
 		});
 	});
 

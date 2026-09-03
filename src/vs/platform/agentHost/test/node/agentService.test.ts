@@ -14159,6 +14159,81 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('lossy cached peer recovery preserves provider backing data from legacy enumeration', async () => {
+			class LossyFallbackDatabase extends AgentHostDatabase {
+				hiddenCatalogReads = 0;
+
+				override async getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined> {
+					if (this.hiddenCatalogReads > 0) {
+						this.hiddenCatalogReads--;
+						return undefined;
+					}
+					return super.getSessionChatCatalog(session);
+				}
+			}
+			class LegacyBackingAgent extends MockAgent {
+				legacyEnumerations = 0;
+				readonly materializedProviderData: Array<string | undefined> = [];
+
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'provider-backing' };
+				}
+
+				async listLegacyChatBackings(session: URI): Promise<readonly IAgentLegacyChat[]> {
+					this.legacyEnumerations++;
+					return [
+						{ uri: URI.parse(buildChatUri(session, 'stale-legacy-peer')), providerData: 'stale-backing' },
+						{ uri: URI.parse(buildChatUri(session, 'cached-peer')), providerData: 'provider-backing' },
+					];
+				}
+
+				override async materializeChat(chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<void> {
+					if (!isDefaultChatUri(chat)) {
+						this.materializedProviderData.push(providerData);
+					}
+				}
+			}
+			class HiddenLegacyCatalogDatabase extends TestSessionDatabase {
+				hideLegacyCatalog = true;
+
+				override async getMetadata(key: string): Promise<string | undefined> {
+					return this.hideLegacyCatalog && key === 'peerChats' ? undefined : super.getMetadata(key);
+				}
+			}
+			const db = new HiddenLegacyCatalogDatabase();
+			const sessionDataService = createSessionDataService(db);
+			const catalogDatabase = disposables.add(new LossyFallbackDatabase(':memory:'));
+			const localService = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, sessionDataService,
+				{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			const agent = disposables.add(new LegacyBackingAgent('copilot'));
+			registerTestAgentProvider(localService, agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const peer = URI.parse(buildChatUri(session, 'cached-peer'));
+			await localService.createChat(session, peer, { title: 'Cached Peer' });
+			await sessionDataService.deleteSessionData(peer);
+
+			getStateManager(localService).deleteSession(session.toString());
+			catalogDatabase.hiddenCatalogReads = 2;
+			await localService.restoreSession(session);
+			await localService.subscribe(peer, 'cached-peer-reader');
+			db.hideLegacyCatalog = false;
+
+			assert.deepStrictEqual({
+				legacyEnumerations: agent.legacyEnumerations,
+				materializedProviderData: agent.materializedProviderData,
+				persistedProviderData: (await readCatalog(db)).find(entry => entry.uri === peer.toString())?.providerData,
+				persistedPeers: (await readCatalog(db)).map(entry => entry.uri),
+			}, {
+				legacyEnumerations: 1,
+				materializedProviderData: ['provider-backing'],
+				persistedProviderData: 'provider-backing',
+				persistedPeers: [peer.toString()],
+			});
+		});
+
 		test('restart replaces stale central peer membership with the cooling-period legacy catalog', async () => {
 			class MultiChatAgent extends MockAgent {
 				legacyEnumerations = 0;
@@ -14225,6 +14300,90 @@ suite('AgentService (node dispatcher)', () => {
 				secondRestore: [buildDefaultChatUri(session), legacyPeer.toString()],
 				legacyEnumerations: 0,
 				materialized: [legacyPeer.toString()],
+			});
+		});
+
+		test('failed peer creation removes chat-local title data before parent deletion', async () => {
+			class FailingCatalogSourceDatabase extends TestSessionDatabase {
+				failMetadataReads = false;
+
+				override async getMetadataObject<T extends Record<string, unknown>>(obj: T): Promise<{ [K in keyof T]: string | undefined }> {
+					if (this.failMetadataReads) {
+						throw new Error('catalog metadata read failed');
+					}
+					return super.getMetadataObject(obj);
+				}
+			}
+			class MultiChatAgent extends MockAgent {
+				readonly disposedPeers: string[] = [];
+
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'failed-peer-backing' };
+				}
+
+				override async disposeChat(_session: URI, chat: URI): Promise<void> {
+					this.disposedPeers.push(chat.toString());
+				}
+			}
+			const sessionDatabase = new FailingCatalogSourceDatabase();
+			const chatDatabases = new Map<string, TestSessionDatabase>();
+			const deletedChatDatabases = new Map<string, TestSessionDatabase>();
+			const deleted: string[] = [];
+			const base = createSingleDatabaseSessionDataService(sessionDatabase);
+			const reference = (database: TestSessionDatabase): IReference<ISessionDatabase> => ({ object: database, dispose: () => { } });
+			const sessionDataService: ISessionDataService = {
+				...base,
+				openDatabase: resource => {
+					if (!resource.authority) {
+						return reference(sessionDatabase);
+					}
+					let database = chatDatabases.get(resource.toString());
+					if (!database) {
+						database = new TestSessionDatabase();
+						chatDatabases.set(resource.toString(), database);
+					}
+					return reference(database);
+				},
+				tryOpenDatabase: async resource => {
+					const database = resource.authority ? chatDatabases.get(resource.toString()) : sessionDatabase;
+					return database ? reference(database) : undefined;
+				},
+				deleteSessionData: async resource => {
+					deleted.push(resource.toString());
+					const database = chatDatabases.get(resource.toString());
+					if (database) {
+						deletedChatDatabases.set(resource.toString(), database);
+					}
+					chatDatabases.delete(resource.toString());
+				},
+			};
+			const localService = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, sessionDataService,
+				{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+			));
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			registerTestAgentProvider(localService, agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const peer = URI.parse(buildChatUri(session, 'failed-peer'));
+			sessionDatabase.failMetadataReads = true;
+
+			await assert.rejects(localService.createChat(session, peer, { title: 'Temporary Title' }), /catalog metadata read failed/);
+			const deletedChatDatabase = deletedChatDatabases.get(peer.toString());
+			sessionDatabase.failMetadataReads = false;
+			const orphan = await sessionDataService.tryOpenDatabase(peer);
+			orphan?.dispose();
+			await localService.disposeSession(session);
+
+			assert.deepStrictEqual({
+				titleWasPersisted: await deletedChatDatabase?.getMetadata(SESSION_CUSTOM_TITLE_KEY),
+				orphanExists: orphan !== undefined,
+				disposedPeers: agent.disposedPeers,
+				deleted,
+			}, {
+				titleWasPersisted: 'Temporary Title',
+				orphanExists: false,
+				disposedPeers: [peer.toString(), buildDefaultChatUri(session)],
+				deleted: [peer.toString(), buildDefaultChatUri(session), session.toString()],
 			});
 		});
 

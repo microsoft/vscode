@@ -3722,19 +3722,26 @@ export class AgentService extends Disposable implements IAgentService {
 					...(createResult?.inheritedTurnId !== undefined ? { inheritedTurnId: createResult.inheritedTurnId } : {}),
 				});
 			} catch (error) {
-				let catalogRollbackError: Error | undefined;
-				try {
-					await this._peerChatStore.remove(session, chat);
-				} catch (rollbackError) {
-					catalogRollbackError = rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError));
+				const rollbackErrors: Error[] = [];
+				if (existingIndex < 0) {
+					try {
+						await this._peerChatStore.remove(session, chat);
+					} catch (rollbackError) {
+						rollbackErrors.push(rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError)));
+					}
+					try {
+						await provider.chats.disposeChat(chat, this._chatContext(session, chat));
+					} catch (rollbackError) {
+						rollbackErrors.push(rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError)));
+					}
+					try {
+						await this._sessionDataService.deleteSessionData(chat);
+					} catch (rollbackError) {
+						rollbackErrors.push(rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError)));
+					}
 				}
-				try {
-					await provider.chats.disposeChat(chat, this._chatContext(session, chat));
-				} catch (rollbackError) {
-					throw new AggregateError([error, ...(catalogRollbackError ? [catalogRollbackError] : []), rollbackError], `Failed to persist and roll back chat ${chat.toString()}: ${toErrorMessage(error)}`);
-				}
-				if (catalogRollbackError) {
-					throw new AggregateError([error, catalogRollbackError], `Failed to persist and roll back chat ${chat.toString()}: ${toErrorMessage(error)}`);
+				if (rollbackErrors.length > 0) {
+					throw new AggregateError([error, ...rollbackErrors], `Failed to persist and roll back chat ${chat.toString()}: ${toErrorMessage(error)}`);
 				}
 				throw error;
 			} finally {
@@ -6426,12 +6433,21 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const cached = await this._readCentralChatCatalog(session);
 		if (cached?.some(chat => chat.kind === 'peer')) {
-			const projectedPeers = cached.filter(chat => chat.kind === 'peer').map(chat => ({
+			const projectedPeers: IPersistedPeerChat[] = cached.filter(chat => chat.kind === 'peer').map(chat => ({
 				uri: chat.uri,
 				...(chat.origin !== undefined ? { origin: chat.origin } : {}),
 				...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
 			}));
-			const peers = await this._peerChatStore.readLocalChatMetadata(projectedPeers);
+			const legacy = await agent.listLegacyChatBackings?.(session).catch(error => {
+				this._logService.warn(`[AgentService] Failed to enrich cached peer-chat membership for ${session.toString()}`, error);
+				return [];
+			}) ?? [];
+			const legacyProviderData = new Map(legacy.map(chat => [chat.uri.toString(), chat.providerData]));
+			const enrichedPeers = projectedPeers.map(peer => {
+				const providerData = legacyProviderData.get(peer.uri);
+				return providerData !== undefined ? { ...peer, providerData } : peer;
+			});
+			const peers = await this._peerChatStore.readLocalChatMetadata(enrichedPeers);
 			await this._peerChatStore.replace(session, peers);
 			return peers;
 		}
