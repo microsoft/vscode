@@ -275,8 +275,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		return state;
 	}
 
-	// Operations are re-advertised after the host re-reads git state, which
-	// competes with the other parallel E2E suites on CI; allow a longer poll there.
+	// Re-reading git state is slow on a contended CI agent.
 	const operationPollRetries = getAgentHostE2ETestTimeout(100, 300);
 
 	async function waitForOperation(channel: string, operationId: string): Promise<IObservedOperation> {

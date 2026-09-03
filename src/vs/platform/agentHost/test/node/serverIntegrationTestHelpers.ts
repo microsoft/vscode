@@ -77,13 +77,9 @@ interface IPendingCall {
 }
 
 /**
- * Default bound for a single protocol request or notification wait.
- *
- * Kept short locally so a wedged host fails fast, but CI runs the four E2E
- * entrypoints in parallel on a shared agent, where a plain `subscribe` or
- * `createChat` can take several seconds under contention. The bound is not a
- * correctness assertion, so it scales with the environment the same way the
- * server shutdown and dispose timeouts do.
+ * Default bound for one protocol request or notification wait. Short locally
+ * so a wedged host fails fast; longer on CI, where the E2E entrypoints run in
+ * parallel on a shared agent and contention alone can push a call past 5s.
  */
 function getProtocolOperationTimeout(): number {
 	if (AGENT_HOST_E2E_COVERAGE) {
