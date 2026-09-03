@@ -25,9 +25,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
-import { IURLService } from '../../../../platform/url/common/url.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { Menus } from '../../../browser/menus.js';
 import { ChatPillActionViewItem } from '../../../../workbench/browser/chatPills.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -65,9 +63,6 @@ interface IPullRequestListEntry extends IGitHubReferenceListEntry {
 }
 
 // --- Open Pull Request action
-
-const githubPullRequestsExtensionId = 'github.vscode-pull-request-github';
-const openPullRequestWebviewPath = '/open-pull-request-webview';
 
 class PullRequestActionContext {
 	constructor(readonly pullRequest: IGitHubPullRequestRef) { }
@@ -119,25 +114,8 @@ class OpenPullRequestAction extends Action2 {
 			return;
 		}
 
-		const extensionService = accessor.get(IExtensionService);
-		const urlService = accessor.get(IURLService);
 		const openerService = accessor.get(IOpenerService);
-		if (await extensionService.getExtension(githubPullRequestsExtensionId)) {
-			const uri = urlService.create({
-				authority: githubPullRequestsExtensionId,
-				path: openPullRequestWebviewPath,
-				query: JSON.stringify({
-					owner: pullRequest.owner,
-					repo: pullRequest.repo,
-					pullRequestNumber: pullRequest.number,
-				}),
-			});
-			if (await urlService.open(uri, { trusted: true })) {
-				return;
-			}
-		}
-
-		await openerService.open(pullRequest.uri, { openExternal: true });
+		await openerService.open(pullRequest.uri, { openExternal: true, allowContributedOpeners: true });
 	}
 }
 registerAction2(OpenPullRequestAction);
