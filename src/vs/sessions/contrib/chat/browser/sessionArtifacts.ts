@@ -25,7 +25,6 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import type { IChatPillEntry, IChatPillSection } from '../../../../workbench/browser/chatPills.js';
-import { ChatPillSingleEntry, type IChatDropdownPillOptions } from '../../../../workbench/browser/chatDropdownPill.js';
 import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import type { IImageCarouselCollection } from '../../../../workbench/contrib/imageCarousel/browser/imageCarouselTypes.js';
@@ -36,24 +35,6 @@ const OPEN_IMAGE_CAROUSEL_COMMAND_ID = 'workbench.action.chat.openImageInCarouse
 
 /** Action id of the references pill. */
 export const SESSION_REFERENCES_PILL_ID = 'sessions.chatPills.references';
-
-/**
- * Presentation of the references pill. References are always summarized: the
- * pill answers "what did this session point me at" with a count, rather than
- * turning into whichever single reference happens to be recorded.
- */
-export const sessionReferencesPillOptions: IChatDropdownPillOptions = {
-	widgetId: 'sessionReferences',
-	icon: Codicon.bookmark,
-	title: localize('sessionReferences.title', "References"),
-	summaryLabel: count => count === 1
-		? localize('sessionReferences.countSingle', "1 Reference")
-		: localize('sessionReferences.count', "{0} References", count),
-	summaryAriaLabel: count => count === 1
-		? localize('sessionReferences.showSingle', "Show 1 reference")
-		: localize('sessionReferences.show', "Show {0} references", count),
-	singleEntry: ChatPillSingleEntry.Summary,
-};
 
 const artifactIcons: ReadonlyMap<SessionArtifactKind, ThemeIcon> = new Map([
 	[SessionArtifactKind.PullRequest, Codicon.gitPullRequest],
