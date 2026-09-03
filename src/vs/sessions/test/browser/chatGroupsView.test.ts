@@ -15,6 +15,8 @@ import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/editor/editor.js';
+import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { AbstractChatView, ChatViewKind } from '../../browser/parts/chatView.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
@@ -31,6 +33,7 @@ class TestChatView extends AbstractChatView {
 	private readonly _focusTarget = mainWindow.document.createElement('button');
 	override readonly hasVisibleTranscriptContent = observableValue(this, false);
 	layoutCount = 0;
+	primary = false;
 
 	constructor(readonly kind: ChatViewKind) {
 		super();
@@ -48,6 +51,10 @@ class TestChatView extends AbstractChatView {
 
 	focus(): void {
 		this._focusTarget.focus();
+	}
+
+	override setPrimary(primary: boolean): void {
+		this.primary = primary;
 	}
 }
 
@@ -217,6 +224,10 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 	const chatViewFactory = new TestChatViewFactory();
 	const sessionsProvidersService = new TestSessionsProvidersService();
 	instantiationService.stub(IChatViewFactory, chatViewFactory);
+	instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+		override readonly onDidChangeEditorPartOptions = Event.None;
+		override readonly partOptions = DEFAULT_EDITOR_PART_OPTIONS;
+	}());
 	instantiationService.stub(ISessionsService, sessionsService);
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 		override readonly onDidChangeSessions = Event.None;
@@ -530,7 +541,7 @@ suite('Sessions - ChatGroupsView', () => {
 	});
 
 	test('left split updates logical and accessible group order', async () => {
-		const { view } = createHarness(disposables);
+		const { view, chatViewFactory } = createHarness(disposables);
 		const main = createChat('main');
 		const secondary = createChat('secondary');
 		const session = new TestActiveSession([main, secondary]);
@@ -541,11 +552,14 @@ suite('Sessions - ChatGroupsView', () => {
 		const groups = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'));
 		const labelByChat = Object.fromEntries(groups.map(group => [
 			group.querySelector<HTMLElement>('.chat-composite-bar-tab')?.dataset.chatResource,
-			group.getAttribute('aria-label'),
+			{
+				label: group.getAttribute('aria-label'),
+				primary: chatViewFactory.views.find(candidate => candidate.element.parentElement === group.querySelector('.chat-group-view-content'))?.primary,
+			},
 		]));
 		assert.deepStrictEqual(labelByChat, {
-			[secondary.resource.toString()]: 'Chat Group 1 of 2',
-			[main.resource.toString()]: 'Chat Group 2 of 2',
+			[secondary.resource.toString()]: { label: 'Chat Group 1 of 2', primary: true },
+			[main.resource.toString()]: { label: 'Chat Group 2 of 2', primary: false },
 		});
 	});
 

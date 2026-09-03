@@ -154,6 +154,9 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	@memoize
 	get isSessionsWindow(): boolean { return !!this.configuration.isSessionsWindow; }
 
+	@memoize
+	get sessionTitle(): string | undefined { return this.configuration['session-title']; }
+
 	constructor(
 		private readonly configuration: INativeWindowConfiguration,
 		productService: IProductService
