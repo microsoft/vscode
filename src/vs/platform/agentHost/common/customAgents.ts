@@ -104,3 +104,19 @@ export function resolveAgentHostAgent(
 	}
 	return storedAgentUri ? agents.find(a => a.uri === storedAgentUri) : undefined;
 }
+
+/**
+ * Returns the stored agent to seed into an untitled session. Existing session
+ * selections remain authoritative while their custom-agent catalog hydrates.
+ */
+export function resolveAgentHostAgentToInitialize(
+	agents: readonly AgentCustomization[],
+	selectedAgentUri: string | undefined,
+	storedAgentUri: string | undefined,
+	isUntitled: boolean,
+): AgentCustomization | undefined {
+	if (selectedAgentUri || !isUntitled) {
+		return undefined;
+	}
+	return resolveAgentHostAgent(agents, undefined, storedAgentUri);
+}

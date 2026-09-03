@@ -9,7 +9,7 @@ import { autorun } from '../../../../../base/common/observable.js';
 import * as nls from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { agentHostAgentPickerStorageKey, resolveAgentHostAgent } from '../../../../../platform/agentHost/common/customAgents.js';
+import { agentHostAgentPickerStorageKey, resolveAgentHostAgent, resolveAgentHostAgentToInitialize } from '../../../../../platform/agentHost/common/customAgents.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
@@ -133,6 +133,7 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 			const session = sessionsService.activeSession.read(reader);
 			const provider = this._getProvider(session, sessionsProvidersService);
 			customAgentsListener.value = provider?.onDidChangeCustomAgents(() => {
+				syncChatInputModeFromActiveSession();
 				if (!settingAgentInternally) {
 					initAgentFromActiveSession();
 				}
@@ -163,13 +164,18 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 	}
 
 	private _syncChatInputMode(session: ISession | undefined, selectedAgentUri: string | undefined, sessionsProvidersService: ISessionsProvidersService): void {
-		if (!session || !this._getProvider(session, sessionsProvidersService)) {
+		const provider = this._getProvider(session, sessionsProvidersService);
+		if (!session || !provider) {
 			return;
 		}
 
+		const activeAgent = selectedAgentUri
+			? resolveAgentHostAgent(provider.getCustomAgents(session.sessionId), selectedAgentUri, undefined)
+			: undefined;
 		const chatModel = this.chatService.getSession(session.resource);
 		const currentMode = chatModel?.inputModel.state.get()?.mode;
-		const nextMode = selectedAgentUri ? { id: selectedAgentUri, kind: ChatModeKind.Agent } : { id: ChatMode.Agent.id, kind: ChatModeKind.Agent };
+		// Keep the persisted session selection, but only project currently available agents into the input.
+		const nextMode = activeAgent ? { id: activeAgent.uri, kind: ChatModeKind.Agent } : { id: ChatMode.Agent.id, kind: ChatModeKind.Agent };
 		if (currentMode?.id === nextMode.id && currentMode.kind === nextMode.kind) {
 			this._syncVisibleChatInputMode(session, nextMode.id);
 			return;
@@ -226,19 +232,12 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 		const storedUri = isUntitled
 			? this.storageService.get(agentHostAgentPickerStorageKey(session.resource.scheme), StorageScope.PROFILE)
 			: undefined;
-		const resolved = resolveAgentHostAgent(agents, selectedAgentUri, storedUri);
+		const agent = resolveAgentHostAgentToInitialize(agents, selectedAgentUri, storedUri, isUntitled);
 
-		if (!selectedAgentUri && isUntitled && resolved) {
+		if (agent) {
 			beginInternalSet();
 			try {
-				this._setAgent(session, provider, resolved);
-			} finally {
-				endInternalSet();
-			}
-		} else if (selectedAgentUri && !resolved && agents.length > 0 && !isUntitled) {
-			beginInternalSet();
-			try {
-				this._setAgent(session, provider, undefined);
+				this._setAgent(session, provider, agent);
 			} finally {
 				endInternalSet();
 			}
