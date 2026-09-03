@@ -596,6 +596,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		const wasUnpublished = this._unpublished;
 		this._connectionListeners.clear();
 		this._sessionStateSubscriptions.clearAndDisposeAll();
+		this._resetAgentMergeSessionStateSubscriptions();
 		this._connection = connection;
 		this._automationStore.setConnection(connection);
 		this._defaultDirectory = defaultDirectory;
@@ -613,6 +614,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		}
 
 		this._attachConnectionListeners(connection, this._connectionListeners);
+		this._reacquireObservedAgentMergeSessionStates();
 
 		// Always refresh sessions when a connection is (re)established.
 		// `_refreshSessions` owns `_cacheInitialized` (set on a successful
@@ -630,6 +632,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	clearConnection(): void {
 		this._connectionListeners.clear();
 		this._sessionStateSubscriptions.clearAndDisposeAll();
+		this._resetAgentMergeSessionStateSubscriptions();
 		this._onDidDisconnect.fire();
 		this._connection = undefined;
 		this._automationStore.clearConnection();

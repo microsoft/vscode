@@ -58,6 +58,12 @@ interface IPullRequestIdentity {
 	readonly number: number;
 }
 
+function pullRequestIconStatusEquals(a: IPullRequestIconStatus | undefined, b: IPullRequestIconStatus | undefined): boolean {
+	return a?.hasFailingChecks === b?.hasFailingChecks
+		&& a?.hasMergeConflicts === b?.hasMergeConflicts
+		&& a?.hasUnresolvedComments === b?.hasUnresolvedComments;
+}
+
 interface IPullRequestListEntry extends IGitHubReferenceListEntry {
 	readonly owner: string;
 	readonly repo: string;
@@ -220,6 +226,7 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 				x.repo === y.repo &&
 				x.number === y.number &&
 				isEqual(x.uri, y.uri) &&
+				pullRequestIconStatusEquals(x.status, y.status) &&
 				(x.icon === y.icon || (!!x.icon && !!y.icon && ThemeIcon.isEqual(x.icon, y.icon))))
 		}, reader => {
 			const session = sessionContext.session.read(reader);

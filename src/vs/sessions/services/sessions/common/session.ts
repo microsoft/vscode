@@ -328,6 +328,8 @@ export interface IGitHubInfo {
 		readonly icon?: ThemeIcon;
 		/** Pull request title, when known. */
 		readonly title?: string;
+		/** Additional live status used to refine the icon of an open pull request. */
+		readonly status?: IGitHubPullRequestStatus;
 		/** Object ID of the base ref (merge target) commit. */
 		readonly baseRefOid?: string;
 		/** Object ID of the head ref (PR branch) commit. */
@@ -361,11 +363,20 @@ export interface IGitHubPullRequestRef {
 	 * discovered from git state, which carry no title until they are fetched live.
 	 */
 	readonly title?: string;
+	/** Additional live status used to refine the icon of an open pull request. */
+	readonly status?: IGitHubPullRequestStatus;
 	/**
 	 * Whether this pull request originated in the session, as opposed to being
 	 * inherited from the checkout it started from or merely referenced by the agent.
 	 */
 	readonly createdByThisSession?: boolean;
+}
+
+/** Additional live status used to refine the icon of an open pull request. */
+export interface IGitHubPullRequestStatus {
+	readonly hasMergeConflicts?: boolean;
+	readonly hasFailingChecks?: boolean;
+	readonly hasUnresolvedComments?: boolean;
 }
 
 /** Returns all pull requests associated with GitHub info, including its legacy single-PR shape. */
@@ -385,6 +396,7 @@ export function getGitHubPullRequestRefs(gitHubInfo: IGitHubInfo | undefined): r
 		state: gitHubInfo.pullRequest.state,
 		liveState: gitHubInfo.pullRequest.liveState,
 		title: gitHubInfo.pullRequest.title,
+		status: gitHubInfo.pullRequest.status,
 	}];
 }
 

@@ -59,8 +59,9 @@ export function getSessionAgentMergeConfigurationObservable(session: ISession, s
 		equalsFn: structuralEquals,
 	}, reader => {
 		const sessionState = state.read(reader);
+		const globalEnabled = configurationService.getValue<boolean>(AgentMergeSettingId.Enabled) === true;
 		return {
-			enabled: sessionState?.enabled === true,
+			enabled: sessionState?.enabled === true && globalEnabled,
 			actions: resolveAgentMergeConfiguration(globalConfiguration.read(reader), sessionState?.overrides),
 		};
 	});

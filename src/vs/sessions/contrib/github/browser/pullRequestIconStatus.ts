@@ -41,7 +41,7 @@ export function computeLivePullRequestIcon(reader: IReaderWithStore, gitHubServi
 }
 
 /** Computes the live title and icon used to present a pull request reference. */
-export function computePullRequestRefPresentation(reader: IReaderWithStore, gitHubService: IGitHubService, iconCache: IPullRequestIconCache, pullRequest: IGitHubPullRequestRef, fallbackIcon?: ThemeIcon): Pick<IGitHubPullRequestRef, 'icon' | 'title' | 'liveState'> {
+export function computePullRequestRefPresentation(reader: IReaderWithStore, gitHubService: IGitHubService, iconCache: IPullRequestIconCache, pullRequest: IGitHubPullRequestRef, fallbackIcon?: ThemeIcon): Pick<IGitHubPullRequestRef, 'icon' | 'title' | 'liveState' | 'status'> {
 	const prLink = pullRequest.uri.toString();
 	const prModelRef = reader.store.add(gitHubService.createPullRequestModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
 	const livePullRequest = prModelRef.object.pullRequest.read(reader);
@@ -50,10 +50,12 @@ export function computePullRequestRefPresentation(reader: IReaderWithStore, gitH
 			icon: iconCache.get(prLink) ?? pullRequest.icon ?? fallbackIcon,
 			title: pullRequest.title,
 			liveState: undefined,
+			status: pullRequest.status,
 		};
 	}
 
-	const icon = computeLivePullRequestIcon(reader, gitHubService, pullRequest.owner, pullRequest.repo, livePullRequest);
+	const status = computePullRequestIconStatus(reader, gitHubService, pullRequest.owner, pullRequest.repo, livePullRequest);
+	const icon = computePullRequestIcon(livePullRequest.isDraft ? 'draft' : livePullRequest.state, status);
 	iconCache.set(prLink, icon);
-	return { icon, title: livePullRequest.title, liveState: livePullRequest.state };
+	return { icon, title: livePullRequest.title, liveState: livePullRequest.state, status };
 }
