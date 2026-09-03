@@ -8,7 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -34,7 +34,7 @@ import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browse
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { IAgentHostConnectProgress, IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostAutoConnect, IAgentHostConnectProgress, IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { IGitHubInfo, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -73,6 +73,8 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly disconnectOnDemand?: () => Promise<void>;
 	/** Optional progress messages during on-demand connect. */
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
+	/** Optional kind-scoped policy for automatically starting the host. */
+	readonly autoConnect?: IAgentHostAutoConnect;
 	/**
 	 * Set when the host addresses sessions under a scheme that differs from its agent provider, as
 	 * the cloud sandbox host does (sessions are `ahp-session:/<id>` while the agent is `copilot`).
@@ -138,6 +140,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly canConnectOnDemand: boolean;
 	readonly onDidReportConnectProgress: Event<IAgentHostConnectProgress> | undefined;
+	readonly autoConnect?: IAgentHostAutoConnect;
 	readonly automations: ISessionsProviderAutomations;
 	private readonly _automationStore: ReconnectableAgentHostAutomationStore;
 
@@ -150,12 +153,22 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	private readonly _readOnly = observableValue<boolean>('providerReadOnly', false);
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
 
+	protected override get remoteConnectionStatus(): IObservable<RemoteAgentHostConnectionStatus> {
+		return this.connectionStatus;
+	}
+
 	/**
 	 * `true` while we are still resolving and pushing tokens for the host's
 	 * `protectedResources`. Defaults to `true` so that sessions surface as
 	 * loading until the first authentication pass settles.
 	 */
 	private readonly _authenticationPending = observableValue('authenticationPending', true);
+	private readonly _effectiveAuthenticationPending = derived(this, reader => {
+		const status = this._connectionStatus.read(reader);
+		return this._authenticationPending.read(reader)
+			&& !RemoteAgentHostConnectionStatus.isDisconnected(status)
+			&& !RemoteAgentHostConnectionStatus.isIncompatible(status);
+	});
 	private _authenticationSettled = false;
 
 	private readonly _onDidDisconnect = this._register(new Emitter<void>());
@@ -226,6 +239,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._defaultChangesetKind = config.defaultChangesetKind;
 		this._devContainerWorktreeScope = config.devContainerWorktreeScope;
 		this.onDidReportConnectProgress = config.onDidReportConnectProgress;
+		this.autoConnect = config.autoConnect;
 		this.canConnectOnDemand = !!config.connectOnDemand;
 		this._register(this._onDidChangeResourceLabelHomes(() => this.updateResourceLabelHomes()));
 		this.updateResourceLabelHomes();
@@ -382,7 +396,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 
 	protected get connection(): IAgentConnection | undefined { return this._connection; }
 
-	protected get authenticationPending(): IObservable<boolean> { return this._authenticationPending; }
+	protected get authenticationPending(): IObservable<boolean> { return this._effectiveAuthenticationPending; }
 
 	/**
 	 * Suspend cache-change tracking while sessions are unpublished (offline) so
@@ -458,6 +472,10 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			return;
 		}
 		this._remoteAgentHostService.reconnect(this.remoteAddress);
+	}
+
+	reconnectNow(): void {
+		this._remoteAgentHostService.reconnectNow(this.remoteAddress);
 	}
 
 	/**
@@ -653,7 +671,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 				}
 			}
 		}
-		this.updateResourceLabelHomeFormatters(homes, this._labelService, this._onDidChangeResourceLabelHomes);
+		this.updateResourceLabelHomeFormatters(homes, this._labelService);
 	}
 
 	/**

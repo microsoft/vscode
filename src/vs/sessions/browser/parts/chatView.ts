@@ -8,6 +8,7 @@ import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid
 import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaultStyles.js';
 import { IProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
@@ -59,6 +60,12 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 * replaced when `openSession` is called.
 	 */
 	abstract readonly kind: ChatViewKind;
+
+	/**
+	 * Whether the view has a visible transcript turn to retain when a remote
+	 * host disconnects. New and unbound views intentionally report no content.
+	 */
+	readonly hasVisibleTranscriptContent: IObservable<boolean> = constObservable(false);
 
 	/**
 	 * Show the given chat in this view. The default implementation is a
@@ -125,6 +132,14 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 * inactive sessions displayed side by side are still visible.
 	 */
 	setVisible(_visible: boolean): void {
+		// no-op by default
+	}
+
+	/**
+	 * Notifies the view whether it occupies the first group in the chat grid.
+	 * Session-scoped UI can use this to avoid repeating across split groups.
+	 */
+	setPrimary(_primary: boolean): void {
 		// no-op by default
 	}
 

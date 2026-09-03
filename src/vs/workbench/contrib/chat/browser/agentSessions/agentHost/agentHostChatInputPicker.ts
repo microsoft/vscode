@@ -82,7 +82,7 @@ function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon 
 		if (value === 'assisted') {
 			return Codicon.sparkle;
 		}
-		return Codicon.shield;
+		return Codicon.key;
 	}
 	if (property === ClaudeSessionConfigKey.PermissionMode && typeof value === 'string') {
 		switch (value) {
@@ -140,7 +140,7 @@ export function getAgentHostSandboxSettingId(sessionType: string | undefined, cu
 	return getAgentHostCopilotSandboxSettingId(customTerminalToolEnabled, windows);
 }
 
-export function getConfigPickerTriggerLabel(schema: SessionConfigPropertySchema, value: unknown | undefined, sandboxed: boolean): string {
+export function getConfigPickerTriggerLabel(schema: SessionConfigPropertySchema, value: unknown | undefined): string {
 	let label: string;
 	if (schema.type === 'boolean') {
 		label = value === true
@@ -152,6 +152,10 @@ export function getConfigPickerTriggerLabel(schema: SessionConfigPropertySchema,
 	} else {
 		label = schema.title;
 	}
+	return label;
+}
+
+export function getConfigPickerAccessibleTriggerLabel(label: string, sandboxed: boolean): string {
 	return sandboxed
 		? localize('agentHostChatInputPicker.sandboxedLabel', "{0} (sandboxed)", label)
 		: label;
@@ -186,7 +190,7 @@ function getEnumValueDescription(schema: SessionConfigPropertySchema, value: unk
 	return index >= 0 ? schema.enumDescriptions?.[index] : undefined;
 }
 
-export function getConfigPickerTriggerHover(property: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean): string {
+export function getConfigPickerTriggerHover(property: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean, sandboxed = false): string {
 	if (property === CodexSessionConfigKey.PermissionsPreset) {
 		return getEnumValueDescription(schema, value) ?? schema.description ?? schema.title;
 	}
@@ -194,9 +198,12 @@ export function getConfigPickerTriggerHover(property: string, schema: SessionCon
 		return schema.description ?? schema.title;
 	}
 
-	const hover = getAutoApproveHover(value, getEnumValueDescription(schema, value));
+	let hover = getAutoApproveHover(value, getEnumValueDescription(schema, value));
 	if (isReadOnly) {
-		return localize('agentHostChatInputPicker.approvalsLevelHoverReadOnly', "{0} Read-only.", hover);
+		hover = localize('agentHostChatInputPicker.approvalsLevelHoverReadOnly', "{0} Read-only.", hover);
+	}
+	if (sandboxed) {
+		hover = localize('agentHostChatInputPicker.approvalsLevelHoverSandboxed', "{0} Terminal commands are sandboxed.", hover);
 	}
 	return hover;
 }
@@ -546,10 +553,9 @@ export class AgentHostChatInputPicker extends Disposable {
 		const isReadOnly = !!ctx.schema.readOnly || (isStartedSession && ctx.schema.sessionMutable === false);
 		const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(trigger));
 		this._trigger = trigger;
-		const tooltip = getConfigPickerTriggerHover(this._property, ctx.schema, ctx.value, isReadOnly);
-		if (tooltip) {
-			this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, { content: tooltip }));
-		}
+		this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, () => ({
+			content: getConfigPickerTriggerHover(this._property, ctx.schema, ctx.value, isReadOnly, this._isSandboxed())
+		})));
 		this._renderTrigger(trigger, ctx.schema, ctx.value, isReadOnly);
 	}
 
@@ -566,12 +572,19 @@ export class AgentHostChatInputPicker extends Disposable {
 			trigger.classList.toggle('warning', value === 'autopilot' || value === 'assisted');
 			trigger.classList.toggle('info', value === 'autoApprove');
 		}
-		const label = this._labelFor(schema, value);
+		const label = getConfigPickerTriggerLabel(schema, value);
 		const labelSpan = dom.append(trigger, dom.$('span.agent-host-chat-input-picker-label'));
 		labelSpan.textContent = label;
+		const sandboxed = this._isSandboxed();
+		if (sandboxed) {
+			const sandboxIcon = dom.append(trigger, renderIcon(Codicon.shield));
+			sandboxIcon.classList.add('agent-host-chat-input-picker-sandbox-icon');
+			sandboxIcon.ariaHidden = 'true';
+		}
+		const accessibleLabel = getConfigPickerAccessibleTriggerLabel(label, sandboxed);
 		trigger.setAttribute('aria-label', isReadOnly
-			? localize('agentHostChatInputPicker.triggerAriaReadOnly', "{0}: {1}, Read-Only", schema.title, label)
-			: localize('agentHostChatInputPicker.triggerAria', "{0}: {1}", schema.title, label));
+			? localize('agentHostChatInputPicker.triggerAriaReadOnly', "{0}: {1}, Read-Only", schema.title, accessibleLabel)
+			: localize('agentHostChatInputPicker.triggerAria', "{0}: {1}", schema.title, accessibleLabel));
 	}
 
 	private _refreshTrigger(): void {
@@ -586,11 +599,10 @@ export class AgentHostChatInputPicker extends Disposable {
 		this._renderTrigger(trigger, ctx.schema, ctx.value, isReadOnly);
 	}
 
-	private _labelFor(schema: SessionConfigPropertySchema, value: unknown | undefined): string {
-		const sandboxed = this._property === SessionConfigKey.AutoApprove
+	private _isSandboxed(): boolean {
+		return this._property === SessionConfigKey.AutoApprove
 			&& this._isSandboxToggleSettingEnabled()
 			&& this._isSandboxingEnabled();
-		return getConfigPickerTriggerLabel(schema, value, sandboxed);
 	}
 
 	private _readContext(): { backendSession: URI; schema: SessionConfigPropertySchema; value: unknown | undefined } | undefined {

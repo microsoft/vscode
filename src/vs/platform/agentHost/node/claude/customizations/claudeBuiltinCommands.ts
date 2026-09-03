@@ -5,15 +5,9 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../common/agentHostCustomizationUri.js';
 import { CustomizationType } from '../../../common/state/protocol/channels-session/state.js';
 import { CustomizationLoadStatus, customizationId, type DirectoryCustomization, type SkillCustomization } from '../../../common/state/sessionState.js';
-
-/**
- * URI scheme for synthetic "built-in" customizations that have no editable
- * file on disk. These entries appear in the customization list purely for
- * discovery (their name and description); they carry no openable content.
- */
-const AGENT_BUILTIN_SCHEME = 'agent-builtin';
 
 /**
  * A Claude built-in slash command backed by the Skill tool, used to seed the
@@ -97,7 +91,7 @@ interface IBuiltinSkillEntry {
 /**
  * Builds the read-only "Built-in" skills container from resolved
  * `{ name, description }` entries. Each child is a {@link CustomizationType.Skill}
- * on the {@link AGENT_BUILTIN_SCHEME}; the name and description shown in the
+ * on the {@link AGENT_BUILTIN_CUSTOMIZATION_SCHEME}; the name and description shown in the
  * list are the discovery information it carries (the entries have no openable
  * content). Returns `undefined` when there are no entries.
  */
@@ -107,7 +101,7 @@ function buildBuiltinSkillsContainer(entries: readonly IBuiltinSkillEntry[]): Di
 	}
 
 	const children: SkillCustomization[] = entries.map(entry => {
-		const uri = URI.from({ scheme: AGENT_BUILTIN_SCHEME, path: `/skill/${encodeURIComponent(entry.name)}` }).toString();
+		const uri = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: `/skill/${encodeURIComponent(entry.name)}` }).toString();
 		return {
 			type: CustomizationType.Skill,
 			id: customizationId(uri),
@@ -117,7 +111,7 @@ function buildBuiltinSkillsContainer(entries: readonly IBuiltinSkillEntry[]): Di
 		};
 	});
 
-	const containerUri = URI.from({ scheme: AGENT_BUILTIN_SCHEME, path: '/skills' }).toString();
+	const containerUri = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skills' }).toString();
 	return {
 		type: CustomizationType.Directory,
 		id: customizationId(containerUri),
@@ -157,7 +151,7 @@ export function buildClaudeBuiltinSkillsContainer(diskSkillNames: ReadonlySet<st
  * The post-materialize built-in container, derived from the live SDK command
  * set. A command the SDK reports but that we do NOT discover on disk as an
  * editable skill is a genuine runtime built-in (it has no editable file), so
- * it is surfaced read-only via {@link AGENT_BUILTIN_SCHEME} using the SDK's
+ * it is surfaced read-only via {@link AGENT_BUILTIN_CUSTOMIZATION_SCHEME} using the SDK's
  * own description. Commands backed by a discovered disk skill are excluded —
  * they are already shown as their editable selves. This auto-includes runtime
  * built-ins we never hardcoded and self-heals as the CLI evolves.

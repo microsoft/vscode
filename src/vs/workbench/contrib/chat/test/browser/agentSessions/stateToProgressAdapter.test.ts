@@ -18,7 +18,7 @@ import { createAgentHostResourceUriMapper, fromAgentHostUri, toAgentHostContentU
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -1594,10 +1594,14 @@ suite('stateToProgressAdapter', () => {
 				kind: invocation.toolSpecificData?.kind,
 				command: (invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined)?.commandLine.original,
 				language: (invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined)?.language,
+				// Read-only for the same reason as a generic input: the edit is never returned, so
+				// an editable command line would run the one the agent proposed.
+				editable: (invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined)?.editable,
 			}, {
 				kind: 'terminal',
 				command: 'rg -n "sandbox" --glob "*.ts"',
 				language: 'shellscript',
+				editable: false,
 			});
 		});
 
@@ -1621,6 +1625,31 @@ suite('stateToProgressAdapter', () => {
 			}, {
 				kind: 'terminal',
 				command: 'npm run compile',
+			});
+		});
+
+		test('presents a generic confirmation input read-only, since edits are never sent back', () => {
+			// The confirmation editor writes into `rawInput`, but this adapter never returns it as
+			// `editedToolInput` — an editable field would run the command the agent proposed.
+			const tc: ToolCallPendingConfirmationState = {
+				toolCallId: 'tc-perm-path',
+				toolName: 'shell',
+				displayName: 'Shell',
+				invocationMessage: 'Access paths',
+				status: ToolCallStatus.PendingConfirmation,
+				toolInput: '/a/one.ts, /a/two.ts',
+				// A host claiming otherwise does not change that: the round trip is what is missing.
+				editable: true,
+				_meta: { requestId: 'req-3', promptRequest: { kind: 'path', accessKind: 'shell' } },
+			};
+
+			const invocation = toolCallStateToInvocation(tc);
+			assert.deepStrictEqual({
+				kind: invocation.toolSpecificData?.kind,
+				editable: (invocation.toolSpecificData as IChatToolInputInvocationData | undefined)?.editable,
+			}, {
+				kind: 'input',
+				editable: false,
 			});
 		});
 
@@ -3322,8 +3351,9 @@ suite('stateToProgressAdapter', () => {
 				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'docs-customization' },
 				_meta: meta,
 			});
-			// Confirmation state carries the raw input but does not mount the App.
-			assert.deepStrictEqual(invocation.toolSpecificData, { kind: 'input', rawInput: { topic: 'metadata' } });
+			// Confirmation state carries the raw input but does not mount the App. It is read-only:
+			// this adapter never returns an edited input to the host.
+			assert.deepStrictEqual(invocation.toolSpecificData, { kind: 'input', rawInput: { topic: 'metadata' }, editable: false });
 
 			let stateChanged = false;
 			const disposable = autorun(r => {

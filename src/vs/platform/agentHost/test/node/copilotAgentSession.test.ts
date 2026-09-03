@@ -11971,7 +11971,7 @@ Use the attached image as context.
 			});
 		});
 
-		test('MCP auth request publishes authRequired state and resolves with authenticate token', async () => {
+		test('MCP auth request prioritizes a static client secret when publishing authRequired state', async () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables, { githubToken: 'existing-token' });
 
 			const authPromise = runtime.handleMcpAuthRequest({
@@ -11982,7 +11982,7 @@ Use the attached image as context.
 				staticClientConfig: {
 					clientId: 'configured-client-id',
 					clientSecret: 'configured-client-secret',
-					publicClient: false,
+					publicClient: true,
 				},
 				resourceMetadata: JSON.stringify({
 					resource: 'https://api.githubcopilot.com/mcp',
@@ -12035,7 +12035,6 @@ Use the attached image as context.
 				reason: 'initial',
 				staticClientConfig: {
 					clientId: 'public-client-id',
-					publicClient: true,
 				},
 				resourceMetadata: JSON.stringify({
 					resource: 'https://mcp.example.com',

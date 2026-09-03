@@ -1264,6 +1264,7 @@ export class PluginListWidget extends Disposable {
 
 		const content = this.createCardScrollContent();
 		const installedPlugins = this.installedItems;
+		const hasMarketplaceInstalledPlugins = this.pluginMarketplaceService.installedPlugins.get().length > 0;
 
 		this.renderDiscoverySnapshot(content);
 		if (shouldLoadPluginMarketplaceSnapshot(this.visible, this.marketplaceSnapshot.state, this.isBrowseMarketplaceAvailable())) {
@@ -1276,7 +1277,7 @@ export class PluginListWidget extends Disposable {
 			undefined,
 			'installed-plugins-section',
 			installedPlugins.length,
-			header => this.renderInstalledSectionActions(header),
+			header => this.renderInstalledSectionActions(header, hasMarketplaceInstalledPlugins),
 		);
 		installedList.classList.add('plugin-inventory-list');
 		if (installedPlugins.length === 0) {
@@ -1309,7 +1310,7 @@ export class PluginListWidget extends Disposable {
 		this.renderAvailablePlugins(content, this.getUninstalledMarketplaceItems(this.marketplaceSnapshot.items), true);
 	}
 
-	private renderInstalledSectionActions(header: HTMLElement): void {
+	private renderInstalledSectionActions(header: HTMLElement, hasInstalledPlugins: boolean): void {
 		const actions = DOM.append(header, $('.plugin-card-section-actions'));
 		const createLabel = localize('createPlugin', "Create Plugin");
 		const create = this.installedCreateButton = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, ariaLabel: createLabel }));
@@ -1317,6 +1318,14 @@ export class PluginListWidget extends Disposable {
 		this.updateInstalledCreateButtonLabel();
 		this.rememberCardFocusElement(create.element);
 		this.cardDisposables.add(create.onDidClick(() => this.runCreatePluginAction()));
+
+		if (hasInstalledPlugins) {
+			const updateLabel = localize('checkForAndApplyPluginUpdates', "Check for and apply updates");
+			const update = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: updateLabel, ariaLabel: updateLabel }));
+			update.element.classList.add('plugin-card-icon-button', 'plugin-update-button');
+			update.label = `$(${Codicon.refresh.id})`;
+			this.cardDisposables.add(update.onDidClick(() => this.runUpdatePluginsAction(update)));
+		}
 	}
 
 	private renderAvailablePlugins(
@@ -1375,12 +1384,6 @@ export class PluginListWidget extends Disposable {
 			install.label = installLabel;
 			this.cardDisposables.add(install.onDidClick(() => this.runInstallFromSourceAction()));
 		}
-
-		const updateLabel = localize('updatePlugins', "Update Plugins");
-		const update = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: updateLabel, ariaLabel: updateLabel }));
-		update.element.classList.add('plugin-card-icon-button', 'plugin-update-available-button');
-		update.label = `$(${Codicon.refresh.id})`;
-		this.cardDisposables.add(update.onDidClick(() => this.runUpdatePluginsAction(update)));
 	}
 
 	private appendInstalledPluginRow(parent: HTMLElement, item: IInstalledPluginItem): void {

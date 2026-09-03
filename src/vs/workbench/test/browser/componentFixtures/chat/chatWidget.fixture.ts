@@ -55,6 +55,7 @@ export interface IFixtureFileChange {
 
 export interface IFixtureMessage {
 	readonly user: string; // user prompt text
+	readonly timestamp?: number;
 	readonly assistant?: ReadonlyArray<
 		| { kind: 'markdown'; text: string }
 		| { kind: 'progress'; text: string }
@@ -277,7 +278,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 			undefined,
 			undefined,
 			undefined,
-			undefined,
+			message.timestamp,
 			undefined,
 			undefined,
 			message.requestHidden,
