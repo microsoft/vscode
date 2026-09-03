@@ -354,7 +354,11 @@ function sanitizeSurvivingStalePolicy(untrusted: string, config: DomPurifyTypes.
 		if (!replacement) {
 			throw error;
 		}
-		return dompurify.sanitize(untrusted, { ...config, TRUSTED_TYPES_POLICY: replacement as TrustedTypePolicy });
+		// Named through dompurify's own config rather than the global `TrustedTypePolicy`.
+		// The two spell the same type, but the editor build resolves `trusted-types` twice
+		// and the branded declarations then do not unify.
+		const policy = replacement as unknown as DomPurifyTypes.Config['TRUSTED_TYPES_POLICY'];
+		return dompurify.sanitize(untrusted, { ...config, TRUSTED_TYPES_POLICY: policy });
 	}
 }
 
