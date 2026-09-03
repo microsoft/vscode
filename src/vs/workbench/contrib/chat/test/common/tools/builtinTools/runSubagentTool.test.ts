@@ -17,6 +17,8 @@ import { IChatProgress, IChatService } from '../../../../common/chatService/chat
 import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ICustomAgent, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { Target } from '../../../../common/promptSyntax/promptTypes.js';
 import { MockPromptsService } from '../../promptSyntax/service/mockPromptsService.js';
@@ -24,6 +26,16 @@ import { ExtensionIdentifier } from '../../../../../../../platform/extensions/co
 import { IToolInvocation, ToolProgress } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatModel, IChatRequestModeInstructions } from '../../../../common/model/chatModel.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
+
+class TestTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { readonly name: string; readonly data: unknown }[] = [];
+
+	override publicLog2(eventName?: string, data?: unknown): void {
+		if (eventName) {
+			this.events.push({ name: eventName, data });
+		}
+	}
+}
 
 suite('RunSubagentTool', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -109,8 +121,10 @@ suite('RunSubagentTool', () => {
 		defaultToAuto?: boolean;
 		models?: Map<string, ILanguageModelChatMetadata>;
 		selectedModels?: Map<string, ILanguageModelChatMetadata>;
+		qualifiedNameMap?: Map<string, ILanguageModelChatMetadataAndIdentifier>;
 		copilotVendorResolved?: boolean;
 		onSelectLanguageModels?: () => void;
+		telemetryService?: ITelemetryService;
 	}) {
 		const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
 		const configService = new TestConfigurationService({
@@ -165,6 +179,7 @@ suite('RunSubagentTool', () => {
 			promptsService,
 			mockInstantiationService as IInstantiationService,
 			{} as IProductService,
+			opts.telemetryService ?? NullTelemetryService,
 		));
 
 		return { tool, mockChatAgentService };
@@ -233,6 +248,7 @@ suite('RunSubagentTool', () => {
 				promptsService,
 				{} as IInstantiationService,
 				{} as IProductService,
+				NullTelemetryService,
 			));
 
 			const result = await tool.prepareToolInvocation(
@@ -276,6 +292,7 @@ suite('RunSubagentTool', () => {
 				promptsService,
 				{} as IInstantiationService,
 				{} as IProductService,
+				NullTelemetryService,
 			));
 			return tool;
 		}
@@ -318,6 +335,7 @@ suite('RunSubagentTool', () => {
 				promptsService,
 				{} as IInstantiationService,
 				{} as IProductService,
+				NullTelemetryService,
 			));
 
 			const toolData = tool.getToolData();
@@ -426,6 +444,7 @@ suite('RunSubagentTool', () => {
 				promptsService,
 				{} as IInstantiationService,
 				builtinProductService,
+				NullTelemetryService,
 			));
 
 			return tool;
@@ -1081,6 +1100,7 @@ suite('RunSubagentTool', () => {
 				promptsService,
 				{} as IInstantiationService,
 				{} as IProductService,
+				NullTelemetryService,
 			));
 
 			return tool;
@@ -1315,6 +1335,7 @@ suite('RunSubagentTool', () => {
 				promptsService,
 				mockInstantiationService as IInstantiationService,
 				{} as IProductService,
+				NullTelemetryService,
 			));
 		}
 
@@ -1481,6 +1502,7 @@ suite('RunSubagentTool', () => {
 			const mainMeta = createMetadata('GPT-4o', 1, COPILOT_VENDOR_ID);
 			const autoMeta = createAutoMetadata();
 			let selectCalls = 0;
+			const telemetryService = new TestTelemetryService();
 			const { tool } = createInvokableTool({
 				allowInvocationsFromSubagents: false,
 				capturedRequests,
@@ -1488,6 +1510,7 @@ suite('RunSubagentTool', () => {
 				models: new Map([['main-model-id', mainMeta]]),
 				selectedModels: new Map([['copilot-auto-model-id', autoMeta]]),
 				onSelectLanguageModels: () => selectCalls++,
+				telemetryService,
 			});
 			const sessionUri = URI.parse('test://session/prepared-auto');
 			const invocation = createInvocation(sessionUri, undefined, 'main-model-id');
@@ -1498,14 +1521,20 @@ suite('RunSubagentTool', () => {
 				modelId: invocation.modelId,
 				chatSessionResource: sessionUri,
 			}, CancellationToken.None);
+			assert.deepStrictEqual(telemetryService.events, []);
 			await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
 
 			assert.deepStrictEqual({
 				userSelectedModelId: capturedRequests[0].userSelectedModelId,
 				selectCalls,
+				telemetryEvents: telemetryService.events,
 			}, {
 				userSelectedModelId: 'copilot-auto-model-id',
 				selectCalls: 1,
+				telemetryEvents: [{
+					name: 'chat.subagentModelSelection',
+					data: { selectionSource: 'autoDefault' },
+				}],
 			});
 		});
 
@@ -1514,6 +1543,7 @@ suite('RunSubagentTool', () => {
 			const mainMeta = createMetadata('GPT-4o', 1, COPILOT_VENDOR_ID);
 			const autoMeta = createAutoMetadata();
 			let selectCalls = 0;
+			const telemetryService = new TestTelemetryService();
 			const { tool } = createInvokableTool({
 				allowInvocationsFromSubagents: false,
 				capturedRequests,
@@ -1521,6 +1551,7 @@ suite('RunSubagentTool', () => {
 				models: new Map([['main-model-id', mainMeta]]),
 				selectedModels: new Map([['copilot-auto-model-id', autoMeta]]),
 				onSelectLanguageModels: () => selectCalls++,
+				telemetryService,
 			});
 
 			await tool.invoke(
@@ -1533,9 +1564,14 @@ suite('RunSubagentTool', () => {
 			assert.deepStrictEqual({
 				userSelectedModelId: capturedRequests[0].userSelectedModelId,
 				selectCalls,
+				telemetryEvents: telemetryService.events,
 			}, {
 				userSelectedModelId: 'copilot-auto-model-id',
 				selectCalls: 1,
+				telemetryEvents: [{
+					name: 'chat.subagentModelSelection',
+					data: { selectionSource: 'autoDefault' },
+				}],
 			});
 		});
 
@@ -1545,6 +1581,7 @@ suite('RunSubagentTool', () => {
 			const autoMeta = createAutoMetadata();
 			const currentAgent = createAgent('CurrentAgent', ['Claude Sonnet (TestVendor)']);
 			let selectCalls = 0;
+			const telemetryService = new TestTelemetryService();
 			const { tool } = createInvokableTool({
 				allowInvocationsFromSubagents: false,
 				capturedRequests,
@@ -1554,6 +1591,7 @@ suite('RunSubagentTool', () => {
 				models: new Map([['main-model-id', mainMeta]]),
 				selectedModels: new Map([['copilot-auto-model-id', autoMeta]]),
 				onSelectLanguageModels: () => selectCalls++,
+				telemetryService,
 			});
 			const sessionUri = URI.parse('test://session/inherited-agent-model');
 			const invocation = createInvocation(sessionUri, undefined, 'main-model-id');
@@ -1570,11 +1608,71 @@ suite('RunSubagentTool', () => {
 				subAgentName: capturedRequests[0].subAgentName,
 				userSelectedModelId: capturedRequests[0].userSelectedModelId,
 				selectCalls,
+				telemetryEvents: telemetryService.events,
 			}, {
 				subAgentName: 'CurrentAgent',
 				userSelectedModelId: 'main-model-id',
 				selectCalls: 0,
+				telemetryEvents: [{
+					name: 'chat.subagentModelSelection',
+					data: { selectionSource: 'mainModel' },
+				}],
 			});
+		});
+
+		test('reports explicit and configured agent model selection sources', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1, COPILOT_VENDOR_ID);
+			const selectedMeta = createMetadata('Claude Sonnet', 1);
+			const qualifiedName = 'Claude Sonnet (TestVendor)';
+			const qualifiedNameMap = new Map([
+				[qualifiedName, { metadata: selectedMeta, identifier: 'selected-model-id' }],
+			]);
+			const configuredAgent = { ...createAgent('ConfiguredAgent', [qualifiedName]), tools: undefined };
+			const selections: unknown[] = [];
+
+			for (const testCase of [
+				{ name: 'explicit', parameters: { prompt: 'do something', description: 'test', model: qualifiedName } },
+				{ name: 'agent', parameters: { prompt: 'do something', description: 'test', agentName: 'ConfiguredAgent' } },
+			]) {
+				const telemetryService = new TestTelemetryService();
+				const capturedRequests: IChatAgentRequest[] = [];
+				const { tool } = createInvokableTool({
+					allowInvocationsFromSubagents: false,
+					capturedRequests,
+					customAgents: [configuredAgent],
+					defaultToAuto: true,
+					models: new Map([
+						['main-model-id', mainMeta],
+						['selected-model-id', selectedMeta],
+						['copilot-auto-model-id', createAutoMetadata()],
+					]),
+					qualifiedNameMap,
+					copilotVendorResolved: true,
+					telemetryService,
+				});
+				const invocation = createInvocation(URI.parse(`test://session/${testCase.name}`), undefined, 'main-model-id');
+				invocation.parameters = testCase.parameters;
+
+				const result = await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+				if (capturedRequests.length !== 1) {
+					throw new Error(`${testCase.name}: ${JSON.stringify(result)}`);
+				}
+				selections.push({
+					selectedModelId: capturedRequests[0].userSelectedModelId,
+					telemetry: telemetryService.events[0],
+				});
+			}
+
+			assert.deepStrictEqual(selections, [
+				{
+					selectedModelId: 'selected-model-id',
+					telemetry: { name: 'chat.subagentModelSelection', data: { selectionSource: 'explicitModel' } },
+				},
+				{
+					selectedModelId: 'selected-model-id',
+					telemetry: { name: 'chat.subagentModelSelection', data: { selectionSource: 'agentModel' } },
+				},
+			]);
 		});
 	});
 
@@ -1632,6 +1730,7 @@ suite('RunSubagentTool', () => {
 				promptsService,
 				mockInstantiationService as IInstantiationService,
 				{} as IProductService,
+				NullTelemetryService,
 			));
 			return { tool, parentCredits };
 		}

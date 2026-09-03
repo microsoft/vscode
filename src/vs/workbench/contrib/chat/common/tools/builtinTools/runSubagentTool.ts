@@ -18,6 +18,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { ChatRequestVariableSet } from '../../attachments/chatVariableEntries.js';
 import { isByokModel } from '../../chatSelectedModel.js';
 import { IChatProgress, IChatService } from '../../chatService/chatService.js';
@@ -66,6 +67,24 @@ export interface IRunSubagentToolInputParams {
 
 export const RUN_SUBAGENT_MAX_NESTING_DEPTH = 5;
 
+type SubagentModelSelectionSource = 'explicitModel' | 'agentModel' | 'autoDefault' | 'mainModel';
+
+interface IResolvedSubagentModel {
+	readonly modeModelId: string | undefined;
+	readonly resolvedModelName: string | undefined;
+	readonly selectionSource: SubagentModelSelectionSource;
+}
+
+type SubagentModelSelectionEvent = {
+	selectionSource: SubagentModelSelectionSource;
+};
+
+type SubagentModelSelectionClassification = {
+	selectionSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source that selected the model for an invoked subagent. One of explicitModel, agentModel, autoDefault, or mainModel.' };
+	owner: 'bhavyaus';
+	comment: 'Tracks how the model for an invoked subagent was selected without collecting model or agent names.';
+};
+
 export class RunSubagentTool extends Disposable implements IToolImpl {
 
 	static readonly Id = 'runSubagent';
@@ -74,7 +93,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	readonly onDidUpdateToolData: Event<void> = this._onDidUpdateToolData.event;
 
 	/** Hack to port data between prepare/invoke */
-	private readonly _resolvedModels = new Map<string, { modeModelId: string | undefined; resolvedModelName: string | undefined }>();
+	private readonly _resolvedModels = new Map<string, IResolvedSubagentModel>();
 
 	/** Tracks the current subagent nesting depth per session to detect and limit recursion. */
 	private readonly _sessionDepth = new Map<string, number>();
@@ -91,6 +110,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this._register(this.languageModelsService.onDidChangeLanguageModels(() => this._autoModelResolution = undefined));
@@ -169,6 +189,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			let modeInstructions: IChatRequestModeInstructions | undefined;
 			let subagent: ICustomAgent | undefined;
 			let resolvedModelName: string | undefined;
+			let modelSelectionSource: SubagentModelSelectionSource = 'mainModel';
 			const currentModeInstructions = request.modeInfo?.modeInstructions;
 
 			const subAgentName = this.normalizeRequestedAgentName(args.agentName);
@@ -184,11 +205,13 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 						this._resolvedModels.delete(invocation.callId);
 						modeModelId = cached.modeModelId;
 						resolvedModelName = cached.resolvedModelName;
+						modelSelectionSource = cached.selectionSource;
 					} else {
 						// Fallback: resolve the model here if prepare didn't cache it
 						const resolved = await this.resolveSubagentModel(subagent, invocation.modelId, args.model);
 						modeModelId = resolved.modeModelId;
 						resolvedModelName = resolved.resolvedModelName;
+						modelSelectionSource = resolved.selectionSource;
 					}
 
 					// Use mode-specific tools if available
@@ -227,10 +250,12 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					this._resolvedModels.delete(invocation.callId);
 					modeModelId = cached.modeModelId;
 					resolvedModelName = cached.resolvedModelName;
+					modelSelectionSource = cached.selectionSource;
 				} else {
 					const resolved = await this.resolveSubagentModel(undefined, invocation.modelId, args.model, currentModeInstructions);
 					modeModelId = resolved.modeModelId;
 					resolvedModelName = resolved.resolvedModelName;
+					modelSelectionSource = resolved.selectionSource;
 				}
 			}
 
@@ -361,6 +386,9 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			}));
 
 			// Invoke the agent, tracking nesting depth for recursion detection
+			this.telemetryService.publicLog2<SubagentModelSelectionEvent, SubagentModelSelectionClassification>('chat.subagentModelSelection', {
+				selectionSource: modelSelectionSource,
+			});
 			this._sessionDepth.set(sessionKey, currentDepth + 1);
 			let result: IChatAgentResult | undefined;
 			try {
@@ -499,10 +527,11 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	 *        Its configured model keeps precedence over the Auto default.
 	 * @throws Error if the requested model is not found or exceeds the main model's cost tier.
 	 */
-	private async resolveSubagentModel(subagent: ICustomAgent | undefined, mainModelId: string | undefined, explicitModelQualifiedName?: string, currentModeInstructions?: IChatRequestModeInstructions): Promise<{ modeModelId: string | undefined; resolvedModelName: string | undefined }> {
+	private async resolveSubagentModel(subagent: ICustomAgent | undefined, mainModelId: string | undefined, explicitModelQualifiedName?: string, currentModeInstructions?: IChatRequestModeInstructions): Promise<IResolvedSubagentModel> {
 		let modeModelId = mainModelId;
 		let explicitModelResolved = false;
 		let usesAutoDefault = false;
+		let selectionSource: SubagentModelSelectionSource = 'mainModel';
 		const mainModelMetadata = mainModelId ? this.languageModelsService.lookupLanguageModel(mainModelId) : undefined;
 
 		// Explicit model parameter takes highest priority
@@ -511,6 +540,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			if (lm?.identifier) {
 				modeModelId = lm.identifier;
 				explicitModelResolved = true;
+				selectionSource = 'explicitModel';
 			} else {
 				// Model not found - throw error with available models
 				throw new Error(`Requested model '${explicitModelQualifiedName}' not found. ${this.getAvailableModelsInfo(mainModelId)}`);
@@ -533,6 +563,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 							continue;
 						}
 						modeModelId = lmByQualifiedName.identifier;
+						selectionSource = 'agentModel';
 						break;
 					}
 				}
@@ -550,6 +581,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			if (autoModelId) {
 				modeModelId = autoModelId;
 				usesAutoDefault = true;
+				selectionSource = 'autoDefault';
 			}
 		}
 
@@ -563,7 +595,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		}
 
 		const resolvedModelMetadata = modeModelId ? this.languageModelsService.lookupLanguageModel(modeModelId) : undefined;
-		return { modeModelId, resolvedModelName: resolvedModelMetadata?.name };
+		return { modeModelId, resolvedModelName: resolvedModelMetadata?.name, selectionSource };
 	}
 
 	private async inheritedAgentHasModel(subagent: ICustomAgent | undefined, currentModeInstructions: IChatRequestModeInstructions | undefined): Promise<boolean> {
