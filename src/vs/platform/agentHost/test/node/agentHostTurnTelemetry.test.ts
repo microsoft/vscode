@@ -404,6 +404,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			toolCallId: 'call-subagent',
 			agentName: 'explore',
 			agentDisplayName: 'Explore',
+			taskModelSource: 'task_argument',
 		});
 
 		const subagentTurnId = stateManager.getActiveTurnId(subagentChatUri);
@@ -421,13 +422,13 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.deepStrictEqual({
 			completed: completedEvents().map(event => {
 				const data = event.data as Record<string, unknown>;
-				return { isSubagentSession: data.isSubagentSession, interactionMode: data.interactionMode, modelCallCount: data.modelCallCount };
+				return { isSubagentSession: data.isSubagentSession, interactionMode: data.interactionMode, modelCallCount: data.modelCallCount, subagentTaskModelSource: data.subagentTaskModelSource };
 			}),
 			correlations: agent.modelCallTurnCorrelationCalls.map(({ chat, ...correlation }) => ({ chat: chat.toString(), ...correlation })),
 		}, {
 			completed: [
-				{ isSubagentSession: true, interactionMode: 'plan', modelCallCount: 1 },
-				{ isSubagentSession: false, interactionMode: 'plan', modelCallCount: 0 },
+				{ isSubagentSession: true, interactionMode: 'plan', modelCallCount: 1, subagentTaskModelSource: 'task_argument' },
+				{ isSubagentSession: false, interactionMode: 'plan', modelCallCount: 0, subagentTaskModelSource: undefined },
 			],
 			correlations: [{
 				chat: defaultChatUri,
@@ -449,6 +450,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			toolCallId: 'call-level-1',
 			agentName: 'explore',
 			agentDisplayName: 'Explore',
+			taskModelSource: 'subagent_configuration',
 		});
 		const level1TurnId = stateManager.getActiveTurnId(level1ChatUri);
 		assert.ok(level1TurnId);
@@ -462,6 +464,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			parentToolCallId: 'call-level-1',
 			agentName: 'explore',
 			agentDisplayName: 'Explore',
+			taskModelSource: 'custom_agent_definition',
 		});
 		const level2TurnId = stateManager.getActiveTurnId(level2ChatUri);
 		assert.ok(level2TurnId);
@@ -498,12 +501,13 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				parentTurnId: data.parentTurnId,
 				parentToolCallId: data.parentToolCallId,
 				directPromptTokenCount: data.directPromptTokenCount,
+				subagentTaskModelSource: data.subagentTaskModelSource,
 			};
 		}), [
-			{ turnId: level2TurnId, parentTurnId: level1TurnId, parentToolCallId: 'call-level-2', directPromptTokenCount: 30 },
-			{ turnId: resumedLevel2TurnId, parentTurnId: level1TurnId, parentToolCallId: 'call-level-2', directPromptTokenCount: undefined },
-			{ turnId: level1TurnId, parentTurnId: 'turn-parent', parentToolCallId: 'call-level-1', directPromptTokenCount: 20 },
-			{ turnId: 'turn-parent', parentTurnId: undefined, parentToolCallId: undefined, directPromptTokenCount: 10 },
+			{ turnId: level2TurnId, parentTurnId: level1TurnId, parentToolCallId: 'call-level-2', directPromptTokenCount: 30, subagentTaskModelSource: 'custom_agent_definition' },
+			{ turnId: resumedLevel2TurnId, parentTurnId: level1TurnId, parentToolCallId: 'call-level-2', directPromptTokenCount: undefined, subagentTaskModelSource: 'custom_agent_definition' },
+			{ turnId: level1TurnId, parentTurnId: 'turn-parent', parentToolCallId: 'call-level-1', directPromptTokenCount: 20, subagentTaskModelSource: 'subagent_configuration' },
+			{ turnId: 'turn-parent', parentTurnId: undefined, parentToolCallId: undefined, directPromptTokenCount: 10, subagentTaskModelSource: undefined },
 		]);
 	});
 
