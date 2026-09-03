@@ -13,7 +13,7 @@ export class NumberPolicy extends BasePolicy {
 	static from(category: CategoryDto, policy: PolicyDto): NumberPolicy | undefined {
 		const { type, default: defaultValue, name, minimumVersion, localization } = policy;
 
-		if (type !== 'number') {
+		if (type !== 'number' && type !== 'integer') {
 			return undefined;
 		}
 
