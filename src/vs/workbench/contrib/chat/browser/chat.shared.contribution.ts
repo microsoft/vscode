@@ -461,7 +461,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ConsolidatedRemoteWorkspaces]: {
 			type: 'boolean',
-			default: false,
+			default: product.quality !== 'stable',
 			scope: ConfigurationScope.APPLICATION,
 			description: nls.localize('chat.agentSessions.consolidatedRemoteWorkspaces', "Controls whether GitHub and remote workspaces are combined under Remote in the Agents Window workspace picker, with search always available."),
 			tags: ['preview'],
