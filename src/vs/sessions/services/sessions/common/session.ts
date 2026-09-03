@@ -81,6 +81,22 @@ export const enum SessionStatus {
 	Error = 4,
 }
 
+/**
+ * Connection state of the remote agent host backing a session.
+ */
+export type SessionRemoteConnectionStatus =
+	| { readonly kind: 'connected' }
+	| { readonly kind: 'connecting' }
+	| { readonly kind: 'reconnecting'; readonly nextAttemptAt?: number }
+	| { readonly kind: 'disconnected'; readonly reason: SessionRemoteConnectionFailureReason }
+	| { readonly kind: 'incompatible' };
+
+/** Machine-readable reasons a remote session's host is disconnected. */
+export const enum SessionRemoteConnectionFailureReason {
+	Unknown = 'unknown',
+	HostNotRunning = 'hostNotRunning',
+}
+
 /** Whether a session still has active work, including work blocked on user input. */
 export function isActiveSessionStatus(status: SessionStatus): boolean {
 	return status === SessionStatus.InProgress || status === SessionStatus.NeedsInput;
@@ -753,6 +769,8 @@ export interface ISession {
 	readonly isAutomation?: IObservable<boolean>;
 	/** Whether this session was discovered in an application other than the current host. Absent means `false`. */
 	readonly isExternal?: IObservable<boolean>;
+	/** Connection state of the backing remote host. Absent when the session has no remote host. */
+	readonly remoteConnectionStatus?: IObservable<SessionRemoteConnectionStatus>;
 	/** Session turn that created this session, when it was created by another agent session. */
 	readonly createdBySession?: IObservable<ISessionCreationReference | undefined>;
 

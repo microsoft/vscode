@@ -92,9 +92,11 @@ export function getBrowserPagesContext(
 ): string | undefined {
 	const views = [...browserViewService.getContextualBrowserViews({ activeSessionId: options?.activeSessionId }).values()];
 	const sharedViews = views.filter(view => view.model?.sharingState === BrowserViewSharingState.Shared);
-	const unsharedCount = views.length - sharedViews.length;
+	const unsharedCount = views.filter(view => !view.model || view.model.sharingState === BrowserViewSharingState.Available).length;
+	const blockedCount = views.filter(view => view.model?.sharingState === BrowserViewSharingState.BlockedByNetworkPolicy).length;
 
-	if (sharedViews.length === 0 && unsharedCount === 0) {
+	const isNetworkFilterEnabled = agentNetworkFilterService.isEnabled();
+	if (sharedViews.length === 0 && unsharedCount === 0 && blockedCount === 0 && !isNetworkFilterEnabled) {
 		return undefined;
 	}
 
@@ -112,6 +114,15 @@ export function getBrowserPagesContext(
 		value += options?.canPromptUser
 			? `\nUse the 'open_browser_page' tool to open a new page or to help the user share an existing page.`
 			: `\nUse the 'open_browser_page' tool to open a new page.`;
+	}
+
+	if (blockedCount > 0) {
+		value += '\n\n';
+		value += `${blockedCount} ${blockedCount === 1 ? 'page is' : 'pages are'} open but cannot be shared because network policy blocks the current address.`;
+	}
+
+	if (isNetworkFilterEnabled) {
+		value += '\n\nNetwork domain policy is active. Blocked requests may fail with `net::ERR_BLOCKED_BY_CLIENT`.';
 	}
 
 	return value;

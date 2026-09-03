@@ -12,6 +12,8 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
+import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AICustomizationManagementEditor, isCurrentPluginContributionNavigation } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { ChatConfiguration } from '../../../common/constants.js';
@@ -30,15 +32,18 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('includes the customization target in the modal title', () => {
 		const input = store.add(new AICustomizationManagementEditorInput());
-		const names = [input.getName()];
-		input.setTargetLabel('Copilot');
-		names.push(input.getName());
-		input.setTargetLabel(undefined);
-		names.push(input.getName());
-		assert.deepStrictEqual(names, [
-			'Agent Customizations',
-			'Agent Customizations - Copilot',
-			'Agent Customizations',
+		const labels = [[input.getName(), input.getDescription()]];
+		input.setTargetLabels('Copilot');
+		labels.push([input.getName(), input.getDescription()]);
+		input.setTargetLabels('Copilot', 'vscode');
+		labels.push([input.getName(), input.getDescription()]);
+		input.setTargetLabels(undefined);
+		labels.push([input.getName(), input.getDescription()]);
+		assert.deepStrictEqual(labels, [
+			['Agent Customizations', undefined],
+			['Agent Customizations', '(Copilot)'],
+			['Agent Customizations', '(Copilot · vscode)'],
+			['Agent Customizations', undefined],
 		]);
 	});
 
@@ -165,7 +170,6 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.notificationService = {
 			error: () => { },
 		};
-		editor.showEmbeddedEditor = async () => { };
 		editor.getActiveHarnessLabel = () => 'Copilot';
 		editor.welcomePage = undefined;
 		editor.contributedSectionContainers = new Map();
@@ -202,6 +206,28 @@ suite('aiCustomizationManagementEditor', () => {
 
 		assert.strictEqual(editor.getEditorModeButtonLabel(), 'Edit');
 		assert.strictEqual(editor.getEditorModeButtonTooltip(), 'Edit the raw markdown file');
+
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('ignores programmatic open requests for synthetic built-ins without source content', async () => {
+		const editor = createTestEditor();
+		const builtInUri = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/init' });
+
+		await editor.showEmbeddedEditor(
+			toAgentHostUri(builtInUri, 'remote'),
+			'init',
+			PromptsType.skill,
+			AICustomizationSources.builtin,
+			false,
+			true
+		);
+
+		assert.deepStrictEqual({
+			viewMode: editor.viewMode,
+		}, {
+			viewMode: 'list',
+		});
 
 		editor.editorPreviewDisposables.dispose();
 	});

@@ -200,6 +200,7 @@ export class NewChatWidget extends Disposable {
 		const newChatInput = this.instantiationService.createInstance(NewChatInputWidget, {
 			session: this._session,
 			getContextFolderUri: () => this._getContextFolderUri(),
+			getContextPickerActions: () => this._isQuickChatComposer.get() ? [] : this._workspacePicker.getContextPickerActions(),
 			getWorkspacePreselectionSource: () => this._isQuickChatComposer.get()
 				? NewSessionWorkspacePreselectionSource.None
 				: this._workspacePicker.preselectionSource,
@@ -699,18 +700,8 @@ export class NewChatWidget extends Disposable {
 			reflectsWorkspace: true,
 			attachesContext: false,
 		};
-		const gitHubContextTrigger: IWorkspacePickerTrigger = {
-			label: localize('newSessionWorkspacePicker.githubContext', "Issue/PR"),
-			ariaLabel: localize('newSessionWorkspacePicker.githubContextAriaLabel', "Attach a GitHub issue or pull request to the new session"),
-			tooltip: localize('newSessionWorkspacePicker.githubContextTooltip', "Attach an issue or pull request as context"),
-			hideIconWhenAttached: true,
-			group: SESSION_WORKSPACE_GROUP_GITHUB,
-			attachesContext: true,
-			hideWhenNoGitHubRepository: true,
-		};
 		const row = this._workspacePicker.renderCategoryTriggers(container, [
 			workspaceTrigger,
-			gitHubContextTrigger,
 		]);
 		this._renderSessionTypePicker(row, false);
 		this._workspacePickerRow = row;
@@ -726,8 +717,8 @@ export class NewChatWidget extends Disposable {
 			className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
 		});
 		const sessionTypePicker = container.lastElementChild;
-		if (!isQuickChat && sessionTypePicker?.previousElementSibling) {
-			container.insertBefore(sessionTypePicker, sessionTypePicker.previousElementSibling);
+		if (!isQuickChat && sessionTypePicker && container.firstElementChild !== sessionTypePicker) {
+			container.insertBefore(sessionTypePicker, container.firstElementChild?.nextSibling ?? null);
 		}
 	}
 

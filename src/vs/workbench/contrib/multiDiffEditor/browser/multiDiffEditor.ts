@@ -28,9 +28,10 @@ import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/com
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
-import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorOptions, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
+import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEditor.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
@@ -150,7 +151,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 	override focus(): void {
 		super.focus();
 
-		this._multiDiffEditorWidget?.getActiveControl()?.focus();
+		this._multiDiffEditorWidget?.focus();
 	}
 
 	override hasFocus(): boolean {
@@ -248,6 +249,7 @@ class WorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		this.headerClickToCollapse = IsSessionsWindowContext.getValue(contextKeyService) === true;
 	}
@@ -266,5 +268,13 @@ class WorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
 				label.dispose();
 			}
 		};
+	}
+
+	openDiffEditor(original: URI, modified: URI): void {
+		void this.editorService.openEditor({
+			original: { resource: original },
+			modified: { resource: modified },
+			options: { pinned: true },
+		});
 	}
 }

@@ -20,7 +20,7 @@
 
 /* Tabs host: the chat tab strip, shown only when the session has multiple chats. */
 .chat-composite-bar.session-chat-tabs-bar {
-	padding: 0 var(--vscode-spacing-size100);
+	padding: 0 var(--vscode-spacing-size20);
 	box-sizing: border-box;
 	container-type: inline-size;
 
@@ -165,9 +165,14 @@
 .chat-composite-bar-tabs-row {
 	display: flex;
 	align-items: center;
-	height: 35px;
+	height: var(--vscode-spacing-size320, 32px);
 	box-sizing: border-box;
 	overflow: hidden;
+}
+
+.chat-composite-bar.compact-height .chat-composite-bar-tabs-row {
+	--editor-group-tab-height: var(--vscode-spacing-size200, 20px);
+	height: var(--vscode-spacing-size280, 28px);
 }
 
 .session-view.tabs-replace-header .chat-groups-view.single-group .chat-composite-bar-tabs-row {
@@ -201,7 +206,7 @@
 	display: flex;
 	align-items: center;
 	height: 100%;
-	min-height: calc(var(--vscode-spacing-size240) + var(--vscode-spacing-size40) * 2);
+	min-height: calc(var(--editor-group-tab-height, var(--vscode-spacing-size240)) + var(--vscode-spacing-size40) * 2);
 }
 
 .chat-composite-bar-toolbar {

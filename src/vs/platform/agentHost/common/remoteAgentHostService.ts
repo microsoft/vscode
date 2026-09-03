@@ -13,6 +13,7 @@ import { StorageScope, StorageTarget, type IStorageService } from '../../storage
 import type { IAgentConnection } from './agentService.js';
 import type { UnsupportedProtocolVersionErrorData } from './state/protocol/errors.js';
 import { AHP_UNSUPPORTED_PROTOCOL_VERSION, ProtocolError } from './state/sessionProtocol.js';
+import { AgentHostTransportFailureReason } from './state/sessionTransport.js';
 import { readUnsupportedProtocolVersionErrorMeta, type IVscodeUpgradeResult } from './state/protocolUpgrade.js';
 import { TUNNEL_ADDRESS_PREFIX } from './tunnelAgentHost.js';
 import { DEFAULT_RECONNECT_POLICY, type IRemoteAgentHostReconnectPolicy } from './reconnectPolicy.js';
@@ -35,8 +36,12 @@ export type RemoteAgentHostConnectionStatus =
 	 * preserving session state. Distinct from `connecting` (initial dial) and
 	 * `disconnected` (no connection, nothing in flight).
 	 */
-	| { readonly kind: 'reconnecting' }
-	| { readonly kind: 'disconnected' }
+	| {
+		readonly kind: 'reconnecting';
+		/** When the next automatic attempt fires, if one is scheduled. Absent while an attempt is in flight. */
+		readonly nextAttemptAt?: number;
+	}
+	| { readonly kind: 'disconnected'; readonly reason: AgentHostTransportFailureReason }
 	| {
 		readonly kind: 'incompatible';
 		/** Human-readable reason from the host (or a synthesised one when the host did not send one). */
@@ -61,8 +66,20 @@ export namespace RemoteAgentHostConnectionStatus {
 	export const connecting: RemoteAgentHostConnectionStatus = Object.freeze({ kind: 'connecting' });
 	/** Singleton "reconnecting" status. */
 	export const reconnecting: RemoteAgentHostConnectionStatus = Object.freeze({ kind: 'reconnecting' });
+	/** Build a reconnecting status carrying its backoff deadline. */
+	export function reconnectingUntil(nextAttemptAt: number | undefined): RemoteAgentHostConnectionStatus {
+		return nextAttemptAt === undefined
+			? reconnecting
+			: Object.freeze({ kind: 'reconnecting', nextAttemptAt });
+	}
 	/** Singleton "disconnected" status. */
-	export const disconnected: RemoteAgentHostConnectionStatus = Object.freeze({ kind: 'disconnected' });
+	export const disconnected: RemoteAgentHostConnectionStatus = Object.freeze({ kind: 'disconnected', reason: AgentHostTransportFailureReason.Unknown });
+	/** Build a disconnected status with a machine-readable reason. */
+	export function disconnectedBecause(reason: AgentHostTransportFailureReason): RemoteAgentHostConnectionStatus {
+		return reason === AgentHostTransportFailureReason.Unknown
+			? disconnected
+			: Object.freeze({ kind: 'disconnected', reason });
+	}
 	/** Build an "incompatible" status from a host-supplied message and the versions involved. */
 	export function incompatible(message: string, supportedByClient: readonly string[], offeredByServer?: readonly string[], vscodeUpgradeMethod?: string): RemoteAgentHostConnectionStatus {
 		return Object.freeze({ kind: 'incompatible', message, supportedByClient, offeredByServer, vscodeUpgradeMethod });
@@ -243,9 +260,20 @@ export type RemoteAgentHostProtocolClientState = 'connecting' | 'incompatible' |
  */
 export interface IRemoteAgentHostProtocolClient extends IAgentConnection, IDisposable {
 	readonly defaultDirectory: string | undefined;
-	readonly onDidClose: Event<void>;
+	/** Deadline for the next scheduled reconnect attempt, if one is pending. */
+	readonly nextReconnectAt: number | undefined;
+	readonly onDidClose: Event<AgentHostTransportFailureReason | undefined>;
 	readonly onDidChangeConnectionState: Event<RemoteAgentHostProtocolClientState>;
+	/**
+	 * Fires whenever the pending reconnect schedule changes — a backoff being
+	 * armed, or cleared by an immediate retry. Separate from
+	 * {@link onDidChangeConnectionState} because the client state is still
+	 * `reconnecting` throughout, and consumers of that event do real work on
+	 * each transition that must not be repeated per backoff round.
+	 */
+	readonly onDidScheduleReconnect: Event<void>;
 	connect(): Promise<void>;
+	reconnectNow(): boolean;
 	notifyTransportClosed(): void;
 	triggerVscodeUpgrade(method: string): Promise<IVscodeUpgradeResult>;
 }
@@ -659,7 +687,13 @@ export interface IRemoteAgentHostService {
 	/** Fires when a remote connection is established or lost. */
 	readonly onDidChangeConnections: Event<void>;
 
-	/** Currently connected remote addresses with metadata. */
+	/**
+	 * Known remote addresses with metadata. This is a status catalog, not a
+	 * liveness list: an entry is retained after a failed dial so its
+	 * {@link IRemoteAgentHostConnectionInfo.status} — and its disconnect reason —
+	 * stay observable. Callers asking "is this host usable?" must test `status`
+	 * (see `RemoteAgentHostConnectionStatus.isConnected`) rather than presence.
+	 */
 	readonly connections: readonly IRemoteAgentHostConnectionInfo[];
 
 	/** All remote agent host entries exposed by registered factories, regardless of connection status. */
@@ -700,6 +734,12 @@ export interface IRemoteAgentHostService {
 	 * with reset backoff.
 	 */
 	reconnect(address: string, userInitiated?: boolean): void;
+	/**
+	 * Skips a pending reconnect backoff for this address and retries at once.
+	 * Prefers the protocol client's in-place retry, which preserves session
+	 * state, and falls back to a fresh dial when there is no client to accelerate.
+	 */
+	reconnectNow(address: string): void;
 
 	/**
 	 * Force the protocol client at `address` (if any) to treat its
@@ -743,7 +783,8 @@ export interface IRemoteAgentHostService {
 export interface IRemoteAgentHostConnectionInfo {
 	readonly address: string;
 	readonly name: string;
-	readonly clientId: string;
+	/** Identifier of the backing protocol client, when one exists. */
+	readonly clientId?: string;
 	readonly defaultDirectory?: string;
 	readonly status: RemoteAgentHostConnectionStatus;
 }
@@ -763,6 +804,7 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	}
 	async removeRemoteAgentHost(_address: string): Promise<void> { }
 	reconnect(_address: string, _userInitiated?: boolean): void { }
+	reconnectNow(_address: string): void { }
 	notifyConnectionClosed(_address: string): void { }
 	getEntryByAddress(): IRemoteAgentHostEntry | undefined { return undefined; }
 	async triggerServerUpgrade(): Promise<IVscodeUpgradeResult> {
