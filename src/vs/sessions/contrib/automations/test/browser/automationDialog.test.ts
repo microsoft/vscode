@@ -1210,10 +1210,12 @@ suite('Automation dialog keyboard navigation', () => {
 		const inertContainer = container.appendChild(document.createElement('div'));
 		inertContainer.setAttribute('inert', '');
 		const inert = inertContainer.appendChild(document.createElement('button'));
+		const ariaDisabled = container.appendChild(document.createElement('button'));
+		ariaDisabled.setAttribute('aria-disabled', 'true');
 		const third = container.appendChild(document.createElement('button'));
 		const navigation = disposables.add(registerAutomationDialogKeyboardNavigation(
 			targetWindow,
-			() => [first, hidden, wrapper, second, inert, third],
+			() => [first, hidden, wrapper, second, inert, ariaDisabled, third],
 			() => false,
 		));
 		let downstreamKeyDowns = 0;

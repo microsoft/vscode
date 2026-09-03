@@ -122,7 +122,7 @@ export function registerAutomationDialogKeyboardNavigation(
 	let suppressPopupEscapeKeyUp = false;
 
 	const visibleFocusableElements = (): readonly HTMLElement[] => getFocusableElements().filter(element => {
-		if (!element.isConnected || element.tabIndex < 0 || element.hasAttribute('disabled')) {
+		if (!element.isConnected || element.tabIndex < 0 || element.hasAttribute('disabled') || element.getAttribute('aria-disabled') === 'true') {
 			return false;
 		}
 		for (let current: HTMLElement | null = element; current; current = current.parentElement) {
