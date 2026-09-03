@@ -6,8 +6,10 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { readSessionMatchesByProjectRoot, readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -23,6 +25,30 @@ export interface IAgentHostSessionListConnection {
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	disposeSession(session: URI): Promise<void>;
 	dispatch(channel: string, action: SessionAction): void;
+}
+
+/**
+ * Whether a working directory reported by an agent host names the given
+ * workspace folder or something inside it. Unwrapping the agent-host URI
+ * recovers the directory as the host named it, so the authority identifies
+ * the machine rather than being assumed.
+ */
+export function matchesFolder(directory: URI, folder: URI): boolean {
+	const reported = fromAgentHostUri(directory);
+	return extUriBiasedIgnorePathCase.isEqualOrParent(toFolderNamespace(reported, folder), folder);
+}
+
+/**
+ * Reinterpret a working directory in the folder's namespace when the two
+ * describe the same filesystem under different schemes. The fallback for a
+ * host that reports a bare `file:` path, which `isEqualOrParent` can never
+ * match against the `vscode-remote:` folder of a remote window.
+ */
+export function toFolderNamespace(directory: URI, folder: URI): URI {
+	if (directory.scheme !== Schemas.file || folder.scheme === Schemas.file || !folder.authority) {
+		return directory;
+	}
+	return folder.with({ path: directory.path, query: null, fragment: null });
 }
 
 /**
@@ -428,9 +454,7 @@ export class AgentHostSessionListStore extends Disposable {
 	}
 
 	private _matchesAnyFolder(workingDirectories: readonly URI[], folders: readonly IWorkspaceFolder[]): boolean {
-		return workingDirectories.some(directory =>
-			folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(directory, folder.uri))
-		);
+		return workingDirectories.some(directory => folders.some(folder => matchesFolder(directory, folder.uri)));
 	}
 
 	/**
