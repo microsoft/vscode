@@ -219,6 +219,9 @@ export class ViewGpuContext extends Disposable {
 		if (data.maxColumn > this.maxGpuCols) {
 			reasons.push('maxColumn > maxGpuCols');
 		}
+		if (options.forceFullwidthCharacterWidth && !data.isBasicASCII) {
+			reasons.push('forceFullwidthCharacterWidth with non-basic ASCII');
+		}
 		if (data.inlineDecorations.length > 0) {
 			let supported = true;
 			const problemTypes: InlineDecorationType[] = [];
