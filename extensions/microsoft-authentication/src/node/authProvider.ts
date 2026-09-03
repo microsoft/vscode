@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { AccountInfo, AuthenticationResult, AuthError, ClientAuthError, ClientAuthErrorCodes, ServerError } from '@azure/msal-node';
+import { AccountInfo, AuthenticationResult, AuthError, ClientAuthError, ClientAuthErrorCodes, InteractionRequiredAuthError, InteractionRequiredAuthErrorCodes, ServerError } from '@azure/msal-node';
 import { AuthenticationChallenge, AuthenticationConstraint, AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationProviderSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, CancellationError, env, EventEmitter, ExtensionContext, ExtensionKind, l10n, LogOutputChannel, Uri, window } from 'vscode';
 import { Environment } from '@azure/ms-rest-azure-env';
 import { CachedPublicClientApplicationManager } from './publicClientCache';
@@ -535,6 +535,22 @@ export class MsalAuthProvider implements AuthenticationProvider {
 					} else {
 						this._telemetryReporter.sendTelemetryErrorEvent(e);
 					}
+					// When the failure means the account's refresh token is permanently
+					// invalid (revoked, the account was deleted server-side, or the
+					// authority rotated its credentials), remove it from the cache so it
+					// stops lingering and consumers are notified via the account-removed
+					// path - instead of retrying a dead account on every getSessions.
+					// Recoverable failures (transient, or interaction-required for consent
+					// / conditional access) keep the account so the user can re-authenticate.
+					if (isPermanentlyInvalidAccountError(e)) {
+						this._logger.info(`[getAllSessionsForPca] [${scopeData.scopeStr}] [${account.username}] refresh token is permanently invalid, removing account`);
+						try {
+							await cachedPca.removeAccount(account);
+						} catch (removeError) {
+							this._logger.error(`[getAllSessionsForPca] [${scopeData.scopeStr}] [${account.username}] failed to remove account`, JSON.stringify(removeError));
+						}
+						continue;
+					}
 					this._logger.info(`[getAllSessionsForPca] [${scopeData.scopeStr}] [${account.username}] failed to acquire token silently, skipping account`, JSON.stringify(e));
 					continue;
 				}
@@ -568,4 +584,29 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			idToken: account.idToken,
 		};
 	}
+}
+
+/**
+ * Reports whether a silent-token failure means the account's refresh token is
+ * permanently invalid - i.e. it will never succeed again without a fresh
+ * interactive sign-in creating a new account, so the stale account should be
+ * removed rather than retried forever.
+ *
+ * MSAL surfaces a server `invalid_grant` (revoked/expired refresh token, or a
+ * deleted account) as an InteractionRequiredAuthError, but that same type also
+ * covers *recoverable* cases - consent, conditional-access, or a plain
+ * interaction prompt - where the account is still valid. The server `suberror`
+ * (and MSAL's own error codes) distinguish the two: `bad_token` /
+ * `refresh_token_expired` mean the token itself is dead. We only evict on those,
+ * so we never discard an account that merely needs the user to re-authenticate.
+ */
+function isPermanentlyInvalidAccountError(e: unknown): boolean {
+	if (!(e instanceof InteractionRequiredAuthError)) {
+		return false;
+	}
+	const permanent: ReadonlySet<string> = new Set([
+		InteractionRequiredAuthErrorCodes.badToken,
+		InteractionRequiredAuthErrorCodes.refreshTokenExpired,
+	]);
+	return permanent.has(e.subError) || permanent.has(e.errorCode);
 }
