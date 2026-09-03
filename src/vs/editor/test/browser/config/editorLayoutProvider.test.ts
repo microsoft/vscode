@@ -1466,7 +1466,16 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 		// measuring the width of the margin strip only.
 		const ltr = computeLayout({ ...input, textDirection: 'ltr' });
 		const rtl = computeLayout({ ...input, textDirection: 'rtl' });
-		assert.deepStrictEqual(rtl, ltr);
+		const withoutMarginOrder = (layout: EditorLayoutInfo) => ({ ...layout, glyphMarginLeft: 0, lineNumbersLeft: 0, decorationsLeft: 0 });
+		assert.deepStrictEqual(withoutMarginOrder(rtl), withoutMarginOrder(ltr));
+
+		// What the margin strip holds is mirrored inside it: reading outwards from the text come the
+		// decorations, then the line numbers, then the glyph margin at the outer edge - and the strip
+		// still ends exactly at `contentLeft`, which `Margin` places flush with the right edge.
+		assert.strictEqual(rtl.decorationsLeft, 0);
+		assert.strictEqual(rtl.lineNumbersLeft, rtl.decorationsWidth);
+		assert.strictEqual(rtl.glyphMarginLeft, rtl.decorationsWidth + rtl.lineNumbersWidth);
+		assert.strictEqual(rtl.glyphMarginLeft + rtl.glyphMarginWidth, rtl.contentLeft);
 
 		// ... and `minimap.side` does not move anything around, unlike in a left-to-right layout.
 		const rtlMinimapLeft = computeLayout({ ...input, minimapSide: 'left', textDirection: 'rtl' });

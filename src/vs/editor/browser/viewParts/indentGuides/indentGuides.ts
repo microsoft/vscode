@@ -17,6 +17,7 @@ import { Color } from '../../../../base/common/color.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { BracketPairGuidesClassNames } from '../../../common/model/guidesTextModelPart.js';
 import { IndentGuide, HorizontalGuidesState } from '../../../common/textModelGuides.js';
+import { TextDirection } from '../../../common/model.js';
 
 /**
  * Indent guides are vertical lines that help identify the indentation level of
@@ -27,7 +28,6 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	private readonly _context: ViewContext;
 	private _primaryPosition: Position | null;
 	private _spaceWidth: number;
-	private _isRtl: boolean;
 	private _renderResult: string[] | null;
 	private _maxIndentLeft: number;
 	private _bracketPairGuideOptions: InternalGuidesOptions;
@@ -42,7 +42,6 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		const fontInfo = options.get(EditorOption.fontInfo);
 
 		this._spaceWidth = fontInfo.spaceWidth;
-		this._isRtl = options.get(EditorOption.effectiveTextDirection) === 'rtl';
 		this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
 		this._bracketPairGuideOptions = options.get(EditorOption.guides);
 
@@ -65,7 +64,6 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		const fontInfo = options.get(EditorOption.fontInfo);
 
 		this._spaceWidth = fontInfo.spaceWidth;
-		this._isRtl = options.get(EditorOption.effectiveTextDirection) === 'rtl';
 		this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
 		this._bracketPairGuideOptions = options.get(EditorOption.guides);
 
@@ -132,12 +130,15 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 			const lineIndex = lineNumber - visibleStartLineNumber;
 			const indent = indents[lineIndex];
 			let result = '';
+			// A decoration can declare a direction for its own line against the layout of the editor,
+			// and the guides of that line have to follow the line, not the editor.
+			const isRtl = this._context.viewModel.getTextDirection(lineNumber) === TextDirection.RTL;
 			// The start of the line: its left edge in a left-to-right layout, its right edge otherwise.
 			const lineStart = ctx.visibleRangeForPosition(new Position(lineNumber, 1))?.left ?? 0;
 			for (const guide of indent) {
 				// Indentation grows away from the start of the line, so in a right-to-left layout the
 				// guides step towards the left and each one is drawn a cell before its measured position.
-				const left = this._isRtl
+				const left = isRtl
 					? (guide.column === -1
 						? lineStart - guide.visibleColumn * this._spaceWidth
 						: ctx.visibleRangeForPosition(
@@ -149,7 +150,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 							new Position(lineNumber, guide.column)
 						)!.left);
 
-				const indentWidth = this._isRtl ? lineStart - left : left;
+				const indentWidth = isRtl ? lineStart - left : left;
 				if (indentWidth > scrollWidth || (this._maxIndentLeft > 0 && indentWidth > this._maxIndentLeft)) {
 					break;
 				}
@@ -159,7 +160,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 				const horizontalEnd = guide.horizontalLine
 					? (ctx.visibleRangeForPosition(
 						new Position(lineNumber, guide.horizontalLine.endColumn)
-					)?.left ?? (this._isRtl ? left - this._spaceWidth : left + this._spaceWidth))
+					)?.left ?? (isRtl ? left - this._spaceWidth : left + this._spaceWidth))
 					: undefined;
 				const width = horizontalEnd === undefined ? this._spaceWidth : Math.abs(horizontalEnd - left);
 				const drawLeft = horizontalEnd === undefined ? left : Math.min(left, horizontalEnd);

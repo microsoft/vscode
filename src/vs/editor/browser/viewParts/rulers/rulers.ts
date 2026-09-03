@@ -22,6 +22,7 @@ export class Rulers extends ViewPart {
 	private _rulers: IRulerOption[];
 	private _typicalHalfwidthCharacterWidth: number;
 	private _isRtl: boolean;
+	private _verticalScrollbarWidth: number;
 
 	constructor(context: ViewContext) {
 		super(context);
@@ -34,6 +35,7 @@ export class Rulers extends ViewPart {
 		this._rulers = options.get(EditorOption.rulers);
 		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 		this._isRtl = options.get(EditorOption.effectiveTextDirection) === 'rtl';
+		this._verticalScrollbarWidth = options.get(EditorOption.layoutInfo).verticalScrollbarWidth;
 	}
 
 
@@ -44,6 +46,7 @@ export class Rulers extends ViewPart {
 		this._rulers = options.get(EditorOption.rulers);
 		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 		this._isRtl = options.get(EditorOption.effectiveTextDirection) === 'rtl';
+		this._verticalScrollbarWidth = options.get(EditorOption.layoutInfo).verticalScrollbarWidth;
 		return true;
 	}
 	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
@@ -98,10 +101,12 @@ export class Rulers extends ViewPart {
 
 			node.setBoxShadow(ruler.color ? `1px 0 0 0 ${ruler.color} inset` : ``);
 			node.setHeight(Math.min(ctx.scrollHeight, 1000000));
-			// Lines are laid out from the right edge of the content box in a right-to-left layout,
-			// so column N is measured from `scrollWidth` instead of from 0.
+			// Lines are laid out from the right edge of the content box in a right-to-left layout, so
+			// column N is measured from that edge instead of from 0. A right-to-left line reserves the
+			// vertical scrollbar with `padding-right` (see `ViewLine#renderLine`), so its text starts one
+			// scrollbar width short of `scrollWidth`.
 			const rulerOffset = ruler.column * this._typicalHalfwidthCharacterWidth;
-			node.setLeft(this._isRtl ? ctx.scrollWidth - rulerOffset : rulerOffset);
+			node.setLeft(this._isRtl ? ctx.scrollWidth - this._verticalScrollbarWidth - rulerOffset : rulerOffset);
 		}
 	}
 }

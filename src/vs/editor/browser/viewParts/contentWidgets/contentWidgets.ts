@@ -236,7 +236,7 @@ class Widget {
 		this._fixedOverflowWidgets = options.get(EditorOption.fixedOverflowWidgets);
 		this._isRtl = options.get(EditorOption.effectiveTextDirection) === 'rtl';
 		this._contentWidth = layoutInfo.contentWidth;
-		this._contentLeft = this._isRtl ? layoutInfo.minimap.minimapWidth + layoutInfo.verticalScrollbarWidth : layoutInfo.contentLeft;
+		this._contentLeft = this._isRtl ? layoutInfo.minimap.minimapWidth : layoutInfo.contentLeft;
 
 		this._affinity = null;
 		this._preference = [];
@@ -258,7 +258,7 @@ class Widget {
 		if (e.hasChanged(EditorOption.layoutInfo) || e.hasChanged(EditorOption.effectiveTextDirection)) {
 			const layoutInfo = options.get(EditorOption.layoutInfo);
 			this._isRtl = options.get(EditorOption.effectiveTextDirection) === 'rtl';
-			this._contentLeft = this._isRtl ? layoutInfo.minimap.minimapWidth + layoutInfo.verticalScrollbarWidth : layoutInfo.contentLeft;
+			this._contentLeft = this._isRtl ? layoutInfo.minimap.minimapWidth : layoutInfo.contentLeft;
 			this._contentWidth = layoutInfo.contentWidth;
 			this._maxWidth = this._getMaxWidth();
 		}

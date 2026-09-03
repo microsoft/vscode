@@ -2079,16 +2079,28 @@ class EffectiveCursorStyle extends ComputedEditorOption<EditorOption.effectiveCu
  * resolve `textDirection: 'uiLanguage'`.
  *
  * `ckb` (Sorani) rather than `ku`: Kurmanji Kurdish is written in the Latin script, left to right.
- * `sd` is Sindhi as written in Pakistan, in the Arabic script; the Devanagari orthography used in
- * India is not distinguished by the primary subtag alone.
+ * `sd` is Sindhi, whose Pakistani orthography is Arabic; the Devanagari orthography used in India
+ * carries a `Deva` script subtag, which `isRtlLanguage` honours before reaching this list.
  */
 const RTL_LANGUAGE_SUBTAGS = ['ar', 'ckb', 'dv', 'fa', 'he', 'ps', 'sd', 'ug', 'ur', 'yi'];
+
+/**
+ * The script subtags written right to left. A tag that names its script says everything: `sd-Deva`
+ * is Sindhi written left to right and `az-Arab` is Azerbaijani written right to left, and neither
+ * is described by its primary subtag.
+ */
+const RTL_SCRIPT_SUBTAGS = ['adlm', 'arab', 'aran', 'hebr', 'mand', 'nkoo', 'rohg', 'syrc', 'thaa', 'yezi'];
 
 /**
  * @internal
  */
 export function isRtlLanguage(language: string): boolean {
-	return RTL_LANGUAGE_SUBTAGS.includes(language.toLowerCase().split(/[-_]/)[0]);
+	const subtags = language.toLowerCase().split(/[-_]/);
+	// In BCP 47 the script, when present, is the four-letter subtag right after the language.
+	if (subtags.length > 1 && subtags[1].length === 4) {
+		return RTL_SCRIPT_SUBTAGS.includes(subtags[1]);
+	}
+	return RTL_LANGUAGE_SUBTAGS.includes(subtags[0]);
 }
 
 class EffectiveTextDirection extends ComputedEditorOption<EditorOption.effectiveTextDirection, 'ltr' | 'rtl'> {
@@ -3029,6 +3041,16 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			isViewportWrapping: isViewportWrapping,
 			isRtl: isRtl,
 		}, env.memory || new ComputeOptionsMemory());
+
+		if (isRtl) {
+			// The margin strip is mirrored as a whole by `Margin`, but the order of what it holds is
+			// mirrored here: reading outwards from the text, a right-to-left editor wants decorations,
+			// then line numbers, then the glyph margin at the outer edge - the reverse of the offsets
+			// computed above. These offsets are relative to the strip, which starts at `width - contentLeft`.
+			decorationsLeft = 0;
+			lineNumbersLeft = lineDecorationsWidth;
+			glyphMarginLeft = lineDecorationsWidth + lineNumbersWidth;
+		}
 
 		if (!isRtl && minimapLayout.renderMinimap !== RenderMinimap.None && minimapLayout.minimapLeft === 0) {
 			// the minimap is rendered to the left, so move everything to the right

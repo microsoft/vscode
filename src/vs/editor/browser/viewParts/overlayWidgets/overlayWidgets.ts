@@ -190,9 +190,13 @@ export class ViewOverlayWidgets extends ViewPart {
 				stackCoordinates[widgetData.preference] += domNode.domNode.clientWidth;
 			} else if (this._isRtl) {
 				// The corner is mirrored: the widget sits `maxRight` from the physical left edge, which is
-				// the side the minimap occupies in a right-to-left layout.
+				// the side the minimap occupies in a right-to-left layout. Clearing the inset from the
+				// other side matters: nothing else resets it, so after a switch back to left-to-right the
+				// stale `right` would still be in the style attribute and would win.
+				domNode.setRight('');
 				domNode.setLeft(maxRight);
 			} else {
+				domNode.setLeft('');
 				domNode.setRight(maxRight);
 			}
 		} else if (widgetData.preference === OverlayWidgetPositionPreference.TOP_CENTER) {

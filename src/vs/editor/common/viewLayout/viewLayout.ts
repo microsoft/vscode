@@ -236,6 +236,14 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		} else {
 			this._updateHeight();
 		}
+		if (e.hasChanged(EditorOption.effectiveTextDirection)
+			&& options.get(EditorOption.effectiveTextDirection) !== 'rtl'
+			&& !this._horizontalPositionIsOwned) {
+			// `_updateContentWidth` parks the viewport at the right end while the layout is right-to-left.
+			// Nothing else moves it back, so a layout that returns to left-to-right would open on the blank
+			// space past the end of its lines.
+			this._scrollable.setScrollPositionNow({ scrollLeft: 0 });
+		}
 		if (e.hasChanged(EditorOption.smoothScrolling)) {
 			this._configureSmoothScrollDuration();
 		}

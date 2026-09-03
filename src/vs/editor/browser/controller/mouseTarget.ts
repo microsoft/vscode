@@ -425,7 +425,10 @@ abstract class BareHitTestRequest {
 
 		this.mouseVerticalOffset = Math.max(0, ctx.getCurrentScrollTop() + this.relativePos.y);
 		this.mouseContentHorizontalOffset = ctx.getCurrentScrollLeft() + this.relativePos.x - ctx.contentPhysicalLeft;
-		this.isInMarginArea = (this.relativePos.x >= ctx.marginLeft + ctx.layoutInfo.glyphMarginLeft && this.relativePos.x < ctx.marginLeft + ctx.layoutInfo.contentLeft);
+		// The strip runs from its first child to `contentLeft`. Which child is first is mirrored in a
+		// right-to-left layout - decorations rather than the glyph margin - so take the smaller offset.
+		const marginInnerLeft = Math.min(ctx.layoutInfo.glyphMarginLeft, ctx.layoutInfo.decorationsLeft);
+		this.isInMarginArea = (this.relativePos.x >= ctx.marginLeft + marginInnerLeft && this.relativePos.x < ctx.marginLeft + ctx.layoutInfo.contentLeft);
 		this.isInContentArea = !this.isInMarginArea;
 		this.mouseColumn = Math.max(0, MouseTargetFactory._getMouseColumn(this.mouseContentHorizontalOffset, ctx.typicalHalfwidthCharacterWidth));
 	}
@@ -878,7 +881,13 @@ export class MouseTargetFactory {
 	public getMouseColumn(relativePos: CoordinatesRelativeToEditor): number {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
-		const mouseContentHorizontalOffset = this._context.viewLayout.getCurrentScrollLeft() + relativePos.x - layoutInfo.contentLeft;
+		// The same physical origin `HitTestContext` uses: in a right-to-left layout the content area
+		// starts where the minimap ends, not at `contentLeft`, which is the width of the margin strip
+		// that now sits on the other side.
+		const contentPhysicalLeft = options.get(EditorOption.effectiveTextDirection) === 'rtl'
+			? layoutInfo.minimap.minimapWidth
+			: layoutInfo.contentLeft;
+		const mouseContentHorizontalOffset = this._context.viewLayout.getCurrentScrollLeft() + relativePos.x - contentPhysicalLeft;
 		return MouseTargetFactory._getMouseColumn(mouseContentHorizontalOffset, options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth);
 	}
 

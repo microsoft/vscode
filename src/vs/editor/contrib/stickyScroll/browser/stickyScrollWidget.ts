@@ -21,6 +21,7 @@ import { foldingCollapsedIcon, foldingExpandedIcon } from '../../folding/browser
 import { FoldingModel } from '../../folding/browser/foldingModel.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IViewModel } from '../../../common/viewModel.js';
+import { TextDirection } from '../../../common/model.js';
 
 export class StickyScrollWidgetState {
 	constructor(
@@ -488,6 +489,10 @@ class RenderedStickyLine {
 		lineHTMLNode.setAttribute('role', 'listitem');
 		lineHTMLNode.tabIndex = 0;
 		lineHTMLNode.className = 'sticky-line-content';
+		// A sticky line carries the direction of the line it stands for, which a decoration can declare
+		// against the editor's own layout. `renderViewLine` does not write the attribute for us here as
+		// it does for the lines of the editor, so set it from the same `textDirection`.
+		lineHTMLNode.setAttribute('dir', textDirection === TextDirection.RTL ? 'rtl' : 'ltr');
 		lineHTMLNode.classList.add(`stickyLine${lineNumber}`);
 		lineHTMLNode.style.lineHeight = `${lineHeight}px`;
 		lineHTMLNode.innerHTML = newLine as string;

@@ -7,7 +7,7 @@ import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import * as nls from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
 
 /**
@@ -33,20 +33,34 @@ export class ToggleTextDirectionAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		const codeEditorService = accessor.get(ICodeEditorService);
 
-		// Direction is a property of what a file contains, so the toggle is scoped to the language
-		// of the editor it was invoked from. Writing it globally would flip every other language
-		// too, which is not what somebody toggling it from a Markdown file is asking for.
-		const languageId = codeEditorService.getFocusedCodeEditor()?.getModel()?.getLanguageId();
-		const overrides = languageId ? { overrideIdentifier: languageId } : {};
+		// Invoked from the Command Palette, focus is in the quick input rather than in an editor, so
+		// the focused editor is null and only the active one identifies what the user is looking at.
+		const editor = codeEditorService.getFocusedCodeEditor() ?? codeEditorService.getActiveCodeEditor();
+		const model = editor?.getModel();
+		if (!model) {
+			// Without a model there is no language to scope to, and writing the setting globally is not
+			// what this command means. Say so rather than flipping every language silently.
+			alert(nls.localize('toggleTextDirection.noEditor', "Open an editor to toggle its text direction"));
+			return;
+		}
+
+		// Direction is a property of what a file contains, so the toggle is scoped to the language of
+		// the editor it was invoked from. Writing it globally would flip every other language too,
+		// which is not what somebody toggling it from a Markdown file is asking for. The resource is
+		// part of the scope so that a folder-scoped value resolves against the right folder.
+		const languageId = model.getLanguageId();
+		const overrides = { overrideIdentifier: languageId, resource: model.uri };
 
 		const current = configurationService.getValue<string>('editor.textDirection', overrides);
 		const next = current === 'rtl' ? 'auto' : 'rtl';
-		await configurationService.updateValue('editor.textDirection', next, overrides, ConfigurationTarget.USER);
+		// No explicit target: `updateValue` writes to the scope the effective value already comes from.
+		// Forcing the user settings would leave a workspace or folder value in place and announce a
+		// change that never took effect.
+		await configurationService.updateValue('editor.textDirection', next, overrides);
 
-		const scope = languageId ?? nls.localize('toggleTextDirection.allLanguages', "all languages");
 		alert(next === 'rtl'
-			? nls.localize('toggleTextDirection.rtl', "The editor now lays out {0} right-to-left", scope)
-			: nls.localize('toggleTextDirection.auto', "The editor now lays out {0} left-to-right", scope));
+			? nls.localize('toggleTextDirection.rtl', "The editor now lays out {0} right-to-left", languageId)
+			: nls.localize('toggleTextDirection.auto', "The editor now lays out {0} by the direction each line declares", languageId));
 	}
 }
 
