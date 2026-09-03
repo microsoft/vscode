@@ -35,7 +35,7 @@ import { SessionType } from '../../../../contrib/chat/common/chatSessionsService
 import { IEditSessionEntryDiff } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService, IChatResponseFileEdit } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
 import { MockChatService } from '../../../../contrib/chat/test/common/chatService/mockChatService.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, type ServiceRegistration } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUtils.js';
 import { ChatTurnStatusPillsSetting, isChatTurnStatusPillsEnabled } from '../../../../contrib/chat/browser/widget/chatTurnPills.js';
 import { ITerminalChatService } from '../../../../contrib/terminal/browser/terminal.js';
@@ -110,6 +110,8 @@ export interface IChatWidgetFixtureOptions {
 	 */
 	readonly turnStatusPills?: ChatTurnStatusPillsSetting;
 	readonly linkPresentationService?: ILinkPresentationService;
+	/** Registers fixture-specific services after the shared chat service graph. */
+	readonly additionalServices?: (registration: ServiceRegistration) => void;
 	readonly onRendered?: (handle: IChatWidgetFixtureHandle) => void;
 	/** Selects the input-height consumer used by the ResizeObserver harness. */
 	readonly hostLayoutMode?: 'none' | 'listOnly' | 'stackedFull' | 'stackedTargeted';
@@ -227,6 +229,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 					override async assess(): Promise<IToolRiskAssessment | undefined> { return new Promise(() => { }); }
 				}());
 			}
+			options.additionalServices?.(reg);
 		},
 	});
 

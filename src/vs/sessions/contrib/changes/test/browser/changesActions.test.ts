@@ -16,45 +16,14 @@ import { Context } from '../../../../../platform/contextkey/browser/contextKeySe
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ActiveEditorContext } from '../../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
-import { SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasWorkspaceContext } from '../../../../common/contextkeys.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
-import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../../common/changes.js';
 import { NewSessionUncommittedChangesetOperationsActionContribution } from '../../browser/changesActions.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 
 suite('Changes Actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('changes pill stays out of the pill row for a session without a workspace folder', () => {
-		const item = MenuRegistry.getMenuItems(Menus.SessionHeaderMeta)
-			.filter(isIMenuItem)
-			.find(item => item.command.id === VIEW_SESSION_CHANGES_COMMAND_ID);
-
-		assert.ok(item, 'expected the changes pill on the session metadata menu');
-		const evaluate = (state: { changes?: boolean; cachedChanges?: boolean; workspace?: boolean }) => {
-			const context = new Context(1, null);
-			context.setValue(SessionHasChangesContext.key, state.changes ?? false);
-			context.setValue(SessionHasCachedChangesContext.key, state.cachedChanges ?? false);
-			context.setValue(SessionHasWorkspaceContext.key, state.workspace ?? false);
-			return item.when?.evaluate(context) ?? false;
-		};
-
-		assert.deepStrictEqual({
-			folderlessChatWithChanges: evaluate({ changes: true }),
-			folderlessChatWithCachedChanges: evaluate({ cachedChanges: true }),
-			workspaceSessionWithChanges: evaluate({ changes: true, workspace: true }),
-			workspaceSessionWithCachedChanges: evaluate({ cachedChanges: true, workspace: true }),
-			workspaceSessionWithoutChanges: evaluate({ workspace: true }),
-		}, {
-			folderlessChatWithChanges: false,
-			folderlessChatWithCachedChanges: false,
-			workspaceSessionWithChanges: true,
-			workspaceSessionWithCachedChanges: true,
-			workspaceSessionWithoutChanges: false,
-		});
-	});
 
 	test('draft session contributes uncommitted changeset operations to the editor header', async () => {
 		const invokedOperations: string[] = [];
