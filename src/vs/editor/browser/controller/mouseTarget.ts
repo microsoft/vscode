@@ -244,6 +244,16 @@ export class HitTestContext {
 	public readonly stickyTabStops: boolean;
 	public readonly typicalHalfwidthCharacterWidth: number;
 	public readonly lastRenderData: PointerHandlerLastRenderData;
+	/**
+	 * The physical left offset of the margin strip: `0` in a left-to-right layout, and the right-hand
+	 * strip `[width - contentLeft, width]` when `textDirection` is `'rtl'`.
+	 */
+	public readonly marginLeft: number;
+	/**
+	 * The physical left offset of the content area. Equal to `layoutInfo.contentLeft` in a
+	 * left-to-right layout; in a right-to-left layout the content is preceded by the minimap only.
+	 */
+	public readonly contentPhysicalLeft: number;
 
 	private readonly _context: ViewContext;
 	private readonly _viewHelper: IPointerHandlerHelper;
@@ -258,6 +268,13 @@ export class HitTestContext {
 		this.stickyTabStops = options.get(EditorOption.stickyTabStops);
 		this.typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 		this.lastRenderData = lastRenderData;
+		if (options.get(EditorOption.effectiveTextDirection) === 'rtl') {
+			this.marginLeft = this.layoutInfo.width - this.layoutInfo.contentLeft;
+			this.contentPhysicalLeft = this.layoutInfo.minimap.minimapWidth;
+		} else {
+			this.marginLeft = 0;
+			this.contentPhysicalLeft = this.layoutInfo.contentLeft;
+		}
 		this._context = context;
 		this._viewHelper = viewHelper;
 	}
@@ -407,8 +424,8 @@ abstract class BareHitTestRequest {
 		this.relativePos = relativePos;
 
 		this.mouseVerticalOffset = Math.max(0, ctx.getCurrentScrollTop() + this.relativePos.y);
-		this.mouseContentHorizontalOffset = ctx.getCurrentScrollLeft() + this.relativePos.x - ctx.layoutInfo.contentLeft;
-		this.isInMarginArea = (this.relativePos.x < ctx.layoutInfo.contentLeft && this.relativePos.x >= ctx.layoutInfo.glyphMarginLeft);
+		this.mouseContentHorizontalOffset = ctx.getCurrentScrollLeft() + this.relativePos.x - ctx.contentPhysicalLeft;
+		this.isInMarginArea = (this.relativePos.x >= ctx.marginLeft + ctx.layoutInfo.glyphMarginLeft && this.relativePos.x < ctx.marginLeft + ctx.layoutInfo.contentLeft);
 		this.isInContentArea = !this.isInMarginArea;
 		this.mouseColumn = Math.max(0, MouseTargetFactory._getMouseColumn(this.mouseContentHorizontalOffset, ctx.typicalHalfwidthCharacterWidth));
 	}
@@ -697,7 +714,9 @@ export class MouseTargetFactory {
 		if (request.isInMarginArea) {
 			const res = ctx.getFullLineRangeAtCoord(request.mouseVerticalOffset);
 			const pos = res.range.getStartPosition();
-			let offset = Math.abs(request.relativePos.x);
+			// Offsets inside the margin are relative to the margin strip, which is not flush with the
+			// left edge of the editor in a right-to-left layout.
+			let offset = Math.abs(request.relativePos.x) - ctx.marginLeft;
 			const detail: Mutable<IMouseTargetMarginData> = {
 				isAfterLines: res.isAfterLines,
 				glyphMarginLeft: ctx.layoutInfo.glyphMarginLeft,

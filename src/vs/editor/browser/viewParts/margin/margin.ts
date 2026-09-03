@@ -12,7 +12,8 @@ import * as viewEvents from '../../../common/viewEvents.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 
 /**
- * Margin is a vertical strip located on the left of the editor's content area.
+ * Margin is a vertical strip located on the left of the editor's content area
+ * (on the right when `textDirection` is `'rtl'`).
  * It is used for various features such as line numbers, folding markers, and
  * decorations that provide additional information about the lines of code.
  */
@@ -24,6 +25,13 @@ export class Margin extends ViewPart {
 	private readonly _domNode: FastDomNode<HTMLElement>;
 	private _canUseLayerHinting: boolean;
 	private _contentLeft: number;
+	/**
+	 * The left offset of the margin strip itself. `0` in a left-to-right layout; in a right-to-left
+	 * layout the strip is flush with the right edge of the editor, at `width - contentLeft` - which
+	 * (rather than `contentWidth + minimapWidth`) ends the strip exactly at that edge for either
+	 * minimap side.
+	 */
+	private _marginLeft: number;
 	private _glyphMarginLeft: number;
 	private _glyphMarginWidth: number;
 	private _glyphMarginBackgroundDomNode: FastDomNode<HTMLElement>;
@@ -35,6 +43,7 @@ export class Margin extends ViewPart {
 
 		this._canUseLayerHinting = !options.get(EditorOption.disableLayerHinting);
 		this._contentLeft = layoutInfo.contentLeft;
+		this._marginLeft = options.get(EditorOption.effectiveTextDirection) === 'rtl' ? layoutInfo.width - layoutInfo.contentLeft : 0;
 		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
 		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
 
@@ -63,6 +72,7 @@ export class Margin extends ViewPart {
 
 		this._canUseLayerHinting = !options.get(EditorOption.disableLayerHinting);
 		this._contentLeft = layoutInfo.contentLeft;
+		this._marginLeft = options.get(EditorOption.effectiveTextDirection) === 'rtl' ? layoutInfo.width - layoutInfo.contentLeft : 0;
 		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
 		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
 
@@ -87,6 +97,7 @@ export class Margin extends ViewPart {
 		const height = Math.min(ctx.scrollHeight, 1000000);
 		this._domNode.setHeight(height);
 		this._domNode.setWidth(this._contentLeft);
+		this._domNode.setLeft(this._marginLeft);
 
 		this._glyphMarginBackgroundDomNode.setLeft(this._glyphMarginLeft);
 		this._glyphMarginBackgroundDomNode.setWidth(this._glyphMarginWidth);

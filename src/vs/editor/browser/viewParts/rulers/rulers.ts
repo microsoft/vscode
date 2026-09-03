@@ -21,6 +21,7 @@ export class Rulers extends ViewPart {
 	private readonly _renderedRulers: FastDomNode<HTMLElement>[];
 	private _rulers: IRulerOption[];
 	private _typicalHalfwidthCharacterWidth: number;
+	private _isRtl: boolean;
 
 	constructor(context: ViewContext) {
 		super(context);
@@ -32,6 +33,7 @@ export class Rulers extends ViewPart {
 		const options = this._context.configuration.options;
 		this._rulers = options.get(EditorOption.rulers);
 		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+		this._isRtl = options.get(EditorOption.effectiveTextDirection) === 'rtl';
 	}
 
 
@@ -41,10 +43,13 @@ export class Rulers extends ViewPart {
 		const options = this._context.configuration.options;
 		this._rulers = options.get(EditorOption.rulers);
 		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+		this._isRtl = options.get(EditorOption.effectiveTextDirection) === 'rtl';
 		return true;
 	}
 	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return e.scrollHeightChanged;
+		// In a right-to-left layout the position of a ruler depends on the width of the content,
+		// so it must be re-rendered when the content grows wider.
+		return e.scrollHeightChanged || (this._isRtl && e.scrollWidthChanged);
 	}
 
 	// --- end event handlers
@@ -93,7 +98,10 @@ export class Rulers extends ViewPart {
 
 			node.setBoxShadow(ruler.color ? `1px 0 0 0 ${ruler.color} inset` : ``);
 			node.setHeight(Math.min(ctx.scrollHeight, 1000000));
-			node.setLeft(ruler.column * this._typicalHalfwidthCharacterWidth);
+			// Lines are laid out from the right edge of the content box in a right-to-left layout,
+			// so column N is measured from `scrollWidth` instead of from 0.
+			const rulerOffset = ruler.column * this._typicalHalfwidthCharacterWidth;
+			node.setLeft(this._isRtl ? ctx.scrollWidth - rulerOffset : rulerOffset);
 		}
 	}
 }

@@ -129,7 +129,9 @@ class MinimapOptions {
 		this.pixelRatio = pixelRatio;
 		this.typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this.lineHeight = options.get(EditorOption.lineHeight);
-		this.minimapLeft = minimapLayout.minimapLeft;
+		// In a right-to-left layout the minimap is rendered flush with the physical left edge, opposite
+		// the margin (`minimap.side` is not honored, the layout is computed as if the side were 'right').
+		this.minimapLeft = options.get(EditorOption.effectiveTextDirection) === 'rtl' ? 0 : minimapLayout.minimapLeft;
 		this.minimapWidth = minimapLayout.minimapWidth;
 		this.minimapHeight = layoutInfo.height;
 

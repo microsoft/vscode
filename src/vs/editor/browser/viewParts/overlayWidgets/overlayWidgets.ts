@@ -42,6 +42,7 @@ export class ViewOverlayWidgets extends ViewPart {
 	private _horizontalScrollbarHeight: number;
 	private _editorHeight: number;
 	private _editorWidth: number;
+	private _isRtl: boolean;
 
 	constructor(context: ViewContext, viewDomNode: FastDomNode<HTMLElement>) {
 		super(context);
@@ -56,6 +57,7 @@ export class ViewOverlayWidgets extends ViewPart {
 		this._horizontalScrollbarHeight = layoutInfo.horizontalScrollbarHeight;
 		this._editorHeight = layoutInfo.height;
 		this._editorWidth = layoutInfo.width;
+		this._isRtl = options.get(EditorOption.effectiveTextDirection) === 'rtl';
 		this._viewDomNodeRect = { top: 0, left: 0, width: 0, height: 0 };
 
 		this._domNode = createFastDomNode(document.createElement('div'));
@@ -87,6 +89,7 @@ export class ViewOverlayWidgets extends ViewPart {
 		this._horizontalScrollbarHeight = layoutInfo.horizontalScrollbarHeight;
 		this._editorHeight = layoutInfo.height;
 		this._editorWidth = layoutInfo.width;
+		this._isRtl = options.get(EditorOption.effectiveTextDirection) === 'rtl';
 		return true;
 	}
 
@@ -185,6 +188,10 @@ export class ViewOverlayWidgets extends ViewPart {
 			if (widgetData.stack !== undefined) {
 				domNode.setTop(stackCoordinates[widgetData.preference]);
 				stackCoordinates[widgetData.preference] += domNode.domNode.clientWidth;
+			} else if (this._isRtl) {
+				// The corner is mirrored: the widget sits `maxRight` from the physical left edge, which is
+				// the side the minimap occupies in a right-to-left layout.
+				domNode.setLeft(maxRight);
 			} else {
 				domNode.setRight(maxRight);
 			}

@@ -83,7 +83,11 @@ class Settings {
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		const position = layoutInfo.overviewRuler;
 		this.top = position.top;
-		this.right = position.right;
+		// The overview ruler is a child of the scrollable element and is pinned to its trailing edge:
+		// the right one in a left-to-right layout, the left one when the layout is mirrored.
+		this.right = options.get(EditorOption.effectiveTextDirection) === 'rtl'
+			? layoutInfo.contentWidth - position.width - position.right
+			: position.right;
 		this.domWidth = position.width;
 		this.domHeight = position.height;
 		if (this.overviewRulerLanes === 0) {

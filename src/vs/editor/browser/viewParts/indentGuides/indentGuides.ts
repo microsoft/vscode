@@ -27,6 +27,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	private readonly _context: ViewContext;
 	private _primaryPosition: Position | null;
 	private _spaceWidth: number;
+	private _isRtl: boolean;
 	private _renderResult: string[] | null;
 	private _maxIndentLeft: number;
 	private _bracketPairGuideOptions: InternalGuidesOptions;
@@ -41,6 +42,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		const fontInfo = options.get(EditorOption.fontInfo);
 
 		this._spaceWidth = fontInfo.spaceWidth;
+		this._isRtl = options.get(EditorOption.effectiveTextDirection) === 'rtl';
 		this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
 		this._bracketPairGuideOptions = options.get(EditorOption.guides);
 
@@ -63,6 +65,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		const fontInfo = options.get(EditorOption.fontInfo);
 
 		this._spaceWidth = fontInfo.spaceWidth;
+		this._isRtl = options.get(EditorOption.effectiveTextDirection) === 'rtl';
 		this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
 		this._bracketPairGuideOptions = options.get(EditorOption.guides);
 
@@ -129,28 +132,39 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 			const lineIndex = lineNumber - visibleStartLineNumber;
 			const indent = indents[lineIndex];
 			let result = '';
-			const leftOffset = ctx.visibleRangeForPosition(new Position(lineNumber, 1))?.left ?? 0;
+			// The start of the line: its left edge in a left-to-right layout, its right edge otherwise.
+			const lineStart = ctx.visibleRangeForPosition(new Position(lineNumber, 1))?.left ?? 0;
 			for (const guide of indent) {
-				const left =
-					guide.column === -1
-						? leftOffset + (guide.visibleColumn - 1) * this._spaceWidth
+				// Indentation grows away from the start of the line, so in a right-to-left layout the
+				// guides step towards the left and each one is drawn a cell before its measured position.
+				const left = this._isRtl
+					? (guide.column === -1
+						? lineStart - guide.visibleColumn * this._spaceWidth
 						: ctx.visibleRangeForPosition(
 							new Position(lineNumber, guide.column)
-						)!.left;
+						)!.left - this._spaceWidth)
+					: (guide.column === -1
+						? lineStart + (guide.visibleColumn - 1) * this._spaceWidth
+						: ctx.visibleRangeForPosition(
+							new Position(lineNumber, guide.column)
+						)!.left);
 
-				if (left > scrollWidth || (this._maxIndentLeft > 0 && left > this._maxIndentLeft)) {
+				const indentWidth = this._isRtl ? lineStart - left : left;
+				if (indentWidth > scrollWidth || (this._maxIndentLeft > 0 && indentWidth > this._maxIndentLeft)) {
 					break;
 				}
 
 				const className = guide.horizontalLine ? (guide.horizontalLine.top ? 'horizontal-top' : 'horizontal-bottom') : 'vertical';
 
-				const width = guide.horizontalLine
+				const horizontalEnd = guide.horizontalLine
 					? (ctx.visibleRangeForPosition(
 						new Position(lineNumber, guide.horizontalLine.endColumn)
-					)?.left ?? (left + this._spaceWidth)) - left
-					: this._spaceWidth;
+					)?.left ?? (this._isRtl ? left - this._spaceWidth : left + this._spaceWidth))
+					: undefined;
+				const width = horizontalEnd === undefined ? this._spaceWidth : Math.abs(horizontalEnd - left);
+				const drawLeft = horizontalEnd === undefined ? left : Math.min(left, horizontalEnd);
 
-				result += `<div class="core-guide ${guide.className} ${className}" style="left:${left}px;width:${width}px"></div>`;
+				result += `<div class="core-guide ${guide.className} ${className}" style="left:${drawLeft}px;width:${width}px"></div>`;
 			}
 			output[lineIndex] = result;
 		}

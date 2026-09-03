@@ -85,6 +85,18 @@ export interface IEditorOptions {
 	 */
 	tabIndex?: number;
 	/**
+	 * Controls the text direction of the editor contents.
+	 *  - `'auto'`: the direction of each line is derived from its decorations (current behavior).
+	 *  - `'ltr'`: every line is laid out left-to-right.
+	 *  - `'rtl'`: every line is laid out right-to-left and the editor mirrors its own layout
+	 *    (line numbers and glyph margin on the right, minimap on the left).
+	 *  - `'uiLanguage'`: `'rtl'` when the user interface is displayed in a right-to-left
+	 *    language, `'ltr'` otherwise.
+	 * Lines whose direction is declared by a decoration are unaffected by this setting.
+	 * Defaults to 'auto'.
+	 */
+	textDirection?: 'auto' | 'ltr' | 'rtl' | 'uiLanguage';
+	/**
 	 * Render vertical lines at the specified columns.
 	 * Defaults to empty array.
 	 */
@@ -1692,6 +1704,12 @@ class EditorClassName extends ComputedEditorOption<EditorOption.editorClassName,
 			classNames.push('showDeprecated');
 		}
 
+		if (options.get(EditorOption.effectiveTextDirection) === 'rtl') {
+			// The internal coordinate system of the editor stays physically left-to-right;
+			// the mirrored layout is applied by the view parts and by the rules guarded by this class.
+			classNames.push('text-direction-rtl');
+		}
+
 		return classNames.join(' ');
 	}
 }
@@ -2049,6 +2067,47 @@ class EffectiveCursorStyle extends ComputedEditorOption<EditorOption.effectiveCu
 		return env.inputMode === 'overtype' ?
 			options.get(EditorOption.overtypeCursorStyle) :
 			options.get(EditorOption.cursorStyle);
+	}
+}
+
+//#endregion
+
+//#region effectiveTextDirection
+
+/**
+ * The primary subtags of the right-to-left written languages VS Code can be localized in. Used to
+ * resolve `textDirection: 'uiLanguage'`.
+ *
+ * `ckb` (Sorani) rather than `ku`: Kurmanji Kurdish is written in the Latin script, left to right.
+ * `sd` is Sindhi as written in Pakistan, in the Arabic script; the Devanagari orthography used in
+ * India is not distinguished by the primary subtag alone.
+ */
+const RTL_LANGUAGE_SUBTAGS = ['ar', 'ckb', 'dv', 'fa', 'he', 'ps', 'sd', 'ug', 'ur', 'yi'];
+
+/**
+ * @internal
+ */
+export function isRtlLanguage(language: string): boolean {
+	return RTL_LANGUAGE_SUBTAGS.includes(language.toLowerCase().split(/[-_]/)[0]);
+}
+
+class EffectiveTextDirection extends ComputedEditorOption<EditorOption.effectiveTextDirection, 'ltr' | 'rtl'> {
+
+	constructor() {
+		super(EditorOption.effectiveTextDirection, 'ltr');
+	}
+
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: 'ltr' | 'rtl'): 'ltr' | 'rtl' {
+		const textDirection = options.get(EditorOption.textDirection);
+		if (textDirection === 'uiLanguage') {
+			return isRtlLanguage(platform.language) ? 'rtl' : 'ltr';
+		}
+		if (textDirection === 'auto') {
+			// Unchanged from before this setting existed: a line takes the direction its decorations
+			// declare, and every other line is laid out left-to-right.
+			return 'ltr';
+		}
+		return textDirection;
 	}
 }
 
@@ -2619,6 +2678,7 @@ export interface IMinimapLayoutInput {
 	readonly viewLineCount: number;
 	readonly remainingWidth: number;
 	readonly isViewportWrapping: boolean;
+	readonly isRtl: boolean;
 }
 
 /**
@@ -2862,7 +2922,10 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		minimapCanvasInnerWidth = Math.floor(minimapCanvasInnerWidth * minimapWidthMultiplier);
 
 		const renderMinimap = (minimapRenderCharacters ? RenderMinimap.Text : RenderMinimap.Blocks);
-		const minimapLeft = (minimapSide === 'left' ? 0 : (outerWidth - minimapWidth - verticalScrollbarWidth));
+		// In a right-to-left layout the minimap is always rendered flush with the physical left edge
+		// (see `Minimap#render`) and `minimap.side` is not honored. The remaining offsets are therefore
+		// computed as if the minimap were on the trailing side, i.e. measured from the leading edge.
+		const minimapLeft = (!input.isRtl && minimapSide === 'left' ? 0 : (outerWidth - minimapWidth - verticalScrollbarWidth));
 
 		return {
 			renderMinimap,
@@ -2902,6 +2965,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const scrollBeyondLastLine = options.get(EditorOption.scrollBeyondLastLine);
 		const padding = options.get(EditorOption.padding);
 		const minimap = options.get(EditorOption.minimap);
+		const isRtl = options.get(EditorOption.effectiveTextDirection) === 'rtl';
 
 		const scrollbar = options.get(EditorOption.scrollbar);
 		const verticalScrollbarWidth = scrollbar.verticalScrollbarSize;
@@ -2963,9 +3027,10 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			viewLineCount: viewLineCount,
 			remainingWidth: remainingWidth,
 			isViewportWrapping: isViewportWrapping,
+			isRtl: isRtl,
 		}, env.memory || new ComputeOptionsMemory());
 
-		if (minimapLayout.renderMinimap !== RenderMinimap.None && minimapLayout.minimapLeft === 0) {
+		if (!isRtl && minimapLayout.renderMinimap !== RenderMinimap.None && minimapLayout.minimapLeft === 0) {
 			// the minimap is rendered to the left, so move everything to the right
 			glyphMarginLeft += minimapLayout.minimapWidth;
 			lineNumbersLeft += minimapLayout.minimapWidth;
@@ -5942,6 +6007,7 @@ export const enum EditorOption {
 	suggestSelection,
 	tabCompletion,
 	tabIndex,
+	textDirection,
 	trimWhitespaceOnDelete,
 	unicodeHighlighting,
 	unusualLineTerminators,
@@ -5964,6 +6030,7 @@ export const enum EditorOption {
 	wrapOnEscapedLineFeeds,
 	// Leave these at the end (because they have dependencies!)
 	effectiveCursorStyle,
+	effectiveTextDirection,
 	editorClassName,
 	pixelRatio,
 	tabFocusMode,
@@ -6752,6 +6819,20 @@ export const EditorOptions = {
 		EditorOption.tabIndex, 'tabIndex',
 		0, -1, Constants.MAX_SAFE_SMALL_INTEGER
 	)),
+	textDirection: register(new EditorStringEnumOption(
+		EditorOption.textDirection, 'textDirection',
+		'auto' as 'auto' | 'ltr' | 'rtl' | 'uiLanguage',
+		['auto', 'ltr', 'rtl', 'uiLanguage'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('textDirection.auto', "Lay out every line left-to-right, unless a line declares its own direction."),
+				nls.localize('textDirection.ltr', "Every line is laid out left-to-right."),
+				nls.localize('textDirection.rtl', "Every line is laid out right-to-left and the editor mirrors its layout: line numbers and glyph margin move to the right, the minimap to the left."),
+				nls.localize('textDirection.uiLanguage', "Use 'rtl' when the user interface is displayed in a right-to-left language, 'ltr' otherwise."),
+			],
+			markdownDescription: nls.localize('textDirection', "Controls the text direction of the editor contents. Set to `rtl` when writing text in a right-to-left script such as Arabic, Hebrew, Persian or Urdu: each line then flows from the right, so punctuation and brackets at the end of a line move to the left of it, and the editor mirrors its own layout. Because that is a property of what a file contains rather than of the window, it is usually set per language, for example `\"[markdown]\": { \"editor.textDirection\": \"rtl\" }`. The layout of the window itself is unchanged.")
+		}
+	)),
 	trimWhitespaceOnDelete: register(new EditorBooleanOption(
 		EditorOption.trimWhitespaceOnDelete, 'trimWhitespaceOnDelete', false,
 		{ description: nls.localize('trimWhitespaceOnDelete', "Controls whether the editor will also delete the next line's indentation whitespace when deleting a newline.") }
@@ -6865,6 +6946,7 @@ export const EditorOptions = {
 
 	// Leave these at the end (because they have dependencies!)
 	effectiveCursorStyle: register(new EffectiveCursorStyle()),
+	effectiveTextDirection: register(new EffectiveTextDirection()),
 	editorClassName: register(new EditorClassName()),
 	defaultColorDecorators: register(new EditorStringEnumOption(
 		EditorOption.defaultColorDecorators, 'defaultColorDecorators', 'auto' as 'auto' | 'always' | 'never',

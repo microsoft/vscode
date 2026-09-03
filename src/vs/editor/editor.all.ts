@@ -55,6 +55,7 @@ import './contrib/snippet/browser/snippetController2.js';
 import './contrib/stickyScroll/browser/stickyScrollContribution.js';
 import './contrib/suggest/browser/suggestController.js';
 import './contrib/suggest/browser/suggestInlineCompletions.js';
+import './contrib/textDirection/browser/textDirection.js';
 import './contrib/tokenization/browser/tokenization.js';
 import './contrib/toggleTabFocusMode/browser/toggleTabFocusMode.js';
 import './contrib/unicodeHighlighter/browser/unicodeHighlighter.js';
