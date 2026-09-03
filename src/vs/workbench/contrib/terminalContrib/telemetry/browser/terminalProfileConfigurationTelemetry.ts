@@ -7,7 +7,6 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IConfigurationService, ConfigurationTargetToString } from '../../../../../platform/configuration/common/configuration.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
-import type { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { TerminalChatAgentToolsSettingId } from '../../chatAgentTools/common/terminalChatAgentToolsConfiguration.js';
 
 const terminalProfileSettings = [
@@ -24,9 +23,7 @@ const terminalProfileSettings = [
 
 type TerminalProfileSetting = typeof terminalProfileSettings[number];
 
-export class TerminalProfileConfigurationTelemetryContribution extends Disposable implements IWorkbenchContribution {
-	static readonly ID = 'terminalProfileConfigurationTelemetry';
-
+export class TerminalProfileConfigurationTelemetry extends Disposable {
 	private readonly _configuredSettings = new Map<TerminalProfileSetting['settingId'], boolean>();
 
 	constructor(

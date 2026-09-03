@@ -10,7 +10,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TerminalSettingId } from '../../../../../../platform/terminal/common/terminal.js';
 import { TerminalChatAgentToolsSettingId } from '../../../chatAgentTools/common/terminalChatAgentToolsConfiguration.js';
-import { TerminalProfileConfigurationTelemetryContribution } from '../../browser/terminalProfileConfigurationTelemetry.js';
+import { TerminalProfileConfigurationTelemetry } from '../../browser/terminalProfileConfigurationTelemetry.js';
 
 class TestTelemetryService extends NullTelemetryServiceShape {
 	readonly events: { readonly name: string; readonly data: unknown }[] = [];
@@ -22,7 +22,7 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 	}
 }
 
-suite('TerminalProfileConfigurationTelemetryContribution', () => {
+suite('TerminalProfileConfigurationTelemetry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let configurationService: TestConfigurationService;
@@ -31,7 +31,7 @@ suite('TerminalProfileConfigurationTelemetryContribution', () => {
 	setup(() => {
 		configurationService = new TestConfigurationService();
 		telemetryService = new TestTelemetryService();
-		store.add(new TerminalProfileConfigurationTelemetryContribution(configurationService, telemetryService));
+		store.add(new TerminalProfileConfigurationTelemetry(configurationService, telemetryService));
 	});
 
 	async function changeSetting(settingId: string, value: unknown, source = ConfigurationTarget.USER): Promise<void> {
