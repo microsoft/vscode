@@ -10,6 +10,7 @@ import { WrappingIndent } from '../../../common/config/editorOptions.js';
 import { FontInfo } from '../../../common/config/fontInfo.js';
 import { ILineBreaksComputerContext } from '../../../common/modelLineProjectionData.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { LineInjectedText } from '../../../common/textModelEvents.js';
 
 suite('DOMLineBreaksComputer', () => {
 
@@ -34,10 +35,10 @@ suite('DOMLineBreaksComputer', () => {
 		maxDigitWidth: 20
 	}, false);
 
-	function getBreakOffsets(text: string, forceFullwidthCharacterWidth: boolean): readonly number[] | null {
+	function getBreakOffsets(text: string, forceFullwidthCharacterWidth: boolean, injectedTexts: LineInjectedText[] | null = null): readonly number[] | null {
 		const context: ILineBreaksComputerContext = {
 			getLineContent: () => text,
-			getLineInjectedText: () => null,
+			getLineInjectedText: () => injectedTexts,
 		};
 		const computer = DOMLineBreaksComputerFactory.create(mainWindow).createLineBreaksComputer(
 			context,
@@ -62,8 +63,20 @@ suite('DOMLineBreaksComputer', () => {
 		}, {
 			natural: null,
 			bmp: [1, 2, 3],
-			combining: null,
+			combining: [1, 3, 4],
 			rtl: null,
+		});
+	});
+
+	test('preserves fixed-width injected text containing a full-width character', () => {
+		const injectedTexts = [new LineInjectedText(0, 1, 2, { content: '\u6F22', widthInEm: 1 }, 0)];
+
+		assert.deepStrictEqual({
+			natural: getBreakOffsets('ab', false, injectedTexts),
+			centered: getBreakOffsets('ab', true, injectedTexts),
+		}, {
+			natural: [3],
+			centered: [3],
 		});
 	});
 });

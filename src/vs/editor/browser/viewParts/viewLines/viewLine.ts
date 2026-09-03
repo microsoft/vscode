@@ -6,16 +6,16 @@
 import * as browser from '../../../../base/browser/browser.js';
 import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
 import * as platform from '../../../../base/common/platform.js';
+import * as strings from '../../../../base/common/strings.js';
 import { IVisibleLine } from '../../view/viewLayer.js';
 import { RangeUtil } from './rangeUtil.js';
 import { StringBuilder } from '../../../common/core/stringBuilder.js';
 import { FloatHorizontalRange, VisibleRanges } from '../../view/renderingContext.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
-import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, DomPosition, RenderWhitespace, getFullwidthCharacterWidth } from '../../../common/viewLayout/viewLineRenderer.js';
+import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, DomPosition, RenderWhitespace } from '../../../common/viewLayout/viewLineRenderer.js';
 import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { EditorFontLigatures } from '../../../common/config/editorOptions.js';
-import { getFullWidthCharacterLength, getPreviousFullWidthCharacterLength } from '../../../common/viewLayout/fullWidthCharacter.js';
 import { DomReadingContext } from './domReadingContext.js';
 import type { ViewLineOptions } from './viewLineOptions.js';
 import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
@@ -645,16 +645,14 @@ class RenderedViewLine implements IRenderedViewLine {
 
 		const domPosition = this._characterMapping.getDomPosition(column);
 
-		if (getFullwidthCharacterWidth(this.input) > 0) {
-			const renderedLength = this._characterMapping.length - 1;
+		if (this.input.forceFullwidthCharacterWidth) {
 			const target = this._getReadingTarget(domNode);
-			const characterLength = getFullWidthCharacterLength(this.input.lineContent, column - 1);
-			if (characterLength > 0 && column - 1 + characterLength <= renderedLength) {
+			if (strings.isFullWidthCharacter(this.input.lineContent.charCodeAt(column - 1))) {
 				const r = RangeUtil.readHorizontalRangeForElement(target, domPosition.partIndex, context);
 				if (r) {
 					return r.left;
 				}
-			} else if (column - 1 <= renderedLength && getPreviousFullWidthCharacterLength(this.input.lineContent, column - 1) > 0 && domPosition.charIndex > 0) {
+			} else if (strings.isFullWidthCharacter(this.input.lineContent.charCodeAt(column - 2))) {
 				const r = RangeUtil.readHorizontalRangeForElement(target, domPosition.partIndex, context);
 				if (r) {
 					return r.left + r.width;

@@ -20,7 +20,7 @@ const GRID = [
 	'+--------+--------+',
 ].join('\n');
 
-/** Narrow characters and multi-code-point graphemes must retain their natural rendering. */
+/** Characters outside the shared classification retain their natural rendering. */
 const MIXED = [
 	'|ｱｲｳｴｵｶｷｸ|halfwidth|',
 	'|Ünïcödé  |accented |',
@@ -106,9 +106,9 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 		expectedVisualDescriptions: ['An ASCII box drawing contains five rows. Every pipe forms one straight unbroken vertical line down the whole box, and the closing pipes line up with the plus signs of the dashed borders above and below. Each CJK character is horizontally centered over the two narrow cells it occupies, with even spacing on both sides.'],
 		render: context => renderGrid(context, true),
 	}),
-	FullwidthCharacterWidthNotCentered: defineComponentFixture({
+	FullwidthCharacterWidthClassification: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['Four rows of text each start and end with a pipe. Half-width katakana and accented Latin letters render narrow, while the hiragana carrying combining accents and the supplementary-plane CJK characters carrying variation selectors render at their natural width. None of them is centered inside a two-cell box: no extra space is inserted around any of them, and no grapheme is split apart.'],
+		expectedVisualDescriptions: ['Four rows of text each start and end with a pipe. Half-width katakana and accented Latin letters render narrow. Each hiragana base character is centered in a two-cell box independently of its following combining accent. The supplementary-plane CJK characters and their variation selectors retain their natural rendering.'],
 		render: context => renderMixed(context, true),
 	}),
 	FullwidthCharacterWidthCode: defineComponentFixture({

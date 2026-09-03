@@ -11,7 +11,6 @@ import { FontInfo } from '../config/fontInfo.js';
 import { FixedWidthInjectedTextRange, LineInjectedText } from '../textModelEvents.js';
 import { InjectedTextOptions } from '../model.js';
 import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData, ILineBreaksComputerContext } from '../modelLineProjectionData.js';
-import { containsFullWidthCharacter, getFullWidthCharacterLength } from '../viewLayout/fullWidthCharacter.js';
 
 export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFactory {
 	public static create(options: IComputedEditorOptions): MonospaceLineBreaksComputerFactory {
@@ -46,7 +45,15 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 					const previousLineBreakData = previousBreakingData[i];
 					const isLineFeedWrappingEnabled = wrapOnEscapedLineFeeds && lineText.includes('"') && lineText.includes('\\n');
 					const lineTextWithInjections = LineInjectedText.applyInjectedText(lineText, injectedText);
-					const forceFullwidthCharacterWidthForLine = forceFullwidthCharacterWidth && !strings.containsRTL(lineTextWithInjections) && containsFullWidthCharacter(lineTextWithInjections);
+					let forceFullwidthCharacterWidthForLine = false;
+					if (forceFullwidthCharacterWidth && !strings.containsRTL(lineTextWithInjections)) {
+						for (let offset = 0; offset < lineTextWithInjections.length; offset++) {
+							if (strings.isFullWidthCharacter(lineTextWithInjections.charCodeAt(offset))) {
+								forceFullwidthCharacterWidthForLine = true;
+								break;
+							}
+						}
+					}
 					if (previousLineBreakData && !forceFullwidthCharacterWidthForLine && !previousLineBreakData.injectionOptions && !injectedText && !isLineFeedWrappingEnabled) {
 						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, lineText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak);
 					} else {
@@ -427,19 +434,18 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 		startOffset = firstFixedWidthRange.endOffset;
 		fixedWidthRangeIndex++;
 	} else {
-		const fullWidthCharacterLength = forceFullwidthCharacterWidth ? getFullWidthCharacterLength(lineText, 0) : 0;
-		if (fullWidthCharacterLength > 0) {
-			prevCharCode = lineText.codePointAt(0)!;
+		prevCharCode = lineText.charCodeAt(0);
+		const isFullWidthCharacter = forceFullwidthCharacterWidth && strings.isFullWidthCharacter(prevCharCode);
+		if (isFullWidthCharacter) {
 			visibleColumn = 2;
 			currentLinePixelWidth = 2 * typicalHalfwidthCharacterWidth;
-			startOffset = fullWidthCharacterLength;
+			startOffset = 1;
 		} else {
-			prevCharCode = lineText.charCodeAt(0);
 			visibleColumn = computeCharWidth(prevCharCode, 0, tabSize, columnsForFullWidthChar);
 			currentLinePixelWidth = computeCharPixelWidth(prevCharCode, 0, tabSize, fontInfo, naturalFullWidthCharacterPixelWidth);
 			startOffset = 1;
 		}
-		if (fullWidthCharacterLength === 0 && strings.isHighSurrogate(prevCharCode)) {
+		if (!isFullWidthCharacter && strings.isHighSurrogate(prevCharCode)) {
 			// A surrogate pair must always be considered as a single unit, so it is never to be broken
 			visibleColumn += 1;
 			currentLinePixelWidth += typicalHalfwidthCharacterWidth;
@@ -465,24 +471,10 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 			charPixelWidth = fixedWidthRange.widthInEm * fontInfo.fontSize;
 			i = fixedWidthRange.endOffset - 1;
 			fixedWidthRangeIndex++;
-		} else if (forceFullwidthCharacterWidth) {
-			const fullWidthCharacterLength = getFullWidthCharacterLength(lineText, i);
-			if (fullWidthCharacterLength > 0) {
-				charCode = lineText.codePointAt(i)!;
-				charCodeClass = classifier.get(charCode);
-				charWidth = 2;
-				charPixelWidth = 2 * typicalHalfwidthCharacterWidth;
-				i += fullWidthCharacterLength - 1;
-			} else if (strings.isHighSurrogate(charCode)) {
-				i++;
-				charCodeClass = CharacterClass.NONE;
-				charWidth = 2;
-				charPixelWidth = 2 * typicalHalfwidthCharacterWidth;
-			} else {
-				charCodeClass = classifier.get(charCode);
-				charWidth = computeCharWidth(charCode, visibleColumn, tabSize, columnsForFullWidthChar);
-				charPixelWidth = computeCharPixelWidth(charCode, visibleColumn, tabSize, fontInfo, naturalFullWidthCharacterPixelWidth);
-			}
+		} else if (forceFullwidthCharacterWidth && strings.isFullWidthCharacter(charCode)) {
+			charCodeClass = classifier.get(charCode);
+			charWidth = 2;
+			charPixelWidth = 2 * typicalHalfwidthCharacterWidth;
 		} else if (strings.isHighSurrogate(charCode)) {
 			// A surrogate pair must always be considered as a single unit, so it is never to be broken
 			i++;
@@ -594,10 +586,8 @@ function computeCharPixelWidth(charCode: number, visibleColumn: number, tabSize:
 function computeFixedWidthRangeColumnWidth(lineText: string, range: FixedWidthInjectedTextRange, visibleColumn: number, tabSize: number, columnsForFullWidthChar: number, forceFullwidthCharacterWidth: boolean): number {
 	let width = 0;
 	for (let i = range.startOffset; i < range.endOffset; i++) {
-		const fullWidthCharacterLength = forceFullwidthCharacterWidth ? getFullWidthCharacterLength(lineText, i) : 0;
-		if (fullWidthCharacterLength > 0) {
+		if (forceFullwidthCharacterWidth && strings.isFullWidthCharacter(lineText.charCodeAt(i))) {
 			width += 2;
-			i += fullWidthCharacterLength - 1;
 		} else {
 			width += computeCharWidth(lineText.charCodeAt(i), visibleColumn + width, tabSize, columnsForFullWidthChar);
 		}

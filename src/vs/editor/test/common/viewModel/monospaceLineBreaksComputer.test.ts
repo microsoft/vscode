@@ -546,7 +546,7 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		});
 	});
 
-	test('MonospaceLineBreaksComputer - forced width preserves excluded text metrics', () => {
+	test('MonospaceLineBreaksComputer - forced width uses code point classification and excludes RTL', () => {
 		const factory = new MonospaceLineBreaksComputerFactory('(', '\t)');
 		const wrapWith = (text: string, forceFullwidthCharacterWidth: boolean) => toAnnotatedText(text, getLineBreakData(factory, 4, 4, 3, WrappingIndent.None, 'normal', false, text, null, null, forceFullwidthCharacterWidth));
 		const combinedCharacter = '\u3042\u0301aa';

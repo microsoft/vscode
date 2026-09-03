@@ -1776,18 +1776,18 @@ suite('renderViewLine - forceFullwidthCharacterWidth', () => {
 		]);
 	});
 
-	// The guard: centering a character that only forms half of a grapheme cluster would tear
-	// the cluster apart, so such characters are rendered the way they are today.
-	test('a full-width character carrying a combining mark is not centered', () => {
+	test('a full-width character carrying a combining mark is centered by code point', () => {
 		assert.deepStrictEqual(render('あ́い'), [
-			`<span class="mtk1">あ́</span>`,
+			`<span${cell(20)} class="mtk1">あ</span>`,
+			`<span class="mtk1">́</span>`,
 			`<span${cell(20)} class="mtk1">い</span>`
 		]);
 	});
 
-	test('a full-width character followed by a variation selector is not centered', () => {
+	test('a full-width character followed by a variation selector is centered by code point', () => {
 		assert.deepStrictEqual(render('神︀社'), [
-			`<span class="mtk1">神︀</span>`,
+			`<span${cell(20)} class="mtk1">神</span>`,
+			`<span class="mtk1">︀</span>`,
 			`<span${cell(20)} class="mtk1">社</span>`
 		]);
 	});

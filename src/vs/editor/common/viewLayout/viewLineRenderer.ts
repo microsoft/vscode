@@ -13,7 +13,6 @@ import { LinePart, LinePartMetadata } from './linePart.js';
 import { OffsetRange } from '../core/ranges/offsetRange.js';
 import { InlineDecorationType } from '../viewModel/inlineDecorations.js';
 import { TextDirection } from '../model.js';
-import { containsFullWidthCharacter, getFullWidthCharacterLength } from './fullWidthCharacter.js';
 
 export const enum RenderWhitespace {
 	None = 0,
@@ -565,8 +564,16 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 
 /** Returns the forced full-width character width for an eligible rendered line, or `0`. */
 export function getFullwidthCharacterWidth(input: RenderLineInput): number {
+	if (!input.forceFullwidthCharacterWidth || !input.isLTR) {
+		return 0;
+	}
 	const renderedLength = input.stopRenderingLineAfter === -1 ? input.lineContent.length : Math.min(input.stopRenderingLineAfter, input.lineContent.length);
-	return input.forceFullwidthCharacterWidth && input.isLTR && containsFullWidthCharacter(input.lineContent, renderedLength) ? 2 * input.spaceWidth : 0;
+	for (let offset = 0; offset < renderedLength; offset++) {
+		if (strings.isFullWidthCharacter(input.lineContent.charCodeAt(offset))) {
+			return 2 * input.spaceWidth;
+		}
+	}
+	return 0;
 }
 
 /** Splits parts such that every full-width character ends up in a part of its own. */
@@ -576,16 +583,14 @@ function splitFullWidthCharacters(lineContent: string, parts: LinePart[]): LineP
 	for (const part of parts) {
 		let didSplit = false;
 		for (let offset = startOffset; offset < part.endIndex; offset++) {
-			const characterLength = getFullWidthCharacterLength(lineContent, offset);
-			if (characterLength === 0 || offset + characterLength > part.endIndex) {
+			if (!strings.isFullWidthCharacter(lineContent.charCodeAt(offset))) {
 				continue;
 			}
 			if (offset > startOffset) {
 				result.push(new LinePart(offset, part.type, part.metadata, part.containsRTL));
 			}
-			result.push(new LinePart(offset + characterLength, part.type, part.metadata, part.containsRTL));
-			startOffset = offset + characterLength;
-			offset += characterLength - 1;
+			result.push(new LinePart(offset + 1, part.type, part.metadata, part.containsRTL));
+			startOffset = offset + 1;
 			didSplit = true;
 		}
 		if (!didSplit || part.endIndex > startOffset) {
@@ -1078,8 +1083,9 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 		const partRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && part.isWhitespace());
 		const partRendersWhitespaceWithWidth = partRendersWhitespace && !fontIsMonospace && (partType === 'mtkw'/*only whitespace*/ || !containsForeignElements);
 		const partIsEmptyAndHasPseudoAfter = (charIndex === partEndIndex && part.isPseudoAfter());
-		const fullWidthCharacterLength = fullwidthCharacterWidth > 0 ? getFullWidthCharacterLength(lineContent, charIndex) : 0;
-		const partIsFullWidth = fullWidthCharacterLength > 0 && charIndex + fullWidthCharacterLength === partEndIndex;
+		const partIsFullWidth = fullwidthCharacterWidth > 0
+			&& charIndex + 1 === partEndIndex
+			&& strings.isFullWidthCharacter(lineContent.charCodeAt(charIndex));
 		charOffsetInPart = 0;
 
 		sb.appendString('<span ');
@@ -1208,9 +1214,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 						break;
 
 					default:
-						if (partIsFullWidth && fullWidthCharacterLength === 1) {
-							charWidth = 2;
-						} else if (strings.isFullWidthCharacter(charCode)) {
+						if (strings.isFullWidthCharacter(charCode)) {
 							charWidth++;
 						}
 						// See https://unicode-table.com/en/blocks/control-pictures/

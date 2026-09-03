@@ -12,6 +12,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewLineOptions } from '../viewParts/viewLines/viewLineOptions.js';
 import { observableValue, runOnChange, type IObservable } from '../../../base/common/observable.js';
+import * as strings from '../../../base/common/strings.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { TextureAtlas } from './atlas/textureAtlas.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
@@ -26,7 +27,6 @@ import { Event } from '../../../base/common/event.js';
 import { EditorOption, type IEditorOptions } from '../../common/config/editorOptions.js';
 import { DecorationStyleCache } from './css/decorationStyleCache.js';
 import { InlineDecorationType } from '../../common/viewModel/inlineDecorations.js';
-import { containsFullWidthCharacter } from '../../common/viewLayout/fullWidthCharacter.js';
 import { TextDirection } from '../../common/model.js';
 
 export class ViewGpuContext extends Disposable {
@@ -166,12 +166,9 @@ export class ViewGpuContext extends Disposable {
 		// Check if the line has simple attributes that aren't supported
 		if (
 			data.containsRTL ||
-			data.maxColumn > this.maxGpuCols
+			data.maxColumn > this.maxGpuCols ||
+			requiresDomFullwidthCharacterRendering(options, data.content, data.textDirection)
 		) {
-			return false;
-		}
-
-		if (options.forceFullwidthCharacterWidth && data.textDirection !== TextDirection.RTL && containsFullWidthCharacter(data.content, options.stopRenderingLineAfter)) {
 			return false;
 		}
 
@@ -218,7 +215,7 @@ export class ViewGpuContext extends Disposable {
 		if (data.maxColumn > this.maxGpuCols) {
 			reasons.push('maxColumn > maxGpuCols');
 		}
-		if (options.forceFullwidthCharacterWidth && data.textDirection !== TextDirection.RTL && containsFullWidthCharacter(data.content, options.stopRenderingLineAfter)) {
+		if (requiresDomFullwidthCharacterRendering(options, data.content, data.textDirection)) {
 			reasons.push('forceFullwidthCharacterWidth');
 		}
 		if (data.inlineDecorations.length > 0) {
@@ -264,6 +261,19 @@ export class ViewGpuContext extends Disposable {
 		}
 		return reasons;
 	}
+}
+
+function requiresDomFullwidthCharacterRendering(options: ViewLineOptions, content: string, textDirection: TextDirection | null): boolean {
+	if (!options.forceFullwidthCharacterWidth || textDirection === TextDirection.RTL) {
+		return false;
+	}
+	const limit = options.stopRenderingLineAfter === -1 ? content.length : Math.min(options.stopRenderingLineAfter, content.length);
+	for (let offset = 0; offset < limit; offset++) {
+		if (strings.isFullWidthCharacter(content.charCodeAt(offset))) {
+			return true;
+		}
+	}
+	return false;
 }
 
 /**

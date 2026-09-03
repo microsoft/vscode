@@ -144,17 +144,17 @@
 #### editor/codeEditor/CodeEditor/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/89b2d50f5bd33feaa20b3c8f83f3d83548fda48b6f85cd7d784460aafaeeb596)
 
+#### editor/fullwidthCharacterWidth/FullwidthCharacterWidthClassification/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/a0633586beb0ac8cc8f0645667aa923b6c61287fd4932ec5f364951246735bf1)
+
+#### editor/fullwidthCharacterWidth/FullwidthCharacterWidthClassification/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/88de8b5b9123a37e8da8246c1ee100a5e9d8f7e174912ca2be1aed1eb0587a53)
+
 #### editor/fullwidthCharacterWidth/FullwidthCharacterWidthCode/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/d8120ea9b281f54a8a9aa86409b5959bf11f4b4432cf31c54e80bbd03df3ce11)
 
 #### editor/fullwidthCharacterWidth/FullwidthCharacterWidthCode/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/b84c6f6f05420ba33e71cec227c976481b166a2967e9f295b9723c0a32228969)
-
-#### editor/fullwidthCharacterWidth/FullwidthCharacterWidthNotCentered/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/c585728e4705555a684df3fdcdbd7b43930cfac6e9675de79ff79139b9a1b7e0)
-
-#### editor/fullwidthCharacterWidth/FullwidthCharacterWidthNotCentered/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/2ffdcb4a95d875c4067a6c255aa1ea591394d296684a28db00a1f99afd261f59)
 
 #### editor/fullwidthCharacterWidth/FullwidthCharacterWidthOff/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/88302b9073ab85f969299413d70dbb4d855fda5dec449cd4ec38e8d4920a722a)
