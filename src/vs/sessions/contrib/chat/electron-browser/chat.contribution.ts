@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
-import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { URI } from '../../../../base/common/uri.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IAgentHostByokLmHandler } from '../../../../platform/agentHost/common/agentHostByokLm.js';
@@ -22,7 +22,7 @@ import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js'
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { SessionsCopilotConfigSlashSubmitHandlerContribution } from '../browser/copilotConfigSlashSubmitHandler.js';
-import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../platform/window/common/window.js';
+import { AgentsWindowOpenSource, IAgentsWindowOpenRequest, isAgentsWindowOpenSource } from '../../../../platform/window/common/window.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
@@ -52,10 +52,11 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 	) {
 		super();
 		const handleSelectAgentsFolder = (_: unknown, ...args: unknown[]) => {
-			const folderUri = args[0] ? URI.revive(args[0] as UriComponents) : undefined;
-			const sessionResource = args[1] ? URI.revive(args[1] as UriComponents) : undefined;
-			const source = isAgentsWindowOpenSource(args[2]) ? args[2] : AgentsWindowOpenSource.Unknown;
-			const preferDevContainer = shouldPreferDevContainer(args[3], this.configurationService);
+			const request = args[0] as IAgentsWindowOpenRequest | undefined;
+			const folderUri = request?.folderUri ? URI.revive(request.folderUri) : undefined;
+			const sessionResource = request?.sessionResource ? URI.revive(request.sessionResource) : undefined;
+			const source = isAgentsWindowOpenSource(request?.source) ? request.source : AgentsWindowOpenSource.Unknown;
+			const preferDevContainer = shouldPreferDevContainer(request?.preferDevContainer, this.configurationService);
 			this.logService.info(`[AgentsHandoff] IPC received: folderUri=${folderUri?.toString() ?? '(none)'} sessionResource=${sessionResource?.toString() ?? '(none)'}`);
 			this._startWindowOpenTelemetry(source);
 
