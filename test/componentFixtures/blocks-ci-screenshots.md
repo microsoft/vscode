@@ -175,10 +175,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/467e6c59b70fbd0153e463f8a5bbdb778f9b96aa27117fa8c276e126004fe2ac)
 
 #### editor/fullwidthCharacterWidth/FullwidthCharacterWidthSelection/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/af71f253cba2881e336da3eebd2ff3df7f1b20b9de7c407bb18bb944e59e5125)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/f71aa78cedae1857eadb78ee37600dea0d21934b9e55e90c5611657910e0f606)
 
 #### editor/fullwidthCharacterWidth/FullwidthCharacterWidthSelection/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/d2f28d080bfa99f2f93566c860e11ca891eb8e38ef27a4b20286b7227d235d89)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/f84b059992c18e3291fe2b4e37b1c03bda55a4e79b18c8abc7d08ecf2e042604)
 
 #### editor/injectedTextDecorations/ColorDecorators/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/33584d1dce7a32853b0c3c269ea341c1346364d42f3acede0f39d055ec54ff03)

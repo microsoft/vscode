@@ -27,7 +27,6 @@ import { Event } from '../../../base/common/event.js';
 import { EditorOption, type IEditorOptions } from '../../common/config/editorOptions.js';
 import { DecorationStyleCache } from './css/decorationStyleCache.js';
 import { InlineDecorationType } from '../../common/viewModel/inlineDecorations.js';
-import { TextDirection } from '../../common/model.js';
 
 export class ViewGpuContext extends Disposable {
 	/**
@@ -167,7 +166,7 @@ export class ViewGpuContext extends Disposable {
 		if (
 			data.containsRTL ||
 			data.maxColumn > this.maxGpuCols ||
-			requiresDomFullwidthCharacterRendering(options, data.content, data.textDirection)
+			requiresDomFullwidthCharacterRendering(options, data.content)
 		) {
 			return false;
 		}
@@ -215,7 +214,7 @@ export class ViewGpuContext extends Disposable {
 		if (data.maxColumn > this.maxGpuCols) {
 			reasons.push('maxColumn > maxGpuCols');
 		}
-		if (requiresDomFullwidthCharacterRendering(options, data.content, data.textDirection)) {
+		if (requiresDomFullwidthCharacterRendering(options, data.content)) {
 			reasons.push('forceFullwidthCharacterWidth');
 		}
 		if (data.inlineDecorations.length > 0) {
@@ -263,8 +262,8 @@ export class ViewGpuContext extends Disposable {
 	}
 }
 
-function requiresDomFullwidthCharacterRendering(options: ViewLineOptions, content: string, textDirection: TextDirection | null): boolean {
-	if (!options.forceFullwidthCharacterWidth || textDirection === TextDirection.RTL) {
+function requiresDomFullwidthCharacterRendering(options: ViewLineOptions, content: string): boolean {
+	if (!options.forceFullwidthCharacterWidth) {
 		return false;
 	}
 	const limit = options.stopRenderingLineAfter === -1 ? content.length : Math.min(options.stopRenderingLineAfter, content.length);

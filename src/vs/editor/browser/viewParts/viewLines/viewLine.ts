@@ -647,13 +647,17 @@ class RenderedViewLine implements IRenderedViewLine {
 
 		if (this.input.forceFullwidthCharacterWidth) {
 			const target = this._getReadingTarget(domNode);
+			// The first branch needs the left edge of the character to the right
 			if (strings.isFullWidthCharacter(this.input.lineContent.charCodeAt(column - 1))) {
 				const r = RangeUtil.readHorizontalRangeForElement(target, domPosition.partIndex, context);
 				if (r) {
 					return r.left;
 				}
-			} else if (strings.isFullWidthCharacter(this.input.lineContent.charCodeAt(column - 2))) {
-				const r = RangeUtil.readHorizontalRangeForElement(target, domPosition.partIndex, context);
+			}
+			// The second branch needs the right edge of the character to the left.
+			else if (strings.isFullWidthCharacter(this.input.lineContent.charCodeAt(column - 2))) {
+				const previousDomPosition = this._characterMapping.getDomPosition(column - 1);
+				const r = RangeUtil.readHorizontalRangeForElement(target, previousDomPosition.partIndex, context);
 				if (r) {
 					return r.left + r.width;
 				}

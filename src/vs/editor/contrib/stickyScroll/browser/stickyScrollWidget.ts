@@ -462,8 +462,6 @@ class RenderedStickyLine {
 
 		const lineHeight = editor.getLineHeightForPosition(new Position(lineNumber, 1));
 		const textDirection = viewModel.getTextDirection(lineNumber);
-		// A sticky line is a copy of a line of the editor, so it has to be laid out on the same
-		// grid. Whitespace is not rendered here, which is why the middot widths went unused.
 		const fontInfo = editor.getOption(EditorOption.fontInfo);
 		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, lineRenderingData.content,
 			lineRenderingData.continuesWithWrappedLine,

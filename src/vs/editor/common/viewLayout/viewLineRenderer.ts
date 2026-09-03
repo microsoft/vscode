@@ -112,7 +112,7 @@ export class RenderLineInput {
 		textDirection: TextDirection | null,
 		verticalScrollbarSize: number,
 		renderNewLineWhenEmpty: boolean = false,
-		forceFullwidthCharacterWidth: boolean = false,
+		forceFullwidthCharacterWidth = false,
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.canUseHalfwidthRightwardsArrow = canUseHalfwidthRightwardsArrow;
@@ -465,11 +465,7 @@ class ResolvedRenderLineInput {
 		public readonly renderSpaceCharCode: number,
 		public readonly renderWhitespace: RenderWhitespace,
 		public readonly renderControlCharacters: boolean,
-		/**
-		 * The pixel width to give to each centered full-width character, or `0` when
-		 * full-width characters should be rendered as-is.
-		 */
-		public readonly fullwidthCharacterWidth: number,
+		public readonly forceFullwidthCharacterWidth: boolean
 	) {
 		//
 	}
@@ -530,16 +526,8 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		// Split the first token if it contains both leading whitespace and RTL text
 		tokens = splitLeadingWhitespaceFromRTL(lineContent, tokens);
 	}
-
-	// Centered characters need isolated parts so their boxes can be measured.
-	let fullwidthCharacterWidth = getFullwidthCharacterWidth(input);
-	if (fullwidthCharacterWidth > 0) {
-		const splitTokens = splitFullWidthCharacters(lineContent, tokens);
-		if (splitTokens.length <= (CharacterMappingConstants.PART_INDEX_MASK >>> CharacterMappingConstants.PART_INDEX_OFFSET) + 1) {
-			tokens = splitTokens;
-		} else {
-			fullwidthCharacterWidth = 0;
-		}
+	if (input.forceFullwidthCharacterWidth) {
+		tokens = splitFullWidthCharacters(lineContent, tokens);
 	}
 
 	return new ResolvedRenderLineInput(
@@ -558,22 +546,8 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		input.renderSpaceCharCode,
 		input.renderWhitespace,
 		input.renderControlCharacters,
-		fullwidthCharacterWidth
+		input.forceFullwidthCharacterWidth
 	);
-}
-
-/** Returns the forced full-width character width for an eligible rendered line, or `0`. */
-export function getFullwidthCharacterWidth(input: RenderLineInput): number {
-	if (!input.forceFullwidthCharacterWidth || !input.isLTR) {
-		return 0;
-	}
-	const renderedLength = input.stopRenderingLineAfter === -1 ? input.lineContent.length : Math.min(input.stopRenderingLineAfter, input.lineContent.length);
-	for (let offset = 0; offset < renderedLength; offset++) {
-		if (strings.isFullWidthCharacter(input.lineContent.charCodeAt(offset))) {
-			return 2 * input.spaceWidth;
-		}
-	}
-	return 0;
 }
 
 /** Splits parts such that every full-width character ends up in a part of its own. */
@@ -1060,7 +1034,8 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 	const renderSpaceCharCode = input.renderSpaceCharCode;
 	const renderWhitespace = input.renderWhitespace;
 	const renderControlCharacters = input.renderControlCharacters;
-	const fullwidthCharacterWidth = input.fullwidthCharacterWidth;
+	const forceFullwidthCharacterWidth = input.forceFullwidthCharacterWidth;
+	const fullWidthCharacterWidth = 2 * input.spaceWidth;
 
 	const characterMapping = new CharacterMapping(len + 1, parts.length);
 	let lastCharacterMappingDefined = false;
@@ -1083,9 +1058,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 		const partRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && part.isWhitespace());
 		const partRendersWhitespaceWithWidth = partRendersWhitespace && !fontIsMonospace && (partType === 'mtkw'/*only whitespace*/ || !containsForeignElements);
 		const partIsEmptyAndHasPseudoAfter = (charIndex === partEndIndex && part.isPseudoAfter());
-		const partIsFullWidth = fullwidthCharacterWidth > 0
-			&& charIndex + 1 === partEndIndex
-			&& strings.isFullWidthCharacter(lineContent.charCodeAt(charIndex));
+		const partIsFullWidth = forceFullwidthCharacterWidth && strings.isFullWidthCharacter(lineContent.charCodeAt(charIndex));
 		charOffsetInPart = 0;
 
 		sb.appendString('<span ');
@@ -1093,7 +1066,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 			sb.appendString('style="unicode-bidi:isolate" ');
 		} else if (partIsFullWidth) {
 			sb.appendString('style="display:inline-block;box-sizing:border-box;text-align:center;width:');
-			sb.appendString(String(fullwidthCharacterWidth));
+			sb.appendString(String(fullWidthCharacterWidth));
 			sb.appendString('px" ');
 		}
 		sb.appendString('class="');
