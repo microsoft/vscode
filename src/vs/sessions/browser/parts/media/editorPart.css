@@ -22,13 +22,23 @@
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-container > .title.tabs {
-	--modern-ui-editor-tabs-border: var(--vscode-editorGroupHeader-tabsBorder, var(--vscode-editorGroup-border));
+	--modern-ui-editor-tabs-border: color-mix(in srgb, var(--vscode-activeSessionView-foreground, var(--vscode-agentsPanel-foreground)) 12%, transparent);
+}
+
+:is(.hc-black, .hc-light).agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-container > .title.tabs {
+	--modern-ui-editor-tabs-border: var(--vscode-contrastBorder);
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.tabs-border-bottom::after {
+	right: var(--vscode-spacing-size20);
+	left: var(--vscode-spacing-size20);
+	width: auto;
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .browser-root > .browser-navbar {
 	box-sizing: border-box;
 	height: var(--vscode-spacing-size320);
-	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40) 0 var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size20) 0 0 var(--vscode-spacing-size40);
 	gap: var(--vscode-spacing-size40);
 }
 
