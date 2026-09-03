@@ -243,6 +243,14 @@
 	cursor: pointer;
 }
 
+.monaco-editor .line-move, .monaco-diff-editor .line-move {
+	background-color: var(--vscode-diffEditor-move-background);
+}
+
+.monaco-editor .line-move.currentMove, .monaco-diff-editor .line-move.currentMove {
+	background-color: var(--vscode-diffEditor-moveActive-background);
+}
+
 .monaco-editor .char-insert, .monaco-diff-editor .char-insert {
 	background-color: var(--vscode-diffEditor-insertedTextBackground);
 }
