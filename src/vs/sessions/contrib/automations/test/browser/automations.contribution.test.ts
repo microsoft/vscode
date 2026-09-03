@@ -12,7 +12,9 @@ import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contr
 
 import '../../browser/automations.contribution.js';
 
-const automationEnabledProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[CHAT_AUTOMATIONS_ENABLED_SETTING];
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+const automationEnabledProperty = configurationRegistry.getConfigurationProperties()[CHAT_AUTOMATIONS_ENABLED_SETTING]
+	?? configurationRegistry.getExcludedConfigurationProperties()[CHAT_AUTOMATIONS_ENABLED_SETTING];
 
 suite('Automations Contribution', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
