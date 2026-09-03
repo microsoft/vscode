@@ -4,44 +4,67 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CustomizationMigrationDashboard, type ICustomizationMigrationDashboardItem } from '../../../../contrib/chat/browser/aiCustomization/customizationMigrationDashboard.js';
+import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { PromptsStorage } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 
 const dashboardItems: readonly ICustomizationMigrationDashboardItem[] = [
 	{
 		id: 'promptFiles',
 		label: 'Prompt Files',
-		description: 'Prompt files are now deprecated. Found 4 prompt files that Copilot will ignore. Convert them to skills to keep them available.',
+		description: 'Copilot will ignore these prompt files. Convert them to skills to keep them available.',
 		count: 4,
-		operationLabel: 'Convert',
-		sourceLabel: '.prompt.md files',
-		destinationLabel: 'Skill folders',
+		destinations: [{
+			targetType: PromptsType.skill,
+			storage: PromptsStorage.local,
+			contextLabel: 'Workspace skills',
+			label: '.github/skills',
+			ariaLabel: 'Change destination for workspace skills',
+		}],
 		itemSummary: '2 workspace · 2 user',
-		actionLabel: 'Review Prompt Files',
-		actionAriaLabel: 'Review prompt files that need migration',
+		actionLabel: 'Review Migration',
+		actionAriaLabel: 'Review prompt file migration',
 	},
 	{
 		id: 'userData',
-		label: 'VS Code Profile Customizations',
-		description: 'Agent Host harnesses do not discover customizations stored in your VS Code profile. Found 3 files that Copilot will ignore. Move them to portable Copilot folders to keep them available.',
+		label: 'VS Code-only Customizations',
+		description: 'Copilot will ignore these agents and instruction files. Move them to portable Copilot folders to keep them available.',
 		count: 3,
-		operationLabel: 'Move',
-		sourceLabel: 'VS Code profile',
-		destinationLabel: '~/.copilot',
+		destinations: [
+			{
+				targetType: PromptsType.agent,
+				storage: PromptsStorage.user,
+				contextLabel: 'User agents',
+				label: '~/.copilot/agents',
+				ariaLabel: 'Change destination for user agents',
+			},
+			{
+				targetType: PromptsType.instructions,
+				storage: PromptsStorage.user,
+				contextLabel: 'User instructions',
+				label: '~/.copilot/instructions',
+				ariaLabel: 'Change destination for user instructions',
+			},
+		],
 		itemSummary: '1 agent · 2 instructions',
-		actionLabel: 'Review Profile Files',
-		actionAriaLabel: 'Review VS Code profile customizations that need migration',
+		actionLabel: 'Review Migration',
+		actionAriaLabel: 'Review VS Code-only customization migration',
 	},
 	{
 		id: 'mcpServers',
 		label: 'MCP Servers',
-		description: 'Some VS Code MCP configuration is not supported by Copilot. Found 3 servers that need review. Copy compatible servers and update the others to keep them available.',
+		description: 'Some VS Code MCP configuration is not supported by Copilot. Copy compatible servers and update the others to keep them available.',
 		count: 3,
-		operationLabel: 'Review and copy',
-		sourceLabel: 'mcp.json',
-		destinationLabel: '~/.copilot/mcp-config.json',
+		destinations: [{
+			targetType: PromptsType.instructions,
+			storage: PromptsStorage.user,
+			contextLabel: 'User MCP servers',
+			label: '~/.copilot/mcp-config.json',
+			ariaLabel: 'Change destination for user MCP servers',
+		}],
 		itemSummary: '2 can migrate · 1 needs input',
-		actionLabel: 'Review MCP Servers',
-		actionAriaLabel: 'Review MCP servers that need migration',
+		actionLabel: 'Review Migration',
+		actionAriaLabel: 'Review MCP server migration',
 	},
 ];
 
@@ -69,6 +92,6 @@ function renderDashboard({ container, disposableStore }: ComponentFixtureContext
 	host.classList.toggle('narrow-layout', width < 500);
 	container.appendChild(host);
 
-	const dashboard = disposableStore.add(new CustomizationMigrationDashboard(host, () => { }, () => { }));
+	const dashboard = disposableStore.add(new CustomizationMigrationDashboard(host, () => { }, () => { }, () => { }));
 	dashboard.setItems(dashboardItems, 'Copilot');
 }

@@ -11,20 +11,74 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 
 const $ = DOM.$;
+
+const migrationDestinationButtonStyles = {
+	...defaultButtonStyles,
+	buttonSecondaryBackground: 'transparent',
+	buttonSecondaryHoverBackground: 'var(--vscode-list-hoverBackground)',
+	buttonSecondaryForeground: 'var(--vscode-dropdown-foreground)',
+	buttonSecondaryBorder: 'var(--vscode-dropdown-border, var(--vscode-widget-border))',
+};
 
 export interface ICustomizationMigrationDashboardItem {
 	readonly id: string;
 	readonly label: string;
 	readonly description: string;
 	readonly count: number;
-	readonly operationLabel: string;
-	readonly sourceLabel: string;
-	readonly destinationLabel: string;
+	readonly destinations: readonly ICustomizationMigrationDashboardDestination[];
 	readonly itemSummary: string;
 	readonly actionLabel: string;
 	readonly actionAriaLabel: string;
+}
+
+export interface ICustomizationMigrationDashboardDestination {
+	readonly targetType: PromptsType;
+	readonly storage: PromptsStorage;
+	readonly contextLabel: string;
+	readonly label: string;
+	readonly ariaLabel: string;
+}
+
+export function renderCustomizationMigrationDestinations(
+	parent: HTMLElement,
+	id: string,
+	destinations: readonly ICustomizationMigrationDashboardDestination[],
+	disposables: DisposableStore,
+	chooseDestination: (destination: ICustomizationMigrationDashboardDestination) => void,
+): ReadonlyMap<string, HTMLElement> {
+	const destinationButtons = new Map<string, HTMLElement>();
+	if (destinations.length === 0) {
+		return destinationButtons;
+	}
+
+	const plan = DOM.append(parent, $('.customization-migration-dashboard-plan'));
+	const heading = DOM.append(plan, $('h4.customization-migration-dashboard-plan-heading'));
+	heading.id = `customization-migration-${id}-destinations`;
+	heading.textContent = localize('customizationMigrationDashboardDestinations', "Migration destinations");
+	const destinationList = DOM.append(plan, $('ul.customization-migration-dashboard-plan-list'));
+	destinationList.setAttribute('aria-labelledby', heading.id);
+	for (const destination of destinations) {
+		const row = DOM.append(destinationList, $('li.customization-migration-dashboard-plan-row'));
+		DOM.append(row, $('span.customization-migration-dashboard-plan-label')).textContent = destination.contextLabel;
+		const button = disposables.add(new Button(row, {
+			...migrationDestinationButtonStyles,
+			secondary: true,
+			supportIcons: true,
+			ariaLabel: destination.ariaLabel,
+		}));
+		button.element.classList.add('customization-migration-dashboard-plan-control');
+		button.element.setAttribute('aria-haspopup', 'listbox');
+		const key = `${destination.targetType}:${destination.storage}`;
+		button.element.dataset.migrationDestinationKey = key;
+		button.label = `${destination.label} $(${Codicon.chevronDown.id})`;
+		destinationButtons.set(key, button.element);
+		disposables.add(button.onDidClick(() => chooseDestination(destination)));
+	}
+	return destinationButtons;
 }
 
 const AGENT_HOST_ARCHITECTURE_URL = 'https://code.visualstudio.com/blogs/2026/08/26/agent-host-architecture';
@@ -34,11 +88,13 @@ export class CustomizationMigrationDashboard extends Disposable {
 
 	private readonly renderDisposables = this._register(new DisposableStore());
 	private firstFocusableElement: HTMLElement | undefined;
+	private readonly destinationButtons = new Map<string, HTMLElement>();
 
 	constructor(
 		parent: HTMLElement,
 		private readonly openCategory: (id: string) => void,
 		private readonly openDocumentation: (url: string) => void,
+		private readonly chooseDestination: (destination: ICustomizationMigrationDashboardDestination) => void,
 	) {
 		super();
 		this.element = DOM.append(parent, $('.customization-migration-dashboard'));
@@ -48,6 +104,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 		this.renderDisposables.clear();
 		DOM.clearNode(this.element);
 		this.firstFocusableElement = undefined;
+		this.destinationButtons.clear();
 
 		if (items.length === 0) {
 			this.renderEmptyState(harnessLabel);
@@ -58,8 +115,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 		const summaryDescription = DOM.append(summary, $('p.customization-migration-dashboard-summary-description'));
 		DOM.append(summaryDescription, $('span')).textContent = localize(
 			'customizationMigrationDashboardSummary',
-			"VS Code is moving agent sessions to Agent Host-based harnesses so sessions can persist across windows, run locally or remotely, and use a common foundation across harnesses. Some existing customizations use VS Code-specific formats or locations that {0} does not discover. Review the customizations below to keep them available.",
-			harnessLabel,
+			"Some customizations need to move for Agent Host compatibility. Review or migrate them below.",
 		);
 		summaryDescription.appendChild(document.createTextNode(' '));
 		const architectureLink = DOM.append(summaryDescription, $('a.customization-migration-dashboard-summary-link')) as HTMLAnchorElement;
@@ -84,6 +140,10 @@ export class CustomizationMigrationDashboard extends Disposable {
 		return this.firstFocusableElement;
 	}
 
+	getDestinationButtons(): ReadonlyMap<string, HTMLElement> {
+		return this.destinationButtons;
+	}
+
 	private renderCard(parent: HTMLElement, item: ICustomizationMigrationDashboardItem): void {
 		const card = DOM.append(parent, $('section.customization-migration-dashboard-card'));
 		card.setAttribute('aria-labelledby', `customization-migration-dashboard-${item.id}-title`);
@@ -99,20 +159,9 @@ export class CustomizationMigrationDashboard extends Disposable {
 		const description = DOM.append(card, $('p.customization-migration-dashboard-card-description'));
 		description.textContent = item.description;
 
-		const route = DOM.append(card, $('.customization-migration-dashboard-route'));
-		route.setAttribute('aria-label', localize(
-			'customizationMigrationDashboardRouteAriaLabel',
-			"{0} from {1} to {2}",
-			item.operationLabel,
-			item.sourceLabel,
-			item.destinationLabel,
-		));
-		this.renderRouteEndpoint(route, localize('customizationMigrationDashboardCurrent', "Current"), item.sourceLabel);
-		const routeOperation = DOM.append(route, $('.customization-migration-dashboard-route-operation'));
-		const arrow = DOM.append(routeOperation, $('span.customization-migration-dashboard-route-arrow'));
-		arrow.classList.add(...ThemeIcon.asClassNameArray(Codicon.arrowRight));
-		arrow.setAttribute('aria-hidden', 'true');
-		this.renderRouteEndpoint(route, localize('customizationMigrationDashboardAfter', "After migration"), item.destinationLabel);
+		for (const [key, button] of renderCustomizationMigrationDestinations(card, `dashboard-${item.id}`, item.destinations, this.renderDisposables, this.chooseDestination)) {
+			this.destinationButtons.set(key, button);
+		}
 
 		const footer = DOM.append(card, $('.customization-migration-dashboard-card-footer'));
 		DOM.append(footer, $('span.customization-migration-dashboard-item-summary')).textContent = item.itemSummary;
@@ -124,12 +173,6 @@ export class CustomizationMigrationDashboard extends Disposable {
 		button.label = item.actionLabel;
 		this.firstFocusableElement ??= button.element;
 		this.renderDisposables.add(button.onDidClick(() => this.openCategory(item.id)));
-	}
-
-	private renderRouteEndpoint(parent: HTMLElement, eyebrow: string, label: string): void {
-		const endpoint = DOM.append(parent, $('.customization-migration-dashboard-route-endpoint'));
-		DOM.append(endpoint, $('span.customization-migration-dashboard-route-eyebrow')).textContent = eyebrow;
-		DOM.append(endpoint, $('span.customization-migration-dashboard-route-label')).textContent = label;
 	}
 
 	private renderEmptyState(harnessLabel: string): void {

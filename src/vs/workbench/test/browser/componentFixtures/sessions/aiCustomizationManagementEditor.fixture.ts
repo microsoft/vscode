@@ -20,7 +20,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
@@ -834,6 +834,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			// Also enable customization migration so migration affordances render in
 			// screenshot fixtures that depend on agent-host harnesses.
 			reg.defineInstance(IConfigurationService, configurationService);
+			reg.defineInstance(IFileDialogService, new class extends mock<IFileDialogService>() { }());
 			reg.define(IListService, ListService);
 			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
 			reg.defineInstance(ITextModelService, new class extends mock<ITextModelService>() {
@@ -2152,6 +2153,16 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	PromptMigrationNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
+			width: 550,
+			height: 500,
+		}),
+	}),
+
 	MigrationDashboard: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		render: ctx => renderEditor(ctx, {
@@ -2165,16 +2176,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationDashboard: true,
-			width: 550,
-			height: 500,
-		}),
-	}),
-
-	PromptMigrationNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
 			width: 550,
 			height: 500,
 		}),
