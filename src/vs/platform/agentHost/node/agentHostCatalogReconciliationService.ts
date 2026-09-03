@@ -10,7 +10,7 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import type { ISessionCatalogSyncAcknowledgement, ISessionCatalogSyncPendingSnapshot } from '../common/sessionDataService.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
-import { AgentHostCatalogDatabaseReference, AgentHostCatalogSyncResult, AgentHostCatalogSyncService, catalogLegacyMetadataMatches, IAgentHostCatalogSyncRequest, matchesAcknowledgedCatalogReceipt } from './agentHostCatalogSyncService.js';
+import { AgentHostCatalogDatabaseReference, AgentHostCatalogDeletionFencedError, AgentHostCatalogSyncResult, AgentHostCatalogSyncService, catalogLegacyMetadataMatches, IAgentHostCatalogSyncRequest, matchesAcknowledgedCatalogReceipt } from './agentHostCatalogSyncService.js';
 import type { AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Receipt } from './agentHostDatabase.js';
 import type { IRegisteredSession } from './agentSessionRegistry.js';
 import type { IAgentHostStorageService } from './agentHostStorageService.js';
@@ -447,6 +447,9 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 				})();
 			});
 		} catch (error) {
+			if (error instanceof AgentHostCatalogDeletionFencedError) {
+				return { session: sessionKey, status: 'retry', reason: 'tombstoned' };
+			}
 			this._logService.warn(`[AgentHostCatalogReconciliation] Failed to reconcile ${sessionKey}`, error);
 			return { session: sessionKey, status: 'failed', reason: 'unexpected', error: error instanceof Error ? error.message : String(error) };
 		}

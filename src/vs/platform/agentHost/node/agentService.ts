@@ -1698,6 +1698,9 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _queueCatalogSync(session: URI, metadataOverrides: Readonly<Record<string, string>>): void {
 		const sessionKey = session.toString();
+		if (this._catalogSyncService.isSessionDeletionFenced(session)) {
+			return;
+		}
 		if (this._catalogSyncSuppressedSessions.has(sessionKey)) {
 			if (Object.keys(metadataOverrides).length > 0) {
 				this._deferredCatalogMetadataOverrides.set(sessionKey, {
@@ -4786,26 +4789,29 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _doDisposeSession(session: URI): Promise<void> {
 		const sessionKey = session.toString();
-		this._cancelPendingSessionGc(session);
-		const isEphemeral = this._stateManager.isEphemeralSession(sessionKey);
-		const isIdleProvisional = this._stateManager.isIdleProvisionalSession(sessionKey);
-		this._stateManager.invalidateSessionChatResolutions(session.toString());
-		const sessionChats = this._stateManager.getSessionState(session.toString())?.chats ?? [];
-		for (const chat of sessionChats) {
-			this._sideEffects.clearChannelTelemetry(chat.resource);
-		}
-		this._sideEffects.clearChannelTelemetry(session.toString());
-		// Resolve the working directories up front and pass them explicitly:
-		// the checkpoint and review services need them to locate the
-		// repositories holding this session's refs, and reading them from
-		// session state would silently break the moment `deleteSession` below
-		// is reordered ahead of the data deletion.
-		const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session.toString());
-		const sessionId = AgentSession.id(session);
-		const persistedPeerChats = sessionChats.length === 0 ? await this._peerChatStore.tryRead(session) : undefined;
-		const worktree = await this._worktree.prepareSessionDeletion(session, sessionId);
-		await this._peerChatStore.beginSessionDeletion(session);
+		const catalogDeletionFence = this._catalogSyncService.beginSessionDeletion(session);
+		let peerChatDeletionBegun = false;
 		try {
+			this._cancelPendingSessionGc(session);
+			const isEphemeral = this._stateManager.isEphemeralSession(sessionKey);
+			const isIdleProvisional = this._stateManager.isIdleProvisionalSession(sessionKey);
+			this._stateManager.invalidateSessionChatResolutions(session.toString());
+			const sessionChats = this._stateManager.getSessionState(session.toString())?.chats ?? [];
+			for (const chat of sessionChats) {
+				this._sideEffects.clearChannelTelemetry(chat.resource);
+			}
+			this._sideEffects.clearChannelTelemetry(session.toString());
+			// Resolve the working directories up front and pass them explicitly:
+			// the checkpoint and review services need them to locate the
+			// repositories holding this session's refs, and reading them from
+			// session state would silently break the moment `deleteSession` below
+			// is reordered ahead of the data deletion.
+			const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session.toString());
+			const sessionId = AgentSession.id(session);
+			const persistedPeerChats = sessionChats.length === 0 ? await this._peerChatStore.tryRead(session) : undefined;
+			const worktree = await this._worktree.prepareSessionDeletion(session, sessionId);
+			await this._peerChatStore.beginSessionDeletion(session);
+			peerChatDeletionBegun = true;
 			const provider = this._providerService.getProviderForSession(session);
 			let chatsToDelete = this._orderSessionChatsForTeardown(session, [
 				...sessionChats.map(chat => chat.resource),
@@ -4814,6 +4820,8 @@ export class AgentService extends Disposable implements IAgentService {
 			if (provider) {
 				chatsToDelete = [...await this._disposeSession(provider, session)];
 			}
+			await this._whenBackgroundCatalogStateWritesIdle(sessionKey);
+			await catalogDeletionFence.whenDrained;
 			if (!isEphemeral) {
 				await this._retryRegistryMutation(
 					() => this._sessionRegistry.tombstone(session),
@@ -4856,7 +4864,20 @@ export class AgentService extends Disposable implements IAgentService {
 				);
 			}
 		} finally {
-			this._peerChatStore.endSessionDeletion(session);
+			if (peerChatDeletionBegun) {
+				this._peerChatStore.endSessionDeletion(session);
+			}
+			catalogDeletionFence.dispose();
+		}
+	}
+
+	private async _whenBackgroundCatalogStateWritesIdle(sessionKey: string): Promise<void> {
+		while (true) {
+			const writes = this._backgroundCatalogStateWrites.get(sessionKey);
+			if (!writes || writes.size === 0) {
+				return;
+			}
+			await Promise.allSettled([...writes]);
 		}
 	}
 

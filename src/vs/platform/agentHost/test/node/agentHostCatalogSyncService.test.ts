@@ -606,4 +606,36 @@ suite('AgentHostCatalogSyncService', () => {
 			title: 'three',
 		});
 	});
+
+	test('rejects synchronization until overlapping deletion fences are released', async () => {
+		const { local, service } = await createHarness();
+		const firstFence = service.beginSessionDeletion(session);
+		const secondFence = service.beginSessionDeletion(session);
+		await Promise.all([firstFence.whenDrained, secondFence.whenDrained]);
+
+		await assert.rejects(
+			service.synchronize(session, { data: data('blocked'), legacyMetadata: { customTitle: 'blocked' } }),
+			/Catalog synchronization rejected during session deletion/,
+		);
+		firstFence.dispose();
+		const fencedAfterFirstRelease = service.isSessionDeletionFenced(session);
+		await assert.rejects(
+			service.synchronize(session, { data: data('still-blocked'), legacyMetadata: { customTitle: 'still-blocked' } }),
+			/Catalog synchronization rejected during session deletion/,
+		);
+		secondFence.dispose();
+		const result = await service.synchronize(session, { data: data('recreated'), legacyMetadata: { customTitle: 'recreated' } });
+
+		assert.deepStrictEqual({
+			fencedAfterFirstRelease,
+			fencedAfterSecondRelease: service.isSessionDeletionFenced(session),
+			result,
+			writes: local.writes.map(write => write.title),
+		}, {
+			fencedAfterFirstRelease: true,
+			fencedAfterSecondRelease: false,
+			result: { status: 'acknowledged', sourceRevision: 0 },
+			writes: ['recreated'],
+		});
+	});
 });

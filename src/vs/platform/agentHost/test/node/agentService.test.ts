@@ -3789,6 +3789,82 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('drains catalog synchronization and drops newly queued work before deleting session data', async () => {
+			class RecordingCatalogDatabase extends TestSessionDatabase {
+				readonly catalogTitles: string[] = [];
+
+				override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+					if (values[SESSION_CUSTOM_TITLE_KEY]) {
+						this.catalogTitles.push(values[SESSION_CUSTOM_TITLE_KEY]);
+					}
+					return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
+				}
+			}
+
+			const database = new RecordingCatalogDatabase();
+			const baseSessionDataService = createSessionDataService(database);
+			const deleted = new Set<string>();
+			const recreated: string[] = [];
+			const sessionDataService: ISessionDataService = {
+				...baseSessionDataService,
+				openDatabase: resource => {
+					if (deleted.has(resource.toString())) {
+						recreated.push(resource.toString());
+					}
+					return baseSessionDataService.openDatabase(resource);
+				},
+				deleteSessionData: async resource => {
+					deleted.add(resource.toString());
+				},
+			};
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(svc, copilotAgent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			await svc.whenCatalogReconciliationIdle();
+			const initialCatalogWrites = database.catalogTitles.length;
+			const internals = svc as unknown as {
+				_catalogSyncService: {
+					isSessionDeletionFenced(session: URI): boolean;
+					runExclusive(session: URI, operation: () => Promise<void>): Promise<void>;
+				};
+				_queueCatalogSync(session: URI, metadataOverrides: Readonly<Record<string, string>>): void;
+			};
+
+			const blockerStarted = new DeferredPromise<void>();
+			const releaseBlocker = new DeferredPromise<void>();
+			const blocker = internals._catalogSyncService.runExclusive(session, async () => {
+				blockerStarted.complete();
+				await releaseBlocker.p;
+			});
+			await blockerStarted.p;
+			internals._queueCatalogSync(session, { [SESSION_CUSTOM_TITLE_KEY]: 'in-flight' });
+			let deletionComplete = false;
+			const deletion = svc.disposeSession(session).then(() => { deletionComplete = true; });
+			for (let i = 0; i < 50 && !internals._catalogSyncService.isSessionDeletionFenced(session); i++) {
+				await timeout(0);
+			}
+			internals._queueCatalogSync(session, { [SESSION_CUSTOM_TITLE_KEY]: 'fenced' });
+			await timeout(0);
+			const deletionWaited = !deletionComplete;
+			releaseBlocker.complete();
+			await Promise.all([blocker, deletion]);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				deletionWaited,
+				fencedAfterDeletion: internals._catalogSyncService.isSessionDeletionFenced(session),
+				catalogTitles: database.catalogTitles.slice(initialCatalogWrites),
+				sessionDataDeleted: deleted.has(session.toString()),
+				recreated,
+			}, {
+				deletionWaited: true,
+				fencedAfterDeletion: false,
+				catalogTitles: ['in-flight'],
+				sessionDataDeleted: true,
+				recreated: [],
+			});
+		});
+
 		test('is a no-op for unknown sessions', async () => {
 			registerTestAgentProvider(service, copilotAgent);
 			const unknownSession = URI.from({ scheme: 'unknown', path: '/nope' });

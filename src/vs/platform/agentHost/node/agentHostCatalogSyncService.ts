@@ -6,7 +6,8 @@
 import { generateUuid } from '../../../base/common/uuid.js';
 import { URI } from '../../../base/common/uri.js';
 import { SequencerByKey } from '../../../base/common/async.js';
-import type { IReference } from '../../../base/common/lifecycle.js';
+import { createSingleCallFunction } from '../../../base/common/functional.js';
+import { type IDisposable, type IReference } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
 import type { ISessionCatalogSyncAcknowledgement, ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDataService, ISessionDatabase } from '../common/sessionDataService.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, encodeAgentHostCatalogPayload, IAgentHostCatalogEncodedPayload } from './agentHostCatalogProjection.js';
@@ -25,6 +26,17 @@ export type AgentHostCatalogDatabaseReference = IReference<ISessionDatabase>;
 export type AgentHostCatalogSyncResult =
 	| { readonly status: 'acknowledged'; readonly sourceRevision: number }
 	| { readonly status: 'pending'; readonly sourceRevision: number; readonly reason: AgentHostDatabaseSessionV2UpsertResult | 'upsertFailed' | 'acknowledgementSuperseded' };
+
+/** A synchronously-established deletion fence whose drain includes previously queued synchronization. */
+export interface IAgentHostCatalogDeletionFence extends IDisposable {
+	readonly whenDrained: Promise<void>;
+}
+
+export class AgentHostCatalogDeletionFencedError extends Error {
+	constructor(session: URI) {
+		super(`Catalog synchronization rejected during session deletion: ${session.toString()}`);
+	}
+}
 
 /**
  * Whether the stored catalog row is exactly the one an acknowledged local
@@ -57,12 +69,46 @@ export async function catalogLegacyMetadataMatches(
 export class AgentHostCatalogSyncService {
 
 	private readonly _sequencer = new SequencerByKey<string>();
+	private readonly _deletionFences = new Map<string, { count: number; readonly whenDrained: Promise<void> }>();
 
 	constructor(
 		private readonly _sessionDataService: ISessionDataService,
 		private readonly _catalogDatabase: IAgentHostDatabase,
 		private readonly _logService: ILogService,
 	) { }
+
+	isSessionDeletionFenced(session: URI): boolean {
+		return this._deletionFences.has(session.toString());
+	}
+
+	/** Prevents new synchronization and returns a shared per-session queue drain. */
+	beginSessionDeletion(session: URI): IAgentHostCatalogDeletionFence {
+		const sessionKey = session.toString();
+		let fence = this._deletionFences.get(sessionKey);
+		if (fence) {
+			fence.count++;
+		} else {
+			fence = {
+				count: 1,
+				whenDrained: this._sequencer.queue(sessionKey, async () => { }),
+			};
+			this._deletionFences.set(sessionKey, fence);
+		}
+		const acquiredFence = fence;
+		const release = createSingleCallFunction(() => {
+			if (this._deletionFences.get(sessionKey) !== acquiredFence) {
+				return;
+			}
+			acquiredFence.count--;
+			if (acquiredFence.count === 0) {
+				this._deletionFences.delete(sessionKey);
+			}
+		});
+		return {
+			whenDrained: acquiredFence.whenDrained,
+			dispose: release,
+		};
+	}
 
 	synchronize(session: URI, request: IAgentHostCatalogSyncRequest): Promise<AgentHostCatalogSyncResult> {
 		return this.runExclusive(session, async synchronize => {
@@ -104,6 +150,9 @@ export class AgentHostCatalogSyncService {
 		synchronize: (request: IAgentHostCatalogSyncRequest) => Promise<AgentHostCatalogSyncResult>,
 		database: AgentHostCatalogDatabaseReference,
 	) => Promise<T>): Promise<T> {
+		if (this.isSessionDeletionFenced(session)) {
+			return Promise.reject(new AgentHostCatalogDeletionFencedError(session));
+		}
 		return this._sequencer.queue(
 			session.toString(),
 			async () => {
@@ -121,6 +170,9 @@ export class AgentHostCatalogSyncService {
 		database: AgentHostCatalogDatabaseReference | undefined,
 		synchronize: (request: IAgentHostCatalogSyncRequest, validate?: () => Promise<void>) => Promise<AgentHostCatalogSyncResult>,
 	) => Promise<T>): Promise<T> {
+		if (this.isSessionDeletionFenced(session)) {
+			return Promise.reject(new AgentHostCatalogDeletionFencedError(session));
+		}
 		return this._sequencer.queue(session.toString(), async () => {
 			const database = await this._sessionDataService.tryOpenDatabase(session);
 			try {
