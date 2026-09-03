@@ -8,6 +8,7 @@ import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, IReaderWithStore, observableFromEvent } from '../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
+import { PolicyCategory } from '../../../../base/common/policy.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -56,6 +57,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview'],
 			description: localize('autoArchiveMergedSessions.description', "Controls when inactive agent sessions with a merged pull request are automatically archived. Set to 0 to disable automatic archiving."),
+			policy: {
+				name: 'ChatAgentSessionsAutoArchiveMergedSessionsAfterDays',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.137',
+				localization: {
+					description: {
+						key: 'autoArchiveMergedSessions.policy',
+						value: localize('autoArchiveMergedSessions.policy', "Configure when inactive agent sessions with a merged pull request are automatically archived."),
+					},
+				},
+			},
 			agentHost: { key: AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey },
 		},
 	},
