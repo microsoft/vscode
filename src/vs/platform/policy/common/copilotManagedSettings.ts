@@ -213,6 +213,11 @@ export function managedModelValue(): (policyData: IPolicyData) => ManagedSetting
 	return managedModelValueCallback;
 }
 
+/** Forces a boolean setting off while the user is governed by managed settings. */
+export function managedSettingsDisabledValue(policyData: IPolicyData): boolean | undefined {
+	return policyData.managedSettingsActive === true ? false : undefined;
+}
+
 /**
  * `value` callback shared by the third-party agent harness policies (`Claude3PIntegration`,
  * `Codex3PIntegration`): forces the harness off when the account disables chat preview features,
@@ -223,9 +228,7 @@ export function managedModelValue(): (policyData: IPolicyData) => ManagedSetting
  * every managed control the enterprise set.
  */
 export function thirdPartyAgentEnabledValue(policyData: IPolicyData): boolean | undefined {
-	return policyData.chat_preview_features_enabled === false || policyData.managedSettingsActive === true
-		? false
-		: undefined;
+	return policyData.chat_preview_features_enabled === false ? false : managedSettingsDisabledValue(policyData);
 }
 
 export const INativeManagedSettingsService = createDecorator<INativeManagedSettingsService>('nativeManagedSettingsService');
