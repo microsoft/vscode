@@ -506,7 +506,8 @@ try {
 	if ($agents) {
 		$launchArgs.Add('--agents')
 		if (-not [string]::IsNullOrWhiteSpace($sessionTitle)) {
-			$launchArgs.Add("--session-title=$sessionTitle")
+			$sessionTitleBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($sessionTitle)).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+			$launchArgs.Add("--session-title-base64=$sessionTitleBase64")
 		}
 	}
 	$launchArgs.Add("--user-data-dir=$destinationUdd")

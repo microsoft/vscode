@@ -7,7 +7,7 @@ import type { CopilotSession, CurrentToolMetadata, ElicitationContext, Elicitati
 import { realpath as fsRealpath } from 'fs';
 import { cp, rm } from 'fs/promises';
 import { promisify } from 'util';
-import { DeferredPromise, firstParallel, raceCancellation, RunOnceScheduler, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, firstParallel, raceCancellation, raceTimeout, RunOnceScheduler, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -398,6 +398,8 @@ function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boole
 }
 
 const realpath = promisify(fsRealpath);
+// A non-settling control RPC must not permanently block the per-chat sequencer.
+const CONTROL_PLANE_RPC_TIMEOUT_MS = 30_000;
 
 function hasParentPathSegment(filePath: string): boolean {
 	return filePath.split(/[\\/]/).includes('..');
@@ -486,6 +488,8 @@ export interface ICopilotAgentSessionOptions {
 	readonly platform?: NodeJS.Platform;
 	/** Resolves symlinks for plugin resource permission checks. */
 	readonly realpath?: (path: string) => Promise<string>;
+	/** Overrides the control-plane RPC timeout for deterministic tests. */
+	readonly controlPlaneRpcTimeoutMs?: number;
 }
 
 /**
@@ -758,6 +762,8 @@ export class CopilotAgentSession extends Disposable {
 	readonly sessionId: string;
 	readonly resourceUri: URI;
 	private readonly _ownerSessionUri: URI;
+	private readonly _controlPlaneRpcTimeoutMs: number;
+	private _controlPlaneDesynchronized = false;
 	get ownerSessionUri(): URI { return this._ownerSessionUri; }
 	/** @deprecated Compatibility alias for SDK callbacks; this is the exact persistence resource. */
 	get sessionUri(): URI { return this.resourceUri; }
@@ -1125,6 +1131,7 @@ export class CopilotAgentSession extends Disposable {
 		this._developmentErrorInjectionEnabled = options.enableDevelopmentErrorInjection ?? !product.commit;
 		this.sessionId = options.rawSessionId;
 		this._ownerSessionUri = options.sessionUri;
+		this._controlPlaneRpcTimeoutMs = options.controlPlaneRpcTimeoutMs ?? CONTROL_PLANE_RPC_TIMEOUT_MS;
 		this.resourceUri = options.resource ?? options.sessionUri;
 		this._slashCommandProvider = new CopilotSlashCommandProvider(() => this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: true, includeClientCommands: true }).then(c => c.commands), this._logService);
 		this._chatChannelUri = options.chatChannelUri;
@@ -1856,6 +1863,17 @@ export class CopilotAgentSession extends Disposable {
 	get requiresMcpLaunchConfigurationRefresh(): boolean {
 		this._markMcpLaunchConfigurationDirty();
 		return this._mcpLaunchConfigurationDirty;
+	}
+
+	/**
+	 * Set when a control-plane RPC timed out. Timing out abandons the await but
+	 * cannot cancel the in-flight SDK request, so the model/agent/history state
+	 * this session believes it applied may not match the SDK's. The next send
+	 * discards and resumes the SDK session so a late-settling request lands on a
+	 * session nothing is using rather than mutating live state.
+	 */
+	get requiresControlPlaneResync(): boolean {
+		return this._controlPlaneDesynchronized;
 	}
 
 	get appliedDisabledRootMcpServers(): readonly string[] {
@@ -3177,7 +3195,7 @@ export class CopilotAgentSession extends Disposable {
 	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier']): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
 		this._lastSeenModelId = model;
-		await this._wrapper.session.setModel(model, { reasoningEffort, contextTier });
+		await this._awaitControlPlaneRpc('session.setModel', this._wrapper.session.setModel(model, { reasoningEffort, contextTier }));
 	}
 
 	/**
@@ -3415,6 +3433,20 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
+	/** Bounds a short SDK control-plane RPC so it cannot wedge the owning chat queue. */
+	private async _awaitControlPlaneRpc<T>(operation: string, rpc: Promise<T>): Promise<T> {
+		const result = await raceTimeout(rpc.then(value => ({ value })), this._controlPlaneRpcTimeoutMs);
+		if (!result) {
+			// The request is still in flight and may still mutate SDK state, so
+			// mark the session for resync rather than continuing to use it.
+			this._controlPlaneDesynchronized = true;
+			const error = new Error(`[Copilot:${this.sessionId}] ${operation} timed out after ${this._controlPlaneRpcTimeoutMs}ms`);
+			this._logService.error(error, `[Copilot:${this.sessionId}] Control-plane RPC timed out: ${operation}`);
+			throw error;
+		}
+		return result.value;
+	}
+
 	/**
 	 * Selects (or clears) a custom agent on the live SDK session.
 	 * Mirrors the SDK's `rpc.agent.select` / `rpc.agent.deselect` pair.
@@ -3424,7 +3456,7 @@ export class CopilotAgentSession extends Disposable {
 			const name = agentName;
 			this._logService.info(`[Copilot:${this.sessionId}] Selecting custom agent: ${name}`);
 			try {
-				await this._wrapper.session.rpc.agent.select({ name });
+				await this._awaitControlPlaneRpc('rpc.agent.select', this._wrapper.session.rpc.agent.select({ name }));
 			} catch (err) {
 				this._logService.error(err, `[Copilot:${this.sessionId}] rpc.agent.select failed: name=${name}`);
 				throw err;
@@ -3432,7 +3464,7 @@ export class CopilotAgentSession extends Disposable {
 		} else {
 			this._logService.info(`[Copilot:${this.sessionId}] Clearing custom agent selection`);
 			try {
-				await this._wrapper.session.rpc.agent.deselect();
+				await this._awaitControlPlaneRpc('rpc.agent.deselect', this._wrapper.session.rpc.agent.deselect());
 			} catch (err) {
 				this._logService.error(err, `[Copilot:${this.sessionId}] rpc.agent.deselect failed`);
 				throw err;
@@ -6470,7 +6502,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	async truncateAtEventId(eventId: string, keepTurnId?: string): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Truncating via SDK RPC at eventId=${eventId}`);
-		const result = await this._wrapper.session.rpc.history.truncate({ eventId });
+		const result = await this._awaitControlPlaneRpc('rpc.history.truncate', this._wrapper.session.rpc.history.truncate({ eventId }));
 		this._logService.info(`[Copilot:${this.sessionId}] SDK truncation removed ${result.eventsRemoved} events`);
 
 		// Clean up stale turns from our DB so getNextTurnEventId doesn't

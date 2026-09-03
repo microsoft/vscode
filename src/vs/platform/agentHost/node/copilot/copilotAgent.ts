@@ -345,6 +345,7 @@ interface ICopilotAgentSessionIdentity {
 
 /** Stable empty host-customization snapshot used before the host publishes one. */
 const NO_HOST_CUSTOMIZATIONS: readonly Customization[] = Object.freeze([]);
+const CHAT_QUEUE_STALL_WARNING_MS = 60_000;
 
 /** Coordinates all per-session work, resumption, and teardown. */
 class CopilotSessionLifetime {
@@ -888,6 +889,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _onDidChangeChatData = this._register(new Emitter<IAgentChatDataChange>());
 	readonly onDidChangeChatData: Event<IAgentChatDataChange> = this._onDidChangeChatData.event;
 	private readonly _sessionLifetimes = new Map<string, CopilotSessionLifetime>();
+	/** Outstanding queued chat operations, keyed by chat sequencer key. */
+	private readonly _chatQueueDepth = new Map<string, number>();
+	/**
+	 * Chats whose abort arrived before a live session existed. Aborting no longer
+	 * waits on the chat queue (a wedged queue must not swallow a cancel), so an
+	 * abort can land while a queued send is still materializing its session. The
+	 * send honours and clears this before dispatching.
+	 */
+	private readonly _pendingChatAborts = new Set<string>();
 	/** Provisional chats that defer SDK/session creation until the first send. */
 	private readonly _provisionalSessions = new Map<string, IProvisionalSession>();
 	private _shutdownPromise: Promise<void> | undefined;
@@ -3272,7 +3282,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _resumeTurnOnce(chat: URI, turnId: string, operationContext: URI | IAgentChatContext, senderClientId?: string, clientType = AgentHostClientType.Unknown): Promise<void> {
 		const context = this._resolveChatContext(chat, operationContext);
 		const clientTelemetryContext = URI.isUri(operationContext) ? undefined : operationContext.clientTelemetryContext;
-		await this._queueChat(context.configurationId, context.sequencerKey, async () => {
+		await this._queueChat(context.configurationId, context.sequencerKey, 'resumeTurn', async () => {
 			const current = this._resolveChatContext(chat, operationContext);
 			let entry = current.target ?? await this._ensureResolvedChatSession(current);
 			if (!entry) {
@@ -3974,7 +3984,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private async _sendMessageOnce(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, workingDirectories?: readonly URI[], operationContext?: URI | IAgentChatContext, clientTelemetryContext?: IAgentHostClientTelemetryContext): Promise<void> {
 		const context = this._resolveSendChatContext(chat, operationContext);
-		await this._queueChat(context.configurationId, context.sequencerKey, async () => {
+		await this._queueChat(context.configurationId, context.sequencerKey, 'sendMessage', async enterUnboundedPhase => {
 			const current = this._resolveSendChatContext(chat, operationContext);
 			await this._activeClients.get(current.configurationResource)?.pluginController.retryFailedClientSyncIfNeeded();
 
@@ -3998,7 +4008,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				[...new Set(entry.appliedDisabledRootMcpServers)].sort(),
 				[...new Set(currentDisabledRootMcpServers)].sort(),
 			);
-			if (entry && (rootsChanged || structuralConfigChanged || disabledRootMcpServersChanged || entry.requiresMcpLaunchConfigurationRefresh)) {
+			if (entry && (rootsChanged || structuralConfigChanged || disabledRootMcpServersChanged || entry.requiresMcpLaunchConfigurationRefresh || entry.requiresControlPlaneResync)) {
 				this._logService.info(`[Copilot:${current.configurationId}] Session configuration changed, refreshing session. clients=[${activeClient ? [...activeClient.toolSet.clientIds()].join(', ') || '(none)' : '(none)'}]`);
 				// Finish disconnecting before resuming the SAME SDK session id with
 				// the updated config. Routing is preserved so the session identity
@@ -4032,6 +4042,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			try {
 				const sdkMode = this._resolveSdkMode(current.configurationResource);
+				// An abort that arrived while this send was still materializing its
+				// session had nothing to cancel at the time; honour it now rather
+				// than dispatching a turn the user already cancelled.
+				if (this._pendingChatAborts.delete(current.sequencerKey)) {
+					this._logService.info(`[Copilot:${current.configurationId}] Dropping send for a chat cancelled before its session materialized`);
+					entry.discardActiveTurn();
+					return;
+				}
+				// The provider call runs the whole turn and is unbounded by design.
+				enterUnboundedPhase();
 				await entry.send(prompt, attachments, turnId, sdkMode, senderClientId, clientType, resolveAgentHostInstructions(operationContext), clientTelemetryContext, !!operationContext && !URI.isUri(operationContext) && operationContext.agentMergeTurn === true);
 			} catch (err) {
 				const errCode = (err as { code?: number })?.code;
@@ -4118,7 +4138,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (this._provisionalSessions.get(context.configurationId)?.sdkSessionId === context.sdkSessionId) {
 			return [];
 		}
-		const entry = await this._queueChat(context.configurationId, context.sequencerKey, async () => {
+		const entry = await this._queueChat(context.configurationId, context.sequencerKey, 'getChatMessages', async () => {
 			return this._ensureResolvedChatSession(this._resolveChatContext(chat, sessionOrContext)).catch(err => {
 				if (err instanceof SessionWorkingDirectoryMissingError) {
 					throw err;
@@ -4186,9 +4206,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private async _abortSessionOnce(chat: URI, operationContext: URI | IAgentChatContext): Promise<void> {
 		const context = this._resolveChatContext(chat, operationContext);
-		await this._queueChat(context.configurationId, context.sequencerKey, async () => {
-			await this._resolveChatContext(chat, operationContext).target?.abort();
-		});
+		if (!context.target) {
+			// No live session to abort. If work is still queued for this chat it
+			// will materialize a session and dispatch after this point, so record
+			// the intent instead of silently dropping the cancel.
+			if (this._chatQueueDepth.has(context.sequencerKey)) {
+				this._logService.info(`[Copilot:${context.configurationId}] Abort with no live session; recording pending abort: chat=${context.sequencerKey}`);
+				this._pendingChatAborts.add(context.sequencerKey);
+			}
+			return;
+		}
+		await context.target.abort();
 	}
 
 	/** Creates a concrete chat backing immediately, optionally by importing history from another chat. */
@@ -4214,7 +4242,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// A fork reads the source's state, so it serializes against the source's
 		// session unless it explicitly requests an independent queue.
 		const queue = <T>(task: () => Promise<T>) => fork?.independentQueue
-			? this._queueChat(sessionId, chatKey, task)
+			? this._queueChat(sessionId, chatKey, 'createChat', task)
 			: this._queueSession(forkSourceSessionId ?? sessionId, task);
 		await queue(async () => {
 			const existing = this._chatBackings.get(chatKey);
@@ -4467,7 +4495,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const chatKey = chat.toString();
 		const initial = this._resolveChatContext(chat, operationContext);
 		const configurationId = initial.configurationId;
-		return this._queueChat(configurationId, initial.sequencerKey, async () => {
+		return this._queueChat(configurationId, initial.sequencerKey, 'disposeChat', async () => {
 			const current = this._resolveChatContext(chat, operationContext);
 			const target = current.target;
 			const backing = this._chatBackings.get(chatKey);
@@ -4644,9 +4672,34 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return lifetime ? lifetime.queueSession(task) : Promise.reject(new CancellationError());
 	}
 
-	private _queueChat<T>(sessionId: string, chatKey: string, task: () => Promise<T>): Promise<T> {
+	private _queueChat<T>(sessionId: string, chatKey: string, operation: string, task: (enterUnboundedPhase: () => void) => Promise<T>): Promise<T> {
 		const lifetime = this._getOrCreateSessionLifetime(sessionId);
-		return lifetime ? lifetime.queueChat(chatKey, task) : Promise.reject(new CancellationError());
+		if (!lifetime) {
+			return Promise.reject(new CancellationError());
+		}
+		this._chatQueueDepth.set(chatKey, (this._chatQueueDepth.get(chatKey) ?? 0) + 1);
+		return lifetime.queueChat(chatKey, async () => {
+			const stallWarning = disposableTimeout(
+				() => this._logService.warn(`[Copilot:${sessionId}] Chat queue task stalled: chat=${chatKey}, operation=${operation}`),
+				CHAT_QUEUE_STALL_WARNING_MS,
+			);
+			try {
+				// A task that reaches a legitimately unbounded phase (an agent turn
+				// can run for many minutes) cancels the warning itself, so only
+				// bounded setup and control-plane work can be reported as stalled.
+				return await task(() => stallWarning.dispose());
+			} finally {
+				stallWarning.dispose();
+			}
+		}).finally(() => {
+			const remaining = (this._chatQueueDepth.get(chatKey) ?? 1) - 1;
+			if (remaining > 0) {
+				this._chatQueueDepth.set(chatKey, remaining);
+			} else {
+				this._chatQueueDepth.delete(chatKey);
+				this._pendingChatAborts.delete(chatKey);
+			}
+		});
 	}
 
 	/** Returns the live session for an exact chat, resuming it if necessary. */
@@ -4731,7 +4784,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (this._provisionalSessions.get(sessionId)?.chat.toString() === chat.toString()) {
 			return;
 		}
-		await this._queueChat(resolved.configurationId, resolved.sequencerKey, async () => {
+		await this._queueChat(resolved.configurationId, resolved.sequencerKey, 'truncateChat', async () => {
 			const current = this._resolveTruncateChatContext(chat, context);
 			this._logService.info(`[Copilot:${sessionId}] Truncating chat ${chat.toString()}${turnId !== undefined ? ` at turnId=${turnId}` : ' (all turns)'}`);
 
@@ -4776,7 +4829,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private async _changeModelOnce(chat: URI, model: ModelSelection, operationContext: URI | IAgentChatContext): Promise<void> {
 		const context = this._resolveChatContext(chat, operationContext);
-		await this._queueChat(context.configurationId, context.sequencerKey, async () => {
+		await this._queueChat(context.configurationId, context.sequencerKey, 'changeModel', async () => {
 			const current = this._resolveChatContext(chat, operationContext);
 			const longContextWindow = this._longContextWindowFor(model.id);
 			const freeLongContext = this._isFreeLongContext(model.id);
@@ -4850,7 +4903,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private async _changeAgentOnce(chat: URI, agent: AgentSelection | undefined, operationContext: URI | IAgentChatContext): Promise<void> {
 		const context = this._resolveChatContext(chat, operationContext);
-		await this._queueChat(context.configurationId, context.sequencerKey, async () => {
+		await this._queueChat(context.configurationId, context.sequencerKey, 'changeAgent', async () => {
 			const current = this._resolveChatContext(chat, operationContext);
 			const provisional = this._provisionalSessions.get(current.configurationId);
 			if (provisional) {
