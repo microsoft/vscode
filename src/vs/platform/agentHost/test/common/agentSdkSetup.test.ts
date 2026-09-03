@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { agentSdkSetupStatusKey, isAgentSdkSetupRequestFor, readAgentSdkSetupInfos, readConsentedSdkAgents, resolveConsentedSdkDownloads, writeConsentedSdkAgents, type IAgentSdkSetupInfo } from '../../common/agentSdkSetup.js';
+import { agentSdkSetupStatusKey, isAgentSdkSetupRequestFor, readAgentSdkSetupInfos, readConsentedSdkAgents, resolveConsentedSdkDownloads, resolveNewSdkDownloadConsents, writeConsentedSdkAgents, type IAgentSdkSetupInfo } from '../../common/agentSdkSetup.js';
 
 suite('Agent SDK setup channel', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -86,6 +86,19 @@ suite('Agent SDK setup channel', () => {
 
 		test('a user who never consented still sees the offer', () => {
 			assert.deepStrictEqual(resolveConsentedSdkDownloads(new Set(), [claude, codex], none), []);
+		});
+
+		test('starting a turn accepts its in-progress download for future version bumps', () => {
+			assert.deepStrictEqual(resolveNewSdkDownloadConsents(none, [
+				{ ...claude, download: 'downloading' },
+				codex,
+			]), ['claude']);
+		});
+
+		test('an already-consented in-progress download is not recorded again', () => {
+			assert.deepStrictEqual(resolveNewSdkDownloadConsents(new Set(['claude']), [
+				{ ...claude, download: 'downloading' },
+			]), []);
 		});
 
 		test('consenting to one agent is not consent to fetch another', () => {

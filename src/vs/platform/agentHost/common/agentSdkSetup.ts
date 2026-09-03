@@ -143,6 +143,19 @@ export function writeConsentedSdkAgents(agents: ReadonlySet<string>): string {
 }
 
 /**
+ * Downloads already in progress were accepted by starting an agent turn, which
+ * is equivalent to accepting the explicit download offer.
+ */
+export function resolveNewSdkDownloadConsents(
+	consentedAgents: ReadonlySet<string>,
+	setups: readonly IAgentSdkSetupInfo[],
+): readonly string[] {
+	return setups
+		.filter(setup => setup.download === 'downloading' && !consentedAgents.has(setup.agent))
+		.map(setup => setup.agent);
+}
+
+/**
  * Which agents should be asked to fetch their SDK without being offered a
  * button, given standing consent. The SDK version is pinned per build
  * and the cache keyed by version, so every update invalidates it — daily on

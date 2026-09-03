@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, IAgentSdkSetupInfo, readAgentSdkSetupInfos, readConsentedSdkAgents, resolveConsentedSdkDownloads, writeConsentedSdkAgents } from '../../../../platform/agentHost/common/agentSdkSetup.js';
+import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, IAgentSdkSetupInfo, readAgentSdkSetupInfos, readConsentedSdkAgents, resolveConsentedSdkDownloads, resolveNewSdkDownloadConsents, writeConsentedSdkAgents } from '../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { ActionType } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../../../../platform/agentHost/common/state/sessionState.js';
@@ -20,10 +20,9 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { ICodexAccountService } from './codexAccountService.js';
 
 /**
- * The agents whose SDK the user has agreed to fetch, each recorded on its own
- * first explicit Download. `APPLICATION` + `USER` so it follows the person, not
- * the machine — see {@link resolveConsentedSdkDownloads} for why it is neither
- * re-asked per version nor shared between agents.
+ * The agents whose SDK the user has agreed to fetch, recorded by Download or
+ * first use. `APPLICATION` + `USER` so consent follows the person; see
+ * {@link resolveConsentedSdkDownloads} for version and agent boundaries.
  */
 const AGENT_SDK_DOWNLOAD_CONSENT_KEY = 'agentHost.agentSdkDownloadConsent';
 
@@ -40,10 +39,9 @@ export const IAgentSdkSetupService = createDecorator<IAgentSdkSetupService>('age
 export type AgentSdkSetupState = 'downloadOffered' | 'noAccount' | 'resolved';
 
 /**
- * One step of the setup funnel: `downloadOffered` → a download (clicked, or
- * taken under standing consent) → `noAccount` → a route out of it →
- * `resolved`, the step that decides whether this was worth building. The states
- * are reported by the banner that computes them, the routes by this service.
+ * One step of the setup funnel: `downloadOffered` → a download (clicked,
+ * started by a turn, or taken under standing consent) → `noAccount` → a route
+ * out of it → `resolved`. The banner reports states; this service reports routes.
  */
 type AgentSdkSetupFunnelStep =
 	| AgentSdkSetupState
@@ -162,9 +160,7 @@ class AgentSdkSetupService extends Disposable implements IAgentSdkSetupService {
 	}
 
 	requestDownload(agent: string): void {
-		const consented = new Set(this._readConsentedAgents());
-		consented.add(agent);
-		this._storageService.store(AGENT_SDK_DOWNLOAD_CONSENT_KEY, writeConsentedSdkAgents(consented), StorageScope.APPLICATION, StorageTarget.USER);
+		this._storeConsent(agent);
 		this._consentedRequests.add(agent);
 		this._reportStep(agent, 'downloadClicked');
 		this._dispatchDownloadRequest(agent);
@@ -245,7 +241,15 @@ class AgentSdkSetupService extends Disposable implements IAgentSdkSetupService {
 
 	private _updateSetups(setups: readonly IAgentSdkSetupInfo[]): void {
 		this._setups = setups;
+		const newlyConsented = resolveNewSdkDownloadConsents(this._readConsentedAgents(), setups);
+		for (const agent of newlyConsented) {
+			this._storeConsent(agent);
+		}
 		for (const setup of setups) {
+			// First use and explicit requests are both one attempt for this window.
+			if (setup.download === 'downloading') {
+				this._consentedRequests.add(setup.agent);
+			}
 			// Any status but `notDownloaded` is the host answering our request.
 			if (setup.download !== 'notDownloaded') {
 				this._pendingRequests.delete(setup.agent);
@@ -253,6 +257,15 @@ class AgentSdkSetupService extends Disposable implements IAgentSdkSetupService {
 		}
 		this._applyConsent();
 		this._onDidChangeSetups.fire(setups);
+	}
+
+	private _storeConsent(agent: string): void {
+		const consented = new Set(this._readConsentedAgents());
+		if (consented.has(agent)) {
+			return;
+		}
+		consented.add(agent);
+		this._storageService.store(AGENT_SDK_DOWNLOAD_CONSENT_KEY, writeConsentedSdkAgents(consented), StorageScope.APPLICATION, StorageTarget.USER);
 	}
 
 	private _readConsentedAgents(): ReadonlySet<string> {
