@@ -139,7 +139,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 					}
 
 					if (!replacement && touchesReference) {
-						this.widget.inputEditor.executeEdits(this.id, [{
+						this.host.inputEditor.executeEdits(this.id, [{
 							range: newRange,
 							text: '',
 						}]);
