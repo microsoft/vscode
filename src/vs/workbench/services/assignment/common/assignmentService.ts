@@ -64,6 +64,20 @@ export function resolveScopedTreatment<T extends string | number | boolean>(read
 	return scoped !== undefined ? scoped : read(name);
 }
 
+/**
+ * Builds the telemetry payload for a tas-client feature query. The queried-feature name is marked
+ * trusted so the telemetry cleaner does not redact a `/vscode/`-scoped name as a `user-file-path`.
+ *
+ * Exported for testing.
+ */
+export function toExperimentTelemetryData(props: Map<string, string>): ITelemetryData {
+	const data: ITelemetryData = {};
+	for (const [key, value] of props.entries()) {
+		data[key] = key === 'ABExp.queriedFeature' ? new TelemetryTrustedValue(value) : value;
+	}
+	return data;
+}
+
 export interface IWorkbenchAssignmentService extends IAssignmentService {
 	getCurrentExperiments(): Promise<string[] | undefined>;
 	addTelemetryAssignmentFilter(filter: IAssignmentFilter): void;
@@ -136,15 +150,7 @@ class WorkbenchAssignmentServiceTelemetry extends Disposable implements IExperim
 	}
 
 	postEvent(eventName: string, props: Map<string, string>): void {
-		const data: ITelemetryData = {};
-		for (const [key, value] of props.entries()) {
-			// `ABExp.queriedFeature` is always an experiment feature key, never user data. The new TAS
-			// assignments endpoint namespaces these keys with a `/vscode/` scope (see
-			// `resolveScopedTreatment`), which the telemetry cleaner would otherwise redact as a
-			// `user-file-path` because it contains slashes. Mark it as a trusted value so the cleaner
-			// leaves the feature name intact.
-			data[key] = key === 'ABExp.queriedFeature' ? new TelemetryTrustedValue(value) : value;
-		}
+		const data = toExperimentTelemetryData(props);
 
 		/* __GDPR__
 			"query-expfeature" : {

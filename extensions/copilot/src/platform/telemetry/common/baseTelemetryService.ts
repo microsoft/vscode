@@ -196,10 +196,8 @@ export class BaseTelemetryService implements ITelemetryService {
 			...Object.fromEntries(props),
 			...this._sharedProperties
 		};
-		// `ABExp.queriedFeature` is always an experiment feature key, never user data. The new TAS
-		// assignments endpoint namespaces these keys with a `/vscode/` scope, which the telemetry
-		// cleaner would otherwise redact as a `user-file-path` because it contains slashes. Mark it
-		// as a trusted value so the cleaner leaves the feature name intact.
+		// Mark the queried-feature name trusted so the telemetry cleaner does not redact the
+		// `/vscode/`-scoped key as a `user-file-path`.
 		const queriedFeature = properties['ABExp.queriedFeature'];
 		if (typeof queriedFeature === 'string') {
 			properties['ABExp.queriedFeature'] = new TelemetryTrustedValue(queriedFeature);
