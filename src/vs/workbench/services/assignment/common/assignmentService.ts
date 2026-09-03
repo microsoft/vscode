@@ -8,6 +8,7 @@ import { createDecorator, IInstantiationService } from '../../../../platform/ins
 import type { IKeyValueStorage, IExperimentationTelemetry, IExperimentationFilterProvider, ExperimentationService as TASClient } from 'tas-client';
 import { Memento } from '../../../common/memento.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryData } from '../../../../base/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -137,7 +138,12 @@ class WorkbenchAssignmentServiceTelemetry extends Disposable implements IExperim
 	postEvent(eventName: string, props: Map<string, string>): void {
 		const data: ITelemetryData = {};
 		for (const [key, value] of props.entries()) {
-			data[key] = value;
+			// `ABExp.queriedFeature` is always an experiment feature key, never user data. The new TAS
+			// assignments endpoint namespaces these keys with a `/vscode/` scope (see
+			// `resolveScopedTreatment`), which the telemetry cleaner would otherwise redact as a
+			// `user-file-path` because it contains slashes. Mark it as a trusted value so the cleaner
+			// leaves the feature name intact.
+			data[key] = key === 'ABExp.queriedFeature' ? new TelemetryTrustedValue(value) : value;
 		}
 
 		/* __GDPR__
