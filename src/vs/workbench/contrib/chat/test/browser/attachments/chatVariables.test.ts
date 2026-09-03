@@ -281,7 +281,7 @@ suite('ChatDynamicVariableModel', () => {
 		});
 	});
 
-	test('renders GitHub reference icons with the link foreground color', () => {
+	test('renders GitHub reference icons with the reference foreground color', () => {
 		const issueText = 'microsoft/vscode#334284';
 		const pullRequestText = 'microsoft/vscode#333953';
 		const { editor, model } = createDynamicVariableModel(`${issueText} ${pullRequestText}`);
@@ -304,13 +304,13 @@ suite('ChatDynamicVariableModel', () => {
 
 		assert.deepStrictEqual(decorations.map(decoration => decoration.renderOptions?.before), [{
 			contentText: '\ueb0c',
-			color: { id: 'textLink.foreground' },
+			color: { id: 'chat.slashCommandForeground' },
 			fontFamily: 'codicon',
 			margin: '0 2px 0 0',
 			verticalAlign: 'middle',
 		}, {
 			contentText: '\uea64',
-			color: { id: 'textLink.foreground' },
+			color: { id: 'chat.slashCommandForeground' },
 			fontFamily: 'codicon',
 			margin: '0 2px 0 0',
 			verticalAlign: 'middle',
