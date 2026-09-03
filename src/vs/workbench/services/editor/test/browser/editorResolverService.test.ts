@@ -63,6 +63,46 @@ suite('EditorResolverService', () => {
 			undefined);
 	}
 
+	function registerDefaultEditorTestEditors(service: EditorResolverService, additionalDefaultEditorId?: string): void {
+		const factory: EditorInputFactoryObject = {
+			createEditorInput: ({ resource }) => ({ editor: new TestFileEditorInput(resource, TEST_EDITOR_INPUT_ID) }),
+			createDiffEditorInput: ({ modified }) => {
+				if (!modified.resource) {
+					throw new Error('Expected modified resource.');
+				}
+				return { editor: new TestFileEditorInput(modified.resource, TEST_EDITOR_INPUT_ID) };
+			}
+		};
+		disposables.add(service.registerEditor('*', {
+			id: DEFAULT_EDITOR_ASSOCIATION.id,
+			label: DEFAULT_EDITOR_ASSOCIATION.displayName,
+			priority: RegisteredEditorPriority.builtin
+		}, {}, factory));
+		disposables.add(service.registerEditor('*.component.html', {
+			id: 'test.componentEditor',
+			label: 'Component Editor',
+			priority: RegisteredEditorPriority.default
+		}, {}, factory));
+		if (additionalDefaultEditorId) {
+			disposables.add(service.registerEditor('*.component.html', {
+				id: additionalDefaultEditorId,
+				label: 'Additional Component Editor',
+				priority: RegisteredEditorPriority.default
+			}, {}, factory));
+		}
+	}
+
+	function createMutableConfigurationService(configuration: Record<string, unknown>): TestConfigurationService & { readonly updateCount: number } {
+		return new class extends TestConfigurationService {
+			updateCount = 0;
+
+			override async updateValue(key: string, value: unknown): Promise<void> {
+				this.updateCount++;
+				await this.setUserConfiguration(key, value);
+			}
+		}(configuration);
+	}
+
 	test('Simple Resolve', async () => {
 		const [part, service] = await createEditorResolverService();
 		const registeredEditor = service.registerEditor('*.test',
@@ -1018,19 +1058,7 @@ suite('EditorResolverService', () => {
 			})
 		}, disposables);
 		const [, service] = await createEditorResolverService(instantiationService);
-		const factory: EditorInputFactoryObject = {
-			createEditorInput: ({ resource }) => ({ editor: new TestFileEditorInput(resource, TEST_EDITOR_INPUT_ID) })
-		};
-		disposables.add(service.registerEditor('*', {
-			id: DEFAULT_EDITOR_ASSOCIATION.id,
-			label: DEFAULT_EDITOR_ASSOCIATION.displayName,
-			priority: RegisteredEditorPriority.builtin
-		}, {}, factory));
-		disposables.add(service.registerEditor('*.component.html', {
-			id: 'test.componentEditor',
-			label: 'Component Editor',
-			priority: RegisteredEditorPriority.default
-		}, {}, factory));
+		registerDefaultEditorTestEditors(service);
 
 		const matches = service.getEditorMatches(URI.file('/workspace/example.component.html'));
 		assert.deepStrictEqual({
@@ -1049,33 +1077,14 @@ suite('EditorResolverService', () => {
 	});
 
 	test('setDefaultEditor removes the association when restoring the natural registered default', async () => {
-		const configurationService = new class extends TestConfigurationService {
-			updateCount = 0;
-
-			override async updateValue(key: string, value: unknown): Promise<void> {
-				this.updateCount++;
-				await this.setUserConfiguration(key, value);
-			}
-		}({
+		const configurationService = createMutableConfigurationService({
 			[editorsAssociationsSettingId]: {
 				'*.component.html': DEFAULT_EDITOR_ASSOCIATION.id
 			}
 		});
 		const instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, disposables);
 		const [, service] = await createEditorResolverService(instantiationService);
-		const factory: EditorInputFactoryObject = {
-			createEditorInput: ({ resource }) => ({ editor: new TestFileEditorInput(resource, TEST_EDITOR_INPUT_ID) })
-		};
-		disposables.add(service.registerEditor('*', {
-			id: DEFAULT_EDITOR_ASSOCIATION.id,
-			label: DEFAULT_EDITOR_ASSOCIATION.displayName,
-			priority: RegisteredEditorPriority.builtin
-		}, {}, factory));
-		disposables.add(service.registerEditor('*.component.html', {
-			id: 'test.componentEditor',
-			label: 'Component Editor',
-			priority: RegisteredEditorPriority.default
-		}, {}, factory));
+		registerDefaultEditorTestEditors(service);
 		const resource = URI.file('/workspace/example.component.html');
 
 		service.setDefaultEditor(resource, 'test.componentEditor');
@@ -1089,6 +1098,167 @@ suite('EditorResolverService', () => {
 			associations: [],
 			defaultEditorId: 'test.componentEditor',
 			updateCount: 1
+		});
+	});
+
+	test('setDefaultEditor retains the association when a broader rule masks the natural default', async () => {
+		const configurationService = createMutableConfigurationService({
+			[editorsAssociationsSettingId]: {
+				'*.html': DEFAULT_EDITOR_ASSOCIATION.id,
+				'*.component.html': DEFAULT_EDITOR_ASSOCIATION.id
+			}
+		});
+		const instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, disposables);
+		const [, service] = await createEditorResolverService(instantiationService);
+		registerDefaultEditorTestEditors(service);
+		const resource = URI.file('/workspace/example.component.html');
+
+		service.setDefaultEditor(resource, 'test.componentEditor');
+
+		assert.deepStrictEqual({
+			associations: service.getAllUserAssociations(),
+			defaultEditorId: service.getEditorMatches(resource).defaultRule.editor.id
+		}, {
+			associations: [
+				{ filenamePattern: '*.html', viewType: DEFAULT_EDITOR_ASSOCIATION.id },
+				{ filenamePattern: '*.component.html', viewType: 'test.componentEditor' }
+			],
+			defaultEditorId: 'test.componentEditor'
+		});
+	});
+
+	test('setDefaultEditor retains the diff association when the inherited rule masks the natural default', async () => {
+		const configurationService = createMutableConfigurationService({
+			[editorsAssociationsSettingId]: {
+				'*.html': DEFAULT_EDITOR_ASSOCIATION.id
+			},
+			[diffEditorsAssociationsSettingId]: {
+				'*.component.html': DEFAULT_EDITOR_ASSOCIATION.id
+			}
+		});
+		const instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, disposables);
+		const [, service] = await createEditorResolverService(instantiationService);
+		registerDefaultEditorTestEditors(service);
+		const resource = URI.file('/workspace/example.component.html');
+
+		service.setDefaultEditor(resource, 'test.componentEditor', true);
+
+		assert.deepStrictEqual({
+			diffAssociations: Object.entries(configurationService.getValue<Record<string, string>>(diffEditorsAssociationsSettingId) ?? {}),
+			defaultEditorId: service.getEditorMatches(resource, { isDiffEditor: true }).defaultRule.editor.id
+		}, {
+			diffAssociations: [['*.component.html', 'test.componentEditor']],
+			defaultEditorId: 'test.componentEditor'
+		});
+	});
+
+	test('setDefaultEditor retains the association supplied by the default configuration layer', async () => {
+		const defaultAssociations = { '*.component.html': DEFAULT_EDITOR_ASSOCIATION.id };
+		let userAssociations: Record<string, string> | undefined;
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				if (key !== editorsAssociationsSettingId) {
+					return super.inspect<T>(key);
+				}
+				const value = { ...defaultAssociations, ...userAssociations };
+				return {
+					value: value as T,
+					defaultValue: defaultAssociations as T,
+					userValue: userAssociations as T | undefined,
+					userLocalValue: userAssociations as T | undefined
+				};
+			}
+
+			override async updateValue(key: string, value: unknown): Promise<void> {
+				if (key !== editorsAssociationsSettingId || !value || typeof value !== 'object' || Array.isArray(value)) {
+					throw new Error('Expected editor associations.');
+				}
+				const entries = Object.entries(value);
+				if (!entries.every((entry): entry is [string, string] => typeof entry[1] === 'string')) {
+					throw new Error('Expected editor association values.');
+				}
+				userAssociations = Object.fromEntries(entries);
+			}
+		}();
+		const instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, disposables);
+		const [, service] = await createEditorResolverService(instantiationService);
+		registerDefaultEditorTestEditors(service);
+		const resource = URI.file('/workspace/example.component.html');
+
+		service.setDefaultEditor(resource, 'test.componentEditor');
+
+		assert.deepStrictEqual({
+			userAssociations,
+			defaultEditorId: service.getEditorMatches(resource).defaultRule.editor.id
+		}, {
+			userAssociations: {
+				'*.component.html': 'test.componentEditor'
+			},
+			defaultEditorId: 'test.componentEditor'
+		});
+	});
+
+	test('setDefaultEditor pins the selected editor when natural defaults conflict', async () => {
+		const configurationService = createMutableConfigurationService({});
+		const instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, disposables);
+		const [, service] = await createEditorResolverService(instantiationService);
+		registerDefaultEditorTestEditors(service, 'test.additionalComponentEditor');
+		const resource = URI.file('/workspace/example.component.html');
+
+		service.setDefaultEditor(resource, 'test.componentEditor');
+		service.setDefaultEditor(resource, 'test.componentEditor');
+
+		const matches = service.getEditorMatches(resource);
+		assert.deepStrictEqual({
+			associations: service.getAllUserAssociations(),
+			defaultEditorId: matches.defaultRule.editor.id,
+			conflictingDefault: matches.conflictingDefault,
+			updateCount: configurationService.updateCount
+		}, {
+			associations: [{ filenamePattern: '*.component.html', viewType: 'test.componentEditor' }],
+			defaultEditorId: 'test.componentEditor',
+			conflictingDefault: false,
+			updateCount: 2
+		});
+	});
+
+	test('setDefaultEditor ignores a more specific association for an unregistered editor', async () => {
+		const configurationService = createMutableConfigurationService({
+			[editorsAssociationsSettingId]: {
+				'*.component.html': 'test.unregisteredEditor'
+			}
+		});
+		const instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, disposables);
+		const [, service] = await createEditorResolverService(instantiationService);
+		const factory: EditorInputFactoryObject = {
+			createEditorInput: ({ resource }) => ({ editor: new TestFileEditorInput(resource, TEST_EDITOR_INPUT_ID) })
+		};
+		disposables.add(service.registerEditor('*', {
+			id: DEFAULT_EDITOR_ASSOCIATION.id,
+			label: DEFAULT_EDITOR_ASSOCIATION.displayName,
+			priority: RegisteredEditorPriority.builtin
+		}, {}, factory));
+		disposables.add(service.registerEditor('*.html', {
+			id: 'test.htmlEditor',
+			label: 'HTML Editor',
+			priority: RegisteredEditorPriority.default
+		}, {}, factory));
+		const resource = URI.file('/workspace/example.component.html');
+
+		const displayedAssociationPattern = service.getEditorMatches(resource).defaultRule.associationPattern;
+		service.setDefaultEditor(resource, DEFAULT_EDITOR_ASSOCIATION.id);
+
+		assert.deepStrictEqual({
+			displayedAssociationPattern,
+			associations: service.getAllUserAssociations(),
+			defaultEditorId: service.getEditorMatches(resource).defaultRule.editor.id
+		}, {
+			displayedAssociationPattern: '*.html',
+			associations: [
+				{ filenamePattern: '*.component.html', viewType: 'test.unregisteredEditor' },
+				{ filenamePattern: '*.html', viewType: DEFAULT_EDITOR_ASSOCIATION.id }
+			],
+			defaultEditorId: DEFAULT_EDITOR_ASSOCIATION.id
 		});
 	});
 

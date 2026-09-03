@@ -426,10 +426,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	private getAssociationsForResourceFromSetting(resource: URI, settingId: string): EditorAssociations {
-		const matchingAssociations = this.getRawAssociationsForResourceFromSetting(resource, settingId);
-		const allEditors: RegisteredEditors = this._registeredEditors;
-		// Ensure that the settings are valid editors
-		return matchingAssociations.filter(association => allEditors.find(c => c.editorInfo.id === association.viewType));
+		return this.getMatchingAssociationsForResource(resource, this.getAllUserAssociationsForSetting(settingId));
 	}
 
 	private getRawAssociationsForResourceByType(resource: URI, associationType: EditorAssociationType): EditorAssociations {
@@ -442,7 +439,15 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	private getRawAssociationsForResourceFromSetting(resource: URI, settingId: string): EditorAssociations {
-		const associations = this.getAllUserAssociationsForSetting(settingId);
+		return this.getMatchingRawAssociationsForResource(resource, this.getAllUserAssociationsForSetting(settingId));
+	}
+
+	private getMatchingAssociationsForResource(resource: URI, associations: EditorAssociations): EditorAssociations {
+		const matchingAssociations = this.getMatchingRawAssociationsForResource(resource, associations);
+		return matchingAssociations.filter(association => this._registeredEditors.some(editor => editor.editorInfo.id === association.viewType));
+	}
+
+	private getMatchingRawAssociationsForResource(resource: URI, associations: EditorAssociations): EditorAssociations {
 		const matchingAssociations = associations.filter(association => association.filenamePattern && globMatchesResource(association.filenamePattern, resource));
 		// Sort matching associations based on glob length as a longer glob will be more specific
 		return matchingAssociations.sort((a, b) => (b.filenamePattern?.length ?? 0) - (a.filenamePattern?.length ?? 0));
@@ -454,9 +459,18 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 	private getAllUserAssociationsForSetting(settingId: string): EditorAssociations {
 		const inspectedEditorAssociations = this.configurationService.inspect<{ [fileNamePattern: string]: string }>(settingId) || {};
-		const defaultAssociations = inspectedEditorAssociations.defaultValue ?? {};
-		const workspaceAssociations = inspectedEditorAssociations.workspaceValue ?? {};
-		const userAssociations = inspectedEditorAssociations.userValue ?? {};
+		return this.mergeEditorAssociationSettings(
+			inspectedEditorAssociations.defaultValue ?? {},
+			inspectedEditorAssociations.workspaceValue ?? {},
+			inspectedEditorAssociations.userValue ?? {}
+		);
+	}
+
+	private mergeEditorAssociationSettings(
+		defaultAssociations: Readonly<Record<string, string>>,
+		workspaceAssociations: Readonly<Record<string, string>>,
+		userAssociations: Readonly<Record<string, string>>
+	): EditorAssociations {
 		const rawAssociations: { [fileNamePattern: string]: string } = { ...workspaceAssociations };
 		// We want to apply the default associations and user associations on top of the workspace associations but ignore duplicate keys.
 		for (const [key, value] of Object.entries({ ...defaultAssociations, ...userAssociations })) {
@@ -522,33 +536,79 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 	setDefaultEditor(resource: URI, editorID: string, forDiffEditor?: boolean): void {
 		const settingId = forDiffEditor ? diffEditorsAssociationsSettingId : editorsAssociationsSettingId;
+		const associationType = forDiffEditor ? EditorAssociationType.DiffEditor : EditorAssociationType.Editor;
 		const matches = this.getEditorMatches(resource, { isDiffEditor: forDiffEditor });
-		const currentAssociation = this.getRawAssociationsForResourceFromSetting(resource, settingId)[0];
+		const currentAssociation = matches.defaultRule.source === EditorMatchRuleSource.UserAssociation ? matches.defaultRule.association : undefined;
+		const associationPattern = matches.defaultRule.associationPattern;
 		if (editorID === matches.naturalDefaultRule.editor.id) {
-			const inheritedAssociation = forDiffEditor ? this.getRawAssociationsForResourceFromSetting(resource, editorsAssociationsSettingId)[0] : undefined;
-			if (currentAssociation && (!inheritedAssociation || inheritedAssociation.viewType === editorID)) {
-				this.removeUserAssociationForSetting(settingId, currentAssociation.filenamePattern!);
+			if (currentAssociation && this.getDefaultEditorIdAfterRemovingAssociation(resource, associationType, settingId, associationPattern) === editorID) {
+				this.removeUserAssociationForSetting(settingId, associationPattern);
 				return;
 			}
-			if (!currentAssociation && matches.defaultRule.editor.id === editorID) {
+			if (!currentAssociation && matches.defaultRule.editor.id === editorID && !matches.conflictingDefault) {
 				return;
 			}
 		}
 
-		this.updateUserAssociationsForSetting(settingId, currentAssociation?.filenamePattern ?? matches.defaultRule.associationPattern, editorID);
+		this.updateUserAssociationsForSetting(settingId, associationPattern, editorID);
 	}
 
 	private updateUserAssociationsForSetting(settingId: string, globPattern: string, editorID: string): void {
-		const newAssociation: EditorAssociation = { viewType: editorID, filenamePattern: globPattern };
-		const currentAssociations = this.getAllUserAssociationsForSetting(settingId);
-		const newSettingObject = Object.create(null);
-		// Form the new setting object including the newest associations
-		for (const association of [...currentAssociations, newAssociation]) {
-			if (association.filenamePattern) {
-				newSettingObject[association.filenamePattern] = association.viewType;
-			}
-		}
+		const newSettingObject = this.toEditorAssociationSetting(this.getAllUserAssociationsForSetting(settingId));
+		newSettingObject[globPattern] = editorID;
 		this.configurationService.updateValue(settingId, newSettingObject);
+	}
+
+	private getDefaultEditorIdAfterRemovingAssociation(resource: URI, associationType: EditorAssociationType, settingId: string, globPattern: string): string | undefined {
+		const remainingSettingAssociations = this.getAssociationsAfterRemovingAssociation(settingId, globPattern);
+		if (!remainingSettingAssociations) {
+			return undefined;
+		}
+
+		let associations = this.getMatchingAssociationsForResource(resource, remainingSettingAssociations);
+		if (associationType === EditorAssociationType.DiffEditor && associations.length === 0) {
+			associations = this.getAssociationsForResource(resource)
+				.filter(association => !this.isExplicitForAssociationType(association.viewType, associationType));
+		}
+
+		const editors = this.findMatchingEditors(resource, associationType, associations);
+		const selection = this.getDefaultEditorSelection(resource, associationType, false, editors, associations);
+		return selection.conflictingDefault ? undefined : selection.editor?.editorInfo.id ?? DEFAULT_EDITOR_ASSOCIATION.id;
+	}
+
+	private getAssociationsAfterRemovingAssociation(settingId: string, globPattern: string): EditorAssociations | undefined {
+		const inspectedAssociations = this.configurationService.inspect<Record<string, string>>(settingId);
+		if (!inspectedAssociations) {
+			return undefined;
+		}
+
+		const explicitUserTargetCount = Number(inspectedAssociations.userRemoteValue !== undefined)
+			+ Number(inspectedAssociations.userLocalValue !== undefined);
+		const userTargetCount = explicitUserTargetCount || Number(inspectedAssociations.userValue !== undefined);
+		const configuredTargetCount = Number(inspectedAssociations.workspaceFolderValue !== undefined)
+			+ Number(inspectedAssociations.workspaceValue !== undefined)
+			+ userTargetCount
+			+ Number(inspectedAssociations.applicationValue !== undefined);
+		if (configuredTargetCount !== 1) {
+			return undefined;
+		}
+
+		const updatedSetting = this.toEditorAssociationSetting(this.getAllUserAssociationsForSetting(settingId), globPattern);
+		if (inspectedAssociations.workspaceValue !== undefined) {
+			return this.mergeEditorAssociationSettings(
+				inspectedAssociations.defaultValue ?? {},
+				updatedSetting,
+				inspectedAssociations.userValue ?? {}
+			);
+		}
+		if (userTargetCount === 1) {
+			return this.mergeEditorAssociationSettings(
+				inspectedAssociations.defaultValue ?? {},
+				inspectedAssociations.workspaceValue ?? {},
+				updatedSetting
+			);
+		}
+		return undefined;
 	}
 
 	private removeUserAssociationForSetting(settingId: string, globPattern: string): void {
@@ -556,13 +616,17 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		if (!currentAssociations.some(association => association.filenamePattern === globPattern)) {
 			return;
 		}
-		const newSettingObject = Object.create(null);
-		for (const association of currentAssociations) {
-			if (association.filenamePattern && association.filenamePattern !== globPattern) {
-				newSettingObject[association.filenamePattern] = association.viewType;
+		this.configurationService.updateValue(settingId, this.toEditorAssociationSetting(currentAssociations, globPattern));
+	}
+
+	private toEditorAssociationSetting(associations: EditorAssociations, excludedPattern?: string): Record<string, string> {
+		const settingObject: Record<string, string> = Object.create(null);
+		for (const association of associations) {
+			if (association.filenamePattern && association.filenamePattern !== excludedPattern) {
+				settingObject[association.filenamePattern] = association.viewType;
 			}
 		}
-		this.configurationService.updateValue(settingId, newSettingObject);
+		return settingObject;
 	}
 
 	private findMatchingEditors(resource: URI, associationType: EditorAssociationType = EditorAssociationType.Editor, userSettings = this.getAssociationsForResourceByType(resource, associationType)): RegisteredEditor[] {
@@ -1001,11 +1065,13 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		// the general default from a diff context, any diff-only override for the same glob is cleared
 		// so that the general default also takes effect for diffs.
 		const persistDefaultAssociation = (editorID: string) => {
+			const associationPattern = defaultRule.associationPattern;
 			this.setDefaultEditor(resource, editorID, updateSettingType === EditorAssociationType.DiffEditor);
 			if (updateSettingType === EditorAssociationType.Editor && associationType === EditorAssociationType.DiffEditor) {
-				const diffAssociationPattern = this.getRawAssociationsForResourceFromSetting(resource, diffEditorsAssociationsSettingId)[0]?.filenamePattern;
-				if (diffAssociationPattern) {
-					this.removeUserAssociationForSetting(diffEditorsAssociationsSettingId, diffAssociationPattern);
+				const matchingDiffAssociation = this.getRawAssociationsForResourceFromSetting(resource, diffEditorsAssociationsSettingId)
+					.find(association => association.filenamePattern === associationPattern);
+				if (matchingDiffAssociation?.filenamePattern) {
+					this.removeUserAssociationForSetting(diffEditorsAssociationsSettingId, matchingDiffAssociation.filenamePattern);
 				}
 			}
 		};
