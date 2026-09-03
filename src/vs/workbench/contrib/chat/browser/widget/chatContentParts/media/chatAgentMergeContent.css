@@ -135,20 +135,11 @@ the codicon base rule, which would otherwise force every glyph to 16px. */
 	font-size: var(--vscode-codiconFontSize-compact);
 	color: var(--vscode-descriptionForeground);
 	pointer-events: none;
-	transition: opacity 100ms ease-out, transform 100ms ease-out;
+	transition: transform 100ms ease-out;
 }
 
 .chat-agent-merge .chat-agent-merge-header-content + .chat-agent-merge-twistie {
 	margin-inline-start: auto;
-}
-
-.chat-agent-merge .chat-agent-merge-twistie {
-	opacity: 0;
-}
-
-.chat-agent-merge > .chat-agent-merge-card > .chat-agent-merge-header:hover > .chat-agent-merge-twistie,
-.chat-agent-merge > .chat-agent-merge-card > .chat-agent-merge-header:focus-within > .chat-agent-merge-twistie {
-	opacity: 1;
 }
 
 /* Reduced motion follows the workbench-managed `.monaco-reduce-motion` class,
