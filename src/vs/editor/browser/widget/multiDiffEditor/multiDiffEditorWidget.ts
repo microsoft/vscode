@@ -20,7 +20,7 @@ import { DiffEditorWidget } from '../diffEditor/diffEditorWidget.js';
 import './colors.js';
 import { DiffEditorItemTemplate } from './diffEditorItemTemplate.js';
 import { IDocumentDiffItem, IMultiDiffEditorModel } from './model.js';
-import { getMultiDiffEditorVariantConfiguration, IMultiDiffEditorWidgetOptions } from './multiDiffEditorOptions.js';
+import { getMultiDiffEditorVariantConfiguration, IMultiDiffEditorVariantConfiguration, IMultiDiffEditorWidgetOptions } from './multiDiffEditorOptions.js';
 import { MultiDiffEditorViewModel } from './multiDiffEditorViewModel.js';
 import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorViewState, MultiDiffEditorWidgetImpl } from './multiDiffEditorWidgetImpl.js';
 import { IWorkbenchUIElementFactory } from './workbenchUIElementFactory.js';
@@ -30,22 +30,8 @@ export class MultiDiffEditorWidget extends Disposable {
 	private readonly _viewModel = observableValue<MultiDiffEditorViewModel | undefined>(this, undefined);
 	private readonly _diffLayoutOptions = observableValue<IDiffEditorOptions | undefined>(this, undefined);
 	private readonly _paddingBottomPx = observableValue<number>(this, 0);
-	private readonly _variantConfiguration = getMultiDiffEditorVariantConfiguration(this._options.variant);
-
-	private readonly _widgetImpl = derived(this, (reader) => {
-		readHotReloadableExport(DiffEditorItemTemplate, reader);
-		return reader.store.add(this._instantiationService.createInstance((
-			readHotReloadableExport(MultiDiffEditorWidgetImpl, reader)),
-			this._element,
-			this._dimension,
-			this._viewModel,
-			this._workbenchUIElementFactory,
-			this._variantConfiguration,
-			this._diffLayoutOptions,
-			this._options.diffEditorOptions,
-			this._paddingBottomPx,
-		));
-	});
+	private readonly _variantConfiguration: IMultiDiffEditorVariantConfiguration;
+	private readonly _widgetImpl: IObservable<MultiDiffEditorWidgetImpl>;
 
 	constructor(
 		private readonly _element: HTMLElement,
@@ -55,6 +41,21 @@ export class MultiDiffEditorWidget extends Disposable {
 	) {
 		super();
 
+		this._variantConfiguration = getMultiDiffEditorVariantConfiguration(this._options.variant);
+		this._widgetImpl = derived(this, reader => {
+			readHotReloadableExport(DiffEditorItemTemplate, reader);
+			return reader.store.add(this._instantiationService.createInstance((
+				readHotReloadableExport(MultiDiffEditorWidgetImpl, reader)),
+				this._element,
+				this._dimension,
+				this._viewModel,
+				this._workbenchUIElementFactory,
+				this._variantConfiguration,
+				this._diffLayoutOptions,
+				this._options.diffEditorOptions,
+				this._paddingBottomPx,
+			));
+		});
 		this._register(recomputeInitiallyAndOnChange(this._widgetImpl));
 	}
 
