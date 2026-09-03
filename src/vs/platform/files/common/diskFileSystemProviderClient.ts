@@ -215,6 +215,14 @@ export class DiskFileSystemProviderClient extends Disposable implements
 
 	//#endregion
 
+	//#region File Path Case Sensitivity
+
+	isPathCaseSensitive(resource: URI): Promise<boolean> {
+		return this.channel.call('isPathCaseSensitive', [resource]);
+	}
+
+	//#endregion
+
 	//#region File Watching
 
 	private readonly _onDidChange = this._register(new Emitter<readonly IFileChange[]>());

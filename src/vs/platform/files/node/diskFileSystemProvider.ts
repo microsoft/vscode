@@ -68,6 +68,50 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	//#endregion
 
+	//#region File Path Case Sensitivity
+
+	async isPathCaseSensitive(resource: URI): Promise<boolean> {
+		if (isLinux) {
+			return true;
+		}
+
+		try {
+			// Probe must run against a directory; fall back to the parent if resource is a file.
+			const resourcePath = this.toFilePath(resource);
+			const stat = await promises.stat(resourcePath).catch(() => null);
+			const dir = stat?.isDirectory() ? resourcePath : dirname(resourcePath);
+
+			// Write a lowercase sentinel file, then stat its uppercase counterpart.
+			// If the uppercase path resolves, the filesystem is case-insensitive.
+			const baseName = `.case-test-${process.pid}-${Date.now()}`;
+			const lowerCasePath = join(dir, baseName);
+			const upperCasePath = join(dir, baseName.toUpperCase());
+
+			await promises.writeFile(lowerCasePath, '');
+
+			let upperCasePathExists = false;
+			try {
+				await promises.stat(upperCasePath);
+				upperCasePathExists = true;
+			} catch {
+				// not found — filesystem is case-sensitive
+			}
+
+			try {
+				await promises.unlink(lowerCasePath);
+			} catch {
+				// ignore
+			}
+
+			return !upperCasePathExists;
+		} catch (error) {
+			// On any error (e.g. read-only directory) fall back to the default OS behavior.
+			return false;
+		}
+	}
+
+	//#endregion
+
 	//#region File Metadata Resolving
 
 	async stat(resource: URI): Promise<IStat> {
