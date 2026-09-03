@@ -353,8 +353,13 @@ suite('Agent Host Session Config Picker', () => {
 
 	test('picker action view items expose responsive compact state', () => {
 		let pickerAnchor: HTMLElement | undefined;
+		let focusTarget: HTMLElement | undefined;
 		const item = store.add(new PickerActionViewItem({
-			render: () => { },
+			render: container => {
+				focusTarget = document.createElement('button');
+				focusTarget.tabIndex = 0;
+				container.appendChild(focusTarget);
+			},
 			showPicker: anchor => {
 				pickerAnchor = anchor;
 				return true;
@@ -362,11 +367,17 @@ suite('Agent Host Session Config Picker', () => {
 			dispose: () => { },
 		}));
 		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
 		const overflowAnchor = document.createElement('button');
 		item.render(container);
+		item.setFocusable(true);
+		item.focus();
 		const expanded = {
 			compact: item.isCompact(),
 			className: container.classList.contains('compact-picker'),
+			outerTabIndex: container.tabIndex,
+			focusedInnerControl: document.activeElement === focusTarget,
 		};
 
 		item.setCompact(true);
@@ -378,7 +389,7 @@ suite('Agent Host Session Config Picker', () => {
 		};
 
 		assert.deepStrictEqual({ expanded, compact }, {
-			expanded: { compact: false, className: false },
+			expanded: { compact: false, className: false, outerTabIndex: -1, focusedInnerControl: true },
 			compact: { compact: true, className: true, usesOverflowAnchor: true },
 		});
 	});

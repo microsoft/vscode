@@ -1247,6 +1247,40 @@ export class PickerActionViewItem extends BaseActionViewItem implements IChatInp
 		container.classList.toggle('compact-picker', this._compact);
 	}
 
+	override focus(): void {
+		if (this.element) {
+			this._focusFirstTabStop(this.element);
+		}
+	}
+
+	override isFocused(): boolean {
+		return !!this.element && dom.isAncestorOfActiveElement(this.element);
+	}
+
+	override setFocusable(): void {
+		if (this.element) {
+			this.element.tabIndex = -1;
+		}
+	}
+
+	private _focusFirstTabStop(container: HTMLElement): boolean {
+		for (const child of container.children) {
+			if (!dom.isHTMLElement(child)) {
+				continue;
+			}
+			if (child.tabIndex >= 0) {
+				child.focus();
+				if (dom.isActiveElement(child)) {
+					return true;
+				}
+			}
+			if (this._focusFirstTabStop(child)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	isCompact(): boolean {
 		return this._compact;
 	}
