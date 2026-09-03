@@ -616,7 +616,7 @@ suite('ChatPetWidget', () => {
 		assert.strictEqual(CHAT_PET_CONFIRMATION_ATTENTION_DURATION, 2_000);
 	});
 
-	test('shows the window pet only in the active VS Code window and reserves only its active host', () => {
+	test('shows the window pet only in the active VS Code window and reserves space in every visible chat', () => {
 		assert.deepStrictEqual({
 			visible: [
 				isChatPetVisible(false, false),
