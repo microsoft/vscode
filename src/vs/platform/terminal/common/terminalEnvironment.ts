@@ -29,8 +29,15 @@ export function escapeNonWindowsPath(path: string, shellType?: TerminalShellType
 
 	let escapeConfig: ShellEscapeConfig;
 	switch (shellType) {
-		case PosixShellType.Bash:
 		case PosixShellType.Sh:
+			// POSIX sh does not support $'...' ANSI-C quoting; use close/escape/reopen
+			escapeConfig = {
+				bothQuotes: (path) => `'${path.replace(/'/g, "'\\''")}'`,
+				singleQuotes: (path) => `'${path.replace(/'/g, "'\\''")}'`,
+				noSingleQuotes: (path) => `'${path}'`
+			};
+			break;
+		case PosixShellType.Bash:
 		case PosixShellType.Zsh:
 		case WindowsShellType.GitBash:
 			escapeConfig = {
@@ -56,10 +63,10 @@ export function escapeNonWindowsPath(path: string, shellType?: TerminalShellType
 			};
 			break;
 		default:
-			// Default to POSIX shell escaping for unknown shells
+			// Default to POSIX-compatible quoting for unknown shells
 			escapeConfig = {
-				bothQuotes: (path) => `$'${path.replace(/'/g, '\\\'')}'`,
-				singleQuotes: (path) => `'${path.replace(/'/g, '\\\'')}'`,
+				bothQuotes: (path) => `'${path.replace(/'/g, "'\\''")}'`,
+				singleQuotes: (path) => `'${path.replace(/'/g, "'\\''")}'`,
 				noSingleQuotes: (path) => `'${path}'`
 			};
 			break;

@@ -675,7 +675,7 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 			// <user>@<auth>
 			const userinfo = authority.substr(0, idx);
 			authority = authority.substr(idx + 1);
-			idx = userinfo.lastIndexOf(':');
+			idx = userinfo.indexOf(':');
 			if (idx === -1) {
 				res += encoder(userinfo, false, false);
 			} else {

@@ -325,7 +325,7 @@ export function isRootOrDriveLetter(path: string): boolean {
 		}
 
 		return hasDriveLetter(pathNormalized) &&
-			(pathNormalized.length === 2 || pathNormalized.charCodeAt(2) === CharCode.Backslash);
+			(path.length === 2 || pathNormalized.charCodeAt(2) === CharCode.Backslash);
 	}
 
 	return pathNormalized === posix.sep;
