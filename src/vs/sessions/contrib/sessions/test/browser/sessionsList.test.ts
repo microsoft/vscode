@@ -1724,7 +1724,7 @@ suite('Sessions - SessionsList', () => {
 					hasNativeGlyph: true,
 					isCollapsible: true,
 					isCollapsed: false,
-					fontSize: '16px',
+					fontSize: '11px',
 					opacity: '0',
 					paddingLeft: '0px',
 					pointerEvents: 'none',

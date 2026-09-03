@@ -345,11 +345,19 @@ function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOption
 	}
 
 	if (options.revealHierarchyGuides) {
-		const sessionItem = listHost.querySelector<HTMLElement>('.session-item');
-		if (!sessionItem) {
-			throw new Error('Expected a session row to reveal its hierarchy guides.');
+		const pinnedSection = listHost.querySelector<HTMLElement>('.session-section-icon.codicon-pinned')?.parentElement;
+		if (!pinnedSection) {
+			throw new Error('Expected the pinned section to reveal its session.');
 		}
-		sessionItem.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		pinnedSection.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+		return Promise.resolve().then(() => {
+			const sessionItem = listHost.querySelector<HTMLElement>('.session-item');
+			if (!sessionItem) {
+				throw new Error('Expected a session row to reveal its hierarchy guides.');
+			}
+			sessionItem.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		});
 	}
 }
 
