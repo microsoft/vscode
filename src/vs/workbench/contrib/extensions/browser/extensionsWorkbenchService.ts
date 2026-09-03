@@ -2254,7 +2254,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private async autoUpdateBuiltinExtensions(): Promise<void> {
 		await this.meteredConnectionService.whenInitialized;
-		if (this.meteredConnectionService.isConnectionMetered) {
+		if (this._store.isDisposed || this.meteredConnectionService.isConnectionMetered) {
 			return;
 		}
 		await this.checkForUpdates(undefined, true);
@@ -2279,6 +2279,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private async autoUpdateExtensions(): Promise<void> {
 		await this.meteredConnectionService.whenInitialized;
+		if (this._store.isDisposed) {
+			return;
+		}
 		if (this.meteredConnectionService.isConnectionMetered) {
 			this.logService.trace('[Extensions]: Skipping auto-update because connection is metered');
 			return;

@@ -68,6 +68,7 @@ flakySuite('Native Modules (all platforms)', () => {
 	test('@vscode/metered', async () => {
 		const metered = await import('@vscode/metered');
 		assert.ok(typeof metered.createMonitor === 'function', testErrorMessage('@vscode/metered'));
+		metered.createMonitor().dispose();
 	});
 
 	test('node-pty', async () => {
