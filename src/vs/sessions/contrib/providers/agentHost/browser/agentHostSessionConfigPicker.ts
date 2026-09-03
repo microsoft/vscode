@@ -1251,31 +1251,50 @@ export class PickerActionViewItem extends BaseActionViewItem implements IChatInp
 	override focus(): void {
 		if (this._focusableElement) {
 			this._focusableElement.focus();
+		} else if (this.element) {
+			this._focusFirstTabStop(this.element);
 		} else {
 			super.focus();
 		}
 	}
 
 	override isFocused(): boolean {
-		return this._focusableElement
-			? this._focusableElement === dom.getActiveElement()
+		return this.element
+			? dom.isAncestorOfActiveElement(this.element)
 			: super.isFocused();
 	}
 
 	override blur(): void {
-		if (this._focusableElement) {
-			this._focusableElement.blur();
+		const activeElement = dom.getActiveElement();
+		if (this.element && dom.isHTMLElement(activeElement) && dom.isAncestor(activeElement, this.element)) {
+			activeElement.blur();
 		} else {
 			super.blur();
 		}
 	}
 
-	override setFocusable(focusable: boolean): void {
-		if (this._focusableElement) {
-			this.element?.removeAttribute('tabindex');
-		} else {
-			super.setFocusable(focusable);
+	override setFocusable(_focusable: boolean): void {
+		if (this.element) {
+			this.element.tabIndex = -1;
 		}
+	}
+
+	private _focusFirstTabStop(container: HTMLElement): boolean {
+		for (const child of container.children) {
+			if (!dom.isHTMLElement(child)) {
+				continue;
+			}
+			if (child.tabIndex >= 0) {
+				child.focus();
+				if (dom.isActiveElement(child)) {
+					return true;
+				}
+			}
+			if (this._focusFirstTabStop(child)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	isCompact(): boolean {

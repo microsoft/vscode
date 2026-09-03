@@ -372,6 +372,8 @@ suite('Agent Host Session Config Picker', () => {
 		store.add(toDisposable(() => container.remove()));
 		const overflowAnchor = document.createElement('button');
 		item.render(container);
+		item.setFocusable(true);
+		item.focus();
 		const expanded = {
 			compact: item.isCompact(),
 			className: container.classList.contains('compact-picker'),
@@ -400,6 +402,42 @@ suite('Agent Host Session Config Picker', () => {
 				tabbableDescendants: 1,
 				triggerFocused: true,
 			},
+		});
+	});
+
+	test('picker action view items delegate focus to nested controls', () => {
+		let pickerContainer: HTMLElement | undefined;
+		const item = store.add(new PickerActionViewItem({
+			render: container => {
+				pickerContainer = document.createElement('div');
+				container.appendChild(pickerContainer);
+			},
+			dispose: () => { },
+		}));
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		item.render(container);
+
+		item.setFocusable(true);
+		const focusTarget = document.createElement('button');
+		focusTarget.tabIndex = 0;
+		pickerContainer?.appendChild(focusTarget);
+		item.focus();
+		const focused = {
+			wrapperTabIndex: container.tabIndex,
+			focusedInnerControl: document.activeElement === focusTarget,
+			itemFocused: item.isFocused(),
+		};
+		item.blur();
+
+		assert.deepStrictEqual({ focused, focusedAfterBlur: document.activeElement === focusTarget }, {
+			focused: {
+				wrapperTabIndex: -1,
+				focusedInnerControl: true,
+				itemFocused: true,
+			},
+			focusedAfterBlur: false,
 		});
 	});
 
