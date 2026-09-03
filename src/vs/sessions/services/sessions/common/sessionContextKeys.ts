@@ -35,7 +35,7 @@ import {
 	SessionHasSideChatsContext,
 	SessionHasGitRepositoryContext,
 } from '../../../common/contextkeys.js';
-import { ChatOriginKind, getChatCapabilities, isActiveSessionStatus, ISession, SessionStatus } from './session.js';
+import { ChatOriginKind, getChatCapabilities, IChat, isActiveSessionStatus, ISession, SessionStatus } from './session.js';
 import { ISessionChangesStatsCache, readSessionChangesStats } from './sessionChangesStatsCache.js';
 import { IActiveSession } from './sessionsManagement.js';
 
@@ -201,16 +201,24 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	keys.isCreated.set(session?.isCreated.read(reader) ?? false);
 	keys.sticky.set(session?.sticky.read(reader) ?? false);
 
-	// Count committed (non-draft) chats: untitled in-composer drafts are excluded
-	// so the Chats dropdown only surfaces once a session has more than one
-	// real chat. Counts the whole chat list (open or closed) so a committed chat
-	// that was closed still keeps the menu available to reopen it.
-	const committedChatCount = session?.chats.read(reader)
-		.reduce((count, chat) => chat.status.read(reader) === SessionStatus.Untitled || chat.origin?.kind === ChatOriginKind.Tool ? count : count + 1, 0) ?? 0;
-	keys.hasMultipleCommittedChats.set(committedChatCount > 1);
+	// Count the chats the Chats picker can actually offer (see `showChatPicker`):
+	// every visible tab, including opened subagents, plus the reopenable closed
+	// chats. Untitled in-composer drafts are excluded so the dropdown only
+	// surfaces once a session has more than one real chat. Counting the raw chat
+	// list instead would disable the picker in exactly the state where it is the
+	// only route back — e.g. a closed main chat beside an opened subagent.
+	const isCommitted = (chat: IChat) => chat.status.read(reader) !== SessionStatus.Untitled;
+	const visibleChatCount = session?.visibleChatTabs.read(reader).filter(isCommitted).length ?? 0;
+	const reopenableChatCount = session?.closedChats.read(reader)
+		.filter(chat => isCommitted(chat) && chat.origin?.kind !== ChatOriginKind.Tool).length ?? 0;
+	// A reopenable chat alone is enough: it has no tab to click, so the picker is
+	// its only route back — as when the main chat is closed beside a lone
+	// untitled draft, which does not count towards the visible total.
+	keys.hasMultipleCommittedChats.set(reopenableChatCount > 0 || visibleChatCount > 1);
 
-	// The tab strip is shown when the session has more than one chat (counting
-	// closed chats) or its single remaining chat's title diverged from the session title.
+	// The tab strip is shown when more than one chat is visible, or when the
+	// single visible chat is not the main chat (the session header it replaces
+	// shows the session title, which would not identify that chat).
 	keys.shouldShowChatTabs.set(session?.shouldShowChatTabs.read(reader) ?? false);
 
 	// More than one open chat tab (incl. drafts): scopes chat-to-chat navigation
@@ -218,13 +226,15 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	// chat with a diverged title, or one open + one closed chat).
 	keys.hasMultipleOpenChats.set((session?.visibleChatTabs.read(reader).length ?? 0) > 1);
 
-	// The active chat can be closed (hidden) from the tab strip when it is a
-	// non-main chat — including read-only subagent chats, which surface as
-	// closeable tabs. The main chat lives and dies with its session.
+	// The active chat can be closed (hidden) from the tab strip whenever it is a
+	// visible tab and it is not the last one — including the main chat and
+	// read-only subagent chats. Closing only hides a chat, so the session keeps
+	// the conversation; a session always keeps at least one visible tab.
 	const activeChat = session?.activeChat.read(reader);
-	const mainResource = session?.mainChat.read(reader).resource;
-	const isNonMainChat = !!activeChat && !!mainResource && !isEqual(activeChat.resource, mainResource);
-	keys.activeChatIsClosable.set(isNonMainChat);
+	const visibleTabs = session?.visibleChatTabs.read(reader) ?? [];
+	const isClosable = !!activeChat && visibleTabs.length > 1 &&
+		visibleTabs.some(chat => isEqual(chat.resource, activeChat.resource));
+	keys.activeChatIsClosable.set(isClosable);
 	// It can be permanently deleted only when its effective capabilities allow
 	// it: the main chat and worker (subagent) chats report `canDelete: false`,
 	// so they are closeable but not deletable.

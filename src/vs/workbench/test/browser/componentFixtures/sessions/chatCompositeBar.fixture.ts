@@ -66,6 +66,7 @@ function createMockDelegate(session: IActiveSession, chats: readonly IChat[], ac
 		chats: observableValue('chats', chats),
 		activeChatResource: observableValue('activeChatResource', activeChat.resource.toString()),
 		mainChatResource: observableValue('mainChatResource', chats[0].resource.toString()),
+		canCloseChats: observableValue('canCloseChats', true),
 		visible: session.shouldShowChatTabs,
 		showSessionActions: session.shouldShowChatTabs,
 		openChat: () => { },

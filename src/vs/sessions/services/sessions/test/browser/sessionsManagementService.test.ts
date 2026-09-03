@@ -3737,6 +3737,78 @@ suite('SessionsManagementService', () => {
 			});
 		});
 
+		test('a batch close with an already-closed main chat still leaves the main chat as the survivor', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('b'), chat('c')]);
+			const { view } = setup([sessionA]);
+
+			await view.openSession(sessionA.resource);
+			const active = view.activeSession.get()!;
+			const find = (title: string) => sessionA.chats.get().find(c => c.title.get() === title)!;
+
+			// The main chat is closeable, so it can already be hidden when the batch runs.
+			await view.closeChat(active, find('mainA'));
+
+			// Mirrors "Close All Chats": reopen the main chat first so it can
+			// survive the batch, then close every non-main chat. Without the
+			// reopen the last non-main chat would be the session's only visible
+			// tab and its close would be refused, stranding it on screen.
+			await view.openChat(active, find('mainA').resource);
+			for (const target of ['b', 'c']) {
+				await view.closeChat(active, find(target), { skipHistory: true });
+			}
+
+			assert.deepStrictEqual({
+				visible: active.visibleChatTabs.get().map(c => c.title.get()),
+				closed: active.closedChats.get().map(c => c.title.get()).sort(),
+			}, {
+				visible: ['mainA'],
+				closed: ['b', 'c'],
+			});
+		});
+
+		test('a batch close clears a latent closure on a surfaced main chat', async () => {
+			const chats = [chat('mainA'), chat('b')];
+			const chatsObs = observableValue<readonly IChat[]>('chats', chats);
+			// Like `multiChatSession`, but with a mutable chat list so a peer can
+			// be deleted and a later one added.
+			const sessionA = stubSession({
+				sessionId: 'A',
+				providerId: 'test',
+				chats: chatsObs,
+				mainChat: constObservable(chats[0]),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+			const { view } = setup([sessionA]);
+
+			await view.openSession(sessionA.resource);
+			const active = view.activeSession.get()!;
+			const find = (title: string) => chatsObs.get().find(c => c.title.get() === title)!;
+
+			// Close main, then delete the only peer so the visibility floor
+			// surfaces main again while it stays in the raw closed set.
+			await view.closeChat(active, find('mainA'));
+			chatsObs.set([chats[0]], undefined);
+
+			// A new peer arrives; main is on screen only via the active-chat
+			// override, so `closedChats` no longer reports it as closed.
+			const later = chat('c');
+			chatsObs.set([chats[0], later], undefined);
+
+			// Mirrors the fixed "Close All Chats": main is opened unconditionally,
+			// which clears the latent closure, then every non-main chat closes.
+			await view.openChat(active, find('mainA').resource);
+			for (const target of chatsObs.get().filter(c => c.title.get() !== 'mainA')) {
+				await view.closeChat(active, target, { skipHistory: true });
+			}
+
+			// Activating another chat must not make main disappear again.
+			await view.openChat(active, find('c').resource);
+
+			assert.deepStrictEqual(
+				active.visibleChatTabs.get().map(c => c.title.get()).sort(),
+				['c', 'mainA']);
+		});
+
 		test('a stale entry is dropped when its session vanished without a delete event', async () => {
 			const sessionA = multiChatSession('A', [chat('mainA'), chat('b')]);
 			const sessionB = multiChatSession('B', [chat('mainB')]);

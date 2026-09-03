@@ -67,8 +67,16 @@ export interface IChatCompositeBarDelegate {
 	/** The resource (as a string) of the chat shown by this group. */
 	readonly activeChatResource: IObservable<string>;
 
-	/** The session's main chat resource (as a string); its tab is not closeable. */
+	/** The session's main chat resource (as a string). */
 	readonly mainChatResource: IObservable<string>;
+
+	/**
+	 * Whether tabs may be closed at all: false while the session is down to its
+	 * last visible tab, which must stay open. Session-scoped rather than
+	 * per-group, so a group showing a lone tab still renders close buttons while
+	 * other groups hold the session's remaining tabs.
+	 */
+	readonly canCloseChats: IObservable<boolean>;
 
 	/** Whether the tab strip should be shown. */
 	readonly visible: IObservable<boolean>;
@@ -237,7 +245,7 @@ export class ChatCompositeBar extends Disposable {
 		this._groupDisposables.value = store;
 
 		if (!delegate) {
-			this._rebuildTabs([], '');
+			this._rebuildTabs([], '', false);
 			this._setVisible(false);
 			return;
 		}
@@ -247,7 +255,8 @@ export class ChatCompositeBar extends Disposable {
 		store.add(autorun(reader => {
 			const chats = delegate.chats.read(reader);
 			const mainChatUri = delegate.mainChatResource.read(reader);
-			this._rebuildTabs(chats, mainChatUri);
+			const canCloseChats = delegate.canCloseChats.read(reader);
+			this._rebuildTabs(chats, mainChatUri, canCloseChats);
 		}));
 		store.add(autorun(reader => {
 			this._updateActiveTab(delegate.activeChatResource.read(reader));
@@ -265,14 +274,14 @@ export class ChatCompositeBar extends Disposable {
 		this._tabsContainer.setAttribute('aria-label', label);
 	}
 
-	private _rebuildTabs(chats: readonly IChat[], mainChatId: string): void {
+	private _rebuildTabs(chats: readonly IChat[], mainChatId: string, canCloseChats: boolean): void {
 		this._cancelTabEditing();
 		this._tabDisposables.clear();
 		this._tabs.length = 0;
 		reset(this._tabsContainer);
 
 		for (const chat of chats) {
-			this._createTab(chat, chat.resource.toString() === mainChatId);
+			this._createTab(chat, chat.resource.toString() === mainChatId, canCloseChats);
 		}
 
 		this._updateActiveTab(this._delegate?.activeChatResource.get() ?? '');
@@ -286,7 +295,7 @@ export class ChatCompositeBar extends Disposable {
 		});
 	}
 
-	private _createTab(chat: IChat, isMainChat: boolean): void {
+	private _createTab(chat: IChat, isMainChat: boolean, canClose: boolean): void {
 		const delegate = this._delegate;
 		const session = delegate?.session;
 		const tab = $('.chat-composite-bar-tab.modern-ui-editor-tab');
@@ -370,10 +379,12 @@ export class ChatCompositeBar extends Disposable {
 		tab.appendChild(indicator);
 
 		// Close button — contributed via Menus.SessionChatTab (the chat tab menu).
-		// Only non-main chats can be closed; the main chat lives and dies with its
-		// session, so its tab renders no actions toolbar. The tab's chat (and its
-		// session) is forwarded as the action argument.
-		if (!isMainChat && session) {
+		// Every tab is closeable, including the session's main chat: closing only
+		// hides the chat (it stays reopenable) and never deletes it. The last
+		// remaining tab renders no actions toolbar, so a session always keeps a
+		// visible chat. The tab's chat (and its session) is forwarded as the
+		// action argument.
+		if (canClose && session) {
 			const actionsContainer = $('.chat-composite-bar-tab-actions');
 			tab.appendChild(actionsContainer);
 			const tabToolbar = this._tabDisposables.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, actionsContainer, Menus.SessionChatTab, {
@@ -410,7 +421,7 @@ export class ChatCompositeBar extends Disposable {
 			}
 
 			EventHelper.stop(e, true);
-			if (isMainChat || !session) {
+			if (!canClose || !session) {
 				return;
 			}
 

@@ -814,6 +814,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// Closing hides the chat from the tab strip; it stays reopenable from the
 		// session header's chats dropdown.
 		this._visibility.closeChat(session, chat);
+		// The session's last visible tab must stay open, so the close can be
+		// refused; only persist and record it when the chat actually closed.
+		const stillVisible = session.visibleChatTabs.get()
+			.some(c => this.uriIdentityService.extUri.isEqual(c.resource, chat.resource));
+		if (stillVisible) {
+			return;
+		}
 		this._setChatClosedState(session, chat, true);
 		if (!options?.skipHistory) {
 			this._closedItems.recordClosedChat(session, chat.resource);
@@ -829,12 +836,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 * it survives switching the session out of the grid (which disposes its
 	 * wrapper) and reloads. Done synchronously on the close/open action rather
 	 * than reactively from `closedChats`, which would depend on the session's
-	 * chats being loaded. The main chat can never be closed and is ignored.
+	 * chats being loaded.
 	 */
 	private _setChatClosedState(session: ISession, chat: IChat, closed: boolean): void {
-		if (this.uriIdentityService.extUri.isEqual(chat.resource, session.mainChat.get().resource)) {
-			return;
-		}
 		// Subagent (tool-origin) chats are hidden by default and toggled via an
 		// in-memory shown set, not the persisted closed set, so they never
 		// participate in closed-chat persistence.

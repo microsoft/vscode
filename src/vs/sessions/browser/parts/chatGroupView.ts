@@ -42,8 +42,11 @@ export interface IChatGroupContext {
 	/** The resource (as a string) of the chat shown by this group. */
 	readonly activeChatResource: IObservable<string>;
 
-	/** The session's main chat resource (as a string); its tab is not closeable. */
+	/** The session's main chat resource (as a string). */
 	readonly mainChatResource: IObservable<string>;
+
+	/** Whether tabs may be closed; false on the session's last visible tab. */
+	readonly canCloseChats: IObservable<boolean>;
 
 	/** Whether the group's tab strip should be shown. */
 	readonly tabsVisible: IObservable<boolean>;
@@ -186,6 +189,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			chats: context.chats,
 			activeChatResource: context.activeChatResource,
 			mainChatResource: context.mainChatResource,
+			canCloseChats: context.canCloseChats,
 			visible: context.tabsVisible,
 			showSessionActions: context.showSessionActions,
 			openChat: resource => context.openChat(resource),

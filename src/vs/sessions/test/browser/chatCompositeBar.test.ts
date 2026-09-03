@@ -115,6 +115,7 @@ interface IChatCompositeBarHarness {
 	readonly chats: ISettableObservable<readonly IChat[]>;
 	readonly activeChatResource: ISettableObservable<string>;
 	readonly visible: ISettableObservable<boolean>;
+	readonly canCloseChats: ISettableObservable<boolean>;
 	readonly showSessionActions: ISettableObservable<boolean>;
 }
 
@@ -129,6 +130,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	const chats = observableValue<readonly IChat[]>('test.chats', [mainChat, secondaryChat]);
 	const activeChatResource = observableValue('test.activeChatResource', mainChat.resource.toString());
 	const mainChatResource = observableValue('test.mainChatResource', mainChat.resource.toString());
+	const canCloseChats = observableValue('test.canCloseChats', true);
 	const visible = observableValue('test.visible', true);
 	const showSessionActions = observableValue('test.showSessionActions', true);
 
@@ -149,6 +151,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 		chats,
 		activeChatResource,
 		mainChatResource,
+		canCloseChats,
 		visible,
 		showSessionActions,
 		openChat: resource => { sessionsService.openChat(session, resource); },
@@ -158,7 +161,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	container.appendChild(bar.element);
 	const tabs = Array.from(bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab'));
 
-	return { store, instantiationService, commandService, sessionsService, bar, session, tabs, chats, activeChatResource, visible, showSessionActions };
+	return { store, instantiationService, commandService, sessionsService, bar, session, tabs, chats, activeChatResource, visible, canCloseChats, showSessionActions };
 }
 
 suite('Sessions - ChatCompositeBar', () => {
@@ -178,7 +181,7 @@ suite('Sessions - ChatCompositeBar', () => {
 			hasMetadataRow: tabs[0].closest('.session-chat-tabs-bar')?.querySelector('.chat-composite-bar-meta-row') !== null,
 		}, {
 			tabs: [
-				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: false, ariaLabel: 'Main Chat, State: Completed' },
+				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: true, ariaLabel: 'Main Chat, State: Completed' },
 				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: true, ariaLabel: 'Secondary Chat, State: Completed' },
 			],
 			hasMetadataRow: false,
@@ -299,8 +302,8 @@ suite('Sessions - ChatCompositeBar', () => {
 		});
 	});
 
-	test('middle-click does not close the main chat and other auxiliary clicks are ignored', () => {
-		const { store, commandService, bar, tabs } = createHarness(disposables);
+	test('middle-click closes the main chat too, and other auxiliary clicks are ignored', () => {
+		const { store, commandService, bar, session, tabs } = createHarness(disposables);
 		let bubbled = 0;
 		store.add(addDisposableListener(bar.element, EventType.AUXCLICK, () => bubbled++));
 		const mainMiddleClick = new MouseEvent(EventType.AUXCLICK, { bubbles: true, button: 1, cancelable: true });
@@ -315,11 +318,25 @@ suite('Sessions - ChatCompositeBar', () => {
 			secondaryDefaultPrevented: secondaryRightClick.defaultPrevented,
 			bubbled,
 		}, {
-			commandCalls: [],
+			commandCalls: [{
+				commandId: CLOSE_CHAT_COMMAND_ID,
+				args: [{ session, chat: session.visibleChatTabs.get()[0] }],
+			}],
 			mainDefaultPrevented: true,
 			secondaryDefaultPrevented: false,
 			bubbled: 1,
 		});
+	});
+
+	test('no tab renders a close button while the session is down to its last tab', () => {
+		const { bar, canCloseChats } = createHarness(disposables);
+
+		canCloseChats.set(false, undefined);
+
+		const tabs = Array.from(bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab'));
+		assert.deepStrictEqual(
+			tabs.map(tab => tab.querySelector(':scope > .chat-composite-bar-tab-actions') !== null),
+			[false, false]);
 	});
 
 	test('prevents native middle-button behavior on the scrollable tab container', () => {

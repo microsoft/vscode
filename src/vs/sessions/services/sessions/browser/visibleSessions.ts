@@ -4,11 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, ISettableObservable, ITransaction, autorun, derived, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IObservable, ISettableObservable, ITransaction, IReader, autorun, derived, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
+
+/**
+ * Whether a chat would appear as a tab in the strip given the closed and
+ * shown-subagent sets: internal worker chats are never surfaced, closed chats
+ * are user-dismissed, and subagent (tool-origin) chats show only once opened.
+ */
+function isVisibleTab(chat: IChat, closed: ReadonlySet<string>, shownSubagents: ReadonlySet<string>, reader: IReader | undefined): boolean {
+	const uri = chat.resource.toString();
+	return chat.interactivity.read(reader) !== ChatInteractivity.Hidden &&
+		!closed.has(uri) &&
+		(chat.origin?.kind !== ChatOriginKind.Tool || shownSubagents.has(uri));
+}
 
 /**
  * Wraps an {@link ISession} with an active chat observable to form an
@@ -51,6 +63,15 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	private readonly _shownSubagentUris: ISettableObservable<ReadonlySet<string>>;
 	/** Append-only list tracking close order; last element is the most recently closed. */
 	private readonly _closedChatOrder: IChat[] = [];
+	/**
+	 * {@link _closedChatUris} resolved for display: the active chat is never
+	 * hidden, and the main chat is forced back open when the closed set would
+	 * otherwise hide every chat, so a session always keeps at least one visible
+	 * tab. {@link closeChat} already refuses to close the last visible tab; this
+	 * covers the paths that bypass it (restored persisted state, or the remaining
+	 * chats being deleted from the session).
+	 */
+	private readonly _effectiveClosedChatUris: IObservable<ReadonlySet<string>>;
 	readonly openChats: IObservable<readonly IChat[]>;
 	readonly closedChats: IObservable<readonly IChat[]>;
 	readonly visibleChatTabs: IObservable<readonly IChat[]>;
@@ -68,16 +89,13 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		this._activeChatModelId = derived(this, reader => this._activeChat.read(reader).modelId.read(reader));
 		this._activeChatMode = derived(this, reader => this._activeChat.read(reader).mode.read(reader));
 
-		// Seed the closed set from persisted state, but never hide the chat that
-		// is being restored as active, nor the main chat (which can never be
-		// closed and must always remain in the tab strip).
-		const seed = new Set(initialClosedChatUris);
-		seed.delete(_session.mainChat.get().resource.toString());
-		const activeUri = initialChat?.resource.toString();
-		if (activeUri) {
-			seed.delete(activeUri);
-		}
-		this._closedChatUris = observableValue<ReadonlySet<string>>('closedChatUris', seed);
+		// Seed the closed set from persisted state verbatim. The chat being
+		// restored as active is kept visible dynamically by
+		// `_effectiveClosedChatUris` rather than by dropping it here, because
+		// `initialChat` may only be a provisional fallback (the loaded main chat)
+		// while the persisted active peer chat is still loading — dropping it
+		// would permanently lose that peer's persisted closed state.
+		this._closedChatUris = observableValue<ReadonlySet<string>>('closedChatUris', new Set(initialClosedChatUris));
 
 		// Subagents are hidden by default; if the restored active chat is one,
 		// surface its tab so the session opens where the user left off.
@@ -90,8 +108,28 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		this._isCreated = _session.status.map(status => status !== SessionStatus.Untitled);
 		this.isCreated = this._isCreated;
 
-		this.openChats = derived(this, reader => {
+		this._effectiveClosedChatUris = derived(this, reader => {
 			const closed = this._closedChatUris.read(reader);
+			if (closed.size === 0) {
+				return closed;
+			}
+			// The active chat is the one the group is displaying, so it is never
+			// hidden. Closing the active chat moves the selection first (see
+			// `closeChat`), so this cannot mask a chat the user just closed.
+			const next = new Set(closed);
+			next.delete(this._activeChat.read(reader).resource.toString());
+			const shownSubagents = this._shownSubagentUris.read(reader);
+			if (this._session.chats.read(reader).some(c => isVisibleTab(c, next, shownSubagents, reader))) {
+				return next;
+			}
+			// Nothing would be left: fall back to the main chat so the session
+			// always has a tab.
+			next.delete(this._session.mainChat.read(reader).resource.toString());
+			return next;
+		});
+
+		this.openChats = derived(this, reader => {
+			const closed = this._effectiveClosedChatUris.read(reader);
 			const chats = this._session.chats.read(reader);
 			// Hidden chats are internal workers that must never be surfaced in the
 			// conversation tab strip; closed chats are user-dismissed.
@@ -100,7 +138,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 				!closed.has(c.resource.toString()));
 		});
 		this.closedChats = derived(this, reader => {
-			const closed = this._closedChatUris.read(reader);
+			const closed = this._effectiveClosedChatUris.read(reader);
 			if (closed.size === 0) {
 				return [];
 			}
@@ -116,13 +154,18 @@ export class VisibleSession extends Disposable implements IActiveSession {
 				c.origin?.kind !== ChatOriginKind.Tool ||
 				shownSubagents.has(c.resource.toString()));
 		});
-		// Shown only when there is more than one chat actually showing as a tab.
-		// A single visible tab (even if other chats are closed, or its title
-		// diverged from the session title, or subagents exist) always hides the
-		// strip; side chats remain reachable from the Side Chats menu in the
-		// session header, and subagents from their chat-transcript pills.
+		// Shown when more than one chat is actually showing as a tab, or when the
+		// single visible tab is not the main chat. The session header that
+		// replaces the strip shows the *session* title, so a lone peer, side or
+		// subagent chat would otherwise be unidentified on screen — the user sees
+		// the session's name above a different chat's transcript. Closed chats and
+		// unopened subagents never force the strip on their own.
 		this.shouldShowChatTabs = derived(this, reader => {
-			return this.visibleChatTabs.read(reader).length > 1;
+			const tabs = this.visibleChatTabs.read(reader);
+			if (tabs.length !== 1) {
+				return tabs.length > 1;
+			}
+			return tabs[0].resource.toString() !== this._session.mainChat.read(reader).resource.toString();
 		});
 	}
 
@@ -132,8 +175,13 @@ export class VisibleSession extends Disposable implements IActiveSession {
 
 	closeChat(chat: IChat): void {
 		const chatUri = chat.resource.toString();
-		// The main chat represents the session itself and is never closed.
-		if (chatUri === this._session.mainChat.get().resource.toString()) {
+		// A session always keeps at least one visible tab, so the last one cannot
+		// be closed regardless of which chat it is. The main chat is otherwise
+		// closeable like any other: closing it only hides it (it stays reopenable
+		// and is never deleted), because the session owns the conversation, not
+		// the tab.
+		const visible = this.visibleChatTabs.get();
+		if (visible.length <= 1 && visible.some(c => c.resource.toString() === chatUri)) {
 			return;
 		}
 		// Closing a subagent (tool-origin) tab just hides it again; it stays
@@ -155,11 +203,24 @@ export class VisibleSession extends Disposable implements IActiveSession {
 			return;
 		}
 		const closed = this._closedChatUris.get();
-		if (closed.has(chatUri)) {
+		// A chat can already be in the closed set yet still be on screen, because
+		// `_effectiveClosedChatUris` never hides the active chat. Closing it then
+		// means moving the selection away so it actually leaves the tab strip —
+		// bailing out here would make its close button do nothing.
+		const alreadyClosed = closed.has(chatUri);
+		if (alreadyClosed && !visible.some(c => c.resource.toString() === chatUri)) {
 			return;
 		}
-		const next = new Set(closed);
-		next.add(chatUri);
+		const next = alreadyClosed ? closed : new Set(closed).add(chatUri);
+		// This is the most recent close gesture regardless of how the chat got
+		// here: a re-closed chat that the active-chat exclusion had surfaced still
+		// holds a stale order entry, and one restored from persisted state holds
+		// none at all (seeds never populate the order). Drop any existing entry
+		// and append so `lastClosedChat` reflects recency without duplicates.
+		const staleOrderIndex = this._closedChatOrder.findLastIndex(c => c.resource.toString() === chatUri);
+		if (staleOrderIndex !== -1) {
+			this._closedChatOrder.splice(staleOrderIndex, 1);
+		}
 		this._closedChatOrder.push(chat);
 		transaction(tx => {
 			this._closedChatUris.set(next, tx);
@@ -201,17 +262,16 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	 * subagent sets, or the main chat.
 	 */
 	private _defaultActiveChat(closed: ReadonlySet<string>, shownSubagents: ReadonlySet<string>): IChat {
-		const candidates = this._session.chats.get().filter(c =>
-			c.interactivity.get() !== ChatInteractivity.Hidden &&
-			!closed.has(c.resource.toString()) &&
-			(c.origin?.kind !== ChatOriginKind.Tool || shownSubagents.has(c.resource.toString())));
+		const candidates = this._session.chats.get().filter(c => isVisibleTab(c, closed, shownSubagents, undefined));
 		return candidates[candidates.length - 1] ?? this._session.mainChat.get();
 	}
 
 	get lastClosedChat(): IChat | undefined {
-		// Filter out stale entries whose chat has since been deleted from the session.
+		// Filter out stale entries whose chat has since been deleted from the
+		// session, and any that the visibility floor has already surfaced again —
+		// reopening a chat that is on screen would be a no-op.
 		const currentChats = this._session.chats.get();
-		const closed = this._closedChatUris.get();
+		const closed = this._effectiveClosedChatUris.get();
 		for (let i = this._closedChatOrder.length - 1; i >= 0; i--) {
 			const chat = this._closedChatOrder[i];
 			const uri = chat.resource.toString();
