@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -157,6 +158,66 @@ suite('AgentHostMcpConnectorsService', () => {
 		assert.deepStrictEqual(validators, [undefined, undefined]);
 	});
 
+	test('updates and clears cached metadata from 304 responses', async () => {
+		const validators: Array<string | undefined> = [];
+		const responses = [
+			new Response(JSON.stringify(connectedPluginsResponse()), { status: 200, headers: { etag: 'W/"catalog-1"' } }),
+			new Response(null, { status: 304, headers: { etag: 'W/"catalog-2"' } }),
+			new Response(null, { status: 304, headers: { 'cache-control': 'no-store' } }),
+			new Response(JSON.stringify(connectedPluginsResponse()), { status: 200 }),
+		];
+		const authenticationService = disposables.add(new TestAuthenticationService('token'));
+		const service = disposables.add(new AgentHostMcpConnectorsService(
+			async (_input, init) => {
+				validators.push((init?.headers as Record<string, string>)['If-None-Match']);
+				return responses.shift()!;
+			},
+			'https://connectors.example.test/api/v1',
+			authenticationService,
+			createTestGitHubEndpointService(),
+			new NullLogService(),
+		));
+
+		await service.getConnectors();
+		await service.refresh();
+		await service.refresh();
+		await service.refresh();
+
+		assert.deepStrictEqual(validators, [undefined, 'W/"catalog-1"', 'W/"catalog-2"', undefined]);
+	});
+
+	test('returns cached connectors while stale data revalidates in the background', async () => {
+		let now = 0;
+		let requestCount = 0;
+		const backgroundResponse = new DeferredPromise<Response>();
+		const authenticationService = disposables.add(new TestAuthenticationService('token'));
+		const service = disposables.add(new AgentHostMcpConnectorsService(
+			async () => {
+				requestCount++;
+				return requestCount === 1
+					? new Response(JSON.stringify(connectedPluginsResponse()), { status: 200, headers: { etag: 'W/"catalog-1"' } })
+					: backgroundResponse.p;
+			},
+			'https://connectors.example.test/api/v1',
+			authenticationService,
+			createTestGitHubEndpointService(),
+			new NullLogService(),
+			() => now,
+			100,
+		));
+
+		const first = await service.getConnectors();
+		const fresh = await service.getConnectors();
+		now = 100;
+		const stale = await service.getConnectors();
+
+		assert.deepStrictEqual({ first, fresh, stale, requestCount }, { first, fresh: first, stale: first, requestCount: 2 });
+
+		backgroundResponse.complete(new Response(JSON.stringify(connectedPluginsResponse('refreshed')), { status: 200 }));
+		await service.refresh();
+		assert.strictEqual(service.getCachedConnectors()[0].configuration.url, 'https://api.github.com/connectors/refreshed/mcp');
+	});
+
 	test('handles repeated 304 responses without a cached representation', async () => {
 		let requestCount = 0;
 		const logService = new RecordingLogService();
@@ -237,6 +298,7 @@ suite('AgentHostMcpConnectorsService', () => {
 					mcpServers: {
 						mcpServers: {
 							stdio: { type: 'stdio', url: 'https://example.test/mcp' },
+							plainHttp: { type: 'http', url: 'http://example.test/mcp' },
 							file: { type: 'http', url: 'file:///tmp/mcp' },
 						}
 					},

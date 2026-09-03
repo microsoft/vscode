@@ -13,6 +13,7 @@ import { IAgentHostAuthenticationService } from './agentHostAuthenticationServic
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 
 const MCP_CONNECTORS_REQUEST_TIMEOUT_MS = 10_000;
+const MCP_CONNECTORS_REVALIDATION_INTERVAL_MS = 60_000;
 
 interface ICachedConnectorRepresentation {
 	readonly url: string;
@@ -38,7 +39,7 @@ export interface IAgentHostMcpConnectorsService {
 	/** Returns the current in-memory connector set without performing I/O. */
 	getCachedConnectors(): readonly IAgentHostMcpConnector[];
 
-	/** Returns the last fetched connector set, fetching it on first use. */
+	/** Fetches on first use; stale data is returned immediately while it revalidates in the background. */
 	getConnectors(): Promise<readonly IAgentHostMcpConnector[]>;
 
 	/** Revalidates the connected-plugin catalog with the service. */
@@ -61,13 +62,12 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 		: undefined;
 }
 
-function isHttpUrl(value: string): boolean {
+function isHttpsUrl(value: string): boolean {
 	if (!value || value.trim() !== value) {
 		return false;
 	}
 	try {
-		const protocol = new URL(value).protocol;
-		return protocol === 'http:' || protocol === 'https:';
+		return new URL(value).protocol === 'https:';
 	} catch {
 		return false;
 	}
@@ -100,7 +100,7 @@ function parseConnectedConnectors(body: string, token: string, onDuplicateServer
 		for (const [serverName, serverValue] of Object.entries(mcpServers ?? {})) {
 			const server = asRecord(serverValue);
 			const url = server?.['url'];
-			if (!serverName || server?.['type'] !== 'http' || typeof url !== 'string' || !isHttpUrl(url)) {
+			if (!serverName || server?.['type'] !== 'http' || typeof url !== 'string' || !isHttpsUrl(url)) {
 				continue;
 			}
 			const firstPluginName = serverOwners.get(serverName);
@@ -144,6 +144,7 @@ export class AgentHostMcpConnectorsService extends Disposable implements IAgentH
 	private _initialized = false;
 	private _generation = 0;
 	private _refreshPromise: Promise<readonly IAgentHostMcpConnector[]> | undefined;
+	private _lastRefreshTime = 0;
 	private _currentToken: string | undefined;
 	private _currentApiBaseUrl: string | undefined;
 
@@ -153,6 +154,8 @@ export class AgentHostMcpConnectorsService extends Disposable implements IAgentH
 		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@ILogService private readonly _logService: ILogService,
+		private readonly _now: () => number = Date.now,
+		private readonly _revalidationIntervalMs = MCP_CONNECTORS_REVALIDATION_INTERVAL_MS,
 	) {
 		super();
 		this._fetch = fetchFn ?? globalThis.fetch;
@@ -171,7 +174,13 @@ export class AgentHostMcpConnectorsService extends Disposable implements IAgentH
 
 	async getConnectors(): Promise<readonly IAgentHostMcpConnector[]> {
 		this._updateContext();
-		return this._initialized ? this._connectors : this.refresh();
+		if (!this._initialized) {
+			return this.refresh();
+		}
+		if (this._now() - this._lastRefreshTime >= this._revalidationIntervalMs) {
+			void this.refresh();
+		}
+		return this._connectors;
 	}
 
 	getCachedConnectors(): readonly IAgentHostMcpConnector[] {
@@ -192,6 +201,7 @@ export class AgentHostMcpConnectorsService extends Disposable implements IAgentH
 		const generation = this._generation;
 		const token = this._currentToken;
 		const url = `${this._currentApiBaseUrl}/plugins/connected`;
+		this._lastRefreshTime = this._now();
 		const promise = this._doRefresh(generation, url, token).finally(() => {
 			if (this._refreshPromise === promise) {
 				this._refreshPromise = undefined;
@@ -217,14 +227,17 @@ export class AgentHostMcpConnectorsService extends Disposable implements IAgentH
 					this._initialized = true;
 					return this._connectors;
 				}
+				this._cachedRepresentation = canStoreResponse(response)
+					? { ...cached, etag: response.headers.get('etag') ?? cached.etag }
+					: undefined;
 				this._setConnectors(this._parseConnectors(cached.body, token));
 				this._initialized = true;
 				return this._connectors;
 			}
 			if (!response.ok) {
 				this._logService.warn(`[AgentHostMcpConnectorsService] Connected plugins request failed: ${response.status} ${response.statusText}`);
+				this._initialized = true;
 				if (response.status === 401 || response.status === 403 || response.status === 404) {
-					this._initialized = true;
 					this._setConnectors([]);
 				}
 				return this._connectors;
@@ -243,6 +256,7 @@ export class AgentHostMcpConnectorsService extends Disposable implements IAgentH
 			return this._connectors;
 		} catch (error) {
 			if (generation === this._generation) {
+				this._initialized = true;
 				this._logService.warn(`[AgentHostMcpConnectorsService] Failed to refresh connected plugins: ${error instanceof Error ? error.message : String(error)}`);
 			}
 			return this._connectors;
@@ -269,8 +283,8 @@ export class AgentHostMcpConnectorsService extends Disposable implements IAgentH
 	private _updateContext(): void {
 		const resource = this._gitHubEndpointService.getCopilotResource();
 		const token = this._authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
-		const apiBaseUrl = this._gitHubEndpointService.getEnterpriseHost() === undefined
-			? this._configuredApiBaseUrl?.replace(/\/+$/, '')
+		const apiBaseUrl = this._gitHubEndpointService.getEnterpriseHost() === undefined && this._configuredApiBaseUrl && isHttpsUrl(this._configuredApiBaseUrl)
+			? this._configuredApiBaseUrl.replace(/\/+$/, '')
 			: undefined;
 		if (token === this._currentToken && apiBaseUrl === this._currentApiBaseUrl) {
 			return;
@@ -283,6 +297,7 @@ export class AgentHostMcpConnectorsService extends Disposable implements IAgentH
 	private _invalidate(): void {
 		this._generation++;
 		this._initialized = false;
+		this._lastRefreshTime = 0;
 		this._cachedRepresentation = undefined;
 		this._refreshPromise = undefined;
 		this._setConnectors([]);
