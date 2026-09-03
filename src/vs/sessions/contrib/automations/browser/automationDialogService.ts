@@ -216,6 +216,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						saveButton.enabled = false;
 						saveButton.label = savingButtonLabel;
 					}
+					cancelButton?.focus();
 					const cancellation = new CancellationTokenSource();
 					saveCancellation.value = cancellation;
 					let shouldClose = false;

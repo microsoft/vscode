@@ -1877,8 +1877,7 @@ suite('SessionsManagementService', () => {
 
 		assert.deepStrictEqual(providerOptions, {
 			metadata: undefined,
-			sessionTemplate,
-			automationConfiguration,
+			automationConfiguration: { sessionTemplate },
 		});
 	});
 
@@ -3055,10 +3054,10 @@ suite('SessionsManagementService', () => {
 			automationSession: undefined,
 			capturedConfiguration: { sessionTemplate },
 			createOptions: [
-				{ metadata: undefined, sessionTemplate },
-				{ metadata: undefined, sessionTemplate: undefined },
-				{ metadata: undefined, sessionTemplate },
-				{ metadata: undefined, sessionTemplate: undefined },
+				{ metadata: undefined, automationConfiguration: { sessionTemplate } },
+				{ metadata: undefined },
+				{ metadata: undefined, automationConfiguration: { sessionTemplate } },
+				{ metadata: undefined },
 			],
 			deleted: ['automation-workspace', 'automation-quick-chat', 'automation-replacement'],
 		});

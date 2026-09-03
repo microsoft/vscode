@@ -51,8 +51,6 @@ export interface ISendRequestOptions {
 export interface ISessionsProviderCreateSessionOptions {
 	/** Initial provider metadata to associate with the session. */
 	readonly metadata?: Record<string, unknown>;
-	/** Provider-owned values restored into the draft before its first configuration resolution. */
-	readonly sessionTemplate?: IAutomationSessionTemplate;
 	/** Complete Automation state for providers that also own compatibility projections. */
 	readonly automationConfiguration?: IAutomationSessionConfiguration;
 }

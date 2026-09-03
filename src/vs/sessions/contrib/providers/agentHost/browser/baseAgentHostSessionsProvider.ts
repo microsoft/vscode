@@ -3538,7 +3538,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			workspace,
 			false,
 			options?.metadata,
-			options?.automationConfiguration ?? (options?.sessionTemplate ? { sessionTemplate: options.sessionTemplate } : undefined),
+			options?.automationConfiguration,
 		);
 	}
 
@@ -3567,7 +3567,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			undefined,
 			true,
 			options?.metadata,
-			options?.automationConfiguration ?? (options?.sessionTemplate ? { sessionTemplate: options.sessionTemplate } : undefined),
+			options?.automationConfiguration,
 		);
 	}
 

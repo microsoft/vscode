@@ -4539,7 +4539,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const session = provider.createNewSession(
 			URI.parse('file:///home/user/project'),
 			provider.sessionTypes[0].id,
-			{ sessionTemplate },
+			{ automationConfiguration: { sessionTemplate } },
 		);
 		await provider.getAutomationSessionConfiguration(session.sessionId);
 		await provider.setSessionConfigValue(session.sessionId, 'clearedOption', false);
@@ -4631,7 +4631,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const session = provider.createNewSession(
 			URI.parse('file:///home/user/project'),
 			provider.sessionTypes[0].id,
-			{ sessionTemplate },
+			{ automationConfiguration: { sessionTemplate } },
 		);
 
 		const capturedWithoutEdit = await provider.getAutomationSessionConfiguration(session.sessionId);

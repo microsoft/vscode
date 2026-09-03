@@ -126,7 +126,7 @@ export function registerAutomationDialogKeyboardNavigation(
 			return false;
 		}
 		for (let current: HTMLElement | null = element; current; current = current.parentElement) {
-			if (current.hidden || current.getAttribute('aria-hidden') === 'true') {
+			if (current.hidden || current.hasAttribute('inert') || current.getAttribute('aria-hidden') === 'true') {
 				return false;
 			}
 			const style = targetWindow.getComputedStyle(current);
@@ -1446,19 +1446,21 @@ export function renderForm(
 			formContent.toggleAttribute('inert', saving);
 			formContent.setAttribute('aria-busy', String(saving));
 			form.classList.toggle('saving', saving);
-			saveStatus.textContent = saving ? localize('automation.form.saving', "Saving automation…") : '';
 			if (saving) {
 				DOM.show(saveStatus);
+				saveStatus.textContent = localize('automation.form.saving', "Saving automation…");
 			} else {
 				DOM.hide(saveStatus);
+				saveStatus.textContent = '';
 			}
 		},
 		showSessionConfigurationError: message => {
-			sessionConfigurationError.textContent = message ?? '';
 			if (message) {
 				DOM.show(sessionConfigurationError);
+				sessionConfigurationError.textContent = message;
 			} else {
 				DOM.hide(sessionConfigurationError);
+				sessionConfigurationError.textContent = '';
 			}
 		},
 		focusSessionConfigurationError: () => sessionConfigurationError.focus(),

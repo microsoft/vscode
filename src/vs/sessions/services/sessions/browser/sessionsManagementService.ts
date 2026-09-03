@@ -611,10 +611,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (sessionTemplate && provider.supportsAutomationSessionConfiguration !== true) {
 			throw new Error(`Sessions provider '${provider.id}' does not support Automation session templates.`);
 		}
+		const automationConfiguration = sessionTemplate
+			? { sessionTemplate }
+			: options?.automationConfiguration;
 		return {
 			metadata: options?.metadata,
-			sessionTemplate: options?.sessionTemplate,
-			...(options?.automationConfiguration ? { automationConfiguration: options.automationConfiguration } : {}),
+			...(automationConfiguration ? { automationConfiguration } : {}),
 		};
 	}
 

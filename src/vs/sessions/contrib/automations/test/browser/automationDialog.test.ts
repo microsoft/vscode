@@ -510,6 +510,7 @@ suite('Automation session draft synchronization', () => {
 		let errorCount = 0;
 		const service = upcastPartial<ISessionsManagementService>({
 			automationSession,
+			supportsAutomationSessionConfiguration: () => true,
 			createAutomationSession: (_folderUri, options) => {
 				if (createCount++ === 0) {
 					throw new Error('provider unavailable');
@@ -1206,10 +1207,13 @@ suite('Automation dialog keyboard navigation', () => {
 		const wrapper = container.appendChild(document.createElement('div'));
 		wrapper.tabIndex = 0;
 		const second = wrapper.appendChild(document.createElement('button'));
+		const inertContainer = container.appendChild(document.createElement('div'));
+		inertContainer.setAttribute('inert', '');
+		const inert = inertContainer.appendChild(document.createElement('button'));
 		const third = container.appendChild(document.createElement('button'));
 		const navigation = disposables.add(registerAutomationDialogKeyboardNavigation(
 			targetWindow,
-			() => [first, hidden, wrapper, second, third],
+			() => [first, hidden, wrapper, second, inert, third],
 			() => false,
 		));
 		let downstreamKeyDowns = 0;
