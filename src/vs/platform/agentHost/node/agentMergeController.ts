@@ -737,10 +737,7 @@ export class AgentMergeController extends Disposable {
 			this._setAnnouncedConfiguration(session, current, currentConfiguration);
 			return;
 		}
-		// The session's own overrides are what a per-session change writes, so
-		// anything else that moved the effective configuration came from the
-		// defaults. Comparing them here rather than at each call site also keeps
-		// changes that landed while the runtime was stopped correctly attributed.
+		// Unchanged session overrides mean the effective change came from defaults, including while the runtime was stopped.
 		const scope: AgentMergeConfigurationChangeScope = structuralEquals(announced.overrides, current.overrides) ? 'global' : 'session';
 		const notice = agentMergeConfigurationChangedNotice(announced.configuration, currentConfiguration, scope);
 		this._setAnnouncedConfiguration(session, current, currentConfiguration);
