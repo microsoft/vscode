@@ -11,6 +11,8 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IOpenerService = createDecorator<IOpenerService>('openerService');
 
+export const defaultExternalUriOpenerId = 'default';
+
 export type OpenInternalOptions = {
 
 	/**

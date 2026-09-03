@@ -16,7 +16,13 @@ import { URI } from '../../../base/common/uri.js';
 import { ICodeEditorService } from './codeEditorService.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { EditorOpenSource } from '../../../platform/editor/common/editor.js';
-import { extractSelection, IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, OpenOptions, ResolveExternalUriOptions } from '../../../platform/opener/common/opener.js';
+import { defaultExternalUriOpenerId, extractSelection, IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, OpenOptions, ResolveExternalUriOptions } from '../../../platform/opener/common/opener.js';
+
+interface IExternalUriOpenTarget {
+	readonly sourceUri: URI;
+	readonly href: string;
+	readonly validationTarget: URI | string;
+}
 
 class CommandOpener implements IOpener {
 
@@ -102,6 +108,12 @@ function shouldOpenExternal(target: URI | string, options: OpenOptions | undefin
 	return !!options?.openExternal || matchesSomeScheme(target, Schemas.mailto, Schemas.http, Schemas.https, Schemas.vsls);
 }
 
+function shouldUseContributedExternalOpeners(target: URI | string, options: OpenOptions | undefined): boolean {
+	return !!options?.allowContributedOpeners
+		&& options.allowContributedOpeners !== defaultExternalUriOpenerId
+		&& shouldOpenExternal(target, options);
+}
+
 export class OpenerService implements IOpenerService {
 
 	declare readonly _serviceBrand: undefined;
@@ -183,9 +195,16 @@ export class OpenerService implements IOpenerService {
 			return false;
 		}
 
-		const deferValidation = !!options?.allowContributedOpeners && shouldOpenExternal(target, options);
-		if (!options?.skipValidation && !deferValidation) {
-			const validationTarget = this._resolvedUriTargets.get(targetURI) ?? target; // validate against the original URI that this URI resolves to, if one exists
+		let externalUriOpenTarget: IExternalUriOpenTarget | undefined;
+		if (shouldUseContributedExternalOpeners(target, options)) {
+			externalUriOpenTarget = await this._resolveExternalUriOpenTarget(target, options);
+			if (await this._openWithContributedExternalOpeners(externalUriOpenTarget, options)) {
+				return true;
+			}
+		}
+
+		if (!options?.skipValidation) {
+			const validationTarget = externalUriOpenTarget?.validationTarget ?? this._resolvedUriTargets.get(targetURI) ?? target;
 			if (!(await this._validate(validationTarget, options))) {
 				return false;
 			}
@@ -193,8 +212,8 @@ export class OpenerService implements IOpenerService {
 
 		// check with contributed openers
 		for (const opener of this._openers) {
-			if (deferValidation && opener === this._externalResourceOpener) {
-				return this._doOpenExternal(target, options, true);
+			if (externalUriOpenTarget && opener === this._externalResourceOpener) {
+				return this._openDefaultExternal(externalUriOpenTarget);
 			}
 			const handled = await opener.open(target, options);
 			if (handled) {
@@ -223,8 +242,7 @@ export class OpenerService implements IOpenerService {
 		throw new Error('Could not resolve external URI: ' + resource.toString());
 	}
 
-	private async _doOpenExternal(resource: URI | string, options: OpenOptions | undefined, validateResolved = false): Promise<boolean> {
-
+	private async _resolveExternalUriOpenTarget(resource: URI | string, options: OpenOptions | undefined): Promise<IExternalUriOpenTarget> {
 		//todo@jrieken IExternalUriResolver should support `uri: URI | string`
 		const uri = typeof resource === 'string' ? URI.parse(resource) : resource;
 		let externalUri: URI;
@@ -245,27 +263,35 @@ export class OpenerService implements IOpenerService {
 			href = encodeURI(externalUri.toString(true));
 		}
 
-		if (options?.allowContributedOpeners) {
-			const preferredOpenerId = typeof options?.allowContributedOpeners === 'string' ? options?.allowContributedOpeners : undefined;
-			for (const opener of this._externalOpeners) {
-				const didOpen = await opener.openExternal(href, {
-					sourceUri: uri,
-					preferredOpenerId,
-				}, CancellationToken.None);
-				if (didOpen) {
-					return true;
-				}
+		return {
+			sourceUri: uri,
+			href,
+			validationTarget: preserveOriginalString ? resource : externalUri,
+		};
+	}
+
+	private async _openWithContributedExternalOpeners(target: IExternalUriOpenTarget, options: OpenOptions | undefined): Promise<boolean> {
+		const preferredOpenerId = typeof options?.allowContributedOpeners === 'string' ? options.allowContributedOpeners : undefined;
+		for (const opener of this._externalOpeners) {
+			const didOpen = await opener.openExternal(target.href, {
+				sourceUri: target.sourceUri,
+				preferredOpenerId,
+			}, CancellationToken.None);
+			if (didOpen) {
+				return true;
 			}
 		}
 
-		if (validateResolved && !options?.skipValidation) {
-			const validationTarget = preserveOriginalString ? resource : externalUri;
-			if (!(await this._validate(validationTarget, options))) {
-				return false;
-			}
-		}
+		return false;
+	}
 
-		return this._defaultExternalOpener.openExternal(href, { sourceUri: uri }, CancellationToken.None);
+	private _openDefaultExternal(target: IExternalUriOpenTarget): Promise<boolean> {
+		return this._defaultExternalOpener.openExternal(target.href, { sourceUri: target.sourceUri }, CancellationToken.None);
+	}
+
+	private async _doOpenExternal(resource: URI | string, options: OpenOptions | undefined): Promise<boolean> {
+		const target = await this._resolveExternalUriOpenTarget(resource, options);
+		return this._openDefaultExternal(target);
 	}
 
 	private async _validate(resource: URI | string, options: OpenOptions | undefined): Promise<boolean> {
