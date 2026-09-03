@@ -28,7 +28,7 @@ import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessi
 import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
-import { IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
+import { IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { IPreferredSessionType } from './sessionTypePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
@@ -171,11 +171,7 @@ export class NewChatWidget extends Disposable {
 				}
 				return undefined;
 			},
-			getNoWorkspaceOption: () => !isWeb && this._useConsolidatedRemoteWorkspaces.get() ? {
-				description: localize('newSessionWorkspacePicker.noWorkspaceDescription', "Start without a backing workspace"),
-				isSelected: this._isQuickChatComposer.get(),
-				select: () => this._selectNoWorkspace(),
-			} : undefined,
+			getNoWorkspaceOption: () => this._getNoWorkspaceOption(),
 		}));
 
 		const feedbackChanged = observableSignalFromEvent(this, this.agentFeedbackService.onDidChangeFeedback);
@@ -708,6 +704,20 @@ export class NewChatWidget extends Disposable {
 		this._pendingPreferredUpgrade.clear();
 		this._newSessionCreation.clear();
 		this.sessionsService.openQuickChat();
+	}
+
+	private _getNoWorkspaceOption(): IWorkspacePickerNoWorkspaceOption | undefined {
+		const isQuickChat = this._isQuickChatComposer.get();
+		if (isWeb
+			|| !this._useConsolidatedRemoteWorkspaces.get()
+			|| (!isQuickChat && !this.sessionsManagementService.isQuickChatTargetAvailable())) {
+			return undefined;
+		}
+		return {
+			description: localize('newSessionWorkspacePicker.noWorkspaceDescription', "Start without a backing workspace"),
+			isSelected: isQuickChat,
+			select: () => this._selectNoWorkspace(),
+		};
 	}
 
 	private _renderWorkspacePicker(container: HTMLElement): IDisposable {

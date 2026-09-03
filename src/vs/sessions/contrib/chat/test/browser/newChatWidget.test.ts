@@ -21,6 +21,7 @@ import { NewChatWidget } from '../../browser/newChatWidget.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
+import { IWorkspacePickerNoWorkspaceOption } from '../../browser/sessionWorkspacePicker.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -138,6 +139,13 @@ interface ISelectNoWorkspaceHarness {
 	readonly sessionsService: { openQuickChat(): void };
 }
 
+interface INoWorkspaceOptionHarness {
+	readonly _useConsolidatedRemoteWorkspaces: IObservable<boolean>;
+	readonly _isQuickChatComposer: IObservable<boolean>;
+	readonly sessionsManagementService: { isQuickChatTargetAvailable(): boolean };
+	_selectNoWorkspace(): void;
+}
+
 interface IWorkspaceRootsHarness {
 	readonly _isQuickChatComposer: IObservable<boolean>;
 	readonly _workspacePicker: { readonly selectedFolderUri: URI | undefined };
@@ -146,6 +154,7 @@ interface IWorkspaceRootsHarness {
 const renderWorkspacePicker = Reflect.get(NewChatWidget.prototype, '_renderWorkspacePicker') as (this: IRenderWorkspacePickerHarness, container: HTMLElement) => IDisposable;
 const renderSessionTypePicker = Reflect.get(NewChatWidget.prototype, '_renderSessionTypePicker') as (this: IRenderSessionTypePickerHarness, container: HTMLElement, isQuickChat: boolean) => void;
 const selectNoWorkspace = Reflect.get(NewChatWidget.prototype, '_selectNoWorkspace') as (this: ISelectNoWorkspaceHarness) => void;
+const getNoWorkspaceOption = Reflect.get(NewChatWidget.prototype, '_getNoWorkspaceOption') as (this: INoWorkspaceOptionHarness) => IWorkspacePickerNoWorkspaceOption | undefined;
 const getWorkspaceRoots = Reflect.get(NewChatWidget.prototype, '_getWorkspaceRoots') as (this: IWorkspaceRootsHarness, session: ISession) => readonly URI[];
 
 function createHarness(
@@ -299,6 +308,30 @@ suite('NewChatWidget', () => {
 			sessionCreationDisposed: true,
 			quickChatOpenCount: 1,
 		});
+	});
+
+	test('offers No workspace only when enabled and quick chats are available', () => {
+		const cases = [
+			{ enabled: false, available: true, isQuickChat: false },
+			{ enabled: true, available: false, isQuickChat: false },
+			{ enabled: true, available: true, isQuickChat: false },
+			{ enabled: true, available: false, isQuickChat: true },
+		];
+
+		assert.deepStrictEqual(cases.map(testCase => {
+			const option = getNoWorkspaceOption.call({
+				_useConsolidatedRemoteWorkspaces: constObservable(testCase.enabled),
+				_isQuickChatComposer: constObservable(testCase.isQuickChat),
+				sessionsManagementService: { isQuickChatTargetAvailable: () => testCase.available },
+				_selectNoWorkspace: () => { },
+			});
+			return option && { description: option.description, isSelected: option.isSelected };
+		}), [
+			undefined,
+			undefined,
+			{ description: 'Start without a backing workspace', isSelected: false },
+			{ description: 'Start without a backing workspace', isSelected: true },
+		]);
 	});
 
 	test('workspace-less chats do not inherit the previous picker workspace', () => {
