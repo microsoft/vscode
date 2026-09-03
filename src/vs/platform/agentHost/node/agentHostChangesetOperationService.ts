@@ -255,13 +255,13 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		handler: IChangesetOperationHandler,
 		params: InvokeChangesetOperationParams,
 	): Promise<InvokeChangesetOperationResult> {
-		const operationKey = `${params.channel}\x00${params.operationId}\x00${stableStringify({ target: params.target ?? null, _meta: params._meta ?? null })}`;
+		const operationLane = `${params.channel}\x00${params.operationId}`;
+		const operationKey = `${operationLane}\x00${stableStringify({ target: params.target ?? null, _meta: params._meta ?? null })}`;
 		const inFlightOperationResult = this._inFlightOperations.get(operationKey);
-		if (inFlightOperationResult) {
+		if (inFlightOperationResult && this._operationLanes.get(operationLane) === inFlightOperationResult) {
 			return inFlightOperationResult;
 		}
 
-		const operationLane = `${params.channel}\x00${params.operationId}`;
 		const runningOperation = this._operationLanes.get(operationLane);
 		const operationPromise = runningOperation
 			? runningOperation.then(
