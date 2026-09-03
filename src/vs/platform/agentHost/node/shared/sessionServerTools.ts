@@ -380,6 +380,9 @@ function parseWorkspaceUri(workspace: string): URI | undefined {
 
 function resolveWorkspace(workspace: string, sessions: readonly IAgentSessionMetadata[]): URI {
 	const parsed = parseWorkspaceUri(workspace);
+	if (parsed?.scheme === 'http' || parsed?.scheme === 'https') {
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: repository URLs are not supported for workspace; use a unique known project name, project/workspace URI, absolute folder path, or working directory from an existing session.`);
+	}
 	for (const session of sessions) {
 		for (const candidate of [session.project?.uri, ...(session.workingDirectories ?? [])]) {
 			if (candidate && parsed && isEqual(candidate, parsed)) {

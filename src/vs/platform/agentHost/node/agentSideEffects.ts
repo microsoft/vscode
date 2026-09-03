@@ -1330,7 +1330,7 @@ export class AgentSideEffects extends Disposable {
 		this._turnTracker.markActivity(sessionKey, turnId, readyAction.type);
 	}
 
-	handleAction(channel: ProtocolURI, action: StateAction, clientId?: string, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown, resumedTurn?: Turn): void {
+	handleAction(channel: ProtocolURI, action: StateAction, clientId?: string, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown, resumedTurn?: Turn): Promise<ErrorInfo | undefined> | void {
 		let clientContext = typeof clientContextOrType === 'string'
 			? createUnknownAgentHostClientTelemetryContext(clientContextOrType)
 			: clientContextOrType;
@@ -1359,7 +1359,7 @@ export class AgentSideEffects extends Disposable {
 				if (!started) {
 					break;
 				}
-				void this._sendTurnMessage({
+				return this._sendTurnMessage({
 					agent: started.agent,
 					sessionChannel,
 					turnChannel: channel,
@@ -1704,7 +1704,7 @@ export class AgentSideEffects extends Disposable {
 	 * dispatches {@link ActionType.ChatError} on the turn channel, and marks the
 	 * turn errored.
 	 */
-	private async _sendTurnMessage(options: ISendTurnMessageOptions): Promise<void> {
+	private async _sendTurnMessage(options: ISendTurnMessageOptions): Promise<ErrorInfo | undefined> {
 		const { agent, sessionChannel, turnChannel, chat, message, turnId, senderClientId, clientContext, turnStopWatch } = options;
 
 		const chatUri = URI.parse(chat);
@@ -1777,6 +1777,7 @@ export class AgentSideEffects extends Disposable {
 				});
 			}
 			this._failSessionCreationIfStillCreating(sessionChannel, error);
+			return error;
 		}
 	}
 

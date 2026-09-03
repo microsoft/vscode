@@ -1025,6 +1025,30 @@ suite('SessionServerTools', () => {
 		store.dispose();
 	});
 
+	test('create_session rejects repository URLs as workspaces', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		let created = false;
+		const group = createSessionServerToolGroup(createAccessor({
+			createSession: async () => {
+				created = true;
+				return URI.parse('copilot:/new');
+			},
+		}));
+
+		await assert.rejects(
+			group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, {
+				relationship: 'independent',
+				workspace: 'https://github.com/github/copilot-agent-runtime',
+				prompt: 'go',
+				title: 'Spawned Task',
+			}),
+			/repository URLs are not supported/,
+		);
+		assert.strictEqual(created, false);
+		store.dispose();
+	});
+
 	test('create_session enforces a process-wide breadth backstop', async () => {
 		const store = new DisposableStore();
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));

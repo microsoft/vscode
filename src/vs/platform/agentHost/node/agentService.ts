@@ -1278,7 +1278,10 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _startSessionMessage(chat: URI, message: Message): Promise<void> {
 		const action = { type: ActionType.ChatTurnStarted, turnId: generateUuid(), startedAt: new Date().toISOString(), message } as const;
 		this._stateManager.dispatchServerAction(chat.toString(), action);
-		this._sideEffects.handleAction(chat.toString(), action);
+		const error = await this._sideEffects.handleAction(chat.toString(), action);
+		if (error) {
+			throw new Error(error.message);
+		}
 	}
 
 	private async _cancelAutomationSession(session: URI): Promise<boolean> {
