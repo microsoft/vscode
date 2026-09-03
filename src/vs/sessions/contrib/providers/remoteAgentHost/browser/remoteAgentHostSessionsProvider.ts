@@ -671,7 +671,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 				}
 			}
 		}
-		this.updateResourceLabelHomeFormatters(homes, this._labelService, this._onDidChangeResourceLabelHomes);
+		this.updateResourceLabelHomeFormatters(homes, this._labelService);
 	}
 
 	/**

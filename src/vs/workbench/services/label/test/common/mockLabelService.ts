@@ -53,12 +53,18 @@ export class MockLabelService implements ILabelService {
 		this.formatters.push(formatter);
 		const scheme = isTemplateFormatter(formatter) ? formatter.home.scheme : formatter.scheme;
 		this._onDidChangeFormatters.fire({ scheme });
+		const changeListener = isTemplateFormatter(formatter) ? formatter.onDidChangeFormatting(() => this._onDidChangeFormatters.fire({ scheme })) : undefined;
 		return {
 			dispose: () => {
+				changeListener?.dispose();
 				this.formatters = this.formatters.filter(candidate => candidate !== formatter);
 				this._onDidChangeFormatters.fire({ scheme });
 			}
 		};
+	}
+
+	get formatterCount(): number {
+		return this.formatters.length;
 	}
 
 	getUriHome(resource: URI): URI | undefined {
@@ -78,40 +84,31 @@ export class MockLabelService implements ILabelService {
 					(formatter.home.authority && formatter.home.authority.toLowerCase() !== resource.authority.toLowerCase())) {
 					continue;
 				}
-				const templateSegments = formatter.home.path.split('/');
-				const resourceSegments = resource.path.split('/');
-				if (!templateSegments.some(segment => homeTemplateParameterRegex.test(segment))) {
-					if (!isEqualOrParent(resource, resource.with({ path: formatter.home.path }))) {
+				const homePath = formatter.home.path.length > 1 ? formatter.home.path.replace(/\/+$/, '') : formatter.home.path;
+				const lastSeparator = homePath.lastIndexOf('/');
+				const parameter = homeTemplateParameterRegex.exec(homePath.slice(lastSeparator + 1));
+				const pathSegmentParameter = parameter?.groups?.name;
+				if (!pathSegmentParameter) {
+					if (!isEqualOrParent(resource, resource.with({ path: homePath }))) {
 						continue;
 					}
-					const home = resource.with({ path: formatter.home.path, query: null, fragment: null });
+					const home = resource.with({ path: homePath, query: null, fragment: null });
 					const formatting = formatter.formatting({ resource, home, parameters: new Map() });
 					if (formatting) {
 						candidate = { home, formatting };
 					}
 				} else {
-					if (resourceSegments.length < templateSegments.length) {
+					const prefix = homePath.slice(0, lastSeparator + 1);
+					if (!resource.path.startsWith(prefix)) {
+						continue;
+					}
+					const pathSegment = resource.path.slice(prefix.length).split('/')[0];
+					if (!pathSegment || pathSegment === '.' || pathSegment === '..') {
 						continue;
 					}
 					const parameters = new Map<string, string>();
-					let matches = true;
-					for (let index = 0; index < templateSegments.length; index++) {
-						const parameter = homeTemplateParameterRegex.exec(templateSegments[index]);
-						if (parameter?.groups?.name) {
-							if (resourceSegments[index] === '.' || resourceSegments[index] === '..') {
-								matches = false;
-								break;
-							}
-							parameters.set(parameter.groups.name, resourceSegments[index]);
-						} else if (templateSegments[index] !== resourceSegments[index]) {
-							matches = false;
-							break;
-						}
-					}
-					if (!matches) {
-						continue;
-					}
-					const home = formatter.home.with({ path: resourceSegments.slice(0, templateSegments.length).join('/'), query: null, fragment: null });
+					parameters.set(pathSegmentParameter, pathSegment);
+					const home = formatter.home.with({ path: `${prefix}${pathSegment}`, query: null, fragment: null });
 					const formatting = formatter.formatting({ resource, home, parameters });
 					if (formatting) {
 						candidate = { home, formatting };

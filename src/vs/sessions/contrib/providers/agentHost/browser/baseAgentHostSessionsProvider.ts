@@ -10,6 +10,7 @@ import { arrayEquals, structuralEquals } from '../../../../../base/common/equals
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { mapsStrictEqualIgnoreOrder } from '../../../../../base/common/map.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { basename, dirname, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
@@ -2605,6 +2606,10 @@ class NewSession extends Disposable {
  * URI-scheme mapping for session metadata, the agent-provider lookup, and
  * the browse UI.
  */
+function escapeResourceLabelPathSeparators(label: string): string {
+	return label.replaceAll('/', '\u2215').replaceAll('\\', '\u29F5');
+}
+
 export abstract class BaseAgentHostSessionsProvider extends Disposable implements IAgentHostSessionsProvider {
 
 	abstract readonly id: string;
@@ -3287,8 +3292,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	private readonly _resourceLabelHomeRegistrations = this._register(new DisposableMap<string>());
 	private readonly _resourceLabelHomeLabels = new Map<string, Map<string, string>>();
+	private readonly _resourceLabelHomeFormattingEvents = this._register(new DisposableMap<string, Emitter<void>>());
 
-	protected updateResourceLabelHomeFormatters(homes: readonly { readonly uri: URI; readonly label: string }[], labelService: ILabelService, onDidChange: Event<void>): void {
+	protected updateResourceLabelHomeFormatters(homes: readonly { readonly uri: URI; readonly label: string }[], labelService: ILabelService): void {
 		const groups = new Map<string, { readonly parent: URI; readonly labels: Map<string, string> }>();
 		for (const home of homes) {
 			const parent = dirname(home.uri);
@@ -3301,10 +3307,20 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			group.labels.set(basename(home.uri), home.label);
 		}
 
-		this._resourceLabelHomeLabels.clear();
 		const registrationKeys = new Set<string>();
+		const removedGroupKeys = new Set(this._resourceLabelHomeLabels.keys());
+		const changedFormattingEvents: Emitter<void>[] = [];
 		for (const [key, group] of groups) {
+			removedGroupKeys.delete(key);
+			const previousLabels = this._resourceLabelHomeLabels.get(key);
 			this._resourceLabelHomeLabels.set(key, group.labels);
+			let formattingEvent = this._resourceLabelHomeFormattingEvents.get(key);
+			if (!formattingEvent) {
+				formattingEvent = new Emitter<void>();
+				this._resourceLabelHomeFormattingEvents.set(key, formattingEvent);
+			} else if (previousLabels && !mapsStrictEqualIgnoreOrder(previousLabels, group.labels)) {
+				changedFormattingEvents.push(formattingEvent);
+			}
 			const separator = labelService.getSeparator(group.parent.scheme, group.parent.authority);
 			const templateKey = `template:${key}`;
 			if (group.labels.size > (group.labels.has('') ? 1 : 0)) {
@@ -3312,7 +3328,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				if (!this._resourceLabelHomeRegistrations.has(templateKey)) {
 					this._resourceLabelHomeRegistrations.set(templateKey, labelService.registerFormatter({
 						home: joinPath(group.parent, '${sessionId}'),
-						onDidChangeFormatting: onDidChange,
+						onDidChangeFormatting: formattingEvent.event,
 						formatting: context => {
 							const label = this._resourceLabelHomeLabels.get(key)?.get(context.parameters.get('sessionId') ?? '');
 							return label === undefined ? undefined : { label, separator };
@@ -3326,7 +3342,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				if (!this._resourceLabelHomeRegistrations.has(rootKey)) {
 					this._resourceLabelHomeRegistrations.set(rootKey, labelService.registerFormatter({
 						home: group.parent,
-						onDidChangeFormatting: onDidChange,
+						onDidChangeFormatting: formattingEvent.event,
 						formatting: () => {
 							const label = this._resourceLabelHomeLabels.get(key)?.get('');
 							return label === undefined ? undefined : { label, separator };
@@ -3340,11 +3356,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._resourceLabelHomeRegistrations.deleteAndDispose(key);
 			}
 		}
+		for (const key of removedGroupKeys) {
+			this._resourceLabelHomeLabels.delete(key);
+			this._resourceLabelHomeFormattingEvents.deleteAndDispose(key);
+		}
+		for (const formattingEvent of changedFormattingEvents) {
+			formattingEvent.fire();
+		}
 	}
 
 	protected getResourceLabelHomeLabel(session: ISession): string {
-		const providerLabel = this.sessionTypes.find(type => type.id === session.sessionType)?.label ?? session.sessionType;
-		return `${providerLabel}/${session.title.get() || localize('sessionHome', "Session")}`;
+		const providerLabel = escapeResourceLabelPathSeparators(this.sessionTypes.find(type => type.id === session.sessionType)?.label ?? session.sessionType);
+		const sessionLabel = escapeResourceLabelPathSeparators(session.title.get() || localize('sessionHome', "Session"));
+		return `${providerLabel}/${sessionLabel}`;
 	}
 
 	protected getKnownSessions(): ISession[] {
