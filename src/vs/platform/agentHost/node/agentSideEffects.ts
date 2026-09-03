@@ -22,6 +22,7 @@ import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type IAgentModelCallCompletedSignal } from '../common/agent.js';
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
+import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
 
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
@@ -620,7 +621,7 @@ export class AgentSideEffects extends Disposable {
 				const subTurnId = this._stateManager.getActiveTurnId(subagentSession.chatUri);
 				if (subTurnId) {
 					if (signal.kind === 'model_call_completed') {
-						this._recordModelCallCompleted(signal, subagentSession.chatUri, subTurnId, 'remap');
+						this._recordModelCallCompleted(agent, signal, subagentSession.chatUri, subTurnId, 'remap');
 					} else {
 						this._dispatchActionForSession(signal, subagentSession.chatUri, subTurnId, 'remap', agent);
 					}
@@ -670,7 +671,7 @@ export class AgentSideEffects extends Disposable {
 		const turnId = this._stateManager.getActiveTurnId(sessionKey);
 		if (turnId) {
 			if (signal.kind === 'model_call_completed') {
-				this._recordModelCallCompleted(signal, sessionKey, turnId, 'preserve');
+				this._recordModelCallCompleted(agent, signal, sessionKey, turnId, 'preserve');
 			} else {
 				this._dispatchActionForSession(signal, sessionKey, turnId, 'preserve', agent);
 			}
@@ -893,11 +894,12 @@ export class AgentSideEffects extends Disposable {
 		return `${chat}\0${turnId}`;
 	}
 
-	private _recordModelCallCompleted(signal: IAgentModelCallCompletedSignal, sessionKey: ProtocolURI, turnId: string, turnIdRouting: AgentSignalTurnIdRouting): void {
+	private _recordModelCallCompleted(agent: IAgent, signal: IAgentModelCallCompletedSignal, sessionKey: ProtocolURI, turnId: string, turnIdRouting: AgentSignalTurnIdRouting): void {
 		if (signal.turnId !== turnId && turnIdRouting === 'preserve') {
 			this._logService.trace(`[AgentSideEffects] Dropping stale model_call_completed for ${sessionKey}: producerTurnId=${signal.turnId}, activeTurnId=${turnId}`);
 			return;
 		}
+		agent.recordModelCallTurnCorrelation?.(signal.resource, signal.modelCallId, turnId);
 		this._turnTracker.modelCallCompleted(sessionKey, turnId, signal.modelCallId);
 	}
 
@@ -994,7 +996,8 @@ export class AgentSideEffects extends Disposable {
 		});
 		const agent = this._options.getAgent(parentSessionUri);
 		if (agent) {
-			this._turnTracker.turnStarted(agent, subagentChatUri, turnId, undefined, undefined, 'default', undefined, undefined, parentClientContext, initiatorClientId, correlatedParentTurnId, toolCallId, MessageKind.Tool);
+			const interactionMode = getConfiguredSessionMode(this._stateManager.getSessionState(parentSessionUri)?.config);
+			this._turnTracker.turnStarted(agent, subagentChatUri, turnId, undefined, undefined, 'default', undefined, interactionMode, parentClientContext, initiatorClientId, correlatedParentTurnId, toolCallId, MessageKind.Tool);
 			this._turnTracker.setCurrentStage(subagentChatUri, turnId, 'provider');
 		}
 
@@ -1069,7 +1072,8 @@ export class AgentSideEffects extends Disposable {
 		});
 		const agent = this._options.getAgent(subagent.sessionUri);
 		if (agent) {
-			this._turnTracker.turnStarted(agent, subagent.chatUri, turnId, undefined, undefined, 'default', undefined, undefined, parentClientContext, initiatorClientId, correlatedParentTurnId, toolCallId, MessageKind.Tool);
+			const interactionMode = getConfiguredSessionMode(this._stateManager.getSessionState(subagent.sessionUri)?.config);
+			this._turnTracker.turnStarted(agent, subagent.chatUri, turnId, undefined, undefined, 'default', undefined, interactionMode, parentClientContext, initiatorClientId, correlatedParentTurnId, toolCallId, MessageKind.Tool);
 			this._turnTracker.setCurrentStage(subagent.chatUri, turnId, 'provider');
 		}
 		this._subagentChats.set({ ...subagent, immediateParentChatUri: correlatedParentChatUri, turnStopWatch: StopWatch.create(false) }, parentChatURI, toolCallId);
@@ -1390,7 +1394,11 @@ export class AgentSideEffects extends Disposable {
 				void agent.chats.resumeTurn(
 					URI.parse(channel),
 					action.turnId,
-					{ ...this._chatContext(sessionChannel, channel), clientTelemetryContext: clientContext },
+					{
+						...this._chatContext(sessionChannel, channel),
+						clientTelemetryContext: clientContext,
+						agentMergeTurn: resumedTurn.message.origin.kind === MessageKind.SystemNotification && isAgentMergeMessage(resumedTurn.message),
+					},
 					clientId,
 					clientContext.clientType,
 				).catch(error => {
@@ -1402,7 +1410,7 @@ export class AgentSideEffects extends Disposable {
 						type: ActionType.ChatError,
 						turnId: action.turnId,
 						duration: execution.duration + execution.stopWatch.elapsed(),
-						part: createErrorResponsePart(failure.error, true),
+						part: createErrorResponsePart(failure.error),
 					});
 					const endedTurn = this._completeTurn(channel, action.turnId, 'error', failure);
 					this._toolCallTracker.clearSession(channel);
@@ -1711,7 +1719,11 @@ export class AgentSideEffects extends Disposable {
 			// folder for folder sessions; undefined for workspace-less sessions.
 			const resolvedWorkingDirectories = await this._options.resolveWorkingDirectoryBeforeSend?.({ session: options.sessionChannel, chat, turnId, prompt: message.text });
 			const chatContext = this._chatContext(options.sessionChannel, chat);
-			const clientOperationContext = { ...chatContext, clientTelemetryContext: clientContext };
+			const clientOperationContext = {
+				...chatContext,
+				clientTelemetryContext: clientContext,
+				agentMergeTurn: message.origin.kind === MessageKind.SystemNotification && isAgentMergeMessage(message),
+			};
 
 			const selectionUpdates: Promise<void>[] = [];
 			this._turnTracker.setCurrentStage(turnChannel, turnId, 'modelSelection');

@@ -811,6 +811,16 @@ suite('AgentFeedbackService - State', () => {
 		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Accepted);
 	});
 
+	test('backfills a missing source pull request without replacing an existing one', () => {
+		const created = service.addFeedback(session, fileA, r(10), 'pending', undefined, undefined, 'thread-1', AgentFeedbackKind.PRReview, AgentFeedbackState.Created);
+		const sourcePullRequest = { owner: 'owner', repo: 'repo', number: 42 };
+
+		service.updateFeedbackSourcePullRequest(session, created.id, sourcePullRequest);
+		service.updateFeedbackSourcePullRequest(session, created.id, { owner: 'owner', repo: 'repo', number: 43 });
+
+		assert.deepStrictEqual(service.getFeedback(session)[0].sourcePullRequest, sourcePullRequest);
+	});
+
 	test('markFeedbackSubmitted resolves accepted items directly for non-agent-host sessions', () => {
 		const accepted = service.addFeedback(session, fileA, r(10), 'accepted');
 		const created = service.addFeedback(session, fileA, r(20), 'created', undefined, undefined, undefined, AgentFeedbackKind.AgentReview, AgentFeedbackState.Created);

@@ -17,6 +17,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { RemoteAgentHostConnectionStatus, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { TUNNEL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -32,7 +33,7 @@ import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from '../../browser/webWorkspacePicker.js';
 import { NewSessionWorkspacePreselectionSource } from '../../browser/newSessionComposerService.js';
@@ -420,6 +421,63 @@ suite('WorkspacePicker - Connection Status', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shows active session counts for remote providers', () => {
+		const createSession = (status: SessionStatus, isArchived = false): ISession => upcastPartial<ISession>({
+			status: constObservable(status),
+			isArchived: constObservable(isArchived),
+		});
+		const connected = () => observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.connected);
+		const tunnelWithOneSession = createMockProvider('agenthost-tunnel-one', {
+			connectionStatus: connected(),
+			remoteAddress: `${TUNNEL_ADDRESS_PREFIX}one`,
+			getSessions: () => [createSession(SessionStatus.InProgress)],
+		});
+		const tunnelWithTwoSessions = createMockProvider('agenthost-tunnel-two', {
+			connectionStatus: connected(),
+			remoteAddress: `${TUNNEL_ADDRESS_PREFIX}two`,
+			getSessions: () => [
+				createSession(SessionStatus.InProgress),
+				createSession(SessionStatus.NeedsInput),
+				createSession(SessionStatus.Completed),
+				createSession(SessionStatus.InProgress, true),
+			],
+		});
+		const tunnelWithoutActiveSessions = createMockProvider('agenthost-tunnel-idle', {
+			connectionStatus: connected(),
+			remoteAddress: `${TUNNEL_ADDRESS_PREFIX}idle`,
+			getSessions: () => [createSession(SessionStatus.Completed)],
+		});
+		const sshWithActiveSession = createMockProvider('agenthost-ssh', {
+			connectionStatus: connected(),
+			remoteAddress: 'ssh:host',
+			getSessions: () => [createSession(SessionStatus.InProgress)],
+		});
+		const wslWithActiveSessions = createMockProvider('agenthost-wsl', {
+			connectionStatus: connected(),
+			remoteAddress: 'wsl:Ubuntu',
+			getSessions: () => [
+				createSession(SessionStatus.InProgress),
+				createSession(SessionStatus.NeedsInput),
+			],
+		});
+		providersService.setProviders([tunnelWithOneSession, tunnelWithTwoSessions, tunnelWithoutActiveSessions, sshWithActiveSession, wslWithActiveSessions]);
+		const picker = createTestablePicker(disposables, providersService, true, { restoreFromSessions: false });
+		picker.selectTab(SESSION_WORKSPACE_GROUP_REMOTE);
+
+		assert.deepStrictEqual(
+			picker.getItems()
+				.filter(item => item.label?.startsWith('Provider agenthost-'))
+				.map(item => ({ label: item.label, description: item.description, ariaLabel: item.item?.ariaLabel })),
+			[
+				{ label: 'Provider agenthost-tunnel-one', description: 'Online · 1 active session', ariaLabel: 'Provider agenthost-tunnel-one, Online · 1 active session' },
+				{ label: 'Provider agenthost-tunnel-two', description: 'Online · 2 active sessions', ariaLabel: 'Provider agenthost-tunnel-two, Online · 2 active sessions' },
+				{ label: 'Provider agenthost-tunnel-idle', description: 'Online', ariaLabel: 'Provider agenthost-tunnel-idle, Online' },
+				{ label: 'Provider agenthost-ssh', description: 'Online · 1 active session', ariaLabel: 'Provider agenthost-ssh, Online · 1 active session' },
+				{ label: 'Provider agenthost-wsl', description: 'Online · 2 active sessions', ariaLabel: 'Provider agenthost-wsl, Online · 2 active sessions' },
+			],
+		);
+	});
 
 	test('restore picks checked entry even when remote is disconnected (before grace period)', () => {
 		// Restore is honored synchronously: the picker shows the checked entry
@@ -1225,14 +1283,15 @@ suite('WorkspacePicker - Category Triggers', () => {
 				expanded: trigger.getAttribute('aria-expanded'),
 				role: trigger.getAttribute('role'),
 				tabIndex: trigger.tabIndex,
+				icons: Array.from(trigger.querySelectorAll<HTMLElement>('.codicon'), icon => icon.classList.item(1)),
 			})),
 		}, {
 			selectedFolderUri: folderUri.toString(),
 			triggers: [
-				{ label: 'local/project', ariaLabel: 'Folder: local/project', hidden: false, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0 },
-				{ label: 'Repo, Issue, or PR', ariaLabel: 'Choose a GitHub target', hidden: false, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0 },
-				{ label: 'Remote Setup', ariaLabel: 'Choose a remote setup', hidden: true, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0 },
-				{ label: undefined, ariaLabel: 'More workspace options', hidden: false, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0 },
+				{ label: 'local/project', ariaLabel: 'Folder: local/project', hidden: false, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0, icons: ['codicon-folder', 'codicon-chevron-down-compact'] },
+				{ label: 'Repo, Issue, or PR', ariaLabel: 'Choose a GitHub target', hidden: false, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0, icons: ['codicon-github', 'codicon-chevron-down-compact'] },
+				{ label: 'Remote Setup', ariaLabel: 'Choose a remote setup', hidden: true, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0, icons: ['codicon-radio-tower', 'codicon-chevron-down-compact'] },
+				{ label: undefined, ariaLabel: 'More workspace options', hidden: false, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0, icons: ['codicon-ellipsis', 'codicon-chevron-down-compact'] },
 			],
 		});
 	});
@@ -2117,7 +2176,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 		const contextTrigger = container.querySelector<HTMLElement>('.action-label');
 		const getContextTriggerSnapshot = () => ({
 			label: contextTrigger?.querySelector('.sessions-chat-dropdown-label')?.textContent,
-			icon: contextTrigger?.querySelector('.codicon')?.className,
+			icon: contextTrigger?.querySelector('.codicon:not(.sessions-chat-dropdown-chevron)')?.className,
 			badge: contextTrigger?.querySelector('.monaco-count-badge')?.textContent,
 			ariaLabel: contextTrigger?.getAttribute('aria-label'),
 		});
@@ -2142,6 +2201,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 			currentWorkspace: currentWorkspace?.folders[0]?.root.path,
 			contexts: contexts.map(context => context.uri.toString()),
 			triggerSnapshots,
+			petPlatforms: picker.getChatPetPlatformElements().map(element => element.getAttribute('aria-label')),
 		}, {
 			selectedFolder: '/local/project',
 			currentWorkspace: '/local/project',
@@ -2155,6 +2215,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 				{ label: 'Issue/PR', icon: undefined, badge: '1', ariaLabel: 'Choose an issue or pull request, 1 attached' },
 				{ label: 'Issue/PR', icon: 'codicon codicon-add', badge: undefined, ariaLabel: 'Choose an issue or pull request' },
 			],
+			petPlatforms: ['Choose an issue or pull request'],
 		});
 	});
 
@@ -2172,7 +2233,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 		}]);
 		const contextTrigger = container.querySelector<HTMLElement>('.action-label');
 		const getContextTriggerSnapshot = () => ({
-			icon: contextTrigger?.querySelector('.codicon')?.className,
+			icon: contextTrigger?.querySelector('.codicon:not(.sessions-chat-dropdown-chevron)')?.className,
 			badge: contextTrigger?.querySelector('.monaco-count-badge')?.textContent,
 			ariaLabel: contextTrigger?.getAttribute('aria-label'),
 		});

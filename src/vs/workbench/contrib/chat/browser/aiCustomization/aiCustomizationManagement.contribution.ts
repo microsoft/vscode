@@ -802,7 +802,10 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				}
 
 				const input = AICustomizationManagementEditorInput.getOrCreate();
-				input.setTargetLabel(harnessService.getActiveDescriptor().label);
+				input.setTargetLabels(
+					harnessService.getActiveDescriptor().label,
+					accessor.get(IAICustomizationWorkspaceService).activeProjectLabel.get(),
+				);
 				const pane = await editorService.openEditor(input, { pinned: true });
 				if (section && pane instanceof AICustomizationManagementEditor) {
 					pane.selectSectionById(section);

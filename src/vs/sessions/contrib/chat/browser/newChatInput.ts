@@ -20,6 +20,7 @@ import type { IManagedHoverContent } from '../../../../base/browser/ui/hover/hov
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
@@ -29,6 +30,7 @@ import { EditorOptions } from '../../../../editor/common/config/editorOptions.js
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
 import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
+import { LinkDetector } from '../../../../editor/contrib/links/browser/links.js';
 import { PlaceholderTextContribution } from '../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -93,17 +95,20 @@ import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../workbench/
 import { registerChatInputOnboardingHosts } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputOnboardingHosts.js';
 import { IChatInputNoticeHubService } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHub.js';
 import { ChatInputPickerResponsiveLayout, IChatInputPickerResponsiveLayoutItem } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
-import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, refreshChatInputStack, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
+import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, refreshChatInputStack, setChatInputStackInputFocused, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { ModelPicker, ModelPickerActionViewItem } from './modelPicker.js';
 import { ISessionModelSelection, SessionModelSelection } from './sessionModelSelection.js';
+import { hasSendableModelSelection } from './sessionModelPickerState.js';
 import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { IChatStatusItemService } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusItemService.js';
 import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../../../workbench/contrib/chat/browser/chatTerminalCommandPaste.js';
 import { IChatPasteTargetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { ChatDynamicVariableModel } from '../../../../workbench/contrib/chat/browser/attachments/chatDynamicVariables.js';
 import { NewChatInputPasteTarget } from './newChatInputPasteTarget.js';
+import { registerChatInputReferenceDecorationType } from '../../../../workbench/contrib/chat/browser/widget/input/editor/chatInputReferenceDecorations.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { ChatSpeechToTextState, DictationSettingId, IChatSpeechToTextService } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { setupDictationMicGlow } from '../../../../workbench/contrib/chat/browser/speechToText/dictationMicGlow.js';
@@ -119,7 +124,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { DictationDownloadRing, getDictationDownloadHoverMarkdown, getDictationPreparingLabel } from '../../../../workbench/contrib/chat/browser/speechToText/dictationDownloadRing.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { IChatPetWidgetService } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidgetService.js';
-import { getChatPetStackPlatformTop } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidget.js';
+import { getChatPetPillPlatformTop, getChatPetStackPlatformTop } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidget.js';
 import { IVoiceModeOnboardingService } from '../../../../workbench/contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { AGENTS_VOICE_ENABLED } from '../../../../workbench/contrib/agentsVoice/common/agentsVoice.js';
 import { animatePromptTyping, IPromptTypingAnimation } from './promptTypingAnimation.js';
@@ -205,6 +210,7 @@ KeybindingsRegistry.registerKeybindingRule({
 interface IDraftState {
 	inputText: string;
 	attachments: readonly IChatRequestVariableEntry[];
+	contrib?: Record<string, unknown>;
 }
 
 export function hasSendableNewChatContent(query: string, attachments: readonly IChatRequestVariableEntry[], hasAdditionalSendContent = false): boolean {
@@ -407,6 +413,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	// Input
 	private _editor!: CodeEditorWidget;
 	private _editorContainer!: HTMLElement;
+	private _dynamicVariableModel!: ChatDynamicVariableModel;
 	private _sessionControlsContainer: HTMLElement | undefined;
 	private readonly _promptTemplatePlaceholder = this._register(new MutableDisposable<PromptTemplatePlaceholderController>());
 	private readonly _promptOptionsWidget = this._register(new MutableDisposable<NewSessionPromptOptionsWidget>());
@@ -466,6 +473,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			supportsBackground?: boolean;
 			deferredNotificationsEnabled?: IObservable<boolean>;
 			petHostPreferred?: IObservable<boolean>;
+			getChatPetPlatformElements?: () => readonly HTMLElement[];
+			onDidChangeChatPetPlatform?: Event<void>;
 			/**
 			 * Keep this composer a valid voice target even while a created session
 			 * is active. Used by the in-session "new chat" composer so dictation
@@ -478,6 +487,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@IModelService private readonly modelService: IModelService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IChatPasteTargetService private readonly chatPasteTargetService: IChatPasteTargetService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILogService private readonly logService: ILogService,
@@ -504,13 +514,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
+		this._register(registerChatInputReferenceDecorationType(this.codeEditorService));
 		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session));
 		this._canSendRequest = derived(this, reader => {
 			if (this.options.canSubmitWithoutSession?.read(reader)) {
 				return true;
 			}
 			const modelSelection = this._modelSelection.state.read(reader);
-			return this.options.canSendRequest.read(reader) && modelSelection.hasSelectableModel && !modelSelection.pendingSelection;
+			return this.options.canSendRequest.read(reader) && hasSendableModelSelection(modelSelection);
 		});
 		this._scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
 			[INewChatModelPickerService, this._newChatModelPickerService],
@@ -526,6 +537,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				}
 			}));
 		}
+		this._register(this.storageService.onWillSaveState(() => this.saveState()));
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
 		// Always use the mobile-aware picker. Its overrides bail to the
 		// desktop behavior when `isPhoneLayout()` is false, so picking
@@ -534,7 +546,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// phone breakpoint after the chat input mounted.
 		this.sessionTypePicker = this._register(this.instantiationService.createInstance(MobileSessionTypePicker, this.options.session, this.options.sessionTypePickerOptions));
 		this._register(this._contextAttachments.onDidChangeContext(() => {
-			this._updateDraftState();
+			this._updateAndSaveDraftState();
 			this._updateSendButtonState();
 			this.focus();
 		}));
@@ -672,9 +684,26 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			model: constObservable(undefined),
 			hasInput: inputHasContent,
 			inputChanged: this._editor.onDidChangeModelContent,
-			// Stand on the notice docked above the input, not on the input itself.
-			getPlatformTop: () => getChatPetStackPlatformTop(chatInputContainer, inputArea),
-			onDidChangePlatform: Event.None,
+			getPlatformTop: petCenterX => {
+				if (petCenterX !== undefined) {
+					const pillTop = getChatPetPillPlatformTop(
+						petCenterX,
+						[
+							...(this.options.getChatPetPlatformElements?.() ?? []),
+							...this.sessionTypePicker.getChatPetPlatformElements(),
+						].map(element => element.getBoundingClientRect()),
+					);
+					if (pillTop !== undefined) {
+						return pillTop;
+					}
+				}
+				// Stand on the notice docked above the input, not on the input itself.
+				return getChatPetStackPlatformTop(chatInputContainer, inputArea);
+			},
+			onDidChangePlatform: Event.any(
+				this.options.onDidChangeChatPetPlatform ?? Event.None,
+				this.sessionTypePicker.onDidChangeChatPetPlatform,
+			),
 		}, this.options.petHostPreferred, this.onDidFocus));
 		this._createInputToolbar(inputArea);
 
@@ -812,7 +841,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const editorOptions: IEditorConstructionOptions = {
 			...getSimpleEditorOptions(this.configurationService),
 			readOnly: false,
-			// Match the workbench chat input so the post-paste selector is offered.
 			pasteAs: EditorOptions.pasteAs.defaultValue,
 			ariaLabel: this._getAriaLabel(),
 			placeholder: this.options.placeholder ?? getRandomChatInputPlaceholder(),
@@ -849,6 +877,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				SnippetController2.ID,
 				PlaceholderTextContribution.ID,
 				CopyPasteController.ID,
+				LinkDetector.ID,
 			]),
 		};
 
@@ -881,6 +910,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// The composer is a chat input, so it carries the shared focus key that
 		// chat input keybindings such as paste as text are scoped to.
 		const inputHasFocusKey = ChatContextKeys.inputHasFocus.bindTo(inputScopedContextKeyService);
+		this._register(this._editor.onDidFocusEditorText(() => {
+			this._setInputEditorFocused(container, true);
+		}));
+		this._register(this._editor.onDidBlurEditorText(() => {
+			this._setInputEditorFocused(container, false);
+		}));
 		this._register(this._editor.onDidFocusEditorWidget(() => {
 			dictationFocusKey.set(true);
 			inputHasFocusKey.set(true);
@@ -978,10 +1013,20 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			AgentHostInputCompletionHandler, this._editor, this._contextAttachments,
 		));
 
+		const contextAttachments = this._contextAttachments;
+		this._dynamicVariableModel = this._register(this._scopedInstantiationService.createInstance(ChatDynamicVariableModel, {
+			inputEditor: this._editor,
+			get attachments() { return contextAttachments.attachments; },
+			onDidChangeActiveInputEditor: Event.None,
+			onDidChangeAttachments: contextAttachments.onDidChangeContext,
+			refreshParsedInput: () => { },
+		}));
+		this._register(this._dynamicVariableModel.onDidChangeReferences(() => this._updateDraftState()));
 		this._register(this.chatPasteTargetService.registerTarget(textModel.uri, new NewChatInputPasteTarget(
 			this._editor,
 			this._contextAttachments,
 			this._agentHostInputCompletionHandler,
+			this._dynamicVariableModel,
 			() => this._getTerminalCommandPrefix(),
 			() => this.options.session.get()?.resource,
 			textModel.uri,
@@ -993,6 +1038,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this._updateEditorFontFamily();
 			this._promptOptionsWidget.value?.setInputValue(this._editor.getValue());
 		}));
+	}
+
+	private _setInputEditorFocused(container: HTMLElement, focused: boolean): void {
+		container.classList.toggle('focused', focused);
+		setChatInputStackInputFocused(container, focused);
 	}
 
 	/**
@@ -1120,6 +1170,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 					}
 					items.push({
 						element,
+						canShrink: configToolbar.getItemAction(index)?.id === 'sessions.modelPicker',
 						isCompact: () => element.classList.contains('compact-picker'),
 						setCompact: (compact: boolean) => {
 							element.classList.toggle('compact-picker', compact);
@@ -1369,10 +1420,23 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	private _updateDraftState(): void {
+		const contrib: Record<string, unknown> = {};
+		if (this._dynamicVariableModel?.variables.length) {
+			this._dynamicVariableModel.getInputState(contrib);
+		}
 		this._draftState = {
 			inputText: this._editor?.getModel()?.getValue() ?? '',
 			attachments: [...this._contextAttachments.attachments],
+			...(Object.keys(contrib).length ? { contrib } : {}),
 		};
+	}
+
+	private _updateAndSaveDraftState(): void {
+		if (this._sending) {
+			return;
+		}
+		this._updateDraftState();
+		this.saveState();
 	}
 
 	private _toHistoryEntry(draft: IDraftState): IChatModelInputState {
@@ -1381,7 +1445,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			mode: { id: ChatModeKind.Agent, kind: ChatModeKind.Agent },
 			selectedModel: undefined,
 			selections: [],
-			contrib: {},
+			contrib: draft.contrib ?? {},
 		};
 	}
 
@@ -1391,6 +1455,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		if (entry) {
 			this._editor?.getModel()?.setValue(inputText);
 			this._contextAttachments.setAttachments(entry.attachments);
+			this._dynamicVariableModel.setInputState(entry.contrib);
 		}
 		aria.status(inputText);
 		if (previous) {
@@ -1413,10 +1478,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	private async _send(background = false): Promise<boolean> {
 		const rawQuery = this._editor.getModel()?.getValue() ?? '';
-		const query = rawQuery.trim();
+		const displayQuery = rawQuery.trim();
 		const queryOffset = rawQuery.length - rawQuery.trimStart().length;
+		const query = this._dynamicVariableModel?.getPromptText(displayQuery, queryOffset) ?? displayQuery;
 		const hasAdditionalSendContent = this.options.hasAdditionalSendContent?.get() ?? false;
-		if (!hasSendableNewChatContent(query, this._contextAttachments.attachments, hasAdditionalSendContent) || this._sending) {
+		if (!hasSendableNewChatContent(displayQuery, this._contextAttachments.attachments, hasAdditionalSendContent) || this._sending) {
 			return false;
 		}
 
@@ -1442,7 +1508,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			return true;
 		}
 
-		const attachments = this._agentHostInputCompletionHandler?.getAttachmentsForSend(query, queryOffset) ?? [...this._contextAttachments.attachments];
+		const attachments = this._agentHostInputCompletionHandler?.getAttachmentsForSend(displayQuery, queryOffset) ?? [...this._contextAttachments.attachments];
 		const attachedContext = attachments.length > 0
 			? attachments
 			: undefined;
@@ -1512,7 +1578,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			if (draft.attachments?.length) {
 				this._contextAttachments.setAttachments(draft.attachments.map(IChatRequestVariableEntry.fromExport));
 			}
+			this._dynamicVariableModel.setInputState(draft.contrib ?? {});
 		}
+		this._updateSendButtonState();
 	}
 
 	private _getDraftState(): IDraftState | undefined {
@@ -1745,10 +1813,18 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	attachTextContext(name: string, content: string, icon: ThemeIcon, id = `context:${content}`): void {
-		this._contextAttachments.addAttachments(toPasteVariableEntry(name, content, {
+		const attachment = toPasteVariableEntry(name, content, {
 			id,
 			icon,
-		}));
+		});
+		const index = this._contextAttachments.attachments.findIndex(entry => entry.id === id);
+		if (index < 0) {
+			this._contextAttachments.addAttachments(attachment);
+		} else {
+			const attachments = [...this._contextAttachments.attachments];
+			attachments[index] = attachment;
+			this._contextAttachments.setAttachments(attachments);
+		}
 	}
 
 	addAttachments(...attachments: IChatRequestVariableEntry[]): void {

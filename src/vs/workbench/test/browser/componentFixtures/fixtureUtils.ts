@@ -10,7 +10,7 @@ import { defineFixture, defineFixtureGroup, defineFixtureVariants } from '@vscod
 import { z } from 'zod';
 import { DisposableStore, DisposableTracker, IDisposable, IReference, MutableDisposable, setDisposableTracker, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ModifierKeyEmitter } from '../../../../base/browser/dom.js';
+import { $, ModifierKeyEmitter } from '../../../../base/browser/dom.js';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../../build/vite/style.css';
 import '../../../browser/media/style.css';
@@ -24,7 +24,8 @@ import '../../../browser/parts/auxiliarybar/media/auxiliaryBarPart.css';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 import { ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
-import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IColorTheme, IFileIconTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { FileIconThemeData, FileIconThemeLoader } from '../../../services/themes/browser/fileIconThemeData.js';
 import { ColorThemeData } from '../../../services/themes/common/colorThemeData.js';
 import { ExtensionData } from '../../../services/themes/common/workbenchThemeService.js';
 import { ensureGlobalStylesInstalled, getStylesheetDocumentFiles, overrideStylesheetOrder, ReverseStylesheetsOption } from './fixtureUtilsCss.js';
@@ -94,7 +95,8 @@ import { UndoRedoService } from '../../../../platform/undoRedo/common/undoRedoSe
 import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
-import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { IAnyWorkspaceIdentifier, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { TestContextService } from '../../common/workbenchTestServices.js';
 import { TestMenuService } from '../workbenchTestServices.js';
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -252,8 +254,8 @@ class NullStorageService implements IStorageService {
 // Themes
 // ============================================================================
 
-// Eagerly bundle all built-in theme JSON files so they can be served to
-// `_loadColorTheme` via the IExtensionResourceLoaderService code path. The
+// Eagerly bundle the built-in color theme JSON files so they can be served
+// through the IExtensionResourceLoaderService code path. The
 // rspack config maps these JSON files to `asset/source`, so they are imported
 // as raw text (not parsed JSON) — this lets VS Code's JSONC parser handle
 // comments and trailing commas the way it does in the real product.
@@ -267,24 +269,47 @@ import light_plus from '../../../../../../extensions/theme-defaults/themes/light
 import light_vs from '../../../../../../extensions/theme-defaults/themes/light_vs.json' with { type: 'json' };
 /* eslint-enable local/code-import-patterns */
 
+function toThemeJsonText(theme: string | object): string {
+	return typeof theme === 'string' ? theme : JSON.stringify(theme);
+}
+
+export type ComponentFixtureFileIconTheme = 'none' | 'vs-seti' | 'vs-minimal';
+type BuiltInComponentFixtureFileIconTheme = Exclude<ComponentFixtureFileIconTheme, 'none'>;
+
+const fileIconThemeResources = {
+	'vs-seti': URI.parse(new URL('./extensions/theme-seti/icons/vs-seti-icon-theme.json', document.baseURI).href),
+	'vs-minimal': URI.parse(new URL('./extensions/theme-defaults/fileicons/vs_minimal-icon-theme.json', document.baseURI).href),
+} satisfies Record<BuiltInComponentFixtureFileIconTheme, URI>;
+const fileIconThemeResourceUrls = new Set(Object.values(fileIconThemeResources).map(resource => resource.toString(true)));
+
 const themeJsonModules: Record<string, string> = {
-	'/extensions/theme-defaults/themes/dark_modern.json': dark_modern as unknown as string,
-	'/extensions/theme-defaults/themes/dark_plus.json': dark_plus as unknown as string,
-	'/extensions/theme-defaults/themes/dark_vs.json': dark_vs as unknown as string,
-	'/extensions/theme-defaults/themes/hc_black.json': hc_black as unknown as string,
-	'/extensions/theme-defaults/themes/light_modern.json': light_modern as unknown as string,
-	'/extensions/theme-defaults/themes/light_plus.json': light_plus as unknown as string,
-	'/extensions/theme-defaults/themes/light_vs.json': light_vs as unknown as string,
+	'/extensions/theme-defaults/themes/dark_modern.json': toThemeJsonText(dark_modern),
+	'/extensions/theme-defaults/themes/dark_plus.json': toThemeJsonText(dark_plus),
+	'/extensions/theme-defaults/themes/dark_vs.json': toThemeJsonText(dark_vs),
+	'/extensions/theme-defaults/themes/hc_black.json': toThemeJsonText(hc_black),
+	'/extensions/theme-defaults/themes/light_modern.json': toThemeJsonText(light_modern),
+	'/extensions/theme-defaults/themes/light_plus.json': toThemeJsonText(light_plus),
+	'/extensions/theme-defaults/themes/light_vs.json': toThemeJsonText(light_vs),
 };
 
 const fixtureExtensionResourceLoaderService = new class implements IExtensionResourceLoaderService {
 	declare readonly _serviceBrand: undefined;
 	async readExtensionResource(uri: URI): Promise<string> {
 		const content = themeJsonModules[uri.path];
-		if (content === undefined) {
-			throw new Error(`Fixture extension resource not found: ${uri.toString()}`);
+		if (content !== undefined) {
+			return content;
 		}
-		return content;
+
+		const resourceUrl = uri.toString(true);
+		if (fileIconThemeResourceUrls.has(resourceUrl)) {
+			const response = await fetch(resourceUrl);
+			if (!response.ok) {
+				throw new Error(`Failed to load fixture file icon theme ${resourceUrl}: ${response.status} ${response.statusText}`);
+			}
+			return response.text();
+		}
+
+		throw new Error(`Fixture extension resource not found: ${uri.toString()}`);
 	}
 	supportsExtensionGalleryResources(): Promise<boolean> { return Promise.resolve(false); }
 	isExtensionGalleryResource(): Promise<boolean> { return Promise.resolve(false); }
@@ -303,6 +328,22 @@ function createBuiltInTheme(themePath: string, uiTheme: ThemeTypeSelector): Colo
 export const darkTheme = createBuiltInTheme('/extensions/theme-defaults/themes/dark_modern.json', ThemeTypeSelector.VS_DARK);
 export const lightTheme = createBuiltInTheme('/extensions/theme-defaults/themes/light_modern.json', ThemeTypeSelector.VS);
 const darkHighContrastTheme = createBuiltInTheme('/extensions/theme-defaults/themes/hc_black.json', ThemeTypeSelector.HC_BLACK);
+
+function createBuiltInFileIconTheme(id: BuiltInComponentFixtureFileIconTheme, extensionName: string): FileIconThemeData {
+	const location = fileIconThemeResources[id];
+	return FileIconThemeData.fromExtensionTheme(
+		{ id, path: location.path, _watch: false },
+		location,
+		ExtensionData.fromName('vscode', extensionName, true)
+	);
+}
+
+const fileIconThemes = {
+	none: FileIconThemeData.noIconTheme,
+	'vs-seti': createBuiltInFileIconTheme('vs-seti', 'vscode-theme-seti'),
+	'vs-minimal': createBuiltInFileIconTheme('vs-minimal', 'theme-defaults'),
+} satisfies Record<ComponentFixtureFileIconTheme, FileIconThemeData>;
+const defaultFileIconTheme = fileIconThemes['vs-seti'];
 
 type ComponentFixtureThemeVariant = {
 	readonly label: string;
@@ -329,10 +370,54 @@ function ensureThemeLoaded(theme: ColorThemeData): Promise<void> {
 	return themeLoadedPromise;
 }
 
-export async function setupTheme(container: HTMLElement, theme: ColorThemeData, scopeThemingParticipants = false): Promise<void> {
-	await ensureThemeLoaded(theme);
-	await ensureGlobalStylesInstalled(theme, scopeThemingParticipants);
+const fileIconThemeLoadedPromises = new WeakMap<FileIconThemeData, Promise<string | undefined>>();
+function ensureFileIconThemeLoaded(theme: FileIconThemeData): Promise<string | undefined> {
+	let fileIconThemeLoadedPromise = fileIconThemeLoadedPromises.get(theme);
+	if (!fileIconThemeLoadedPromise) {
+		fileIconThemeLoadedPromise = (async () => {
+			if (theme.isLoaded) {
+				return theme.styleSheetContent;
+			}
+			const languageService = new LanguageService();
+			try {
+				return await theme.ensureLoaded(new FileIconThemeLoader(fixtureExtensionResourceLoaderService, languageService));
+			} finally {
+				languageService.dispose();
+			}
+		})();
+		fileIconThemeLoadedPromises.set(theme, fileIconThemeLoadedPromise);
+	}
+	return fileIconThemeLoadedPromise;
+}
+
+export async function setupTheme(
+	container: HTMLElement,
+	theme: ColorThemeData,
+	scopeThemingParticipants = false,
+	fileIconThemeId: ComponentFixtureFileIconTheme = 'vs-seti',
+	fileIconThemeScope: HTMLElement = container
+): Promise<IFileIconTheme> {
+	const fileIconTheme = fileIconThemes[fileIconThemeId];
+	const [, fileIconThemeStyleSheetContent] = await Promise.all([
+		ensureThemeLoaded(theme),
+		ensureFileIconThemeLoaded(fileIconTheme),
+	]);
+	const fileIconThemeClassName = fileIconThemeId === 'none' ? undefined : `component-fixture-file-icon-theme-${fileIconThemeId}`;
+	if (fileIconThemeClassName && fileIconThemeStyleSheetContent === undefined) {
+		throw new Error(`Fixture file icon theme '${fileIconThemeId}' did not produce a stylesheet.`);
+	}
+
+	await ensureGlobalStylesInstalled(theme, scopeThemingParticipants, fileIconThemeClassName && fileIconThemeStyleSheetContent !== undefined ? {
+		scopeSelector: `.${fileIconThemeClassName}`,
+		styleSheetContent: fileIconThemeStyleSheetContent,
+	} : undefined);
 	container.classList.add('component-fixture', 'monaco-workbench', getPlatformClass(), 'disable-animations', ...theme.classNames);
+	fileIconThemeScope.classList.toggle('component-fixture-file-icon-theme-vs-seti', fileIconThemeId === 'vs-seti');
+	fileIconThemeScope.classList.toggle('component-fixture-file-icon-theme-vs-minimal', fileIconThemeId === 'vs-minimal');
+	if (fileIconThemeClassName) {
+		container.classList.add('file-icons-enabled');
+	}
+	return fileIconTheme;
 }
 
 /**
@@ -430,6 +515,10 @@ export interface CreateServicesOptions {
 	 * The color theme to use for the theme service.
 	 */
 	colorTheme?: IColorTheme;
+	/**
+	 * The file icon theme to use for the theme service.
+	 */
+	fileIconTheme?: IFileIconTheme;
 	/**
 	 * Additional services to register after the base editor services.
 	 */
@@ -545,11 +634,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 	define(IConfigurationService, TestConfigurationService);
 	define(ITextResourcePropertiesService, TestTextResourcePropertiesService);
 	defineInstance(IStorageService, new NullStorageService());
-	if (options?.colorTheme) {
-		defineInstance(IThemeService, new TestThemeService(options.colorTheme));
-	} else {
-		define(IThemeService, TestThemeService);
-	}
+	defineInstance(IThemeService, new TestThemeService(options?.colorTheme, options?.fileIconTheme ?? defaultFileIconTheme));
 	define(ILogService, FixtureLogService);
 	define(IModelService, FixtureModelService);
 	define(ICodeEditorService, TestCodeEditorService);
@@ -648,6 +733,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		addFeedback: () => undefined!,
 		removeFeedback: () => { },
 		updateFeedback: () => { },
+		updateFeedbackSourcePullRequest: () => { },
 		acceptFeedback: () => { },
 		addReply: () => { },
 		getFeedback: () => [],
@@ -775,11 +861,15 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 		getSeparator: () => '/',
 		registerFormatter: () => ({ dispose: () => { } }),
 		onDidChangeFormatters: () => ({ dispose: () => { } }),
+		getUriHome: () => undefined,
 		registerCachedFormatter: () => ({ dispose: () => { } }),
 		_serviceBrand: undefined,
 		getHostTooltip: () => '',
 	});
 
+	// A single-folder workspace, so components that render paths relative to a
+	// workspace folder have one to resolve against.
+	registration.define(IWorkspaceContextService, TestContextService);
 	registration.define(IMenuService, TestMenuService);
 	registration.define(IActionViewItemService, NullActionViewItemService);
 
@@ -886,6 +976,7 @@ export interface ComponentFixtureContext {
 	disposableStore: DisposableStore;
 	disposableStackStore: DisposableStackStore;
 	theme: ColorThemeData;
+	fileIconTheme: IFileIconTheme;
 }
 
 export interface ComponentFixtureOptions {
@@ -893,6 +984,7 @@ export interface ComponentFixtureOptions {
 	labels?: ThemedFixtureGroupLabels;
 	virtualTime?: { enabled?: boolean; durationMs?: number; teardownDrainMs?: number };
 	additionalThemes?: readonly ComponentFixtureAdditionalTheme[];
+	fileIconTheme?: ComponentFixtureFileIconTheme;
 	expectedVisualDescriptions?: readonly string[];
 }
 
@@ -931,7 +1023,9 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			reverseStylesheets: { placement: 'toolbar', label: 'Reverse Stylesheets' },
 			enableAnimations: { placement: 'toolbar', label: 'Enable Animations' },
 		},
-		render: async (container: HTMLElement, context) => {
+		render: async (fixtureHost: HTMLElement, context) => {
+			const container = $('.component-fixture-container');
+			fixtureHost.appendChild(container);
 			const disposableStore = new DisposableStore();
 			const input = parseFixtureInput(context.input);
 			const { label: themeLabel, theme, scopeThemingParticipants } = themeVariant;
@@ -1031,7 +1125,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			});
 
 			async function actualRender() {
-				await setupTheme(container, theme, scopeThemingParticipants);
+				const fileIconTheme = await setupTheme(container, theme, scopeThemingParticipants, options.fileIconTheme, fixtureHost);
 
 				const stylesheetOrderOverride = disposableStore.add(new MutableDisposable<IDisposable>());
 				const updateStylesheetOrder = (input: unknown) => {
@@ -1074,7 +1168,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 
 				try {
 					const disposableStackStore = disposableStore.add(new DisposableStackStore());
-					const result = options.render({ container, disposableStore, disposableStackStore, theme });
+					const result = options.render({ container, disposableStore, disposableStackStore, theme, fileIconTheme });
 
 					const p2 = virtualTimeEnabled
 						? p.run({

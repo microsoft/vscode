@@ -39,6 +39,8 @@ export const enum SessionConfigKey {
 	AgentMerge = 'agentMerge',
 	/** `'agentMerge.controller'` — host-owned Agent Merge lifecycle state. */
 	AgentMergeController = 'agentMerge.controller',
+	/** `'shellInitScripts'` — scripts a client generated for the session, sourced before built-in shell tool commands. */
+	ShellInitScripts = 'shellInitScripts',
 }
 
 /**
@@ -58,3 +60,13 @@ export const KNOWN_AUTO_APPROVE_VALUES: ReadonlySet<string> = new Set(['default'
  * property: the agent execution mode axis.
  */
 export const KNOWN_MODE_VALUES: ReadonlySet<string> = new Set(['interactive', 'plan', 'autopilot']);
+
+/**
+ * Removes session config that is derived from live client state and must not
+ * survive an Agent Host restart.
+ */
+export function omitTransientSessionConfigValues<T>(values: Record<string, T>): Record<string, T> {
+	const result = { ...values };
+	delete result[SessionConfigKey.ShellInitScripts];
+	return result;
+}
