@@ -22,6 +22,13 @@ import { ICodeWindow, IWindowState, WindowMode, defaultWindowState } from '../..
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
 
+export interface IOpenAgentsWindowMainOptions {
+	readonly folderUri?: URI;
+	readonly sessionResource?: URI;
+	readonly source?: AgentsWindowOpenSource;
+	readonly preferDevContainer?: boolean;
+}
+
 export interface IWindowsMainService {
 
 	readonly _serviceBrand: undefined;
@@ -41,7 +48,7 @@ export interface IWindowsMainService {
 	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): Promise<ICodeWindow[]>;
 	openExistingWindow(window: ICodeWindow, openConfig: IOpenConfiguration): void;
 
-	openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, sessionResource?: URI, source?: AgentsWindowOpenSource, preferDevContainer?: boolean): Promise<ICodeWindow[]>;
+	openAgentsWindow(openConfig: IOpenConfiguration, options?: IOpenAgentsWindowMainOptions): Promise<ICodeWindow[]>;
 
 	sendToFocused(channel: string, ...args: unknown[]): void;
 	sendToOpeningWindow(channel: string, ...args: unknown[]): void;

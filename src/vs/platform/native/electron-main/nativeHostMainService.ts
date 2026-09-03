@@ -319,7 +319,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			context: OpenContext.API,
 			contextWindowId: windowId,
 			cli: this.environmentMainService.args,
-		}, options?.folderUri ? URI.revive(options.folderUri) : undefined, options?.sessionResource ? URI.revive(options.sessionResource) : undefined, options?.source, options?.preferDevContainer);
+		}, {
+			folderUri: options?.folderUri ? URI.revive(options.folderUri) : undefined,
+			sessionResource: options?.sessionResource ? URI.revive(options.sessionResource) : undefined,
+			source: options?.source,
+			preferDevContainer: options?.preferDevContainer,
+		});
 		if (windows.length > 0) {
 			windows[0].focus();
 		}
