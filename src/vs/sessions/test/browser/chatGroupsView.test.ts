@@ -1167,9 +1167,7 @@ suite('Sessions - ChatGroupsView', () => {
 			view.setSession(session, options);
 			chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
 
-			// An unstable relay drops and restores the transport every few seconds.
-			// Each outage is healed well inside the delay, and the session keeps
-			// working throughout, so none of them is worth a banner.
+			// Every outage heals well inside the delay, so none is worth a banner.
 			const banners: boolean[] = [];
 			for (let i = 0; i < 5; i++) {
 				remoteConnectionStatus.set({ kind: 'reconnecting' }, undefined);
