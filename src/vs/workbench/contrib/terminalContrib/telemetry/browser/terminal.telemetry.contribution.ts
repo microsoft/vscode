@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
+import { TerminalProfileConfigurationTelemetryContribution } from './terminalProfileConfigurationTelemetry.js';
 import { TerminalTelemetryContribution } from './terminalTelemetry.js';
 
 registerWorkbenchContribution2(TerminalTelemetryContribution.ID, TerminalTelemetryContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(TerminalProfileConfigurationTelemetryContribution.ID, TerminalProfileConfigurationTelemetryContribution, WorkbenchPhase.AfterRestored);
