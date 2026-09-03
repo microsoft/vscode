@@ -1083,6 +1083,12 @@ export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 		if (this.extension.deprecationInfo?.disallowInstall) {
 			return;
 		}
+		if (this.extensionsWorkbenchService.isAutoUpdateConfigLockedByPolicy()) {
+			// Managed by organization policy: show the effective state, but keep it disabled so it can't be overridden.
+			this.class = ToggleAutoUpdateForExtensionAction.EnabledClass;
+			this.checked = this.extensionsWorkbenchService.isAutoUpdateEnabledFor(this.extension);
+			return;
+		}
 
 		const extension = this.extension.local ?? this.extension.gallery;
 		if (extension && this.allowedExtensionsService.isAllowed(extension) !== true) {
