@@ -62,7 +62,7 @@ export interface ResourceLabelFormatter {
 }
 
 export interface ResourceLabelTemplateFormatter {
-	/** URI home whose optional final path segment is a template parameter, such as `/sessions/${sessionId}`. */
+	/** URI home whose optional template parameters occupy an entire path segment, such as `/sessions/${sessionId}`. */
 	home: URI;
 	/** Fires when state used by `formatting` changes and existing labels must be recomputed. */
 	onDidChangeFormatting: Event<void>;
