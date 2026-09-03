@@ -64,7 +64,7 @@
 	justify-content: center;
 }
 
-.modern-ui.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button:focus {
+.modern-ui.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button:is(:focus, .open) {
 	background-color: transparent;
 }
 
@@ -74,16 +74,15 @@
 	height: calc(var(--activity-bar-action-height, 36px) - var(--vscode-spacing-size40));
 	padding: 0;
 	border-radius: var(--vscode-cornerRadius-small);
-	font-size: var(--activity-bar-icon-size, var(--vscode-codiconFontSize));
+	font-size: var(--vscode-codiconFontSize);
 }
 
-.modern-ui.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button:focus:not(.open) .toolbar-toggle-more,
 .modern-ui.monaco-workbench .activitybar .menubar.compact:not(:focus-within) > .menubar-menu-button:hover .toolbar-toggle-more {
 	color: var(--vscode-modernActivityBarItem-hoverForeground);
 	background-color: var(--vscode-modernActivityBarItem-hoverBackground);
 }
 
-.modern-ui.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button.open .toolbar-toggle-more {
+.modern-ui.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button:is(:focus, .open) .toolbar-toggle-more {
 	color: var(--vscode-modernActivityBarItem-activeForeground);
 	background-color: var(--vscode-modernActivityBarItem-activeBackground);
 }

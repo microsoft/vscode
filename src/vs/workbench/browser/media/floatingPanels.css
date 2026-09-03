@@ -318,12 +318,15 @@
 /*
  * Inset the first and last item from the card's ends by the same amount as the sides. The
  * horizontal inset is half the lane, of which the card's border already contributes one
- * stroke, so the remainder is what these margins have to supply. When the compact menu is
- * present it forms the first cluster, with the composite bar retaining the same inter-cluster
- * spacing. Overrides the fixed values in `modernUI/browser/media/padding.css`, which predate
- * the lane.
+ * stroke. The compact menu reserves its inset as padding so its measured height includes it;
+ * the composite bar uses the same value as its leading margin. Overrides the fixed values in
+ * `modernUI/browser/media/padding.css`, which predate the lane.
  */
-.monaco-workbench.floating-panels .part.activitybar:not(.top):not(.bottom) > .content > .menubar.compact,
+.monaco-workbench.floating-panels .part.activitybar:not(.top):not(.bottom) > .content > .menubar.compact {
+	height: calc(var(--activity-bar-action-height, 36px) + (var(--modern-ui-activitybar-lane) - 2px) / 2);
+	padding-top: calc((var(--modern-ui-activitybar-lane) - 2px) / 2);
+}
+
 .monaco-workbench.floating-panels .part.activitybar:not(.top):not(.bottom) > .content > .composite-bar {
 	margin-top: calc(var(--modern-ui-activitybar-lane) / 2 - var(--vscode-strokeThickness));
 }
