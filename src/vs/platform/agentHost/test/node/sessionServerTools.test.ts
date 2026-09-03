@@ -12,7 +12,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, type ModelSelection, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, type ModelSelection, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
@@ -1493,6 +1493,68 @@ suite('SessionServerTools', () => {
 					},
 				},
 			],
+			prompts: [],
+		});
+		store.dispose();
+	});
+
+	test('send_message queues behind pending messages when the target chat has no active turn', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		const queuedSession = 'copilot:/s2';
+		const steeringSession = 'copilot:/s3';
+		for (const resource of [queuedSession, steeringSession]) {
+			stateManager.createSession({
+				resource,
+				provider: 'copilot',
+				title: 'Target',
+				status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(),
+				modifiedAt: new Date(0).toISOString(),
+			});
+		}
+		const queuedChat = buildDefaultChatUri(queuedSession);
+		stateManager.dispatchServerAction(queuedChat, {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Queued,
+			id: 'older-message',
+			message: { text: 'older', origin: { kind: MessageKind.User } },
+		});
+		const steeringChat = buildDefaultChatUri(steeringSession);
+		stateManager.dispatchServerAction(steeringChat, {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering,
+			id: 'steering-message',
+			message: { text: 'steering', origin: { kind: MessageKind.User } },
+		});
+		const prompts: string[] = [];
+		const group = createSessionServerToolGroup(createAccessor({
+			listSessions: async () => [
+				sessionMeta('s1', SessionStatus.InProgress, workspace),
+				sessionMeta('s2', SessionStatus.Idle, workspace),
+				sessionMeta('s3', SessionStatus.Idle, workspace),
+			],
+			onPrompt: (_session, _chat, prompt) => { prompts.push(prompt); },
+		}));
+		const context = executionContext('copilot:/s1');
+
+		const queuedResult = await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: queuedSession, message: 'after queued' });
+		const steeringResult = await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: steeringSession, message: 'after steering' });
+
+		assert.deepStrictEqual({
+			results: [queuedResult, steeringResult],
+			queuedMessages: stateManager.getChatState(queuedChat)?.queuedMessages?.map(message => message.message.text),
+			steeringQueuedMessages: stateManager.getChatState(steeringChat)?.queuedMessages?.map(message => message.message.text),
+			steeringMessage: stateManager.getChatState(steeringChat)?.steeringMessage?.message.text,
+			prompts,
+		}, {
+			results: [
+				'Message queued (agent-host-session://copilot/s2).',
+				'Message queued (agent-host-session://copilot/s3).',
+			],
+			queuedMessages: ['older', 'after queued'],
+			steeringQueuedMessages: ['after steering'],
+			steeringMessage: 'steering',
 			prompts: [],
 		});
 		store.dispose();

@@ -1067,7 +1067,7 @@ export function getSendMessageArgs(rawArgs: unknown, sessions: readonly IAgentSe
 
 /**
  * Sends a message to an existing session/chat, starting a new turn there or
- * queuing it behind the target chat's active turn.
+ * queuing it behind the target chat's active or pending messages.
  * Refuses to target {@link currentChannel} (the chat channel the tool runs on)
  * to avoid a session trivially messaging itself in a loop.
  */
@@ -1084,7 +1084,8 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 		sourceChat: sourceChat?.toString(),
 		...(sourceTurnId !== undefined ? { sourceTurnId } : {}),
 	} : undefined;
-	if (stateManager?.getActiveTurnId(chat.toString())) {
+	const targetState = stateManager?.getChatState(chat.toString());
+	if (stateManager && (targetState?.activeTurn || targetState?.steeringMessage || targetState?.queuedMessages?.length)) {
 		const queuedMessage: Message = {
 			text: message,
 			origin: { kind: MessageKind.Agent },
