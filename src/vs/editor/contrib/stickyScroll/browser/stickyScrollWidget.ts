@@ -470,7 +470,7 @@ class RenderedStickyLine {
 			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0,
 			lineRenderingData.tokens, actualInlineDecorations,
 			lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
-			fontInfo.spaceWidth, fontInfo.middotWidth, fontInfo.wsmiddotWidth, 500, 'none', true, true, null,
+			fontInfo.spaceWidth, 1, 1, 500, 'none', true, true, null,
 			textDirection, verticalScrollbarSize, false,
 			editor.getOption(EditorOption.effectiveForceFullwidthCharacterWidth)
 		);

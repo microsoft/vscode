@@ -1720,10 +1720,10 @@ suite('renderViewLine - forceFullwidthCharacterWidth', () => {
 		]);
 	});
 
-	test('Unicode full-width characters outside the legacy wrapping ranges are centered', () => {
+	test('Hangul Jamo outside the shared full-width classification is left alone', () => {
 		const hangulJamo = '\u1100';
 		assert.deepStrictEqual(render(hangulJamo), [
-			`<span${cell(20)} class="mtk1">${hangulJamo}</span>`
+			`<span class="mtk1">${hangulJamo}</span>`
 		]);
 	});
 
@@ -1739,10 +1739,10 @@ suite('renderViewLine - forceFullwidthCharacterWidth', () => {
 		]);
 	});
 
-	test('Unicode narrow characters inside legacy wrapping ranges are left alone', () => {
+	test('characters included by the shared full-width classification are centered', () => {
 		const vaiSyllable = '\uA500';
 		assert.deepStrictEqual(render(vaiSyllable), [
-			`<span class="mtk1">${vaiSyllable}</span>`
+			`<span${cell(20)} class="mtk1">${vaiSyllable}</span>`
 		]);
 	});
 
@@ -1792,15 +1792,15 @@ suite('renderViewLine - forceFullwidthCharacterWidth', () => {
 		]);
 	});
 
-	test('supplementary full-width characters are centered', () => {
+	test('characters outside the shared full-width classification are not centered', () => {
 		const ideograph = '\u{2000B}';
 		assert.deepStrictEqual(render(`${ideograph}漢`), [
-			`<span${cell(20)} class="mtk1">${ideograph}</span>`,
+			`<span class="mtk1">${ideograph}</span>`,
 			`<span${cell(20)} class="mtk1">漢</span>`
 		]);
 	});
 
-	test('supplementary full-width grapheme clusters are left intact', () => {
+	test('supplementary characters with variation selectors are left intact', () => {
 		const ideographWithVariationSelector = '\u{2000B}\uFE00';
 		assert.deepStrictEqual(render(ideographWithVariationSelector), [
 			`<span class="mtk1">${ideographWithVariationSelector}</span>`

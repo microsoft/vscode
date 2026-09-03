@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from '../../../base/common/lifecycle.js';
-import * as strings from '../../../base/common/strings.js';
 import { WrappingIndent } from '../config/editorOptions.js';
 import { FontInfo } from '../config/fontInfo.js';
 import { IPosition, Position } from '../core/position.js';
@@ -19,7 +18,6 @@ import { ConstantTimePrefixSumComputer } from '../model/prefixSumComputer.js';
 import { ViewLineData } from '../viewModel.js';
 import { ICoordinatesConverter, IdentityCoordinatesConverter } from '../coordinatesConverter.js';
 import { LineInjectedText } from '../textModelEvents.js';
-import { containsFullWidthCharacter } from '../viewLayout/fullWidthCharacter.js';
 
 export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
@@ -313,6 +311,11 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	public createLineBreaksComputer(_context?: ILineBreaksComputerContext): ILineBreaksComputer {
+		const lineBreaksComputerFactory = (
+			this.wrappingStrategy === 'advanced'
+				? this._domLineBreaksComputerFactory
+				: this._monospaceLineBreaksComputerFactory
+		);
 		const context: ILineBreaksComputerContext = _context ?? {
 			getLineContent: (lineNumber: number): string => {
 				return this.model.getLineContent(lineNumber);
@@ -321,34 +324,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 				return this.model.getLineInjectedText(lineNumber, this._editorId);
 			}
 		};
-		const createLineBreaksComputer = (factory: ILineBreaksComputerFactory, forceFullwidthCharacterWidth: boolean) =>
-			factory.createLineBreaksComputer(context, this.fontInfo, this.tabSize, this.wrappingColumn, this.wrappingIndent, this.wordBreak, this.wrapOnEscapedLineFeeds, forceFullwidthCharacterWidth);
-
-		if (this.wrappingStrategy !== 'advanced') {
-			return createLineBreaksComputer(this._monospaceLineBreaksComputerFactory, this.forceFullwidthCharacterWidth);
-		}
-		if (!this.forceFullwidthCharacterWidth) {
-			return createLineBreaksComputer(this._domLineBreaksComputerFactory, false);
-		}
-
-		const domLineBreaksComputer = createLineBreaksComputer(this._domLineBreaksComputerFactory, false);
-		const monospaceLineBreaksComputer = createLineBreaksComputer(this._monospaceLineBreaksComputerFactory, true);
-		const useMonospaceLineBreaks: boolean[] = [];
-		return {
-			addRequest: (lineNumber, previousLineBreakData) => {
-				const lineContent = LineInjectedText.applyInjectedText(context.getLineContent(lineNumber), context.getLineInjectedText(lineNumber));
-				const useMonospace = !strings.containsRTL(lineContent) && containsFullWidthCharacter(lineContent);
-				useMonospaceLineBreaks.push(useMonospace);
-				(useMonospace ? monospaceLineBreaksComputer : domLineBreaksComputer).addRequest(lineNumber, previousLineBreakData);
-			},
-			finalize: () => {
-				const domLineBreaks = domLineBreaksComputer.finalize();
-				const monospaceLineBreaks = monospaceLineBreaksComputer.finalize();
-				let domIndex = 0;
-				let monospaceIndex = 0;
-				return useMonospaceLineBreaks.map(useMonospace => useMonospace ? monospaceLineBreaks[monospaceIndex++] : domLineBreaks[domIndex++]);
-			}
-		};
+		return lineBreaksComputerFactory.createLineBreaksComputer(context, this.fontInfo, this.tabSize, this.wrappingColumn, this.wrappingIndent, this.wordBreak, this.wrapOnEscapedLineFeeds, this.forceFullwidthCharacterWidth);
 	}
 
 	public onModelFlushed(): void {

@@ -20,12 +20,6 @@ const GRID = [
 	'+--------+--------+',
 ].join('\n');
 
-const SUPPLEMENTARY_GRID = [
-	'+--------+--------+',
-	'|𠀋𡈽𡌛𠀀|astral!!|',
-	'+--------+--------+',
-].join('\n');
-
 /** Narrow characters and multi-code-point graphemes must retain their natural rendering. */
 const MIXED = [
 	'|ｱｲｳｴｵｶｷｸ|halfwidth|',
@@ -90,10 +84,6 @@ function renderCode(context: ComponentFixtureContext, forceFullwidthCharacterWid
 	createEditor(context, CODE, { forceFullwidthCharacterWidth });
 }
 
-function renderSupplementaryGrid(context: ComponentFixtureContext): void {
-	createEditor(context, SUPPLEMENTARY_GRID, { forceFullwidthCharacterWidth: true });
-}
-
 function renderSelection(context: ComponentFixtureContext, forceFullwidthCharacterWidth: boolean): void {
 	const { editor } = createEditor(context, GRID, { forceFullwidthCharacterWidth });
 	editor.setSelection(new Range(2, 2, 4, 6));
@@ -115,11 +105,6 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['An ASCII box drawing contains five rows. Every pipe forms one straight unbroken vertical line down the whole box, and the closing pipes line up with the plus signs of the dashed borders above and below. Each CJK character is horizontally centered over the two narrow cells it occupies, with even spacing on both sides.'],
 		render: context => renderGrid(context, true),
-	}),
-	FullwidthCharacterWidthSupplementary: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['An ASCII box drawing contains one content row. Four supplementary-plane CJK ideographs in the left column occupy the same width as eight narrow characters in the right column. Every pipe forms a straight vertical line with the plus signs in the borders, and each ideograph is centered in two character cells.'],
-		render: renderSupplementaryGrid,
 	}),
 	FullwidthCharacterWidthNotCentered: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },

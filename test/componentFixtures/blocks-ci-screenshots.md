@@ -180,12 +180,6 @@
 #### editor/fullwidthCharacterWidth/FullwidthCharacterWidthSelection/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/d2f28d080bfa99f2f93566c860e11ca891eb8e38ef27a4b20286b7227d235d89)
 
-#### editor/fullwidthCharacterWidth/FullwidthCharacterWidthSupplementary/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/f6e227c4547171cd1aa976989b3665e12489074b4a1523d167c643201feb9ab2)
-
-#### editor/fullwidthCharacterWidth/FullwidthCharacterWidthSupplementary/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/4dad3c6f6779cf38dda7eaa18fcda3e77526d9ba2623a4e744a6e7b9e458db62)
-
 #### editor/injectedTextDecorations/ColorDecorators/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/33584d1dce7a32853b0c3c269ea341c1346364d42f3acede0f39d055ec54ff03)
 

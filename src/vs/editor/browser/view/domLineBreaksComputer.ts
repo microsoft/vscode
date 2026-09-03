@@ -14,6 +14,7 @@ import { InjectedTextOptions } from '../../common/model.js';
 import { ILineBreaksComputer, ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../common/modelLineProjectionData.js';
 import { FixedWidthInjectedTextRange, LineInjectedText } from '../../common/textModelEvents.js';
 import { FontInfo } from '../../common/config/fontInfo.js';
+import { containsFullWidthCharacter, getFullWidthCharacterLength } from '../../common/viewLayout/fullWidthCharacter.js';
 
 const ttPolicy = createTrustedTypesPolicy('domLineBreaksComputer', { createHTML: value => value });
 
@@ -26,20 +27,20 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 	constructor(private targetWindow: WeakRef<Window>) {
 	}
 
-	public createLineBreaksComputer(context: ILineBreaksComputerContext, fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, _forceFullwidthCharacterWidth: boolean): ILineBreaksComputer {
+	public createLineBreaksComputer(context: ILineBreaksComputerContext, fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, forceFullwidthCharacterWidth: boolean): ILineBreaksComputer {
 		const lineNumbers: number[] = [];
 		return {
 			addRequest: (lineNumber: number, previousLineBreakData: ModelLineProjectionData | null) => {
 				lineNumbers.push(lineNumber);
 			},
 			finalize: () => {
-				return createLineBreaks(assertReturnsDefined(this.targetWindow.deref()), context, lineNumbers, fontInfo, tabSize, wrappingColumn, wrappingIndent, wordBreak);
+				return createLineBreaks(assertReturnsDefined(this.targetWindow.deref()), context, lineNumbers, fontInfo, tabSize, wrappingColumn, wrappingIndent, wordBreak, forceFullwidthCharacterWidth);
 			}
 		};
 	}
 }
 
-function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerContext, lineNumbers: number[], fontInfo: FontInfo, tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): (ModelLineProjectionData | null)[] {
+function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerContext, lineNumbers: number[], fontInfo: FontInfo, tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', forceFullwidthCharacterWidth: boolean): (ModelLineProjectionData | null)[] {
 	function createEmptyLineBreakWithPossiblyInjectedText(lineNumber: number): ModelLineProjectionData | null {
 		const injectedTexts = context.getLineInjectedText(lineNumber);
 		if (injectedTexts) {
@@ -85,6 +86,9 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 		const injectedTexts = context.getLineInjectedText(lineNumber);
 		const lineContent = LineInjectedText.applyInjectedText(context.getLineContent(lineNumber), injectedTexts);
 		const fixedWidthRanges = LineInjectedText.getFixedWidthInjectedTextRanges(injectedTexts);
+		const fullwidthCharacterWidth = forceFullwidthCharacterWidth && !strings.containsRTL(lineContent) && containsFullWidthCharacter(lineContent)
+			? 2 * fontInfo.spaceWidth
+			: 0;
 
 		let firstNonWhitespaceIndex = 0;
 		let wrappedTextIndentLength = 0;
@@ -117,7 +121,7 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 				const indentWidth = Math.ceil(fontInfo.spaceWidth * wrappedTextIndentLength);
 
 				// Force sticking to beginning of line if no character would fit except for the indentation
-				if (indentWidth + fontInfo.typicalFullwidthCharacterWidth > overallWidth) {
+				if (indentWidth + (fullwidthCharacterWidth || fontInfo.typicalFullwidthCharacterWidth) > overallWidth) {
 					firstNonWhitespaceIndex = 0;
 					wrappedTextIndentLength = 0;
 				} else {
@@ -134,7 +138,7 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 				endOffset: range.endOffset - firstNonWhitespaceIndex,
 				widthInEm: range.widthInEm
 			}));
-		const tmp = renderLine(renderLineContent, wrappedTextIndentLength, tabSize, width, sb, additionalIndentLength, shiftedFixedWidthRanges);
+		const tmp = renderLine(renderLineContent, wrappedTextIndentLength, tabSize, width, sb, additionalIndentLength, shiftedFixedWidthRanges, fullwidthCharacterWidth);
 		firstNonWhitespaceIndices[i] = firstNonWhitespaceIndex;
 		wrappedTextIndentLengths[i] = wrappedTextIndentLength;
 		renderLineContents[i] = renderLineContent;
@@ -210,7 +214,7 @@ const enum Constants {
 	SPAN_MODULO_LIMIT = 16384
 }
 
-function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: StringBuilder, wrappingIndentLength: number, fixedWidthRanges: readonly FixedWidthInjectedTextRange[]): [number[], number[], number[]] {
+function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: StringBuilder, wrappingIndentLength: number, fixedWidthRanges: readonly FixedWidthInjectedTextRange[], fullwidthCharacterWidth: number): [number[], number[], number[]] {
 
 	if (wrappingIndentLength !== 0) {
 		const hangingOffset = String(wrappingIndentLength);
@@ -235,7 +239,6 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 	const charOffsets: number[] = [];
 	const spanStartOffsets: number[] = [0];
 	const visibleColumns: number[] = [];
-	let nextCharCode = (0 < len ? lineContent.charCodeAt(0) : CharCode.Null);
 	let spanOpen = true;
 
 	sb.appendString('<span>');
@@ -245,6 +248,7 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 		if (startsFixedWidth) {
 			if (spanOpen) {
 				sb.appendString('</span>');
+				spanOpen = false;
 			}
 			// Injected text that only reserves horizontal space covers no character, so it gets a span of
 			// its own. Rendering it inside the span of the character below would make that character fixed
@@ -257,16 +261,28 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 				spanStartOffsets.push(charOffset);
 				fixedWidthRange = fixedWidthRanges[++fixedWidthRangeIndex];
 			}
-			// The character below goes into a fixed width span if one still covers it, a normal one
-			// otherwise. At most one such range can start here: injections at the same column are laid
-			// out one after the other, so only an empty one leaves the next starting at the same offset.
+			// At most one non-empty range can start here: injections at the same column are laid out one
+			// after the other, so only an empty one leaves the next starting at the same offset.
 			if (fixedWidthRange && fixedWidthRange.startOffset === charIndex) {
 				sb.appendString('<span style="display:inline-block;box-sizing:border-box;white-space:nowrap;width:');
 				sb.appendString(String(fixedWidthRange.widthInEm));
 				sb.appendString('em;">');
-			} else {
-				sb.appendString('<span>');
+				spanStartOffsets.push(charOffset);
+				spanOpen = true;
 			}
+		}
+
+		const isInsideFixedWidthRange = !!fixedWidthRange && fixedWidthRange.startOffset <= charIndex && charIndex < fixedWidthRange.endOffset;
+		const fullWidthCharacterLength = fullwidthCharacterWidth > 0 && !isInsideFixedWidthRange
+			? getFullWidthCharacterLength(lineContent, charIndex)
+			: 0;
+		if (fullWidthCharacterLength > 0) {
+			if (spanOpen) {
+				sb.appendString('</span>');
+			}
+			sb.appendString('<span style="display:inline-block;box-sizing:border-box;text-align:center;width:');
+			sb.appendString(String(fullwidthCharacterWidth));
+			sb.appendString('px;">');
 			spanStartOffsets.push(charOffset);
 			spanOpen = true;
 		} else if (!spanOpen) {
@@ -277,10 +293,25 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 			sb.appendString('</span><span>');
 			spanStartOffsets.push(charOffset);
 		}
+
+		if (fullWidthCharacterLength > 0) {
+			for (let offset = 0; offset < fullWidthCharacterLength; offset++) {
+				charOffsets[charIndex + offset] = charOffset + offset;
+				visibleColumns[charIndex + offset] = visibleColumn + offset;
+				sb.appendCharCode(lineContent.charCodeAt(charIndex + offset));
+			}
+			charOffset += fullWidthCharacterLength;
+			visibleColumn += 2;
+			sb.appendString('</span>');
+			spanOpen = false;
+			charIndex += fullWidthCharacterLength - 1;
+			continue;
+		}
+
 		charOffsets[charIndex] = charOffset;
 		visibleColumns[charIndex] = visibleColumn;
-		const charCode = nextCharCode;
-		nextCharCode = (charIndex + 1 < len ? lineContent.charCodeAt(charIndex + 1) : CharCode.Null);
+		const charCode = lineContent.charCodeAt(charIndex);
+		const nextCharCode = (charIndex + 1 < len ? lineContent.charCodeAt(charIndex + 1) : CharCode.Null);
 		let producedCharacters = 1;
 		let charWidth = 1;
 		switch (charCode) {

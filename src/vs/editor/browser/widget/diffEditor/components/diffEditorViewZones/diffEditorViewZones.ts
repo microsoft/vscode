@@ -82,10 +82,10 @@ export class DiffEditorViewZones extends Disposable {
 		this._register(this._editors.original.onDidChangeViewZones((_args) => { if (!this._canIgnoreViewZoneUpdateEvent()) { updateImmediately.schedule(); } }));
 		this._register(this._editors.modified.onDidChangeViewZones((_args) => { if (!this._canIgnoreViewZoneUpdateEvent()) { updateImmediately.schedule(); } }));
 		this._register(this._editors.original.onDidChangeConfiguration((args) => {
-			if (args.hasChanged(EditorOption.wrappingInfo) || args.hasChanged(EditorOption.lineHeight) || args.hasChanged(EditorOption.fontInfo) || args.hasChanged(EditorOption.effectiveForceFullwidthCharacterWidth)) { updateImmediately.schedule(); }
+			if (args.hasChanged(EditorOption.wrappingInfo) || args.hasChanged(EditorOption.lineHeight)) { updateImmediately.schedule(); }
 		}));
 		this._register(this._editors.modified.onDidChangeConfiguration((args) => {
-			if (args.hasChanged(EditorOption.wrappingInfo) || args.hasChanged(EditorOption.lineHeight) || args.hasChanged(EditorOption.fontInfo) || args.hasChanged(EditorOption.effectiveForceFullwidthCharacterWidth)) { updateImmediately.schedule(); }
+			if (args.hasChanged(EditorOption.wrappingInfo) || args.hasChanged(EditorOption.lineHeight)) { updateImmediately.schedule(); }
 		}));
 
 		const originalModelTokenizationCompleted = this._diffModel.map(m =>

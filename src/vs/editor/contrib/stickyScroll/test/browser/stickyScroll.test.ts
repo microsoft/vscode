@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import sinon from 'sinon';
 import { withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { StickyScrollController } from '../../browser/stickyScrollController.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
@@ -24,7 +23,6 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { StickyScrollWidget } from '../../browser/stickyScrollWidget.js';
 
 suite('Sticky Scroll Tests', () => {
 
@@ -63,7 +61,6 @@ suite('Sticky Scroll Tests', () => {
 		disposables.clear();
 	});
 	teardown(() => {
-		sinon.restore();
 		disposables.clear();
 	});
 
@@ -211,43 +208,6 @@ suite('Sticky Scroll Tests', () => {
 				stickyScrollController.stickyScrollCandidateProvider.dispose();
 				model.dispose();
 			});
-		});
-	});
-
-	test('rebuilds rendered sticky lines when full-width character widths change', () => {
-		return runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const model = disposables.add(createTextModel(text.replace('foo', '漢')));
-			const setState = sinon.spy(StickyScrollWidget.prototype, 'setState');
-			try {
-				await withAsyncTestCodeEditor(model, {
-					stickyScroll: {
-						enabled: true,
-						maxLineCount: 5,
-						defaultModel: 'outlineModel'
-					},
-					fontLigatures: false,
-					forceFullwidthCharacterWidth: false,
-					envConfig: {
-						outerHeight: 500
-					},
-					serviceCollection
-				}, async (editor, _viewModel, instantiationService) => {
-					const stickyScrollController = disposables.add(editor.registerAndInstantiateContribution(StickyScrollController.ID, StickyScrollController));
-					const languageService = instantiationService.get(ILanguageFeaturesService);
-					disposables.add(languageService.documentSymbolProvider.register('*', documentSymbolProviderForTestModel()));
-					await stickyScrollController.stickyScrollCandidateProvider.update();
-					editor.setScrollTop(1);
-					await Promise.resolve();
-					setState.resetHistory();
-
-					editor.updateOptions({ forceFullwidthCharacterWidth: true });
-					await Promise.resolve();
-
-					assert.deepStrictEqual(setState.getCalls().map(call => call.args[2]), [0]);
-				});
-			} finally {
-				setState.restore();
-			}
 		});
 	});
 

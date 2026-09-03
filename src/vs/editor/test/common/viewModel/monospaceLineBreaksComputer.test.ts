@@ -486,22 +486,44 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		});
 	});
 
-	test('MonospaceLineBreaksComputer - forced width uses Unicode full-width classification', () => {
+	test('MonospaceLineBreaksComputer - forced width determines whether continuation indentation fits', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('(', '\t)');
+		const text = '    \u3042\u3042\u3042';
+		const excludedRtlText = '    \u6F22\u0639\u0639';
+		const wrappedIndentWith = (lineText: string, breakAfter: number, columnsForFullWidthChar: number, forceFullwidthCharacterWidth: boolean) =>
+			getLineBreakData(factory, 4, breakAfter, columnsForFullWidthChar, WrappingIndent.Same, 'normal', false, lineText, null, null, forceFullwidthCharacterWidth)?.wrappedTextIndentLength;
+
+		assert.deepStrictEqual({
+			wideNatural: wrappedIndentWith(text, 6, 3, false),
+			wideForced: wrappedIndentWith(text, 6, 3, true),
+			narrowNatural: wrappedIndentWith(text, 5, 1, false),
+			narrowForced: wrappedIndentWith(text, 5, 1, true),
+			excludedRtlForced: wrappedIndentWith(excludedRtlText, 6, 3, true),
+		}, {
+			wideNatural: 0,
+			wideForced: 4,
+			narrowNatural: 4,
+			narrowForced: 0,
+			excludedRtlForced: 0,
+		});
+	});
+
+	test('MonospaceLineBreaksComputer - forced width uses shared full-width classification', () => {
 		const factory = new MonospaceLineBreaksComputerFactory('(', '\t)');
 		const wrapWith = (text: string, forceFullwidthCharacterWidth: boolean) => toAnnotatedText(text, getLineBreakData(factory, 4, 5, 3, WrappingIndent.None, 'normal', false, text, null, null, forceFullwidthCharacterWidth));
-		const compatibilityForms = '\uFE30'.repeat(4);
+		const fullwidthAscii = '\uFF21'.repeat(4);
 		const vaiSyllables = '\uA500'.repeat(4);
 
 		assert.deepStrictEqual({
-			compatibilityFormsNatural: wrapWith(compatibilityForms, false),
-			compatibilityFormsForced: wrapWith(compatibilityForms, true),
+			fullwidthAsciiNatural: wrapWith(fullwidthAscii, false),
+			fullwidthAsciiForced: wrapWith(fullwidthAscii, true),
 			vaiNatural: wrapWith(vaiSyllables, false),
 			vaiForced: wrapWith(vaiSyllables, true),
 		}, {
-			compatibilityFormsNatural: compatibilityForms,
-			compatibilityFormsForced: '\uFE30\uFE30|\uFE30\uFE30',
+			fullwidthAsciiNatural: '\uFF21|\uFF21|\uFF21|\uFF21',
+			fullwidthAsciiForced: '\uFF21\uFF21|\uFF21\uFF21',
 			vaiNatural: '\uA500|\uA500|\uA500|\uA500',
-			vaiForced: '\uA500|\uA500|\uA500|\uA500',
+			vaiForced: '\uA500\uA500|\uA500\uA500',
 		});
 	});
 
