@@ -84,7 +84,7 @@
 	flex-direction: column;
 }
 
-.new-chat-input-area:focus-within {
+.new-chat-input-area.focused {
 	border-color: var(--vscode-agentsChatInput-focusBorder, var(--vscode-focusBorder));
 }
 
@@ -251,6 +251,7 @@
 .sessions-chat-config-toolbar .monaco-action-bar .action-item.compact-picker {
 	box-sizing: border-box;
 	width: 22px;
+	height: 22px;
 	min-width: 22px;
 	padding: 0;
 }
@@ -258,9 +259,10 @@
 .sessions-chat-config-toolbar .monaco-action-bar .action-item.compact-picker .action-label {
 	box-sizing: border-box;
 	width: 22px;
+	height: 22px;
 	min-width: 22px;
-	padding: 2px 2px 2px 8px;
-	justify-content: flex-start;
+	padding: 0;
+	justify-content: center;
 }
 
 .sessions-chat-config-toolbar .monaco-action-bar .action-item.compact-picker .action-label.model-picker-split {
@@ -271,10 +273,33 @@
 	display: none;
 }
 
-/* Expanded pickers remain intrinsic; the responsive controller switches them
- * to compact form instead of allowing their labels to truncate. */
-.sessions-chat-config-toolbar .monaco-action-bar .action-item:not(.compact-picker) {
+.sessions-chat-config-toolbar .monaco-action-bar .action-item.compact-picker.model-picker-item {
+	width: auto;
+	min-width: min-content;
+}
+
+.sessions-chat-config-toolbar .monaco-action-bar .action-item.compact-picker.model-picker-item .action-label {
+	width: auto;
+	min-width: min-content;
+}
+
+.sessions-chat-config-toolbar .monaco-action-bar .action-item.compact-picker.model-picker-item .model-picker-config .chat-input-picker-label {
+	display: inline;
+}
+
+.sessions-chat-config-toolbar .monaco-action-bar .action-item:not(.compact-picker):not(.model-picker-item) {
 	flex-shrink: 0;
+}
+
+.sessions-chat-config-toolbar .monaco-action-bar .action-item.model-picker-item:not(.compact-picker) {
+	flex: 0 1 auto;
+	min-width: min-content;
+}
+
+.sessions-chat-config-toolbar .action-item.model-picker-item .action-label.model-picker-split {
+	box-sizing: border-box;
+	width: 100%;
+	min-width: 0;
 }
 
 .sessions-chat-config-toolbar .action-label {
@@ -292,6 +317,17 @@
 	overflow: visible;
 }
 
+.monaco-workbench .sessions-chat-config-toolbar .action-label:focus,
+.monaco-workbench .new-chat-bottom-container .sessions-chat-picker-slot > .action-label:focus {
+	outline: none;
+}
+
+.monaco-workbench .sessions-chat-config-toolbar .action-label:focus-visible,
+.monaco-workbench .new-chat-bottom-container .sessions-chat-picker-slot > .action-label:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
 .sessions-chat-config-toolbar .action-label:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);
@@ -302,13 +338,16 @@
 	font-size: var(--vscode-fontSize-label2, 11px);
 }
 
-/* Expanded labels are never truncated; compact mode removes the label. */
 .sessions-chat-config-toolbar .action-label .chat-input-picker-label {
 	margin-left: 4px;
+	white-space: nowrap;
+}
+
+.sessions-chat-config-toolbar .action-label:not(.model-picker-split) .chat-input-picker-label,
+.sessions-chat-config-toolbar .model-picker-config .chat-input-picker-label {
 	flex-shrink: 0;
 	overflow: visible;
 	text-overflow: clip;
-	white-space: nowrap;
 }
 
 /* When the picker has no leading icon (e.g. model picker), drop the icon-to-label gap. */
@@ -591,10 +630,10 @@
 .sessions-chat-attachment-image {
 	width: 13px;
 	height: 13px;
-	border-radius: 2px;
+	border-radius: var(--vscode-cornerRadius-xSmall);
 	object-fit: cover;
 	flex-shrink: 0;
-	margin: 0 3px;
+	margin: 0 var(--vscode-spacing-size40);
 }
 
 .sessions-chat-attachment-pill {
@@ -602,8 +641,8 @@
 	align-items: center;
 	overflow: hidden;
 	font-size: var(--vscode-fontSize-body2, 11px);
-	padding: 0 4px 0 0;
-	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+	padding: 0 var(--vscode-spacing-size20) 0 var(--vscode-spacing-size40);
+	border: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: var(--vscode-cornerRadius-small);
 	height: 18px;
 	max-width: 200px;
@@ -616,6 +655,30 @@
 	white-space: nowrap;
 }
 
+.sessions-chat-attachment-content,
+.sessions-chat-attachment-open {
+	display: inline-flex;
+	align-items: center;
+	min-width: 0;
+	height: 100%;
+	overflow: hidden;
+	padding: 0;
+	border: 0;
+	background: none;
+	color: inherit;
+	font: inherit;
+}
+
+.sessions-chat-attachment-open {
+	cursor: pointer;
+}
+
+.sessions-chat-attachment-open:focus-visible,
+.sessions-chat-attachment-remove:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
 /* Mirrors the workbench paste pill's `.attachment-additional-info`. */
 .sessions-chat-attachment-info {
 	opacity: 0.7;
@@ -624,10 +687,11 @@
 	white-space: nowrap;
 }
 
-.sessions-chat-attachment-pill .codicon {
-	font-size: 14px;
+.monaco-workbench .sessions-chat-attachment-pill .sessions-chat-attachment-content .codicon,
+.monaco-workbench .sessions-chat-attachment-pill .sessions-chat-attachment-open .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
 	flex-shrink: 0;
-	padding: 0 3px;
+	padding: 0 var(--vscode-spacing-size20);
 }
 
 .sessions-chat-attachment-pill .monaco-icon-label {
@@ -639,6 +703,9 @@
 	padding: 0 0 0 2px;
 	line-height: 100% !important;
 	align-self: center;
+	background-size: contain;
+	background-position: center;
+	background-repeat: no-repeat;
 }
 
 .sessions-chat-attachment-pill .monaco-icon-label .monaco-icon-label-container {
@@ -657,17 +724,23 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	width: var(--vscode-spacing-size160);
+	height: var(--vscode-spacing-size160);
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-xSmall);
+	padding: 0;
+	background: none;
 	cursor: pointer;
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
-	margin-left: 4px;
+	margin-right: var(--vscode-spacing-size20);
 }
 
-.sessions-chat-attachment-pill:hover {
+.sessions-chat-attachment-pill.openable:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.sessions-chat-attachment-remove .codicon {
+.monaco-workbench .sessions-chat-attachment-pill .sessions-chat-attachment-remove .codicon {
 	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	padding: 0;
 }

@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { getAccessibilityHelpText } from '../../../browser/actions/chatAccessibilityHelp.js';
+import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/agentSessions.js';
 
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -48,10 +49,11 @@ suite('Chat Accessibility Help', () => {
 		assert.deepStrictEqual({
 			keybinding: helpText.includes('<keybinding:editor.action.showContextMenu>'),
 			navigation: helpText.includes('use the up and down arrow keys to choose'),
-			actions: helpText.includes('Go on the Run') && helpText.includes('Grow') && helpText.includes('Shrink') && helpText.includes('Stable Colors') && helpText.includes('Insiders Colors'),
+			actions: helpText.includes('Go on the Run') && helpText.includes('Grow') && helpText.includes('Shrink') && helpText.includes('Reset Size') && helpText.includes('Stable Colors') && helpText.includes('Insiders Colors'),
 			petMovement: helpText.includes('Drag it around the chat with the mouse') && helpText.includes('left and right arrows to make it hop'),
 			petHopping: helpText.includes('make it hop along the input until it reaches an edge'),
 			petThrowing: helpText.includes('flick it in any direction') && helpText.includes('gravity pulls it down') && helpText.includes('Hold Shift with the left or right arrow to throw it toward a wall'),
+			petBouncing: helpText.includes('Pointer collisions are ignored for half a second after a drag release') && helpText.includes('while the pet is falling, move the pointer into it to bounce it upward') && helpText.includes('Sideways and upward travel do not start the bounce counter') && helpText.includes('counter beside the pet tracks consecutive bounces and remains for up to five seconds after landing') && helpText.includes('until the pet next reacts or interacts') && helpText.includes('at least twenty bounces triggers confetti unless reduced motion is enabled') && helpText.includes('press Enter or Space to bounce it upward'),
 			petRevival: helpText.includes('a despawn effect appears at the bottom') && helpText.includes('a respawn effect appears at the top') && helpText.includes('automatically returns to the input'),
 			petScale: helpText.includes('position and selected size are shared across chats and windows') && helpText.includes('remembered after you restart'),
 		}, {
@@ -61,6 +63,7 @@ suite('Chat Accessibility Help', () => {
 			petMovement: true,
 			petHopping: true,
 			petThrowing: true,
+			petBouncing: true,
 			petRevival: true,
 			petScale: true,
 		});
@@ -131,6 +134,31 @@ suite('Chat Accessibility Help', () => {
 			editsView: true,
 			quickChat: false,
 			inlineChat: false,
+		});
+	});
+
+	test('documents session rename where the focused-chat keybinding is enabled', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+		const keybinding = `<keybinding:${AGENT_SESSION_RENAME_ACTION_ID}>`;
+
+		assert.deepStrictEqual({
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes(keybinding),
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes(keybinding),
+			editsView: getAccessibilityHelpText('editsView', keybindingService, true).includes(keybinding),
+			afterFirstRequest: getAccessibilityHelpText('agentView', keybindingService, true).includes('Agent Host sessions can be renamed after sending the first request'),
+			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes(keybinding),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes(keybinding),
+			sessionsWindow: getAccessibilityHelpText('agentView', keybindingService, true, true).includes(keybinding),
+		}, {
+			panelChat: true,
+			agentView: true,
+			editsView: true,
+			afterFirstRequest: true,
+			quickChat: false,
+			inlineChat: false,
+			sessionsWindow: false,
 		});
 	});
 });

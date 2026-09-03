@@ -5,6 +5,7 @@
 
 import { disposableTimeout, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
@@ -48,6 +49,8 @@ const RESTORE_SESSION_WAIT_TIMEOUT = 30_000;
 
 /** Maximum number of recently opened sessions reported by {@link SessionsService.getRecentlyOpenedSessions}. */
 const MAX_RECENTLY_OPENED_SESSIONS = 10;
+
+type SessionNavigationIntent = 'explicit' | 'automatic';
 
 /**
  * Options for {@link ISessionsService.openNewSession}.
@@ -184,6 +187,9 @@ export interface ISessionsService {
 
 	/** Place a session to the right of the last visible session and activate it. */
 	openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI }): Promise<void>;
+
+	/** Open a chat to the side of its session view, redirecting a superseded resource first. */
+	openChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean }): Promise<void>;
 
 	/**
 	 * Whether the given session may be opened, honoring workspace trust. Prompts
@@ -540,12 +546,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const isArchived = activeSession.isArchived.read(reader);
 			if (isArchived && !wasArchived) {
 				if (activeSession.isQuickChat?.read(undefined)) {
-					this.openQuickChat();
+					this._openQuickChat(undefined, 'automatic');
 				} else {
 					const folderUri = activeSession.workspace.read(undefined)?.folders[0]?.root;
-					this.openNewSession(folderUri
+					void this._openNewSession(folderUri
 						? { folderUri, ...inheritableSessionTarget(this.sessionsManagementService, activeSession, folderUri) }
-						: undefined);
+						: undefined, CancellationToken.None, 'automatic').catch(onUnexpectedError);
 				}
 			}
 			wasArchived = isArchived;
@@ -561,7 +567,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 					const visible = chats.filter(c => c.interactivity.read(reader) !== ChatInteractivity.Hidden);
 					const fallback = visible[visible.length - 1] ?? activeSession.mainChat.read(reader);
 					if (fallback) {
-						this.openChat(activeSession, fallback.resource);
+						void this._openChatSession(activeSession, fallback.resource, undefined, 'automatic').catch(onUnexpectedError);
 					}
 				}
 			}));
@@ -633,9 +639,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (e.removed.length && e.removed.some(r => r.sessionId === currentActive.sessionId)) {
 			const fallback = this._visibility.activeSession.get();
 			if (fallback && this.sessionsManagementService.getSession(fallback.resource)) {
-				this.openSession(fallback.resource, { source: 'fallback' });
+				void this._openSession(fallback.resource, { source: 'fallback' }, 'automatic').catch(onUnexpectedError);
 			} else {
-				this.openNewSession();
+				void this._openNewSession(undefined, CancellationToken.None, 'automatic').catch(onUnexpectedError);
 			}
 		}
 	}
@@ -698,14 +704,16 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 * Cancel any in-flight open-session/restore and return a fresh cancellation token.
 	 */
 	private _startOpenSession(): CancellationToken {
-		// Opening a session is the gesture that dismisses a custom view; the
-		// workbench then restores the sessions grid and its side panel state.
-		this.customViewService.hideCustomView();
-
 		this._openSessionCts.value?.cancel();
 		const cts = new CancellationTokenSource();
 		this._openSessionCts.value = cts;
 		return cts.token;
+	}
+
+	private _dismissCustomViewForNavigation(intent: SessionNavigationIntent): void {
+		if (intent === 'explicit') {
+			this.customViewService.hideCustomView();
+		}
 	}
 
 	/**
@@ -731,10 +739,24 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return this._visibility.setActive(session, preserveFocus);
 	}
 
-	async openChat(session: ISession, chatUri: URI, options?: IOpenSessionOptions): Promise<void> {
+	openChat(session: ISession, chatUri: URI, options?: IOpenSessionOptions): Promise<void> {
+		return this._openChatSession(session, chatUri, options, 'explicit');
+	}
+
+	private async _openChatSession(session: ISession, chatUri: URI, options: IOpenSessionOptions | undefined, intent: SessionNavigationIntent): Promise<void> {
 		const t0 = Date.now();
 		this._cancelRestore();
+		this._dismissCustomViewForNavigation(intent);
 		const token = this._startOpenSession();
+		// Redirect a superseded resource (e.g. a legacy session adopted into another
+		// provider) before activating, the same way `openSession` does for a URI, so
+		// opening by object migrates rather than activating the old facade as-is.
+		const resolved = await this._resolveSessionForOpen(session, chatUri);
+		if (token.isCancellationRequested) {
+			return;
+		}
+		session = resolved.session;
+		chatUri = resolved.chatUri ?? chatUri;
 		if (options?.source) {
 			await this.sessionOpenTelemetryService.withOpenRequest(options.source, token, telemetryAttempt =>
 				this._openChat(session, chatUri, options.preserveFocus, token, t0, telemetryAttempt));
@@ -834,16 +856,23 @@ export class SessionsService extends Disposable implements ISessionsService {
 		});
 	}
 
-	async openSession(sessionResource: URI, options?: IOpenSessionOptions): Promise<void> {
+	openSession(sessionResource: URI, options?: IOpenSessionOptions): Promise<void> {
+		return this._openSession(sessionResource, options, 'explicit');
+	}
+
+	private async _openSession(sessionResource: URI, options: IOpenSessionOptions | undefined, intent: SessionNavigationIntent): Promise<void> {
 		this.logService.trace(`[SessionsView] openSession requested uri=${sessionResource.toString()}`);
 		// Claim the open before resolving: resolution can take seconds for a legacy
 		// Copilot CLI resource, and a newer open must win regardless of which
 		// resolution finishes first.
 		this._cancelRestore();
+		this._dismissCustomViewForNavigation(intent);
 		const token = this._startOpenSession();
 		await this.sessionOpenTelemetryService.withOpenRequest(options?.source ?? 'unknown', token, async telemetryAttempt => {
-			// Redirect a superseded resource (legacy Copilot CLI) before lookup, so an
-			// open by URI migrates rather than reaching the old provider.
+			// Redirect a superseded resource (legacy session adopted into another
+			// provider) before lookup, so an open by URI migrates rather than reaching
+			// the old provider. Providers decline unfamiliar resources and the caller
+			// keeps the original resource.
 			const resolved = await this.sessionsManagementService.resolveSessionResource(sessionResource, 'open');
 			if (token.isCancellationRequested) {
 				return;
@@ -861,17 +890,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 		});
 	}
 
-	async openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI }): Promise<void> {
-		const visible = this.visibleSessions.get();
-		const lastVisible = visible[visible.length - 1];
-		if (lastVisible && lastVisible.sessionId !== session.sessionId) {
-			this.insertAt(session, lastVisible.sessionId, 'right');
-		}
-		if (options?.chatResource) {
-			await this.openChat(session, options.chatResource, { preserveFocus: options.preserveFocus, source: options.source });
-		} else {
-			await this.openSession(session.resource, { preserveFocus: options?.preserveFocus, source: options?.source });
-		}
+	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {
+		this._cancelRestore();
+		this._dismissCustomViewForNavigation('explicit');
+		this._startOpenSession();
+		this._showSession(this._getSession(sessionResource), options);
 	}
 
 	async canOpenSession(session: ISession): Promise<boolean> {
@@ -917,10 +940,71 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return true;
 	}
 
-	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {
-		this._cancelRestore();
-		this._startOpenSession();
-		this._showSession(this._getSession(sessionResource), options);
+	async openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI }): Promise<void> {
+		this._dismissCustomViewForNavigation('explicit');
+		const token = this._startOpenSession();
+		// Redirect a superseded resource before inserting a slot, so the side-by-side
+		// view/terminal never briefly binds to the old facade.
+		const resolved = await this._resolveSessionForOpen(session, options?.chatResource);
+		if (token.isCancellationRequested) {
+			return;
+		}
+		session = resolved.session;
+		if (options?.chatResource && resolved.chatUri) {
+			options = { ...options, chatResource: resolved.chatUri };
+		}
+		const visible = this.visibleSessions.get();
+		const lastVisible = visible[visible.length - 1];
+		if (lastVisible && lastVisible.sessionId !== session.sessionId) {
+			this.insertAt(session, lastVisible.sessionId, 'right');
+		}
+		if (options?.chatResource) {
+			await this.openChat(session, options.chatResource, { preserveFocus: options.preserveFocus, source: options.source });
+		} else {
+			await this.openSession(session.resource, { preserveFocus: options?.preserveFocus, source: options?.source });
+		}
+	}
+
+	/**
+	 * Opens a chat to the side of its session view, redirecting a superseded
+	 * resource first so a migrating session opens its adopted twin to the side
+	 * rather than the old facade. Provider-neutral: the redirect is the
+	 * `resolveSessionResource` hook, not a scheme check.
+	 */
+	async openChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
+		this._dismissCustomViewForNavigation('explicit');
+		const token = this._startOpenSession();
+		const resolved = await this._resolveSessionForOpen(session, chatResource);
+		if (token.isCancellationRequested) {
+			return;
+		}
+		session = resolved.session;
+		chatResource = resolved.chatUri ?? chatResource;
+		this._showSession(this._getSession(session.resource), options);
+		const sessionView = this.sessionsPartService.getSessionView(session.sessionId);
+		if (!sessionView) {
+			throw new Error(`Unable to open chat to the side because session view '${session.sessionId}' is not mounted`);
+		}
+		await sessionView.openChatToSide(chatResource);
+	}
+
+	/**
+	 * Redirects a superseded session to its authoritative facade before it is
+	 * shown (mirrors `openSession`'s URI resolution). Provider-neutral: it asks
+	 * `resolveSessionResource`, which declines unfamiliar resources, rather than
+	 * inspecting the provider's URI scheme. Returns the redirected session (and
+	 * its main chat) when it changes, otherwise the inputs unchanged.
+	 */
+	private async _resolveSessionForOpen(session: ISession, chatUri: URI | undefined): Promise<{ session: ISession; chatUri: URI | undefined }> {
+		const resolved = await this.sessionsManagementService.resolveSessionResource(session.resource, 'open');
+		if (this.uriIdentityService.extUri.isEqual(resolved, session.resource)) {
+			return { session, chatUri };
+		}
+		const superseding = this.sessionsManagementService.getSession(resolved);
+		if (!superseding) {
+			return { session, chatUri };
+		}
+		return { session: superseding, chatUri: chatUri ? superseding.mainChat.get().resource : undefined };
 	}
 
 	private _getSession(sessionResource: URI): ISession {
@@ -961,7 +1045,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._activate(undefined);
 	}
 
-	async openNewSession(options?: IOpenNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<IOpenNewSessionResult> {
+	openNewSession(options?: IOpenNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<IOpenNewSessionResult> {
+		return this._openNewSession(options, token, 'explicit');
+	}
+
+	private async _openNewSession(options: IOpenNewSessionOptions | undefined, token: CancellationToken, intent: SessionNavigationIntent): Promise<IOpenNewSessionResult> {
 		const folderUri = options?.folderUri;
 		if (folderUri) {
 			// Single trust gate for every path that creates a concrete session for
@@ -988,6 +1076,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			if (token.isCancellationRequested) {
 				return { session: undefined, trustDeclined: false };
 			}
+			this._dismissCustomViewForNavigation(intent);
 			this._startOpenSession();
 			try {
 				const session = this.sessionsManagementService.createNewSession(folderUri, options);
@@ -1004,6 +1093,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// Without a folder (or when folder resolution failed above): switch to
 		// the new-session composer view.
 		// No-op when no session is active (empty new-session placeholder showing).
+		if (!folderUri) {
+			this._dismissCustomViewForNavigation(intent);
+		}
 		if (this._visibility.activeSession.get() === undefined) {
 			return { session: undefined, trustDeclined: false };
 		}
@@ -1030,6 +1122,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	openQuickChat(options?: ICreateNewSessionOptions): IActiveSession | undefined {
+		return this._openQuickChat(options, 'explicit');
+	}
+
+	private _openQuickChat(options: ICreateNewSessionOptions | undefined, intent: SessionNavigationIntent): IActiveSession | undefined {
+		this._dismissCustomViewForNavigation(intent);
 		this._startOpenSession();
 		try {
 			const session = this.sessionsManagementService.createQuickChat(options);
@@ -1044,6 +1141,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	async openNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<void> {
 		this._cancelRestore();
+		this._dismissCustomViewForNavigation('explicit');
 		this._startOpenSession();
 		const chat = await this.sessionsManagementService.createNewChatInSession(session, options);
 		if (!chat) {

@@ -1,0 +1,58 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.browser-root .browser-welcome-container {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background-color: var(--vscode-editor-background);
+}
+
+.browser-root .browser-welcome-content {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 12px;
+}
+
+.browser-root .browser-welcome-icon {
+	min-height: 40px;
+}
+
+.browser-root .browser-welcome-icon .codicon {
+	font-size: 40px;
+	margin-bottom: 24px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.browser-root .browser-welcome-title {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	margin-top: 5px;
+	text-align: center;
+	line-height: normal;
+	padding: 0 8px;
+}
+
+.browser-root .browser-welcome-subtitle {
+	font-size: 12px;
+	position: relative;
+	text-align: center;
+	max-width: 280px;
+	padding: 0 20px;
+	margin: 8px auto 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+.browser-root .browser-welcome-subtitle p {
+	margin-top: 8px;
+	margin-bottom: 8px;
+}

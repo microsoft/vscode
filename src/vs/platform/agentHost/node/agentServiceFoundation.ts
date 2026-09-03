@@ -13,6 +13,7 @@ import { IRequestService } from '../../request/common/request.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { AgentHostProxyConfigKey } from '../common/agentHostSchema.js';
 import type { IAgentServiceCallbacks, IAgentServiceCallbackBinder } from './agentService.js';
+import type { IAgentHostAutomationExecution } from './agentHostAutomationService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationController, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
@@ -25,6 +26,13 @@ import { hostBuildInfoFromProduct } from '../common/state/sessionState.js';
 
 export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder {
 	private callbacks: IAgentServiceCallbacks | undefined;
+
+	readonly automationExecution: IAgentHostAutomationExecution = {
+		isSessionTemplateAvailable: template => this.value.automationExecution.isSessionTemplateAvailable(template),
+		createSession: (template, run) => this.value.automationExecution.createSession(template, run),
+		startSession: (session, message) => this.value.automationExecution.startSession(session, message),
+		cancelSession: session => this.value.automationExecution.cancelSession(session),
+	};
 
 	readonly sessionServerToolAccessor: ISessionServerToolAccessor = {
 		isActiveAgentTitleGenerationEnabled: () => this.value.sessionServerToolAccessor.isActiveAgentTitleGenerationEnabled(),

@@ -31,9 +31,10 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/servic
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
-import { IMultiDiffEditorOptions, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { MultiDiffEditorLogger } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorLogging.js';
 import { IDiffEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEditor.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { Menus } from '../../../browser/menus.js';
@@ -67,15 +68,23 @@ const CHANGES_DIFF_EDITOR_OPTIONS: IDiffEditorOptions = {
 	lineNumbersMinChars: 3,
 };
 
+const CHANGES_LIST_BOTTOM_PADDING_PX = 24;
+const CHANGES_ENTRY_HEADER_HEIGHT_PX = 32;
+const CHANGES_ENTRY_CONTENT_BOTTOM_PADDING_PX = 8;
+
 class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 
 	readonly headerClickToCollapse = true;
+	readonly diffEditorItemHorizontalInsets = { left: 0, right: 0 };
+	readonly diffEditorItemHeaderHeight = CHANGES_ENTRY_HEADER_HEIGHT_PX;
+	readonly diffEditorItemContentBottomPadding = CHANGES_ENTRY_CONTENT_BOTTOM_PADDING_PX;
 
 	constructor(
 		private readonly changesObs: IObservable<readonly ISessionFileChange[]>,
 		@ICommandService private readonly commandService: ICommandService,
 		@IChangesViewService private readonly changesViewService: IChangesViewService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEditorService private readonly editorService: IEditorService,
 	) { }
 
 	createResourceLabel(element: HTMLElement, kind: MultiDiffEditorItemLabelKind): IResourceLabel {
@@ -103,6 +112,14 @@ class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 			return this.instantiationService.createInstance(ChangesetReviewActionViewItem, action, options);
 		}
 		return undefined;
+	}
+
+	openDiffEditor(original: URI, modified: URI): void {
+		void this.editorService.openEditor({
+			original: { resource: original },
+			modified: { resource: modified },
+			options: { pinned: true },
+		});
 	}
 }
 
@@ -261,6 +278,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			paneInstantiationService.createInstance(SessionChangesUIElementFactory, this._scopedChangesObs),
 			CHANGES_DIFF_EDITOR_OPTIONS,
 		));
+		this.widget.setPaddingBottom(CHANGES_LIST_BOTTOM_PADDING_PX);
 		this._register(autorun(reader => {
 			this.widget?.setRenderSideBySide(this.diffEditorOptionsService.renderSideBySide.read(reader), { useInlineViewWhenSpaceIsLimited: true });
 		}));
@@ -273,6 +291,10 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	 */
 	tryGetCodeEditor(resource: URI): { diffEditor: IDiffEditor; editor: ICodeEditor } | undefined {
 		return this.widget?.tryGetCodeEditor(resource);
+	}
+
+	getLayoutDebugState(): IObservable<IMultiDiffEditorLayoutDebugState> {
+		return this.widget!.getLayoutDebugState();
 	}
 
 	/** Creates the classic (non-single-pane) internal header toolbars. */
@@ -297,6 +319,9 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 	override async setInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
+		if (token.isCancellationRequested) {
+			return;
+		}
 		const sessionResource = this.sessionChangesService.getSessionResource(input.multiDiffSource);
 		this._inputSessionResource.set(sessionResource, undefined);
 		const viewModel = await input.getViewModel();
@@ -421,9 +446,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			return;
 		}
 
-		const control = widget.getActiveControl();
-		if (control) {
-			control.focus();
+		if (widget.focus()) {
 			return;
 		}
 
@@ -431,10 +454,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		// part was just revealed from a hidden state), so getActiveControl() is
 		// undefined. Focus it as soon as it becomes available.
 		this._pendingFocus.value = widget.onDidChangeActiveControl(() => {
-			const activeControl = widget.getActiveControl();
-			if (activeControl) {
+			if (widget.focus()) {
 				this._pendingFocus.clear();
-				activeControl.focus();
 			}
 		});
 	}

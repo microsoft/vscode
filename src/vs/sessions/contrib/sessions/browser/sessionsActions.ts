@@ -32,7 +32,7 @@ import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsPro
 import { CLOSE_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, getChatCapabilities, getUntitledSessionTitle, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getUntitledSessionTitle, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { $, append, EventHelper, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
@@ -44,6 +44,7 @@ import { IAction } from '../../../../base/common/actions.js';
 import { OS } from '../../../../base/common/platform.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorRegistry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -99,7 +100,8 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			const isRead = session.isRead.read(reader);
 			const isArchived = session.isArchived.read(reader);
 			const workspace = session.workspace.read(reader);
-			const pullRequestIcon = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest?.icon;
+			const gitHubInfo = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
+			const pullRequestIcon = getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
 			const completedStateIcon = session.completedStateIcon?.read(reader) ?? pullRequestIcon;
 			const icon = sessionsListModelService.getStatusIcon(status, isRead, isArchived, completedStateIcon);
 
@@ -593,16 +595,10 @@ registerAction2(class OpenSessionListChatToSideAction extends Action2 {
 			return;
 		}
 		const sessionsService = accessor.get(ISessionsService);
-		const sessionsPartService = accessor.get(ISessionsPartService);
 		if (!await sessionsService.canOpenSession(context.session)) {
 			return;
 		}
-		sessionsService.showSession(context.session.resource);
-		const sessionView = sessionsPartService.getSessionView(context.session.sessionId);
-		if (!sessionView) {
-			throw new Error(`Unable to open chat to the side because session view '${context.session.sessionId}' is not mounted`);
-		}
-		await sessionView.openChatToSide(context.chat.resource);
+		await sessionsService.openChatToSide(context.session, context.chat.resource);
 	}
 });
 
@@ -610,7 +606,7 @@ registerAction2(class DeleteSessionListChatAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.list.deleteChat',
-			title: localize2('deleteChat', "Delete Chat"),
+			title: localize2('deleteChat', "Delete..."),
 			f1: false,
 			menu: {
 				id: Menus.SessionChatItemContext,
@@ -863,7 +859,7 @@ registerAction2(class DeleteChatAction extends Action2 {
 				// Delete / Cmd+Backspace (Mac) — mirrors the file-delete keybinding
 				// in the Explorer. Scoped so it never fires while typing in an input
 				// (chat composer, rename field, etc.) or on the session's main chat.
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.toNegated(), SessionActiveChatIsDeletableContext),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, SessionsFocusContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.toNegated(), SessionActiveChatIsDeletableContext),
 				primary: KeyCode.Delete,
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
@@ -1334,6 +1330,7 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 
@@ -1364,7 +1361,7 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 			return;
 		}
 		const enabled = await this.assignmentService.getTreatment<boolean>(NewSessionActionViewItemContribution.NEW_SESSION_TITLEBAR_TREATMENT);
-		this.titleBarEnabledContext.set(enabled === true);
+		this.titleBarEnabledContext.set(enabled ?? this.productService.quality === 'insider');
 	}
 }
 

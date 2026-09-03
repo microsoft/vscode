@@ -234,6 +234,66 @@ suite('HoverService', () => {
 			hover.dispose();
 		});
 
+		test('should constrain scrollable content without clipping hover actions', () => {
+			const hover = showHover('Scrollable hover', undefined, {
+				appearance: { maxHeightRatio: 0.25 },
+				actions: [{
+					commandId: 'test.action',
+					label: 'Test Action',
+					run: () => { }
+				}]
+			});
+			const hoverWidget = asHoverWidget(hover);
+			const contentsDomNode = hoverWidget.domNode.querySelector<HTMLElement>('.monaco-hover-content');
+			assert.ok(contentsDomNode);
+			const statusBarDomNode = hoverWidget.domNode.querySelector<HTMLElement>('.hover-row.status-bar');
+			assert.ok(statusBarDomNode);
+			const overflowingContent = document.createElement('div');
+			overflowingContent.style.height = `${mainWindow.innerHeight}px`;
+			contentsDomNode.appendChild(overflowingContent);
+
+			hoverWidget.layout();
+			const expectedMaxHeight = `${mainWindow.innerHeight * 0.25}px`;
+			const hoverBounds = hoverWidget.domNode.getBoundingClientRect();
+			const statusBarBounds = statusBarDomNode.getBoundingClientRect();
+			const heightOutsideContents = hoverWidget.domNode.offsetHeight - contentsDomNode.offsetHeight;
+
+			assert.deepStrictEqual({
+				hoverMaxHeight: hoverWidget.domNode.style.maxHeight,
+				contentsMaxHeight: contentsDomNode.style.maxHeight,
+				contentOverflows: contentsDomNode.scrollHeight > contentsDomNode.clientHeight,
+				statusBarIsVisible: statusBarBounds.top >= hoverBounds.top && statusBarBounds.bottom <= hoverBounds.bottom
+			}, {
+				hoverMaxHeight: expectedMaxHeight,
+				contentsMaxHeight: `${Math.max(0, mainWindow.innerHeight * 0.25 - heightOutsideContents)}px`,
+				contentOverflows: true,
+				statusBarIsVisible: true
+			});
+			hover.dispose();
+		});
+
+		test('should not make short hover content scrollable', () => {
+			const hover = showHover('Short hover', undefined, {
+				appearance: { maxHeightRatio: 0.25 },
+				actions: [{
+					commandId: 'test.action',
+					label: 'Test Action',
+					run: () => { }
+				}]
+			});
+			const contentsDomNode = asHoverWidget(hover).domNode.querySelector<HTMLElement>('.monaco-hover-content');
+			assert.ok(contentsDomNode);
+
+			assert.deepStrictEqual({
+				contentOverflows: contentsDomNode.scrollHeight > contentsDomNode.clientHeight,
+				scrollbarPadding: contentsDomNode.style.paddingRight
+			}, {
+				contentOverflows: false,
+				scrollbarPadding: ''
+			});
+			hover.dispose();
+		});
+
 		test('should call onDidShow callback when hover is shown', () => {
 			const target = createTarget();
 			let didShowCalled = false;

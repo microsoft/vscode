@@ -13,6 +13,7 @@ import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata 
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, type ModelSelection, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
@@ -81,9 +82,10 @@ suite('SessionServerTools', () => {
 		if (!config) {
 			return undefined;
 		}
-		const { _meta, ...rest } = config;
+		const { _meta, workingDirectories, ...rest } = config;
 		return {
 			...rest,
+			...(workingDirectories !== undefined ? { workingDirectories: workingDirectories.map(directory => directory.toString()) } : {}),
 			createdBySession: readSessionCreationReference(_meta),
 		};
 	}
@@ -605,7 +607,7 @@ suite('SessionServerTools', () => {
 		const text = await group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, { relationship: 'independent', workspace: workspace.toString(), prompt: 'do it', title: 'New Task', model: 'gpt-4o' });
 
 		assert.deepStrictEqual(createConfigSnapshot(created), {
-			workingDirectories: [workspace],
+			workingDirectories: [workspace.toString()],
 			provider: 'copilot',
 			model: { id: 'gpt-4o' },
 			createdBySession: {
@@ -613,6 +615,7 @@ suite('SessionServerTools', () => {
 				chat: buildDefaultChatUri('copilot:/caller'),
 				turnId: 'turn-1',
 			},
+			config: { [SessionConfigKey.Isolation]: 'worktree' },
 		});
 		assert.strictEqual(prompted?.prompt, 'do it');
 		assert.strictEqual(prompted?.chat.toString(), buildDefaultChatUri(URI.parse('copilot:/new')));
@@ -633,6 +636,64 @@ suite('SessionServerTools', () => {
 		assert.ok(text.includes('agent-host-session://copilot/new'), 'result carries the open-session link for the pill');
 		assert.ok(text.startsWith('New session created'), 'result describes independent work as a new session');
 		assert.ok(!text.includes('copilot:/new'), 'result does not echo the raw backend session URI');
+		store.dispose();
+	});
+
+	test('create_session falls back to an explicit workspace when listing sessions fails', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		let created: IAgentCreateSessionConfig | undefined;
+		let catalogRequests = 0;
+		const accessor = createAccessor({
+			listSessions: async () => {
+				catalogRequests++;
+				throw new Error('Provider codex cannot enumerate its native session catalog yet');
+			},
+			onCreate: config => { created = config; },
+		});
+		const group = createSessionServerToolGroup(accessor);
+
+		const text = await group.execute(stateManager, executionContext('codex:/caller'), SessionServerToolName.CreateSession, {
+			relationship: 'independent',
+			workspace: workspace.toString(),
+			prompt: 'do it',
+			title: 'New Task',
+		});
+
+		assert.deepStrictEqual({
+			catalogRequests,
+			workingDirectories: created?.workingDirectories?.map(directory => directory.toString()),
+			result: text.startsWith('New session created'),
+		}, {
+			catalogRequests: 1,
+			workingDirectories: [workspace.toString()],
+			result: true,
+		});
+		store.dispose();
+	});
+
+	test('create_session prefers a URI-shaped project display name from the catalog', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		const project = URI.parse('file:///projects/repo-main');
+		let created: IAgentCreateSessionConfig | undefined;
+		const accessor = createAccessor({
+			listSessions: async () => [{
+				...sessionMeta('project', SessionStatus.Idle, URI.parse('file:///worktrees/repo-main')),
+				project: { uri: project, displayName: 'repo:main' },
+			}],
+			onCreate: config => { created = config; },
+		});
+		const group = createSessionServerToolGroup(accessor);
+
+		await group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, {
+			relationship: 'independent',
+			workspace: 'repo:main',
+			prompt: 'do it',
+			title: 'New Task',
+		});
+
+		assert.deepStrictEqual(created?.workingDirectories?.map(directory => directory.toString()), [project.toString()]);
 		store.dispose();
 	});
 
@@ -666,7 +727,7 @@ suite('SessionServerTools', () => {
 		store.dispose();
 	});
 
-	test('create_session inherits the calling chat model and permission config', async () => {
+	test('create_session inherits the calling chat model, permission config, and isolation for the same project', async () => {
 		const source = URI.parse(buildChatUri('copilot:/caller', 'peer'));
 		let creationSource: URI | undefined;
 		let created: IAgentCreateSessionConfig | undefined;
@@ -680,6 +741,8 @@ suite('SessionServerTools', () => {
 						autoApprove: 'autoApprove',
 						permissions: { allow: ['shell'], deny: ['write'] },
 					},
+					isolation: 'folder',
+					project: workspace,
 				};
 			},
 			onCreate: config => { created = config; },
@@ -696,7 +759,7 @@ suite('SessionServerTools', () => {
 		}, {
 			creationSource: source.toString(),
 			created: {
-				workingDirectories: [workspace],
+				workingDirectories: [workspace.toString()],
 				provider: 'copilot',
 				model: { id: 'gpt-inherited' },
 				createdBySession: {
@@ -706,10 +769,46 @@ suite('SessionServerTools', () => {
 				config: {
 					autoApprove: 'autoApprove',
 					permissions: { allow: ['shell'], deny: ['write'] },
+					[SessionConfigKey.Isolation]: 'folder',
 				},
 			},
 		});
 		store.dispose();
+	});
+
+	test('create_session uses worktree isolation when the source project differs or is workspace-less', async () => {
+		const created: (IAgentCreateSessionConfig | undefined)[] = [];
+		const sourceProject = URI.file('/workspace/source');
+		let project: URI | undefined = sourceProject;
+		const accessor = createAccessor({
+			getCreationDefaults: () => ({ provider: 'copilot', isolation: 'folder', project }),
+			onCreate: config => { created.push(config); },
+		});
+
+		await applyCreateSessionTool(accessor, { relationship: 'independent', workspace: workspace.toString(), prompt: 'different project', title: 'Different Project' }, URI.parse('copilot:/source'));
+		project = undefined;
+		await applyCreateSessionTool(accessor, { relationship: 'independent', workspace: workspace.toString(), prompt: 'quick chat', title: 'Quick Chat Task' }, URI.parse('copilot:/quick-chat'));
+
+		assert.deepStrictEqual(created.map(createConfigSnapshot), [
+			{
+				workingDirectories: [workspace.toString()],
+				provider: 'copilot',
+				createdBySession: {
+					session: 'copilot:/source',
+					chat: 'copilot:/source',
+				},
+				config: { [SessionConfigKey.Isolation]: 'worktree' },
+			},
+			{
+				workingDirectories: [workspace.toString()],
+				provider: 'copilot',
+				createdBySession: {
+					session: 'copilot:/quick-chat',
+					chat: 'copilot:/quick-chat',
+				},
+				config: { [SessionConfigKey.Isolation]: 'worktree' },
+			},
+		]);
 	});
 
 	test('create_session inherits the calling provider when its model is the provider default', async () => {
@@ -725,13 +824,42 @@ suite('SessionServerTools', () => {
 		await applyCreateSessionTool(accessor, { relationship: 'independent', workspace: workspace.toString(), prompt: 'do it', title: 'Provider Task' }, URI.parse('claude:/source'));
 
 		assert.deepStrictEqual(createConfigSnapshot(created), {
-			workingDirectories: [workspace],
+			workingDirectories: [workspace.toString()],
 			provider: 'claude',
 			createdBySession: {
 				session: 'claude:/source',
 				chat: 'claude:/source',
 			},
-			config: { permissionMode: 'acceptEdits' },
+			config: {
+				permissionMode: 'acceptEdits',
+				[SessionConfigKey.Isolation]: 'worktree',
+			},
+		});
+	});
+
+	test('create_session inherits worktree isolation for the same project', async () => {
+		const gitWorkspace = URI.file('/workspace/git-repository');
+		let created: IAgentCreateSessionConfig | undefined;
+		const accessor = createAccessor({
+			getCreationDefaults: () => ({ provider: 'copilot', isolation: 'worktree', project: gitWorkspace }),
+			onCreate: config => { created = config; },
+		});
+
+		await applyCreateSessionTool(accessor, {
+			relationship: 'independent',
+			workspace: gitWorkspace.toString(),
+			prompt: 'do it',
+			title: 'Isolated Task',
+		}, URI.parse('copilot:/source'));
+
+		assert.deepStrictEqual(createConfigSnapshot(created), {
+			workingDirectories: [gitWorkspace.toString()],
+			provider: 'copilot',
+			createdBySession: {
+				session: 'copilot:/source',
+				chat: 'copilot:/source',
+			},
+			config: { [SessionConfigKey.Isolation]: 'worktree' },
 		});
 	});
 
@@ -746,7 +874,7 @@ suite('SessionServerTools', () => {
 				project: { uri: remoteProject, displayName: 'Remote App' },
 			}],
 			getModels: () => [claudeModel],
-			getCreationDefaults: () => ({ provider: 'copilot', model: { id: 'gpt-4o' } }),
+			getCreationDefaults: () => ({ provider: 'copilot', model: { id: 'gpt-4o' }, config: { autoApprove: 'autoApprove' }, isolation: 'folder', project: remoteProject }),
 			onCreate: config => { created = config; },
 		});
 
@@ -759,9 +887,10 @@ suite('SessionServerTools', () => {
 		}, URI.parse('copilot:/source'));
 
 		assert.deepStrictEqual(createConfigSnapshot(created), {
-			workingDirectories: [remoteProject],
+			workingDirectories: [remoteProject.toString()],
 			provider: 'claude',
 			model: { id: 'claude-sonnet' },
+			config: { [SessionConfigKey.Isolation]: 'folder' },
 			createdBySession: {
 				session: 'copilot:/source',
 				chat: 'copilot:/source',
@@ -1380,6 +1509,27 @@ suite('SessionServerTools', () => {
 		const parsed = JSON.parse(text);
 		assert.strictEqual(parsed.session, 'copilot:/s1');
 		assert.strictEqual(parsed.openLink, 'agent-host-session://copilot/s1');
+		store.dispose();
+	});
+
+	test('get_current_session does not depend on listing sessions', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		const metadata = { ...sessionMeta('s1', SessionStatus.Idle, workspace), session: URI.parse('codex:/s1') };
+		const group = createSessionServerToolGroup(createAccessor({
+			listSessions: async () => { throw new Error('Provider codex cannot enumerate its native session catalog yet'); },
+			getSession: async session => session.toString() === metadata.session.toString() ? metadata : undefined,
+		}));
+
+		const text = await group.execute(stateManager, executionContext('codex:/s1'), SessionServerToolName.GetCurrentSession, {});
+
+		assert.deepStrictEqual(JSON.parse(text), {
+			session: 'codex:/s1',
+			openLink: 'agent-host-session://codex/s1',
+			title: 'title-s1',
+			status: 'idle',
+			workingDirectory: 'file:///workspace/app',
+		});
 		store.dispose();
 	});
 

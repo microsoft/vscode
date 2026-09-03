@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 export const CHANGES_VIEW_ID = 'workbench.view.agentSessions.changes';
@@ -23,6 +24,12 @@ export const VIEW_SESSION_CHANGES_COMMAND_ID = 'workbench.agentSessions.action.v
  * This setting is registered (and only meaningful) in the Agents app.
  */
 export const SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING = 'sessions.changes.openSingleFileDiff';
+
+export function getSessionChangesFileCountLabel(changeCount: number): string {
+	return changeCount === 1
+		? localize('sessionChangesEditor.oneChangedFile', "1 file")
+		: localize('sessionChangesEditor.changedFiles', "{0} files", changeCount);
+}
 
 export const enum ChangesViewMode {
 	List = 'list',

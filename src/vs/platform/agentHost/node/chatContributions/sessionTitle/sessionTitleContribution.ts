@@ -6,7 +6,7 @@
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../log/common/log.js';
-import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IHydrationContext, type IObservedAction, type IOutgoingTurn, type IRestoredChat, type ISendContribution, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
+import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IHydrationContext, type IAppliedClientAction, type IOutgoingTurn, type IRestoredChat, type ISendContribution, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { isAhpChatChannel, isDefaultChatUri } from '../../../common/state/sessionState.js';
@@ -43,7 +43,7 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 		return instruction ? { instructions: [instruction] } : undefined;
 	}
 
-	onAction(observed: IObservedAction): void {
+	onDidApplyClientAction(observed: IAppliedClientAction): void {
 		if (observed.action.type !== ActionType.SessionTitleChanged) {
 			return;
 		}
@@ -68,7 +68,7 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 	}
 
 	/**
-	 * Restores the user-set custom chat title recorded by {@link onAction}. This runs at
+	 * Restores the user-set custom chat title recorded by {@link onDidApplyClientAction}. This runs at
 	 * catalog-registration time so a restored peer chat shows its title before its turns load.
 	 */
 	async onHydrateChat(context: IHydrationContext, restored: IRestoredChat): Promise<IRestoredChat> {
