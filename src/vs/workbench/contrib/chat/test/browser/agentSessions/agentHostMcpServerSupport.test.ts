@@ -262,6 +262,14 @@ suite('agentHostMcpServerSupport', () => {
 			applicability: AgentHostMcpServerApplicability.Applicable,
 			delivery: AgentHostMcpServerDelivery.ClientForwarded,
 			compatibility: { kind: 'supported' },
+			projectedConfiguration: {
+				type: McpServerType.LOCAL,
+				command: 'server',
+				args: undefined,
+				env: undefined,
+				envFile: undefined,
+				cwd: undefined,
+			},
 		});
 	});
 
