@@ -51,7 +51,8 @@ const CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY = 'chat.cacheBreakHintDismissed';
 const MODEL_PICKER_MINIMUM_LABEL_WIDTH = 60;
 const MODEL_PICKER_NAME_CHROME_WIDTH = 30;
 const MODEL_PICKER_MINIMUM_NAME_WIDTH = MODEL_PICKER_MINIMUM_LABEL_WIDTH + MODEL_PICKER_NAME_CHROME_WIDTH;
-const MODEL_PICKER_COMPACT_NAME_WIDTH = 24;
+const MODEL_PICKER_AUTO_NAME_WIDTH = 50;
+const MODEL_PICKER_COMPACT_NAME_WIDTH = 22;
 type ChatModelChangeClassification = {
 	owner: 'lramos15';
 	comment: 'Reporting when the model picker is switched';
@@ -643,7 +644,12 @@ export class ModelPickerWidget extends Disposable {
 					? localize('chat.modelPicker.noModels', "No models available")
 					: (name ?? localize('chat.modelPicker.auto', "Auto"));
 		const showModelLabel = !compact || !modelIcon || noModelsAvailable;
-		const nameMinimumWidth = compact && !showModelLabel ? MODEL_PICKER_COMPACT_NAME_WIDTH : MODEL_PICKER_MINIMUM_NAME_WIDTH;
+		const showingAuto = !unavailable && !activating && !genericNoModels && (!this._selectedModel || isAutoModel(this._selectedModel));
+		const nameMinimumWidth = compact && !showModelLabel
+			? MODEL_PICKER_COMPACT_NAME_WIDTH
+			: showingAuto
+				? MODEL_PICKER_AUTO_NAME_WIDTH
+				: MODEL_PICKER_MINIMUM_NAME_WIDTH;
 		this._nameButton.style.minWidth = `${nameMinimumWidth}px`;
 		if (showModelLabel) {
 			nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
