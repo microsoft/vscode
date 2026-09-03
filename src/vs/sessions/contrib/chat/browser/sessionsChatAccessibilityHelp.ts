@@ -16,7 +16,7 @@ import { FOCUS_AI_CUSTOMIZATION_VIEW_ID } from '../../aiCustomizationTreeView/br
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID } from './promptTemplatePlaceholder.js';
-import { ARCHIVE_SESSION_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
 export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 120;
 	readonly name = 'sessionsChat';
@@ -76,7 +76,8 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.goForward', "Go forward through visited sessions{0}.", '<keybinding:sessions.goForward>'));
 		content.push(localize('sessionsChat.navigatePreviousSession', "Navigate to the previous session in the list{0}.", '<keybinding:sessionsViewPane.navigatePreviousSession>'));
 		content.push(localize('sessionsChat.navigateNextSession', "Navigate to the next session in the list{0}.", '<keybinding:sessionsViewPane.navigateNextSession>'));
-		content.push(localize('sessionsChat.renameSession', "To rename a session, focus it in the Sessions list or focus its chat transcript or input, then invoke Rename{0}. You can also double-click its title in the Sessions list or open its context menu and choose Rename.", `<keybinding:${RENAME_SESSION_COMMAND_ID}>`));
+		content.push(localize('sessionsChat.renameSession', "To rename a session, focus its row in the Sessions list or focus its main chat transcript or input, then invoke Rename{0}. You can also double-click its title in the Sessions list or open its context menu and choose Rename.", `<keybinding:${RENAME_SESSION_COMMAND_ID}>`));
+		content.push(localize('sessionsChat.renameChat', "To rename a non-main chat, focus its transcript or input or its nested row in the Sessions list, then invoke Rename{0}.", `<keybinding:${RENAME_CHAT_COMMAND_ID}>`));
 		content.push(localize('sessionsChat.archiveSession', "To archive or mark one or more sessions as done, focus them in the Sessions list and invoke Archive or Mark as Done{0}.", `<keybinding:${ARCHIVE_SESSION_COMMAND_ID}>`));
 		content.push(localize('sessionsChat.deleteSession', "To permanently delete a session, open its context menu and choose Delete. This is destructive and cannot be undone."));
 		content.push(localize('sessionsChat.changes', "Focus the Changes view{0}.", '<keybinding:workbench.action.agentSessions.focusChangesView>'));

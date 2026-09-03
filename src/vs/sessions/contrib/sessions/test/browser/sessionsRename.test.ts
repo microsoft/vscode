@@ -5,18 +5,23 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInputOptions, IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { ARCHIVE_SESSION_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
+import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SessionsChatAccessibilityHelp } from '../../../chat/browser/sessionsChatAccessibilityHelp.js';
 import { SessionsFlatList, SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { createListHarness, createTestSession, TestCommandService, TestSessionsManagementService } from './sessionsListTestUtils.js';
@@ -27,10 +32,14 @@ class TestQuickInputService extends mock<IQuickInputService>() {
 	result: string | undefined;
 	options: IInputOptions | undefined;
 	calls = 0;
+	inputHandler: ((options?: IInputOptions) => Promise<string | undefined>) | undefined;
 
 	override async input(options?: IInputOptions): Promise<string | undefined> {
 		this.calls++;
 		this.options = options;
+		if (this.inputHandler) {
+			return this.inputHandler(options);
+		}
 		return this.result;
 	}
 }
@@ -240,6 +249,169 @@ suite('Sessions rename', () => {
 		});
 	});
 
+	suite('chat action', () => {
+		function createChatHarness(options: { readonly status?: SessionStatus; readonly canRename?: boolean } = {}) {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			const quickInputService = new TestQuickInputService();
+			const managementService = new TestSessionsManagementService([]);
+			const baseSession = createTestSession('Explore Jitter Issue').session;
+			const mainChat = baseSession.mainChat.get();
+			const peerChat = new class extends mock<IChat>() {
+				override readonly resource = URI.parse('test-chat:///grill-and-plan');
+				override readonly title = constObservable('Grill and Plan');
+				override readonly status = constObservable(options.status ?? SessionStatus.Completed);
+				override readonly interactivity = constObservable(ChatInteractivity.Full);
+				override readonly capabilities = constObservable({ canRename: options.canRename ?? true, canDelete: true });
+			}();
+			const otherPeerChat = new class extends mock<IChat>() {
+				override readonly resource = URI.parse('test-chat:///other-peer');
+				override readonly title = constObservable('Other Peer');
+				override readonly status = constObservable(SessionStatus.Completed);
+				override readonly interactivity = constObservable(ChatInteractivity.Full);
+				override readonly capabilities = constObservable({ canRename: true, canDelete: true });
+			}();
+			const chats = observableValue<readonly IChat[]>('renameChats', [mainChat, peerChat, otherPeerChat]);
+			const session: ISession = {
+				...baseSession,
+				chats,
+				mainChat: constObservable(mainChat),
+			};
+			const activeChat = observableValue<IChat>('renameActiveChat', peerChat);
+			const activeSession = upcastPartial<IActiveSession>({
+				...session,
+				activeChat,
+			});
+			instantiationService.stub(IQuickInputService, quickInputService);
+			instantiationService.stub(ISessionsManagementService, managementService);
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+			}());
+			instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
+				override getViewWithId() { return null; }
+			}());
+			instantiationService.stub(IUriIdentityService, new class extends mock<IUriIdentityService>() {
+				override readonly extUri = extUri;
+			}());
+			const handler = CommandsRegistry.getCommand(RENAME_CHAT_COMMAND_ID)?.handler;
+			assert.ok(handler);
+			return { handler, instantiationService, quickInputService, managementService, session, activeSession, mainChat, peerChat, otherPeerChat, activeChat, chats };
+		}
+
+		test('renames the exact peer chat with the peer title as the prompt value', async () => {
+			const harness = createChatHarness();
+			harness.quickInputService.result = ' Renamed Peer ';
+
+			await harness.handler(harness.instantiationService, { session: harness.session, chat: harness.peerChat });
+
+			assert.deepStrictEqual({
+				inputValue: harness.quickInputService.options?.value,
+				inputPrompt: harness.quickInputService.options?.prompt,
+				renamedSessions: harness.managementService.renamed,
+				renamedChats: harness.managementService.renamedChats,
+			}, {
+				inputValue: 'Grill and Plan',
+				inputPrompt: 'New chat title',
+				renamedSessions: [],
+				renamedChats: [{ session: harness.session, chatResource: harness.peerChat.resource, title: 'Renamed Peer' }],
+			});
+		});
+
+		test('rejects main, unsupported, untitled, cancelled, blank, and unchanged chat renames', async () => {
+			const main = createChatHarness();
+			await main.handler(main.instantiationService, { session: main.session, chat: main.mainChat });
+
+			const unsupported = createChatHarness({ canRename: false });
+			await unsupported.handler(unsupported.instantiationService, { session: unsupported.session, chat: unsupported.peerChat });
+
+			const untitled = createChatHarness({ status: SessionStatus.Untitled });
+			await untitled.handler(untitled.instantiationService, { session: untitled.session, chat: untitled.peerChat });
+
+			const cancelled = createChatHarness();
+			cancelled.quickInputService.result = undefined;
+			await cancelled.handler(cancelled.instantiationService, { session: cancelled.session, chat: cancelled.peerChat });
+
+			const blank = createChatHarness();
+			blank.quickInputService.result = '   ';
+			await blank.handler(blank.instantiationService, { session: blank.session, chat: blank.peerChat });
+
+			const unchanged = createChatHarness();
+			unchanged.quickInputService.result = ' Grill and Plan ';
+			await unchanged.handler(unchanged.instantiationService, { session: unchanged.session, chat: unchanged.peerChat });
+
+			assert.deepStrictEqual({
+				inputCalls: {
+					main: main.quickInputService.calls,
+					unsupported: unsupported.quickInputService.calls,
+					untitled: untitled.quickInputService.calls,
+					cancelled: cancelled.quickInputService.calls,
+					blank: blank.quickInputService.calls,
+					unchanged: unchanged.quickInputService.calls,
+				},
+				renamedChatCounts: [
+					main,
+					unsupported,
+					untitled,
+					cancelled,
+					blank,
+					unchanged,
+				].map(harness => harness.managementService.renamedChats.length),
+			}, {
+				inputCalls: {
+					main: 0,
+					unsupported: 0,
+					untitled: 0,
+					cancelled: 1,
+					blank: 1,
+					unchanged: 1,
+				},
+				renamedChatCounts: [0, 0, 0, 0, 0, 0],
+			});
+		});
+
+		test('captures the peer target and fails closed if it disappears while Quick Input is open', async () => {
+			const harness = createChatHarness();
+			const input = new DeferredPromise<string | undefined>();
+			harness.quickInputService.inputHandler = async () => input.p;
+
+			const rename = harness.handler(harness.instantiationService, { session: harness.session, chat: harness.peerChat });
+			harness.chats.set([harness.mainChat], undefined);
+			input.complete('Renamed Peer');
+			await rename;
+
+			assert.deepStrictEqual(harness.managementService.renamedChats, []);
+		});
+
+		test('keeps the captured peer when the active chat changes while Quick Input is open', async () => {
+			const harness = createChatHarness();
+			const input = new DeferredPromise<string | undefined>();
+			harness.quickInputService.inputHandler = async () => input.p;
+
+			const rename = harness.handler(harness.instantiationService);
+			harness.activeChat.set(harness.otherPeerChat, undefined);
+			input.complete('Renamed Peer');
+			await rename;
+
+			assert.deepStrictEqual(harness.managementService.renamedChats, [{
+				session: harness.activeSession,
+				chatResource: harness.peerChat.resource,
+				title: 'Renamed Peer',
+			}]);
+		});
+
+		test('propagates provider errors', async () => {
+			const harness = createChatHarness();
+			harness.quickInputService.result = 'Renamed Peer';
+			harness.managementService.renameChatError = new Error('rename chat failed');
+
+			await assert.rejects(
+				async () => {
+					await harness.handler(harness.instantiationService, { session: harness.session, chat: harness.peerChat });
+				},
+				harness.managementService.renameChatError,
+			);
+		});
+	});
+
 	suite('session header action', () => {
 		function createHeaderHarness(inlineRename: boolean | undefined) {
 			const instantiationService = disposables.add(new TestInstantiationService());
@@ -331,8 +503,10 @@ suite('Sessions rename', () => {
 			assert.deepStrictEqual({
 				hasDoubleClick: content.includes('double-click its title'),
 				hasContextMenu: content.includes('open its context menu'),
-				hasChatFocus: content.includes('chat transcript or input'),
-				hasRenameKeybinding: content.includes(`<keybinding:${RENAME_SESSION_COMMAND_ID}>`),
+				hasMainChatFocus: content.includes('main chat transcript or input'),
+				hasPeerChatFocus: content.includes('non-main chat') && content.includes('nested row'),
+				hasSessionRenameKeybinding: content.includes(`<keybinding:${RENAME_SESSION_COMMAND_ID}>`),
+				hasChatRenameKeybinding: content.includes(`<keybinding:${RENAME_CHAT_COMMAND_ID}>`),
 				hasArchiveKeybinding: content.includes(`<keybinding:${ARCHIVE_SESSION_COMMAND_ID}>`),
 				hasPermanentDelete: content.includes('open its context menu and choose Delete'),
 				hasDevContainerAvailability: content.includes('Docker is available') && content.includes('selected local folder contains a Dev Container configuration'),
@@ -344,8 +518,10 @@ suite('Sessions rename', () => {
 			}, {
 				hasDoubleClick: true,
 				hasContextMenu: true,
-				hasChatFocus: true,
-				hasRenameKeybinding: true,
+				hasMainChatFocus: true,
+				hasPeerChatFocus: true,
+				hasSessionRenameKeybinding: true,
+				hasChatRenameKeybinding: true,
 				hasArchiveKeybinding: true,
 				hasPermanentDelete: true,
 				hasDevContainerAvailability: true,
