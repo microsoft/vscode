@@ -1762,10 +1762,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// This ensures handoffs reflect what the response agent offers, regardless of mode picker state.
 		// Fall back to the current mode picker for old sessions where modeInfo was not persisted.
 		const modeInfo = lastItem.model.request?.modeInfo;
-		let responseMode: IChatMode | undefined;
 		const modes = this.input.currentChatModesObs.get();
+		let responseMode: IChatMode | undefined;
 		if (modeInfo?.modeInstructions?.name) {
 			responseMode = modes.findModeByName(modeInfo.modeInstructions.name);
+		} else if (modeInfo?.kind) {
+			responseMode = modes.findModeById(modeInfo.kind);
 		} else {
 			responseMode = this.input.currentModeObs.get();
 		}
@@ -3141,11 +3143,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!slashCommand) {
 			return true;
 		}
-		const parseResult = slashCommand.parsedPromptFile;
-		// add the prompt file to the context
-		const refs = parseResult.body?.variableReferences.map(({ name, offset, fullLength }) => ({ name, range: new OffsetRange(offset, offset + fullLength) })) ?? [];
-		const toolReferences = this.toolsService.toToolReferences(refs);
-		requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences));
 
 		const promptRunEvent: ChatPromptRunEvent = {
 			storage: slashCommand.storage,
@@ -3157,6 +3154,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			promptRunEvent.promptNameHash = hash(slashCommand.name).toString(16);
 		}
 		this.telemetryService.publicLog2<ChatPromptRunEvent, ChatPromptRunClassification>('chat.promptRun', promptRunEvent);
+
+		const parseResult = slashCommand.parsedPromptFile;
+		if (!parseResult) {
+			return true;
+		}
+
+		// add the prompt file to the context
+		const refs = parseResult.body?.variableReferences.map(({ name, offset, fullLength }) => ({ name, range: new OffsetRange(offset, offset + fullLength) })) ?? [];
+		const toolReferences = this.toolsService.toToolReferences(refs);
+		requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences));
 
 		if (parseResult.header) {
 			const applied = await this._applyPromptMetadata(parseResult.header, requestInput);

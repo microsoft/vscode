@@ -338,12 +338,18 @@ export function moveResponseOutcomeToolsAfterFinalResponse(content: ReadonlyArra
 	const responseLinkTargets = outcomeTools.some(part => getSessionCreatedOutcomeLink(part) !== undefined)
 		? getFinalResponseLinkTargets(content)
 		: undefined;
-	const uniqueOutcomeTools = responseLinkTargets
-		? outcomeTools.filter(part => {
-			const openLink = getSessionCreatedOutcomeLink(part);
-			return openLink === undefined || !responseLinkTargets.has(openLink);
-		})
-		: outcomeTools;
+	const seenSessionLinks = new Set<string>();
+	const uniqueOutcomeTools = outcomeTools.filter(part => {
+		const openLink = getSessionCreatedOutcomeLink(part);
+		if (openLink === undefined) {
+			return true;
+		}
+		if (responseLinkTargets?.has(openLink) || seenSessionLinks.has(openLink)) {
+			return false;
+		}
+		seenSessionLinks.add(openLink);
+		return true;
+	});
 
 	const finalResponseStartIndex = getFinalResponseStartIndexAfterMovingResponseOutcomeTools(content);
 	if (finalResponseStartIndex === undefined) {
@@ -2539,7 +2545,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// gets summarized instead of being shown to the user verbatim.
 		const agentMerge = element.systemInitiatedLabel === undefined ? parseAgentMergePrompt(element.messageText) : undefined;
 		if (agentMerge) {
-			const agentMergePart = this.instantiationService.createInstance(ChatAgentMergeContentPart, agentMerge, element.sessionResource, this.chatContentMarkdownRenderer);
+			const agentMergePart = this.instantiationService.createInstance(ChatAgentMergeContentPart, agentMerge, element.sessionResource, this.chatContentMarkdownRenderer, element.requestTimestamp);
 			templateData.elementDisposables.add(agentMergePart);
 			templateData.value.appendChild(agentMergePart.domNode);
 			return;

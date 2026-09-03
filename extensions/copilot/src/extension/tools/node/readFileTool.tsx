@@ -193,29 +193,29 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 					if (grepResultMatches !== undefined && grepResultMatches.length > 0 && documentSnapshot.version === documentSnapshot.document.version) {
 						const regions = await this.regionContextProvider.getRegions(documentSnapshot.uri, documentSnapshot.languageId, grepResultMatches, { start: startLine, end: endLine});
 						if (regions !== undefined && regions.length > 0 && documentSnapshot.version === documentSnapshot.document.version) {
-							this.sendAdjustedRegionTelemetry(options, startLine, endLine, regions[0].range.start, regions[0].range.end);
+							this.sendAdjustedRegionTelemetry(options, startLine, endLine, regions[0].range.start, regions[0].range.end, documentSnapshot);
 							// const saving = (ranges.end - ranges.start) - (regions[0].range.end - regions[0].range.start);
 							// this.logService.info(`Saving ${saving} lines reading ${documentSnapshot.uri.fsPath}. Requests [${ranges.start}-${ranges.end}], Grep matches: [${grepResultMatches.map(m => m.start.line + 1).join(',')}], region [${regions[0].range.start + 1}-${regions[0].range.end + 1}]`);
 						} else {
 							if (documentSnapshot.version === documentSnapshot.document.version) {
-								this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'noGrepRegions');
+								this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'noGrepRegions', documentSnapshot);
 								// this.logService.info(`No regions found for grep result match in file ${documentSnapshot.uri.fsPath} at lines [${grepResultMatches.map(m => m.start.line + 1).join(',')}]`);
 							} else {
-								this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'documentVersionChanged');
+								this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'documentVersionChanged', documentSnapshot);
 								// this.logService.info(`Document version changed for requestId ${options.chatRequestId}`);
 							}
 						}
 					} else {
 						if (documentSnapshot.version === documentSnapshot.document.version) {
-							this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'noGrep');
+							this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'noGrep', documentSnapshot);
 							// this.logService.info(`No grep result match found for requestId ${options.chatRequestId}`);
 						} else {
-							this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'documentVersionChanged');
+							this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'documentVersionChanged', documentSnapshot);
 							// this.logService.info(`Document version changed for requestId ${options.chatRequestId}`);
 						}
 					}
 				} catch (err) {
-					this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'exception');
+					this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'exception', documentSnapshot);
 					// this.logService.error(`Error processing grep result for requestId ${options.chatRequestId}: ${err}`);
 				}
 			}
@@ -388,6 +388,7 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 		const skillInfo = extensionSkillInfo || (uri && this.customInstructionsService.getSkillInfo(uri));
 		const fileType = skillInfo ? 'skill' : '';
 		const nameField = extensionSkillInfo ? extensionSkillInfo.skillName : skillInfo ? getCachedSha256Hash(skillInfo.skillName) : '';
+		const languageId = documentSnapshot?.languageId;
 
 		/* __GDPR__
 			"readFileToolInvoked" : {
@@ -402,7 +403,8 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 				"isV2": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the tool is a v2 version" },
 				"isEntireFile": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the entire file was read with v2 params" },
 				"fileType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The type of file being read" },
-				"nameField": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The name of the agent customization. Plain text for extension sources, otherwise hashed." }
+				"nameField": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The name of the agent customization. Plain text for extension sources, otherwise hashed." },
+				"languageId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The language ID of the document snapshot" }
 			}
 		*/
 		this.telemetryService.sendMSFTTelemetryEvent('readFileToolInvoked',
@@ -414,6 +416,7 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 				isEntireFile: isParamsV2(options.input) && options.input.offset === undefined && options.input.limit === undefined ? 'true' : 'false',
 				fileType,
 				nameField,
+				languageId,
 				model,
 			},
 			{
@@ -430,7 +433,8 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 		}
 	}
 
-	private async sendAdjustedRegionTelemetry(options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, originalStart: number, originalEnd: number, adjustedStart: number, adjustedEnd: number) {
+	private async sendAdjustedRegionTelemetry(options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, originalStart: number, originalEnd: number, adjustedStart: number, adjustedEnd: number, documentSnapshot: TextDocumentSnapshot | NotebookDocumentSnapshot) {
+		const languageId = documentSnapshot.languageId;
 		/* __GDPR__
 			"readFileRegionAdjusted" : {
 				"owner": "dbaeumer",
@@ -439,12 +443,14 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 				"originalLines": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The number of original lines of the requested region", "isMeasurement": true },
 				"adjustedLines": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The number of lines after the requested region has been adjusted", "isMeasurement": true },
 				"deltaStart": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The difference between the original start line and the adjusted start line", "isMeasurement": true },
-				"deltaEnd": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The difference between the original end line and the adjusted end line", "isMeasurement": true }
+				"deltaEnd": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The difference between the original end line and the adjusted end line", "isMeasurement": true },
+				"languageId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The language ID of the document snapshot" }
 			}
 		*/
 		this.telemetryService.sendMSFTTelemetryEvent('readFileRegionAdjusted',
 			{
 				requestId: options.chatRequestId,
+				languageId,
 			},
 			{
 				originalLines: originalEnd - originalStart + 1,
@@ -455,20 +461,22 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 		);
 	}
 
-	private async sendAdjustingFailedTelemetry(options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, startLine: number, endLine: number, reason: 'noGrep' | 'noGrepRegions' | 'documentVersionChanged' | 'exception') {
+	private async sendAdjustingFailedTelemetry(options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, startLine: number, endLine: number, reason: 'noGrep' | 'noGrepRegions' | 'documentVersionChanged' | 'exception', documentSnapshot: TextDocumentSnapshot | NotebookDocumentSnapshot) {
 		/* __GDPR__
 			"readFileRegionAdjustingFailed" : {
 				"owner": "dbaeumer",
 				"comment": "Information about the failure to adjust the requested region to read",
 				"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The id of the current request turn." },
 				"lines": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The number of line to read", "isMeasurement": true },
-				"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The reason why adjusting the requested region failed" }
+				"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The reason why adjusting the requested region failed" },
+				"languageId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The language ID of the document snapshot" }
 			}
 		*/
 		this.telemetryService.sendMSFTTelemetryEvent('readFileRegionAdjustingFailed',
 			{
 				requestId: options.chatRequestId,
 				reason,
+				languageId: documentSnapshot.languageId,
 			}, {
 				lines: endLine - startLine + 1
 			}

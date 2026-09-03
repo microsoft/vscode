@@ -13,11 +13,12 @@ import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { isMultiRootSession } from '../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
-import { resolveChangesetUriTemplate } from '../../../../../platform/agentHost/common/changesetUri.js';
+import { AGENT_MERGE_CHANGESET_ID, resolveChangesetUriTemplate } from '../../../../../platform/agentHost/common/changesetUri.js';
+import { isAgentMergeMessage } from '../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { ChangesetOperationTargetKind } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, ChangesetOperationStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildDefaultChatUri, ChangesetStatus, Changeset, StateComponents, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, ChangesetStatus, Changeset, isHostNoticeTurn, lastAttributableTurnId, MessageKind, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { isIChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -114,6 +115,10 @@ export function createChangesets(
 		} else if (changeset.changeKind === ChangesetKind.Turn) {
 			// Last Turn Changes
 			sessionChangesets.push(options.instantiationService.createInstance(AgentHostLastTurnChangeset, sessionUri, options, isActiveSessionObs, {
+				...changeset, isDefault
+			}));
+		} else if (changeset.changeKind === AGENT_MERGE_CHANGESET_ID) {
+			sessionChangesets.push(options.instantiationService.createInstance(AgentHostAgentMergeChangeset, sessionUri, options, isActiveSessionObs, {
 				...changeset, isDefault
 			}));
 		}
@@ -561,7 +566,10 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 			// Prefer the in-progress turn so the "last turn" reflects streaming
 			// edits live; once it completes it moves into `turns` under the same
 			// id, so the tracked changeset transitions seamlessly.
-			return chatState.activeTurn?.id ?? chatState.turns?.at(-1)?.id;
+			if (chatState.activeTurn && !isHostNoticeTurn(chatState.activeTurn)) {
+				return chatState.activeTurn.id;
+			}
+			return lastAttributableTurnId(chatState.turns);
 		});
 
 		// Last turn changes
@@ -595,4 +603,92 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 	protected override _filterChanges(changes: readonly ISessionFileChange[], reader: IReader): readonly ISessionFileChange[] {
 		return filterChangesToPrimaryWorkingDirectory(changes, this._workingDirectoriesObs.read(reader));
 	}
+}
+
+class AgentHostAgentMergeChangeset extends AbstractAgentHostChangeset {
+	readonly id = AGENT_MERGE_CHANGESET_ID;
+	readonly label: string;
+	readonly description: string | undefined;
+
+	readonly isEnabled = constObservable(true);
+	readonly isDefault: IObservable<boolean>;
+
+	protected override readonly channelUriObs: IObservable<URI | undefined>;
+	protected readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined | null>>;
+
+	constructor(
+		sessionUri: URI,
+		options: IAgentHostAdapterOptions,
+		isActiveSessionObs: IObservable<boolean>,
+		changesetSummary: IAgentHostChangeset & { isDefault: boolean },
+		@IDialogService dialogService: IDialogService,
+	) {
+		super(changesetSummary, options, dialogService);
+
+		this.label = changesetSummary.label;
+		this.description = changesetSummary.description;
+		this.isDefault = constObservable(changesetSummary.isDefault);
+
+		const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
+			options,
+			isActiveSessionObs,
+			StateComponents.Session,
+			constObservable(sessionUri),
+		);
+
+		const defaultChatUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
+			const sessionState = sessionStateObs.read(reader).read(reader);
+			return URI.parse(
+				sessionState && !(sessionState instanceof Error)
+					? sessionState.defaultChat ?? buildDefaultChatUri(sessionUri)
+					: buildDefaultChatUri(sessionUri)
+			);
+		});
+
+		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
+			options,
+			isActiveSessionObs,
+			StateComponents.Chat,
+			defaultChatUriObs,
+		);
+
+		this.channelUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
+			const range = getAgentMergeChangesetRange(chatStateObs.read(reader).read(reader));
+			if (!range) {
+				return undefined;
+			}
+			return URI.parse(changesetSummary.uriTemplate
+				.replace('{originalTurnId}', range.originalTurnId)
+				.replace('{modifiedTurnId}', range.modifiedTurnId));
+		});
+
+		this.changesetStateObs = createActiveSessionSubscriptionObs<ChangesetState>(
+			options,
+			isActiveSessionObs,
+			StateComponents.Changeset,
+			this.channelUriObs,
+		);
+	}
+}
+
+function getAgentMergeChangesetRange(chatState: ChatState | Error | undefined | null): { readonly originalTurnId: string; readonly modifiedTurnId: string } | undefined {
+	if (!chatState || chatState instanceof Error || chatState.activeTurn?.message.origin.kind === MessageKind.User) {
+		return undefined;
+	}
+
+	let originalTurnId: string | undefined;
+	let modifiedTurnId: string | undefined;
+	for (const turn of chatState.turns) {
+		if (turn.message.origin.kind === MessageKind.User) {
+			originalTurnId = turn.state === TurnState.Cancelled ? undefined : turn.id;
+			modifiedTurnId = undefined;
+		} else if (originalTurnId
+			&& turn.state !== TurnState.Cancelled
+			&& turn.message.origin.kind === MessageKind.SystemNotification
+			&& isAgentMergeMessage(turn.message)) {
+			modifiedTurnId = turn.id;
+		}
+	}
+
+	return originalTurnId && modifiedTurnId ? { originalTurnId, modifiedTurnId } : undefined;
 }

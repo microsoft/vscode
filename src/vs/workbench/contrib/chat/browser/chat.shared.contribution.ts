@@ -132,6 +132,7 @@ import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } fro
 import { PromptsDebugContribution } from './promptsDebugContribution.js';
 import { PromptLanguageFeaturesProvider } from './promptSyntax/promptFileContributions.js';
 import { ChatSpeechToTextService, DictationSettingId, IChatSpeechToTextService } from './speechToText/chatSpeechToTextService.js';
+import { IVoiceCodeTranscriptionClient, VoiceCodeTranscriptionClient } from './speechToText/voiceCodeTranscriptionClient.js';
 import './telemetry/chatModelCountTelemetry.js';
 import { ChatToolRiskAssessmentService, IChatToolRiskAssessmentService } from './tools/chatToolRiskAssessmentService.js';
 import { ClientToolSetsContribution } from './tools/clientToolSetsContribution.js';
@@ -458,6 +459,14 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostShowExternalSessionsConfigKey },
+		},
+		[ChatConfiguration.ConsolidatedRemoteWorkspaces]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			description: nls.localize('chat.agentSessions.consolidatedRemoteWorkspaces', "Controls whether GitHub and remote workspaces are combined under Remote in the Agents Window workspace picker, with search always available."),
+			tags: ['preview'],
+			experiment: { mode: 'auto' },
 		},
 		[ChatConfiguration.SaveBeforeSend]: {
 			type: 'boolean',
@@ -3269,6 +3278,7 @@ agentPluginDiscoveryRegistry.register(new SyncDescriptor(CopilotCliAgentPluginDi
 
 registerSingleton(IChatResponseResourceFileSystemProvider, ChatResponseResourceFileSystemProvider, InstantiationType.Delayed);
 registerSingleton(IChatSpeechToTextService, ChatSpeechToTextService, InstantiationType.Eager);
+registerSingleton(IVoiceCodeTranscriptionClient, VoiceCodeTranscriptionClient, InstantiationType.Delayed);
 registerSingleton(IChatTransferService, ChatTransferService, InstantiationType.Delayed);
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delayed);

@@ -276,6 +276,23 @@ A user can contribute lifecycle hooks through a client-pushed Copilot plugin to 
     --grep "plugin .* hook|failing plugin hook|non-JSON plugin hook"
   ```
 
+### Copilot file edit metadata is lost after a host restart
+
+A user can reopen an Agent Host session and ask Copilot to edit a file. The file changes successfully, but the restored provider does not publish the before-and-after edit metadata, so the completed edit renders as a generic tool call instead of an edit pill and edit attribution is unavailable.
+
+- Test: `file edit metadata survives a host restart`.
+- Scope: Copilot on all platforms.
+- Expected: an edit made after the host restores the provider session includes readable before-and-after content references in the completed tool result.
+- Observed: the edit tool succeeds, but its completed tool result contains no file edit metadata.
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "file edit metadata survives a host restart"
+  ```
+
 ### Client-pushed plugin MCP coverage is provider-scoped
 
 - Tests: the `client plugin …` and `plugin MCP …` scenarios in `mcpPluginSuite.ts`.
