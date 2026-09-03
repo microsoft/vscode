@@ -117,6 +117,26 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
+	test('documents session status pill keyboard interaction', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+
+		assert.deepStrictEqual({
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('left and right arrow keys to move between pills'),
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('<keybinding:editor.action.showContextMenu>'),
+			agentQuickChat: getAccessibilityHelpText('agentView', keybindingService, true, false, false, false).includes('session status pills'),
+			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes('session status pills'),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('session status pills'),
+		}, {
+			panelChat: true,
+			agentView: true,
+			agentQuickChat: false,
+			quickChat: false,
+			inlineChat: false,
+		});
+	});
+
 	test('documents transcript Find everywhere it is enabled, but not in quick chat', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],

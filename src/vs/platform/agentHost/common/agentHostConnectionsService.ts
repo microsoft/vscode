@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import type { IDisposable } from '../../../base/common/lifecycle.js';
 import type { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentConnection } from './agentService.js';
+import type { DefaultChangesetKind } from './changesetUri.js';
 
 /**
  * Chat-session resource scheme prefix for the window's ambient/local agent
@@ -57,34 +59,52 @@ export interface IAgentHostConnectionInfo {
 
 /**
  * The result of resolving a chat-session resource to its backing agent host:
- * the owning {@link IAgentConnection} and the canonical backend agent-session
- * URI (`<provider>:/<rawId>`) used for protocol operations on that connection.
+ * the owning {@link IAgentConnection}, its authority, and the canonical backend
+ * agent-session URI used for protocol operations on that connection.
  */
 export interface IAgentHostSessionResolution {
 	readonly connection: IAgentConnection;
+	readonly connectionAuthority: string;
 	readonly backendSession: URI;
+	readonly defaultChangesetKind?: DefaultChangesetKind;
+}
+
+/** Provider-owned policy needed to resolve a workbench session resource back to its host. */
+export interface IAgentHostSessionResolutionPolicy {
+	readonly sessionSchemeAlias?: IAgentHostSessionSchemeAlias;
+	readonly defaultChangesetKind?: DefaultChangesetKind;
+}
+
+/** The UI and backend schemes for a session whose provider and host identities differ. */
+export interface IAgentHostSessionSchemeAlias {
+	readonly ui: string;
+	readonly backend: string;
 }
 
 export const IAgentHostConnectionsService = createDecorator<IAgentHostConnectionsService>('agentHostConnectionsService');
 
 /**
- * A thin, read-only facade over the window's ambient agent host
+ * A facade over the window's ambient agent host
  * (`IAgentHostService`) and the registry of remote agent hosts
  * (`IRemoteAgentHostService`), so consumers can enumerate and resolve
  * {@link IAgentConnection}s without branching on local-vs-remote or
- * fanning out over "1 ambient + N remote" themselves.
+ * fanning out over "1 ambient + N remote" themselves. Session providers may
+ * register declarative scheme/default-changeset policy so every consumer
+ * resolves provider-specific session resources consistently.
  *
- * This service deliberately does NOT expose lifecycle/management operations:
+ * This service deliberately does NOT expose connection lifecycle operations:
  * ambient-process concerns (restart, inspect, auth-pending) stay on
  * `IAgentHostService`, and remote-registry mutations (add/remove/reconnect/
- * upgrade) stay on `IRemoteAgentHostService`. This facade only answers
- * "which connections exist?" and "give me the connection for X".
+ * upgrade) stay on `IRemoteAgentHostService`.
  */
 export interface IAgentHostConnectionsService {
 	readonly _serviceBrand: undefined;
 
 	/** Fires when the set of connections changes (ambient lifecycle or remotes added/removed). */
 	readonly onDidChangeConnections: Event<void>;
+
+	/** Fires when connection or provider policy changes can alter session-resource resolution. */
+	readonly onDidChangeSessionResolution: Event<void>;
 
 	/**
 	 * All known connections as `[ambient, ...remotes]`. The ambient entry is
@@ -110,6 +130,12 @@ export interface IAgentHostConnectionsService {
 	 * {@link getConnectionByAuthority} with {@link AMBIENT_AGENT_HOST_AUTHORITY}.
 	 */
 	getConnectionByAddress(address: string): IAgentConnection | undefined;
+
+	/**
+	 * Registers provider-owned session resolution policy for a connection.
+	 * At most one policy may be registered for an authority.
+	 */
+	registerSessionResolutionPolicy(authority: string, policy: IAgentHostSessionResolutionPolicy): IDisposable;
 
 	/**
 	 * Resolves an agent-host chat-session resource to its owning connection and
