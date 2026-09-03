@@ -400,9 +400,9 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 		} else {
 			switch (element.item.status) {
 				case 'loading':
-				templateData.status.textContent = getRemotePluginStatusLabel(element.item);
-				templateData.status.classList.add('running');
-				break;
+					templateData.status.textContent = getRemotePluginStatusLabel(element.item);
+					templateData.status.classList.add('running');
+					break;
 				case 'loaded':
 					templateData.status.textContent = getRemotePluginStatusLabel(element.item);
 					templateData.status.classList.add('running');
@@ -2328,6 +2328,9 @@ export class PluginListWidget extends Disposable {
 	layout(height: number, width: number): void {
 		this.lastHeight = height;
 		this.lastWidth = width;
+		if (!this.visible || this.element.parentElement?.style.display === 'none') {
+			return;
+		}
 
 		this.element.style.height = `${height}px`;
 		this.updateResponsiveLayout(width);

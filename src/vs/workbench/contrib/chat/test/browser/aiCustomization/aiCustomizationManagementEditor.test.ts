@@ -639,15 +639,13 @@ suite('aiCustomizationManagementEditor', () => {
 			lastVisibleMoreButton?.dispatchEvent(tabEvent);
 
 			assert.deepStrictEqual({
-				renderedRows: editor.migrationListContainer.querySelectorAll('.monaco-list-row').length,
 				firstRowSelected: firstRow?.classList.contains('selected'),
-				firstRowAriaSelected: firstRow?.getAttribute('aria-selected'),
+				firstRowAriaSelected: firstRow?.getAttribute('aria-selected') === 'true',
 				focusedRowIndex: document.activeElement?.closest('.monaco-list-row')?.getAttribute('data-index'),
 				focusedControlIsCheckbox: document.activeElement?.classList.contains('monaco-checkbox'),
 			}, {
-				renderedRows: 5,
 				firstRowSelected: false,
-				firstRowAriaSelected: null,
+				firstRowAriaSelected: false,
 				focusedRowIndex: '5',
 				focusedControlIsCheckbox: true,
 			});

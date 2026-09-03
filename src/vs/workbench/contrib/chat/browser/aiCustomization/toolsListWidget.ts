@@ -670,6 +670,9 @@ export class ToolsListWidget extends Disposable {
 	layout(height: number, width: number): void {
 		this._lastHeight = height;
 		this._lastWidth = width;
+		if (this.element.parentElement?.style.display === 'none') {
+			return;
+		}
 		this.element.classList.toggle('narrow-layout', width < 500);
 		this._searchInput.layout();
 		this._scheduleSectionListLayout();

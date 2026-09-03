@@ -692,10 +692,18 @@ export class AICustomizationManagementEditor extends EditorPane {
 			layout: (width, _, height) => {
 				this.contentContainer.style.width = `${width}px`;
 				if (height !== undefined) {
-					this.listWidget.layout(height - 16, width - 24);
-					this.mcpListWidget?.layout(height - 16, width - 24);
-					this.pluginListWidget?.layout(height - 16, width - 24);
-					this.toolsListWidget?.layout(height - 16, width - 24);
+					if (this.promptsContentContainer?.style.display !== 'none') {
+						this.listWidget.layout(height - 16, width - 24);
+					}
+					if (this.mcpContentContainer?.style.display !== 'none') {
+						this.mcpListWidget?.layout(height - 16, width - 24);
+					}
+					if (this.pluginContentContainer?.style.display !== 'none') {
+						this.pluginListWidget?.layout(height - 16, width - 24);
+					}
+					if (this.toolsContentContainer?.style.display !== 'none') {
+						this.toolsListWidget?.layout(height - 16, width - 24);
+					}
 					const modelsFooterHeight = this.modelsFooterElement?.offsetHeight || 80;
 					this.modelsWidget?.layout(height - 16 - modelsFooterHeight, width);
 					if (this.viewMode === 'editor' && this.embeddedEditor && this.embeddedEditorContainer) {
@@ -1083,7 +1091,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		));
 		this.editorDisposables.add(migrationResizeObserver.observe(migrationListScrollableNode));
 		this.renderCustomizationMigrationPage();
-		this.scheduleMigrationSectionLayout();
+		if (this.viewMode === 'migration') {
+			this.scheduleMigrationSectionLayout();
+		}
 	}
 
 	private createContent(): void {
@@ -1825,6 +1835,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private scheduleMigrationSectionLayout(): void {
+		if (this.migrationContentContainer?.style.display === 'none') {
+			this.pendingMigrationLayout?.clear();
+			return;
+		}
 		if (!this.pendingMigrationLayout) {
 			this.layoutMigrationSectionLists();
 			this.migrationListScrollable?.scanDomNode();
@@ -2603,7 +2617,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		for (const widget of this.contributedSectionWidgets.values()) {
 			widget.layout?.(dimension);
 		}
-		this.scheduleMigrationSectionLayout();
+		if (this.viewMode === 'migration') {
+			this.scheduleMigrationSectionLayout();
+		}
 	}
 
 	override focus(): void {

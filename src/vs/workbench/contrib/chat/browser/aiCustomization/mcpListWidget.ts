@@ -2318,6 +2318,9 @@ export class McpListWidget extends Disposable {
 	layout(height: number, width: number): void {
 		this.lastHeight = height;
 		this.lastWidth = width;
+		if (!this.visible || this.element.parentElement?.style.display === 'none') {
+			return;
+		}
 
 		this.element.style.height = `${height}px`;
 		this.updateResponsiveLayout(width);

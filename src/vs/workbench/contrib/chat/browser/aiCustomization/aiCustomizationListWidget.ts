@@ -2275,6 +2275,9 @@ export class AICustomizationListWidget extends Disposable {
 	layout(height: number, width: number): void {
 		this.lastLayoutHeight = height;
 		this.lastLayoutWidth = width;
+		if (this.element.parentElement?.style.display === 'none') {
+			return;
+		}
 		this.element.classList.toggle('narrow-layout', width < 500);
 		this.element.classList.toggle('wide-layout', width >= 600);
 		// Use the CSS-computed height within the padded parent.
