@@ -36,7 +36,7 @@ import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/com
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { IGitRepository, IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { CloudSandboxEnabledSettingId, type ICloudSandboxCreateSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
@@ -63,6 +63,7 @@ import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest } fr
 
 interface IGitHubContextBrowseHarness {
 	readonly commandService: Pick<ICommandService, 'executeCommand'>;
+	readonly gitService: Pick<IGitService, 'openRepository'>;
 }
 
 const browseForGitHubContext = Reflect.get(CopilotChatSessionsProvider.prototype, '_browseForGitHubContext') as (
@@ -470,6 +471,7 @@ suite('CopilotChatSessionsProvider', () => {
 					} as T;
 				}
 			}(),
+			gitService: upcastPartial<IGitService>({ openRepository: async () => undefined }),
 		};
 		const repositoryRoot = URI.from({
 			scheme: GITHUB_REMOTE_FILE_SCHEME,
@@ -507,6 +509,170 @@ suite('CopilotChatSessionsProvider', () => {
 			issue: { uri: 'https://github.com/cutelyaware/MC4D/issues/1', label: 'cutelyaware/MC4D#1', icon: Codicon.issues.id },
 			pullRequest: { uri: 'https://github.com/cutelyaware/MC4D/pull/2', label: 'cutelyaware/MC4D#2', icon: Codicon.gitPullRequest.id },
 		});
+	});
+
+	test('selects a repository before browsing GitHub context when the repository is ambiguous', async () => {
+		const calls: { commandId: string; repoId: unknown }[] = [];
+		const harness: IGitHubContextBrowseHarness = {
+			commandService: new class extends mock<ICommandService>() {
+				override async executeCommand<T>(commandId: string, repoId?: unknown): Promise<T | undefined> {
+					calls.push({ commandId, repoId });
+					if (commandId === 'github.copilot.chat.cloudSessions.openRepository') {
+						return 'microsoft/vscode' as T;
+					}
+					return {
+						repoId: 'microsoft/vscode',
+						url: `https://github.com/microsoft/vscode/${commandId === 'openIssue' ? 'issues/1' : 'pull/2'}`,
+						label: `microsoft/vscode#${commandId === 'openIssue' ? '1' : '2'}`,
+					} as T;
+				}
+			}(),
+			gitService: upcastPartial<IGitService>({ openRepository: async () => undefined }),
+		};
+		const repositoryRoot = (repositoryId: string) => URI.from({
+			scheme: GITHUB_REMOTE_FILE_SCHEME,
+			authority: 'github',
+			path: `/${repositoryId}/HEAD`,
+		});
+		const multiRootWorkspace: ISessionWorkspace = {
+			uri: URI.parse('https://github.com'),
+			label: 'Multiple repositories',
+			icon: Codicon.repo,
+			group: SESSION_WORKSPACE_GROUP_GITHUB,
+			folders: ['microsoft/vscode', 'microsoft/typescript'].map(repositoryId => {
+				const root = repositoryRoot(repositoryId);
+				return {
+					root,
+					workingDirectory: root,
+					name: repositoryId,
+					description: undefined,
+					gitRepository: undefined,
+				};
+			}),
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: true,
+		};
+
+		const issue = await browseForGitHubContext.call(harness, 'openIssue', Codicon.issues, undefined);
+		const pullRequest = await browseForGitHubContext.call(harness, 'openPullRequest', Codicon.gitPullRequest, multiRootWorkspace);
+
+		assert.deepStrictEqual({
+			calls,
+			issue: { uri: issue?.uri.toString(), label: issue?.label },
+			pullRequest: { uri: pullRequest?.uri.toString(), label: pullRequest?.label },
+		}, {
+			calls: [
+				{ commandId: 'github.copilot.chat.cloudSessions.openRepository', repoId: undefined },
+				{ commandId: 'openIssue', repoId: 'microsoft/vscode' },
+				{ commandId: 'github.copilot.chat.cloudSessions.openRepository', repoId: undefined },
+				{ commandId: 'openPullRequest', repoId: 'microsoft/vscode' },
+			],
+			issue: { uri: 'https://github.com/microsoft/vscode/issues/1', label: 'microsoft/vscode#1' },
+			pullRequest: { uri: 'https://github.com/microsoft/vscode/pull/2', label: 'microsoft/vscode#2' },
+		});
+	});
+
+	test('resolves an initially unknown GitHub remote before browsing context', async () => {
+		const calls: { commandId: string; repoId: unknown }[] = [];
+		const repositoryState = observableValue('repositoryState', {
+			HEAD: undefined,
+			remotes: [{ name: 'origin', fetchUrl: 'https://github.com/microsoft/vscode.git', pushUrl: undefined, isReadOnly: false }],
+			mergeChanges: [],
+			indexChanges: [],
+			workingTreeChanges: [],
+			untrackedChanges: [],
+		});
+		const harness: IGitHubContextBrowseHarness = {
+			commandService: new class extends mock<ICommandService>() {
+				override async executeCommand<T>(commandId: string, repoId?: unknown): Promise<T | undefined> {
+					calls.push({ commandId, repoId });
+					return {
+						repoId: 'microsoft/vscode',
+						url: 'https://github.com/microsoft/vscode/issues/1',
+						label: 'microsoft/vscode#1',
+					} as T;
+				}
+			}(),
+			gitService: upcastPartial<IGitService>({
+				openRepository: async () => upcastPartial<IGitRepository>({ rootUri: root, state: repositoryState }),
+			}),
+		};
+		const root = URI.file('/test/vscode');
+		const workspace: ISessionWorkspace = {
+			uri: root,
+			label: 'vscode',
+			icon: Codicon.folder,
+			group: SESSION_WORKSPACE_GROUP_LOCAL,
+			folders: [{
+				root,
+				workingDirectory: root,
+				name: 'vscode',
+				description: undefined,
+				gitRepository: undefined,
+			}],
+			requiresWorkspaceTrust: true,
+			isVirtualWorkspace: false,
+		};
+
+		const issue = await browseForGitHubContext.call(harness, 'openIssue', Codicon.issues, workspace);
+
+		assert.deepStrictEqual({
+			calls,
+			issue: { uri: issue?.uri.toString(), label: issue?.label },
+		}, {
+			calls: [{ commandId: 'openIssue', repoId: 'microsoft/vscode' }],
+			issue: { uri: 'https://github.com/microsoft/vscode/issues/1', label: 'microsoft/vscode#1' },
+		});
+	});
+
+	test('selects a repository when the selected folder has no matching Git root', async () => {
+		const calls: { commandId: string; repoId: unknown }[] = [];
+		const staleRepositoryState = observableValue('staleRepositoryState', {
+			HEAD: undefined,
+			remotes: [{ name: 'origin', fetchUrl: 'https://github.com/microsoft/old.git', pushUrl: undefined, isReadOnly: false }],
+			mergeChanges: [],
+			indexChanges: [],
+			workingTreeChanges: [],
+			untrackedChanges: [],
+		});
+		const harness: IGitHubContextBrowseHarness = {
+			commandService: new class extends mock<ICommandService>() {
+				override async executeCommand<T>(commandId: string, repoId?: unknown): Promise<T | undefined> {
+					calls.push({ commandId, repoId });
+					if (commandId === 'github.copilot.chat.cloudSessions.openRepository') {
+						return 'microsoft/vscode' as T;
+					}
+					return {
+						repoId: 'microsoft/vscode',
+						url: 'https://github.com/microsoft/vscode/issues/1',
+						label: 'microsoft/vscode#1',
+					} as T;
+				}
+			}(),
+			gitService: upcastPartial<IGitService>({
+				openRepository: async () => upcastPartial<IGitRepository>({
+					rootUri: URI.file('/test/old-repository'),
+					state: staleRepositoryState,
+				}),
+			}),
+		};
+		const root = URI.file('/test/new-folder');
+		const workspace: ISessionWorkspace = {
+			uri: root,
+			label: 'new-folder',
+			icon: Codicon.folder,
+			group: SESSION_WORKSPACE_GROUP_LOCAL,
+			folders: [{ root, workingDirectory: root, name: 'new-folder', description: undefined, gitRepository: undefined }],
+			requiresWorkspaceTrust: true,
+			isVirtualWorkspace: false,
+		};
+
+		await browseForGitHubContext.call(harness, 'openIssue', Codicon.issues, workspace);
+
+		assert.deepStrictEqual(calls, [
+			{ commandId: 'github.copilot.chat.cloudSessions.openRepository', repoId: undefined },
+			{ commandId: 'openIssue', repoId: 'microsoft/vscode' },
+		]);
 	});
 
 	test('sessionTypes excludes Local', () => {

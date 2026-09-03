@@ -26,7 +26,7 @@ import { IChatResponseModel } from '../../../../../workbench/contrib/chat/common
 import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatModelSource, ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, ISideChatSelection, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, gitHubInfoEqual, sessionWorkspaceEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_GITHUB, ISessionChangeset, IChatCheckpoints, ChatInteractivity, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
+import { basename, dirname, isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../../chat/browser/newSession.js';
 import { ILanguageModelToolsService } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
@@ -898,6 +898,25 @@ function githubRemoteRepoLabel(uri: URI): string | undefined {
 	// Path is `/<owner>/<repo>[/<ref>…]`; take the first two segments.
 	const parts = uri.path.replace(/^\//, '').split('/');
 	return parts.length >= 2 ? `${parts[0]}/${parts[1]}` : undefined;
+}
+
+async function resolveGitHubRepositoryId(folder: ISessionFolder, gitService: Pick<IGitService, 'openRepository'>): Promise<string | undefined> {
+	const gitHubInfo = folder.gitRepository?.gitHubInfo.get();
+	if (gitHubInfo) {
+		return `${gitHubInfo.owner}/${gitHubInfo.repo}`;
+	}
+
+	const remoteRepositoryId = githubRemoteRepoLabel(folder.root);
+	if (remoteRepositoryId || folder.root.scheme !== Schemas.file) {
+		return remoteRepositoryId;
+	}
+
+	const repository = await gitService.openRepository(folder.gitRepository?.uri ?? folder.root);
+	if (!repository || !isEqualOrParent(folder.root, repository.rootUri)) {
+		return undefined;
+	}
+	const repositoryInfo = repository && getGitHubRemoteInfo(repository.state.get());
+	return repositoryInfo ? `${repositoryInfo.owner}/${repositoryInfo.repo}` : undefined;
 }
 
 /**
@@ -2738,12 +2757,21 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	private async _browseForGitHubContext(commandId: string, icon: ThemeIcon, currentWorkspace: ISessionWorkspace | undefined): Promise<ISessionWorkspace | undefined> {
-		const gitHubInfo = currentWorkspace?.folders
-			.map(folder => folder.gitRepository?.gitHubInfo.get())
-			.find(info => info !== undefined);
-		const repoId = gitHubInfo
-			? `${gitHubInfo.owner}/${gitHubInfo.repo}`
-			: currentWorkspace?.folders.map(folder => githubRemoteRepoLabel(folder.root)).find(id => id !== undefined);
+		const repositoryIds = new Set<string>();
+		for (const folder of currentWorkspace?.folders ?? []) {
+			const repositoryId = await resolveGitHubRepositoryId(folder, this.gitService);
+			if (repositoryId) {
+				repositoryIds.add(repositoryId);
+			}
+		}
+
+		const repoId = repositoryIds.size === 1
+			? repositoryIds.values().next().value
+			: await this.commandService.executeCommand<string>(OPEN_REPO_COMMAND);
+		if (!repoId) {
+			return undefined;
+		}
+
 		const selection = await this.commandService.executeCommand<IGitHubContextSelection>(commandId, repoId);
 		if (!selection) {
 			return undefined;
