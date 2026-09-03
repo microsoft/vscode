@@ -3488,6 +3488,34 @@ suite('AgentService (node dispatcher)', () => {
 			})), [{ session: external.toString(), external: true, source: 'discovery' }]);
 		});
 
+		test('discovery keeps a host-created session internal when the provider reports it as external', async () => {
+			const sessionData = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			await svc.listSessions();
+			const hostCreated = AgentSession.uri('copilot', 'host-created');
+			const genuineExternal = AgentSession.uri('copilot', 'genuine-external');
+			await sessionData.database(hostCreated).setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'false');
+
+			await (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, [
+				discoveredChat(hostCreated),
+				discoveredChat(genuineExternal),
+			]);
+
+			assert.deepStrictEqual(
+				(await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.list()).map(entry => ({
+					session: entry.session.toString(),
+					external: entry.external,
+					source: entry.source,
+				})).sort((a, b) => a.session.localeCompare(b.session)),
+				[
+					{ session: genuineExternal.toString(), external: true, source: 'discovery' },
+					{ session: hostCreated.toString(), external: false, source: 'restore' },
+				].sort((a, b) => a.session.localeCompare(b.session)),
+			);
+		});
+
 		test('rediscovery advances recency without overwriting durable unread state for an existing external session', async () => {
 			const db = new TestSessionDatabase();
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -4480,13 +4508,13 @@ suite('AgentService (node dispatcher)', () => {
 			await svc.listSessions();
 			const invalid = AgentSession.uri('copilot', 'invalid-discovered');
 			const valid = AgentSession.uri('copilot', 'valid-discovered');
-			const internals = svc as unknown as { _isChatBacking(session: URI): Promise<boolean> };
-			const originalIsChatBacking = internals._isChatBacking.bind(svc);
-			internals._isChatBacking = async session => {
+			const internals = svc as unknown as { _readSessionRegistrationFacts(session: URI): Promise<{ readonly chatBacking: boolean; readonly hostCreated: boolean }> };
+			const originalReadSessionRegistrationFacts = internals._readSessionRegistrationFacts.bind(svc);
+			internals._readSessionRegistrationFacts = async session => {
 				if (session.toString() === invalid.toString()) {
 					throw new Error('invalid backing');
 				}
-				return originalIsChatBacking(session);
+				return originalReadSessionRegistrationFacts(session);
 			};
 
 			agent.fireDiscoveredChats([discoveredChat(invalid), discoveredChat(valid)]);

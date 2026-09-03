@@ -475,12 +475,13 @@ export class AgentService extends Disposable implements IAgentService {
 	 * durable marker write kept failing after a retry in `createChat`. The chat
 	 * itself was already created and announced successfully, so this in-process
 	 * suppression stands in for the durable marker: it is consulted by
-	 * {@link _isChatBacking} (used by external discovery) and by `listSessions`'s overlay
-	 * filter, so the backing session is still never surfaced as a standalone
-	 * top-level session for the lifetime of this process, even though its
-	 * on-disk marker never persisted. A later successful write (e.g. from a
-	 * differently-timed retry) removes the entry; a stale entry for a since
-	 * deleted session is harmless — that URI is never reachable again.
+	 * {@link _readSessionRegistrationFacts} (used by external discovery) and
+	 * by `listSessions`'s overlay filter, so the backing session is still never
+	 * surfaced as a standalone top-level session for the lifetime of this
+	 * process, even though its on-disk marker never persisted. A later
+	 * successful write (e.g. from a differently-timed retry) removes the entry;
+	 * a stale entry for a since deleted session is harmless — that URI is never
+	 * reachable again.
 	 */
 	private readonly _unpersistedChatBackings = new Set<string>();
 
@@ -1796,7 +1797,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let registryChanged = false;
 		const untitledExternal: IAgentSessionMetadata[] = [];
 		const modifiedTimeAdvances: { readonly session: URI; readonly modifiedTime: number }[] = [];
-		const results = await Promise.all(chats.map(({ external, ...metadata }) => discoveryLimiter.queue(async () => {
+		const results = await Promise.all(chats.map(({ external: reportedExternal, ...metadata }) => discoveryLimiter.queue(async () => {
 			const sessionMetadata = this._toSessionMetadata(metadata);
 			const session = sessionMetadata.session;
 			try {
@@ -1812,10 +1813,16 @@ export class AgentService extends Disposable implements IAgentService {
 					}
 					return false;
 				}
-				if (isSubagentSession(session.toString()) || await this._isChatBacking(session)) {
+				if (isSubagentSession(session.toString())) {
 					suppressed++;
 					return false;
 				}
+				const registrationFacts = await this._readSessionRegistrationFacts(session);
+				if (registrationFacts.chatBacking) {
+					suppressed++;
+					return false;
+				}
+				const external = reportedExternal && !registrationFacts.hostCreated;
 				if (external && !readSessionEhcliAdoptable(sessionMetadata._meta) && this._isExternalSessionOlderThanMaxAge(sessionMetadata.modifiedTime, Date.now())) {
 					skippedAsStale++;
 					return false;
@@ -1968,9 +1975,9 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Both facts registry backfill needs about a session, from a single database
-	 * open — it asks for both per session, and a large catalogue makes the second
-	 * open the dominant cost of the pass.
+	 * Both facts discovery and registry backfill need about a session, from a
+	 * single database open — they ask for both per session, and a large catalogue
+	 * makes a second open the dominant cost of the pass.
 	 */
 	private async _readSessionRegistrationFacts(session: URI): Promise<{ readonly chatBacking: boolean; readonly hostCreated: boolean }> {
 		if (this._unpersistedChatBackings.has(session.toString())) {
@@ -2048,30 +2055,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		return known;
-	}
-
-	/**
-	 * Whether a session is marked as an internal chat backing, either durably
-	 * or in `_unpersistedChatBackings`.
-	 */
-	private async _isChatBacking(session: URI): Promise<boolean> {
-		if (this._unpersistedChatBackings.has(session.toString())) {
-			return true;
-		}
-
-		try {
-			const ref = await this._sessionDataService.tryOpenDatabase(session);
-			if (!ref) {
-				return false;
-			}
-			try {
-				return !!(await ref.object.getMetadata(CHAT_BACKING_METADATA_KEY));
-			} finally {
-				ref.dispose();
-			}
-		} catch {
-			return false;
-		}
 	}
 
 	/** Active list computations and their optional trailing refresh, shared per mode. */
@@ -6115,10 +6098,10 @@ export class AgentService extends Disposable implements IAgentService {
 	 * callers (chat creation / restore) must not fail just because this
 	 * durable write did. The write is retried once; if it still fails, the
 	 * backing session is added to `_unpersistedChatBackings` so
-	 * `_isChatBacking` (external discovery) and `listSessions`'s overlay filter keep
-	 * suppressing it for the rest of this process's lifetime even without a
-	 * persisted marker. A later successful call for the same session (e.g. a
-	 * retried caller) clears any stale suppression entry.
+	 * `_readSessionRegistrationFacts` (external discovery) and `listSessions`'s
+	 * overlay filter keep suppressing it for the rest of this process's lifetime
+	 * even without a persisted marker. A later successful call for the same
+	 * session (e.g. a retried caller) clears any stale suppression entry.
 	 */
 	private async _markChatBacking(backingSession: URI, chat: URI): Promise<void> {
 		const backingSessionStr = backingSession.toString();
