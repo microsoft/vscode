@@ -2708,57 +2708,7 @@ per-word capitalization does not survive translation. */
 	background: color-mix(in srgb, var(--vscode-list-hoverBackground) 65%, transparent);
 }
 
-.plugin-list-widget .plugin-enable-switch {
-	position: relative;
-	flex: 0 0 auto;
-	width: var(--vscode-spacing-size280);
-	height: var(--vscode-spacing-size160);
-	padding: 0;
-	border: var(--vscode-strokeThickness) solid transparent;
-	border-radius: var(--vscode-cornerRadius-circle);
-	background: color-mix(in srgb, var(--vscode-descriptionForeground) 36%, transparent);
-	cursor: pointer;
-	transition: background-color 120ms ease, border-color 120ms ease;
-}
-
-.plugin-list-widget .plugin-enable-switch.checked {
-	background: var(--vscode-button-background);
-	border-color: var(--vscode-button-background);
-}
-
-.plugin-list-widget .plugin-enable-switch:disabled {
-	cursor: default;
-	opacity: 0.5;
-}
-
-.plugin-list-widget .plugin-enable-switch:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: var(--vscode-spacing-size20);
-}
-
-.plugin-list-widget .plugin-enable-switch-thumb {
-	position: absolute;
-	top: var(--vscode-strokeThickness);
-	left: var(--vscode-strokeThickness);
-	width: var(--vscode-spacing-size120);
-	height: var(--vscode-spacing-size120);
-	border-radius: var(--vscode-cornerRadius-circle);
-	background: var(--vscode-button-foreground);
-	transition: transform 120ms ease;
-}
-
-.plugin-list-widget .plugin-enable-switch.checked .plugin-enable-switch-thumb {
-	transform: translateX(var(--vscode-spacing-size120));
-}
-
-.vscode-high-contrast .plugin-list-widget .plugin-enable-switch {
-	border-color: var(--vscode-contrastBorder);
-}
-
-.monaco-workbench.monaco-reduce-motion .plugin-list-widget .plugin-enable-switch,
-.monaco-workbench.monaco-reduce-motion .plugin-list-widget .plugin-enable-switch-thumb {
-	transition: none;
-}
+/* The enablement switch is the shared `Switch` widget; its styling lives in base. */
 
 .plugin-list-widget .plugin-list-item-install-button {
 	font-size: var(--vscode-agents-fontSize-body2);

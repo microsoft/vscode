@@ -12,7 +12,7 @@ function render(context: ComponentFixtureContext, checked: boolean, width = 320)
 	renderPermissionPickerList(context, { showStandaloneSandboxToggle: true, sandboxingEnabled: checked, width });
 
 	const row = context.container.querySelector<HTMLElement>('.has-standalone-toggle');
-	const toggle = row?.querySelector<HTMLElement>('.action-list-inline-switch');
+	const toggle = row?.querySelector<HTMLElement>('.monaco-switch');
 	if (!row || !toggle) {
 		throw new Error('Expected a standalone sandbox toggle row');
 	}

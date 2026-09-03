@@ -30,7 +30,7 @@ import { IProductService } from '../../../../../../../platform/product/common/pr
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { TelemetryTrustedValue } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
+import { COPILOT_VENDOR_ID, getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
 import { IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { IModelPickerDelegate } from './modelPickerActionItem.js';
@@ -45,9 +45,17 @@ import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
 import { buildModelPickerItems, createManageModelsAction, getModelPickerAccessibilityProvider, getModelPickerControlModels, ModelPickerSection, shouldShowManageModelsAction } from './modelPickerItems.js';
 import { ModelPickerConfiguration } from './modelPickerConfiguration.js';
 import { getCompactModelPickerIcon } from './modelProviderIcons.js';
+import { ITabbedModelPickerContext, TabbedModelPicker } from './modelPickerTabbedWidget.js';
+import { getModelConfigSummary } from './modelPickerModelConfig.js';
+import { logModelConfigurationChange } from './modelPickerTelemetry.js';
+import { IModelPickerProviderPlaceholder } from './modelPickerTabs.js';
 import { getModelPickerUnavailableReason, isAutoModel, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
 
 const CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY = 'chat.cacheBreakHintDismissed';
+
+/** Opt-in setting for the tabbed model picker, which replaces the flat dropdown and the separate configuration button. */
+export const TABBED_MODEL_PICKER_SETTING_ID = 'chat.experimentalModelPicker';
+
 const MODEL_PICKER_MINIMUM_LABEL_WIDTH = 60;
 const MODEL_PICKER_NAME_CHROME_WIDTH = 30;
 const MODEL_PICKER_MINIMUM_NAME_WIDTH = MODEL_PICKER_MINIMUM_LABEL_WIDTH + MODEL_PICKER_NAME_CHROME_WIDTH;
@@ -124,6 +132,8 @@ export class ModelPickerWidget extends Disposable {
 	private _configButton: HTMLElement | undefined;
 	private _minimumWidth = MODEL_PICKER_MINIMUM_NAME_WIDTH;
 	private readonly _configuration: ModelPickerConfiguration;
+	private readonly _tabbedPicker = this._register(new MutableDisposable<TabbedModelPicker>());
+	private readonly _tabbedPickerHideListener = this._register(new MutableDisposable());
 
 	get selectedModel(): ILanguageModelChatMetadataAndIdentifier | undefined {
 		return this._selectedModel;
@@ -165,10 +175,10 @@ export class ModelPickerWidget extends Disposable {
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-		this._configuration = instantiationService.createInstance(ModelPickerConfiguration, {
+		this._configuration = this._instantiationService.createInstance(ModelPickerConfiguration, {
 			getSelectedModel: () => this._selectedModel,
 			getConfigurationAccess: () => this._delegate.modelConfiguration ?? this._languageModelsService,
 			isDisabled: () => !!this._domNode?.classList.contains('disabled'),
@@ -228,6 +238,12 @@ export class ModelPickerWidget extends Disposable {
 				this._renderLabel();
 			}));
 		}
+
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TABBED_MODEL_PICKER_SETTING_ID)) {
+				this._renderLabel();
+			}
+		}));
 	}
 
 	setCompact(compact: IObservable<boolean>): void {
@@ -437,13 +453,53 @@ export class ModelPickerWidget extends Disposable {
 		});
 	}
 
+	/** Whether the user opted into the tabbed picker, which folds model configuration into the list. */
+	isTabbedPickerEnabled(): boolean {
+		return this._configurationService.getValue<boolean>(TABBED_MODEL_PICKER_SETTING_ID) === true;
+	}
+
+	/**
+	 * Providers that need a welcome body instead of a list. Only the built-in provider
+	 * qualifies today, when it still needs sign-in. Providers the user has not set up are
+	 * reached through "Add Models" rather than given a tab.
+	 */
+	private _providerPlaceholders(): IModelPickerProviderPlaceholder[] {
+		if (!this.isSetupRequired()) {
+			return [];
+		}
+		return [{
+			vendor: COPILOT_VENDOR_ID,
+			label: getLanguageModelProviderDisplayName(this._languageModelsService, COPILOT_VENDOR_ID),
+			message: localize('chat.modelPicker.signInMessage', "Sign in to see available models."),
+			action: { label: localize('chat.modelPicker.signIn', "Sign in"), run: () => this._requestSetup() },
+		}];
+	}
+
+	private _showTabbedPicker(anchor: HTMLElement, context: ITabbedModelPickerContext): void {
+		const picker = this._tabbedPicker.value ?? (this._tabbedPicker.value = this._instantiationService.createInstance(TabbedModelPicker));
+		const previouslyFocusedElement = dom.getActiveElement();
+		this._tabbedPickerHideListener.value = picker.onDidHide(() => {
+			this._tabbedPickerHideListener.clear();
+			this._nameButton?.setAttribute('aria-expanded', 'false');
+			if (dom.isHTMLElement(previouslyFocusedElement)) {
+				previouslyFocusedElement.focus();
+			}
+		});
+		this._nameButton?.setAttribute('aria-expanded', 'true');
+		picker.show(anchor, context);
+	}
+
 	show(anchor?: HTMLElement): void {
 		const anchorElement = anchor ?? this._domNode;
 		if (!anchorElement || this._domNode?.classList.contains('disabled')) {
 			return;
 		}
 		if (this._nameButton?.getAttribute('aria-expanded') === 'true') {
-			this._actionWidgetService.hide(true);
+			if (this._tabbedPicker.value?.isVisible) {
+				this._tabbedPicker.value.hide();
+			} else {
+				this._actionWidgetService.hide(true);
+			}
 			return;
 		}
 
@@ -489,6 +545,48 @@ export class ModelPickerWidget extends Disposable {
 			this._actionWidgetService.hide();
 			this.show(anchorElement);
 		};
+
+		const onLinkClick = (uri: URI) => {
+			if (uri.scheme === 'command' && uri.path === 'workbench.action.chat.upgradePlan') {
+				logModelPickerInteraction('premiumModelUpgradePlanClicked');
+			} else if (manageSettingsUrl && this._uriIdentityService.extUri.isEqual(uri, URI.parse(manageSettingsUrl))) {
+				logModelPickerInteraction('disabledModelContactAdminClicked');
+			}
+			void this._openerService.open(uri, { allowCommands: true });
+		};
+
+		const placeholders = this._providerPlaceholders();
+		if (this.isTabbedPickerEnabled() && !this.isRestrictedMode() && (models.length > 0 || placeholders.length > 0)) {
+			const showCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ true);
+			this._showTabbedPicker(anchorElement, {
+				models,
+				selectedModelId: this._selectedModel?.identifier,
+				recentModelIds: this._languageModelsService.getRecentlyUsedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
+				pinnedModelIds: this._languageModelsService.getPinnedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
+				controlModels: controlModelsForTier,
+				configurationAccess: this._delegate.modelConfiguration ?? this._languageModelsService,
+				isUBB: !!this._entitlementService.quotas.usageBasedBilling,
+				showManageModels: !!manageModelsAction,
+				providerPlaceholders: placeholders,
+				unavailableContext: {
+					show: presentation.showUnavailableFeatured,
+					currentVSCodeVersion: this._productService.version,
+					manageSettingsUrl,
+					updateStateType: this._updateService.state.type,
+				},
+				onUnavailableLinkClick: onLinkClick,
+				onSelect,
+				onTogglePin,
+				onManageModels: () => manageModelsAction?.run(),
+				onConfigurationChanged: (model, group, key, fromValue, toValue) => logModelConfigurationChange(this._telemetryService, model, group, key, fromValue, toValue),
+				cacheBreakHint: showCacheBreakHint ? {
+					text: localize('chat.modelPicker.cacheBreakHint', "Switching models mid-session resets the prompt cache and may increase cost."),
+					link: this.getCacheBreakLearnMoreLink(),
+					dismiss: () => this.dismissCacheBreakHint(),
+				} : undefined,
+			});
+			return;
+		}
 
 		const items = buildModelPickerItems({
 			models,
@@ -551,14 +649,7 @@ export class ModelPickerWidget extends Disposable {
 					logModelPickerInteraction(collapsed ? 'otherModelsCollapsed' : 'otherModelsExpanded');
 				}
 			},
-			linkHandler: (uri: URI) => {
-				if (uri.scheme === 'command' && uri.path === 'workbench.action.chat.upgradePlan') {
-					logModelPickerInteraction('premiumModelUpgradePlanClicked');
-				} else if (manageSettingsUrl && this._uriIdentityService.extUri.isEqual(uri, URI.parse(manageSettingsUrl))) {
-					logModelPickerInteraction('disabledModelContactAdminClicked');
-				}
-				void this._openerService.open(uri, { allowCommands: true });
-			},
+			linkHandler: onLinkClick,
 			minWidth: 200,
 		});
 		const previouslyFocusedElement = dom.getActiveElement();
@@ -643,7 +734,15 @@ export class ModelPickerWidget extends Disposable {
 				: genericNoModels
 					? localize('chat.modelPicker.noModels', "No models available")
 					: (name ?? localize('chat.modelPicker.auto', "Auto"));
+		// The tabbed picker has no separate configuration button, so the chip reads out
+		// what the model was tuned to.
+		const configSummary = this.isTabbedPickerEnabled() && !unavailable && !minimal
+			? getModelConfigSummary(this._selectedModel, this._delegate.modelConfiguration ?? this._languageModelsService)
+			: undefined;
 		const showModelLabel = !compact || !modelIcon || noModelsAvailable;
+		// Fixed rather than measured: this runs from a resize-driven autorun, so reading
+		// the rendered width here would dirty layout from inside the ResizeObserver
+		// callback and never settle.
 		const showingAuto = !unavailable && !activating && !genericNoModels && (!this._selectedModel || isAutoModel(this._selectedModel));
 		const nameMinimumWidth = compact && !showModelLabel
 			? MODEL_PICKER_COMPACT_NAME_WIDTH
@@ -654,13 +753,20 @@ export class ModelPickerWidget extends Disposable {
 		if (showModelLabel) {
 			nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
 		}
+		if (configSummary && showModelLabel) {
+			nameChildren.push(dom.$('span.model-picker-config-summary', undefined, configSummary));
+		}
 		if (this._badgeIcon) {
 			nameChildren.push(this._badgeIcon);
 		}
 		dom.reset(this._nameButton, ...nameChildren);
 
 		if (this._configButton) {
-			this._configuration.renderButton(this._configButton, minimal, noModelsAvailable);
+			if (this.isTabbedPickerEnabled()) {
+				this._configButton.style.display = 'none';
+			} else {
+				this._configuration.renderButton(this._configButton, minimal, noModelsAvailable);
+			}
 		}
 		const configVisible = !!this._configButton && this._configButton.style.display !== 'none';
 		this._domNode.classList.toggle('icon-only', !showModelLabel && !configVisible);
@@ -671,7 +777,9 @@ export class ModelPickerWidget extends Disposable {
 			? localize('chat.modelPicker.ariaLabelRestricted', "Models, unavailable while in Restricted mode")
 			: setupRequired
 				? localize('chat.modelPicker.ariaLabelSetupRequired', "Models, sign in to use Copilot")
-				: localize('chat.modelPicker.ariaLabel', "Models, {0}", modelLabel);
+				: configSummary
+					? localize('chat.modelPicker.ariaLabelConfigured', "Models, {0}, {1}", modelLabel, configSummary)
+					: localize('chat.modelPicker.ariaLabel', "Models, {0}", modelLabel);
 		this._domNode.ariaLabel = ariaLabel;
 		this._nameButton.ariaLabel = ariaLabel;
 		this._updateMinimumWidth(nameMinimumWidth);
