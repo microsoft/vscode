@@ -24,7 +24,7 @@ const genericModelProviderCompactIcon = registerIcon('chat-model-provider-generi
  * The provider icon matching a free-form identity string (vendor, family, model
  * or provider name). Falls back to a generic icon when nothing matches.
  */
-export function getProviderIconForIdentity(identity: string): ThemeIcon {
+export function getProviderIconForIdentity(identity: string, copilotIdentity: string = identity): ThemeIcon {
 	const normalized = identity.toLowerCase();
 	if (normalized.includes('grok') || normalized.includes('xai')) {
 		return xAIModelProviderIcon;
@@ -44,9 +44,8 @@ export function getProviderIconForIdentity(identity: string): ThemeIcon {
 	if (normalized.includes('openai') || normalized.includes('chatgpt') || normalized.includes('gpt') || normalized.includes('codex') || /\bo[134]\b/.test(normalized)) {
 		return openAIModelProviderIcon;
 	}
-	// Checked last: every first-party model carries the Copilot vendor, so a more
-	// specific match must win before falling back to the Copilot icon.
-	if (normalized.includes('copilot')) {
+	// Checked last, so a more specific match always wins.
+	if (copilotIdentity.toLowerCase().includes('copilot')) {
 		return copilotModelProviderIcon;
 	}
 	return genericModelProviderIcon;
@@ -63,7 +62,9 @@ export function getModelProviderIcon(model: ILanguageModelChatMetadataAndIdentif
 	if (isAutoLanguageModel(model)) {
 		return copilotModelProviderIcon;
 	}
-	return getProviderIconForIdentity(identity);
+	// The Copilot fallback reads the model's own name only: the vendor is `copilot` for
+	// every first-party model, so including it would brand the whole catalogue.
+	return getProviderIconForIdentity(identity, `${model.metadata.id} ${model.metadata.name}`);
 }
 
 export function getModelPickerIcon(model: ILanguageModelChatMetadataAndIdentifier): ThemeIcon {
