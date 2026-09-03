@@ -145,6 +145,10 @@
 	background-color: var(--vscode-agentsChatInput-background) !important;
 }
 
+.sessions-chat-editor .monaco-editor .mtk1 {
+	color: var(--vscode-input-foreground);
+}
+
 /* Inline decoration highlights for the new-session input editor: slash commands,
  * onboarding prompt placeholders, `#file:` variable references, and agent-host
  * completion references. */
