@@ -79,6 +79,28 @@ suite('Common Editor Config', () => {
 		assert.strictEqual(wrappingInfo.wrappingColumn, wrappingColumn);
 	}
 
+	test('forceFullwidthCharacterWidth requires disabled font ligatures', () => {
+		const disabledLigatures = new TestWrappingConfiguration({
+			forceFullwidthCharacterWidth: true,
+			fontLigatures: false,
+		});
+		const enabledLigatures = new TestWrappingConfiguration({
+			forceFullwidthCharacterWidth: true,
+			fontLigatures: true,
+		});
+
+		assert.deepStrictEqual({
+			disabledLigatures: disabledLigatures.options.get(EditorOption.effectiveForceFullwidthCharacterWidth),
+			enabledLigatures: enabledLigatures.options.get(EditorOption.effectiveForceFullwidthCharacterWidth),
+		}, {
+			disabledLigatures: true,
+			enabledLigatures: false,
+		});
+
+		disabledLigatures.dispose();
+		enabledLigatures.dispose();
+	});
+
 	test('wordWrap default', () => {
 		const config = new TestWrappingConfiguration({});
 		assertWrapping(config, false, -1);

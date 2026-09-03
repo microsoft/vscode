@@ -14,7 +14,7 @@ import * as languages from '../../../common/languages.js';
 import { NullState } from '../../../common/languages/nullTokenize.js';
 import { EndOfLinePreference } from '../../../common/model.js';
 import { TextModel } from '../../../common/model/textModel.js';
-import { ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
+import { ILineBreaksComputer, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
 import { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import { ViewLineData } from '../../../common/viewModel.js';
 import { IModelLineProjection, ISimpleModel, createModelLineProjection } from '../../../common/viewModel/modelLineProjection.js';
@@ -26,6 +26,21 @@ import { createTextModel } from '../../common/testTextModel.js';
 suite('Editor ViewModel - SplitLinesCollection', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	class RecordingLineBreaksComputerFactory implements ILineBreaksComputerFactory {
+		readonly lineNumbers: number[] = [];
+
+		createLineBreaksComputer(): ILineBreaksComputer {
+			const requests: number[] = [];
+			return {
+				addRequest: lineNumber => {
+					this.lineNumbers.push(lineNumber);
+					requests.push(lineNumber);
+				},
+				finalize: () => requests.map(() => null)
+			};
+		}
+	}
 
 	test('SplitLine', () => {
 		let model1 = createModel('My First LineMy Second LineAnd another one');
@@ -263,6 +278,49 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 				}
 			}
 		});
+	});
+
+	test('advanced wrapping uses monospace layout only for centerable full-width lines', () => {
+		const configuration = new TestConfiguration({});
+		const wrappingInfo = configuration.options.get(EditorOption.wrappingInfo);
+		const model = createTextModel([
+			'abc',
+			'\u6F22',
+			'\uA500',
+			'\u6F22\u0301',
+			'\u6F22\u0639',
+			'\u{2000B}',
+			'\u{1F469}\u{1F3FD}',
+			'\u{1F469}\u200D\u{1F4BB}',
+		].join('\n'));
+		const domFactory = new RecordingLineBreaksComputerFactory();
+		const monospaceFactory = new RecordingLineBreaksComputerFactory();
+		const linesCollection = new ViewModelLinesFromProjectedModel(
+			1,
+			model,
+			domFactory,
+			monospaceFactory,
+			configuration.options.get(EditorOption.fontInfo),
+			model.getOptions().tabSize,
+			'advanced',
+			wrappingInfo.wrappingColumn,
+			configuration.options.get(EditorOption.wrappingIndent),
+			configuration.options.get(EditorOption.wordBreak),
+			configuration.options.get(EditorOption.wrapOnEscapedLineFeeds),
+			true
+		);
+
+		assert.deepStrictEqual({
+			dom: domFactory.lineNumbers,
+			monospace: monospaceFactory.lineNumbers,
+		}, {
+			dom: [1, 3, 4, 5, 7, 8],
+			monospace: [2, 6],
+		});
+
+		linesCollection.dispose();
+		model.dispose();
+		configuration.dispose();
 	});
 
 });

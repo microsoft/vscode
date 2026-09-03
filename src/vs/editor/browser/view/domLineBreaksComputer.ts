@@ -26,14 +26,7 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 	constructor(private targetWindow: WeakRef<Window>) {
 	}
 
-	/**
-	 * `forceFullwidthCharacterWidth` is deliberately ignored: this computer asks the browser to
-	 * lay the line out, and the only way to impose a width on a character is to wrap it in a box,
-	 * which the browser then treats as an atomic inline. That loses the line breaking rules for
-	 * CJK punctuation. Callers must route to `MonospaceLineBreaksComputerFactory` instead when the
-	 * option is on.
-	 */
-	public createLineBreaksComputer(context: ILineBreaksComputerContext, fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, forceFullwidthCharacterWidth: boolean): ILineBreaksComputer {
+	public createLineBreaksComputer(context: ILineBreaksComputerContext, fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, _forceFullwidthCharacterWidth: boolean): ILineBreaksComputer {
 		const lineNumbers: number[] = [];
 		return {
 			addRequest: (lineNumber: number, previousLineBreakData: ModelLineProjectionData | null) => {

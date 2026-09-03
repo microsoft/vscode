@@ -1720,6 +1720,13 @@ suite('renderViewLine - forceFullwidthCharacterWidth', () => {
 		]);
 	});
 
+	test('Unicode full-width characters outside the legacy wrapping ranges are centered', () => {
+		const hangulJamo = '\u1100';
+		assert.deepStrictEqual(render(hangulJamo), [
+			`<span${cell(20)} class="mtk1">${hangulJamo}</span>`
+		]);
+	});
+
 	test('half-width katakana is left alone', () => {
 		assert.deepStrictEqual(render('ｱｲｳ'), [
 			`<span class="mtk1">ｱｲｳ</span>`
@@ -1729,6 +1736,13 @@ suite('renderViewLine - forceFullwidthCharacterWidth', () => {
 	test('non-ASCII narrow characters are left alone', () => {
 		assert.deepStrictEqual(render('Ünïcödé'), [
 			`<span class="mtk1">Ünïcödé</span>`
+		]);
+	});
+
+	test('Unicode narrow characters inside legacy wrapping ranges are left alone', () => {
+		const vaiSyllable = '\uA500';
+		assert.deepStrictEqual(render(vaiSyllable), [
+			`<span class="mtk1">${vaiSyllable}</span>`
 		]);
 	});
 
@@ -1778,11 +1792,31 @@ suite('renderViewLine - forceFullwidthCharacterWidth', () => {
 		]);
 	});
 
-	test('astral plane characters are not centered', () => {
-		assert.deepStrictEqual(render('𠀋漢'), [
-			`<span class="mtk1">𠀋</span>`,
+	test('supplementary full-width characters are centered', () => {
+		const ideograph = '\u{2000B}';
+		assert.deepStrictEqual(render(`${ideograph}漢`), [
+			`<span${cell(20)} class="mtk1">${ideograph}</span>`,
 			`<span${cell(20)} class="mtk1">漢</span>`
 		]);
+	});
+
+	test('supplementary full-width grapheme clusters are left intact', () => {
+		const ideographWithVariationSelector = '\u{2000B}\uFE00';
+		assert.deepStrictEqual(render(ideographWithVariationSelector), [
+			`<span class="mtk1">${ideographWithVariationSelector}</span>`
+		]);
+	});
+
+	test('emoji modifier and ZWJ sequences are left intact', () => {
+		const emojiWithModifier = '\u{1F469}\u{1F3FD}';
+		const emojiWithZwj = '\u{1F469}\u200D\u{1F4BB}';
+		assert.deepStrictEqual({
+			modifier: render(emojiWithModifier),
+			zwj: render(emojiWithZwj),
+		}, {
+			modifier: [`<span class="mtk1">${emojiWithModifier}</span>`],
+			zwj: [`<span class="mtk1">${emojiWithZwj}</span>`],
+		});
 	});
 
 	test('token boundaries are preserved', () => {
@@ -1858,5 +1892,10 @@ suite('renderViewLine - forceFullwidthCharacterWidth', () => {
 			[3, [2, 0]],
 			[4, [2, 1]]
 		]);
+	});
+
+	test('lines that exceed the character mapping part limit fall back safely', () => {
+		const actual = render('\u6F22'.repeat(0x10001));
+		assert.strictEqual(actual.some(part => part.includes('display:inline-block')), false);
 	});
 });

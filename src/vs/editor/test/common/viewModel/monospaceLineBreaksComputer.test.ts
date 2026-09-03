@@ -473,8 +473,6 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 	test('MonospaceLineBreaksComputer - forced full-width character width', () => {
 		const factory = new MonospaceLineBreaksComputerFactory('(', '\t)');
 		const text = '\u3042\u3042\u3042\u3042';
-		// The renderer draws every full-width character in exactly two cells, so wrapping has to
-		// measure it that way as well instead of believing a font that reports something else.
 		const wrapWith = (columnsForFullWidthChar: number, forceFullwidthCharacterWidth: boolean) => toAnnotatedText(text, getLineBreakData(factory, 4, 5, columnsForFullWidthChar, WrappingIndent.None, 'normal', false, text, null, null, forceFullwidthCharacterWidth));
 
 		assert.deepStrictEqual({
@@ -485,6 +483,63 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 			lyingFont: '\u3042|\u3042|\u3042|\u3042',
 			lyingFontForced: '\u3042\u3042|\u3042\u3042',
 			gridAlignedFont: '\u3042\u3042|\u3042\u3042'
+		});
+	});
+
+	test('MonospaceLineBreaksComputer - forced width uses Unicode full-width classification', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('(', '\t)');
+		const wrapWith = (text: string, forceFullwidthCharacterWidth: boolean) => toAnnotatedText(text, getLineBreakData(factory, 4, 5, 3, WrappingIndent.None, 'normal', false, text, null, null, forceFullwidthCharacterWidth));
+		const compatibilityForms = '\uFE30'.repeat(4);
+		const vaiSyllables = '\uA500'.repeat(4);
+
+		assert.deepStrictEqual({
+			compatibilityFormsNatural: wrapWith(compatibilityForms, false),
+			compatibilityFormsForced: wrapWith(compatibilityForms, true),
+			vaiNatural: wrapWith(vaiSyllables, false),
+			vaiForced: wrapWith(vaiSyllables, true),
+		}, {
+			compatibilityFormsNatural: compatibilityForms,
+			compatibilityFormsForced: '\uFE30\uFE30|\uFE30\uFE30',
+			vaiNatural: '\uA500|\uA500|\uA500|\uA500',
+			vaiForced: '\uA500|\uA500|\uA500|\uA500',
+		});
+	});
+
+	test('MonospaceLineBreaksComputer - forced width preserves natural control-character metrics', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('(', '\t)');
+		const wrapWith = (text: string, forceFullwidthCharacterWidth: boolean) => toAnnotatedText(text, getLineBreakData(factory, 4, 4, 3, WrappingIndent.None, 'normal', false, text, null, null, forceFullwidthCharacterWidth));
+		const controlCharacters = '\u0001\u0001';
+		const controlCharacterWithTab = '\u0001\t';
+
+		assert.deepStrictEqual({
+			controlNatural: wrapWith(controlCharacters, false),
+			controlForced: wrapWith(controlCharacters, true),
+			controlWithTabNaturalColumns: getLineBreakData(factory, 4, 3, 3, WrappingIndent.None, 'normal', false, controlCharacterWithTab, null, null, false)?.breakOffsetsVisibleColumn,
+			controlWithTabForcedColumns: getLineBreakData(factory, 4, 3, 3, WrappingIndent.None, 'normal', false, controlCharacterWithTab, null, null, true)?.breakOffsetsVisibleColumn,
+		}, {
+			controlNatural: '\u0001|\u0001',
+			controlForced: '\u0001|\u0001',
+			controlWithTabNaturalColumns: [3, 4],
+			controlWithTabForcedColumns: [3, 4],
+		});
+	});
+
+	test('MonospaceLineBreaksComputer - forced width preserves excluded text metrics', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('(', '\t)');
+		const wrapWith = (text: string, forceFullwidthCharacterWidth: boolean) => toAnnotatedText(text, getLineBreakData(factory, 4, 4, 3, WrappingIndent.None, 'normal', false, text, null, null, forceFullwidthCharacterWidth));
+		const combinedCharacter = '\u3042\u0301aa';
+		const mixedRtlText = '\u6F22\u0639a';
+
+		assert.deepStrictEqual({
+			combinedNatural: wrapWith(combinedCharacter, false),
+			combinedForced: wrapWith(combinedCharacter, true),
+			mixedRtlNatural: wrapWith(mixedRtlText, false),
+			mixedRtlForced: wrapWith(mixedRtlText, true),
+		}, {
+			combinedNatural: '\u3042|\u0301aa',
+			combinedForced: '\u3042|\u0301aa',
+			mixedRtlNatural: '\u6F22|\u0639a',
+			mixedRtlForced: '\u6F22|\u0639a',
 		});
 	});
 

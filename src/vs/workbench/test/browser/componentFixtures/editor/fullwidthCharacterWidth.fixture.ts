@@ -9,10 +9,7 @@ import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEdito
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 
-/**
- * Four full-width characters are supposed to line up with eight narrow ones, so the trailing
- * pipes only form a straight column when every full-width character occupies exactly two cells.
- */
+/** Four full-width characters should line up with eight narrow ones. */
 const GRID = [
 	'+--------+--------+',
 	'|漢字漢字|abcdefgh|',
@@ -23,17 +20,18 @@ const GRID = [
 	'+--------+--------+',
 ].join('\n');
 
-/**
- * Characters the centering has to leave alone, for three different reasons: half-width katakana
- * and accented Latin are not full-width to begin with, a full-width character carrying a
- * combining mark would be torn away from its accent, and astral plane CJK is genuinely wide but
- * escapes detection because `isFullWidthCharacter` only ever inspects a single UTF-16 code unit.
- */
+const SUPPLEMENTARY_GRID = [
+	'+--------+--------+',
+	'|𠀋𡈽𡌛𠀀|astral!!|',
+	'+--------+--------+',
+].join('\n');
+
+/** Narrow characters and multi-code-point graphemes must retain their natural rendering. */
 const MIXED = [
 	'|ｱｲｳｴｵｶｷｸ|halfwidth|',
 	'|Ünïcödé  |accented |',
 	'|あ́い́う́    |combining|',
-	'|𠀋𡈽𡌛    |astral   |',
+	'|𠀋︀𡈽︀    |astralVS|',
 ].join('\n');
 
 const CODE = [
@@ -92,6 +90,10 @@ function renderCode(context: ComponentFixtureContext, forceFullwidthCharacterWid
 	createEditor(context, CODE, { forceFullwidthCharacterWidth });
 }
 
+function renderSupplementaryGrid(context: ComponentFixtureContext): void {
+	createEditor(context, SUPPLEMENTARY_GRID, { forceFullwidthCharacterWidth: true });
+}
+
 function renderSelection(context: ComponentFixtureContext, forceFullwidthCharacterWidth: boolean): void {
 	const { editor } = createEditor(context, GRID, { forceFullwidthCharacterWidth });
 	editor.setSelection(new Range(2, 2, 4, 6));
@@ -114,9 +116,14 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 		expectedVisualDescriptions: ['An ASCII box drawing contains five rows. Every pipe forms one straight unbroken vertical line down the whole box, and the closing pipes line up with the plus signs of the dashed borders above and below. Each CJK character is horizontally centered over the two narrow cells it occupies, with even spacing on both sides.'],
 		render: context => renderGrid(context, true),
 	}),
+	FullwidthCharacterWidthSupplementary: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['An ASCII box drawing contains one content row. Four supplementary-plane CJK ideographs in the left column occupy the same width as eight narrow characters in the right column. Every pipe forms a straight vertical line with the plus signs in the borders, and each ideograph is centered in two character cells.'],
+		render: renderSupplementaryGrid,
+	}),
 	FullwidthCharacterWidthNotCentered: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['Four rows of text each start and end with a pipe. Half-width katakana and accented Latin letters render narrow, while the hiragana carrying combining accents and the astral plane CJK characters render at their natural width. None of them is centered inside a two-cell box: no extra space is inserted around any of them, and no accent is separated from the character it belongs to.'],
+		expectedVisualDescriptions: ['Four rows of text each start and end with a pipe. Half-width katakana and accented Latin letters render narrow, while the hiragana carrying combining accents and the supplementary-plane CJK characters carrying variation selectors render at their natural width. None of them is centered inside a two-cell box: no extra space is inserted around any of them, and no grapheme is split apart.'],
 		render: context => renderMixed(context, true),
 	}),
 	FullwidthCharacterWidthCode: defineComponentFixture({

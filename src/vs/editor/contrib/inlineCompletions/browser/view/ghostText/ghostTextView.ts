@@ -493,6 +493,7 @@ export class AdditionalLinesWidget extends Disposable {
 				|| e.hasChanged(EditorOption.fontLigatures)
 				|| e.hasChanged(EditorOption.fontInfo)
 				|| e.hasChanged(EditorOption.lineHeight)
+				|| e.hasChanged(EditorOption.effectiveForceFullwidthCharacterWidth)
 		));
 		this._onDidClick = this._register(new Emitter<IMouseEvent>());
 		this.onDidClick = this._onDidClick.event;

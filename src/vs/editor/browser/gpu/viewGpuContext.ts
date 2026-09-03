@@ -26,6 +26,8 @@ import { Event } from '../../../base/common/event.js';
 import { EditorOption, type IEditorOptions } from '../../common/config/editorOptions.js';
 import { DecorationStyleCache } from './css/decorationStyleCache.js';
 import { InlineDecorationType } from '../../common/viewModel/inlineDecorations.js';
+import { containsFullWidthCharacter } from '../../common/viewLayout/fullWidthCharacter.js';
+import { TextDirection } from '../../common/model.js';
 
 export class ViewGpuContext extends Disposable {
 	/**
@@ -169,10 +171,7 @@ export class ViewGpuContext extends Disposable {
 			return false;
 		}
 
-		// Centering a full-width character in two cells is a DOM only feature, so a line that may
-		// contain one has to be handed back to the DOM renderer. Rendering it here would place it
-		// on a different grid than the rest of the editor.
-		if (options.forceFullwidthCharacterWidth && !data.isBasicASCII) {
+		if (options.forceFullwidthCharacterWidth && data.textDirection !== TextDirection.RTL && containsFullWidthCharacter(data.content, options.stopRenderingLineAfter)) {
 			return false;
 		}
 
@@ -219,8 +218,8 @@ export class ViewGpuContext extends Disposable {
 		if (data.maxColumn > this.maxGpuCols) {
 			reasons.push('maxColumn > maxGpuCols');
 		}
-		if (options.forceFullwidthCharacterWidth && !data.isBasicASCII) {
-			reasons.push('forceFullwidthCharacterWidth with non-basic ASCII');
+		if (options.forceFullwidthCharacterWidth && data.textDirection !== TextDirection.RTL && containsFullWidthCharacter(data.content, options.stopRenderingLineAfter)) {
+			reasons.push('forceFullwidthCharacterWidth');
 		}
 		if (data.inlineDecorations.length > 0) {
 			let supported = true;

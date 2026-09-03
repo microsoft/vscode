@@ -13,6 +13,7 @@ import { LinePart, LinePartMetadata } from './linePart.js';
 import { OffsetRange } from '../core/ranges/offsetRange.js';
 import { InlineDecorationType } from '../viewModel/inlineDecorations.js';
 import { TextDirection } from '../model.js';
+import { containsFullWidthCharacter, getFullWidthCharacterLength } from './fullWidthCharacter.js';
 
 export const enum RenderWhitespace {
 	None = 0,
@@ -531,11 +532,15 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		tokens = splitLeadingWhitespaceFromRTL(lineContent, tokens);
 	}
 
-	// A full-width character can only be centered in its own part, so it has to be isolated
-	// from its neighbours. Basic ASCII lines can never contain one, so they are skipped.
-	const fullwidthCharacterWidth = getFullwidthCharacterWidth(input);
+	// Centered characters need isolated parts so their boxes can be measured.
+	let fullwidthCharacterWidth = getFullwidthCharacterWidth(input);
 	if (fullwidthCharacterWidth > 0) {
-		tokens = splitFullWidthCharacters(lineContent, tokens);
+		const splitTokens = splitFullWidthCharacters(lineContent, tokens);
+		if (splitTokens.length <= (CharacterMappingConstants.PART_INDEX_MASK >>> CharacterMappingConstants.PART_INDEX_OFFSET) + 1) {
+			tokens = splitTokens;
+		} else {
+			fullwidthCharacterWidth = 0;
+		}
 	}
 
 	return new ResolvedRenderLineInput(
@@ -558,44 +563,29 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	);
 }
 
-/**
- * The pixel width each full-width character is rendered with, or `0` when full-width characters
- * are rendered as-is. Centering only makes sense when the line runs left to right, and a basic
- * ASCII line can never contain a full-width character.
- *
- * Both the renderer and the code measuring the rendered line have to agree on this, so neither
- * may restate the condition.
- */
+/** Returns the forced full-width character width for an eligible rendered line, or `0`. */
 export function getFullwidthCharacterWidth(input: RenderLineInput): number {
-	return (input.forceFullwidthCharacterWidth && input.isLTR && !input.isBasicASCII) ? 2 * input.spaceWidth : 0;
+	const renderedLength = input.stopRenderingLineAfter === -1 ? input.lineContent.length : Math.min(input.stopRenderingLineAfter, input.lineContent.length);
+	return input.forceFullwidthCharacterWidth && input.isLTR && containsFullWidthCharacter(input.lineContent, renderedLength) ? 2 * input.spaceWidth : 0;
 }
 
-/**
- * Whether the character at `offset` is a full-width character that can safely be rendered
- * on its own. Splitting is skipped when the character starts a longer grapheme cluster,
- * because pulling it into its own element would break the cluster apart.
- */
-export function isFullWidthCharacterToCenter(lineContent: string, offset: number): boolean {
-	return strings.isFullWidthCharacter(lineContent.charCodeAt(offset)) && strings.nextCharLength(lineContent, offset) === 1;
-}
-
-/**
- * Splits parts such that every full-width character ends up in a part of its own.
- */
+/** Splits parts such that every full-width character ends up in a part of its own. */
 function splitFullWidthCharacters(lineContent: string, parts: LinePart[]): LinePart[] {
 	const result: LinePart[] = [];
 	let startOffset = 0;
 	for (const part of parts) {
 		let didSplit = false;
 		for (let offset = startOffset; offset < part.endIndex; offset++) {
-			if (!isFullWidthCharacterToCenter(lineContent, offset)) {
+			const characterLength = getFullWidthCharacterLength(lineContent, offset);
+			if (characterLength === 0 || offset + characterLength > part.endIndex) {
 				continue;
 			}
 			if (offset > startOffset) {
 				result.push(new LinePart(offset, part.type, part.metadata, part.containsRTL));
 			}
-			result.push(new LinePart(offset + 1, part.type, part.metadata, part.containsRTL));
-			startOffset = offset + 1;
+			result.push(new LinePart(offset + characterLength, part.type, part.metadata, part.containsRTL));
+			startOffset = offset + characterLength;
+			offset += characterLength - 1;
 			didSplit = true;
 		}
 		if (!didSplit || part.endIndex > startOffset) {
@@ -1088,10 +1078,8 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 		const partRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && part.isWhitespace());
 		const partRendersWhitespaceWithWidth = partRendersWhitespace && !fontIsMonospace && (partType === 'mtkw'/*only whitespace*/ || !containsForeignElements);
 		const partIsEmptyAndHasPseudoAfter = (charIndex === partEndIndex && part.isPseudoAfter());
-		// `splitFullWidthCharacters` gives every centered character a part of its own, so only a part
-		// holding exactly that one character may become a box. Parts of any other length -- in
-		// particular the empty ones standing in for `before`/`after` decorations -- must be left alone.
-		const partIsFullWidth = (fullwidthCharacterWidth > 0 && charIndex + 1 === partEndIndex && isFullWidthCharacterToCenter(lineContent, charIndex));
+		const fullWidthCharacterLength = fullwidthCharacterWidth > 0 ? getFullWidthCharacterLength(lineContent, charIndex) : 0;
+		const partIsFullWidth = fullWidthCharacterLength > 0 && charIndex + fullWidthCharacterLength === partEndIndex;
 		charOffsetInPart = 0;
 
 		sb.appendString('<span ');
@@ -1220,7 +1208,9 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 						break;
 
 					default:
-						if (strings.isFullWidthCharacter(charCode)) {
+						if (partIsFullWidth && fullWidthCharacterLength === 1) {
+							charWidth = 2;
+						} else if (strings.isFullWidthCharacter(charCode)) {
 							charWidth++;
 						}
 						// See https://unicode-table.com/en/blocks/control-pictures/
