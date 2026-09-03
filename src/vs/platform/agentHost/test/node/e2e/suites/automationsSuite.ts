@@ -438,10 +438,10 @@ export function defineAutomationsTests(context: IAgentHostE2ETestContext): void 
 			}
 			assert.ok(primarySession);
 			context.createdSessions.push(primarySession);
-			const createdSession = await fetchSessionWithChat(context.client, primarySession);
+			let createdSession = await fetchSessionWithChat(context.client, primarySession);
 			await retry(async () => {
-				const current = await fetchSessionWithChat(context.client, primarySession);
-				assert.strictEqual(current.turns.at(-1)?.state, 'complete');
+				createdSession = await fetchSessionWithChat(context.client, primarySession);
+				assert.strictEqual(createdSession.turns.at(-1)?.state, 'complete');
 			}, 100, 300);
 
 			assert.deepStrictEqual({
