@@ -55,6 +55,39 @@
 	height: calc(var(--activity-bar-action-height, 28px) - 4px);
 }
 
+/* Keep the compact application menu on the same control tier and icon ramp as adjacent activity targets. */
+.modern-ui.monaco-workbench .activitybar .menubar.compact {
+	height: var(--activity-bar-action-height, 36px);
+}
+
+.modern-ui.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button {
+	justify-content: center;
+}
+
+.modern-ui.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button:focus {
+	background-color: transparent;
+}
+
+.modern-ui.monaco-workbench .activitybar .menubar.compact .toolbar-toggle-more {
+	box-sizing: border-box;
+	width: calc(var(--activity-bar-action-height, 36px) - var(--vscode-spacing-size40));
+	height: calc(var(--activity-bar-action-height, 36px) - var(--vscode-spacing-size40));
+	padding: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--activity-bar-icon-size, var(--vscode-codiconFontSize));
+}
+
+.modern-ui.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button:focus:not(.open) .toolbar-toggle-more,
+.modern-ui.monaco-workbench .activitybar .menubar.compact:not(:focus-within) > .menubar-menu-button:hover .toolbar-toggle-more {
+	color: var(--vscode-modernActivityBarItem-hoverForeground);
+	background-color: var(--vscode-modernActivityBarItem-hoverBackground);
+}
+
+.modern-ui.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button.open .toolbar-toggle-more {
+	color: var(--vscode-modernActivityBarItem-activeForeground);
+	background-color: var(--vscode-modernActivityBarItem-activeBackground);
+}
+
 :is(.hc-black, .hc-light).modern-ui .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
 	border-radius: var(--vscode-cornerRadius-small);
 	background-color: transparent;
