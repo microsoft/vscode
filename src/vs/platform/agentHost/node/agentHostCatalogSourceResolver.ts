@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Limiter } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readAgentDevContainerWorktreeMetadata } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, stringifySessionArtifacts } from '../common/sessionArtifacts.js';
@@ -31,24 +30,19 @@ export interface ICatalogSourceState {
 		readonly kind: 'default' | 'peer';
 		readonly title?: string;
 		readonly origin?: ChatOrigin;
+		readonly inheritedTurnId?: string;
 	}[];
 }
 
 export interface IAgentHostCatalogSourceResolverDependencies {
-	readonly openDatabase: (session: URI) => {
-		readonly object: {
-			getMetadataObject<T extends Record<string, unknown>>(keys: T): Promise<{ [K in keyof T]: string | undefined }>;
-		};
-		dispose(): void;
-	};
-	readonly tryOpenDatabase?: (session: URI) => Promise<{
-		readonly object: {
-			getMetadataObject<T extends Record<string, unknown>>(keys: T): Promise<{ [K in keyof T]: string | undefined }>;
-		};
-		dispose(): void;
-	} | undefined>;
 	readonly isUnpersistedChatBacking: (session: URI) => boolean;
 	readonly worktreeProjectFromRepositoryRoot: (repositoryRoot: string | undefined) => { readonly uri: URI; readonly displayName: string } | undefined;
+}
+
+export interface IAgentHostCatalogMetadataReference {
+	readonly object: {
+		getMetadataObject<T extends Record<string, unknown>>(keys: T): Promise<{ [K in keyof T]: string | undefined }>;
+	};
 }
 
 interface ISessionMetadataKey {
@@ -113,51 +107,30 @@ export class AgentHostCatalogSourceResolver {
 
 	constructor(private readonly _dependencies: IAgentHostCatalogSourceResolverDependencies) { }
 
-	async buildCatalogSyncRequest(session: URI, state: ICatalogSourceState, metadataOverrides: Readonly<Record<string, string>>, preferPersistedMetadata: boolean): Promise<IAgentHostCatalogSyncRequest> {
+	async buildCatalogSyncRequest(
+		session: URI,
+		state: ICatalogSourceState,
+		metadataOverrides: Readonly<Record<string, string>>,
+		preferPersistedMetadata: boolean,
+		database: IAgentHostCatalogMetadataReference | undefined = undefined,
+		metadataFallbacks: Readonly<Record<string, string>> = {},
+	): Promise<IAgentHostCatalogSyncRequest> {
 		const metadataKeys = createMetadataKeySet(sessionMetadataKeys);
 		for (const chat of state.chats) {
 			metadataKeys[customChatTitleMetadataKey(chat.uri)] = true;
 			metadataKeys[customChatTitleSourceMetadataKey(chat.uri)] = true;
 		}
 
-		const ref = this._dependencies.openDatabase(session);
-		let persisted: { readonly [key: string]: string | undefined };
-		try {
-			persisted = await ref.object.getMetadataObject(metadataKeys);
-		} finally {
-			ref.dispose();
-		}
-		const metadata = { ...persisted, ...metadataOverrides };
-		const chatMetadataLimiter = new Limiter<readonly [string, Readonly<Record<string, string | undefined>> | undefined]>(4);
-		const chatMetadata = new Map(await Promise.all(state.chats.map(chat => chatMetadataLimiter.queue(async () => {
-			try {
-				const ref = await this._dependencies.tryOpenDatabase?.(URI.parse(chat.uri));
-				if (!ref) {
-					return [chat.uri, undefined] as const;
-				}
-				try {
-					return [chat.uri, await ref.object.getMetadataObject({
-						[SESSION_CUSTOM_TITLE_KEY]: true,
-						[SESSION_CUSTOM_TITLE_SOURCE_KEY]: true,
-					})] as const;
-				} finally {
-					ref.dispose();
-				}
-			} catch {
-				return [chat.uri, undefined] as const;
-			}
-		}))));
+		const persisted: { readonly [key: string]: string | undefined } = database
+			? await database.object.getMetadataObject(metadataKeys)
+			: {};
+		const metadata = { ...metadataFallbacks, ...persisted, ...metadataOverrides };
 		const persistedTitle = sessionMetadata.title.read(metadata);
 		const persistedTitleSource = sessionMetadata.titleSource.read(metadata);
-		const defaultChat = state.chats.find(chat => chat.kind === 'default');
-		const defaultChatMetadata = defaultChat ? chatMetadata.get(defaultChat.uri) : undefined;
 		const title = preferPersistedMetadata
-			? persistedTitle ?? defaultChatMetadata?.[SESSION_CUSTOM_TITLE_KEY] ?? state.title ?? ''
-			: metadataOverrides[SESSION_CUSTOM_TITLE_KEY] ?? state.title ?? defaultChatMetadata?.[SESSION_CUSTOM_TITLE_KEY] ?? '';
-		const titleSource = normalizeCatalogTitleSource(
-			persistedTitleSource
-			?? (persistedTitle === undefined ? defaultChatMetadata?.[SESSION_CUSTOM_TITLE_SOURCE_KEY] : undefined),
-		);
+			? persistedTitle ?? state.title ?? ''
+			: metadataOverrides[SESSION_CUSTOM_TITLE_KEY] ?? state.title ?? '';
+		const titleSource = normalizeCatalogTitleSource(persistedTitleSource);
 		const persistedMultiRoot = sessionMetadata.multiRoot.read(metadata);
 		const multiRoot = preferPersistedMetadata
 			? (sessionMetadata.multiRoot.has(metadata) ? persistedMultiRoot : readSessionMultiRootMetadata(state.meta))
@@ -233,19 +206,17 @@ export class AgentHostCatalogSourceResolver {
 			changes,
 			_meta: Object.keys(meta).length > 0 ? meta : undefined,
 			chats: state.chats.map((chat, order) => {
-				const local = chatMetadata.get(chat.uri);
 				const summary = preferPersistedMetadata
-					? local?.[SESSION_CUSTOM_TITLE_KEY]
-					|| metadata[customChatTitleMetadataKey(chat.uri)]
+					? metadata[customChatTitleMetadataKey(chat.uri)]
 					|| chat.title
 					|| undefined
 					: metadataOverrides[customChatTitleMetadataKey(chat.uri)]
 					|| chat.title
-					|| local?.[SESSION_CUSTOM_TITLE_KEY]
+					|| metadata[customChatTitleMetadataKey(chat.uri)]
 					|| undefined;
 				const titleSource = preferPersistedMetadata
-					? local?.[SESSION_CUSTOM_TITLE_SOURCE_KEY] ?? metadata[customChatTitleSourceMetadataKey(chat.uri)]
-					: metadataOverrides[customChatTitleSourceMetadataKey(chat.uri)] ?? local?.[SESSION_CUSTOM_TITLE_SOURCE_KEY] ?? metadata[customChatTitleSourceMetadataKey(chat.uri)];
+					? metadata[customChatTitleSourceMetadataKey(chat.uri)]
+					: metadataOverrides[customChatTitleSourceMetadataKey(chat.uri)] ?? metadata[customChatTitleSourceMetadataKey(chat.uri)];
 				return {
 					uri: chat.uri,
 					order,
@@ -253,6 +224,7 @@ export class AgentHostCatalogSourceResolver {
 					summary: toCatalogSummary(summary),
 					titleSource: normalizeCatalogTitleSource(titleSource),
 					origin: toCatalogChatOrigin(chat.origin),
+					...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
 				};
 			}),
 		};

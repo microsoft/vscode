@@ -80,47 +80,89 @@ function persistedMetadata(): Readonly<Record<string, string>> {
 	};
 }
 
-function createResolver(metadata: Readonly<Record<string, string>>, unpersistedBacking = false, chatMetadata?: Readonly<Record<string, string>>): AgentHostCatalogSourceResolver {
-	return new AgentHostCatalogSourceResolver({
-		openDatabase: () => ({
-			object: {
-				getMetadataObject: async <T extends Record<string, unknown>>(keys: T): Promise<{ [K in keyof T]: string | undefined }> =>
-					Object.fromEntries(Object.keys(keys).map(key => [key, metadata[key]])) as { [K in keyof T]: string | undefined },
-			},
-			dispose: () => { },
-		}),
-		tryOpenDatabase: async () => chatMetadata ? ({
-			object: {
-				getMetadataObject: async <T extends Record<string, unknown>>(keys: T): Promise<{ [K in keyof T]: string | undefined }> =>
-					Object.fromEntries(Object.keys(keys).map(key => [key, chatMetadata[key]])) as { [K in keyof T]: string | undefined },
-			},
-			dispose: () => { },
-		}) : undefined,
+function createResolver(metadata: Readonly<Record<string, string>>, unpersistedBacking = false): Pick<AgentHostCatalogSourceResolver, 'buildCatalogSyncRequest'> {
+	const resolver = new AgentHostCatalogSourceResolver({
 		isUnpersistedChatBacking: () => unpersistedBacking,
 		worktreeProjectFromRepositoryRoot: root => root ? { uri: URI.parse(root), displayName: 'Persisted worktree' } : undefined,
 	});
+	return {
+		buildCatalogSyncRequest: (session, state, overrides, preferPersisted, _database, fallbacks) => resolver.buildCatalogSyncRequest(
+			session,
+			state,
+			overrides,
+			preferPersisted,
+			{
+				object: {
+					getMetadataObject: async <T extends Record<string, unknown>>(keys: T): Promise<{ [K in keyof T]: string | undefined }> =>
+						Object.fromEntries(Object.keys(keys).map(key => [key, metadata[key]])) as { [K in keyof T]: string | undefined },
+				},
+			},
+			fallbacks,
+		),
+	};
 }
 
 suite('AgentHostCatalogSourceResolver', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('prefers chat-local titles over the downgrade-compatible session mirror', async () => {
-		const result = await createResolver(persistedMetadata(), false, {
-			[SESSION_CUSTOM_TITLE_KEY]: 'Chat-local title',
-			[SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
-		}).buildCatalogSyncRequest(session, sourceState(), {}, true);
+	test('consumes the provided database reference and propagates metadata read failures', async () => {
+		const absent = new AgentHostCatalogSourceResolver({
+			isUnpersistedChatBacking: () => false,
+			worktreeProjectFromRepositoryRoot: () => undefined,
+		});
+
+		const result = await absent.buildCatalogSyncRequest(session, sourceState(), {}, true, undefined);
+		const failing = new AgentHostCatalogSourceResolver({
+			isUnpersistedChatBacking: () => false,
+			worktreeProjectFromRepositoryRoot: () => undefined,
+		});
+
+		await assert.rejects(
+			failing.buildCatalogSyncRequest(session, sourceState(), {}, true, {
+				object: { getMetadataObject: async () => { throw new Error('metadata read failed'); } },
+			}),
+			/metadata read failed/,
+		);
+		assert.strictEqual(result.data.summary, 'Live title');
+	});
+
+	test('prefers the downgrade-compatible session title mirror', async () => {
+		const result = await createResolver(persistedMetadata()).buildCatalogSyncRequest(session, sourceState(), {}, true);
 
 		assert.deepStrictEqual(result.data.chats, [{
 			uri: chat,
 			order: 0,
 			kind: 'default',
-			summary: 'Chat-local title',
-			titleSource: 'user',
+			summary: 'Persisted chat',
+			titleSource: 'agent',
 			origin: { kind: ChatOriginKind.Fork, chat: 'agenthost-chat:source/default', turnId: 'turn-1' },
 		}]);
 	});
 
-	test('bounds chat-local metadata reads and isolates open and read failures', async () => {
+	test('preserves inherited peer provenance in the cached catalog payload', async () => {
+		const peer = 'agenthost-chat:catalog-source/peer';
+		const result = await createResolver({}).buildCatalogSyncRequest(session, {
+			...sourceState(),
+			chats: [{
+				uri: peer,
+				kind: 'peer',
+				origin: { kind: ChatOriginKind.User },
+				inheritedTurnId: 'inherited-turn',
+			}],
+		}, {}, true, undefined);
+
+		assert.deepStrictEqual(result.data.chats, [{
+			uri: peer,
+			order: 0,
+			kind: 'peer',
+			summary: undefined,
+			titleSource: 'auto',
+			origin: { kind: ChatOriginKind.User },
+			inheritedTurnId: 'inherited-turn',
+		}]);
+	});
+
+	test('reads mirrored chat metadata from the provided session database', async () => {
 		const chats = Array.from({ length: 10 }, (_, index) => ({
 			uri: `agenthost-chat:catalog-source/peer-${index}`,
 			kind: 'peer' as const,
@@ -130,39 +172,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 			[customChatTitleMetadataKey(chat.uri), `Fallback ${index}`],
 			[customChatTitleSourceMetadataKey(chat.uri), 'user'],
 		]));
-		let active = 0;
-		let maximumActive = 0;
-		const resolver = new AgentHostCatalogSourceResolver({
-			openDatabase: () => ({
-				object: {
-					getMetadataObject: async <T extends Record<string, unknown>>(keys: T): Promise<{ [K in keyof T]: string | undefined }> =>
-						Object.fromEntries(Object.keys(keys).map(key => [key, metadata[key]])) as { [K in keyof T]: string | undefined },
-				},
-				dispose: () => { },
-			}),
-			tryOpenDatabase: async chatUri => {
-				active++;
-				maximumActive = Math.max(maximumActive, active);
-				await new Promise(resolve => setTimeout(resolve, 1));
-				active--;
-				if (chatUri.toString() === chats[2].uri) {
-					throw new Error('open failed');
-				}
-				return {
-					object: {
-						getMetadataObject: async <T extends Record<string, unknown>>(keys: T): Promise<{ [K in keyof T]: string | undefined }> => {
-							if (chatUri.toString() === chats[7].uri) {
-								throw new Error('read failed');
-							}
-							return Object.fromEntries(Object.keys(keys).map(key => [key, undefined])) as { [K in keyof T]: string | undefined };
-						},
-					},
-					dispose: () => { },
-				};
-			},
-			isUnpersistedChatBacking: () => false,
-			worktreeProjectFromRepositoryRoot: () => undefined,
-		});
+		const resolver = createResolver(metadata);
 
 		const result = await resolver.buildCatalogSyncRequest(session, {
 			...sourceState(),
@@ -170,31 +180,26 @@ suite('AgentHostCatalogSourceResolver', () => {
 		}, {}, true);
 
 		assert.deepStrictEqual({
-			maximumActive,
 			titles: result.data.chats.map(chat => chat.summary),
 			sources: result.data.chats.map(chat => chat.titleSource),
 		}, {
-			maximumActive: 4,
 			titles: chats.map((_, index) => `Fallback ${index}`),
 			sources: chats.map(() => 'user'),
 		});
 	});
 
-	test('uses the default chat title as the session title when no explicit session title exists', async () => {
+	test('uses the live session title when no explicit session title exists', async () => {
 		const metadata = { ...persistedMetadata() };
 		delete metadata[SESSION_CUSTOM_TITLE_KEY];
 		delete metadata[SESSION_CUSTOM_TITLE_SOURCE_KEY];
-		const result = await createResolver(metadata, false, {
-			[SESSION_CUSTOM_TITLE_KEY]: 'Default Chat Title',
-			[SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
-		}).buildCatalogSyncRequest(session, sourceState(), {}, true);
+		const result = await createResolver(metadata).buildCatalogSyncRequest(session, sourceState(), {}, true);
 
 		assert.deepStrictEqual({
 			summary: result.data.summary,
 			titleSource: result.data.titleSource,
 		}, {
-			summary: 'Default Chat Title',
-			titleSource: 'user',
+			summary: 'Live title',
+			titleSource: 'auto',
 		});
 	});
 
@@ -258,10 +263,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 	});
 
 	test('prefers live chat titles over stale chat-local metadata during live synchronization', async () => {
-		const result = await createResolver(persistedMetadata(), false, {
-			[SESSION_CUSTOM_TITLE_KEY]: 'Stale chat-local title',
-			[SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
-		}).buildCatalogSyncRequest(session, sourceState(), {}, false);
+		const result = await createResolver(persistedMetadata()).buildCatalogSyncRequest(session, sourceState(), {}, false);
 
 		assert.strictEqual(result.data.chats[0].summary, 'Live chat');
 	});

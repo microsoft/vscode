@@ -9,7 +9,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentProvider } from '../common/agent.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION } from './agentHostCatalogProjection.js';
-import { AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest, matchesAcknowledgedCatalogReceipt } from './agentHostCatalogSyncService.js';
+import { AgentHostCatalogDatabaseReference, AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest, matchesAcknowledgedCatalogReceipt } from './agentHostCatalogSyncService.js';
 import { AgentHostSessionsV2ExclusionReason, IAgentHostDatabase, IAgentHostDatabaseSession, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2Receipt } from './agentHostDatabase.js';
 
 const IMPORT_CONCURRENCY = 4;
@@ -42,8 +42,8 @@ export type AgentHostSessionsV2CandidateResolution<T> =
 		readonly status: 'ready';
 		readonly identity: IAgentHostDatabaseSessionOptions;
 		readonly external: boolean;
-		readonly request: IAgentHostCatalogSyncRequest;
-		readonly value: T;
+		readonly requestFactory: (database: AgentHostCatalogDatabaseReference | undefined) => Promise<IAgentHostCatalogSyncRequest>;
+		readonly valueFromRequest: (request: IAgentHostCatalogSyncRequest) => T;
 	};
 
 export interface IAgentHostSessionsV2ImportedCandidate<T> {
@@ -240,11 +240,21 @@ export class AgentHostSessionsV2MigrationService<T> {
 				await this._database.updateSessionV2External([{ session, external: resolution.external }]);
 			}
 
-			const result = await this._catalogSyncService.synchronize(candidate.session, resolution.request);
+			let request: IAgentHostCatalogSyncRequest | undefined;
+			const result = await this._catalogSyncService.synchronizeMigrationWithFactory(candidate.session, async database => {
+				request = await resolution.requestFactory(database);
+				return request;
+			});
 			return result.status === 'acknowledged'
 				? {
 					status: 'synchronized',
-					...(shouldReportImported ? { imported: { session: candidate.session, external: resolution.external, value: resolution.value } } : {}),
+					...(shouldReportImported && request ? {
+						imported: {
+							session: candidate.session,
+							external: resolution.external,
+							value: resolution.valueFromRequest(request),
+						},
+					} : {}),
 				}
 				: { status: 'incomplete' };
 		} catch (error) {

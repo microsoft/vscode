@@ -49,11 +49,11 @@ import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDe
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionsV2ExclusionExpectation, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
-import { CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY } from '../../node/agentHostPeerChatStore.js';
+import { CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
 import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
-import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_AUTO, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
@@ -130,7 +130,7 @@ function discoveredChat(session: URI, external = true, modifiedTime = Date.now()
 	};
 }
 
-function createPerSessionDataService(): { readonly service: ISessionDataService; readonly database: (session: URI) => TestSessionDatabase; readonly databaseOpens: string[] } {
+function createPerSessionDataService(): { readonly service: ISessionDataService; readonly database: (session: URI) => TestSessionDatabase; readonly databaseOpens: string[]; readonly databaseIds: () => readonly string[] } {
 	const databases = new Map<string, TestSessionDatabase>();
 	const databaseOpens: string[] = [];
 	const database = (session: URI): TestSessionDatabase => {
@@ -157,6 +157,7 @@ function createPerSessionDataService(): { readonly service: ISessionDataService;
 		},
 		database,
 		databaseOpens,
+		databaseIds: () => [...databases.keys()],
 	};
 }
 
@@ -684,6 +685,9 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		this._sessionsV2.set(session, { ...current, payloadDirty });
 		return payloadDirty;
 	}
+	async getSessionV2PayloadDirty(session: string): Promise<number | undefined> {
+		return this._sessionsV2.get(session)?.payloadDirty;
+	}
 	async markAllSessionsV2PayloadsDirty(): Promise<void> {
 		for (const [session, current] of this._sessionsV2) {
 			this._sessionsV2.set(session, { ...current, payloadDirty: current.payloadDirty + 1 });
@@ -1029,6 +1033,9 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 		const payloadDirty = current.payloadDirty + 1;
 		this._sessionsV2.set(session, { ...current, payloadDirty });
 		return payloadDirty;
+	}
+	async getSessionV2PayloadDirty(session: string): Promise<number | undefined> {
+		return this._sessionsV2.get(session)?.payloadDirty;
 	}
 	async markAllSessionsV2PayloadsDirty(): Promise<void> {
 		for (const [session, current] of this._sessionsV2) {
@@ -5807,6 +5814,283 @@ suite('AgentService (node dispatcher)', () => {
 				));
 			}
 
+			test('does not lose progressively imported legacy sessions across open, Back, completion, and restart', async () => {
+				class GatedImportDatabase extends TransientRegistryWriteDatabase {
+					readonly importBlocked = new DeferredPromise<void>();
+					readonly releaseImport = new DeferredPromise<void>();
+
+					override async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+						if (AgentSession.id(URI.parse(envelope.session)) >= 'legacy-050' && !this.releaseImport.isSettled) {
+							this.importBlocked.complete();
+							await this.releaseImport.p;
+						}
+						return super.upsertSessionV2(envelope, expectedSessionGeneration);
+					}
+				}
+
+				class LegacyOwnershipAgent extends DirectImportAgent {
+					readonly enumerationGate = new DeferredPromise<void>();
+					readonly legacyOwned: Set<string>;
+					readonly adopted = new Set<string>();
+
+					constructor(readonly sessions: readonly URI[], legacyOwned?: Set<string>, adopted?: Set<string>) {
+						super('copilot');
+						this.legacyOwned = legacyOwned ?? new Set(sessions.map(session => session.toString()));
+						if (adopted) {
+							this.adopted = adopted;
+						}
+					}
+
+					override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[]> {
+						this.catalogCalls++;
+						await this.enumerationGate.p;
+						return this.sessions
+							.filter(session => this.legacyOwned.has(session.toString()))
+							.map(session => this.chatMetadata(session));
+					}
+
+					override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata> {
+						this.metadataCalls++;
+						return this.chatMetadata(resolveAgentChatContext(context, chat).configurationResource);
+					}
+
+					override async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata> {
+						const metadata = this.chatMetadata(session);
+						return { ...metadata, session };
+					}
+
+					override async ensureChatAdopted(chat?: URI, context?: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult> {
+						this.adoptionCalls++;
+						if (!chat || !context) {
+							throw new Error('Expected chat adoption context');
+						}
+						const session = resolveAgentChatContext(context, chat).configurationResource;
+						const key = session.toString();
+						this.adopted.add(key);
+						this.legacyOwned.delete(key);
+						return { adopted: true, eligible: true, listVisible: { title: `Legacy ${AgentSession.id(session)}`, titleSource: 'auto', isRead: true } };
+					}
+
+					private chatMetadata(session: URI): IAgentChatMetadata {
+						const key = session.toString();
+						return {
+							chat: URI.parse(buildDefaultChatUri(session)),
+							startTime: 1,
+							modifiedTime: 1,
+							summary: `Legacy ${AgentSession.id(session)}`,
+							...(!this.adopted.has(key) ? { _meta: withSessionEhcliAdoptable(undefined) } : {}),
+						};
+					}
+				}
+
+				const count = 101;
+				const sessions = Array.from({ length: count }, (_, index) => AgentSession.uri('copilot', `legacy-${index.toString().padStart(3, '0')}`));
+				const expectedIds = sessions.map(session => session.toString()).sort();
+				const database = new GatedImportDatabase();
+				const perSession = createPerSessionDataService();
+				const agent = disposables.add(new LegacyOwnershipAgent(sessions));
+				const openDatabase = perSession.service.openDatabase;
+				const sessionDataService: ISessionDataService = {
+					...perSession.service,
+					openDatabase: session => {
+						// The real extension stops listing an ID as soon as catalog
+						// synchronization creates its agentSessionData directory.
+						agent.legacyOwned.delete(session.toString());
+						return openDatabase(session);
+					},
+				};
+				for (const session of sessions) {
+					await database.registerRuntimeSession(session.toString(), {
+						provider: 'copilot',
+						startTime: 1,
+						modifiedTime: 1,
+						source: 'restore',
+					}, { checkTombstone: false });
+				}
+				const svc = createService(database, sessionDataService);
+				getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+				registerTestAgentProvider(svc, agent);
+
+				const phase = async (name: string, listed?: readonly IAgentSessionMetadata[]) => {
+					const hostIds = (listed ?? await svc.listSessions()).map(session => session.session.toString()).sort();
+					const legacyIds = [...agent.legacyOwned].sort();
+					const combinedIds = new Set([...legacyIds, ...hostIds]);
+					return {
+						name,
+						hostCount: hostIds.length,
+						legacyProviderCount: legacyIds.length,
+						legacyUiCacheCount: legacyIds.slice(0, 100).length,
+						combinedProviderCount: combinedIds.size,
+						absentCount: expectedIds.filter(id => !combinedIds.has(id)).length,
+					};
+				};
+
+				// The first host list is served from the existing registry while provider
+				// enumeration is gated. The separate workbench provider can show at most
+				// its first 100 legacy rows at once.
+				const firstHostList = await svc.listSessions();
+				const observations = [await phase('initial list', firstHostList)];
+
+				agent.enumerationGate.complete();
+				await database.importBlocked.p;
+				assert.strictEqual((await database.listSessionV2Registrations()).length >= 50, true);
+				observations.push(await phase('migration paused after ~50'));
+
+				// Opening adopts one row that catalog synchronization has already made
+				// the extension provider retract.
+				const opened = sessions[0];
+				await svc.restoreSession(opened);
+				const backHostList = await svc.listSessions();
+				observations.push(await phase('Back after opening one', backHostList));
+
+				database.releaseImport.complete();
+				await waitForInitialProviderMigration(svc, agent);
+				const completedHostList = await svc.listSessions();
+				observations.push(await phase('migration complete', completedHostList));
+				assert.deepStrictEqual({
+					currentIds: (await database.listSessionV2Registrations()).map(row => row.session).sort(),
+					catalogIds: (await database.listSessionsV2()).map(row => row.session).sort(),
+				}, {
+					currentIds: expectedIds,
+					catalogIds: expectedIds,
+				});
+
+				svc.dispose();
+				const restarted = createService(database, perSession.service);
+				getConfigurationService(restarted).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+				const restartedAgent = disposables.add(new LegacyOwnershipAgent(sessions, agent.legacyOwned, agent.adopted));
+				restartedAgent.enumerationGate.complete();
+				registerTestAgentProvider(restarted, restartedAgent);
+				const restartedHostIds = (await restarted.listSessions()).map(session => session.session.toString()).sort();
+				const restartedLegacyIds = [...restartedAgent.legacyOwned].sort();
+				const restartedCombinedIds = new Set([...restartedLegacyIds, ...restartedHostIds]);
+				observations.push({
+					name: 'restart',
+					hostCount: restartedHostIds.length,
+					legacyProviderCount: restartedLegacyIds.length,
+					legacyUiCacheCount: restartedLegacyIds.slice(0, 100).length,
+					combinedProviderCount: restartedCombinedIds.size,
+					absentCount: expectedIds.filter(id => !restartedCombinedIds.has(id)).length,
+				});
+				assert.deepStrictEqual({
+					observations,
+					currentIds: (await database.listSessionV2Registrations()).map(row => row.session).sort(),
+					catalogIds: (await database.listSessionsV2()).map(row => row.session).sort(),
+					localDatabaseIds: [...perSession.databaseIds()].sort(),
+				}, {
+					observations: observations.map(observation => ({ ...observation, absentCount: 0 })),
+					currentIds: [...expectedIds],
+					catalogIds: [...expectedIds],
+					localDatabaseIds: [opened.toString()],
+				});
+			});
+
+			test('preserves provider, generated, default, and custom titles through migration and restart', async () => {
+				class GatedTitleAgent extends DirectImportAgent {
+					readonly enumerationGate = new DeferredPromise<void>();
+
+					override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[]> {
+						this.catalogCalls++;
+						await this.enumerationGate.p;
+						return this.catalog ?? [];
+					}
+
+					override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+						this.metadataCalls++;
+						const session = resolveAgentChatContext(context, chat).configurationResource;
+						return this.catalog?.find(metadata => parseChatUri(metadata.chat)?.session === session.toString());
+					}
+
+					override async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
+						const metadata = this.catalog?.find(metadata => parseChatUri(metadata.chat)?.session === session.toString());
+						return metadata ? { ...metadata, session } : undefined;
+					}
+				}
+
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const cases = [
+					{ id: 'provider-sdk-summary', providerTitle: 'Provider SDK Summary', expectedTitle: 'Provider SDK Summary', customTitle: undefined },
+					{ id: 'model-generated', providerTitle: 'Model Generated Title', expectedTitle: 'Model Generated Title', customTitle: undefined },
+					{ id: 'default-title', providerTitle: undefined, expectedTitle: undefined, customTitle: undefined },
+					{ id: 'explicit-custom-title', providerTitle: 'Provider Title Before Rename', expectedTitle: 'Explicit Custom Title', customTitle: 'Explicit Custom Title' },
+				] as const;
+				for (const entry of cases) {
+					const session = AgentSession.uri('copilot', entry.id);
+					await database.registerRuntimeSession(session.toString(), {
+						provider: 'copilot',
+						startTime: 1,
+						modifiedTime: 1,
+						source: 'restore',
+					}, { checkTombstone: false });
+					if (entry.customTitle) {
+						await perSession.database(session).setMetadataValues({
+							[SESSION_CUSTOM_TITLE_KEY]: entry.customTitle,
+							[SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
+						});
+					}
+				}
+				const expected = cases.map(entry => ({
+					id: entry.id,
+					title: entry.expectedTitle,
+				})).sort((a, b) => a.id.localeCompare(b.id));
+				const titles = (listed: readonly IAgentSessionMetadata[]) => listed.map(session => ({
+					id: AgentSession.id(session.session),
+					title: session.summary,
+				})).sort((a, b) => a.id.localeCompare(b.id));
+				const createAgent = () => {
+					const agent = disposables.add(new GatedTitleAgent('copilot'));
+					agent.catalog = cases.map(entry => ({
+						...metadata(AgentSession.uri('copilot', entry.id)),
+						summary: entry.providerTitle,
+						_meta: withSessionEhcliAdoptable(undefined),
+					}));
+					const mockSessions = (agent as unknown as { _sessions: Map<string, URI> })._sessions;
+					for (const entry of cases) {
+						mockSessions.set(entry.id, AgentSession.uri('copilot', entry.id));
+					}
+					return agent;
+				};
+
+				const svc = createService(database, perSession.service);
+				const agent = createAgent();
+				registerTestAgentProvider(svc, agent);
+				assert.deepStrictEqual(titles(await svc.listSessions()), []);
+
+				agent.enumerationGate.complete();
+				await waitForInitialProviderMigration(svc, agent);
+				assert.deepStrictEqual({
+					titles: titles(await svc.listSessions()),
+					localDatabaseIds: [...perSession.databaseIds()].sort(),
+					catalog: (await database.listSessionsV2()).map(row => {
+						const data = catalogDataOf(row);
+						return {
+							id: AgentSession.id(row.session),
+							title: data?.summary,
+							ehcliAdoptable: readSessionEhcliAdoptable(data?._meta),
+						};
+					}).sort((a, b) => a.id.localeCompare(b.id)),
+				}, {
+					titles: [],
+					localDatabaseIds: [AgentSession.uri('copilot', 'explicit-custom-title').toString()],
+					catalog: expected.map(entry => ({ ...entry, ehcliAdoptable: true })),
+				});
+
+				svc.dispose();
+				const restarted = createService(database, perSession.service);
+				const restartedAgent = createAgent();
+				restartedAgent.enumerationGate.complete();
+				registerTestAgentProvider(restarted, restartedAgent);
+				assert.deepStrictEqual(titles(await restarted.listSessions()), []);
+				assert.deepStrictEqual({
+					currentCount: (await database.listSessionV2Registrations()).length,
+					catalogCount: (await database.listSessionsV2()).length,
+				}, {
+					currentCount: cases.length,
+					catalogCount: cases.length,
+				});
+			});
+
 			test('imports provider-only sessions directly without creating legacy rows', async () => {
 				const database = new TransientRegistryWriteDatabase();
 				const perSession = createPerSessionDataService();
@@ -5864,7 +6148,7 @@ suite('AgentService (node dispatcher)', () => {
 					marker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION),
 				}, {
 					catalogCalls: 2,
-					listed: [providerOnly.toString()],
+					listed: [],
 					current: {
 						session: providerOnly.toString(),
 						provider: 'copilot',
@@ -6071,6 +6355,213 @@ suite('AgentService (node dispatcher)', () => {
 				}, {
 					persistedRead: '',
 					catalogRead: false,
+				});
+			});
+
+			test('known external import without a local database preserves cached flags and titles', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const session = AgentSession.uri('copilot', 'central-external-unread');
+				await database.registerSessionV2(session.toString(), {
+					provider: 'copilot',
+					startTime: 1,
+					source: 'discovery',
+				}, { checkTombstone: true });
+				assert.strictEqual(await database.upsertSessionV2(catalogEnvelope(session, {
+					modifiedTime: 1,
+					summary: 'Cached external title',
+					titleSource: 'user',
+					isRead: false,
+					isArchived: true,
+					workingDirectories: [],
+					chats: [{ uri: buildDefaultChatUri(session), order: 0, kind: 'default', summary: 'Cached default title', titleSource: 'agent' }],
+				}, 'external-generation', 0), undefined), 'applied');
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				agent.catalog = [metadata(session)];
+
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, true);
+
+				const data = catalogDataOf(await database.getSessionV2(session.toString()));
+				assert.deepStrictEqual({
+					summary: data?.summary,
+					titleSource: data?.titleSource,
+					isRead: data?.isRead,
+					isArchived: data?.isArchived,
+					chats: data?.chats.map(chat => ({ summary: chat.summary, titleSource: chat.titleSource })),
+					localDatabaseIds: perSession.databaseIds(),
+				}, {
+					summary: 'Cached external title',
+					titleSource: 'user',
+					isRead: false,
+					isArchived: true,
+					chats: [{ summary: 'Cached default title', titleSource: 'agent' }],
+					localDatabaseIds: [],
+				});
+			});
+
+			test('external import with a local database gives local flags and titles precedence', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const session = AgentSession.uri('copilot', 'local-external-unread');
+				await database.registerSessionV2(session.toString(), {
+					provider: 'copilot',
+					startTime: 1,
+					source: 'discovery',
+				}, { checkTombstone: true });
+				assert.strictEqual(await database.upsertSessionV2(catalogEnvelope(session, {
+					modifiedTime: 1,
+					summary: 'Stale read state',
+					titleSource: 'agent',
+					isRead: true,
+					isArchived: true,
+					workingDirectories: [],
+					chats: [{ uri: buildDefaultChatUri(session), order: 0, kind: 'default', summary: 'Stale chat', titleSource: 'agent' }],
+				}, 'external-generation', 0), undefined), 'applied');
+				await perSession.database(session).setMetadataValues({
+					[AH_META_IS_READ_DB_KEY]: '',
+					[AH_META_IS_ARCHIVED_DB_KEY]: 'false',
+					[SESSION_CUSTOM_TITLE_KEY]: 'Local title',
+					[SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
+					[customChatTitleMetadataKey(buildDefaultChatUri(session))]: 'Local chat',
+					[customChatTitleSourceMetadataKey(buildDefaultChatUri(session))]: 'user',
+				});
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				agent.catalog = [metadata(session)];
+
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, true);
+
+				const data = catalogDataOf(await database.getSessionV2(session.toString()));
+				assert.deepStrictEqual({
+					summary: data?.summary,
+					titleSource: data?.titleSource,
+					isRead: data?.isRead,
+					isArchived: data?.isArchived,
+					chats: data?.chats.map(chat => ({ summary: chat.summary, titleSource: chat.titleSource })),
+				}, {
+					summary: 'Local title',
+					titleSource: 'user',
+					isRead: false,
+					isArchived: false,
+					chats: [{ summary: 'Local chat', titleSource: 'user' }],
+				});
+			});
+
+			test('full reconciliation without a local database preserves central host-owned status', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const session = AgentSession.uri('copilot', 'central-status-reconciliation');
+				const peer = buildChatUri(session, 'cached-peer');
+				await database.registerSessionV2(session.toString(), {
+					provider: 'copilot',
+					startTime: 1,
+					source: 'discovery',
+				}, { checkTombstone: true });
+				assert.strictEqual(await database.upsertSessionV2(catalogEnvelope(session, {
+					modifiedTime: 1,
+					summary: 'Cached title',
+					titleSource: 'user',
+					isRead: true,
+					isArchived: true,
+					workingDirectories: [],
+					chats: [
+						{ uri: buildDefaultChatUri(session), order: 0, kind: 'default', summary: 'Cached default title', titleSource: 'agent' },
+						{ uri: peer, order: 1, kind: 'peer', summary: 'Cached peer title', titleSource: 'user' },
+					],
+				}, 'external-generation', 0), undefined), 'applied');
+				await database.markSessionV2PayloadDirty(session.toString());
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				agent.sessionMetadataOverrides = {
+					modifiedTime: 2,
+					summary: 'Provider title',
+					status: SessionStatus.Idle,
+				};
+				await createAgentSession(agent, { session });
+				registerTestAgentProvider(svc, agent);
+
+				const report = await (svc as unknown as {
+					_catalogReconciliationService: { runFullPass(): Promise<{ readonly outcomes: readonly { readonly status: string }[] }> };
+				})._catalogReconciliationService.runFullPass();
+				const data = catalogDataOf(await database.getSessionV2(session.toString()));
+
+				assert.deepStrictEqual({
+					outcomes: report.outcomes.map(outcome => outcome.status),
+					summary: data?.summary,
+					isRead: data?.isRead,
+					isArchived: data?.isArchived,
+					chats: data?.chats.map(chat => ({ summary: chat.summary, titleSource: chat.titleSource })),
+					localDatabaseIds: perSession.databaseIds(),
+				}, {
+					outcomes: ['succeeded'],
+					summary: 'Cached title',
+					isRead: true,
+					isArchived: true,
+					chats: [
+						{ summary: 'Cached default title', titleSource: 'agent' },
+						{ summary: 'Cached peer title', titleSource: 'user' },
+					],
+					localDatabaseIds: [],
+				});
+			});
+
+			test('no-local peer import prefers cached membership and only enriches matching provider data', async () => {
+				class CachedPeerAgent extends DirectImportAgent {
+					async listLegacyChatBackings(session: URI): Promise<readonly IAgentLegacyChat[]> {
+						return [
+							{ uri: URI.parse(buildChatUri(session, 'cached')), providerData: 'matching-provider-data' },
+							{ uri: URI.parse(buildChatUri(session, 'provider-only')), providerData: 'must-not-expand-membership' },
+						];
+					}
+				}
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const session = AgentSession.uri('copilot', 'cached-peer-import');
+				const cachedPeer = URI.parse(buildChatUri(session, 'cached'));
+				const origin = { kind: ChatOriginKind.User } as const;
+				await database.registerSessionV2(session.toString(), {
+					provider: 'copilot',
+					startTime: 1,
+					source: 'discovery',
+				}, { checkTombstone: true });
+				assert.strictEqual(await database.upsertSessionV2(catalogEnvelope(session, {
+					modifiedTime: 1,
+					summary: 'Cached peers',
+					isRead: false,
+					isArchived: false,
+					workingDirectories: [],
+					chats: [
+						{ uri: buildDefaultChatUri(session), order: 0, kind: 'default' },
+						{ uri: cachedPeer.toString(), order: 1, kind: 'peer', origin, inheritedTurnId: 'inherited-turn' },
+					],
+				}, 'peer-generation', 0), undefined), 'applied');
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new CachedPeerAgent('copilot'));
+
+				const peers = await (svc as unknown as {
+					_readOrImportPeerChatCatalogWithoutLocalDatabase(agent: IAgent, session: URI): Promise<readonly IPersistedPeerChat[]>;
+				})._readOrImportPeerChatCatalogWithoutLocalDatabase(agent, session);
+
+				assert.deepStrictEqual({
+					peers,
+					persisted: await database.getSessionChatCatalog(session.toString()),
+					localDatabaseIds: perSession.databaseIds(),
+				}, {
+					peers: [{ uri: cachedPeer.toString(), providerData: 'matching-provider-data', origin, inheritedTurnId: 'inherited-turn' }],
+					persisted: {
+						revision: 1,
+						legacyMirroredRevision: 0,
+						legacyMirroredPayload: JSON.stringify([{ uri: cachedPeer.toString(), providerData: 'matching-provider-data', origin, inheritedTurnId: 'inherited-turn' }]),
+						chats: [{
+							chat: cachedPeer.toString(),
+							order: 0,
+							providerData: 'matching-provider-data',
+							origin: JSON.stringify(origin),
+							inheritedTurnId: 'inherited-turn',
+						}],
+					},
+					localDatabaseIds: [],
 				});
 			});
 
@@ -6540,11 +7031,11 @@ suite('AgentService (node dispatcher)', () => {
 				const sibling = AgentSession.uri('copilot', 'verified-sibling');
 				const sessionData: ISessionDataService = {
 					...perSession.service,
-					openDatabase: session => {
+					tryOpenDatabase: async session => {
 						if (failOneSession && session.toString() === failing.toString()) {
-							throw new Error('transient per-session failure');
+							throw new Error('transient per-session probe failure');
 						}
-						return perSession.service.openDatabase(session);
+						return perSession.service.tryOpenDatabase(session);
 					},
 				};
 				const svc = createService(database, sessionData);

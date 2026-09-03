@@ -203,6 +203,8 @@ export interface IAgentHostDatabase extends IDisposable {
 	listSessionsV2Receipts(): Promise<readonly IAgentHostDatabaseSessionV2Receipt[]>;
 	/** Marks one cached payload dirty and returns the marker repair must compare-and-set. */
 	markSessionV2PayloadDirty(session: string): Promise<number | undefined>;
+	/** Reads the dirty marker even when the registered session has no verified payload yet. */
+	getSessionV2PayloadDirty(session: string): Promise<number | undefined>;
 	/** Marks every cached payload dirty once so mutations made by older builds are rechecked. */
 	markAllSessionsV2PayloadsDirty(): Promise<void>;
 	/** Clears a dirty marker only when no newer mutation superseded it. */
@@ -1118,6 +1120,11 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				return this._rollback(database, error, `Failed to mark sessions_v2 payload dirty for ${session}`);
 			}
 		});
+	}
+
+	async getSessionV2PayloadDirty(session: string): Promise<number | undefined> {
+		const row = await get(await this._ensureDatabase(), 'SELECT CAST(value AS INTEGER) AS payload_dirty FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
+		return row?.payload_dirty as number | undefined;
 	}
 
 	async markAllSessionsV2PayloadsDirty(): Promise<void> {

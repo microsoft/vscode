@@ -13,7 +13,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { ISessionDataService } from '../../common/sessionDataService.js';
 import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, IAgentHostCatalogReconciliationOptions } from '../../node/agentHostCatalogReconciliationService.js';
 import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncService.js';
-import { AgentHostCatalogData, AGENT_HOST_CATALOG_PAYLOAD_VERSION } from '../../node/agentHostCatalogProjection.js';
+import { AgentHostCatalogData, AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
 import type { IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import type { IAgentHostStorageService } from '../../node/agentHostStorageService.js';
@@ -86,6 +86,7 @@ class RecordingCatalogDatabase extends AgentHostDatabase {
 	markAllCalls = 0;
 	dirtyAfterUpsertCount = 0;
 	nonCanonicalPayloadReads = 0;
+	conflictingEnvelope: IAgentHostDatabaseSessionV2Envelope | undefined;
 
 	constructor() {
 		super(':memory:');
@@ -96,6 +97,13 @@ class RecordingCatalogDatabase extends AgentHostDatabase {
 		if (this.failUpsert || this.failUpsertCount > 0) {
 			this.failUpsertCount = Math.max(0, this.failUpsertCount - 1);
 			throw new Error('central unavailable');
+		}
+		if (this.conflictingEnvelope) {
+			const conflictingEnvelope = this.conflictingEnvelope;
+			this.conflictingEnvelope = undefined;
+			await super.upsertSessionV2(conflictingEnvelope, expectedSessionGeneration);
+			await super.markSessionV2PayloadDirty(envelope.session);
+			return 'conflict';
 		}
 		const result = await super.upsertSessionV2(envelope, expectedSessionGeneration);
 		if (this.dirtyAfterUpsertCount > 0 && (result === 'applied' || result === 'replayed')) {
@@ -199,7 +207,6 @@ suite('AgentHostCatalogReconciliationService', () => {
 				status: 'available',
 				request: { data: catalogData(session.session.path), legacyMetadata: { customTitle: session.session.path } },
 			}), options) => store.add(new AgentHostCatalogReconciliationService(
-				sessionDataService,
 				central,
 				sync,
 				storage,
@@ -267,10 +274,33 @@ suite('AgentHostCatalogReconciliationService', () => {
 			catalogTitle: summaryOf((await harness.central.getSessionV2(session.session.toString()))!.payload),
 		}, {
 			before: { state: 'pending', hasPayload: true },
-			outcomes: [{ session: 'agenthost:one', status: 'retry', reason: 'superseded' }],
-			converged: [{ session: 'agenthost:one', status: 'skipped', reason: 'synchronized' }],
+			outcomes: [{ session: 'agenthost:one', status: 'succeeded', reason: 'pendingReplayed', sourceRevision: 0 }],
+			converged: [],
 			after: { state: 'acknowledged', payload: undefined },
 			catalogTitle: 'one',
+		});
+	});
+
+	test('reports a transient central replay failure as pending and retries it', async () => {
+		const harness = await createHarness(['one']);
+		const session = registered('one');
+		harness.central.failUpsertCount = 1;
+		await harness.sync.synchronize(session.session, {
+			data: catalogData('pending'),
+			legacyMetadata: { customTitle: 'pending' },
+		});
+		harness.central.failUpsertCount = 1;
+		const service = harness.createService();
+
+		const first = await service.runPass();
+		const second = await service.runPass();
+
+		assert.deepStrictEqual({
+			first: first.outcomes,
+			second: second.outcomes,
+		}, {
+			first: [{ session: 'agenthost:one', status: 'pending', reason: 'upsertFailed', sourceRevision: 0 }],
+			second: [{ session: 'agenthost:one', status: 'succeeded', reason: 'pendingReplayed', sourceRevision: 0 }],
 		});
 	});
 
@@ -291,7 +321,7 @@ suite('AgentHostCatalogReconciliationService', () => {
 			sourceResolutions,
 			catalogTitle: summaryOf((await harness.central.getSessionV2(session.session.toString()))!.payload),
 		}, {
-			outcomes: [{ session: 'agenthost:one', status: 'retry', reason: 'superseded' }],
+			outcomes: [{ session: 'agenthost:one', status: 'succeeded', reason: 'pendingReplayed', sourceRevision: 0 }],
 			sourceResolutions: 0,
 			catalogTitle: 'pending',
 		});
@@ -588,13 +618,126 @@ suite('AgentHostCatalogReconciliationService', () => {
 		});
 	});
 
-	test('reports missing session databases explicitly for retry', async () => {
+	test('reconciles a missing session database through the central-only path', async () => {
 		const missing = new Set(['agenthost:missing']);
 		const harness = await createHarness(['missing'], missing);
 
-		assert.deepStrictEqual((await harness.createService().runPass()).outcomes, [
-			{ session: 'agenthost:missing', status: 'retry', reason: 'missingDatabase' },
-		]);
+		const report = await harness.createService().runPass();
+		const catalog = await harness.central.getSessionV2('agenthost:missing');
+
+		assert.deepStrictEqual({
+			outcomes: report.outcomes,
+			summary: catalog && summaryOf(catalog.payload),
+			payloadDirty: catalog?.payloadDirty,
+		}, {
+			outcomes: [{ session: 'agenthost:missing', status: 'succeeded', reason: 'synchronized', sourceRevision: 0 }],
+			summary: 'missing',
+			payloadDirty: 0,
+		});
+	});
+
+	test('provider-only reconciliation CAS-clears the observed dirty marker', async () => {
+		const missing = new Set(['agenthost:missing']);
+		const harness = await createHarness(['missing'], missing);
+		const session = registered('missing');
+		await harness.sync.synchronizeMigrationWithFactory(session.session, async () => ({
+			data: catalogData('old'),
+			legacyMetadata: {},
+		}));
+		await harness.central.markSessionV2PayloadDirty(session.session.toString());
+
+		const report = await harness.createService(async () => ({
+			status: 'available',
+			request: { data: catalogData('new'), legacyMetadata: {} },
+		})).runPass();
+		const catalog = await harness.central.getSessionV2(session.session.toString());
+
+		assert.deepStrictEqual({
+			outcomes: report.outcomes,
+			summary: catalog && summaryOf(catalog.payload),
+			payloadDirty: catalog?.payloadDirty,
+		}, {
+			outcomes: [{ session: 'agenthost:missing', status: 'succeeded', reason: 'synchronized', sourceRevision: 1 }],
+			summary: 'new',
+			payloadDirty: 0,
+		});
+	});
+
+	test('provider-only reconciliation rechecks an incomplete dirty marker after source resolution', async () => {
+		const missing = new Set(['agenthost:missing']);
+		const harness = await createHarness(['missing'], missing);
+		const session = registered('missing');
+		let title = 'old';
+		let sourceStarted!: () => void;
+		const started = new Promise<void>(resolve => sourceStarted = resolve);
+		let releaseSource!: () => void;
+		const sourceGate = new Promise<void>(resolve => releaseSource = resolve);
+		const service = harness.createService(async () => {
+			sourceStarted();
+			await sourceGate;
+			return { status: 'available', request: { data: catalogData(title), legacyMetadata: {} } };
+		});
+
+		const firstPass = service.runPass();
+		await started;
+		title = 'new';
+		await harness.central.markSessionV2PayloadDirty(session.session.toString());
+		releaseSource();
+		const first = await firstPass;
+		const afterRace = await harness.central.getSessionV2(session.session.toString());
+		const second = await service.runPass();
+		const converged = await harness.central.getSessionV2(session.session.toString());
+
+		assert.deepStrictEqual({
+			first: first.outcomes,
+			afterRace,
+			second: second.outcomes,
+			summary: converged && summaryOf(converged.payload),
+			payloadDirty: converged?.payloadDirty,
+		}, {
+			first: [{ session: 'agenthost:missing', status: 'retry', reason: 'superseded' }],
+			afterRace: undefined,
+			second: [{ session: 'agenthost:missing', status: 'succeeded', reason: 'synchronized', sourceRevision: 0 }],
+			summary: 'new',
+			payloadDirty: 0,
+		});
+	});
+
+	test('provider-only reconciliation does not overwrite a conflict that dirties the observed receipt', async () => {
+		const missing = new Set(['agenthost:missing']);
+		const harness = await createHarness(['missing'], missing);
+		const session = registered('missing');
+		await harness.sync.synchronizeMigrationWithFactory(session.session, async () => ({
+			data: catalogData('old'),
+			legacyMetadata: {},
+		}));
+		const current = await harness.central.getSessionV2(session.session.toString());
+		assert.ok(current);
+		await harness.central.markSessionV2PayloadDirty(session.session.toString());
+		const concurrent = encodeAgentHostCatalogPayload(catalogData('concurrent'));
+		assert.ok(concurrent.ok);
+		harness.central.conflictingEnvelope = {
+			...current,
+			sourceRevision: current.sourceRevision + 1,
+			payload: concurrent.value.payload,
+			payloadHash: concurrent.value.payloadHash,
+		};
+
+		const report = await harness.createService(async () => ({
+			status: 'available',
+			request: { data: catalogData('stale-repair'), legacyMetadata: {} },
+		})).runPass();
+		const catalog = await harness.central.getSessionV2(session.session.toString());
+
+		assert.deepStrictEqual({
+			outcomes: report.outcomes,
+			summary: catalog && summaryOf(catalog.payload),
+			payloadDirty: catalog?.payloadDirty,
+		}, {
+			outcomes: [{ session: 'agenthost:missing', status: 'retry', reason: 'superseded' }],
+			summary: 'concurrent',
+			payloadDirty: 3,
+		});
 	});
 
 	test('keeps provider-unavailable payloads dirty without evicting the cached row', async () => {
@@ -808,12 +951,13 @@ suite('AgentHostCatalogReconciliationService', () => {
 
 		currentTitle = 'new-title';
 		harness.central.failUpsertCount = 1;
-		const writerResult = await harness.sync.synchronize(session.session, {
+		const writer = harness.sync.synchronize(session.session, {
 			data: catalogData(currentTitle),
 			legacyMetadata: { customTitle: currentTitle },
 		});
 		releaseSource();
 		const firstRepair = await repair;
+		const writerResult = await writer;
 		const dirty = await harness.central.getSessionV2(session.session.toString());
 		const converged = await service.runPass();
 		const cached = await harness.central.getSessionV2(session.session.toString());
@@ -826,8 +970,8 @@ suite('AgentHostCatalogReconciliationService', () => {
 			cachedSummary: cached && summaryOf(cached.payload),
 			payloadDirty: cached?.payloadDirty,
 		}, {
-			writerResult: { status: 'pending', sourceRevision: 0, reason: 'upsertFailed' },
-			firstRepair: [{ session: 'agenthost:one', status: 'retry', reason: 'superseded' }],
+			writerResult: { status: 'acknowledged', sourceRevision: 0 },
+			firstRepair: [{ session: 'agenthost:one', status: 'pending', reason: 'upsertFailed', sourceRevision: 0 }],
 			dirtyMarker: 2,
 			converged: [{ session: 'agenthost:one', status: 'skipped', reason: 'synchronized' }],
 			cachedSummary: 'new-title',

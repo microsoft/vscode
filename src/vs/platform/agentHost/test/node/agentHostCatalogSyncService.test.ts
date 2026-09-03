@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import type { ISessionCatalogSyncAcknowledgement, ISessionCatalogSyncPendingSnapshot, SessionCatalogSyncWriteResult } from '../../common/sessionDataService.js';
 import { META_GIT_STATE } from '../../common/agentHostGitStateService.js';
-import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncService.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
@@ -168,6 +168,224 @@ suite('AgentHostCatalogSyncService', () => {
 			catalogTitle: 'one',
 			payloadDirty: 2,
 			receiptMatchesCatalog: true,
+		});
+	});
+
+	test('migration writes only the central catalog when the local database is absent', async () => {
+		const central = store.add(new RecordingCatalogDatabase());
+		await central.registerSessionV2(session.toString(), {
+			provider: 'copilotcli',
+			startTime: 1,
+			source: 'restore',
+		}, { checkTombstone: false });
+		let opens = 0;
+		let probes = 0;
+		const sessionDataService = {
+			...createSessionDataService(),
+			openDatabase: () => {
+				opens++;
+				throw new Error('must not create a database');
+			},
+			tryOpenDatabase: async () => {
+				probes++;
+				return undefined;
+			},
+		};
+		const service = new AgentHostCatalogSyncService(sessionDataService, central, new NullLogService());
+
+		const result = await service.synchronizeMigrationWithFactory(session, async () => ({
+			data: data('migrated'),
+			legacyMetadata: { customTitle: 'migrated' },
+		}));
+
+		assert.deepStrictEqual({
+			result,
+			opens,
+			probes,
+			title: summaryOf((await central.getSessionV2(session.toString()))!.payload),
+		}, {
+			result: { status: 'acknowledged', sourceRevision: 0 },
+			opens: 0,
+			probes: 1,
+			title: 'migrated',
+		});
+	});
+
+	test('central-only migration retries a same-revision conflict instead of acknowledging the loser', async () => {
+		class ConflictingCatalogDatabase extends RecordingCatalogDatabase {
+			private conflicted = false;
+
+			override async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+				if (!this.conflicted) {
+					this.conflicted = true;
+					const concurrent = encodeAgentHostCatalogPayload(data('concurrent'));
+					if (!concurrent.ok) {
+						throw new Error(concurrent.error);
+					}
+					await super.upsertSessionV2({
+						...envelope,
+						payload: concurrent.value.payload,
+						payloadHash: concurrent.value.payloadHash,
+					}, expectedGeneration);
+					return 'conflict';
+				}
+				return super.upsertSessionV2(envelope, expectedGeneration);
+			}
+		}
+		const central = store.add(new ConflictingCatalogDatabase());
+		await central.registerSessionV2(session.toString(), {
+			provider: 'copilotcli',
+			startTime: 1,
+			source: 'restore',
+		}, { checkTombstone: false });
+		const service = new AgentHostCatalogSyncService({
+			...createSessionDataService(),
+			tryOpenDatabase: async () => undefined,
+		}, central, new NullLogService());
+
+		const result = await service.synchronizeMigrationWithFactory(session, async () => ({ data: data('migration'), legacyMetadata: {} }));
+		const catalog = await central.getSessionV2(session.toString());
+
+		assert.deepStrictEqual({
+			result,
+			title: catalog && summaryOf(catalog.payload),
+			upserts: central.calls.filter(call => call.startsWith('upsert')).length,
+		}, {
+			result: { status: 'acknowledged', sourceRevision: 1 },
+			title: 'migration',
+			upserts: 2,
+		});
+	});
+
+	test('central-only migration reports transient central failures as pending', async () => {
+		const central = store.add(new RecordingCatalogDatabase());
+		await central.registerSessionV2(session.toString(), {
+			provider: 'copilotcli',
+			startTime: 1,
+			source: 'restore',
+		}, { checkTombstone: false });
+		central.upsertError = new Error('central unavailable');
+		const service = new AgentHostCatalogSyncService({
+			...createSessionDataService(),
+			tryOpenDatabase: async () => undefined,
+		}, central, new NullLogService());
+
+		assert.deepStrictEqual(
+			await service.synchronizeMigrationWithFactory(session, async () => ({ data: data('migration'), legacyMetadata: {} })),
+			{ status: 'pending', sourceRevision: 0, reason: 'upsertFailed' },
+		);
+	});
+
+	test('migration uses coordinated local-first synchronization when the database exists', async () => {
+		const { local, central, service } = await createHarness();
+
+		const result = await service.synchronizeMigrationWithFactory(session, async () => ({
+			data: data('migrated'),
+			legacyMetadata: { customTitle: 'migrated' },
+		}));
+
+		assert.deepStrictEqual({
+			result,
+			localCalls: local.calls,
+			title: await local.getMetadata('customTitle'),
+			receiptState: (await local.getCatalogSyncSnapshot())?.state,
+			centralTitle: summaryOf((await central.getSessionV2(session.toString()))!.payload),
+		}, {
+			result: { status: 'acknowledged', sourceRevision: 0 },
+			localCalls: ['local:0:migrated', 'ack:0'],
+			title: 'migrated',
+			receiptState: 'acknowledged',
+			centralTitle: 'migrated',
+		});
+	});
+
+	test('migration propagates local database probe failures', async () => {
+		const central = store.add(new RecordingCatalogDatabase());
+		await central.registerSessionV2(session.toString(), {
+			provider: 'copilotcli',
+			startTime: 1,
+			source: 'restore',
+		}, { checkTombstone: false });
+		const service = new AgentHostCatalogSyncService({
+			...createSessionDataService(),
+			tryOpenDatabase: async () => { throw new Error('probe failed'); },
+		}, central, new NullLogService());
+
+		await assert.rejects(
+			service.synchronizeMigrationWithFactory(session, async () => ({ data: data('migrated'), legacyMetadata: {} })),
+			/probe failed/,
+		);
+		assert.deepStrictEqual(await central.getSessionV2(session.toString()), undefined);
+	});
+
+	test('migration does not bypass a concurrent tombstone', async () => {
+		const central = store.add(new RecordingCatalogDatabase());
+		await central.registerSessionV2(session.toString(), {
+			provider: 'copilotcli',
+			startTime: 1,
+			source: 'restore',
+		}, { checkTombstone: false });
+		await central.tombstoneAndUnregisterSession(session.toString());
+		const service = new AgentHostCatalogSyncService({
+			...createSessionDataService(),
+			tryOpenDatabase: async () => undefined,
+		}, central, new NullLogService());
+
+		const result = await service.synchronizeMigrationWithFactory(session, async () => ({ data: data('migrated'), legacyMetadata: {} }));
+
+		assert.deepStrictEqual({
+			result,
+			catalog: await central.getSessionV2(session.toString()),
+		}, {
+			result: { status: 'pending', sourceRevision: 0, reason: 'tombstoned' },
+			catalog: undefined,
+		});
+	});
+
+	test('migration verifies and replaces a concurrent generation before acknowledging it', async () => {
+		class RacingCatalogDatabase extends RecordingCatalogDatabase {
+			private raced = false;
+
+			override async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+				if (!this.raced) {
+					this.raced = true;
+					const live = encodeAgentHostCatalogPayload(data('live adoption'));
+					if (!live.ok) {
+						throw new Error(live.error);
+					}
+					await super.upsertSessionV2({
+						...envelope,
+						sessionGeneration: 'live-generation',
+						payload: live.value.payload,
+						payloadHash: live.value.payloadHash,
+					}, expectedGeneration);
+					return 'generationMismatch';
+				}
+				return super.upsertSessionV2(envelope, expectedGeneration);
+			}
+		}
+		const central = store.add(new RacingCatalogDatabase());
+		await central.registerSessionV2(session.toString(), {
+			provider: 'copilotcli',
+			startTime: 1,
+			source: 'restore',
+		}, { checkTombstone: false });
+		const service = new AgentHostCatalogSyncService({
+			...createSessionDataService(),
+			tryOpenDatabase: async () => undefined,
+		}, central, new NullLogService());
+
+		const result = await service.synchronizeMigrationWithFactory(session, async () => ({ data: data('stale migration'), legacyMetadata: {} }));
+		const winner = await central.getSessionV2(session.toString());
+
+		assert.deepStrictEqual({
+			result,
+			generation: winner?.sessionGeneration,
+			title: winner && summaryOf(winner.payload),
+		}, {
+			result: { status: 'acknowledged', sourceRevision: 1 },
+			generation: 'live-generation',
+			title: 'stale migration',
 		});
 	});
 

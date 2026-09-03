@@ -70,6 +70,111 @@ suite('AgentHostPeerChatStore', () => {
 		return new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), logService);
 	}
 
+	test('migration-only membership does not create compatibility databases and mirrors after adoption', async () => {
+		const database = new TestSessionDatabase();
+		let opens = 0;
+		const unavailable = {
+			...createSessionDataService(database),
+			openDatabase: () => {
+				opens++;
+				throw new Error('must not create a database');
+			},
+			tryOpenDatabase: async () => undefined,
+		};
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService());
+
+		await migrationStore.replaceForMigration(session, [{ uri: first.toString(), providerData: 'provider-data', origin, inheritedTurnId: 'inherited' }]);
+		const catalog = await orchestrator.getSessionChatCatalog(session.toString());
+		const read = await migrationStore.tryRead(session);
+		await migrationStore.reconcileLegacy(session);
+
+		const adoptedStore = createStore(database);
+		await adoptedStore.reconcileLegacy(session);
+
+		assert.deepStrictEqual({
+			opens,
+			read,
+			compatibilityAcknowledged: catalog?.legacyMirroredRevision === catalog?.revision,
+			recordedBase: catalog?.legacyMirroredPayload,
+			legacy: await adoptedStore.tryReadLegacy(session),
+		}, {
+			opens: 0,
+			read: [{ uri: first.toString(), providerData: 'provider-data', origin, inheritedTurnId: 'inherited' }],
+			compatibilityAcknowledged: false,
+			recordedBase: JSON.stringify([{ uri: first.toString(), providerData: 'provider-data', origin, inheritedTurnId: 'inherited' }]),
+			legacy: [{ uri: first.toString(), providerData: 'provider-data', origin, inheritedTurnId: 'inherited' }],
+		});
+	});
+
+	test('merges an older-build delta against migration-only membership before mirroring', async () => {
+		const unavailable = {
+			...createSessionDataService(),
+			openDatabase: () => {
+				throw new Error('must not create a database');
+			},
+			tryOpenDatabase: async () => undefined,
+		};
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService());
+		await migrationStore.replaceForMigration(session, [{ uri: first.toString() }]);
+		const imported = await orchestrator.getSessionChatCatalog(session.toString());
+		assert.ok(imported);
+		const updated = await orchestrator.replaceSessionChatCatalog(session.toString(), [
+			{ chat: first.toString(), order: 0 },
+			{ chat: second.toString(), order: 1 },
+		], imported.revision);
+		assert.strictEqual(updated.status, 'applied');
+
+		const database = new TestSessionDatabase();
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([{ uri: third.toString() }]));
+		const store = createStore(database);
+
+		const reconciled = await store.reconcileLegacy(session);
+		const catalog = await orchestrator.getSessionChatCatalog(session.toString());
+
+		assert.deepStrictEqual({
+			reconciled,
+			legacy: await store.tryReadLegacy(session),
+			catalog: catalog && {
+				entries: catalog.chats.map(chat => chat.chat),
+				compatibilityAcknowledged: catalog.legacyMirroredRevision === catalog.revision,
+			},
+		}, {
+			reconciled: [{ uri: third.toString() }, { uri: second.toString() }],
+			legacy: [{ uri: third.toString() }, { uri: second.toString() }],
+			catalog: {
+				entries: [third.toString(), second.toString()],
+				compatibilityAcknowledged: true,
+			},
+		});
+	});
+
+	test('migration import does not replace a catalog created after its initial read', async () => {
+		class RacingDatabase extends AgentHostDatabase {
+			private raced = false;
+
+			override async getSessionChatCatalog(sessionKey: string) {
+				if (!this.raced) {
+					this.raced = true;
+					await super.replaceSessionChatCatalog(sessionKey, [{ chat: second.toString(), order: 0, providerData: 'concurrent' }], undefined);
+					return undefined;
+				}
+				return super.getSessionChatCatalog(sessionKey);
+			}
+		}
+		await orchestrator.close();
+		orchestrator = new RacingDatabase(':memory:');
+		await orchestrator.registerRuntimeSession(session.toString(), {
+			provider: 'copilot',
+			startTime: 1,
+			source: 'explicit',
+		}, { checkTombstone: false });
+		const store = createStore(new TestSessionDatabase());
+
+		await store.replaceForMigration(session, [{ uri: first.toString(), providerData: 'migration' }]);
+
+		assert.deepStrictEqual(await store.tryRead(session, false), [{ uri: second.toString(), providerData: 'concurrent' }]);
+	});
+
 	test('heals malformed metadata on the next write', async () => {
 		const database = new TestSessionDatabase();
 		const store = createStore(database);

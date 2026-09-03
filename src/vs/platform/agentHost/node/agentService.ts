@@ -68,8 +68,8 @@ import { type IChatContextSnapshot, type IRenameTitleResult, type ISessionCreati
 import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadataValues, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
 import { parseSessionArtifacts, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
-import { AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
-import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
+import { AgentHostCatalogDatabaseReference, AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, IAgentHostCatalogReconciliationOptions } from './agentHostCatalogReconciliationService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostCatalogListReader, AgentHostCatalogListResult } from './agentHostCatalogListReader.js';
@@ -635,8 +635,6 @@ export class AgentService extends Disposable implements IAgentService {
 		this._serverToolHost = collaborators.serverToolHost;
 		this._catalogSyncService = new AgentHostCatalogSyncService(this._sessionDataService, this._orchestratorDatabase, this._logService);
 		this._catalogSourceResolver = new AgentHostCatalogSourceResolver({
-			openDatabase: session => this._sessionDataService.openDatabase(session),
-			tryOpenDatabase: session => this._sessionDataService.tryOpenDatabase(session),
 			isUnpersistedChatBacking: session => this._unpersistedChatBackings.has(session.toString()),
 			worktreeProjectFromRepositoryRoot,
 		});
@@ -790,12 +788,11 @@ export class AgentService extends Disposable implements IAgentService {
 		this._editAttributionService.setEnabled(this._stateManager.rootState.config?.values[AgentHostEditTelemetryEnabledConfigKey] !== false);
 		this._runWhenStartupSettled('external session prune', () => this._pruneStaleExternalSessions());
 		this._catalogReconciliationService = this._register(new AgentHostCatalogReconciliationService(
-			this._sessionDataService,
 			this._orchestratorDatabase,
 			this._catalogSyncService,
 			this._storageService,
 			() => this._listRegisteredSessions(),
-			registered => this._resolveCatalogReconciliationSource(registered),
+			(registered, database) => this._resolveCatalogReconciliationSource(registered, database),
 			this._logService,
 			options.catalogReconciliationOptions,
 		));
@@ -1782,7 +1779,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!summary || !state) {
 			throw new Error(`Cannot persist list-visible state for unknown session ${sessionKey}`);
 		}
-		const result = await this._catalogSyncService.synchronizeWithFactory(session, () => this._catalogSourceResolver.buildCatalogSyncRequest(session, {
+		const result = await this._catalogSyncService.synchronizeWithFactory(session, database => this._catalogSourceResolver.buildCatalogSyncRequest(session, {
 			modifiedTime: Date.parse(summary.modifiedAt),
 			title: summary.title,
 			status: summary.status,
@@ -1791,13 +1788,13 @@ export class AgentService extends Disposable implements IAgentService {
 			changes: summary.changes,
 			meta: summary._meta,
 			chats: chatsOverride ?? this._catalogChatsFromState(state),
-		}, metadataOverrides, false));
+		}, metadataOverrides, false, database));
 		if (result.status === 'pending') {
 			this._logService.warn(`[AgentService] Catalog synchronization for ${sessionKey} remains pending: ${result.reason}`);
 		}
 	}
 
-	private async _resolveCatalogReconciliationSource(registered: IRegisteredSession): Promise<AgentHostCatalogReconciliationSourceResult> {
+	private async _resolveCatalogReconciliationSource(registered: IRegisteredSession, database: AgentHostCatalogDatabaseReference | undefined): Promise<AgentHostCatalogReconciliationSourceResult> {
 		const agent = this._providerService.getProvider(registered.provider);
 		if (!agent) {
 			return { status: 'providerUnavailable' };
@@ -1807,13 +1804,26 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!metadata) {
 			return { status: 'providerUnavailable' };
 		}
-		const peers = await this._readOrMigrateLegacyPeerChatCatalog(agent, registered.session);
+		let status = metadata.status ?? SessionStatus.Idle;
+		let metadataFallbacks: Readonly<Record<string, string>> = {};
+		const peers = database
+			? await this._readOrMigrateLegacyPeerChatCatalog(agent, registered.session, database)
+			: await this._readOrImportPeerChatCatalogWithoutLocalDatabase(agent, registered.session);
+		if (!database) {
+			const central = await this._orchestratorDatabase.getSessionV2(registered.session.toString());
+			const decoded = central && decodeAgentHostCatalogPayload(central.payload);
+			if (decoded?.ok) {
+				status = decoded.value.data.isRead ? status | SessionStatus.IsRead : status & ~SessionStatus.IsRead;
+				status = decoded.value.data.isArchived ? status | SessionStatus.IsArchived : status & ~SessionStatus.IsArchived;
+				metadataFallbacks = this._catalogMetadataFallbacks(decoded.value.data);
+			}
+		}
 		return {
 			status: 'available',
 			request: await this._catalogSourceResolver.buildCatalogSyncRequest(registered.session, {
 				modifiedTime: metadata.modifiedTime,
 				title: metadata.summary,
-				status: metadata.status ?? SessionStatus.Idle,
+				status,
 				project: metadata.project ? { uri: metadata.project.uri.toString(), displayName: metadata.project.displayName } : undefined,
 				workingDirectories: metadata.workingDirectories?.map(directory => directory.toString()) ?? [],
 				changes: metadata.changes,
@@ -1828,9 +1838,10 @@ export class AgentService extends Disposable implements IAgentService {
 						uri: peer.uri,
 						kind: 'peer' as const,
 						origin: peer.origin,
+						inheritedTurnId: peer.inheritedTurnId,
 					})),
 				],
-			}, {}, true),
+			}, {}, true, database, metadataFallbacks),
 		};
 	}
 
@@ -1858,6 +1869,7 @@ export class AgentService extends Disposable implements IAgentService {
 				kind: state.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
 				title: chat.title,
 				origin: chat.origin,
+				inheritedTurnId: this._stateManager.getChatInheritedTurnId(chat.resource),
 			}));
 	}
 
@@ -2220,9 +2232,9 @@ export class AgentService extends Disposable implements IAgentService {
 					}
 					const effectiveExternal = effectiveIdentity.external;
 					registryChanged = true;
-					const syncResult = await this._catalogSyncService.synchronize(
+					const syncResult = await this._catalogSyncService.synchronizeWithFactory(
 						session,
-						await this._buildImportedCatalogSyncRequest(provider, sessionMetadata, effectiveExternal, true),
+						database => this._buildImportedCatalogSyncRequest(provider, sessionMetadata, effectiveExternal, true, database),
 					);
 					if (syncResult.status === 'pending') {
 						this._logService.warn(`[AgentService] Discovered session ${session.toString()} remains incomplete: ${syncResult.reason}`);
@@ -2406,24 +2418,40 @@ export class AgentService extends Disposable implements IAgentService {
 		if (external && !readSessionEhcliAdoptable(canonicalMetadata._meta) && this._isExternalSessionOlderThanMaxAge(canonicalMetadata.modifiedTime, Date.now())) {
 			return { status: 'excluded', reason: 'staleExternal', fingerprint: String(canonicalMetadata.modifiedTime) };
 		}
-		const request = await this._buildImportedCatalogSyncRequest(provider, canonicalMetadata, external, !candidate.current && !candidate.legacy);
+		let existingCatalog;
+		try {
+			existingCatalog = candidate.catalog ? await this._orchestratorDatabase.getSessionV2(session.toString()) : undefined;
+		} catch (error) {
+			this._logService.warn(`[AgentService] Failed to read existing catalog state for ${session.toString()}`, error);
+			return { status: 'incomplete' };
+		}
+		const decodedCatalog = existingCatalog ? decodeAgentHostCatalogPayload(existingCatalog.payload) : undefined;
+		const existingCatalogData = decodedCatalog?.ok ? decodedCatalog.value.data : undefined;
 		return {
 			status: 'ready',
 			identity,
 			external,
-			request,
-			value: request.data.summary === canonicalMetadata.summary
+			requestFactory: database => this._buildImportedCatalogSyncRequest(provider, canonicalMetadata, external, !candidate.current && !candidate.legacy, database, existingCatalogData),
+			valueFromRequest: request => request.data.summary === canonicalMetadata.summary
 				? canonicalMetadata
 				: { ...canonicalMetadata, summary: request.data.summary },
 		};
 	}
 
-	private async _buildImportedCatalogSyncRequest(provider: IAgent, metadata: IAgentSessionMetadata, external: boolean, seedExternalRead: boolean): Promise<IAgentHostCatalogSyncRequest> {
-		const peers = await this._readOrMigrateLegacyPeerChatCatalog(provider, metadata.session);
+	private async _buildImportedCatalogSyncRequest(provider: IAgent, metadata: IAgentSessionMetadata, external: boolean, seedExternalRead: boolean, database: AgentHostCatalogDatabaseReference | undefined, existingCatalogData?: AgentHostCatalogData): Promise<IAgentHostCatalogSyncRequest> {
+		const shouldSeedExternalRead = external && seedExternalRead;
+		const preserveCentralRead = !database && existingCatalogData !== undefined;
+		const baseStatus = metadata.status ?? SessionStatus.Idle;
+		const status = !preserveCentralRead
+			? shouldSeedExternalRead ? baseStatus | SessionStatus.IsRead : baseStatus
+			: existingCatalogData.isRead ? baseStatus | SessionStatus.IsRead : baseStatus & ~SessionStatus.IsRead;
+		const peers = database
+			? await this._readOrMigrateLegacyPeerChatCatalog(provider, metadata.session, database)
+			: await this._readOrImportPeerChatCatalogWithoutLocalDatabase(provider, metadata.session);
 		return this._catalogSourceResolver.buildCatalogSyncRequest(metadata.session, {
 			modifiedTime: metadata.modifiedTime,
 			title: metadata.summary,
-			status: external && seedExternalRead ? (metadata.status ?? SessionStatus.Idle) | SessionStatus.IsRead : metadata.status ?? SessionStatus.Idle,
+			status,
 			project: metadata.project ? { uri: metadata.project.uri.toString(), displayName: metadata.project.displayName } : undefined,
 			workingDirectories: metadata.workingDirectories?.map(directory => directory.toString()) ?? [],
 			changes: metadata.changes,
@@ -2438,9 +2466,62 @@ export class AgentService extends Disposable implements IAgentService {
 					uri: peer.uri,
 					kind: 'peer' as const,
 					origin: peer.origin,
+					inheritedTurnId: peer.inheritedTurnId,
 				})),
 			],
-		}, external && seedExternalRead ? { [AH_META_IS_READ_DB_KEY]: 'true' } : {}, true);
+		}, shouldSeedExternalRead ? { [AH_META_IS_READ_DB_KEY]: 'true' } : {}, true, database,
+			preserveCentralRead ? this._catalogMetadataFallbacks(existingCatalogData) : {});
+	}
+
+	private _catalogMetadataFallbacks(data: AgentHostCatalogData): Readonly<Record<string, string>> {
+		const metadata: Record<string, string> = {
+			[AH_META_IS_READ_DB_KEY]: String(data.isRead),
+			[AH_META_IS_ARCHIVED_DB_KEY]: String(data.isArchived),
+		};
+		if (data.summary !== undefined) {
+			metadata[SESSION_CUSTOM_TITLE_KEY] = data.summary;
+		}
+		if (data.titleSource !== undefined) {
+			metadata[SESSION_CUSTOM_TITLE_SOURCE_KEY] = data.titleSource;
+		}
+		for (const chat of data.chats) {
+			if (chat.summary !== undefined) {
+				metadata[customChatTitleMetadataKey(chat.uri)] = chat.summary;
+			}
+			if (chat.titleSource !== undefined) {
+				metadata[customChatTitleSourceMetadataKey(chat.uri)] = chat.titleSource;
+			}
+		}
+		return metadata;
+	}
+
+	private async _readOrImportPeerChatCatalogWithoutLocalDatabase(agent: IAgent, session: URI): Promise<IPersistedPeerChat[]> {
+		const central = await this._peerChatStore.tryRead(session, false);
+		if (central !== undefined) {
+			return central;
+		}
+		const cached = await this._readCachedChatCatalog(session);
+		const cachedPeers = cached?.filter(chat => chat.kind === 'peer');
+		const legacy = await agent.listLegacyChatBackings?.(session) ?? [];
+		const providerData = new Map(legacy.map(chat => [chat.uri.toString(), chat.providerData]));
+		const entries: IPersistedPeerChat[] = cachedPeers?.length
+			? cachedPeers.map(chat => {
+				const matchingProviderData = providerData.get(chat.uri);
+				return {
+					uri: chat.uri,
+					...(matchingProviderData !== undefined ? { providerData: matchingProviderData } : {}),
+					...(chat.origin !== undefined ? { origin: chat.origin } : {}),
+					...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
+				};
+			})
+			: legacy.map(chat => ({
+				uri: chat.uri.toString(),
+				...(chat.providerData !== undefined ? { providerData: chat.providerData } : {}),
+			}));
+		if (entries.length > 0) {
+			await this._peerChatStore.replaceForMigration(session, entries);
+		}
+		return entries;
 	}
 
 	private async _isExternalProviderChat(session: URI): Promise<boolean> {
@@ -5185,7 +5266,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _synchronizePassiveSessionMetadata(session: URI, key: string, flag: SessionStatus, set: boolean): Promise<void> {
 		let requestUnavailable = false;
 		try {
-			const result = await this._catalogSyncService.synchronizeWithFactory(session, async () => {
+			const result = await this._catalogSyncService.synchronizeWithFactory(session, async database => {
 				const sessionKey = session.toString();
 				const catalog = await this._orchestratorDatabase.getSessionV2(sessionKey);
 				let request: IAgentHostCatalogSyncRequest | undefined;
@@ -5204,7 +5285,7 @@ export class AgentService extends Disposable implements IAgentService {
 				if (!request) {
 					const registered = await this._sessionRegistry.get(session, entry => this._migrateRegisteredSession(entry));
 					if (registered) {
-						const source = await this._resolveCatalogReconciliationSource(registered);
+						const source = await this._resolveCatalogReconciliationSource(registered, database);
 						if (source.status === 'available') {
 							request = source.request;
 						}
@@ -6526,11 +6607,12 @@ export class AgentService extends Disposable implements IAgentService {
 			kind: chat.kind,
 			title: chat.summary,
 			origin: fromCatalogChatOrigin(chat.origin),
+			inheritedTurnId: chat.inheritedTurnId,
 		}));
 	}
 
-	private async _readOrMigrateLegacyPeerChatCatalog(agent: IAgent, session: URI): Promise<IPersistedPeerChat[]> {
-		const persisted = await this._peerChatStore.reconcileLegacy(session);
+	private async _readOrMigrateLegacyPeerChatCatalog(agent: IAgent, session: URI, database?: AgentHostCatalogDatabaseReference): Promise<IPersistedPeerChat[]> {
+		const persisted = await this._peerChatStore.reconcileLegacy(session, database);
 		if (persisted !== undefined) {
 			return persisted;
 		}

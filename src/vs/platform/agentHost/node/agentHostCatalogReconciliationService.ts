@@ -8,9 +8,9 @@ import { CancellationToken, CancellationTokenSource } from '../../../base/common
 import { Disposable, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import type { ISessionCatalogSyncAcknowledgement, ISessionCatalogSyncPendingSnapshot, ISessionDataService } from '../common/sessionDataService.js';
+import type { ISessionCatalogSyncAcknowledgement, ISessionCatalogSyncPendingSnapshot } from '../common/sessionDataService.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
-import { AgentHostCatalogSyncResult, AgentHostCatalogSyncService, catalogLegacyMetadataMatches, IAgentHostCatalogSyncRequest, matchesAcknowledgedCatalogReceipt } from './agentHostCatalogSyncService.js';
+import { AgentHostCatalogDatabaseReference, AgentHostCatalogSyncResult, AgentHostCatalogSyncService, catalogLegacyMetadataMatches, IAgentHostCatalogSyncRequest, matchesAcknowledgedCatalogReceipt } from './agentHostCatalogSyncService.js';
 import type { AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Receipt } from './agentHostDatabase.js';
 import type { IRegisteredSession } from './agentSessionRegistry.js';
 import type { IAgentHostStorageService } from './agentHostStorageService.js';
@@ -28,11 +28,22 @@ function compareSessionKeys(first: string, second: string): number {
 	return first < second ? -1 : first > second ? 1 : 0;
 }
 
+function receiptsEqual(first: IAgentHostDatabaseSessionV2Receipt | undefined, second: IAgentHostDatabaseSessionV2Receipt | undefined): boolean {
+	return first?.sessionGeneration === second?.sessionGeneration
+		&& first?.sourceRevision === second?.sourceRevision
+		&& first?.payloadVersion === second?.payloadVersion
+		&& first?.payloadHash === second?.payloadHash
+		&& first?.payloadDirty === second?.payloadDirty;
+}
+
+class CatalogReconciliationSupersededError extends Error { }
+class CatalogReconciliationProviderUnavailableError extends Error { }
+
 export type AgentHostCatalogReconciliationOutcome =
 	| { readonly session: string; readonly status: 'skipped'; readonly reason: 'synchronized' }
 	| { readonly session: string; readonly status: 'succeeded'; readonly reason: 'pendingReplayed' | 'synchronized'; readonly sourceRevision: number }
 	| { readonly session: string; readonly status: 'pending'; readonly reason: AgentHostCatalogSyncPendingReason; readonly sourceRevision: number }
-	| { readonly session: string; readonly status: 'retry'; readonly reason: 'missingDatabase' | 'providerUnavailable' | 'missingCatalog' | 'staleIncarnation' | 'superseded' | 'tombstoned' | 'cancelled' }
+	| { readonly session: string; readonly status: 'retry'; readonly reason: 'providerUnavailable' | 'missingCatalog' | 'staleIncarnation' | 'superseded' | 'tombstoned' | 'cancelled' }
 	| { readonly session: string; readonly status: 'failed'; readonly reason: 'malformedPayload' | 'payloadMismatch' | 'centralApplyFailed' | 'acknowledgementSuperseded' | 'unexpected'; readonly error?: string };
 
 export interface IAgentHostCatalogReconciliationReport {
@@ -76,12 +87,11 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	private _periodic = false;
 
 	constructor(
-		private readonly _sessionDataService: ISessionDataService,
 		private readonly _catalogDatabase: IAgentHostDatabase,
 		private readonly _catalogSyncService: AgentHostCatalogSyncService,
 		private readonly _storageService: IAgentHostStorageService,
 		private readonly _listSessions: () => Promise<readonly IRegisteredSession[]>,
-		private readonly _resolveSource: (registered: IRegisteredSession) => Promise<AgentHostCatalogReconciliationSourceResult>,
+		private readonly _resolveSource: (registered: IRegisteredSession, database: AgentHostCatalogDatabaseReference | undefined) => Promise<AgentHostCatalogReconciliationSourceResult>,
 		private readonly _logService: ILogService,
 		options: IAgentHostCatalogReconciliationOptions = {},
 	) {
@@ -272,15 +282,46 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 			if (await this._catalogDatabase.isSessionTombstoned(sessionKey)) {
 				return { session: sessionKey, status: 'retry', reason: 'tombstoned' };
 			}
+			const observedDirty = receipt?.payloadDirty ?? await this._catalogDatabase.getSessionV2PayloadDirty(sessionKey);
 
-			const database = await this._sessionDataService.tryOpenDatabase(session);
-			if (!database) {
-				return { session: sessionKey, status: 'retry', reason: 'missingDatabase' };
-			}
-			try {
-				const replay = await this._catalogSyncService.runExclusive<AgentHostCatalogReconciliationOutcome | undefined>(session, async () => {
+			return await this._catalogSyncService.runMigrationExclusive(session, async (database, synchronize) => {
+				if (!database) {
+					let result: AgentHostCatalogSyncResult;
+					const validate = async (): Promise<void> => {
+						if (!receiptsEqual(receipt, await this._catalogDatabase.getSessionV2(sessionKey))
+							|| await this._catalogDatabase.getSessionV2PayloadDirty(sessionKey) !== observedDirty) {
+							throw new CatalogReconciliationSupersededError();
+						}
+					};
+					try {
+						await validate();
+						const sourceResult = await this._resolveSource(registered, database);
+						if (sourceResult.status === 'providerUnavailable') {
+							throw new CatalogReconciliationProviderUnavailableError();
+						}
+						await validate();
+						result = await synchronize(sourceResult.request, validate);
+					} catch (error) {
+						if (error instanceof CatalogReconciliationSupersededError) {
+							return { session: sessionKey, status: 'retry', reason: 'superseded' };
+						}
+						if (error instanceof CatalogReconciliationProviderUnavailableError) {
+							return { session: sessionKey, status: 'retry', reason: 'providerUnavailable' };
+						}
+						throw error;
+					}
+					if (result.status === 'pending') {
+						return { session: sessionKey, status: 'pending', reason: result.reason, sourceRevision: result.sourceRevision };
+					}
+					if (!await this._markPayloadClean(sessionKey, receipt, observedDirty)) {
+						return { session: sessionKey, status: 'retry', reason: 'superseded' };
+					}
+					return { session: sessionKey, status: 'succeeded', reason: 'synchronized', sourceRevision: result.sourceRevision };
+				}
+				const replay = await (async (): Promise<AgentHostCatalogReconciliationOutcome | undefined> => {
 					const latestReceipt = await this._catalogDatabase.getSessionV2(sessionKey);
-					if (receipt ? latestReceipt?.payloadDirty !== receipt.payloadDirty : latestReceipt !== undefined) {
+					if (!receiptsEqual(receipt, latestReceipt)
+						|| await this._catalogDatabase.getSessionV2PayloadDirty(sessionKey) !== observedDirty) {
 						return { session: sessionKey, status: 'retry', reason: 'superseded' };
 					}
 					const snapshot = await database.object.getCatalogSyncSnapshot();
@@ -307,7 +348,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 							} satisfies Extract<AgentHostCatalogReconciliationOutcome, { status: 'succeeded' }>
 							: await this._replayPending(session, current, acknowledgement => database.object.acknowledgeCatalogSyncSnapshot(acknowledgement), token);
 						if (outcome.status === 'succeeded') {
-							if (!await this._markPayloadClean(sessionKey, latestReceipt)) {
+							if (!await this._markPayloadClean(sessionKey, latestReceipt, observedDirty)) {
 								return { session: sessionKey, status: 'retry', reason: 'superseded' };
 							}
 							return outcome;
@@ -317,7 +358,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 						}
 					}
 					return undefined;
-				});
+				})();
 				if (replay) {
 					return replay;
 				}
@@ -325,7 +366,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 				if (token.isCancellationRequested) {
 					return { session: sessionKey, status: 'retry', reason: 'cancelled' };
 				}
-				const sourceResult = await this._resolveSource(registered);
+				const sourceResult = await this._resolveSource(registered, database);
 				if (sourceResult.status === 'providerUnavailable') {
 					return { session: sessionKey, status: 'retry', reason: 'providerUnavailable' };
 				}
@@ -334,9 +375,10 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 				}
 				const legacyMetadataMatches = await catalogLegacyMetadataMatches(database.object, sourceResult.request.legacyMetadata);
 				const expected = encodeAgentHostCatalogPayload(sourceResult.request.data);
-				return await this._catalogSyncService.runExclusive(session, async synchronize => {
+				return await (async (): Promise<AgentHostCatalogReconciliationOutcome> => {
 					const latestReceipt = await this._catalogDatabase.getSessionV2(sessionKey);
-					if (receipt ? latestReceipt?.payloadDirty !== receipt.payloadDirty : latestReceipt !== undefined) {
+					if (!receiptsEqual(receipt, latestReceipt)
+						|| await this._catalogDatabase.getSessionV2PayloadDirty(sessionKey) !== observedDirty) {
 						return { session: sessionKey, status: 'retry', reason: 'superseded' };
 					}
 					const currentSnapshot = await database.object.getCatalogSyncSnapshot();
@@ -350,7 +392,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 						&& currentSnapshot?.payloadHash === expected.value.payloadHash
 						&& matchesAcknowledgedCatalogReceipt(currentSnapshot, central)
 						&& this._isValidCentralPayload(central)) {
-						if (!await this._markPayloadClean(sessionKey, receipt)) {
+						if (!await this._markPayloadClean(sessionKey, receipt, observedDirty)) {
 							return { session: sessionKey, status: 'retry', reason: 'superseded' };
 						}
 						return { session: sessionKey, status: 'skipped', reason: 'synchronized' };
@@ -382,7 +424,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 						if (outcome.status !== 'succeeded') {
 							return outcome;
 						}
-						if (!await this._markPayloadClean(sessionKey, latestReceipt)) {
+						if (!await this._markPayloadClean(sessionKey, latestReceipt, observedDirty)) {
 							return { session: sessionKey, status: 'retry', reason: 'superseded' };
 						}
 						return { session: sessionKey, status: 'succeeded', reason: 'synchronized', sourceRevision: outcome.sourceRevision };
@@ -398,14 +440,12 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 					if (synchronized.status !== 'acknowledged') {
 						return { session: sessionKey, status: 'pending', reason: synchronized.reason, sourceRevision: synchronized.sourceRevision };
 					}
-					if (!await this._markPayloadClean(sessionKey, receipt)) {
+					if (!await this._markPayloadClean(sessionKey, receipt, observedDirty)) {
 						return { session: sessionKey, status: 'retry', reason: 'superseded' };
 					}
 					return { session: sessionKey, status: 'succeeded', reason: 'synchronized', sourceRevision: synchronized.sourceRevision };
-				});
-			} finally {
-				database.dispose();
-			}
+				})();
+			});
 		} catch (error) {
 			this._logService.warn(`[AgentHostCatalogReconciliation] Failed to reconcile ${sessionKey}`, error);
 			return { session: sessionKey, status: 'failed', reason: 'unexpected', error: error instanceof Error ? error.message : String(error) };
@@ -427,7 +467,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		snapshot: ISessionCatalogSyncPendingSnapshot,
 		acknowledge: (acknowledgement: ISessionCatalogSyncAcknowledgement) => Promise<boolean>,
 		token: CancellationToken,
-	): Promise<Extract<AgentHostCatalogReconciliationOutcome, { status: 'succeeded' | 'retry' | 'failed' }>> {
+	): Promise<Extract<AgentHostCatalogReconciliationOutcome, { status: 'succeeded' | 'pending' | 'retry' | 'failed' }>> {
 		const sessionKey = session.toString();
 		const decoded = decodeAgentHostCatalogPayload(snapshot.payload);
 		if (!decoded.ok || snapshot.projectionVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION) {
@@ -466,7 +506,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 				payload: snapshot.payload,
 			}, central?.sessionGeneration);
 		} catch (error) {
-			return { session: sessionKey, status: 'failed', reason: 'centralApplyFailed', error: error instanceof Error ? error.message : String(error) };
+			return { session: sessionKey, status: 'pending', reason: 'upsertFailed', sourceRevision: snapshot.sourceRevision };
 		}
 		if (applyResult !== 'applied' && applyResult !== 'replayed') {
 			return this._applyFailure(sessionKey, applyResult);
@@ -496,18 +536,15 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		return { session, status: 'failed', reason: 'centralApplyFailed', error: result };
 	}
 
-	private async _markPayloadClean(session: string, receipt: IAgentHostDatabaseSessionV2Receipt | undefined): Promise<boolean> {
-		const current = receipt ?? await this._catalogDatabase.getSessionV2(session);
+	private async _markPayloadClean(session: string, receipt: IAgentHostDatabaseSessionV2Receipt | undefined, expectedDirty = receipt?.payloadDirty): Promise<boolean> {
+		const current = await this._catalogDatabase.getSessionV2(session);
 		if (!current) {
 			return false;
 		}
-		if (!receipt) {
+		if (expectedDirty === undefined || expectedDirty === 0) {
 			return current.payloadDirty === 0;
 		}
-		if (current.payloadDirty === 0) {
-			return false;
-		}
-		return this._catalogDatabase.markSessionV2PayloadClean(session, current.payloadDirty);
+		return this._catalogDatabase.markSessionV2PayloadClean(session, expectedDirty);
 	}
 
 	private async _ensureInitialPayloadDirtyMark(): Promise<void> {

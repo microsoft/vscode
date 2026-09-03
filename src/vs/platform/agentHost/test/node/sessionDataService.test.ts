@@ -72,6 +72,26 @@ suite('SessionDataService', () => {
 		await service.deleteSessionData(session);
 	});
 
+	test('tryOpenDatabase returns undefined only for a missing database and propagates stat errors', async () => {
+		const session = AgentSession.uri('copilot', 'probe-test');
+		assert.strictEqual(await service.tryOpenDatabase(session), undefined);
+
+		const failingScheme = 'failing-session-data';
+		const failingFileService = disposables.add(new FileService(new NullLogService()));
+		class FailingStatProvider extends InMemoryFileSystemProvider {
+			override async stat(resource: URI) {
+				if (resource.path.endsWith('/session.db')) {
+					throw new Error('stat failed');
+				}
+				return super.stat(resource);
+			}
+		}
+		disposables.add(failingFileService.registerProvider(failingScheme, disposables.add(new FailingStatProvider())));
+		const failingService = new SessionDataService(URI.from({ scheme: failingScheme, path: '/userData' }), failingFileService, new NullLogService());
+
+		await assert.rejects(failingService.tryOpenDatabase(session), /stat failed/);
+	});
+
 	test('cleanupOrphanedData deletes orphans but keeps known sessions', async () => {
 		const baseDir = URI.joinPath(basePath, 'agentSessionData');
 		await fileService.createFolder(URI.joinPath(baseDir, 'keep-1'));
