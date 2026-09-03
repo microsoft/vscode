@@ -230,7 +230,7 @@
 	min-width: 22px;
 }
 
-.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .new-chat-status-icon-action .action-label {
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .new-chat-status-icon-action .action-label {
 	box-sizing: border-box;
 	display: flex;
 	align-items: center;
@@ -241,7 +241,7 @@
 	padding: 0;
 }
 
-.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .new-chat-status-icon-action .action-label.codicon {
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .new-chat-status-icon-action .action-label.codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 

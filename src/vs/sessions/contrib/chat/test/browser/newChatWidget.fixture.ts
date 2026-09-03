@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { assert } from '../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -58,6 +59,7 @@ import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../bro
 
 import '../../../../browser/media/style.css';
 import '../../../../browser/parts/media/sessionView.css';
+import '../../../../browser/parts/mobile/mobileChatShell.css';
 
 const DEFAULT_WIDTH = 800;
 const DEFAULT_HEIGHT = 560;
@@ -80,6 +82,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly withAttachedContext?: boolean;
 	readonly withAutoModel?: boolean;
 	readonly primaryToolbarWidth?: number;
+	readonly phoneLayout?: boolean;
 }
 
 class AutoModelFixtureMenuService extends FixtureMenuService {
@@ -144,6 +147,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		withAttachedContext = false,
 		withAutoModel = false,
 		primaryToolbarWidth,
+		phoneLayout = false,
 	} = options;
 	const feedbackItems: readonly IAgentFeedback[] = Array.from({ length: commentCount }, (_, index) => ({
 		id: `feedback-${index}`,
@@ -315,6 +319,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	container.style.width = `${width}px`;
 	container.style.height = `${height}px`;
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
+	container.classList.toggle('phone-layout', phoneLayout);
 
 	const sessionView = dom.append(container, dom.$('.session-view.is-active'));
 	sessionView.style.width = '100%';
@@ -332,6 +337,31 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	view.layout(width, height, 0, 0);
 	const targetWindow = dom.getWindow(container);
 	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+	await nextFrame();
+	await nextFrame();
+	if (phoneLayout && withAttachedContext) {
+		const content = view.element.querySelector<HTMLElement>('.new-chat-widget-content');
+		assert(!!content);
+		assert(content.style.top === '');
+	}
+	if (withAutoModel) {
+		const statusItems = [...view.element.querySelectorAll<HTMLElement>('.new-chat-status-toolbar .action-item')];
+		const iconItems = statusItems.filter(item => item.classList.contains('new-chat-status-icon-action'));
+		assert(iconItems.length === 3);
+		assert(iconItems.some(item => item.querySelector('.codicon-rocket-compact')));
+		assert(iconItems.some(item => item.querySelector('.codicon-warning-compact')));
+
+		const textLabel = statusItems
+			.filter(item => !item.classList.contains('new-chat-status-icon-action'))
+			.map(item => item.querySelector<HTMLElement>('.action-label'))
+			.find(label => label?.textContent === 'Status');
+		assert(!!textLabel);
+		assert(textLabel.scrollWidth <= textLabel.clientWidth);
+
+		if (phoneLayout) {
+			assert(iconItems.every(item => (item.querySelector<HTMLElement>('.action-label')?.getBoundingClientRect().width ?? 0) > 22));
+		}
+	}
 	if (primaryToolbarWidth !== undefined) {
 		const toolbar = view.element.querySelector<HTMLElement>('.sessions-chat-config-toolbar');
 		if (!toolbar) {
@@ -395,6 +425,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['The new-session workspace row shows Copilot, microsoft/vscode with a count badge showing 2, and Issue/PR with a count badge showing 1. The composer attachment row shows removable docs, microsoft/typescript, and microsoft/vscode#333053 context pills with compact dismiss icons. The input expands upward for the attachment row while its bottom controls remain aligned with the default new-session composer. The folder icon is fully visible without cropping, and the GitHub issue pill includes an issue icon.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withAttachedContext: true }),
+	}),
+	NewSessionPhoneAttachedContext: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The phone new-session composer shows attachment pills without shifting the full-height content surface upward or leaving a gap below it. Status icons remain touch-friendly pills rather than inheriting the desktop 22-pixel square width.'],
+		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withAttachedContext: true, withAutoModel: true, phoneLayout: true }),
 	}),
 	NewSessionRemoteWorkspace: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },

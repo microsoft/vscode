@@ -95,6 +95,7 @@ import { IChatInputNoticeHubService } from '../../../../workbench/contrib/chat/b
 import { ChatInputPickerResponsiveLayout, IChatInputPickerResponsiveLayoutItem } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, refreshChatInputStack, setChatInputStackInputFocused, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
+import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { ModelPicker, ModelPickerActionViewItem } from './modelPicker.js';
 import { ISessionModelSelection, SessionModelSelection } from './sessionModelSelection.js';
@@ -281,7 +282,7 @@ class NewChatInputStatusActionViewItem extends MenuEntryActionViewItem {
 
 	protected override updateClass(): void {
 		if (this._compactCodiconClass) {
-			this.element?.classList.remove(this._compactCodiconClass);
+			this.label?.classList.remove(this._compactCodiconClass);
 			this._compactCodiconClass = undefined;
 		}
 		super.updateClass();
@@ -289,9 +290,9 @@ class NewChatInputStatusActionViewItem extends MenuEntryActionViewItem {
 	}
 
 	private _updateIconPresentation(): void {
-		const rendersIcon = !!this.element && (this.element.classList.contains('codicon') || this.element.classList.contains('icon'));
+		const rendersIcon = !!this.label && (this.label.classList.contains('codicon') || this.label.classList.contains('icon'));
 		this._container?.classList.toggle('new-chat-status-icon-action', rendersIcon);
-		if (rendersIcon && this._container && this.element?.classList.contains('codicon')) {
+		if (rendersIcon && this._container && this.label?.classList.contains('codicon')) {
 			const originalCodiconClass = this._getCodiconClass();
 			compactCodiconsIn(this._container);
 			const compactCodiconClass = this._getCodiconClass();
@@ -302,8 +303,8 @@ class NewChatInputStatusActionViewItem extends MenuEntryActionViewItem {
 	}
 
 	private _getCodiconClass(): string | undefined {
-		return this.element
-			? [...this.element.classList].find(className => className.startsWith('codicon-') && !className.startsWith('codicon-modifier-'))
+		return this.label
+			? [...this.label.classList].find(className => className.startsWith('codicon-') && !className.startsWith('codicon-modifier-'))
 			: undefined;
 	}
 
@@ -499,6 +500,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private readonly _compactModelPicker = observableValue(this, false);
 	private _primaryPickerResponsiveLayout: ChatInputPickerResponsiveLayout | undefined;
 	private _secondaryPickerResponsiveLayout: ChatInputPickerResponsiveLayout | undefined;
+	private _updateAttachmentOffset: (() => void) | undefined;
 
 	// Input state
 	private _draftState: IDraftState | undefined = {
@@ -721,15 +723,23 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const attachedContextContainer = dom.append(attachRow, dom.$('.sessions-chat-attached-context'));
 		this._contextAttachments.renderAttachedContext(attachedContextContainer);
 		const updateAttachmentOffset = () => {
+			if (isPhoneLayout(this.layoutService)) {
+				parent.style.removeProperty('top');
+				return;
+			}
 			parent.style.top = `${-attachRow.getBoundingClientRect().height / 2}px`;
 		};
+		this._updateAttachmentOffset = updateAttachmentOffset;
 		const attachmentResizeObserver = this._register(new dom.DisposableResizeObserver(
 			'NewChatInputWidget.attachments',
 			updateAttachmentOffset,
 			dom.getWindow(attachRow),
 		));
 		this._register(attachmentResizeObserver.observe(attachRow));
-		this._register(toDisposable(() => parent.style.removeProperty('top')));
+		this._register(toDisposable(() => {
+			this._updateAttachmentOffset = undefined;
+			parent.style.removeProperty('top');
+		}));
 		this._register(this.instantiationService.createInstance(ChatDragAndDrop, () => undefined, {
 			get attachments() { return contextAttachments.attachments; },
 			addAttachments: (entries: readonly IChatRequestVariableEntry[]) => contextAttachments.addAttachments(...entries),
@@ -1679,6 +1689,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	layout(_height: number, _width: number): void {
+		this._updateAttachmentOffset?.();
 		this._editor?.layout();
 		this._primaryPickerResponsiveLayout?.layout();
 		this._secondaryPickerResponsiveLayout?.layout();
