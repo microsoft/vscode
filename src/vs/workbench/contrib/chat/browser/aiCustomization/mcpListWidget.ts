@@ -13,6 +13,7 @@ import { IListRenderer } from '../../../../../base/browser/ui/list/list.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { Switch } from '../../../../../base/browser/ui/toggle/switch.js';
 import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -1694,10 +1695,9 @@ export class McpListWidget extends Disposable {
 	private appendInstalledServerToggle(parent: HTMLElement, getEntry: () => IMcpInstalledEntry): { readonly element: HTMLButtonElement; update(): void } {
 		const label = getMcpEntryLabel(getEntry());
 		let enabled = this.isInstalledEntryEnabled(getEntry());
-		const switchElement = DOM.append(parent, $('button.plugin-enable-switch')) as HTMLButtonElement;
-		switchElement.type = 'button';
-		switchElement.setAttribute('role', 'switch');
-		switchElement.setAttribute('aria-checked', String(enabled));
+		const toggle = this.cardDisposables.add(new Switch({ ariaLabel: label, checked: enabled }));
+		const switchElement = toggle.domNode;
+		DOM.append(parent, switchElement);
 		const updateLabel = () => {
 			const blockedByPlugin = getMcpDisabledReason(getEntry())?.source === 'plugin';
 			const toggleLabel = enabled
@@ -1706,16 +1706,11 @@ export class McpListWidget extends Disposable {
 			const accessibleLabel = blockedByPlugin
 				? localize('mcpServerManagedByPluginAria', "{0} is disabled by its plugin", label)
 				: toggleLabel;
-			switchElement.setAttribute('aria-label', accessibleLabel);
-			switchElement.title = accessibleLabel;
+			toggle.setAriaLabel(accessibleLabel);
 		};
-		switchElement.classList.toggle('checked', enabled);
 		updateLabel();
-		DOM.append(switchElement, $('.plugin-enable-switch-thumb'));
-		this.cardDisposables.add(DOM.addDisposableListener(switchElement, 'click', () => {
-			enabled = !enabled;
-			switchElement.classList.toggle('checked', enabled);
-			switchElement.setAttribute('aria-checked', String(enabled));
+		this.cardDisposables.add(toggle.onChange(checked => {
+			enabled = checked;
 			updateLabel();
 			this.setInstalledEntryEnabled(getEntry(), enabled);
 			status(enabled
@@ -1724,9 +1719,8 @@ export class McpListWidget extends Disposable {
 		}));
 		const update = () => {
 			enabled = this.isInstalledEntryEnabled(getEntry());
-			switchElement.disabled = getMcpDisabledReason(getEntry())?.source === 'plugin';
-			switchElement.classList.toggle('checked', enabled);
-			switchElement.setAttribute('aria-checked', String(enabled));
+			toggle.disabled = getMcpDisabledReason(getEntry())?.source === 'plugin';
+			toggle.checked = enabled;
 			updateLabel();
 		};
 		update();
