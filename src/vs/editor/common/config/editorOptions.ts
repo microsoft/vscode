@@ -6407,7 +6407,7 @@ export const EditorOptions = {
 	)),
 	forceFullwidthCharacterWidth: register(new EditorBooleanOption(
 		EditorOption.forceFullwidthCharacterWidth, 'forceFullwidthCharacterWidth', false,
-		{ markdownDescription: nls.localize('forceFullwidthCharacterWidth', "Controls whether full-width characters are rendered centered in exactly two character cells. Full-width grapheme clusters and right-to-left lines are left unchanged. Affected lines use simple wrapping even when `#editor.wrappingStrategy#` is set to `advanced`. Only applies when a monospace font is used with `#editor.fontLigatures#` disabled.") }
+		{ markdownDescription: nls.localize('forceFullwidthCharacterWidth', "Controls whether full-width characters are rendered centered in exactly two character cells. Full-width characters in multi-code-point grapheme clusters and right-to-left lines are left unchanged. Affected lines use simple wrapping even when `#editor.wrappingStrategy#` is set to `advanced`. Only applies when a monospace font is used with `#editor.fontLigatures#` disabled.") }
 	)),
 	glyphMargin: register(new EditorBooleanOption(
 		EditorOption.glyphMargin, 'glyphMargin', true,
