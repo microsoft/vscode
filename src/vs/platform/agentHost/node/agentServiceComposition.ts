@@ -16,6 +16,7 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
+import { AgentHostExternalSessionsMode } from '../common/agentHostSchema.js';
 import type { IAgent } from '../common/agent.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -41,6 +42,8 @@ import { type IAgentServiceFoundation } from './agentServiceFoundation.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { ISessionWorkspaceConversionService, SessionWorkspaceConversionService } from './chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { IAgentHostTurnTracker } from './agentHostTurnTracker.js';
+import { AgentHostSessionLifecycle } from './agentHostSessionLifecycle.js';
+import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
 
 export interface IAgentServiceComposition {
 	readonly agentService: AgentService;
@@ -184,6 +187,17 @@ export function createAgentServiceComposition(
 			automationService,
 		};
 		agentService = instantiationService.createInstance(AgentService, core, collaborators, options);
+		owned.add(new AgentHostSessionLifecycle(
+			{
+				listSessions: () => agentService!.listSessions(AgentHostExternalSessionsMode.None),
+				restoreSession: session => agentService!.restoreSession(session),
+			},
+			configurationService,
+			stateManager,
+			accessor.get(IAgentHostPullRequestStatusService),
+			providerService,
+			logService,
+		));
 		for (const disposable of additionalDisposables) {
 			owned.add(disposable);
 		}

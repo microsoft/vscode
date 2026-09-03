@@ -54,14 +54,14 @@ export const IAgentHostPullRequestStatusService = createDecorator<IAgentHostPull
 
 /**
  * Tracks the live GitHub state of the pull request belonging to each session a
- * client is currently watching.
+ * client is currently watching or the lifecycle service is refreshing.
  *
  * A pull request subscription costs GitHub API budget, so the watcher is scoped
  * to sessions that have at least one changeset subscriber — in practice the
- * session whose changes the user has open. It normally subscribes only to the
- * `core` and `mergeability` fragments. While Agent Merge is enabled it adds
- * the required-check and review fragments already needed by Agent Merge so the
- * host can advertise the correct draft pull request operation.
+ * session whose changes the user has open — or a short-lived lifecycle refresh.
+ * Lifecycle refreshes subscribe only to `core`. Visible sessions normally add
+ * `mergeability`; while Agent Merge is enabled they also add the required-check
+ * and review fragments needed to advertise the correct pull request operation.
  */
 export interface IAgentHostPullRequestStatusService extends IDisposable {
 	readonly _serviceBrand: undefined;
@@ -86,6 +86,12 @@ export interface IAgentHostPullRequestStatusService extends IDisposable {
 	 * without waiting for the next poll.
 	 */
 	refresh(sessionKey: string): Promise<void>;
+
+	/**
+	 * Resolves an authoritative pull request status for a background lifecycle
+	 * check without requiring a client changeset subscription.
+	 */
+	resolveForLifecycle(sessionKey: string): Promise<IAgentHostPullRequestStatus | undefined>;
 }
 
 interface IWatch extends IDisposable {
@@ -107,6 +113,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 	private readonly _watches = new Map<string, IWatch>();
 	private readonly _pendingSyncs = new Map<string, Promise<void>>();
 	private readonly _staleSyncs = new Set<string>();
+	private readonly _lifecycleWatchCounts = new Map<string, number>();
 	private readonly _abortController = new AbortController();
 
 	private readonly _onDidChangePullRequestStatus = this._register(new Emitter<string>());
@@ -198,6 +205,45 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 			await watch.subscription.refresh(undefined, undefined, { authoritative: true });
 		} catch (error) {
 			this._logService.warn(`[AgentHostPullRequestStatusService] Refresh failed: session=${sessionKey}, pr=${describeRef(watch.ref)}, error=${error}`);
+		}
+	}
+
+	async resolveForLifecycle(sessionKey: string): Promise<IAgentHostPullRequestStatus | undefined> {
+		this._lifecycleWatchCounts.set(sessionKey, (this._lifecycleWatchCounts.get(sessionKey) ?? 0) + 1);
+		this._sync(sessionKey);
+		try {
+			await this._waitForSync(sessionKey);
+			const watch = this._watches.get(sessionKey);
+			if (!watch) {
+				return undefined;
+			}
+			try {
+				await watch.subscription.refresh('core', undefined, { authoritative: true });
+			} catch (error) {
+				this._logService.warn(`[AgentHostPullRequestStatusService] Lifecycle refresh failed: session=${sessionKey}, pr=${describeRef(watch.ref)}, error=${error}`);
+				return undefined;
+			}
+			if (this._watches.get(sessionKey) !== watch) {
+				return undefined;
+			}
+			watch.awaitingAuthoritativeRefresh = false;
+			this._updateStatus(sessionKey, watch, watch.subscription.resource.snapshot.get());
+			return watch.status;
+		} finally {
+			const remaining = (this._lifecycleWatchCounts.get(sessionKey) ?? 1) - 1;
+			if (remaining > 0) {
+				this._lifecycleWatchCounts.set(sessionKey, remaining);
+			} else {
+				this._lifecycleWatchCounts.delete(sessionKey);
+			}
+			this._sync(sessionKey);
+		}
+	}
+
+	private async _waitForSync(sessionKey: string): Promise<void> {
+		let pending: Promise<void> | undefined;
+		while ((pending = this._pendingSyncs.get(sessionKey)) !== undefined) {
+			await pending;
 		}
 	}
 
@@ -308,19 +354,20 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 			}
 			this._updateStatus(sessionKey, watch, snapshot);
 		}));
-		if (watch.awaitingAuthoritativeRefresh) {
+		if (watch.awaitingAuthoritativeRefresh && !this._lifecycleWatchCounts.has(sessionKey)) {
 			void this._refreshRecreatedMergedWatch(sessionKey, watch);
 		}
 		this._logService.debug(`[AgentHostPullRequestStatusService] Watching pull request: session=${sessionKey}, pr=${describeRef(ref)}`);
 	}
 
 	private _getSubscriptionOptions(sessionKey: string): PullRequestSubscriptionOptions {
+		const visible = this._changesetSubscriptions.getSessionSubscriptions(sessionKey).size > 0;
 		const agentMergeEnabled = readAgentMergeSessionState(this._stateManager.getSessionState(sessionKey)?.config?.values)?.enabled === true;
 		return {
-			priority: 'visible',
+			priority: visible ? 'visible' : 'background',
 			core: true,
-			mergeability: true,
-			...(agentMergeEnabled ? {
+			...(visible ? { mergeability: true } : {}),
+			...(visible && agentMergeEnabled ? {
 				conversation: {
 					topLevelComments: true,
 					submittedReviews: true,
@@ -367,7 +414,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		if (isSessionStatusArchived(state.status)) {
 			return { kind: 'skip', reason: 'session is archived' };
 		}
-		if (this._changesetSubscriptions.getSessionSubscriptions(sessionKey).size === 0) {
+		if (this._changesetSubscriptions.getSessionSubscriptions(sessionKey).size === 0 && !this._lifecycleWatchCounts.has(sessionKey)) {
 			return { kind: 'skip', reason: 'no client is subscribed to the session changes' };
 		}
 		const gitHubState = readSessionGitHubState(state._meta);
