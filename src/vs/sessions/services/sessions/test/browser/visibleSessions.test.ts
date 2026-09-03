@@ -1364,6 +1364,22 @@ suite('VisibleSession - side chat tabs', () => {
 		});
 	});
 
+	test('transient close does not replace the last user-closed chat', () => {
+		const chats = [makeChat('main'), makeChat('user-closed'), makeChat('transient', ChatOriginKind.SideChat)];
+		const { visible } = createSession(chats);
+
+		visible.closeChat(chats[1]);
+		visible.closeChat(chats[2], true);
+
+		assert.deepStrictEqual({
+			closed: visible.closedChats.get().map(c => c.title.get()),
+			lastClosed: visible.lastClosedChat?.title.get(),
+		}, {
+			closed: ['user-closed', 'transient'],
+			lastClosed: 'user-closed',
+		});
+	});
+
 	test('the active-chat fallback can select a side chat like any other peer chat', () => {
 		const main = makeChat('main');
 		const second = makeChat('second');

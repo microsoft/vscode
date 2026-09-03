@@ -431,7 +431,7 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 			return;
 		}
 
-		const widget = this._chatWidgetService.lastFocusedWidget;
+		const widget = this._chatWidgetService.lastFocusedChatSurface;
 		const sessionResource = widget?.viewModel?.sessionResource;
 		const resourceSessionType = sessionResource ? getChatSessionType(sessionResource) : undefined;
 		const preconditionMet = widget?.scopedContextKeyService.contextMatchesRules(OPEN_AGENTS_WINDOW_PRECONDITION) ?? false;

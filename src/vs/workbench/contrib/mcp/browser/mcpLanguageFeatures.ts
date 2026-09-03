@@ -84,7 +84,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 		}));
 		const focusedWidgetViewModelListener = this._register(new MutableDisposable());
 		const updateFocusedWidgetViewModelListener = () => {
-			focusedWidgetViewModelListener.value = this._chatWidgetService.lastFocusedWidget?.onDidChangeViewModel(refreshCodeLens);
+			focusedWidgetViewModelListener.value = this._chatWidgetService.lastFocusedChatSurface?.onDidChangeViewModel(refreshCodeLens);
 			refreshCodeLens();
 		};
 		const connectionStateListeners = this._register(new MutableDisposable<DisposableStore>());
@@ -231,7 +231,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 			return lensList;
 		}
 
-		const agentHostSession = getActiveAgentHostMcpSessionResource(this._chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource);
+		const agentHostSession = getActiveAgentHostMcpSessionResource(this._chatWidgetService.lastFocusedChatSurface?.viewModel?.sessionResource);
 		if (agentHostSession) {
 			const mcpServers = this._agentHostCustomizationService.getMcpServers(agentHostSession);
 			const otherRunningCounts = this._getOtherRunningAgentHostMcpServerCounts(agentHostSession);

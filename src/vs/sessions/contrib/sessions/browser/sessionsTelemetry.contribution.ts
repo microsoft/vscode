@@ -82,7 +82,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		// Buffered typing would otherwise be lost when the window goes away.
 		this._register(this._storageService.onWillSaveState(() => this._typedCharactersTracker.flush()));
 
-		this._register(this._sessionsManagementService.onWillSendRequest(session => {
+		this._register(this._sessionsManagementService.onWillSendRequest(({ session }) => {
 			// Kick off the workspace file-count fetch now so it has time to
 			// resolve while the provider sends the request. The result is
 			// picked up under the (possibly updated) session id when
@@ -93,7 +93,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		this._register(this._sessionsManagementService.onDidArchiveSession(session => this._logSessionArchived(session)));
 		this._register(this._sessionsManagementService.onDidUnarchiveSession(session => this._logSessionUnarchived(session)));
 		this._register(this._sessionsManagementService.onDidDeleteSession(session => this._logSessionDeleted(session)));
-		this._register(this._sessionsManagementService.onDidDeleteChat(session => this._logChatDeleted(session)));
+		this._register(this._sessionsManagementService.onDidDeleteChat(({ session }) => this._logChatDeleted(session)));
 		this._register(this._sessionsManagementService.onDidRenameChat(session => this._logChatRenamed(session)));
 		this._register(this._sessionsManagementService.onDidRenameSession(session => this._logSessionRenamed(session)));
 		this._register(this._sessionsService.onDidToggleSessionStickiness(e => this._logSessionStickinessToggled(e.session, e.sticky)));

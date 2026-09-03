@@ -80,9 +80,8 @@ export interface IOpenNewSessionResult {
 /** Options for {@link ISessionsService.closeChat}. */
 export interface ICloseChatOptions {
 	/**
-	 * Do not remember the chat as the most recently closed item. Used by batch
-	 * closes (e.g. "Close All Chats"), where remembering just the final chat of
-	 * the batch would make one arbitrary member of it reopenable.
+	 * Do not change which item is reopened by the reopen-last-closed action,
+	 * such as for batch or transient closes.
 	 */
 	readonly skipHistory?: boolean;
 }
@@ -209,7 +208,7 @@ export interface ISessionsService {
 	 * Close a chat from the session view. The chat is hidden from the tab strip
 	 * and can be reopened from the session header's chats dropdown.
 	 */
-	closeChat(session: IActiveSession, chat: IChat, options?: ICloseChatOptions): Promise<void>;
+	closeChat(session: ISession, chat: IChat, options?: ICloseChatOptions): Promise<void>;
 
 	/**
 	 * Reopen the single most recently closed chat or session and focus it.
@@ -368,6 +367,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	/** The in-flight foreground send's "keep newest chat active" follow. */
 	private readonly _sendFollow = this._register(new MutableDisposable<DisposableStore>());
+	private _sendFollowRequestId: number | undefined;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -479,8 +479,17 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 		// While a foreground send materialises new chats, keep the newest chat
 		// active in the visible slot so the user sees the chat being sent.
-		this._register(this.sessionsManagementService.onWillSendRequest(session => this._startSendFollow(session)));
-		this._register(this.sessionsManagementService.onDidSendRequest(() => this._sendFollow.clear()));
+		this._register(this.sessionsManagementService.onWillSendRequest(({ requestId, session, options }) => {
+			if (!options.preserveActiveChat) {
+				this._startSendFollow(session, requestId);
+			}
+		}));
+		this._register(this.sessionsManagementService.onDidEndSendRequest(({ requestId }) => {
+			if (requestId === this._sendFollowRequestId) {
+				this._sendFollowRequestId = undefined;
+				this._sendFollow.clear();
+			}
+		}));
 
 		// Drive the part: reconcile the grid and move focus into the active
 		// session whenever the visible sessions or the active session change.
@@ -646,7 +655,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 	}
 
-	private _startSendFollow(session: ISession): void {
+	private _startSendFollow(session: ISession, requestId: number): void {
 		const store = new DisposableStore();
 		let followId = session.sessionId;
 		// A foreground send can replace the session id (draft graduating into a
@@ -666,6 +675,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				}
 			}
 		}));
+		this._sendFollowRequestId = requestId;
 		this._sendFollow.value = store;
 	}
 
@@ -810,10 +820,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this.logService.trace(`[SessionsView] openChat done total=${Date.now() - startTime}ms uri=${chatUri.toString()}`);
 	}
 
-	async closeChat(session: IActiveSession, chat: IChat, options?: ICloseChatOptions): Promise<void> {
+	async closeChat(session: ISession, chat: IChat, options?: ICloseChatOptions): Promise<void> {
 		// Closing hides the chat from the tab strip; it stays reopenable from the
 		// session header's chats dropdown.
-		this._visibility.closeChat(session, chat);
+		this._visibility.closeChat(session, chat, options?.skipHistory);
 		this._setChatClosedState(session, chat, true);
 		if (!options?.skipHistory) {
 			this._closedItems.recordClosedChat(session, chat.resource);

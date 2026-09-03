@@ -130,7 +130,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		this._activeChat.set(chat, undefined);
 	}
 
-	closeChat(chat: IChat): void {
+	closeChat(chat: IChat, skipHistory = false): void {
 		const chatUri = chat.resource.toString();
 		// The main chat represents the session itself and is never closed.
 		if (chatUri === this._session.mainChat.get().resource.toString()) {
@@ -160,7 +160,9 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		}
 		const next = new Set(closed);
 		next.add(chatUri);
-		this._closedChatOrder.push(chat);
+		if (!skipHistory) {
+			this._closedChatOrder.push(chat);
+		}
 		transaction(tx => {
 			this._closedChatUris.set(next, tx);
 			// If the closed chat was active, fall back to another visible tab.
@@ -751,11 +753,11 @@ export class VisibleSessions extends Disposable {
 	}
 
 	/**
-	 * Close (hide from the tab strip) the given chat in the session's wrapper.
+	 * Close the chat; `skipHistory` keeps it out of the reopen-last-closed order.
 	 * No-op if the session is not currently tracked in the visibility model.
 	 */
-	closeChat(session: ISession, chat: IChat): void {
-		this._wrappers.get(session.sessionId)?.closeChat(chat);
+	closeChat(session: ISession, chat: IChat, skipHistory = false): void {
+		this._wrappers.get(session.sessionId)?.closeChat(chat, skipHistory);
 	}
 
 	/**

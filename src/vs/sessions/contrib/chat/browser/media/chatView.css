@@ -236,13 +236,13 @@
 	width: 100%;
 	max-width: 950px;
 	margin: 0 auto;
-	display: inherit;
 	padding: 4px 32px;
 	box-sizing: border-box;
 }
 
 .agent-sessions-workbench .part.sessionspart .interactive-session .chat-edit-input-container .interactive-input-part,
 .agent-sessions-workbench .chat-editor-relative .interactive-session .chat-edit-input-container .interactive-input-part {
+	display: block;
 	padding: var(--vscode-spacing-size80) 0 var(--vscode-spacing-size40);
 }
 
