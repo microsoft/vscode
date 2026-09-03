@@ -26,9 +26,11 @@ suite('ImplicitContextAttachment', () => {
 		assert.deepStrictEqual({
 			refreshedHandle: isImplicitContextAlreadyAttached([attachment], uri, undefined, 2),
 			differentResource: isImplicitContextAlreadyAttached([attachment], URI.parse('pr://github/microsoft/vscode/196'), undefined, 2),
+			activeResource: isImplicitContextAlreadyAttached([attachment], uri, undefined, undefined),
 		}, {
 			refreshedHandle: true,
 			differentResource: false,
+			activeResource: false,
 		});
 	});
 });

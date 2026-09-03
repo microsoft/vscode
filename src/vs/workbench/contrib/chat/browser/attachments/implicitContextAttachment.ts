@@ -43,17 +43,19 @@ import { BrowserViewUri } from '../../../../../platform/browserView/common/brows
 
 export function isImplicitContextAlreadyAttached(attachments: readonly IChatRequestVariableEntry[], targetUri: URI | undefined, targetRange: IRange | undefined, targetHandle: number | undefined): boolean {
 	return attachments.some(attachment => {
+		if (targetHandle !== undefined) {
+			return isStringVariableEntry(attachment)
+				&& (attachment.handle === targetHandle || (targetUri !== undefined && isEqual(targetUri, attachment.uri)));
+		}
+		if (isStringVariableEntry(attachment)) {
+			return false;
+		}
 		const attachmentUri = URI.isUri(attachment.value)
 			? attachment.value
 			: isLocation(attachment.value)
 				? attachment.value.uri
-				: isStringVariableEntry(attachment)
-					? attachment.uri
-					: undefined;
+				: undefined;
 		const attachmentRange = isLocation(attachment.value) ? attachment.value.range : undefined;
-		if (targetHandle !== undefined && isStringVariableEntry(attachment) && attachment.handle === targetHandle) {
-			return true;
-		}
 		if (targetUri && attachmentUri && isEqual(targetUri, attachmentUri)) {
 			return targetRange && attachmentRange
 				? Range.equalsRange(targetRange, attachmentRange)
