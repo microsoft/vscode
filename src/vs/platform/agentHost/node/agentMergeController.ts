@@ -15,7 +15,7 @@ import { IGitHubService } from '../../github/common/githubService.js';
 import { PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../github/common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergeDisableReason, AgentMergeSessionState, AgentMergeTarget, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeMergePullRequestDemotedNotice, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState, resolveAgentMergeConfiguration, resolveMergeMethod, shouldStopMergingAfterAgentChanges } from '../common/agentMerge.js';
+import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergeConfigurationChangeScope, AgentMergeDisableReason, AgentMergeSessionOverrides, AgentMergeSessionState, AgentMergeTarget, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeMergePullRequestDemotedNotice, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState, resolveAgentMergeConfiguration, resolveMergeMethod, shouldStopMergingAfterAgentChanges } from '../common/agentMerge.js';
 import { buildAgentMergePrompt } from '../common/agentMergePrompt.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
@@ -48,6 +48,12 @@ export interface IAgentMergeControllerOptions {
 	 */
 	readonly postNotice: (session: string, kind: AgentSystemNotificationKind, content: string) => void;
 	readonly getAutonomousSessionConfig: (session: string, config: Readonly<Record<string, unknown>>) => Record<string, unknown> | undefined;
+}
+
+/** The configuration a session was last told about, and the overrides it was resolved from. */
+interface IAnnouncedAgentMergeConfiguration {
+	readonly configuration: AgentMergeConfiguration;
+	readonly overrides: AgentMergeSessionOverrides | undefined;
 }
 
 class AgentMergeRuntime extends Disposable {
@@ -103,7 +109,7 @@ export class AgentMergeController extends Disposable {
 	 * sync that {@link _disable} triggers cannot post a second, reasonless one.
 	 */
 	private readonly _monitoredSessions = new Set<string>();
-	private readonly _announcedConfigurations = new Map<string, AgentMergeConfiguration>();
+	private readonly _announcedConfigurations = new Map<string, IAnnouncedAgentMergeConfiguration>();
 
 	constructor(
 		private readonly _options: IAgentMergeControllerOptions,
@@ -304,7 +310,7 @@ export class AgentMergeController extends Disposable {
 				if (announced) {
 					this._postConfigurationChangedNotice(session, agentMerge);
 				} else {
-					this._announcedConfigurations.set(session, this._getConfiguration(agentMerge));
+					this._setAnnouncedConfiguration(session, agentMerge);
 				}
 			}
 		}
@@ -705,8 +711,17 @@ export class AgentMergeController extends Disposable {
 			return;
 		}
 		const configuration = this._getConfiguration(agentMerge);
-		this._announcedConfigurations.set(session, configuration);
+		this._setAnnouncedConfiguration(session, agentMerge, configuration);
 		this._postNotice(session, AgentSystemNotificationKind.AgentMergeEnabled, agentMergeEnabledNotice(agentMerge.target, configuration));
+	}
+
+	/**
+	 * Records what was last announced for a session, together with the session
+	 * overrides it was resolved from, so the next notice can name the scope of
+	 * the change that produced it.
+	 */
+	private _setAnnouncedConfiguration(session: string, agentMerge: AgentMergeSessionState, configuration = this._getConfiguration(agentMerge)): void {
+		this._announcedConfigurations.set(session, { configuration, overrides: agentMerge.overrides });
 	}
 
 	private _postConfigurationChangedNotice(session: string, current: AgentMergeSessionState | undefined): void {
@@ -716,14 +731,19 @@ export class AgentMergeController extends Disposable {
 			|| !this._runtimes.has(session)) {
 			return;
 		}
-		const previousConfiguration = this._announcedConfigurations.get(session);
+		const announced = this._announcedConfigurations.get(session);
 		const currentConfiguration = this._getConfiguration(current);
-		if (!previousConfiguration) {
-			this._announcedConfigurations.set(session, currentConfiguration);
+		if (!announced) {
+			this._setAnnouncedConfiguration(session, current, currentConfiguration);
 			return;
 		}
-		const notice = agentMergeConfigurationChangedNotice(previousConfiguration, currentConfiguration);
-		this._announcedConfigurations.set(session, currentConfiguration);
+		// The session's own overrides are what a per-session change writes, so
+		// anything else that moved the effective configuration came from the
+		// defaults. Comparing them here rather than at each call site also keeps
+		// changes that landed while the runtime was stopped correctly attributed.
+		const scope: AgentMergeConfigurationChangeScope = structuralEquals(announced.overrides, current.overrides) ? 'global' : 'session';
+		const notice = agentMergeConfigurationChangedNotice(announced.configuration, currentConfiguration, scope);
+		this._setAnnouncedConfiguration(session, current, currentConfiguration);
 		if (notice) {
 			this._postNotice(session, AgentSystemNotificationKind.AgentMergeConfigurationChanged, notice);
 		}
@@ -907,7 +927,7 @@ export class AgentMergeController extends Disposable {
 		this._logService.info(`[AgentMergeController] Turning automatic merge off because a repair turn changed the worktree: session=${session}, repairBaseCommit=${agentMerge.repairBaseCommit}, currentCommit=${currentCommit ?? 'unresolved'}`);
 		this._postNotice(session, AgentSystemNotificationKind.AgentMergeDisabled, agentMergeMergePullRequestDemotedNotice());
 		const overrides = { ...agentMerge.overrides, mergePullRequest: 'never' } as const;
-		this._announcedConfigurations.set(session, this._getConfiguration({ ...agentMerge, overrides }));
+		this._setAnnouncedConfiguration(session, { ...agentMerge, overrides });
 		this._configurationService.updateSessionConfig(session, {
 			[SessionConfigKey.AgentMerge]: {
 				enabled: agentMerge.enabled,
