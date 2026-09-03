@@ -12,10 +12,12 @@ import { DisposableStore, IDisposable, ImmortalReference, IReference, toDisposab
 import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IPromptChoice, IPromptOptions, Severity } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../browser/models/githubPullRequestCIModel.js';
@@ -227,6 +229,27 @@ suite('GitHubPullRequestPollingContribution', () => {
 	teardown(() => store.clear());
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('registers auto-archive as a preview setting with enterprise policy support', () => {
+		const property = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+			.getConfigurationProperties()[AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING];
+
+		assert.deepStrictEqual({
+			tags: property.tags,
+			policy: property.policy && {
+				name: property.policy.name,
+				category: property.policy.category,
+				minimumVersion: property.policy.minimumVersion,
+			},
+		}, {
+			tags: ['preview'],
+			policy: {
+				name: 'ChatAgentSessionsAutoArchiveMergedSessionsAfterDays',
+				category: 'InteractiveSession',
+				minimumVersion: '1.137',
+			},
+		});
+	});
 
 	test('starts polling existing and added pull request sessions', () => {
 		const existingSession = sessionsManagementService.addSession('existing', makeGitHubInfo(1));
