@@ -3348,6 +3348,94 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(provider.getSessionConfig(session.sessionId), undefined);
 	});
 
+	test('enables a preferred Dev Container after asynchronous availability resolves', async () => {
+		const availability = new DeferredPromise<boolean>();
+		const provider = createProvider(disposables, agentHost, undefined, {
+			devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+				override async isAvailable(): Promise<boolean> {
+					return availability.p;
+				}
+			}(),
+		});
+		const session = provider.createNewSession(
+			URI.file('/home/user/project'),
+			provider.sessionTypes[0].id,
+		);
+		provider.preferDevContainer(session.sessionId);
+		const beforeResolution = provider.isDevContainerEnabled(session.sessionId);
+		availability.complete(true);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			beforeResolution,
+			available: provider.isDevContainerAvailable(session.sessionId),
+			enabled: provider.isDevContainerEnabled(session.sessionId),
+		}, {
+			beforeResolution: false,
+			available: true,
+			enabled: true,
+		});
+	});
+
+	test('enables a preferred Dev Container immediately after availability resolved', async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+				override async isAvailable(): Promise<boolean> {
+					return true;
+				}
+			}(),
+		});
+		const session = provider.createNewSession(
+			URI.file('/home/user/project'),
+			provider.sessionTypes[0].id,
+		);
+		await timeout(0);
+		provider.preferDevContainer(session.sessionId);
+
+		assert.deepStrictEqual({
+			available: provider.isDevContainerAvailable(session.sessionId),
+			enabled: provider.isDevContainerEnabled(session.sessionId),
+		}, {
+			available: true,
+			enabled: true,
+		});
+	});
+
+	test('does not enable a preferred Dev Container when unavailable or canceled', async () => {
+		const unavailable = new DeferredPromise<boolean>();
+		const canceled = new DeferredPromise<boolean>();
+		let call = 0;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+				override async isAvailable(): Promise<boolean> {
+					return ++call === 1 ? unavailable.p : canceled.p;
+				}
+			}(),
+		});
+		const unavailableSession = provider.createNewSession(URI.file('/unavailable'), provider.sessionTypes[0].id);
+		provider.preferDevContainer(unavailableSession.sessionId);
+		unavailable.complete(false);
+		await timeout(0);
+
+		const canceledSession = provider.createNewSession(URI.file('/canceled'), provider.sessionTypes[0].id);
+		provider.preferDevContainer(canceledSession.sessionId);
+		provider.setDevContainerEnabled(canceledSession.sessionId, false);
+		canceled.complete(true);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			unavailableAvailable: provider.isDevContainerAvailable(unavailableSession.sessionId),
+			unavailableEnabled: provider.isDevContainerEnabled(unavailableSession.sessionId),
+			canceledAvailable: provider.isDevContainerAvailable(canceledSession.sessionId),
+			canceledEnabled: provider.isDevContainerEnabled(canceledSession.sessionId),
+		}, {
+			unavailableAvailable: false,
+			unavailableEnabled: false,
+			canceledAvailable: true,
+			canceledEnabled: false,
+		});
+	});
+
 	test('prepareNewSession does not start a Dev Container when workspace trust is denied', async () => {
 		let connectCalls = 0;
 		const devContainerAgentHostService = new class extends mock<IDevContainerAgentHostService>() {

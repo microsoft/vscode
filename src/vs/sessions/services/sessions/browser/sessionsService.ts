@@ -62,6 +62,8 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 	 * (restoring any pending draft).
 	 */
 	readonly folderUri?: URI;
+	/** Cancel startup session restoration so this new-session navigation wins. */
+	readonly cancelRestore?: boolean;
 }
 
 /**
@@ -1050,6 +1052,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	private async _openNewSession(options: IOpenNewSessionOptions | undefined, token: CancellationToken, intent: SessionNavigationIntent): Promise<IOpenNewSessionResult> {
+		if (options?.cancelRestore) {
+			this._cancelRestore();
+		}
 		const folderUri = options?.folderUri;
 		if (folderUri) {
 			// Single trust gate for every path that creates a concrete session for

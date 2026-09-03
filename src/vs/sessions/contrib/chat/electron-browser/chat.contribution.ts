@@ -8,6 +8,7 @@ import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IAgentHostByokLmHandler } from '../../../../platform/agentHost/common/agentHostByokLm.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { AgentHostByokLmHandler } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostByokLmHandler.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -27,6 +28,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
 import { ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry, SessionsWindowSessionStartTelemetry } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from '../browser/newSessionComposerService.js';
+import { openNewSessionWithDevContainerPreference, shouldPreferDevContainer } from '../browser/agentsWindowOpenIntent.js';
 
 class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 
@@ -46,16 +48,18 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		const handleSelectAgentsFolder = (_: unknown, ...args: unknown[]) => {
 			const folderUri = args[0] ? URI.revive(args[0] as UriComponents) : undefined;
 			const sessionResource = args[1] ? URI.revive(args[1] as UriComponents) : undefined;
 			const source = isAgentsWindowOpenSource(args[2]) ? args[2] : AgentsWindowOpenSource.Unknown;
+			const preferDevContainer = shouldPreferDevContainer(args[3], this.configurationService);
 			this.logService.info(`[AgentsHandoff] IPC received: folderUri=${folderUri?.toString() ?? '(none)'} sessionResource=${sessionResource?.toString() ?? '(none)'}`);
 			this._startWindowOpenTelemetry(source);
 
-			this._handleOpenIntentAndCaptureInitialState(folderUri, sessionResource)
+			this._handleOpenIntentAndCaptureInitialState(folderUri, sessionResource, preferDevContainer)
 				.catch(err => this.logService.error('[AgentsHandoff] handleOpenIntent failed', err));
 		};
 		ipcRenderer.on('vscode:selectAgentsFolder', handleSelectAgentsFolder);
@@ -87,9 +91,9 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		this._windowOpenTelemetry.value?.captureInitialViewState();
 	}
 
-	private async _handleOpenIntentAndCaptureInitialState(folderUri: URI | undefined, sessionResource: URI | undefined): Promise<void> {
+	private async _handleOpenIntentAndCaptureInitialState(folderUri: URI | undefined, sessionResource: URI | undefined, preferDevContainer: boolean): Promise<void> {
 		try {
-			await this.handleOpenIntent(folderUri, sessionResource);
+			await this.handleOpenIntent(folderUri, sessionResource, preferDevContainer);
 		} finally {
 			await this._captureInitialWindowViewState();
 		}
@@ -114,7 +118,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		};
 	}
 
-	private async handleOpenIntent(folderUri: URI | undefined, sessionResource: URI | undefined): Promise<void> {
+	private async handleOpenIntent(folderUri: URI | undefined, sessionResource: URI | undefined, preferDevContainer: boolean): Promise<void> {
 		// Opening an existing session establishes its own workspace context, so
 		// the folder selection is only needed for the folder-only handoff (no
 		// session to restore).
@@ -123,7 +127,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 			return;
 		}
 		if (folderUri) {
-			await this.selectFolder(folderUri);
+			await this.selectFolder(folderUri, preferDevContainer);
 		}
 	}
 
@@ -186,11 +190,11 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		});
 	}
 
-	private async selectFolder(folderUri: URI): Promise<void> {
+	private async selectFolder(folderUri: URI, preferDevContainer: boolean): Promise<void> {
 		// Wait for the welcome/setup flow to complete before selecting the folder
 		await this.sessionsSetUpService.whenWelcomeDone();
 
-		this.sessionsService.openNewSession();
+		await this.sessionsService.openNewSession({ cancelRestore: true });
 
 		// Tell the sessions list this folder is the open-window source folder
 		// so it ranks the matching folder section first. Get the view if it
@@ -198,29 +202,41 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		const sessionsView = this.viewsService.getViewWithId<SessionsView>(SessionsListViewId);
 		sessionsView?.sessionsControl?.setOpenWindowSourceFolder(folderUri);
 
-		if (this.tryResolveAndSelect(folderUri)) {
+		if (this.tryResolveAndSelect(folderUri, preferDevContainer)) {
 			return;
 		}
 
 		// Provider not registered yet — wait for it, but give up at Eventually phase
 		const disposable = this.sessionsProvidersService.onDidChangeProviders(() => {
-			if (this.tryResolveAndSelect(folderUri)) {
+			if (this.tryResolveAndSelect(folderUri, preferDevContainer)) {
 				disposable.dispose();
 			}
 		});
 		this.lifecycleService.when(LifecyclePhase.Eventually).then(() => disposable.dispose());
 	}
 
-	private tryResolveAndSelect(folderUri: URI): boolean {
+	private tryResolveAndSelect(folderUri: URI, preferDevContainer: boolean): boolean {
 		const resolved = this.sessionsManagementService.resolveWorkspace(folderUri);
 		if (!resolved) {
 			return false;
+		}
+		if (preferDevContainer) {
+			void this.openNewDevContainerSession(folderUri, resolved.providerId);
+			return true;
 		}
 		const activeSession = this.sessionsService.activeSession.get();
 		if (activeSession === undefined || activeSession.status.get() === SessionStatus.Untitled) {
 			this.sessionsPartService.getSessionView(activeSession?.sessionId)?.selectWorkspace(folderUri, resolved.providerId);
 		}
 		return true;
+	}
+
+	private async openNewDevContainerSession(folderUri: URI, providerId: string): Promise<void> {
+		try {
+			await openNewSessionWithDevContainerPreference(folderUri, providerId, this.sessionsService, this.sessionsProvidersService);
+		} catch (error) {
+			this.logService.error('[AgentsHandoff] Failed to select Dev Container workspace', error);
+		}
 	}
 }
 

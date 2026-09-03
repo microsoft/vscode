@@ -171,6 +171,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	isDevContainerEnabled?(sessionId: string): boolean;
 	/** Set whether this draft should run on a Dev Container Agent Host. */
 	setDevContainerEnabled?(sessionId: string, enabled: boolean): void;
+	/** Enable Dev Container execution once availability resolves for this draft. */
+	preferDevContainer?(sessionId: string): void;
 
 	// -- Dynamic Session Config --
 

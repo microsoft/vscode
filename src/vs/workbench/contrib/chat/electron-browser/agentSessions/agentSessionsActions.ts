@@ -7,6 +7,7 @@ import { $, append } from '../../../../../base/browser/dom.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IAction } from '../../../../../base/common/actions.js';
+import { decodeHex } from '../../../../../base/common/buffer.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -43,12 +44,34 @@ import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../..
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE = localize2('openWorkspaceInAgentsWindow', "Open in Agents");
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_CHAT_TITLE_COMMAND_ID = 'workbench.action.chat.openWorkspaceInAgentsWindow.chatTitle';
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE_BAR_COMMAND_ID = 'workbench.action.chat.openWorkspaceInAgentsWindow.titleBar';
+const DEV_CONTAINER_REMOTE_AUTHORITY_PREFIX = 'dev-container+';
+
+function getLocalAgentsFolderUri(folderUri: URI | undefined): URI | undefined {
+	if (folderUri?.scheme === Schemas.file) {
+		return folderUri;
+	}
+	if (folderUri?.scheme !== Schemas.vscodeRemote || !folderUri.authority.startsWith(DEV_CONTAINER_REMOTE_AUTHORITY_PREFIX)) {
+		return undefined;
+	}
+	try {
+		return URI.file(decodeHex(folderUri.authority.slice(DEV_CONTAINER_REMOTE_AUTHORITY_PREFIX.length)).toString());
+	} catch (error) {
+		if (error instanceof SyntaxError) {
+			return undefined;
+		}
+		throw error;
+	}
+}
 
 async function openCurrentWorkspaceInAgentsWindow(accessor: ServicesAccessor, source: AgentsWindowOpenSource): Promise<void> {
 	const nativeHostService = accessor.get(INativeHostService);
 	const workspaceContextService = accessor.get(IWorkspaceContextService);
-	const folderUri = workspaceContextService.getWorkspace().folders[0]?.uri;
-	await nativeHostService.openAgentsWindow({ folderUri: folderUri?.scheme === Schemas.file ? folderUri : undefined, source });
+	const folderUri = getLocalAgentsFolderUri(workspaceContextService.getWorkspace().folders[0]?.uri);
+	await nativeHostService.openAgentsWindow({
+		folderUri,
+		source,
+		preferDevContainer: true,
+	});
 }
 
 function isOpenChatSessionInAgentsWindowOptions(value: unknown): value is { readonly agentsWindowOpenSource: AgentsWindowOpenSource } {
@@ -153,7 +176,7 @@ export class OpenAgentsWindowAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, args?: { folderUri?: UriComponents; sessionResource?: UriComponents; source?: AgentsWindowOpenSource }) {
+	async run(accessor: ServicesAccessor, args?: { folderUri?: UriComponents; sessionResource?: UriComponents; source?: AgentsWindowOpenSource; preferDevContainer?: boolean }) {
 		const nativeHostService = accessor.get(INativeHostService);
 		await nativeHostService.openAgentsWindow({ ...args, source: args?.source ?? AgentsWindowOpenSource.CommandPalette });
 	}

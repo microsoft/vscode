@@ -292,7 +292,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		this.handleChatRequest(openConfig, [window]);
 	}
 
-	async openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, sessionResource?: URI, source?: AgentsWindowOpenSource): Promise<ICodeWindow[]> {
+	async openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, sessionResource?: URI, source?: AgentsWindowOpenSource, preferDevContainer?: boolean): Promise<ICodeWindow[]> {
 		this.logService.trace('windowsManager#openAgentsWindow');
 
 		// Open in a new browser window with the agent sessions workspace
@@ -304,7 +304,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// folder-resolve.
 		if (windows.length > 0) {
 			const openSource = source ?? (openConfig.cli.agents ? AgentsWindowOpenSource.CommandLine : AgentsWindowOpenSource.Unknown);
-			windows[0].sendWhenReady('vscode:selectAgentsFolder', CancellationToken.None, folderUri?.toJSON(), sessionResource?.toJSON(), openSource);
+			windows[0].sendWhenReady('vscode:selectAgentsFolder', CancellationToken.None, folderUri?.toJSON(), sessionResource?.toJSON(), openSource, preferDevContainer);
 		}
 
 		return windows;

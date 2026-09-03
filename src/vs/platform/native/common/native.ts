@@ -84,6 +84,7 @@ export interface IOpenAgentsWindowOptions {
 	readonly folderUri?: UriComponents;
 	readonly sessionResource?: UriComponents;
 	readonly source?: AgentsWindowOpenSource;
+	readonly preferDevContainer?: boolean;
 }
 
 export interface ICPUProperties {
