@@ -10876,8 +10876,9 @@ suite('AgentService (node dispatcher)', () => {
 				const listener = localService.onDidNotification(n => notifications.push(n));
 
 				localService.dispatchAction(sessionStr, action, 'test-client', 1, AgentHostClientType.EditorWindow);
-				await timeout(0);
-				await timeout(0);
+				for (let attempt = 0; attempt < 20 && !notifications.some(notification => notification.type === 'root/sessionSummaryChanged'); attempt++) {
+					await timeout(0);
+				}
 				listener.dispose();
 
 				const summaryChanged = notifications.find(n => n.type === 'root/sessionSummaryChanged');
@@ -11042,20 +11043,28 @@ suite('AgentService (node dispatcher)', () => {
 			const notifications: INotification[] = [];
 			const listener = localService.onDidNotification(n => notifications.push(n));
 			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
+			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsReadChanged, isRead: true }, 'other-client', 1, AgentHostClientType.EditorWindow);
 			for (let i = 0; i < 20; i++) {
 				await timeout(0);
 			}
 			listener.dispose();
 
 			const summaryChanged = notifications.find(n => n.type === 'root/sessionSummaryChanged');
+			const listed = (await localService.listSessions()).find(session => session.session.toString() === sessionStr);
 			assert.deepStrictEqual({
 				persisted: await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY),
+				persistedRead: await db.getMetadata(AH_META_IS_READ_DB_KEY),
 				publishedArchived: summaryChanged?.type === 'root/sessionSummaryChanged'
 					? !!((summaryChanged.changes.status ?? 0) & SessionStatus.IsArchived)
 					: undefined,
+				centralArchived: !!((listed?.status ?? 0) & SessionStatus.IsArchived),
+				centralRead: !!((listed?.status ?? 0) & SessionStatus.IsRead),
 			}, {
 				persisted: 'true',
+				persistedRead: 'true',
 				publishedArchived: true,
+				centralArchived: true,
+				centralRead: true,
 			});
 		});
 

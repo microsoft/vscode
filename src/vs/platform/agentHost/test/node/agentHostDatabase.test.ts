@@ -497,6 +497,45 @@ suite('AgentHostDatabase sessions_v2', () => {
 		});
 	});
 
+	test('preserves a future migration applied to the final catalog schema', async () => {
+		const path = join(temporaryDirectory!, 'agent-host-future-v6.db');
+		database = new AgentHostDatabase(path);
+		await database.registerSessionV2('session://future-v6', { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.close();
+		database = undefined;
+
+		const futureDatabase = await openDatabase(path);
+		await exec(futureDatabase, 'CREATE TABLE future_v6_marker (value INTEGER); PRAGMA user_version = 6');
+		await close(futureDatabase);
+
+		database = new AgentHostDatabase(path);
+		const registration = await database.getSessionV2Registration('session://future-v6');
+		await database.close();
+		database = undefined;
+
+		const preservedDatabase = await openDatabase(path);
+		const version = await all(preservedDatabase, 'PRAGMA user_version');
+		const marker = await all(preservedDatabase, `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'future_v6_marker'`);
+		await close(preservedDatabase);
+
+		assert.deepStrictEqual({
+			registration,
+			version,
+			marker,
+		}, {
+			registration: {
+				session: 'session://future-v6',
+				provider: 'copilot',
+				startTime: 1,
+				modifiedTime: 1,
+				external: false,
+				source: 'explicit',
+			},
+			version: [{ user_version: 6 }],
+			marker: [{ name: 'future_v6_marker' }],
+		});
+	});
+
 	test('increments dirty markers and clears only the observed marker', async () => {
 		database = new AgentHostDatabase(':memory:');
 		const session = 'session://dirty-marker';

@@ -286,15 +286,20 @@ const migrations = [
 	},
 ] as const;
 
+const latestMigrationVersion = migrations[migrations.length - 1].version;
+
 async function normalizePreReleaseCatalogSchema(database: Database, currentVersion: number): Promise<number> {
 	if (currentVersion < 4 || currentVersion > 11 || !await get(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'sessions_v2'`, [])) {
 		return currentVersion;
 	}
+	const hasFinalCatalog = await get(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'session_chat_catalogs'`, [])
+		&& await get(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'session_chats'`, []);
+	const isPreReleaseVersion11 = currentVersion === 11 && latestMigrationVersion < 11;
+	if (hasFinalCatalog && currentVersion >= 5 && !isPreReleaseVersion11) {
+		return currentVersion;
+	}
 	await exec(database, 'BEGIN TRANSACTION');
 	try {
-		const hasFinalCatalog = (currentVersion === 5 || currentVersion === 11)
-			&& await get(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'session_chat_catalogs'`, [])
-			&& await get(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'session_chats'`, []);
 		if (!hasFinalCatalog) {
 			const sessionColumns = await all(database, 'PRAGMA table_info(sessions)', []);
 			if (!sessionColumns.some(column => column.name === 'modified_time')) {

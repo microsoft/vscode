@@ -69,7 +69,7 @@ import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, customChat
 import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
 import { parseSessionArtifacts, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
 import { AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
-import { AGENT_HOST_CATALOG_PAYLOAD_VERSION } from './agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult } from './agentHostCatalogReconciliationService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostCatalogListReader, AgentHostCatalogListResult } from './agentHostCatalogListReader.js';
@@ -5053,12 +5053,66 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!this._stateManager.getSurfacedSessionSummary(session)) {
 			return false;
 		}
+		const sessionUri = URI.parse(session);
 		const [key, flag, set] = action.type === ActionType.SessionIsArchivedChanged
 			? [AH_META_IS_ARCHIVED_DB_KEY, SessionStatus.IsArchived, action.isArchived] as const
 			: [AH_META_IS_READ_DB_KEY, SessionStatus.IsRead, action.isRead] as const;
 		await persistSessionMetadataValues(this._sessionDataService, session, { [key]: set ? 'true' : '' });
+		try {
+			await this._synchronizePassiveSessionMetadata(sessionUri, key, flag, set);
+		} catch (error) {
+			this._logService.warn(`[AgentService] Failed to synchronize passive session metadata for ${session}`, error);
+		}
+		await this._markCatalogPayloadDirty(session);
+		this._catalogReconciliationService.schedule();
+		this._invalidateSessionList();
 		this._stateManager.setSurfacedSessionStatusFlag(session, flag, set);
 		return true;
+	}
+
+	private async _synchronizePassiveSessionMetadata(session: URI, key: string, flag: SessionStatus, set: boolean): Promise<void> {
+		let requestUnavailable = false;
+		try {
+			const result = await this._catalogSyncService.synchronizeWithFactory(session, async () => {
+				const sessionKey = session.toString();
+				const catalog = await this._orchestratorDatabase.getSessionV2(sessionKey);
+				let request: IAgentHostCatalogSyncRequest | undefined;
+				if (catalog) {
+					const decoded = decodeAgentHostCatalogPayload(catalog.payload);
+					if (decoded.ok) {
+						request = {
+							data: {
+								...decoded.value.data,
+								...(flag === SessionStatus.IsArchived ? { isArchived: set } : { isRead: set }),
+							},
+							legacyMetadata: { [key]: set ? 'true' : '' },
+						};
+					}
+				}
+				if (!request) {
+					const registered = await this._sessionRegistry.get(session, entry => this._migrateRegisteredSession(entry));
+					if (registered) {
+						const source = await this._resolveCatalogReconciliationSource(registered);
+						if (source.status === 'available') {
+							request = source.request;
+						}
+					}
+				}
+				if (!request) {
+					requestUnavailable = true;
+					throw new Error(`No catalog synchronization source is available for passive session metadata ${sessionKey}`);
+				}
+				return request;
+			});
+			if (result.status === 'pending') {
+				this._logService.warn(`[AgentService] Catalog synchronization for passive session metadata ${session.toString()} remains pending: ${result.reason}`);
+			}
+		} catch (error) {
+			if (requestUnavailable) {
+				return;
+			}
+			throw error;
+		}
 	}
 
 	private _isAutomationAction(action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction): action is ClientAutomationAction {

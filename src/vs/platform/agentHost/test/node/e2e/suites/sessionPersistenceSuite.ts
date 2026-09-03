@@ -153,6 +153,16 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 			&& (notification.params as SessionSummaryChangedParams).session === sessionUri
 			&& (((notification.params as SessionSummaryChangedParams).changes.status ?? 0) & SessionStatus.IsArchived) !== 0,
 		);
+		context.client.dispatch({
+			channel: sessionUri,
+			clientSeq: 2,
+			action: { type: ActionType.SessionIsReadChanged, isRead: true },
+		});
+		await context.client.waitForNotification(notification =>
+			notification.method === 'root/sessionSummaryChanged'
+			&& (notification.params as SessionSummaryChangedParams).session === sessionUri
+			&& (((notification.params as SessionSummaryChangedParams).changes.status ?? 0) & SessionStatus.IsRead) !== 0,
+		);
 
 		await restartAndInitialize(`archive-unrestored-verify-${config.provider}`, workspace);
 		const after = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI, includeArchived: true });
@@ -161,9 +171,11 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		assert.deepStrictEqual({
 			restored: restored !== undefined,
 			isArchived: restored !== undefined && (restored.status & SessionStatus.IsArchived) !== 0,
+			isRead: restored !== undefined && (restored.status & SessionStatus.IsRead) !== 0,
 		}, {
 			restored: true,
 			isArchived: true,
+			isRead: true,
 		});
 	});
 
