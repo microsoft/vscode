@@ -56,7 +56,7 @@ import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
-import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { AGENT_MERGE_CHANGESET_ID, buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -10235,6 +10235,28 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
+		test('creates a fresh side chat from a completed tool-origin chat', async () => {
+			const agent = disposables.add(new SideChatAgent('copilot'));
+			registerTestAgentProvider(service, agent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const sourceChat = buildSubagentChatUri(session, 'tool-1');
+			getStateManager(service).addChat(session.toString(), sourceChat, {
+				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session), toolCallId: 'tool-1' },
+				turns: [completedTurn('t1')],
+			});
+			const chatUri = URI.parse(buildChatUri(session, 'side-1'));
+
+			await service.createChat(session, chatUri, { sideChat: { source: URI.parse(sourceChat), turnId: 't1' } });
+
+			assert.deepStrictEqual({
+				origin: getStateManager(service).getChatState(chatUri.toString())?.origin,
+				forkForwarded: agent.lastCreateOptions?.fork,
+			}, {
+				origin: { kind: ChatOriginKind.SideChat, chat: sourceChat, turnId: 't1' },
+				forkForwarded: undefined,
+			});
+		});
+
 		test('creates a fresh peer with a SideChat origin and no copied source turns', async () => {
 			const agent = disposables.add(new SideChatAgent('copilot'));
 			registerTestAgentProvider(service, agent);
@@ -15128,7 +15150,7 @@ suite('AgentService (node dispatcher)', () => {
 				state: TurnState.Complete,
 				responseParts: [{
 					kind: ResponsePartKind.SystemNotification,
-					content: 'Agent Merge was turned off for this session.',
+					content: 'Agent Merge was disabled for this session.',
 					_meta: { kind: 'agentMergeDisabled' },
 				}],
 				sentToAgent: 0,
@@ -15144,7 +15166,9 @@ suite('AgentService (node dispatcher)', () => {
 				const sessionStr = sessionResource.toString();
 
 				// A fresh host over the same durable state must resume monitoring
-				// from the index alone.
+				// from the index alone. Remove best-effort local notices so the
+				// changeset catalogue can only recover from persisted config.
+				await sessionDb.deleteLocalTurns((await sessionDb.getLocalTurns()).map(turn => turn.turnId));
 				const restarted = createAgentMergeService(sessionDb, orchestratorDb);
 				registerTestAgentProvider(restarted, localAgent);
 				await restarted.whenAgentMergeSessionsRestored();
@@ -15154,6 +15178,7 @@ suite('AgentService (node dispatcher)', () => {
 					// materialized and immediately disabled.
 					enabled: readAgentMergeSessionState(getStateManager(restarted).getSessionState(sessionStr)?.config?.values)?.enabled,
 					indexed: await orchestratorDb.listAgentMergeEnabledSessions(),
+					hasAgentMergeChangeset: getStateManager(restarted).getSessionState(sessionStr)?.changesets?.some(changeset => changeset.changeKind === AGENT_MERGE_CHANGESET_ID),
 				};
 
 				// Nothing ever subscribed, so only the monitoring pin is holding
@@ -15165,7 +15190,7 @@ suite('AgentService (node dispatcher)', () => {
 					resumed,
 					residentAfterDisable: getStateManager(restarted).getSessionState(sessionStr) !== undefined,
 				}, {
-					resumed: { materialized: true, enabled: true, indexed: [sessionStr] },
+					resumed: { materialized: true, enabled: true, indexed: [sessionStr], hasAgentMergeChangeset: true },
 					residentAfterDisable: true,
 				});
 			});
@@ -15211,7 +15236,7 @@ suite('AgentService (node dispatcher)', () => {
 				afterTurn: {
 					responseParts: [{
 						kind: ResponsePartKind.SystemNotification,
-						content: 'Agent Merge was turned off for this session.',
+						content: 'Agent Merge was disabled for this session.',
 						_meta: { kind: 'agentMergeDisabled' },
 					}],
 					anchoredTo: ['agent-turn'],

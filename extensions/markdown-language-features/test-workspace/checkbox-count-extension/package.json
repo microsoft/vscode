@@ -1,0 +1,46 @@
+{
+  "name": "markdown-checkbox-count-demo",
+  "displayName": "Markdown Checkbox Count Demo",
+  "description": "Demonstrates a Markdown code block editor communicating with its extension host.",
+  "version": "0.0.1",
+  "publisher": "vscode-samples",
+  "private": true,
+  "engines": {
+    "vscode": "^1.109.0"
+  },
+  "main": "./dist/extension.js",
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=dist/extension.js && esbuild editor/main.ts --bundle --format=esm --splitting --outdir=editor/dist --entry-names=[name] --chunk-names=chunks/[name]-[hash]"
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false
+    }
+  },
+  "contributes": {
+    "markdown.codeBlockEditorProviders": [
+      {
+        "id": "checkboxCount",
+        "runtimeKey": "checkbox-count-v1",
+        "selector": {
+          "language": "checkbox-count"
+        },
+        "source": {
+          "kind": "exportApi",
+          "apiVersion": 2
+        },
+        "contentType": "text",
+        "initialHeight": 84
+      }
+    ]
+  },
+  "dependencies": {
+    "@vscode/web-editors": "^0.0.2-41"
+  },
+  "devDependencies": {
+    "esbuild": "0.27.2"
+  }
+}

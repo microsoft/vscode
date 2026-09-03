@@ -316,7 +316,8 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 				if (present.has(address) || this._provisioning.has(address)) {
 					continue;
 				}
-				const connected = this._remoteAgentHostService.connections.some(c => c.address === address);
+				const connected = this._remoteAgentHostService.connections.some(
+					c => c.address === address && RemoteAgentHostConnectionStatus.isConnected(c.status));
 				if (!connected) {
 					this._teardownEnvironment(address);
 				}

@@ -961,6 +961,9 @@ per-word capitalization does not survive translation. */
 	position: relative;
 	flex: 1;
 	min-height: 0;
+	width: 100%;
+	max-width: calc(840px + var(--vscode-spacing-size160));
+	margin-inline: auto;
 }
 
 .ai-customization-management-editor .prompt-migration-footer {
@@ -1068,7 +1071,8 @@ per-word capitalization does not survive translation. */
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
-	padding-bottom: var(--vscode-spacing-size60);
+	padding: 0 var(--vscode-spacing-size160) var(--vscode-spacing-size60) 0;
+	box-sizing: border-box;
 }
 
 .ai-customization-management-editor .prompt-migration-group {
@@ -2513,7 +2517,6 @@ per-word capitalization does not survive translation. */
 	gap: 0;
 	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	border-radius: var(--vscode-cornerRadius-medium);
-	background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-agentsPanel-background));
 	overflow: hidden;
 }
 
@@ -2834,7 +2837,7 @@ per-word capitalization does not survive translation. */
 	width: auto;
 }
 
-.plugin-list-widget .plugin-card-section-actions .plugin-update-available-button.monaco-button {
+.plugin-list-widget .plugin-card-section-actions .plugin-update-button.monaco-button {
 	width: var(--vscode-spacing-size280);
 	min-width: var(--vscode-spacing-size280);
 	padding: var(--vscode-spacing-size40) 0;
@@ -2933,7 +2936,6 @@ per-word capitalization does not survive translation. */
 	padding: var(--vscode-spacing-size120);
 	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	border-radius: var(--vscode-cornerRadius-large);
-	background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-agentsPanel-background));
 	color: var(--vscode-foreground);
 	box-sizing: border-box;
 	cursor: pointer;

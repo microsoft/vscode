@@ -484,14 +484,22 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 			return meta.severity === AgentSystemNotificationSeverity.Warning
 				? { kind: 'warning', content: markdown }
 				: { kind: 'systemNotification', content: markdown };
-		// Agent Merge reports a state change rather than a completed step, so the
-		// default check would misdescribe both of these.
+		case AgentSystemNotificationKind.AutomaticApprovalReviewTimedOut:
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.clock, collapsible: true };
+		case AgentSystemNotificationKind.AutomaticApprovalReviewAborted:
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.circleSlash, collapsible: true };
+		case AgentSystemNotificationKind.AutomaticApprovalReviewInterrupted:
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.warning };
+		// Agent Merge state changes use icons that describe the transition rather
+		// than the default completed-step check.
 		case AgentSystemNotificationKind.AgentMergeEnabled:
-			return { kind: 'systemNotification', content: markdown, icon: Codicon.gitMerge, collapsible: true };
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.gitMerge, collapsible: true, renderInlineTiming: true };
 		case AgentSystemNotificationKind.AgentMergeConfigurationChanged:
-			return { kind: 'systemNotification', content: markdown, icon: Codicon.settingsGear, collapsible: true };
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.settingsGear, collapsible: true, renderInlineTiming: true };
 		case AgentSystemNotificationKind.AgentMergeDisabled:
-			return { kind: 'systemNotification', content: markdown, icon: Codicon.circleSlash };
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.circleSlash, renderInlineTiming: true };
+		case AgentSystemNotificationKind.AgentMergePullRequestMerged:
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.gitMerge, renderInlineTiming: true };
 		default:
 			return { kind: 'systemNotification', content: markdown };
 	}
@@ -1564,6 +1572,10 @@ function buildTerminalToolSpecificData(
 		...existing,
 		kind: 'terminal',
 		commandLine,
+		// Read-only for the same reason as a generic confirmation input: this
+		// adapter never returns an edited command to the host, so an editable
+		// field would collect a change and then run what the agent proposed.
+		editable: false,
 		intention: tc.intention ?? existing?.intention,
 		language: existing?.language ?? getTerminalLanguage(tc),
 		autoApproveRuleResolvable: readToolCallMeta(tc).autoApproveRuleResolvable ?? existing?.autoApproveRuleResolvable,
@@ -2346,7 +2358,11 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 			if (toolInput) {
 				let rawInput: unknown;
 				try { rawInput = JSON.parse(toolInput); } catch { rawInput = { input: toolInput }; }
-				toolSpecificData = { kind: 'input', rawInput };
+				// Read-only regardless of `tc.editable`: approving with an edited input means
+				// sending it back as `chat/toolCallConfirmed.editedToolInput`, which this adapter
+				// does not do, so an editable field would collect a change and then run the
+				// command the agent originally proposed.
+				toolSpecificData = { kind: 'input', rawInput, editable: false };
 			}
 		}
 
@@ -2483,7 +2499,9 @@ export function toolCallStateToStreamingInvocation(tc: ToolCallState, subAgentIn
 	} else if (isRenameChatTool(tc)) {
 		invocation.presentation = ToolInvocationPresentation.Hidden;
 	}
-	if (sessionResource && isSubagentTool(tc)) {
+	if (getToolKind(tc) === 'search') {
+		invocation.toolSpecificData = { kind: 'search' };
+	} else if (sessionResource && isSubagentTool(tc)) {
 		invocation.toolSpecificData = toolCallStateToInvocation(tc, subAgentInvocationId, sessionResource, connectionAuthority ?? '', mcpServerAuthority).toolSpecificData;
 	}
 	return invocation;

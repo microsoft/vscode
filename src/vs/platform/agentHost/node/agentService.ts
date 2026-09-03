@@ -3259,6 +3259,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!hasCompletedTurn && !activeTurn) {
 			throw new Error(`[AgentService] createChat: side chat source turn ${sideChat.turnId} not found in ${sourceKey}`);
 		}
+		const sourceHasProviderFork = this._stateManager.getChatOrigin(sourceChatKey)?.kind !== ChatOriginKind.Tool;
 		let anchorTurnId: string | undefined;
 		if (activeTurn) {
 			anchorTurnId = resolveLastNonLocalTurnId(sourceState?.turns ?? [], turnId => this._localTurns.isLocal(sourceChatKey, turnId));
@@ -3278,7 +3279,7 @@ export class AgentService extends Disposable implements IAgentService {
 				...(selection ? { selection } : {}),
 			},
 			sourceChat: sourceChatKey,
-			shouldFork: !activeTurn || anchorTurnId !== undefined,
+			shouldFork: sourceHasProviderFork && (!activeTurn || anchorTurnId !== undefined),
 			...(selection ? { selection } : {}),
 			...(anchorTurnId ? { anchorTurnId } : {}),
 		};
@@ -5745,6 +5746,7 @@ export class AgentService extends Disposable implements IAgentService {
 		]);
 		if (restoredConfig) {
 			this._stateManager.setSessionConfig(sessionStr, restoredConfig);
+			this._changesetCoordinator.onSessionConfigRestored(sessionStr);
 			// Seeded config bypasses `onDidChangeSessionConfig`, so heal the
 			// index for a session enabled before it was introduced.
 			this._syncAgentMergeIndex(session, undefined, restoredConfig);

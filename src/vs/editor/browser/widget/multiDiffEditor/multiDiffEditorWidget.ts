@@ -14,13 +14,14 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { Range } from '../../../common/core/range.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
+import { IMultiDiffResourceId } from '../../../common/multiDiffEditor.js';
 import { ICodeEditor } from '../../editorBrowser.js';
 import { DiffEditorWidget } from '../diffEditor/diffEditorWidget.js';
 import './colors.js';
 import { DiffEditorItemTemplate } from './diffEditorItemTemplate.js';
 import { IDocumentDiffItem, IMultiDiffEditorModel } from './model.js';
 import { MultiDiffEditorViewModel } from './multiDiffEditorViewModel.js';
-import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorViewState, IMultiDiffResourceId, MultiDiffEditorWidgetImpl } from './multiDiffEditorWidgetImpl.js';
+import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorViewState, MultiDiffEditorWidgetImpl } from './multiDiffEditorWidgetImpl.js';
 import { IWorkbenchUIElementFactory } from './workbenchUIElementFactory.js';
 
 export class MultiDiffEditorWidget extends Disposable {
@@ -126,6 +127,10 @@ export class MultiDiffEditorWidget extends Disposable {
 	}
 
 	public readonly onDidChangeActiveControl = Event.fromObservableLight(this._activeControl);
+
+	public focus(): boolean {
+		return this._widgetImpl.get().focus();
+	}
 
 	public getViewState(): IMultiDiffEditorViewState {
 		return this._widgetImpl.get().getViewState();

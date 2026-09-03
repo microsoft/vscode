@@ -405,6 +405,7 @@ suite('AgentHostAutomationStore', () => {
 			prompt: 'Review the current changes.',
 			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
 			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+			permissionLevel: 'autopilot',
 		});
 		const create = connection.dispatched[0].action;
 		const trigger = create.type === ActionType.AutomationCreateRequested ? create.definition.triggers[0] : undefined;
@@ -413,6 +414,7 @@ suite('AgentHostAutomationStore', () => {
 			subscribedChannel: connection.subscribedChannel,
 			dispatchChannel: connection.dispatched[0].channel,
 			definitionMeta: create.type === ActionType.AutomationCreateRequested ? create.definition._meta : undefined,
+			sessionConfig: create.type === ActionType.AutomationCreateRequested ? create.definition.session.config : undefined,
 			triggerExpression: trigger?.kind === AutomationTriggerKind.Schedule ? trigger.schedule.expression : undefined,
 			automation: {
 				name: automation.name,
@@ -425,6 +427,7 @@ suite('AgentHostAutomationStore', () => {
 			subscribedChannel: URI.parse(AUTOMATION_CATALOG_URI).toString(),
 			dispatchChannel: AUTOMATION_CATALOG_URI,
 			definitionMeta: undefined,
+			sessionConfig: { autoApprove: 'assisted' },
 			triggerExpression: '30 9 * * *',
 			automation: {
 				name: 'Review changes',

@@ -60,3 +60,47 @@
 .chat-system-notification-disclosure.collapsed > .chat-system-notification-disclosure-body {
 	display: none;
 }
+
+.chat-system-notification-layout {
+	display: flex;
+	align-items: last baseline;
+	gap: var(--vscode-spacing-size80);
+	margin-bottom: var(--vscode-spacing-size160);
+}
+
+.chat-system-notification-layout > .progress-container,
+.chat-system-notification-layout > .chat-system-notification-disclosure {
+	flex: 1;
+	min-width: 0;
+	margin-bottom: 0;
+}
+
+.chat-system-notification-timing {
+	display: flex;
+	flex-shrink: 0;
+	opacity: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-xs);
+	line-height: 16px;
+	transition: opacity 0.1s ease-in-out;
+}
+
+.chat-system-notification-timing.hidden {
+	display: none;
+}
+
+.interactive-item-container.chat-system-notification-response.group-hovered .chat-system-notification-timing,
+.interactive-item-container.chat-system-notification-response:focus-within .chat-system-notification-timing {
+	opacity: 0.7;
+}
+
+.chat-system-notification-timing:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chat-system-notification-timing {
+		transition: none;
+	}
+}

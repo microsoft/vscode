@@ -28,8 +28,9 @@ import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticati
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { IExtensionService } from '../../../extensions/common/extensions.js';
 import { IHostService } from '../../../host/browser/host.js';
-import { DefaultAccountProvider } from '../../browser/defaultAccount.js';
+import { DefaultAccountProvider, DefaultAccountService } from '../../browser/defaultAccount.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
+import { AccountPolicyGateState, AccountPolicyService } from '../../../policies/common/accountPolicyService.js';
 
 suite('DefaultAccountProvider', () => {
 
@@ -573,6 +574,168 @@ suite('DefaultAccountProvider', () => {
 		await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
 
 		assert.strictEqual(requestService.requestCount, 2);
+	});
+
+	test('managed settings endpoint outage without a refresh requirement keeps freshness non-blocking', async () => {
+		let managedSettingsRequestCount = 0;
+		const requestService = new TestRequestService(async options => {
+			if (options.url?.endsWith('/copilot_internal/user')) {
+				return jsonResponse({ chat_enabled: true });
+			}
+			if (options.url?.includes('/copilot_internal/managed_settings')) {
+				managedSettingsRequestCount++;
+				if (managedSettingsRequestCount === 1) {
+					return jsonResponse({
+						permissions: { disableBypassPermissionsMode: 'disable' },
+					});
+				}
+				throw new Error('managed settings request timed out');
+			}
+			throw new Error(`Unexpected request: ${options.url}`);
+		});
+		const provider = await createProvider(
+			requestService,
+			{},
+			{},
+			'https://api.github.com/copilot_internal/managed_settings',
+			{ getSessions: async () => sessions }
+		);
+
+		await provider.refresh({ forceRefresh: true });
+		const accountService = disposables.add(new DefaultAccountService(TestProductService));
+		accountService.setDefaultAccountProvider(provider);
+		await accountService.refresh();
+		const gateService = disposables.add(new AccountPolicyService(new NullLogService(), accountService));
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			managedSettingsRequestCount,
+			requestTimeouts: requestService.requests
+				.filter(request => request.url?.includes('/copilot_internal/managed_settings'))
+				.map(request => request.timeout),
+			defaultAccount: provider.defaultAccount,
+			managedSettings: provider.policyData?.managedSettings,
+			freshness: provider.managedSettingsFreshness,
+			compatibilityError: provider.managedSettingsCompatibilityError,
+			gateState: gateService.gateInfo.state,
+		}, {
+			managedSettingsRequestCount: 2,
+			requestTimeouts: [5000, 5000],
+			defaultAccount: {
+				authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
+				accountName: 'octocat',
+				sessionId: 'session',
+				enterprise: false,
+				entitlementsData: { chat_enabled: true },
+			},
+			managedSettings: {
+				'permissions.disableBypassPermissionsMode': 'disable',
+			},
+			freshness: { state: ManagedSettingsFreshnessState.NotRequired },
+			compatibilityError: null,
+			gateState: AccountPolicyGateState.Inactive,
+		});
+	});
+
+	test('truthy non-boolean server refresh control remains non-blocking after an endpoint outage', async () => {
+		let managedSettingsRequestCount = 0;
+		const requestService = new TestRequestService(async options => {
+			if (options.url?.endsWith('/copilot_internal/user')) {
+				return jsonResponse({ chat_enabled: true });
+			}
+			if (options.url?.includes('/copilot_internal/managed_settings')) {
+				managedSettingsRequestCount++;
+				if (managedSettingsRequestCount === 1) {
+					return jsonResponse({
+						forceRemoteSettingsRefresh: 'true',
+						permissions: { disableBypassPermissionsMode: 'disable' },
+					});
+				}
+				throw new Error('managed settings request timed out');
+			}
+			throw new Error(`Unexpected request: ${options.url}`);
+		});
+		const provider = await createProvider(
+			requestService,
+			{},
+			{},
+			'https://api.github.com/copilot_internal/managed_settings',
+			{ getSessions: async () => sessions }
+		);
+
+		await provider.refresh({ forceRefresh: true });
+
+		assert.deepStrictEqual({
+			managedSettingsRequestCount,
+			managedSettings: provider.policyData?.managedSettings,
+			freshness: provider.managedSettingsFreshness,
+			compatibilityError: provider.managedSettingsCompatibilityError,
+		}, {
+			managedSettingsRequestCount: 2,
+			managedSettings: {
+				forceRemoteSettingsRefresh: 'true',
+				'permissions.disableBypassPermissionsMode': 'disable',
+			},
+			freshness: { state: ManagedSettingsFreshnessState.NotRequired },
+			compatibilityError: null,
+		});
+	});
+
+	test('non-466 managed settings failures remain non-blocking without a refresh requirement', async () => {
+		const failures: { name: string; response: () => IRequestContext }[] = [
+			{ name: 'http error', response: () => jsonResponse({}, 500) },
+			{
+				name: 'malformed response',
+				response: () => ({
+					res: { statusCode: 200, headers: {} },
+					stream: bufferToStream(VSBuffer.fromString('{')),
+				}),
+			},
+			{ name: 'rate limited', response: () => jsonResponse({}, 429, { 'retry-after': '60' }) },
+		];
+		const outcomes = [];
+
+		for (const failure of failures) {
+			const requestService = new TestRequestService(async () => failure.response());
+			const provider = await createProvider(requestService);
+			const cachedPolicy = createCachedPolicy(false);
+			const result = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
+			outcomes.push({
+				name: failure.name,
+				status: provider.managedSettingsFetchStatus,
+				data: result.data,
+				keptCachedTimestamp: result.fetchedAt === cachedPolicy.managedSettingsFetchedAt,
+				freshness: provider.managedSettingsFreshness,
+				compatibilityError: provider.managedSettingsCompatibilityError,
+			});
+		}
+
+		assert.deepStrictEqual(outcomes, [
+			{
+				name: 'http error',
+				status: 500,
+				data: createCachedPolicy(false).policyData,
+				keptCachedTimestamp: true,
+				freshness: { state: ManagedSettingsFreshnessState.NotRequired },
+				compatibilityError: null,
+			},
+			{
+				name: 'malformed response',
+				status: 'parse-error',
+				data: createCachedPolicy(false).policyData,
+				keptCachedTimestamp: true,
+				freshness: { state: ManagedSettingsFreshnessState.NotRequired },
+				compatibilityError: null,
+			},
+			{
+				name: 'rate limited',
+				status: 429,
+				data: createCachedPolicy(false).policyData,
+				keptCachedTimestamp: true,
+				freshness: { state: ManagedSettingsFreshnessState.NotRequired },
+				compatibilityError: null,
+			},
+		]);
 	});
 
 	test('managed settings source change preserves a prior blocked state', async () => {
