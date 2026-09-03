@@ -22,6 +22,7 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -874,14 +875,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const promptsService = createMockPromptsService(fixtureFiles, agentInstructions, fileContents, promptFilesDidChangeEmitter.event);
 			reg.defineInstance(IPromptsService, promptsService);
 			const agentHostCustomizationService = createMockAgentHostCustomizationService(options.activeSessionMcpServers);
-			reg.defineInstance(ICustomizationMigrationService, new CustomizationMigrationService(
-				promptsService,
-				harnessService,
-				new class extends mock<IAgentHostActiveClientService>() {
-					override acquireMcpServerSupportScope() { return undefined; }
-				}(),
-				agentHostCustomizationService,
-			));
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = isSessionsWindow;
 				override readonly welcomePageFeatures = {
@@ -925,7 +918,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override getWorkspace(): IWorkspace { return { id: 'test', folders: [] }; }
 				override getWorkbenchState(): WorkbenchState { return WorkbenchState.WORKSPACE; }
 			}());
-			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
+			const fileService = new class extends mock<IFileService>() {
 				override readonly onDidFilesChange = Event.None;
 				override async exists(resource: URI) {
 					return fileContents.has(resource) || createdFolders.has(resource);
@@ -962,7 +955,18 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					}
 					promptFilesDidChangeEmitter.fire();
 				}
-			}());
+			}();
+			reg.defineInstance(IFileService, fileService);
+			reg.defineInstance(ICustomizationMigrationService, new CustomizationMigrationService(
+				promptsService,
+				harnessService,
+				new class extends mock<IAgentHostActiveClientService>() {
+					override acquireMcpServerSupportScope() { return undefined; }
+				}(),
+				agentHostCustomizationService,
+				fileService,
+				new NullLogService(),
+			));
 			reg.defineInstance(IPathService, new class extends mock<IPathService>() {
 				override readonly defaultUriScheme = 'file';
 				override userHome(): URI;

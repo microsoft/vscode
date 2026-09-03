@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { getComparisonKey } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptFileSource, PromptsType } from '../promptTypes.js';
 import { PromptsStorage } from './promptsService.js';
 
@@ -54,6 +56,24 @@ export interface IMcpServerCustomizationMigrationItem {
 	readonly supported: boolean;
 }
 
+export interface IMcpServerCustomizationMigrationCandidate {
+	readonly type: CustomizationMigrationType.McpServers;
+	readonly id: string;
+	readonly name: string;
+	readonly sourceUri: URI;
+	readonly targetUri: URI;
+	readonly configuration: IMcpServerConfiguration;
+}
+
+export function getMcpServerCustomizationMigrationCandidateKey(candidate: IMcpServerCustomizationMigrationCandidate): string {
+	return JSON.stringify([
+		candidate.id,
+		candidate.name,
+		getComparisonKey(candidate.sourceUri),
+		getComparisonKey(candidate.targetUri),
+	]);
+}
+
 export interface IAgentHostMcpServerSupportCoverage {
 	/** Some installed servers may be absent or disabled because MCP access is restricted. */
 	readonly restrictedByMcpAccess: boolean;
@@ -64,10 +84,45 @@ export interface IAgentHostMcpServerSupportCoverage {
 export interface McpServerCustomizationMigration {
 	readonly type: CustomizationMigrationType.McpServers;
 	readonly servers: readonly IMcpServerCustomizationMigrationItem[];
+	readonly candidates: readonly IMcpServerCustomizationMigrationCandidate[];
 	/** Whether all lazy MCP collections known to the client have loaded; when false, servers may be missing. */
 	readonly discoveryComplete: boolean;
 	/** Snapshot-wide restrictions that may limit inventory or delivery, independent of per-server support. */
 	readonly coverage: IAgentHostMcpServerSupportCoverage;
+}
+
+export const enum McpServerMigrationFailureReason {
+	NoLongerEligible = 'noLongerEligible',
+	SourceUnavailable = 'sourceUnavailable',
+	InvalidSource = 'invalidSource',
+	UnrepresentableConfiguration = 'unrepresentableConfiguration',
+	SourceChanged = 'sourceChanged',
+	InvalidTarget = 'invalidTarget',
+	TargetConflict = 'targetConflict',
+	TargetChanged = 'targetChanged',
+	WriteFailed = 'writeFailed',
+	RollbackFailed = 'rollbackFailed',
+	InconsistentTarget = 'inconsistentTarget',
+}
+
+export interface IMcpServerMigrationFailure {
+	readonly id: string;
+	readonly name: string;
+	readonly sourceUri: URI;
+	readonly targetUri: URI;
+	readonly reason: McpServerMigrationFailureReason;
+	readonly error?: Error;
+}
+
+export interface IMcpServerMigrationResult {
+	readonly migratedCount: number;
+	readonly failures: readonly IMcpServerMigrationFailure[];
+}
+
+export type CustomizationMigrationCandidate = MigratableConfiguration | IMcpServerCustomizationMigrationCandidate;
+
+export function isMcpServerCustomizationMigrationCandidate(candidate: CustomizationMigrationCandidate): candidate is IMcpServerCustomizationMigrationCandidate {
+	return candidate.type === CustomizationMigrationType.McpServers;
 }
 
 export type CustomizationMigration = FileCustomizationMigration | McpServerCustomizationMigration;
@@ -77,6 +132,7 @@ export interface ICustomizationMigrationService {
 
 	computeMigration(sessionResource: URI, type: FileCustomizationMigrationType): Promise<FileCustomizationMigration>;
 	computeMigration(sessionResource: URI, type: CustomizationMigrationType.McpServers): Promise<McpServerCustomizationMigration>;
+	migrateMcpServers(sessionResource: URI, candidates: readonly IMcpServerCustomizationMigrationCandidate[]): Promise<IMcpServerMigrationResult>;
 	computeMigrations(sessionResource: URI): Promise<CustomizationMigration[]>;
 	computeMigrationHint(sessionResource: URI): Promise<string | undefined>;
 }

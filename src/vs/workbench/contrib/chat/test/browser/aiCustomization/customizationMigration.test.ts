@@ -13,7 +13,9 @@ import { FileService } from '../../../../../../platform/files/common/fileService
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { FileType, IFileDeleteOptions, IFileWriteOptions, createFileSystemProviderError, FileSystemProviderErrorCode } from '../../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { CustomizationMigrationType, IMcpServerCustomizationMigrationCandidate, McpServerMigrationFailureReason } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage, type IPromptPath } from '../../../common/promptSyntax/service/promptsService.js';
 import { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
 import { createSkillFileUri, migrateCustomizations, migratePromptFileToSkill, type CustomizationMigrationTargetFolders } from '../../../browser/aiCustomization/customizationMigration.js';
@@ -61,13 +63,13 @@ suite('customizationMigration', () => {
 			{ uri: URI.file('/workspace/.github/skills/deploy/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, source: PromptFileSource.GitHubWorkspace },
 		];
 		const candidatesFor = (id: CustomizationMigrationCategoryId) => customizations
-			.filter(customization => getCustomizationMigrationCategory(id).isCandidate(customization))
+			.filter(customization => getCustomizationMigrationCategory(id).isCandidate?.(customization) === true)
 			.map(customization => customization.uri.path);
 
 		assert.deepStrictEqual({
 			promptFiles: candidatesFor(CustomizationMigrationCategoryId.PromptFiles),
 			userData: candidatesFor(CustomizationMigrationCategoryId.UserData),
-			sourceTypes: CUSTOMIZATION_MIGRATION_CATEGORIES.map(category => [category.id, [...category.sourceTypes]]),
+			sourceTypes: CUSTOMIZATION_MIGRATION_CATEGORIES.map(category => [category.id, [...(category.sourceTypes ?? [])]]),
 		}, {
 			promptFiles: [
 				'/workspace/.github/prompts/review.prompt.md',
@@ -80,7 +82,51 @@ suite('customizationMigration', () => {
 			sourceTypes: [
 				[CustomizationMigrationCategoryId.PromptFiles, [PromptsType.prompt]],
 				[CustomizationMigrationCategoryId.UserData, [PromptsType.agent, PromptsType.instructions]],
+				[CustomizationMigrationCategoryId.McpServers, []],
 			],
+		});
+	});
+
+	test('uses MCP migration copy for supported workspace servers', () => {
+		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
+		const server: IMcpServerCustomizationMigrationCandidate = {
+			type: CustomizationMigrationType.McpServers,
+			id: 'mcp.config.ws0.server',
+			name: 'server',
+			sourceUri: URI.file('/workspace/.vscode/mcp.json'),
+			targetUri: URI.file('/workspace/.mcp.json'),
+			configuration: { type: McpServerType.LOCAL, command: 'server' },
+		};
+
+		assert.deepStrictEqual({
+			card: category.getCardDescription([server], 'Copilot'),
+			page: category.getPageDescription([server], 'Copilot'),
+			banner: category.getBanner?.([server], 'Copilot'),
+			confirmation: category.getConfirmation([server], 'Copilot'),
+			migrated: category.getMigratedMessage(1),
+			failed: category.getFailedMessage(['server'], 0),
+			conflict: category.getMcpServerFailureMessage?.([{
+				id: server.id,
+				name: server.name,
+				sourceUri: server.sourceUri,
+				targetUri: server.targetUri,
+				reason: McpServerMigrationFailureReason.TargetConflict,
+			}]),
+		}, {
+			card: 'Found 1 supported server in .vscode/mcp.json that can move to the workspace root so Copilot can discover it directly.',
+			page: 'Select the supported MCP server to move so Copilot can discover it directly.',
+			banner: {
+				message: 'Move supported servers from .vscode/mcp.json to .mcp.json at each workspace root so Copilot can discover them directly. Unsupported servers stay in their current files.',
+				consequence: 'Migrated entries are removed from .vscode/mcp.json. Existing servers with the same name in .mcp.json are not overwritten.',
+			},
+			confirmation: {
+				message: 'Migrate 1 MCP server to .mcp.json?',
+				detail: 'The selected entries will be removed from .vscode/mcp.json after they are written successfully.',
+				primaryButton: 'Migrate',
+			},
+			migrated: 'Migrated 1 MCP server.',
+			failed: 'Failed to migrate MCP server: server.',
+			conflict: 'Could not migrate \'server\' because .mcp.json already contains a different server with that name.',
 		});
 	});
 

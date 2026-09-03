@@ -52,7 +52,9 @@ Core workbench registrations may expose Local, Copilot CLI, and Claude harnesses
 
 ### `ICustomizationMigrationService`
 
-This shared workbench service computes customization migrations for an explicit chat session. File migrations include source URIs and migratable-configuration metadata for flows that need source type and storage; MCP migrations report known servers' binary harness compatibility together with discovery and policy-coverage state. The service also produces a localized, harness-specific hint summarizing available file migrations for UI consumers.
+This shared workbench service computes customization migrations for an explicit chat session. File migrations include source URIs and migratable-configuration metadata for flows that need source type and storage. Its MCP migration domain owns source canonicalization, destination representability, candidate planning, pre-write revalidation, guarded execution, and typed failure reasons. MCP results also retain the full compatibility inventory, discovery state, and policy coverage. The service produces a localized, harness-specific hint summarizing available migrations for UI consumers.
+
+`CustomizationMigrationModel` owns the editor's reactive migration lifecycle: active-session and MCP refresh inputs, async sequencing, loading/error state, candidates, and destination folders. The management editor owns only selection, rendering, confirmation, and user notifications.
 
 ### `IHarnessDescriptor`
 
