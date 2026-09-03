@@ -362,7 +362,7 @@ export function modelCanUseApplyPatchExclusively(model: LanguageModelChat | ICha
 	if (isVSCModelReplaceStringSet(model)) {
 		return false;
 	}
-	return isGpt5PlusFamily(model) || isVSCModelA(model) || isVSCModelB(model);
+	return isGpt5PlusFamily(model) || isHiddenModelN(model) || isVSCModelA(model) || isVSCModelB(model);
 }
 
 /**
@@ -378,7 +378,7 @@ export function modelNeedsStrongReplaceStringHint(model: LanguageModelChat | ICh
  * Model can take the simple, modern apply_patch instructions.
  */
 export function modelSupportsSimplifiedApplyPatchInstructions(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isGpt5PlusFamily(model) || isVSCModelA(model) || isVSCModelB(model);
+	return isGpt5PlusFamily(model) || isHiddenModelN(model) || isVSCModelA(model) || isVSCModelB(model);
 }
 
 export function isAnthropicFamily(model: LanguageModelChat | IChatEndpoint): boolean {
