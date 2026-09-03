@@ -458,10 +458,9 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	/**
-	 * Providers that need a welcome body instead of a list. Only the built-in
-	 * provider qualifies today, when it still needs sign-in. Providers the user
-	 * has not set up are reached through "Add Models" rather than given a tab,
-	 * so the picker never grows a destination nobody asked for.
+	 * Providers that need a welcome body instead of a list. Only the built-in provider
+	 * qualifies today, when it still needs sign-in. Providers the user has not set up are
+	 * reached through "Add Models" rather than given a tab.
 	 */
 	private _providerPlaceholders(): IModelPickerProviderPlaceholder[] {
 		if (!this.isSetupRequired()) {
@@ -573,7 +572,6 @@ export class ModelPickerWidget extends Disposable {
 					currentVSCodeVersion: this._productService.version,
 					manageSettingsUrl,
 					updateStateType: this._updateService.state.type,
-					chatEntitlementService: this._entitlementService,
 				},
 				onUnavailableLinkClick: onLinkClick,
 				onSelect,
@@ -735,8 +733,8 @@ export class ModelPickerWidget extends Disposable {
 				: genericNoModels
 					? localize('chat.modelPicker.noModels', "No models available")
 					: (name ?? localize('chat.modelPicker.auto', "Auto"));
-		// A model the user tuned reads out what it was tuned to, since the settings change
-		// how it behaves and the separate configuration button is gone in this picker.
+		// The tabbed picker has no separate configuration button, so the chip reads out
+		// what the model was tuned to.
 		const configSummary = this.isTabbedPickerEnabled() && !unavailable && !minimal
 			? getModelConfigSummary(this._selectedModel, this._delegate.modelConfiguration ?? this._languageModelsService)
 			: undefined;
@@ -756,8 +754,6 @@ export class ModelPickerWidget extends Disposable {
 		const nameMinimumWidth = this._applyNameMinimumWidth(this._nameButton, compact && !showModelLabel);
 
 		if (this._configButton) {
-			// The tabbed picker configures models inside its detail card, so the
-			// separate configuration button is not needed there.
 			if (this.isTabbedPickerEnabled()) {
 				this._configButton.style.display = 'none';
 			} else {

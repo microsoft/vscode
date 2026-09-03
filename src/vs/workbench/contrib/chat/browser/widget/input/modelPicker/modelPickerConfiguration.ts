@@ -14,8 +14,7 @@ import { IActionWidgetDropdownAction } from '../../../../../../../platform/actio
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
-import { IModelConfigurationAccess } from './modelPickerActionItem.js';
-import { getModelConfigProperty, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
+import { getModelConfigProperty, IModelConfigurationAccess, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
 import { logModelConfigurationChange } from './modelPickerTelemetry.js';
 
 export interface IModelPickerConfigurationHost {

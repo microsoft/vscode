@@ -18,11 +18,9 @@ export interface IModelSpeedVariants {
 }
 
 /**
- * Pairs each model with its faster twin, keyed by both of their identifiers.
- *
- * The pairing reads model ids rather than display names: the id is the provider's own
- * identifier, while the name states the difference differently from model to model.
- * A stopgap until models describe the relationship themselves.
+ * Pairs each model with its faster twin, keyed by both of their identifiers. Reads
+ * model ids rather than display names, since only the id is the provider's own
+ * identifier. A stopgap until models describe the relationship themselves.
  */
 export function buildSpeedVariants(
 	models: readonly ILanguageModelChatMetadataAndIdentifier[],

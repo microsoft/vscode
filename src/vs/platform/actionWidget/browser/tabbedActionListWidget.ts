@@ -92,10 +92,8 @@ export interface ITabbedActionListShowOptions<T> {
 	/** Optional icon buttons rendered after the tabs. */
 	readonly tabBarActions?: readonly ITabBarAction[];
 	/**
-	 * When tabs show their label beside their icon. `active` labels only the active
-	 * tab, so the strip stays compact as tabs are added; the rest keep their label as
-	 * their accessible name and tooltip. A tab with no icon always shows its label.
-	 * Defaults to `always`.
+	 * When tabs show their label beside their icon. `active` labels only the active tab,
+	 * and a tab with no icon always shows its label. Defaults to `always`.
 	 */
 	readonly tabLabels?: 'always' | 'active' | 'never';
 	/**
@@ -202,11 +200,9 @@ export class TabbedActionListWidget extends Disposable {
 				if (options.tabBarClassName) {
 					tabBar.classList.add(options.tabBarClassName);
 				}
-				// The strip holds the tabs; a consumer showing a filter can hide it and
-				// take its place, so the trailing actions never move.
+				// A consumer showing a filter hides the strip and takes its place, so the
+				// trailing actions never move.
 				const tabStrip = dom.append(tabBar, dom.$('.tabbed-action-list-tabstrip'));
-				// Sits between the strip and the trailing actions, so a filter mounted here
-				// replaces the tabs without displacing the buttons after them.
 				const filterSlot = dom.append(tabBar, dom.$('.tabbed-action-list-filter-slot'));
 
 				const activateTab = (next: string) => {

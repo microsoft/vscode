@@ -151,25 +151,6 @@
 	padding-left: 10px;
 }
 
-/* Icon plus label share one row, so the label sits beside the icon. */
-.action-widget .monaco-list-row.separator.has-icon {
-	display: flex;
-	align-items: center;
-}
-
-.action-widget .monaco-list-row.separator.has-icon > .separator-icon {
-	padding-left: 10px;
-	font-size: var(--vscode-codiconFontSize-compact);
-}
-
-.action-widget .monaco-list-row.separator.has-icon > span:not(:empty) {
-	padding-left: var(--vscode-spacing-size60);
-}
-
-.action-widget .monaco-list-row.separator:not(.has-icon) > .separator-icon {
-	display: none;
-}
-
 .action-widget .monaco-list .group-header,
 .action-widget .monaco-list .option-disabled,
 .action-widget .monaco-list .option-disabled:before,

@@ -4,21 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
-import { renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
+import { Radio } from '../../../../../../../base/browser/ui/radio/radio.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../../base/common/event.js';
-import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { formatTokenCount } from '../../../../../../../base/common/numbers.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
-import { IModelConfigurationAccess } from './modelPickerActionItem.js';
+import { formatModelCost, getCreditsPerMillionTokensLabel, getMaxContextLabel, getModelContextWindowTotal, getModelCostMetrics, renderModelDescription } from './modelPickerDetails.js';
 import { createMessageBanner } from './modelPickerHover.js';
-import { getModelConfigProperty, getModelConfigValueLabel, IModelConfigProperty, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
+import { getModelConfigProperty, getModelConfigValueLabel, IModelConfigProperty, IModelConfigurationAccess, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
 import { getCategoryLabel, getPriceCategoryLabel, isAutoModel, isHighCostCategory, isMultiplierPricing } from './modelPickerPresentation.js';
-import { SegmentedControl } from './modelPickerSegmentedControl.js';
 import { IModelSpeedVariants } from './modelPickerVariants.js';
 
 /**
@@ -48,13 +46,6 @@ export interface IModelCardOptions {
 	readonly speedVariants?: IModelSpeedVariants;
 	/** Called with the twin the user picked, which becomes the selected model. */
 	readonly onSelectVariant?: (model: ILanguageModelChatMetadataAndIdentifier) => void;
-}
-
-/** One cost metric, with the value for each context tier. */
-interface ICostMetric {
-	readonly label: string;
-	readonly standard: number | null | undefined;
-	readonly extended: number | null | undefined;
 }
 
 /**
@@ -179,11 +170,9 @@ export class ModelCard extends DisposableStore {
 	}
 
 	private _renderDescription(tooltip: string): void {
-		const rendered = this._contentDisposables.add(renderMarkdown(new MarkdownString(tooltip, { supportThemeIcons: true }), {
-			actionHandler: link => { void this._options.openerService.open(link, { allowCommands: false, fromUserGesture: true }); },
-		}));
-		rendered.element.classList.add('chat-model-card-description');
-		this.element.appendChild(rendered.element);
+		const element = renderModelDescription(tooltip, this._options.openerService, this._contentDisposables);
+		element.classList.add('chat-model-card-description');
+		this.element.appendChild(element);
 	}
 
 	private _renderSection(title: string): HTMLElement {
@@ -209,34 +198,30 @@ export class ModelCard extends DisposableStore {
 	}
 
 	/**
-	 * One setting: its name and the choices. Every setting is built this way, so they
-	 * stack without each inventing a shape of its own.
-	 *
-	 * The value is not described above the control: these are ordered scales whose
-	 * labels already say what they mean, so a line restating "Max" as "absolute maximum
-	 * capability" only pads the card. The producer's wording stays on each segment's
-	 * own tooltip for anyone who wants it.
+	 * One setting: its name and the choices. The value is not described above the
+	 * control, since these are ordered scales whose labels already say what they mean.
 	 */
 	private _renderChoiceSection(property: IModelConfigProperty, group: string, title: string): void {
 		const values = property.schema.enum ?? [];
 		const section = this._renderSection(title);
-		const control = this._contentDisposables.add(new SegmentedControl({
+		const control = this._contentDisposables.add(new Radio({
 			ariaLabel: title,
-			options: values.map((value, index) => ({
-				label: getModelConfigValueLabel(property.schema, value),
-				description: property.schema.enumDescriptions?.[index],
-				checked: value === property.value,
+			className: 'segmented',
+			// Selecting closes the picker, so arrows must be able to travel past an option.
+			arrowKeyBehavior: 'focus',
+			items: values.map((value, index) => ({
+				text: getModelConfigValueLabel(property.schema, value),
+				tooltip: property.schema.enumDescriptions?.[index],
+				isActive: value === property.value,
 			})),
-			onSelect: index => void this._setValue(group, property.key, values[index]),
 		}));
+		this._contentDisposables.add(control.onDidSelect(index => void this._setValue(group, property.key, values[index])));
 		section.appendChild(control.domNode);
 	}
 
 	/**
 	 * The two speeds the provider offers the same model at. Picking one selects that
-	 * model, the same way changing any other setting here does, since the twins are
-	 * separate models with their own prices. Placed last so the settings every model
-	 * has keep one position whether or not this one has a twin.
+	 * model, since the twins are separate models with their own prices.
 	 */
 	private _renderSpeedSection(): void {
 		const variants = this._options.speedVariants;
@@ -249,41 +234,38 @@ export class ModelCard extends DisposableStore {
 		];
 		const title = localize('models.speed', "Speed");
 		const section = this._renderSection(title);
-		const control = this._contentDisposables.add(new SegmentedControl({
+		const control = this._contentDisposables.add(new Radio({
 			ariaLabel: title,
-			options: choices.map(choice => ({
-				label: choice.label,
-				checked: choice.model.identifier === this._options.model.identifier,
+			className: 'segmented',
+			arrowKeyBehavior: 'focus',
+			items: choices.map(choice => ({
+				text: choice.label,
+				isActive: choice.model.identifier === this._options.model.identifier,
 			})),
-			onSelect: index => {
-				const next = choices[index].model;
-				if (next.identifier !== this._options.model.identifier) {
-					this._options.onSelectVariant?.(next);
-				}
-			},
+		}));
+		this._contentDisposables.add(control.onDidSelect(index => {
+			const next = choices[index].model;
+			if (next.identifier !== this._options.model.identifier) {
+				this._options.onSelectVariant?.(next);
+			}
 		}));
 		section.appendChild(control.domNode);
 	}
 
 	private _renderContextWindow(metadata: ILanguageModelChatMetadata): void {
-		const total = (metadata.maxInputTokens ?? 0) + (metadata.maxOutputTokens ?? 0);
+		const total = getModelContextWindowTotal(metadata);
 		if (!total) {
 			return;
 		}
 		const section = dom.append(this.element, dom.$('.chat-model-card-section'));
 		const heading = dom.append(section, dom.$('.chat-model-card-section-heading'));
-		dom.append(heading, dom.$('.chat-model-card-section-title', undefined, localize('models.contextSize', "Max context")));
+		dom.append(heading, dom.$('.chat-model-card-section-title', undefined, getMaxContextLabel()));
 		dom.append(heading, dom.$('.chat-model-card-section-value', undefined, formatTokenCount(total)));
 	}
 
 	private _renderCost(context: IModelConfigProperty | undefined): void {
 		const metadata = this._options.model.metadata;
-		const metrics: ICostMetric[] = [
-			{ label: localize('models.inputCostLabel', "Input"), standard: metadata.inputCost, extended: metadata.longContextInputCost },
-			{ label: localize('models.outputCostLabel', "Output"), standard: metadata.outputCost, extended: metadata.longContextOutputCost },
-			{ label: localize('models.cacheCostLabel', "Cache Read"), standard: metadata.cacheCost, extended: metadata.longContextCacheCost },
-			{ label: localize('models.cacheWriteCostLabel', "Cache Write"), standard: metadata.cacheWriteCost, extended: metadata.longContextCacheWriteCost },
-		].filter(metric => metric.standard !== undefined || metric.extended !== undefined);
+		const metrics = getModelCostMetrics(metadata);
 		if (!metrics.length) {
 			if (metadata.pricing) {
 				this._renderSection(localize('models.cost', "Cost: {0}", metadata.pricing));
@@ -326,17 +308,13 @@ export class ModelCard extends DisposableStore {
 		const body = dom.append(section, dom.$('.chat-model-card-pricing-body'));
 		body.id = bodyId;
 		// The unit is stated once, so each row can be read as a plain name and number.
-		dom.append(body, dom.$('.chat-model-card-pricing-caption', undefined, localize('models.creditsPerMillionTokens', "Credits per 1M tokens")));
+		dom.append(body, dom.$('.chat-model-card-pricing-caption', undefined, getCreditsPerMillionTokensLabel()));
 		for (const metric of metrics) {
 			const cost = useExtended ? metric.extended ?? metric.standard : metric.standard;
 			const row = dom.append(body, dom.$('.chat-model-card-pricing-row'));
 			dom.append(row, dom.$('span.chat-model-card-pricing-label', undefined, metric.label));
-			dom.append(row, dom.$('span.chat-model-card-pricing-value', undefined, formatCost(cost)));
+			dom.append(row, dom.$('span.chat-model-card-pricing-value', undefined, formatModelCost(cost)));
 		}
 	}
 
-}
-
-function formatCost(cost: number | null | undefined): string {
-	return typeof cost === 'number' ? String(cost) : localize('models.cost.unknown', "Unknown");
 }

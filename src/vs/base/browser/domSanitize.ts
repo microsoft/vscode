@@ -336,14 +336,9 @@ function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefine
 let stalePolicyReplacementCount = 0;
 
 /**
- * Sanitizes, replacing the sanitizer's Trusted Types policy first if that policy has
- * stopped working.
- *
- * The sanitizer creates one policy and keeps it for the lifetime of the module. The
- * policy's callback belongs to the realm that created it, so once that realm goes away
- * every later call throws and nothing renders. Handing it a policy made in the current
- * realm replaces the dead one for good, so this recovers once rather than on every call,
- * and the result stays a genuinely signed value.
+ * Sanitizes HTML, replacing the sanitizer's Trusted Types policy first when the policy's
+ * creating realm is gone and every call would otherwise throw. The replacement is kept
+ * for later calls, so this recovers once rather than on every call.
  */
 function sanitizeSurvivingStalePolicy(untrusted: string, config: DomPurifyTypes.Config): string | DocumentFragment | TrustedHTML {
 	try {

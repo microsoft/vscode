@@ -49,9 +49,10 @@ export interface IActionListDelegate<T> {
  */
 export interface IActionListItemHover {
 	/**
-	 * Content to display in the hover. Can be a markdown string or an HTMLElement for full DOM control.
+	 * Content to display in the hover. Pass a function to build the content the first
+	 * time the panel opens, for content that is expensive to construct.
 	 */
-	readonly content?: string | IMarkdownString | HTMLElement;
+	readonly content?: string | IMarkdownString | HTMLElement | (() => HTMLElement);
 	/**
 	 * Optional disposable associated with the hover content (e.g. from rendered markdown).
 	 */
@@ -215,7 +216,6 @@ class HeaderRenderer<T> implements IListRenderer<IActionListItem<T>, IHeaderTemp
 
 interface ISeparatorTemplateData {
 	readonly container: HTMLElement;
-	readonly icon: HTMLElement;
 	readonly text: HTMLElement;
 }
 
@@ -226,21 +226,14 @@ class SeparatorRenderer<T> implements IListRenderer<IActionListItem<T>, ISeparat
 	renderTemplate(container: HTMLElement): ISeparatorTemplateData {
 		container.classList.add('separator');
 
-		const icon = document.createElement('span');
-		icon.className = 'separator-icon';
-		container.append(icon);
-
 		const text = document.createElement('span');
 		container.append(text);
 
-		return { container, icon, text };
+		return { container, text };
 	}
 
 	renderElement(element: IActionListItem<T>, _index: number, templateData: ISeparatorTemplateData): void {
-		const icon = element.group?.icon;
-		templateData.container.classList.toggle('has-icon', !!icon);
 		templateData.container.classList.toggle('has-label', !!element.label);
-		templateData.icon.className = icon ? `separator-icon ${ThemeIcon.asClassName(icon)}` : 'separator-icon';
 		templateData.text.textContent = element.label ?? '';
 	}
 
@@ -868,8 +861,7 @@ export class ActionListWidget<T> extends Disposable {
 						}
 						if (element.hover?.content && !element.ariaDescription && !element.description) {
 							const hoverContent = element.hover.content;
-							const hoverText = typeof hoverContent === 'string' ? hoverContent : isMarkdownString(hoverContent) ? hoverContent.value : dom.isHTMLElement(hoverContent) ? hoverContent.textContent ?? undefined : undefined;
-							if (hoverText && (!element.detail || stripNewlines(element.detail) !== stripNewlines(hoverText))) {
+							const hoverText = typeof hoverContent === 'string' ? hoverContent : isMarkdownString(hoverContent) ? hoverContent.value : dom.isHTMLElement(hoverContent) ? hoverContent.textContent ?? undefined : undefined; if (hoverText && (!element.detail || stripNewlines(element.detail) !== stripNewlines(hoverText))) {
 								label = label + ', ' + stripNewlines(hoverText);
 							}
 						}
@@ -1865,7 +1857,7 @@ export class ActionListWidget<T> extends Disposable {
 
 		// When the item has hover content, render it as a header
 		let hoverHeader: HTMLElement | undefined;
-		const hoverContent = element.hover?.content;
+		const hoverContent = typeof element.hover?.content === 'function' ? element.hover.content() : element.hover?.content;
 		if (hoverContent) {
 			if (dom.isHTMLElement(hoverContent)) {
 				hoverHeader = hoverContent;

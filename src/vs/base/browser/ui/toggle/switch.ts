@@ -6,10 +6,11 @@
 import * as dom from '../../dom.js';
 import { Emitter, Event } from '../../../common/event.js';
 import { Disposable } from '../../../common/lifecycle.js';
+import { HoverStyle } from '../hover/hover.js';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 import './switch.css';
 
 export interface ISwitchOptions {
-	/** Initial state. */
 	readonly checked?: boolean;
 	/** Accessible name. Also used as the hover title unless {@link title} is given. */
 	readonly ariaLabel: string;
@@ -34,15 +35,22 @@ export class Switch extends Disposable {
 	readonly domNode: HTMLButtonElement;
 
 	private _checked: boolean;
+	private _title: string;
 
 	constructor(options: ISwitchOptions) {
 		super();
 		this._checked = !!options.checked;
+		this._title = options.title ?? options.ariaLabel;
 
 		this.domNode = dom.$('button.monaco-switch');
 		this.domNode.type = 'button';
 		this.domNode.setAttribute('role', 'switch');
 		dom.append(this.domNode, dom.$('.monaco-switch-thumb'));
+
+		this._register(getBaseLayerHoverDelegate().setupDelayedHover(this.domNode, () => ({
+			content: this._title,
+			style: HoverStyle.Pointer,
+		})));
 
 		this.setAriaLabel(options.ariaLabel, options.title);
 		this.disabled = !!options.disabled;
@@ -81,7 +89,7 @@ export class Switch extends Disposable {
 
 	setAriaLabel(ariaLabel: string, title = ariaLabel): void {
 		this.domNode.setAttribute('aria-label', ariaLabel);
-		this.domNode.title = title;
+		this._title = title;
 	}
 
 	private _applyState(): void {

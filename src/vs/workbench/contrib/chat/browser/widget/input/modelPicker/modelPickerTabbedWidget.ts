@@ -20,7 +20,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry } from '../../../../common/languageModels.js';
 import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
-import { IModelConfigurationAccess } from './modelPickerActionItem.js';
+import { IModelConfigurationAccess } from './modelPickerModelConfig.js';
 import { ModelPickerAutoRow } from './modelPickerAutoRow.js';
 import { IPricingDisclosure, ModelCard } from './modelPickerCard.js';
 import { buildSpeedVariants, collapseSpeedVariants, IModelSpeedVariants } from './modelPickerVariants.js';
@@ -56,7 +56,6 @@ export interface ITabbedModelPickerContext {
 		readonly currentVSCodeVersion: string;
 		readonly manageSettingsUrl: string | undefined;
 		readonly updateStateType: StateType;
-		readonly chatEntitlementService: IChatEntitlementService;
 	};
 	/** Reports a click on an upgrade or contact-admin link in an unavailable model row. */
 	readonly onUnavailableLinkClick: (uri: URI) => void;
@@ -72,9 +71,8 @@ export interface ITabbedModelPickerContext {
 }
 
 /**
- * The model picker: a list of models with a detail card beside the hovered one
- * and an Auto row pinned below. Models the user added themselves get a second
- * tab; with only the built-in provider there is no tab bar at all.
+ * A provider-tabbed model picker with a detail card beside the hovered model and an
+ * Auto row pinned below. With only the built-in provider there is no tab bar.
  */
 export class TabbedModelPicker extends Disposable {
 
@@ -109,6 +107,7 @@ export class TabbedModelPicker extends Disposable {
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IChatEntitlementService private readonly _entitlementService: IChatEntitlementService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -157,34 +156,26 @@ export class TabbedModelPicker extends Disposable {
 			initialTab: this._activeDestination,
 			tabBarActions: this._buildTabBarActions(context),
 			tabBarClassName: 'chat-model-picker-tabbar',
-			// Read on every render, so switching tabs after Auto was toggled does not
-			// replay the state the picker opened with.
+			// Recomputed on every render so a tab switch reflects the current Auto state.
 			widgetClassNames: () => [
 				'chat-model-picker-widget',
-				// Auto is in charge of the choice, so the list it overrides steps back.
 				...(this._isAutoSelected(this._context ?? context) ? ['auto-enabled'] : []),
 				...(this._searchVisible ? ['search-mode'] : []),
 			],
-			// Only the active tab is labelled, so the strip stays compact as the user
-			// adds providers.
 			tabLabels: 'active',
 			filterInTabBar: true,
 			width: PICKER_WIDTH,
 			createActionList: activeTab => {
-				// Read the latest state: the list can be rebuilt in place while the popup
-				// stays open, so the context captured when it opened may be stale.
+				this._cards.clear();
 				const current = this._context ?? context;
 				const destination = destinations.find(candidate => candidate.id === activeTab) ?? destinations[0];
 				const sections = this._buildSections(destination, current);
-				// Searching replaces the tab strip, so it searches what the strip scoped:
-				// every destination at once, each model named by where it came from.
+				// Search spans every destination at once, so each model names its provider.
 				const items = this._searchVisible
 					? destinations.flatMap(candidate => this._buildSearchItems(candidate, current))
 					: this._buildItems(destination, sections, current);
 				return {
 					items,
-					// Shares the chat input's picker motion and anchoring: the chip sits at the
-					// bottom of the window, so the popup has to open upward from it.
 					listOptions: withChatInputPickerMotion({
 						className: 'chat-model-picker-dropdown chat-model-picker-tabbed',
 						showFilter: this._searchVisible,
@@ -199,8 +190,7 @@ export class TabbedModelPicker extends Disposable {
 						linkHandler: uri => current.onUnavailableLinkClick(uri),
 						maxWidth: PICKER_WIDTH,
 						hideDefaultKeybindingTooltip: true,
-						// Rows lose their chevron while Auto is choosing, so the gutter is
-						// held open to keep the list from shifting as Auto is toggled.
+						// Rows lose their chevron while Auto is on, so hold the gutter open.
 						reserveSubmenuSpace: 'always',
 					}),
 				};
@@ -254,9 +244,7 @@ export class TabbedModelPicker extends Disposable {
 
 	private _buildTabBarActions(context: ITabbedModelPickerContext): ITabBarAction[] {
 		const actions: ITabBarAction[] = [];
-		// Sits with the tabs, right after the last one: adding a provider adds a tab, so
-		// the action belongs beside the thing it extends. Hidden while searching, when
-		// the strip it lives in gives way to the filter.
+		// Hidden while searching, when the filter takes the tab strip's place.
 		if (context.showManageModels && !this._searchVisible) {
 			actions.push({
 				id: 'addProvider',
@@ -283,7 +271,6 @@ export class TabbedModelPicker extends Disposable {
 	}
 
 	private _buildItems(destination: IModelPickerDestination, sections: IModelPickerSections, context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
-		this._cards.clear();
 		// A plan that grants only Auto still lists the models it could unlock, so the
 		// welcome body is reserved for having genuinely nothing to say.
 		if (!destination.models.length && !sections.unavailable.length) {
@@ -308,26 +295,23 @@ export class TabbedModelPicker extends Disposable {
 			// Listed after the models that can be picked, so the section leads with what works.
 			for (const { id, entry, needsUpdate } of unavailable) {
 				const { unavailableContext } = context;
-				const reason = needsUpdate ? 'update' : getUnavailableReason(entry, unavailableContext.chatEntitlementService, unavailableContext.currentVSCodeVersion);
+				const reason = needsUpdate ? 'update' : getUnavailableReason(entry, this._entitlementService, unavailableContext.currentVSCodeVersion);
 				items.push(createUnavailableModelItem(
 					id,
 					entry,
 					reason,
 					unavailableContext.manageSettingsUrl,
 					unavailableContext.updateStateType,
-					unavailableContext.chatEntitlementService,
+					this._entitlementService,
 				));
 			}
 		};
 
 		appendSection(localize('chat.modelPicker.pinned', "Pinned"), sections.pinned);
-		// The shortlist is just the list: naming it would label the default state, which
-		// no other heading here does.
+		// The shortlist is the default state, so it goes unlabelled.
 		appendSection(undefined, sections.suggested, sections.unavailable);
 
 		if (sections.other.length) {
-			// The toggle only earns its row when it folds away models that would
-			// otherwise crowd out the promoted ones above it.
 			const collapsible = hasPromotedModels(sections);
 			const section = collapsible ? OTHER_MODELS_SECTION : undefined;
 			if (collapsible) {
@@ -337,7 +321,6 @@ export class TabbedModelPicker extends Disposable {
 					item: { id: 'otherModels', enabled: true, checked: false, class: undefined, tooltip: label, label, run: () => { } },
 					kind: ActionListItemKind.Action,
 					label,
-					// Says how many are folded away, so the row is worth finding.
 					badge: String(count),
 					ariaDescription: localize('chat.modelPicker.otherModelsCount', "{0} more models", count),
 					group: { title: '', icon: Codicon.chevronDown },
@@ -376,7 +359,9 @@ export class TabbedModelPicker extends Disposable {
 		// While Auto is choosing, a model's settings do not apply, so the card that edits
 		// them stays shut. The row is still selectable, which is what turns Auto off.
 		const autoEnabled = this._isAutoSelected(context);
-		const card = autoEnabled ? undefined : this._cards.add(new ModelCard({
+		// Built when the panel first opens: only one card is ever visible, so building
+		// one per row would render the whole list's worth of markdown and controls.
+		const createCard = () => this._cards.add(new ModelCard({
 			model,
 			configurationAccess: context.configurationAccess,
 			isUBB: context.isUBB,
@@ -406,7 +391,7 @@ export class TabbedModelPicker extends Disposable {
 				}
 				this._widget.hide();
 			},
-		}));
+		})).element;
 		return {
 			item: action,
 			kind: ActionListItemKind.Action,
@@ -418,7 +403,7 @@ export class TabbedModelPicker extends Disposable {
 			hideIcon: false,
 			section,
 			className: badge ? `chat-model-picker-badge-${badge.tone}` : undefined,
-			hover: card ? { content: card.element, expandable: true, panelClassName: 'chat-model-card-panel' } : undefined,
+			hover: autoEnabled ? undefined : { content: createCard, expandable: true, panelClassName: 'chat-model-card-panel' },
 			tooltip: action.tooltip,
 		};
 	}

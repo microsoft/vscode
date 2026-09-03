@@ -98,8 +98,6 @@
 	justify-content: flex-start;
 }
 
-/* The settings the selected model was tuned to, read out beside its name. Plain text
- * rather than a pill: it describes the model, it is not a state to stop on. */
 .chat-input-picker-item .action-label.model-picker-split .model-picker-config-summary {
 	flex: 0 0 auto;
 	margin-left: var(--vscode-spacing-size60);
@@ -406,23 +404,10 @@
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
-/* --- Tabbed model picker ---
- *
- * The list sits on a recessed sheet inside the popup, and the active tab is part
- * of that same sheet: one surface, notched at the top for the tabs. Everything
- * else in the popup reads as the shell around it.
- */
-
 .action-widget.chat-model-picker-widget {
 	padding: var(--vscode-spacing-size80);
 }
 
-/* Icon-only destination tabs. Always present, so "add models" has a fixed home right
- * after the last tab instead of moving when a provider is added.
- *
- * The tabs sit on the popup itself and mark the active one with an accent underline,
- * the same language editor tabs use. An earlier version raised a sheet behind them,
- * which stacked four near-identical greys and left nothing legible. */
 .action-widget .tabbed-action-list-tabbar.chat-model-picker-tabbar {
 	align-items: center;
 	gap: var(--vscode-spacing-size20);
@@ -430,8 +415,6 @@
 	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-menu-separatorBackground, var(--vscode-editorWidget-border));
 }
 
-/* Holds every provider's tab, so it gives way before the trailing actions do. Only the
- * active tab carries a label, which truncates rather than pushing tabs out of reach. */
 .action-widget .chat-model-picker-tabbar .tabbed-action-list-tabstrip {
 	display: flex;
 	flex: 0 1 auto;
@@ -440,8 +423,6 @@
 	gap: var(--vscode-spacing-size20);
 }
 
-/* Search takes the strip's place inside the same bar, so the search button itself
- * never moves: it just becomes the selected tab. */
 .action-widget.search-mode .chat-model-picker-tabbar .tabbed-action-list-tabstrip {
 	display: none;
 }
@@ -477,9 +458,7 @@
 	box-shadow: none;
 }
 
-/* No focus ring on the field: it has no box of its own by design, since it replaces the
- * tab strip. Focus already reads from the caret and the search button standing as the
- * active tab. Specificity has to clear the workbench's global input focus rule. */
+/* The field replaces the tab strip and has no box of its own, so override the global input focus rule. */
 .action-widget.search-mode .chat-model-picker-tabbar .action-list-filter-row input.action-list-filter-input:focus,
 .action-widget.search-mode .chat-model-picker-tabbar .action-list-filter-row input.action-list-filter-input:focus-visible {
 	outline: none;
@@ -490,8 +469,6 @@
 	width: auto;
 }
 
-/* Tabs and the actions beside them are the same size; only the underline separates a
- * destination from an action. */
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button,
 .action-widget .chat-model-picker-tabbar .tabbed-action-list-tabbar-action {
 	position: relative;
@@ -512,9 +489,7 @@
 	margin: var(--vscode-spacing-sizeNone);
 }
 
-/* Only the active tab is named, so it widens to fit its label and is the first thing
- * to give way when the strip runs out of room. Clipping happens on the label rather
- * than the tab, which would cut off the underline sitting below it. */
+/* Let the active tab label yield space first, and clip the label rather than its underline. */
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button.active {
 	flex: 0 1 auto;
 	width: auto;
@@ -535,8 +510,6 @@
 	background: var(--vscode-toolbar-hoverBackground);
 }
 
-/* The active tab reads from its own weight and an accent underline, not from a surface
- * behind it. The underline sits on the bar's border so the two share one line. */
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button.active,
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button.active:hover,
 .action-widget.search-mode .chat-model-picker-tabbar .tabbed-action-list-tabbar-action.checked {
@@ -567,9 +540,6 @@
 	font-size: var(--vscode-codiconFontSize);
 }
 
-/* While Auto is choosing, the list it overrides steps back: the tabs and their models
- * are still readable and still reachable, but they no longer read as the live choice.
- * Picking a model from here is what turns Auto back off. */
 .action-widget.auto-enabled .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button,
 .action-widget.auto-enabled .chat-model-picker-tabbed .monaco-list-row.action,
 .action-widget.auto-enabled .chat-model-picker-tabbed .monaco-list-row.separator {
@@ -589,7 +559,6 @@
 	background: transparent;
 }
 
-/* Rows inset from the sheet edge, so the sheet reads as the container they sit in. */
 .action-widget .chat-model-picker-tabbed .monaco-list-row {
 	box-sizing: border-box;
 	width: calc(100% - var(--vscode-spacing-size80));
@@ -602,7 +571,6 @@
 	gap: 0;
 }
 
-/* A single 20px leading gutter puts every label on the same text edge. */
 .action-widget .chat-model-picker-tabbed .monaco-list-row.action > .codicon:first-child {
 	display: flex;
 	flex: 0 0 var(--vscode-spacing-size200);
@@ -614,9 +582,7 @@
 	line-height: var(--vscode-codiconFontSize-compact);
 }
 
-/* Section headings name a purpose, so they read quieter than the models under them.
- * Stated against the scrollable element so they beat the shared separator rule, which
- * draws a rule line these headings do not want. */
+/* Override the shared separator rule so section headings have no rule line. */
 .action-widget .chat-model-picker-tabbed .monaco-scrollable-element .monaco-list-rows .monaco-list-row.separator,
 .action-widget .chat-model-picker-tabbed .monaco-list-row.group-header {
 	box-sizing: border-box;
@@ -631,27 +597,16 @@
 	background: transparent;
 }
 
-/* The heading naming the destination titles the whole sheet, so it reads at full
- * strength. Outdented to the gutter, like the section headings below it. */
 .action-widget .chat-model-picker-tabbed .monaco-list-row.group-header {
 	padding-left: var(--vscode-spacing-sizeNone);
 	padding-top: var(--vscode-spacing-size40);
 	color: var(--vscode-foreground);
 }
 
-/* Headings are text alone, so they sit in the gutter the rows keep for their icons.
- * Headings on the left edge, row content indented past it. */
-.action-widget .chat-model-picker-tabbed .monaco-list-row.separator > .separator-icon {
-	display: none;
-}
-
 .action-widget .chat-model-picker-tabbed .monaco-list-row.separator > span:not(:empty) {
 	padding-left: var(--vscode-spacing-sizeNone);
 }
 
-/* The run below Pinned is deliberately unnamed, so an unlabelled separator carries the
- * whole boundary. A rule states it, where bare space read as an accident. Centred in the
- * gap so neither section looks tied to it. */
 .action-widget .chat-model-picker-tabbed .monaco-scrollable-element .monaco-list-rows .monaco-list-row.separator:not(.has-label) {
 	display: flex;
 	align-items: center;
@@ -665,8 +620,6 @@
 	background: var(--vscode-menu-separatorBackground, var(--vscode-editorWidget-border));
 }
 
-/* The row that folds the rest away is a section heading, not a model, so it reads like
- * the headings above it rather than like something you could pick. */
 .action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-section-toggle {
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label2);
@@ -677,13 +630,10 @@
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
-/* The label stops growing so the count can sit beside it. */
 .action-widget .chat-model-picker-tabbed .monaco-list-row.action.chat-model-picker-section-toggle .title {
 	flex: 0 1 auto;
 }
 
-/* The count sits with the label rather than at the far edge, so the two read as one
- * phrase: "Other Models, 4". */
 .action-widget .chat-model-picker-tabbed .monaco-list-row.action.chat-model-picker-section-toggle .action-item-badge {
 	margin-left: var(--vscode-spacing-size60);
 	margin-right: auto;
@@ -691,8 +641,6 @@
 	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
 }
 
-/* The selected model wears a tint of the accent rather than a full selection fill,
- * so it reads as chosen without shouting over the rows around it. */
 .action-widget .chat-model-picker-tabbed .monaco-list-row.action.checked {
 	color: var(--vscode-foreground);
 	background: color-mix(in srgb, var(--vscode-button-background) 18%, var(--vscode-menu-background));
@@ -706,7 +654,6 @@
 	color: var(--vscode-button-background);
 }
 
-/* Row actions: quiet glyphs that firm up on hover, sized as real targets. */
 .action-widget .chat-model-picker-tabbed .monaco-list-row .action-list-item-toolbar .actions-container {
 	gap: var(--vscode-spacing-size20);
 }
@@ -734,7 +681,6 @@
 	background: var(--vscode-toolbar-hoverBackground);
 }
 
-/* The chevron is a hover affordance, so it stays hidden until the row is active. */
 .action-widget .chat-model-picker-tabbed .monaco-list-row.action .action-list-submenu-indicator.has-submenu {
 	visibility: hidden;
 	color: var(--vscode-descriptionForeground);
@@ -746,8 +692,6 @@
 	visibility: visible;
 }
 
-/* Row badges. A descriptive label is plain text so it adds no box to a list that is
- * already a stack of tinted surfaces; only states worth stopping on take a fill. */
 .action-widget .chat-model-picker-tabbed .monaco-list-row.action .action-item-badge {
 	flex: 0 0 auto;
 	max-width: 96px;
@@ -763,17 +707,12 @@
 	white-space: nowrap;
 }
 
-/* The badge is set smaller than the name beside it, so centring the two boxes leaves
- * their baselines a pixel apart. Sitting both on the baseline lines the text up; the
- * icon and chevron stay centred. */
+/* Align the smaller badge text by baseline; keep icons and chevrons centered. */
 .action-widget .chat-model-picker-tabbed .monaco-list-row.action > .title,
 .action-widget .chat-model-picker-tabbed .monaco-list-row.action > .action-item-badge {
 	align-self: baseline;
 }
 
-/* A model the user cannot pick yet states what it would take, in the same pill shape as
- * the badges beside it so the trailing column stays one column. Whether it reads as a
- * status or an action follows from whether there is actually something to click. */
 .action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-unavailable .description {
 	flex: 0 0 auto;
 	margin-left: auto;
@@ -786,8 +725,6 @@
 	white-space: nowrap;
 }
 
-/* Upgrading or asking an administrator is something the user can do from here, so the
- * pill carries the accent and answers to hover and focus. */
 .action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-unavailable.has-link .description {
 	padding: var(--vscode-spacing-sizeNone);
 	background: transparent;
@@ -814,8 +751,6 @@
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
-/* An offer the user gains from, and a model on its way out. Both earn real colour so
- * they read at a glance instead of dissolving into the greys around them. */
 .action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-promo .action-item-badge {
 	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size60);
 	color: var(--vscode-charts-green, var(--vscode-textLink-foreground));
@@ -828,15 +763,6 @@
 	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 14%, transparent);
 }
 
-/* --- Auto row ---
- *
- * The switch and its routing tiers share one recessed track, so turning Auto on and
- * choosing how it routes read as a single control. The track only draws itself once
- * Auto is on and there is something in it to group.
- */
-
-/* Ruled off from the list: Auto overrides the choice above it rather than being another
- * entry in it. */
 .chat-model-picker-auto-row {
 	display: flex;
 	flex-direction: column;
@@ -849,6 +775,7 @@
 	align-items: center;
 	gap: var(--vscode-spacing-size60);
 	min-height: var(--vscode-spacing-size240);
+	cursor: pointer;
 }
 
 .chat-model-picker-auto-label {
@@ -865,56 +792,6 @@
 	margin-bottom: var(--vscode-spacing-size20);
 }
 
-/* --- Segmented control ---
- *
- * Shared by the Auto tiers and the detail card's thinking effort, so choosing one of a
- * few short options looks the same wherever it appears. The row sits in a recessed
- * track with the chosen option raised out of it: without the track the unchosen
- * options read as plain text rather than as something you can press. */
-.chat-model-picker-segments {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size20);
-	padding: var(--vscode-spacing-size20);
-	border-radius: var(--vscode-cornerRadius-circle);
-	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
-}
-
-.chat-model-picker-segment {
-	display: flex;
-	flex: 1 1 0;
-	align-items: center;
-	justify-content: center;
-	height: var(--vscode-spacing-size240);
-	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size60);
-	border: 0;
-	border-radius: var(--vscode-cornerRadius-circle);
-	color: var(--vscode-descriptionForeground);
-	background: transparent;
-	font: inherit;
-	font-size: var(--vscode-fontSize-label2);
-	white-space: nowrap;
-	cursor: pointer;
-}
-
-.chat-model-picker-segment:hover:not(.checked) {
-	color: var(--vscode-foreground);
-}
-
-/* The same accent tint a chosen model row uses, so "chosen" reads identically wherever
- * it appears. A neutral thumb would sit grey-on-grey against the track. */
-.chat-model-picker-segment.checked {
-	color: var(--vscode-foreground);
-	background: color-mix(in srgb, var(--vscode-button-background) 18%, var(--vscode-menu-background));
-	box-shadow: var(--vscode-shadow-sm);
-	font-weight: var(--vscode-fontWeight-semiBold);
-}
-
-.chat-model-picker-segment:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: calc(-1 * var(--vscode-strokeThickness));
-}
-
 .chat-model-picker-auto-description {
 	margin-bottom: var(--vscode-spacing-size20);
 	color: var(--vscode-descriptionForeground);
@@ -928,8 +805,6 @@
 .monaco-reduce-motion .chat-model-picker-auto-control {
 	transition: none;
 }
-
-/* --- Provider welcome body --- */
 
 .chat-model-picker-welcome {
 	display: flex;
@@ -971,8 +846,6 @@
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size240);
 }
 
-/* --- Model detail card --- */
-
 .chat-model-card {
 	display: flex;
 	flex-direction: column;
@@ -983,10 +856,6 @@
 	font-size: var(--vscode-fontSize-label1);
 }
 
-/* The card is the whole hover panel, so it owns its own padding, and the panel is a
- * peer of the picker rather than a menu hanging off it: same radius, same lift, and the
- * same surface, so the card reads as the list it came from.
- * Clipped, so a tinted row inside can't square off the panel's rounded corners. */
 .action-list-submenu-panel.chat-model-card-panel {
 	border-radius: var(--vscode-cornerRadius-large);
 	background: var(--vscode-menu-background);
@@ -999,8 +868,6 @@
 	max-width: 300px;
 }
 
-/* The name takes the space it needs and the badge follows it, so the badge reads as
- * being about the model rather than floating between the name and the star. */
 .chat-model-card-header {
 	display: flex;
 	align-items: center;
@@ -1067,7 +934,6 @@
 	white-space: nowrap;
 }
 
-/* Only high and very high take the warning treatment, matching the row badges. */
 .chat-model-card-badge.high-cost {
 	color: var(--vscode-editorWarning-foreground);
 	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 14%, transparent);
@@ -1139,9 +1005,6 @@
 	white-space: nowrap;
 }
 
-/* The breakdown is folded away behind its own row, so the card ends on something the
- * reader can skip rather than four numbers most people never need. The chevron trails
- * the label, which keeps the title on the same left edge as every other section. */
 .chat-model-card-pricing-toggle {
 	display: flex;
 	align-items: center;
@@ -1181,7 +1044,6 @@
 	font-size: var(--vscode-fontSize-label2);
 }
 
-/* Name on the left, number on the right, so the column of numbers can be read down. */
 .chat-model-card-pricing-row {
 	display: flex;
 	align-items: baseline;

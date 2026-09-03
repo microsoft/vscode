@@ -17,15 +17,9 @@ export interface IModelLine {
 }
 
 /**
- * Splits a model id into the product line and the version within it, by taking out
- * the one token that reads as a version:
- *
- * - `example-5.6-sol` is `example-sol` at 5.6
- * - `example-5.5` is `example` at 5.5
- * - `example-code-1.1-lite` is `example-code-lite` at 1.1
- *
- * An id with no version token is a line of its own, which is what keeps an id this
- * cannot read out of the way of the rule rather than buried by it.
+ * Splits a model id into its product line and version by taking out the one token
+ * that reads as a version, e.g. `example-5.6-sol` is `example-sol` at 5.6. An id
+ * with no version token is a line of its own.
  */
 export function parseModelLine(id: string): IModelLine {
 	const rest: string[] = [];
@@ -42,9 +36,8 @@ export function parseModelLine(id: string): IModelLine {
 }
 
 /**
- * Tokens in a model id that mark an early-access build. These come and go faster
- * than a list of them could be kept, so they are held out of the shortlist without
- * anyone naming them. They stay selectable further down.
+ * Tokens marking an early-access build. These are held out of the shortlist rather
+ * than listed by name, and stay selectable further down.
  */
 const EARLY_ACCESS_TOKENS: ReadonlySet<string> = new Set(['eap', 'experimental']);
 
@@ -53,7 +46,8 @@ export function isEarlyAccessModel(id: string): boolean {
 	return id.split('-').some(token => EARLY_ACCESS_TOKENS.has(token));
 }
 
-/** Orders two versions, longer runs of equal parts counting as newer. */function compareVersions(left: readonly number[], right: readonly number[]): number {
+/** Orders two versions, longer runs of equal parts counting as newer. */
+function compareVersions(left: readonly number[], right: readonly number[]): number {
 	for (let i = 0; i < Math.max(left.length, right.length); i++) {
 		const difference = (left[i] ?? 0) - (right[i] ?? 0);
 		if (difference !== 0) {
@@ -65,10 +59,8 @@ export function isEarlyAccessModel(id: string): boolean {
 
 /**
  * The newest model of each product line, which is the shortlist the picker leads with.
- *
- * Derived rather than listed, so a new version surfaces itself and the one it replaces
- * steps back without anyone editing a list. Models are grouped by vendor as well, since
- * two providers can ship the same line name.
+ * Deriving it means a new version surfaces itself without anyone editing a list.
+ * Grouped by vendor too, since two providers can ship the same line name.
  */
 export function latestOfEachLine(
 	models: readonly ILanguageModelChatMetadataAndIdentifier[],

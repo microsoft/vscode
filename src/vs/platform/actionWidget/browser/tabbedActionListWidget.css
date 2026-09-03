@@ -56,7 +56,6 @@
 	outline-offset: -1px;
 }
 
-/* Content pinned below the list, e.g. a persistent option row. */
 .action-widget .tabbed-action-list-footer,
 .action-widget .tabbed-action-list-empty {
 	flex: 0 0 auto;

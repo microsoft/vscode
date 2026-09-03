@@ -17,7 +17,7 @@ import { NullOpenerService } from '../../../../../platform/opener/test/common/nu
 import { StateType } from '../../../../../platform/update/common/update.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelControlEntry } from '../../../../contrib/chat/common/languageModels.js';
-import { IModelConfigurationAccess } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
+import { IModelConfigurationAccess } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ModelPickerAutoRow } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerAutoRow.js';
 import { IPricingDisclosure, ModelCard } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerCard.js';
 import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
@@ -310,6 +310,7 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 			}));
 			registration.defineInstance(IContextViewService, createInlineContextViewService(container, disposableStore));
 			registration.defineInstance(ILanguageModelsService, createLanguageModelsService());
+			registration.defineInstance(IChatEntitlementService, upcastPartial<IChatEntitlementService>({ entitlement: options.entitlement ?? ChatEntitlement.Free }));
 			// The shared harness discards writes, so the picker cannot remember anything.
 			registration.defineInstance(IStorageService, disposableStore.add(new InMemoryStorageService()));
 		},
@@ -348,7 +349,6 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 			currentVSCodeVersion: '1.100.0',
 			manageSettingsUrl: 'https://github.com/settings/copilot',
 			updateStateType: StateType.Idle,
-			chatEntitlementService: upcastPartial<IChatEntitlementService>({ entitlement: options.entitlement ?? ChatEntitlement.Free }),
 		},
 		onUnavailableLinkClick: () => { },
 		providerPlaceholders: options.providerPlaceholders ?? [],

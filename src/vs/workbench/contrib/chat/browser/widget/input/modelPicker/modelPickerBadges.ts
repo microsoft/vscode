@@ -5,13 +5,9 @@
 
 import { localize } from '../../../../../../../nls.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
-import { IModelConfigurationAccess } from './modelPickerActionItem.js';
-import { getModelConfigSummary } from './modelPickerModelConfig.js';
+import { getModelConfigSummary, IModelConfigurationAccess } from './modelPickerModelConfig.js';
 
-/**
- * How a row badge reads. Each tone maps to one colour so a row never has to be
- * read twice: neutral states stay quiet, problems and offers carry real colour.
- */
+/** Color treatment for a model-row badge. */
 export const enum ModelBadgeTone {
 	/** Plain text, no fill. The default for descriptive labels like a provider name. */
 	Neutral = 'neutral',
@@ -39,8 +35,7 @@ export interface IModelBadgeContext {
 
 /**
  * The single badge a model row shows. A row has one badge slot, so the states are
- * ranked by how much the user needs to know before picking: a model that is going
- * away outranks an offer, which outranks a description of what is already set.
+ * ranked by how much the user needs to know before picking.
  */
 export function getModelBadge(
 	model: ILanguageModelChatMetadataAndIdentifier,

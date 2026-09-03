@@ -5,6 +5,7 @@
 
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
+import { isDefined } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
 import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry } from '../../../../common/languageModels.js';
 import { buildModelToProviderGroupMap, getProviderGroupForModel, isVersionAtLeast } from './modelPickerItemPrimitives.js';
@@ -103,9 +104,8 @@ export function getModelProviderLabel(
 
 /**
  * Splits models into one destination per provider: the built-in one first, then each
- * provider the user added, by name. The Auto model is left out because it has its own
- * row. A provider with nothing to show is dropped, so the common case of no added
- * models yields a single destination and no tab bar.
+ * provider the user added, by name. Auto is left out because it has its own row, and
+ * empty providers are dropped so the common case yields no tab bar.
  */
 export function buildModelPickerDestinations(
 	models: readonly ILanguageModelChatMetadataAndIdentifier[],
@@ -177,15 +177,9 @@ export interface IModelPickerSectionsOptions {
 	readonly recentModelIds: readonly string[];
 	readonly pinnedModelIds: readonly string[];
 	readonly controlModels: IStringDictionary<IModelControlEntry>;
-	/**
-	 * Whether the destination has a curated shortlist to lead with. Only the built-in
-	 * provider curates one; elsewhere every model that is not a favourite is just the list.
-	 */
+	/** Whether the destination has a curated shortlist to lead with. Only the built-in provider curates one. */
 	readonly showSuggested: boolean;
-	/**
-	 * Whether to name curated models the user cannot select yet. Off by default so a
-	 * surface that cannot act on them does not advertise models it will not offer.
-	 */
+	/** Whether to name curated models the user cannot select yet. Off by default. */
 	readonly showUnavailable?: boolean;
 	/** This build's version, used to spot models gated behind a newer VS Code. */
 	readonly currentVSCodeVersion?: string;
@@ -196,8 +190,8 @@ export interface IModelPickerSectionsOptions {
  * rest. Each model appears once, and the selected model is never folded into the rest.
  */
 export function buildModelPickerSections(options: IModelPickerSectionsOptions): IModelPickerSections {
-	// A model this build is too old to run would fail if it were picked, so it is kept out
-	// of every selectable section and surfaced only as the update it needs.
+	// A model this build is too old to run is kept out of every selectable section and
+	// surfaced only as the update it needs.
 	const unavailable = buildUnavailableEntries(options);
 	const gated = new Set(unavailable.filter(entry => entry.needsUpdate).map(entry => entry.id));
 	const selectable = gated.size === 0
@@ -225,10 +219,8 @@ export function buildModelPickerSections(options: IModelPickerSectionsOptions): 
 				suggested.push(take(model.identifier)!);
 			}
 		}
-		// The newest model of each line leads, so a launch surfaces itself and the model
-		// it replaces steps back without anyone maintaining a list. A line replaced by a
-		// different line rather than by a newer version of itself is the one case a rule
-		// cannot work out, and is named as demoted instead.
+		// The newest model of each line leads. A line replaced by a different line rather
+		// than by a newer version of itself is marked demoted instead.
 		for (const model of latestOfEachLine(selectable)) {
 			if (isEarlyAccessModel(model.metadata.id) || options.controlModels[model.metadata.id]?.demoted) {
 				continue;
@@ -238,8 +230,7 @@ export function buildModelPickerSections(options: IModelPickerSectionsOptions): 
 				suggested.push(latest);
 			}
 		}
-		// The model in use is never folded away, however the catalogue rates it: a picker
-		// that hides the current choice cannot be read as showing the current choice.
+		// The model in use is never folded away, however the catalogue rates it.
 		const selected = take(options.selectedModelId);
 		if (selected) {
 			suggested.push(selected);
@@ -248,12 +239,10 @@ export function buildModelPickerSections(options: IModelPickerSectionsOptions): 
 
 	const byName = (left: ILanguageModelChatMetadataAndIdentifier, right: ILanguageModelChatMetadataAndIdentifier) =>
 		left.metadata.name.localeCompare(right.metadata.name);
-	// A model on offer leads the shortlist: the offer is time-limited, so it is worth
-	// seeing before the models that will still be there tomorrow.
+	// A time-limited offer leads the shortlist.
 	const byPromoThenName = (left: ILanguageModelChatMetadataAndIdentifier, right: ILanguageModelChatMetadataAndIdentifier) =>
 		(hasPromo(right) ? 1 : 0) - (hasPromo(left) ? 1 : 0) || byName(left, right);
-	// A retiring model sinks to the end: it still works today, so it stays pickable, but
-	// nothing should steer someone onto a model that is about to go away.
+	// A retiring model stays pickable but sinks to the end.
 	const byRetiringThenName = (left: ILanguageModelChatMetadataAndIdentifier, right: ILanguageModelChatMetadataAndIdentifier) =>
 		(isDeprecated(left) ? 1 : 0) - (isDeprecated(right) ? 1 : 0) || byName(left, right);
 	const rest = selectable.filter(model => !placed.has(model.identifier)).sort(byRetiringThenName);
@@ -272,9 +261,8 @@ function hasPromo(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 }
 
 /**
- * Curated models with no usable entry here: either the account has no access to them,
- * or this build is too old. They are named so the path to unlocking them is visible
- * rather than the model simply being absent.
+ * Curated models with no usable entry here, because the account has no access or this
+ * build is too old. Named so the path to unlocking them stays visible.
  */
 function buildUnavailableEntries(options: IModelPickerSectionsOptions): IModelPickerUnavailableEntry[] {
 	if (!options.showUnavailable) {
@@ -301,15 +289,7 @@ function isOutOfDate(entry: IModelControlEntry, currentVSCodeVersion: string | u
 	return !!entry.minVSCodeVersion && !!currentVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion);
 }
 
-/**
- * Whether the destination leads with a shortlist. When it does, the rest folds away
- * behind "Other Models"; when it does not, there is nothing to fold behind and the
- * whole list is shown.
- */
+/** Whether the destination leads with a shortlist that the rest can fold away behind. */
 export function hasPromotedModels(sections: IModelPickerSections): boolean {
 	return sections.suggested.length > 0;
-}
-
-function isDefined<T>(value: T | undefined): value is T {
-	return value !== undefined;
 }
