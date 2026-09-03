@@ -375,13 +375,16 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override pinEditor() { }
 		override getIndexOfEditor(editor: EditorInput) { return harness.activeGroupEditors.indexOf(editor); }
 		override async replaceEditors(replacements: IEditorReplacement[]) {
+			for (const replacement of replacements) {
+				store.add(replacement.replacement);
+			}
 			await harness.onReplaceEditors?.(replacements);
 			for (const replacement of replacements) {
 				const index = harness.activeGroupEditors.indexOf(replacement.editor);
 				if (index === -1) {
 					continue;
 				}
-				harness.activeGroupEditors.splice(index, 1, store.add(replacement.replacement));
+				harness.activeGroupEditors.splice(index, 1, replacement.replacement);
 				if (harness.activeEditorInput === replacement.editor) {
 					harness.activeEditorInput = replacement.replacement;
 				}
@@ -411,6 +414,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	});
 
 	instaService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+		override readonly activeSessionChangeCountObs = harness.sessionChangesService.activeSessionChangeCountObs;
 		override getChangesEditorResource(sessionResource: URI): URI { return harness.sessionChangesService.getChangesEditorResource(sessionResource); }
 		override getSessionResource(editorResource: URI): URI | undefined { return harness.sessionChangesService.getSessionResource(editorResource); }
 		override async openChangesEditor(sessionResource: URI, options?: { index?: number; inactive?: boolean }): Promise<IEditorGroup> {
