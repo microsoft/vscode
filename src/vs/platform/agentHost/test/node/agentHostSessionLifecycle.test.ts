@@ -39,6 +39,7 @@ suite('AgentHostSessionLifecycle', () => {
 		readonly autoArchivedAt?: number;
 		readonly canDeleteSession?: boolean;
 		readonly onGetAutoArchivedAt?: (configurationService: AgentConfigurationService) => void;
+		readonly onSetAutoArchivedAt?: (timestamp: number, configurationService: AgentConfigurationService, stateManager: AgentHostStateManager, session: URI) => void;
 	}) {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
@@ -75,6 +76,7 @@ suite('AgentHostSessionLifecycle', () => {
 		const restored: string[] = [];
 		const resolved: string[] = [];
 		const deleted: string[] = [];
+		const autoArchiveTimestamps: number[] = [];
 		let autoArchivedAt = options?.autoArchivedAt;
 		const pullRequestStatusService = new class extends mock<IAgentHostPullRequestStatusService>() {
 			override readonly onDidChangePullRequestStatus = Event.None;
@@ -99,7 +101,11 @@ suite('AgentHostSessionLifecycle', () => {
 					options?.onGetAutoArchivedAt?.(configurationService);
 					return autoArchivedAt;
 				},
-				setAutoArchivedAt: async (_resource, timestamp) => { autoArchivedAt = timestamp; },
+				setAutoArchivedAt: async (_resource, timestamp) => {
+					autoArchiveTimestamps.push(timestamp);
+					autoArchivedAt = timestamp;
+					options?.onSetAutoArchivedAt?.(timestamp, configurationService, stateManager, session);
+				},
 				canDeleteSession: async () => options?.canDeleteSession !== false,
 				deleteSession: async (resource, validate) => {
 					if (!await validate()) {
@@ -120,7 +126,7 @@ suite('AgentHostSessionLifecycle', () => {
 			logService,
 			{ now: () => NOW, start: false },
 		));
-		return { lifecycle, stateManager, session, restored, resolved, deleted };
+		return { lifecycle, stateManager, session, restored, resolved, deleted, autoArchiveTimestamps };
 	}
 
 	test('archives an inactive internal session after an authoritative merged result', async () => {
@@ -164,6 +170,28 @@ suite('AgentHostSessionLifecycle', () => {
 			restored: [session.toString()],
 			resolved: [session.toString()],
 			archived: false,
+		});
+	});
+
+	test('commits the archive state before recording the auto-archive timestamp', async () => {
+		let archivedWhenTimestampWritten = false;
+		const { lifecycle, stateManager, session, autoArchiveTimestamps } = createHarness({
+			status: mergedPullRequestStatus(),
+			onSetAutoArchivedAt: (timestamp, _configurationService, manager, resource) => {
+				archivedWhenTimestampWritten = isSessionStatusArchived(manager.getSessionSummary(resource.toString())?.status);
+			},
+		});
+
+		await lifecycle.run();
+
+		assert.deepStrictEqual({
+			status: stateManager.getSessionSummary(session.toString())?.status,
+			archivedWhenTimestampWritten,
+			autoArchiveTimestamps,
+		}, {
+			status: SessionStatus.Idle | SessionStatus.IsArchived,
+			archivedWhenTimestampWritten: true,
+			autoArchiveTimestamps: [NOW],
 		});
 	});
 

@@ -156,12 +156,22 @@ export class AgentHostSessionLifecycle extends Disposable {
 		}
 
 		if (candidate.action === 'archive') {
+			const finalArchiveAfterDays = this._getArchiveAfterDays();
+			const finalPullRequestUrl = finalArchiveAfterDays > 0
+				? this._getArchiveCandidate(
+					this._stateManager.getSessionSummary(sessionKey),
+					this._now() - finalArchiveAfterDays * DAY_MS,
+				)
+				: undefined;
+			if (finalPullRequestUrl?.toLowerCase() !== pullRequest.url.toLowerCase()) {
+				return;
+			}
 			this._logService.info(`[AgentHostSessionLifecycle] Auto-archiving inactive merged-pull-request session: session=${sessionKey}, pr=${pullRequest.url}`);
-			await this._accessor.setAutoArchivedAt(session, this._now());
 			this._stateManager.dispatchServerAction(sessionKey, {
 				type: ActionType.SessionIsArchivedChanged,
 				isArchived: true,
 			});
+			await this._accessor.setAutoArchivedAt(session, this._now());
 		} else {
 			try {
 				const deleted = await this._accessor.deleteSession(session, async () => {
@@ -210,6 +220,18 @@ export class AgentHostSessionLifecycle extends Disposable {
 		return autoArchivedAt !== undefined && autoArchivedAt <= archiveCutoff
 			? { pullRequestUrl, action: 'delete' }
 			: undefined;
+	}
+
+	private _getArchiveCandidate(summary: SessionSummary | undefined, archiveCutoff: number): string | undefined {
+		const modifiedTime = summary ? Date.parse(summary.modifiedAt) : Number.NaN;
+		if (!summary
+			|| isSessionStatusArchived(summary.status)
+			|| isSessionStatusActive(summary.status)
+			|| !Number.isFinite(modifiedTime)
+			|| modifiedTime > archiveCutoff) {
+			return undefined;
+		}
+		return getSessionRelatedPullRequestUrls(readSessionGitHubState(summary._meta))[0];
 	}
 }
 
