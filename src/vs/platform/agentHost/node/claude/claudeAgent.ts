@@ -981,7 +981,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			const setUp = isClaudeAccountSetUp(account);
 			this._nativeAccountSetUp = setUp;
 			// Origin only — never the credential itself.
-			this._logService.info(`[Claude] Native account check: setUp=${setUp}, provider=${account.apiProvider ?? 'none'}, tokenSource=${account.tokenSource ?? 'absent'}, apiKeySource=${account.apiKeySource ?? 'absent'}`);
+			this._logService.info(`[Claude] Native account check: setUp=${setUp}, provider=${account.apiProvider ?? 'none'}, tokenSource=${account.tokenSource ?? 'absent'}, apiKeySource=${account.apiKeySource ?? 'absent'}, subscription=${account.subscriptionType ?? 'absent'}`);
 			if (!setUp) {
 				return [];
 			}
