@@ -49,7 +49,21 @@ function renderBrowserEmptyState({ container }: ComponentFixtureContext): void {
 	browserRoot.style.position = 'relative';
 	browserRoot.style.width = '100%';
 	browserRoot.style.height = '100%';
-	browserRoot.appendChild(createBrowserWelcome('Browser', 'Use Add Element to Chat to reference UI elements in chat prompts.'));
+
+	const browserContainerWrapper = dom.append(browserRoot, dom.$('.browser-container-wrapper'));
+	browserContainerWrapper.style.position = 'relative';
+	browserContainerWrapper.style.width = '100%';
+	browserContainerWrapper.style.height = '100%';
+
+	const browserContainer = dom.append(browserContainerWrapper, dom.$('.browser-container'));
+	browserContainer.style.position = 'absolute';
+	browserContainer.style.inset = '0';
+
+	const placeholderContents = dom.append(browserContainer, dom.$('.browser-placeholder-contents'));
+	placeholderContents.style.position = 'relative';
+	placeholderContents.style.width = '100%';
+	placeholderContents.style.height = '100%';
+	placeholderContents.appendChild(createBrowserWelcome('Browser', 'Use Add Element to Chat to reference UI elements in chat prompts.'));
 }
 
 function renderChangesEmptyState({ container }: ComponentFixtureContext): void {

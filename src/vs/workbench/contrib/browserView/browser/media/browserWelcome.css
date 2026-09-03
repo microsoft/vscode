@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.browser-root > .browser-welcome-container {
+.browser-root .browser-welcome-container {
 	position: absolute;
 	top: 0;
 	left: 0;
