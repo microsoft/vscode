@@ -243,6 +243,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get isQuickChat() { return this._session.isQuickChat; }
 	get isAutomation() { return this._session.isAutomation; }
 	get isExternal() { return this._session.isExternal; }
+	get remoteConnectionStatus() { return this._session.remoteConnectionStatus; }
 	get createdBySession() { return this._session.createdBySession; }
 	get title() { return this._session.title; }
 	get updatedAt() { return this._session.updatedAt; }
@@ -294,6 +295,7 @@ class ResourceOverrideSession implements ISession {
 	get isQuickChat() { return this._session.isQuickChat; }
 	get isAutomation() { return this._session.isAutomation; }
 	get isExternal() { return this._session.isExternal; }
+	get remoteConnectionStatus() { return this._session.remoteConnectionStatus; }
 	get createdBySession() { return this._session.createdBySession; }
 	get title() { return this._session.title; }
 	get updatedAt() { return this._session.updatedAt; }

@@ -211,7 +211,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				let authenticated = true;
 				for (let redirectCount = 0; redirectCount <= maximumRedirects; redirectCount++) {
 					const headers: Record<string, string> = {
-						'Accept': 'text/plain, application/octet-stream',
+						'Accept': authenticated ? 'application/vnd.github+json' : 'text/plain, application/octet-stream',
 						'Cache-Control': 'no-store',
 						'X-GitHub-Api-Version': defaultApiVersion,
 					};

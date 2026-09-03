@@ -38,6 +38,8 @@ export interface IManagedSettingsCompatibilityError {
 
 export interface IDefaultAccountRefreshOptions {
 	readonly forceRefresh?: boolean;
+	/** Refreshes entitlement data even when its cache is fresh. */
+	readonly refreshEntitlements?: boolean;
 	/** Allows an explicit user action to retry managed settings after a failed attempt. */
 	readonly retryManagedSettings?: boolean;
 }

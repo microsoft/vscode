@@ -50,9 +50,10 @@ export interface AgentPromptCustomizations {
 	readonly userQueryTagName?: string;
 }
 
-export const PromptRegistry = new class {
+export class AgentPromptRegistry {
 	private readonly promptsWithMatcher: PromptWithMatcher[] = [];
 	private readonly familyPrefixList: { prefix: string; prompt: IAgentPromptCtor }[] = [];
+	private readonly fallbackPrompts: { prompt: IAgentPromptCtor; matchesModel: PromptWithMatcher['matchesModel'] }[] = [];
 
 	registerPrompt(prompt: IAgentPromptCtor): void {
 		if (prompt.matchesModel) {
@@ -62,6 +63,13 @@ export const PromptRegistry = new class {
 		for (const prefix of prompt.familyPrefixes) {
 			this.familyPrefixList.push({ prefix, prompt });
 		}
+	}
+
+	/**
+	 * Registers a fallback used only when no model matcher or family prefix matches.
+	 */
+	registerFallbackPrompt(prompt: IAgentPromptCtor, matchesModel: PromptWithMatcher['matchesModel']): void {
+		this.fallbackPrompts.push({ prompt, matchesModel });
 	}
 
 	private async getPromptResolver(
@@ -77,6 +85,12 @@ export const PromptRegistry = new class {
 
 		for (const { prefix, prompt } of this.familyPrefixList) {
 			if (endpoint.family.startsWith(prefix)) {
+				return prompt;
+			}
+		}
+
+		for (const { prompt, matchesModel } of this.fallbackPrompts) {
+			if (await matchesModel(endpoint)) {
 				return prompt;
 			}
 		}
@@ -107,4 +121,6 @@ export const PromptRegistry = new class {
 			userQueryTagName: agentPrompt?.resolveUserQueryTagName?.(endpoint) ?? 'userRequest',
 		};
 	}
-}();
+}
+
+export const PromptRegistry = new AgentPromptRegistry();

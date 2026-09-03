@@ -36,7 +36,6 @@ export class SinglePaneWorkbench extends Workbench {
 
 	private _dockedAuxiliaryBarWidth = DockedAuxiliaryBarController.DEFAULT_WIDTH;
 	private _syncingEditorVisibility = false;
-	private _restoreEqualSplitOnDetailsHide = false;
 	private readonly _memento = new DockedEditorSizeMemento();
 
 	override get isSinglePaneLayoutEnabled(): boolean {
@@ -110,7 +109,6 @@ export class SinglePaneWorkbench extends Workbench {
 		const sessionsWidth = this.workbenchGrid.getViewSize(this.sessionsPartView).width;
 		const editorNodeWidth = this.workbenchGrid.getViewSize(this.editorPartView).width;
 		const totalWidth = sessionsWidth + editorNodeWidth;
-		this._restoreEqualSplitOnDetailsHide = true;
 		return Math.round(this._dockedAuxiliaryBarWidth + (totalWidth - this._dockedAuxiliaryBarWidth) / 2);
 	}
 
@@ -309,10 +307,6 @@ export class SinglePaneWorkbench extends Workbench {
 	}
 
 	protected override _applyEditorVisibility(hidden: boolean): void {
-		if (hidden) {
-			this._restoreEqualSplitOnDetailsHide = false;
-		}
-
 		// Part sizes are workbench-global, so hiding the side pane must not discard the
 		// user's chosen editor width. Capture the current editor content width before the
 		// grid collapses the node, so revealing later — e.g. switching back from a session
@@ -330,7 +324,7 @@ export class SinglePaneWorkbench extends Workbench {
 		const dockedEditorSizeBeforeHide = this._memento.dockedEditorSizeBeforeHide;
 		const savedEditorWidth = this._savedPartSizes.editor;
 		const canRestoreSavedWidth = savedEditorWidth !== undefined && savedEditorWidth >= EDITOR_PART_MINIMUM_WIDTH;
-		const shouldRestoreDockedEditorSize = !hidden && this.partVisibility.auxiliaryBar && !!dockedEditorSizeBeforeHide;
+		const shouldRestoreDockedEditorSize = !hidden && !!dockedEditorSizeBeforeHide;
 		const shouldRestoreSavedWidth = !hidden && !shouldRestoreDockedEditorSize && canRestoreSavedWidth;
 		const shouldApplyEvenSplit = !hidden && !shouldRestoreDockedEditorSize && !shouldRestoreSavedWidth;
 
@@ -407,34 +401,6 @@ export class SinglePaneWorkbench extends Workbench {
 				this.editorPartView,
 				this._editorNodeShouldBeVisible()
 			);
-			if (hidden && !source && this._effectiveVisible(Parts.EDITOR_PART)) {
-				const editorNodeSize = this.workbenchGrid.getViewSize(this.editorPartView);
-				const targetWidth = this._restoreEqualSplitOnDetailsHide
-					? Math.round((this.workbenchGrid.getViewSize(this.sessionsPartView).width + editorNodeSize.width) / 2)
-					: editorNodeSize.width - DockedAuxiliaryBarController.getEffectiveWidth(this._dockedAuxiliaryBarWidth, editorNodeSize.width);
-				this._restoreEqualSplitOnDetailsHide = false;
-				this._runWithEditorResizeSyncSuspended(() => {
-					this.workbenchGrid.resizeView(this.editorPartView, {
-						width: Math.max(this.editorPartView.minimumWidth, targetWidth),
-						height: editorNodeSize.height
-					});
-				});
-			} else if (!hidden && !source && this._effectiveVisible(Parts.EDITOR_PART)) {
-				const editorNodeSize = this.workbenchGrid.getViewSize(this.editorPartView);
-				const savedEditorWidth = this._savedPartSizes.editor;
-				const canRestoreSavedWidth = this._isEditorPartAutoVisibilitySuppressed
-					&& savedEditorWidth !== undefined
-					&& savedEditorWidth >= EDITOR_PART_MINIMUM_WIDTH;
-				const targetWidth = canRestoreSavedWidth
-					? savedEditorWidth + this._dockedAuxiliaryBarWidth
-					: editorNodeSize.width + this._dockedAuxiliaryBarWidth;
-				this._runWithEditorResizeSyncSuspended(() => {
-					this.workbenchGrid.resizeView(this.editorPartView, {
-						width: targetWidth,
-						height: editorNodeSize.height
-					});
-				});
-			}
 			if (!hidden && !this.partVisibility.editor) {
 				this._syncingEditorVisibility = true;
 				try {

@@ -49,6 +49,8 @@ function stubFileChangesService(diffs: readonly IEditSessionEntryDiff[]): IChatR
 interface IRenderTurnPillsOptions {
 	readonly diffs: readonly IEditSessionEntryDiff[];
 	readonly setting?: ChatTurnStatusPillsSetting;
+	/** When `true`, the changed-files disclosure is expanded. */
+	readonly expanded?: boolean;
 }
 
 function renderTurnPills(ctx: ComponentFixtureContext, options: IRenderTurnPillsOptions): void {
@@ -74,6 +76,10 @@ function renderTurnPills(ctx: ComponentFixtureContext, options: IRenderTurnPills
 
 	const part = disposableStore.add(instantiationService.createInstance(ChatTurnPillsContentPart, content, partContext));
 
+	if (options.expanded) {
+		part.domNode.querySelector<HTMLDetailsElement>('.checkpoint-file-changes-disclosure')!.open = true;
+	}
+
 	// The turn changes summary reuses the checkpoint summary styling, which is
 	// scoped under `.interactive-session` (and relies on `.monaco-workbench` for
 	// codicon sizing custom properties).
@@ -98,6 +104,17 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 
 		ChangesOnly_MultipleFiles: defineComponentFixture({
 			render: (ctx) => renderTurnPills(ctx, {
+				diffs: [
+					fileDiff('app.ts', 42, 7, false),
+					fileDiff('util.ts', 118, 64, false),
+					fileDiff('index.ts', 5, 0, true),
+				],
+			}),
+		}),
+
+		ChangesOnly_Expanded: defineComponentFixture({
+			render: (ctx) => renderTurnPills(ctx, {
+				expanded: true,
 				diffs: [
 					fileDiff('app.ts', 42, 7, false),
 					fileDiff('util.ts', 118, 64, false),

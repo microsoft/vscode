@@ -38,6 +38,7 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 			showGettingStartedBanner: true,
 		};
 		override readonly activeProjectRoot = constObservable(URI.file('/workspace'));
+		override readonly activeProjectLabel = constObservable('workspace');
 		override readonly hasOverrideProjectRoot = constObservable(false);
 		override getActiveProjectRoot(): URI {
 			return URI.file('/workspace');

@@ -109,6 +109,12 @@ export class AgentsWindow {
 		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE, undefined, retryCount);
 	}
 
+	async waitForActiveSessionView(timeoutMs: number = 30_000): Promise<void> {
+		const retryCount = Math.ceil(timeoutMs / 100);
+		await this.code.waitForElement(NEW_SESSION_VIEW, result => !result, retryCount);
+		await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR, undefined, retryCount);
+	}
+
 	private async isSessionTypeSelected(label: string): Promise<boolean> {
 		const picker = this.code.driver.currentPage.locator(SESSION_TYPE_PICKER_VISIBLE).first();
 		return ((await picker.textContent()) ?? '').trim().toLowerCase() === label.trim().toLowerCase();

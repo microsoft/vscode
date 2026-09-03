@@ -33,6 +33,7 @@ export class ExecutionSubagentPrompt extends PromptElement<ExecutionSubagentProm
 		// Check if we're at the last turn (to align with training where we coax final answer)
 		const currentTurn = toolCallRounds?.length ?? 0;
 		const isLastTurn = currentTurn >= this.props.maxExecutionTurns - 1;
+		const remainingTurns = Math.max(this.props.maxExecutionTurns - currentTurn, 1);
 
 		return (
 			<>
@@ -82,11 +83,9 @@ export class ExecutionSubagentPrompt extends PromptElement<ExecutionSubagentProm
 					toolCallResults={toolCallResults}
 					toolCallMode={CopilotToolMode.FullContext}
 				/>
-				{isLastTurn && (
-					<UserMessage priority={900}>
-						OK, your allotted iterations are finished. Show the &lt;final_answer&gt;.
-					</UserMessage>
-				)}
+				<UserMessage priority={900}>
+					You have {remainingTurns} of {this.props.maxExecutionTurns} allotted iterations remaining. When one iteration remains, do not call tools; return only the &lt;final_answer&gt;.
+				</UserMessage>
 				{!isLastTurn && this.props.hasBackgroundCommand && (
 					<UserMessage priority={900}>
 						One or more commands are running in the background. You do not have the ability to monitor them. Show the &lt;final_answer&gt;.

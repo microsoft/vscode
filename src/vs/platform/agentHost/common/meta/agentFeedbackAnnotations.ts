@@ -71,11 +71,18 @@ export type AgentFeedbackKindValue = 'user' | 'codeReview' | 'prReview';
  */
 export type AgentFeedbackStateValue = 'created' | 'accepted' | 'submitted' | 'resolved';
 
+/** Pull request that originated a PR-review feedback item. */
+export interface IFeedbackPullRequest {
+	readonly owner: string;
+	readonly repo: string;
+	readonly number: number;
+}
+
 /**
  * Feedback semantics carried in an annotation's {@link Annotation._meta}.
  *
  * The optional client-only fields ({@link suggestion}, {@link codeSelection},
- * {@link diffHunks}, {@link sourcePRReviewCommentId}) are populated when a
+ * {@link diffHunks}, {@link sourcePRReviewCommentId}, {@link sourcePullRequest}) are populated when a
  * feedback item is converted from a code- or PR-review comment on the client;
  * server tools only ever write {@link kind} / {@link state} /
  * {@link sessionResource}. {@link suggestion} is typed loosely here because
@@ -89,6 +96,7 @@ export interface IFeedbackAnnotationMeta {
 	readonly codeSelection?: string;
 	readonly diffHunks?: string;
 	readonly sourcePRReviewCommentId?: string;
+	readonly sourcePullRequest?: IFeedbackPullRequest;
 	/**
 	 * Transient marker set by the client when the user reveals this comment to
 	 * the agent via the `viewUnreviewedComments` tool. The marker persists until
@@ -104,6 +112,14 @@ function isAgentFeedbackKindValue(value: unknown): value is AgentFeedbackKindVal
 
 function isAgentFeedbackStateValue(value: unknown): value is AgentFeedbackStateValue {
 	return value === 'created' || value === 'accepted' || value === 'submitted' || value === 'resolved';
+}
+
+function isFeedbackPullRequest(value: unknown): value is IFeedbackPullRequest {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return false;
+	}
+	const candidate = value as Partial<IFeedbackPullRequest>;
+	return typeof candidate.owner === 'string' && typeof candidate.repo === 'string' && typeof candidate.number === 'number';
 }
 
 /**
@@ -190,6 +206,7 @@ export function readFeedbackAnnotationMeta(annotation: Annotation): IFeedbackAnn
 	if (typeof raw['codeSelection'] === 'string') { result.codeSelection = raw['codeSelection']; }
 	if (typeof raw['diffHunks'] === 'string') { result.diffHunks = raw['diffHunks']; }
 	if (typeof raw['sourcePRReviewCommentId'] === 'string') { result.sourcePRReviewCommentId = raw['sourcePRReviewCommentId']; }
+	if (isFeedbackPullRequest(raw['sourcePullRequest'])) { result.sourcePullRequest = raw['sourcePullRequest']; }
 	if (typeof raw['pendingAgentReveal'] === 'boolean') { result.pendingAgentReveal = raw['pendingAgentReveal']; }
 	return result;
 }

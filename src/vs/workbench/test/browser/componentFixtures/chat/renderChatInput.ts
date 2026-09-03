@@ -86,6 +86,8 @@ export interface ChatInputFixtureOptions {
 	readonly selection?: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number };
 	/** Sets the fixture width, useful for exercising the compact picker layout. */
 	readonly width?: number;
+	/** Applies additional widths after initial layout to exercise responsive restoration. */
+	readonly resizeWidths?: readonly number[];
 	/** Supplies models so the picker renders provider icons. */
 	readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[];
 	/** Renders a standalone dictation / Voice Mode control in the given state. */
@@ -102,7 +104,7 @@ export interface ChatInputFixtureOptions {
 
 export async function renderChatInput(context: ComponentFixtureContext, fixtureOptions: ChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
-	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, models = [], voiceControl, notification, pet = false } = fixtureOptions;
+	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, resizeWidths = [], models = [], voiceControl, notification, pet = false } = fixtureOptions;
 	const artifactGroups: IArtifactSourceGroup[] = artifacts.length > 0 ? [{ source: { kind: 'agent' as const }, artifacts }] : [];
 	const artifactsObs = observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', artifactGroups);
 
@@ -233,6 +235,13 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	inputPart.layout(width);
 	await new Promise(r => setTimeout(r, 100));
 	inputPart.layout(width);
+	if (resizeWidths.length > 0) {
+		await Promise.all(resizeWidths.map((resizeWidth, index) => new Promise<void>(resolve => setTimeout(() => {
+			container.style.width = `${resizeWidth}px`;
+			inputPart.layout(resizeWidth);
+			resolve();
+		}, index * 16))));
+	}
 
 	if (value !== undefined) {
 		inputPart.setValue(value, true);

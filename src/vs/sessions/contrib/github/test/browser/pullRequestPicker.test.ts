@@ -165,6 +165,7 @@ suite('Create Session from Pull Request', () => {
 			fullName: attachment.fullName,
 			icon: attachment.icon?.id,
 			uri: attachment.uri.toString(),
+			readyMessage: attachment.readyMessage,
 			value: JSON.parse(attachment.value ?? ''),
 		}, {
 			kind: 'transcriptContext',
@@ -172,6 +173,7 @@ suite('Create Session from Pull Request', () => {
 			fullName: '#42 Improve sessions',
 			icon: 'git-pull-request',
 			uri: 'https://github.com/owner/repo/pull/42',
+			readyMessage: 'Session ready. Pull request #42 is checked out and attached.',
 			value: {
 				usageInstructions: 'Use this snapshot as the primary source for questions about the pull request. Do not fetch pull request data or run tools unless the user explicitly asks for refreshed information or the requested information is absent from this snapshot.',
 				owner: 'owner',
@@ -281,17 +283,25 @@ suite('Create Session from Pull Request', () => {
 		const remoteRoot = URI.parse('vscode-remote://ssh-remote+host/repos/alexr00/playground');
 		const cloudSession = sessionWithRepository(cloudRoot, 'alexr00', 'playground');
 		const localSession = sessionWithRepository(localRoot, 'alexr00', 'playground', false);
+		const localSessionWithMetadata = sessionWithRepository(localRoot, 'alexr00', 'playground');
+		const otherCloudSession = sessionWithRepository(cloudRoot, 'microsoft', 'vscode');
 		const remoteSession = sessionWithRepository(remoteRoot, 'alexr00', 'playground');
 
 		assert.deepStrictEqual({
 			cloud: await resolvePullRequestSessionRepository([cloudSession]),
 			local: await resolvePullRequestSessionRepository([localSession]),
 			mixed: await resolvePullRequestSessionRepository([cloudSession, localSession]),
+			mixedRepositories: await resolvePullRequestSessionRepository([otherCloudSession, localSessionWithMetadata]),
 			remote: await resolvePullRequestSessionRepository([remoteSession]),
 		}, {
 			cloud: undefined,
 			local: undefined,
 			mixed: {
+				folderUri: localRoot,
+				owner: 'alexr00',
+				repo: 'playground',
+			},
+			mixedRepositories: {
 				folderUri: localRoot,
 				owner: 'alexr00',
 				repo: 'playground',

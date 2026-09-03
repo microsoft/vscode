@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { McpResourceURI, McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
+import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { getMcpCollectionProvenance, McpCollectionProvenance, McpResourceURI, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../../common/mcpTypes.js';
 import * as assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 
@@ -44,6 +46,14 @@ suite('MCP Types', () => {
 				sandbox: undefined
 			},
 			...overrides
+		});
+
+		const createHttpDefinition = (uri: URI): McpServerDefinition => createBasicDefinition({
+			launch: {
+				type: McpServerTransportType.HTTP,
+				uri,
+				headers: []
+			}
 		});
 
 		test('returns true for identical definitions', () => {
@@ -113,6 +123,102 @@ suite('MCP Types', () => {
 			});
 			assert.strictEqual(McpServerDefinition.equals(def1, def2), false);
 		});
+
+		test('returns true when equivalent HTTP URI formatted cache state differs', () => {
+			const uri1 = URI.parse('https://example.com/mcp');
+			const uri2 = URI.parse('https://example.com/mcp');
+			uri1.toString();
+
+			assert.strictEqual(McpServerDefinition.equals(createHttpDefinition(uri1), createHttpDefinition(uri2)), true);
+		});
+
+		test('returns true when equivalent HTTP URI fsPath cache state differs', () => {
+			const uri1 = URI.parse('https://example.com/mcp');
+			const uri2 = URI.parse('https://example.com/mcp');
+			void uri1.fsPath;
+
+			assert.strictEqual(McpServerDefinition.equals(createHttpDefinition(uri1), createHttpDefinition(uri2)), true);
+		});
+
+		test('returns true when presentation origin URI cache state differs', () => {
+			const uri1 = URI.file('/path/to/mcp.json');
+			const uri2 = URI.file('/path/to/mcp.json');
+			const range = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
+			uri1.toString();
+
+			const def1 = createBasicDefinition({ presentation: { origin: { uri: uri1, range } } });
+			const def2 = createBasicDefinition({ presentation: { origin: { uri: uri2, range } } });
+
+			assert.strictEqual(McpServerDefinition.equals(def1, def2), true);
+		});
+
+		test('returns true when variable replacement folder URI cache state differs', () => {
+			const uri1 = URI.file('/workspace');
+			const uri2 = URI.file('/workspace');
+			uri1.toString();
+
+			const def1 = createBasicDefinition({
+				variableReplacement: {
+					target: ConfigurationTarget.USER,
+					folder: { uri: uri1, name: 'workspace', index: 0 }
+				}
+			});
+			const def2 = createBasicDefinition({
+				variableReplacement: {
+					target: ConfigurationTarget.USER,
+					folder: { uri: uri2, name: 'workspace', index: 0 }
+				}
+			});
+
+			assert.strictEqual(McpServerDefinition.equals(def1, def2), true);
+		});
+
+		test('returns false when HTTP endpoint differs', () => {
+			const def1 = createHttpDefinition(URI.parse('https://example.com/mcp-one'));
+			const def2 = createHttpDefinition(URI.parse('https://example.com/mcp-two'));
+
+			assert.strictEqual(McpServerDefinition.equals(def1, def2), false);
+		});
+
+		test('returns false when presentation range differs', () => {
+			const uri = URI.file('/path/to/mcp.json');
+			const def1 = createBasicDefinition({
+				presentation: {
+					origin: {
+						uri,
+						range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }
+					}
+				}
+			});
+			const def2 = createBasicDefinition({
+				presentation: {
+					origin: {
+						uri,
+						range: { startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 1 }
+					}
+				}
+			});
+
+			assert.strictEqual(McpServerDefinition.equals(def1, def2), false);
+		});
+
+		test('returns false when variable replacement folder index differs', () => {
+			const uri = URI.file('/workspace');
+			const def1 = createBasicDefinition({
+				variableReplacement: {
+					target: ConfigurationTarget.USER,
+					folder: { uri, name: 'workspace', index: 0 }
+				}
+			});
+			const def2 = createBasicDefinition({
+				variableReplacement: {
+					target: ConfigurationTarget.USER,
+					folder: { uri, name: 'workspace', index: 1 }
+				}
+			});
+
+			assert.strictEqual(McpServerDefinition.equals(def1, def2), false);
+		});
 	});
 
 	test('McpServerDefinition serializes default cwd as a URI', () => {
@@ -142,5 +248,83 @@ suite('MCP Types', () => {
 			serialized: defaultCwd,
 			deserialized: defaultCwd.toString(),
 		});
+	});
+
+	test('McpServerDefinition preserves SSE transport when serialized', () => {
+		const definition: McpServerDefinition = {
+			id: 'test-server',
+			label: 'Test Server',
+			cacheNonce: 'nonce',
+			launch: {
+				type: McpServerTransportType.HTTP,
+				transport: 'sse',
+				uri: URI.parse('https://example.com/sse'),
+				headers: [],
+			},
+		};
+
+		const launch = McpServerDefinition.fromSerialized(McpServerDefinition.toSerialized(definition)).launch;
+		assert.deepStrictEqual(launch.type === McpServerTransportType.HTTP ? {
+			type: launch.type,
+			transport: launch.transport,
+		} : undefined, {
+			type: McpServerTransportType.HTTP,
+			transport: 'sse',
+		});
+	});
+
+	test('McpServerLaunch converts persisted configurations', () => {
+		assert.deepStrictEqual({
+			local: McpServerLaunch.fromServerConfiguration({
+				type: McpServerType.LOCAL,
+				command: 'server',
+				args: ['--port', '3000'],
+				env: { TOKEN: 'value' },
+				envFile: '.env',
+				cwd: '/workspace',
+			}, { network: { allowedDomains: ['example.com'] } }),
+			remote: McpServerLaunch.fromServerConfiguration({
+				type: McpServerType.REMOTE,
+				transport: 'sse',
+				url: 'https://example.com/mcp',
+				headers: { Authorization: 'Bearer token' },
+				oauth: { clientId: 'client' },
+			}),
+		}, {
+			local: {
+				type: McpServerTransportType.Stdio,
+				command: 'server',
+				args: ['--port', '3000'],
+				env: { TOKEN: 'value' },
+				envFile: '.env',
+				cwd: '/workspace',
+				sandbox: { network: { allowedDomains: ['example.com'] } },
+			},
+			remote: {
+				type: McpServerTransportType.HTTP,
+				transport: 'sse',
+				uri: URI.parse('https://example.com/mcp'),
+				headers: [['Authorization', 'Bearer token']],
+				oauth: { clientId: 'client' },
+			},
+		});
+	});
+
+	test('maps configuration targets to collection provenance', () => {
+		assert.deepStrictEqual([
+			getMcpCollectionProvenance(ConfigurationTarget.USER),
+			getMcpCollectionProvenance(ConfigurationTarget.USER_LOCAL),
+			getMcpCollectionProvenance(ConfigurationTarget.USER_REMOTE),
+			getMcpCollectionProvenance(ConfigurationTarget.WORKSPACE),
+			getMcpCollectionProvenance(ConfigurationTarget.WORKSPACE_FOLDER),
+			getMcpCollectionProvenance(undefined),
+		], [
+			McpCollectionProvenance.UserProfile,
+			McpCollectionProvenance.UserProfile,
+			McpCollectionProvenance.RemoteUser,
+			McpCollectionProvenance.WorkspaceConfiguration,
+			McpCollectionProvenance.WorkspaceFolderConfiguration,
+			undefined,
+		]);
 	});
 });

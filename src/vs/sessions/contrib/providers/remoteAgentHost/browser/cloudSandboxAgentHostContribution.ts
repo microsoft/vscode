@@ -316,7 +316,8 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 				if (present.has(address) || this._provisioning.has(address)) {
 					continue;
 				}
-				const connected = this._remoteAgentHostService.connections.some(c => c.address === address);
+				const connected = this._remoteAgentHostService.connections.some(
+					c => c.address === address && RemoteAgentHostConnectionStatus.isConnected(c.status));
 				if (!connected) {
 					this._teardownEnvironment(address);
 				}
@@ -329,8 +330,8 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 	/**
 	 * Remove the connection (and its credential refresher) for an environment while keeping the
 	 * provider and its cached sessions visible in a disconnected state. Disposing the protocol
-	 * client stops the soft-reconnect loop; the {@link CloudSandboxAgentHostService} prunes the
-	 * refresher via `onDidChangeConnections`.
+	 * client stops its soft-reconnect loop and disposes the credential refresher owned by its
+	 * connection factory.
 	 */
 	private async _disconnectEnvironment(address: string): Promise<void> {
 		try {
@@ -650,9 +651,6 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 					void this._disconnectEnvironment(address);
 					throw new CancellationError();
 				}
-				// `onDidChangeConnections` fires from addManagedConnection and wires the
-				// provider; call _wireConnections directly too in case it already fired.
-				this._wireConnections();
 				return result;
 			} finally {
 				this._pendingConnects.delete(address);

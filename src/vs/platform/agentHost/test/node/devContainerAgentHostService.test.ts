@@ -38,6 +38,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	constructor(
 		private readonly _libc = '',
 		private readonly _forceCliInstall = false,
+		private readonly _shellEnvironmentError?: Error,
 	) {
 		super(
 			new NullLogService(),
@@ -54,8 +55,15 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		);
 	}
 
-	protected override _resolveShellEnvironment(): Promise<typeof process.env> {
+	protected override _resolveUserShellEnvironment(): Promise<typeof process.env> {
+		if (this._shellEnvironmentError) {
+			return Promise.reject(this._shellEnvironmentError);
+		}
 		return Promise.resolve(process.env);
+	}
+
+	resolveShellEnvironment(): Promise<typeof process.env> {
+		return this._resolveShellEnvironment();
 	}
 
 	protected override _runDevContainer(connectionId: string, args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
@@ -146,6 +154,12 @@ suite('Dev Container Agent Host Main Service', () => {
 			status: 0,
 			version: '0.88.0',
 		});
+	});
+
+	test('uses the inherited environment when shell environment resolution fails', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService('', false, new Error('shell environment timeout')));
+
+		assert.strictEqual(await service.resolveShellEnvironment(), process.env);
 	});
 
 	test('reuses a standalone endpoint and exposes its relay', async () => {

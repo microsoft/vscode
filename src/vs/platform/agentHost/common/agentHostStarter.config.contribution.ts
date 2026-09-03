@@ -47,7 +47,7 @@ import {
 	AgentHostMarkdownPlanRichLinksEnabledConfigKey,
 	AgentHostSystemProxyEnabledConfigKey,
 } from './agentHostSchema.js';
-import { AgentMergeConfigKey, AgentMergeSettingId } from './agentMerge.js';
+import { AgentMergeConfigKey, AgentMergeSettingId, AGENT_MERGE_SETTING_TAG } from './agentMerge.js';
 
 // Settings consumed by the agent host starter (`electronAgentHostStarter.ts`
 // and `nodeAgentHostStarter.ts`) to populate the spawned agent host process's
@@ -116,7 +116,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentMerge.enabled', "Enables the experimental Agent Merge controller and its commands. Agent Merge can monitor an agent session's pull request, ask the agent to address selected blockers, and optionally merge the pull request when it is ready."),
 			default: product.quality !== 'stable',
 			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental'],
+			tags: ['experimental', AGENT_MERGE_SETTING_TAG],
 			agentHost: { key: AgentMergeConfigKey.Enabled },
 		},
 		[AgentMergeSettingId.AddressReviews]: {
@@ -124,7 +124,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentMerge.addressReviews', "Controls whether enabled Agent Merge sessions address unresolved review threads, changes-requested reviews, and new pull request comments from repository maintainers or the Copilot pull request reviewer."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental'],
+			tags: ['experimental', AGENT_MERGE_SETTING_TAG],
 			agentHost: { key: AgentMergeConfigKey.AddressReviews },
 		},
 		[AgentMergeSettingId.FixCI]: {
@@ -132,7 +132,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentMerge.fixCI', "Controls whether enabled Agent Merge sessions ask the agent to fix failed required CI checks."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental'],
+			tags: ['experimental', AGENT_MERGE_SETTING_TAG],
 			agentHost: { key: AgentMergeConfigKey.FixCI },
 		},
 		[AgentMergeSettingId.ResolveConflicts]: {
@@ -140,15 +140,21 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentMerge.resolveConflicts', "Controls whether enabled Agent Merge sessions ask the agent to update branches that are behind or resolve merge conflicts."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental'],
+			tags: ['experimental', AGENT_MERGE_SETTING_TAG],
 			agentHost: { key: AgentMergeConfigKey.ResolveConflicts },
 		},
 		[AgentMergeSettingId.MergePullRequest]: {
-			type: 'boolean',
+			type: 'string',
+			enum: ['always', 'ifUnchanged', 'never'],
+			enumDescriptions: [
+				nls.localize('chat.agentMerge.mergePullRequest.always', "Merges the pull request whenever it is ready, including after Agent Merge has fixed CI failures or addressed review feedback."),
+				nls.localize('chat.agentMerge.mergePullRequest.ifUnchanged', "Merges the pull request only while Agent Merge has not changed it. Once a repair turn lands a commit, automatic merging turns itself off for that session so the changes can be reviewed."),
+				nls.localize('chat.agentMerge.mergePullRequest.never', "Never merges the pull request automatically."),
+			],
 			description: nls.localize('chat.agentMerge.mergePullRequest', "Controls whether the Agent Host automatically merges or enqueues pull requests for enabled Agent Merge sessions after all selected maintenance work is complete."),
-			default: false,
+			default: 'never',
 			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental'],
+			tags: ['experimental', AGENT_MERGE_SETTING_TAG],
 			agentHost: { key: AgentMergeConfigKey.MergePullRequest },
 		},
 		[AgentMergeSettingId.MergeMethod]: {
@@ -163,7 +169,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentMerge.mergeMethod', "Controls the native merge method used by Agent Merge."),
 			default: 'auto',
 			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental'],
+			tags: ['experimental', AGENT_MERGE_SETTING_TAG],
 			agentHost: { key: AgentMergeConfigKey.MergeMethod },
 		},
 		[AgentMergeSettingId.ReplyAttribution]: {
@@ -171,7 +177,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentMerge.replyAttribution', "Controls whether review-thread replies posted by Agent Merge include an automated-reply attribution note."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental'],
+			tags: ['experimental', AGENT_MERGE_SETTING_TAG],
 			agentHost: { key: AgentMergeConfigKey.ReplyAttribution },
 		},
 		[AgentHostActiveAgentTitleGenerationSettingId]: {

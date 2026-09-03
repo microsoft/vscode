@@ -3,8 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.chat-input-picker-item:has(.model-picker-split) {
+.chat-input-picker-item.model-picker-item {
 	overflow: visible;
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item.model-picker-item .action-label.model-picker-split {
+	box-sizing: border-box;
+	width: 100%;
+	min-width: 0;
+}
+
+.interactive-session .chat-input-toolbar.monaco-toolbar.responsive .monaco-action-bar > .actions-container > .action-item.model-picker-item {
+	flex-shrink: 1;
 }
 
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split {
@@ -51,8 +61,9 @@
 }
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-name {
-	flex-shrink: 0;
-	overflow: visible;
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
 }
 
 .interactive-session .chat-input-toolbar .chat-input-picker-item.compact-picker .action-label.model-picker-split.compact {
@@ -60,8 +71,29 @@
 }
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-name .chat-input-picker-label {
-	overflow: visible;
-	text-overflow: clip;
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.interactive-session .chat-input-toolbars > .chat-input-toolbar .chat-input-picker-item.model-picker-item .action-label.model-picker-split .model-picker-name .chat-input-picker-label {
+	flex-shrink: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.chat-input-picker-item .action-label.model-picker-split.compact .model-picker-name {
+	flex: 0 0 auto;
+	padding: 0 var(--vscode-spacing-size60);
+	justify-content: flex-start;
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split.icon-only.minimal .model-picker-name {
+	width: 24px;
+	padding: 0 var(--vscode-spacing-size60);
+	justify-content: flex-start;
 }
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-config {

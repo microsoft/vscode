@@ -113,6 +113,7 @@ export interface IModelPromo {
 	/** ISO 8601 end date; absent for open-ended promotions. */
 	ends_at?: string;
 	message: string;
+	show_banner?: boolean;
 }
 
 export interface IModelBilling {

@@ -228,6 +228,25 @@ const OPEN_PULL_REQUEST_COMMAND_ID = 'github.copilot.chat.cloudSessions.openPull
 const CLEAR_CACHES_COMMAND_ID = 'github.copilot.chat.cloudSessions.clearCaches';
 const CREATE_PULL_REQUEST_FOR_TASK_COMMAND_ID = 'github.copilot.chat.cloudSessions.createPullRequestForTask';
 const OPEN_PULL_REQUEST_FOR_TASK_COMMAND_ID = 'github.copilot.chat.cloudSessions.openPullRequestForTask';
+
+export function parseGitHubContextUrl(value: string, kind: 'issue' | 'pullRequest'): { readonly repoId: string; readonly url: string; readonly label: string } | undefined {
+	const match = /^https:\/\/(?:www\.)?github\.com\/(?<owner>[^/?#]+)\/(?<repository>[^/?#]+)\/(?<resource>issues|pull)\/(?<number>[1-9]\d*)\/?(?:[?#].*)?$/i.exec(value.trim());
+	if (!match?.groups) {
+		return undefined;
+	}
+	const resource = match.groups.resource.toLowerCase();
+	if ((resource === 'issues') !== (kind === 'issue')) {
+		return undefined;
+	}
+
+	const repoId = `${match.groups.owner}/${match.groups.repository}`;
+	return {
+		repoId,
+		url: `https://github.com/${repoId}/${resource}/${match.groups.number}`,
+		label: `${repoId}#${match.groups.number}`,
+	};
+}
+
 /** Context key gating the chat-input "Create pull request" toolbar action: true while the viewed cloud task is settled and has no PR yet. */
 const CAN_CREATE_PULL_REQUEST_CONTEXT_KEY = 'github.copilot.chat.cloudTaskCanCreatePullRequest';
 /** Context key gating the chat-input "Open pull request" toolbar action: true once the viewed cloud task has a pull request. */
@@ -706,6 +725,18 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 						clearTimeout(searchTimeout);
 					}
 					const query = value.trim();
+					const pastedSelection = parseGitHubContextUrl(query, kind);
+					if (pastedSelection) {
+						searchGeneration++;
+						quickPick.busy = false;
+						quickPick.items = [{
+							label: pastedSelection.label,
+							description: pastedSelection.repoId,
+							alwaysShow: true,
+							selection: pastedSelection,
+						}];
+						return;
+					}
 					if (query.length < 2) {
 						if (query.length === 0) {
 							void search('', ++searchGeneration);

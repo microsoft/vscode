@@ -7,9 +7,9 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { IAutomationDescriptor } from './automation.js';
 import { ICreateAutomationOptions, IUpdateAutomationOptions } from './automationService.js';
 
-export interface IShowAutomationDialogOptions {
-	readonly existing?: IAutomationDescriptor;
-}
+export type IShowAutomationDialogOptions =
+	| { readonly existing: IAutomationDescriptor; readonly initialValues?: never }
+	| { readonly existing?: never; readonly initialValues?: ICreateAutomationOptions };
 
 export type IAutomationDialogResult =
 	| { readonly kind: 'create'; readonly value: ICreateAutomationOptions }

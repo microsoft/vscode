@@ -145,9 +145,6 @@ class MockAgentConnection implements IAgentConnection {
 			},
 		};
 	}
-	getSubscriptionByChannel<T>(_kind: StateComponents, _channel: string): IReference<IAgentSubscription<T>> {
-		throw new Error('Not implemented');
-	}
 	getSubscriptionUnmanaged<T>(_kind: StateComponents, _resource: URI): IAgentSubscription<T> | undefined {
 		return undefined;
 	}

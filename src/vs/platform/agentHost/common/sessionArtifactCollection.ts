@@ -91,7 +91,7 @@ export function parseSessionArtifactInput(rawArgs: unknown, toolName: string): I
 		throw new Error(`Invalid ${toolName} input: type must be one of ${SESSION_ARTIFACT_TYPES.join(', ')}.`);
 	}
 	if (typeof args['isArtifact'] !== 'boolean') {
-		throw new Error(`Invalid ${toolName} input: isArtifact must be a boolean — true for something this session produced, false for a reference.`);
+		throw new Error(`Invalid ${toolName} input: isArtifact must be a boolean — true for an artifact, false for a reference.`);
 	}
 
 	const artifactType = type as SessionArtifactType;

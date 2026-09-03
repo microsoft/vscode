@@ -27,6 +27,8 @@ export interface IChatInputPickerOptions {
 
 	readonly compact: IObservable<boolean>;
 
+	readonly minimal?: IObservable<boolean>;
+
 	readonly listOptions?: IActionListOptions;
 }
 

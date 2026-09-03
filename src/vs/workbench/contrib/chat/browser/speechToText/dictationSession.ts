@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/dictationSession.css';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -25,6 +26,11 @@ import { ChatDictationSurface, ChatSpeechToTextState, IChatSpeechToTextService }
 const INTERIM_PROCESSING_CLASS = 'dictation-interim-processing';
 
 const LOG_PREFIX = '[chat-stt-dictation]';
+const MAX_DICTATION_DURATION_MS = 20 * 60 * 1000;
+
+function isRecording(service: IChatSpeechToTextService): boolean {
+	return service.state === ChatSpeechToTextState.Recording;
+}
 
 /**
  * Renders the cumulative transcript into a code editor, replacing its own
@@ -439,12 +445,21 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 	// composer is closed); cancel dictation instead of leaving the microphone
 	// and local transcription running against a dead editor.
 	disposables.add(editor.onDidDispose(() => cancelDictation()));
-	setActiveDictation({ service, editor, inserter, disposables, logService, surface });
+	const activeDictation = { service, editor, inserter, disposables, logService, surface };
+	setActiveDictation(activeDictation);
 	try {
 		await service.start(window, surface);
+		if (_active === activeDictation && isRecording(service)) {
+			const durationLimit = window.setTimeout(() => {
+				logService.info(`${LOG_PREFIX} stopping after maximum duration`);
+				status(localize('chatStt.maximumDurationReached', "Dictation stopped after 20 minutes."));
+				void stopDictation();
+			}, MAX_DICTATION_DURATION_MS);
+			disposables.add(toDisposable(() => window.clearTimeout(durationLimit)));
+		}
 	} catch {
 		// Acquisition/connection failure is surfaced by the service.
-		if (_active?.service === service) {
+		if (_active === activeDictation) {
 			setActiveDictation(undefined);
 		}
 		disposables.dispose();

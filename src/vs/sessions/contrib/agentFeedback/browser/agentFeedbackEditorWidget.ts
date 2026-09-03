@@ -755,6 +755,8 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			createAgentFeedbackContext(this._editor, this._codeEditorService, comment.resourceUri, comment.range),
 			comment.sourceId,
 			AgentFeedbackKind.PRReview,
+			undefined,
+			comment.sourcePullRequest,
 		);
 		this._agentFeedbackService.addReply(this._sessionResource, feedback.id, replyText);
 		this._agentFeedbackService.setNavigationAnchor(this._sessionResource, toSessionEditorCommentId(SessionEditorCommentSource.AgentFeedback, feedback.id));
@@ -826,6 +828,8 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			createAgentFeedbackContext(this._editor, this._codeEditorService, comment.resourceUri, comment.range),
 			comment.sourceId,
 			AgentFeedbackKind.PRReview,
+			undefined,
+			comment.sourcePullRequest,
 		);
 		this._agentFeedbackService.setNavigationAnchor(this._sessionResource, toSessionEditorCommentId(SessionEditorCommentSource.AgentFeedback, feedback.id));
 		this._codeReviewService.markPRReviewCommentConverted(this._sessionResource, comment.sourceId);

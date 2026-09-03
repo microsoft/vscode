@@ -6,7 +6,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').writeFileSync(''first-peer.txt'',''FIRST_PEER'')"`. Then reply exactly "created".'
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').writeFileSync(''first-peer.txt'',''FIRST_PEER'')"`. Do not run any other command or tool. Then reply exactly "created".'
     response:
       content:
         - type: text
@@ -23,7 +23,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').writeFileSync(''first-peer.txt'',''FIRST_PEER'')"`. Then reply exactly "created".'
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').writeFileSync(''first-peer.txt'',''FIRST_PEER'')"`. Do not run any other command or tool. Then reply exactly "created".'
         - role: assistant
           content: Running that exact command now.
         - role: assistant
@@ -38,8 +38,8 @@ exchanges:
             - type: tool_result
               tool_use_id: toolcall_0
               content: |-
-                Chunk ID: d02477
-                Wall time: 0.0000 seconds
+                Chunk ID: 635023
+                Wall time: 0.6857 seconds
                 Process exited with code 0
                 Original token count: 0
                 Output:
@@ -51,7 +51,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').writeFileSync(''second-peer.txt'',''SECOND_PEER'')"`. Then reply exactly "created".'
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').writeFileSync(''second-peer.txt'',''SECOND_PEER'')"`. Do not run any other command or tool. Then reply exactly "created".'
     response:
       content:
         - type: text
@@ -68,7 +68,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').writeFileSync(''second-peer.txt'',''SECOND_PEER'')"`. Then reply exactly "created".'
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').writeFileSync(''second-peer.txt'',''SECOND_PEER'')"`. Do not run any other command or tool. Then reply exactly "created".'
         - role: assistant
           content: Running that exact command now.
         - role: assistant
@@ -83,8 +83,8 @@ exchanges:
             - type: tool_result
               tool_use_id: toolcall_1
               content: |-
-                Chunk ID: 3945ac
-                Wall time: 0.0000 seconds
+                Chunk ID: dc81eb
+                Wall time: 0.3845 seconds
                 Process exited with code 0
                 Original token count: 0
                 Output:

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../base/common/codicons.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ISessionReadOnlyBannerContent, SessionReadOnlyBanner } from '../../browser/parts/sessionReadOnlyBanner.js';
 
@@ -19,6 +20,31 @@ export default defineThemedFixtureGroup({ path: 'sessions/readOnlyBanner/' }, {
 		render: (context) => renderBanner(context, {
 			message: 'This session is archived and read-only.',
 			action: { label: 'Restore', run: () => console.log('Restore') },
+		}),
+	}),
+
+	Reconnecting: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (context) => renderBanner(context, {
+			icon: Codicon.sync,
+			message: 'Reconnecting to WSL: Ubuntu...',
+		}),
+	}),
+
+	HostNotRunning: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (context) => renderBanner(context, {
+			icon: Codicon.debugDisconnect,
+			message: 'WSL: Ubuntu is not running.',
+			action: { label: 'Start WSL: Ubuntu', run: () => console.log('Start') },
+		}),
+	}),
+
+	HostDisconnected: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (context) => renderBanner(context, {
+			icon: Codicon.debugDisconnect,
+			message: 'Cannot reach WSL: Ubuntu.',
 		}),
 	}),
 });

@@ -18,12 +18,16 @@
 	width: 100%;
 	min-width: 0;
 	box-sizing: border-box;
-	padding: var(--vscode-spacing-size20) 0 var(--vscode-spacing-size60) 0;
+	padding: var(--vscode-spacing-size20) 0 var(--vscode-spacing-size40) 0;
 }
 
 .session-chat-input-toolbar-content > .chat-pills,
 .session-chat-input-toolbar-content > .session-activity-pill {
 	flex-shrink: 0;
+}
+
+.session-chat-input-toolbar-content > * {
+	pointer-events: auto;
 }
 
 .session-chat-input-toolbar.hidden {

@@ -336,8 +336,6 @@ export interface IAgentHostE2EProviderConfig {
 	readonly supportsPluginCustomizationDiscoveryE2E?: boolean;
 	/** Provider publishes live workspace-agent file changes through customization state. */
 	readonly supportsWorkspaceAgentWatchE2E?: boolean;
-	/** Provider's denied file-creation flow mutates the workspace during replay on Linux. */
-	readonly fileToolDenialReplayUnstableOnLinux?: boolean;
 	/**
 	 * Whether the suite should be enabled. Returning false skips the suite
 	 * entirely (mirrors `suite.skip(...)`).
@@ -384,6 +382,8 @@ export interface IAgentHostE2EProviderConfig {
 	 * notifications there. Recording and other platforms keep full coverage.
 	 */
 	readonly shellToolReplayUnstableOnLinux?: boolean;
+	/** Provider intermittently completes successful shell calls without exposing result text. */
+	readonly shellToolResultTextUnreliable?: boolean;
 	/**
 	 * When set, the subagent-reopen ("replay path") test is skipped on Windows for
 	 * this provider, which rebuilds the reopened transcript from the bundled SDK's

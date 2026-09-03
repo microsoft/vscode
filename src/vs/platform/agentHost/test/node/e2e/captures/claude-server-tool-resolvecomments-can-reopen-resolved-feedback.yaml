@@ -9,8 +9,6 @@ exchanges:
           content: Call resolveComments exactly once with commentIds ["reopen-me"] and resolved false, then reply exactly "reopened".
     response:
       content:
-        - type: text
-          text: I'll resolve—unresolve, rather—that comment.
         - type: tool_use
           id: toolcall_0
           name: mcp__host__resolveComments
@@ -27,8 +25,6 @@ exchanges:
           content: Call resolveComments exactly once with commentIds ["reopen-me"] and resolved false, then reply exactly "reopened".
         - role: assistant
           content:
-            - type: text
-              text: I'll resolve—unresolve, rather—that comment.
             - type: tool_use
               name: mcp__host__resolveComments
               input:
@@ -58,6 +54,7 @@ exchanges:
                       },
                       "text": "reopen",
                       "kind": "codeReview",
+                      "author": "agent",
                       "resolved": false
                     }
                   ]

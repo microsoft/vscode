@@ -15,6 +15,7 @@ import { IListService, ListService } from '../../../../../platform/list/browser/
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IMenu, IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -67,6 +68,7 @@ interface ISessionSpec {
 	readonly title: string;
 	readonly workspace?: string;
 	readonly status?: SessionStatus;
+	readonly mainChatStatus?: SessionStatus;
 	readonly description?: string;
 	readonly minutesAgo: number;
 	readonly changesSummary?: ISessionChangesSummary;
@@ -127,7 +129,7 @@ function createSession(spec: ISessionSpec, approvals: Map<string, IAgentSessionA
 	}
 	const mainChat = new class extends mock<IChat>() {
 		override readonly resource = mainChatResource;
-		override readonly status: IObservable<SessionStatus> = constObservable(spec.status ?? SessionStatus.Completed);
+		override readonly status: IObservable<SessionStatus> = constObservable(spec.mainChatStatus ?? spec.status ?? SessionStatus.Completed);
 		override readonly interactivity: IObservable<ChatInteractivity> = constObservable(ChatInteractivity.Full);
 	}();
 	const nestedChats = (spec.chats ?? []).map(chatSpec => createChat(spec.id, chatSpec, updatedAt, approvals));
@@ -169,9 +171,11 @@ interface IRenderOptions {
 	readonly grouping?: SessionsGrouping;
 	readonly width?: number;
 	readonly phone?: boolean;
+	readonly revealHierarchyGuides?: boolean;
+	readonly showFocusedToolbar?: boolean;
 }
 
-function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOptions): void {
+function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOptions): void | Promise<void> {
 	const { container, disposableStore } = ctx;
 	const approvals = new Map<string, IAgentSessionApprovalInfo>();
 	const sessions = options.sessions.map(spec => createSession(spec, approvals));
@@ -188,6 +192,25 @@ function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOption
 		colorTheme: ctx.theme,
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
+			if (options.showFocusedToolbar) {
+				const archiveAction = new class extends mock<MenuItemAction>() {
+					override readonly id = 'sessions.fixture.archive';
+					override readonly label = 'Archive';
+					override readonly tooltip = 'Archive';
+					override readonly class = ThemeIcon.asClassName(Codicon.archive);
+					override readonly enabled = true;
+					override async run(): Promise<void> { }
+				}();
+				reg.defineInstance(IMenuService, new class extends mock<IMenuService>() {
+					override createMenu(): IMenu {
+						return {
+							onDidChange: Event.None,
+							getActions: () => [['navigation', [archiveAction]]],
+							dispose: () => { },
+						};
+					}
+				}());
+			}
 			reg.define(IListService, ListService);
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.defineInstance(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() { }());
@@ -298,6 +321,27 @@ function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOption
 		approvalModel,
 	}));
 	list.layout(options.phone ? 260 : 220, width);
+
+	if (options.showFocusedToolbar) {
+		return Promise.resolve().then(() => {
+			const sessionRow = listHost.querySelector<HTMLElement>('.session-item')?.closest('.monaco-list-row');
+			const toolbar = sessionRow?.querySelector<HTMLElement>('.session-title-toolbar');
+			const actions = toolbar?.querySelector<HTMLElement>('.actions-container');
+			if (!sessionRow || !toolbar || !actions) {
+				throw new Error('Expected a session row toolbar.');
+			}
+			sessionRow.classList.add('focused');
+			toolbar.style.display = 'block';
+		});
+	}
+
+	if (options.revealHierarchyGuides) {
+		const sessionItem = listHost.querySelector<HTMLElement>('.session-item');
+		if (!sessionItem) {
+			throw new Error('Expected a session row to reveal its hierarchy guides.');
+		}
+		sessionItem.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+	}
 }
 
 const GROUP: ISessionGroup = { id: 'group-1', name: 'Release work', createdAt: Date.now() };
@@ -321,6 +365,18 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			width: 260,
 		}),
 	}),
+	SessionsList_NarrowHoverToolbar: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['A narrow session row truncates its long title and shows the Archive toolbar action fully inside the rounded row boundary.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [
+				{ id: 'a', title: 'Review PR 333429: sessions fix normalize Windows workspace path casing', workspace: 'vscode', minutesAgo: 12, group: GROUP.id, changesSummary: { files: 4, additions: 104, deletions: 4 } },
+			],
+			groups: [GROUP],
+			showFocusedToolbar: true,
+			width: 260,
+		}),
+	}),
 	SessionsList_CustomGroup_InProgress: defineComponentFixture({
 		render: ctx => renderSessionsList(ctx, {
 			sessions: [
@@ -329,6 +385,27 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			],
 			groups: [GROUP],
 			width: 260,
+		}),
+	}),
+	SessionsList_PeerChatInProgress: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['An expanded session has a completed main chat and two nested peer chat rows. The session row and the active "Fix empty files restore" peer chat row both show blue in-progress icons, while the completed "Fix single-pane details layout" peer chat shows an inactive dot. The session details say "Working...".'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [
+				{
+					id: 'a',
+					title: 'Single-pane details behavior',
+					workspace: 'vscode',
+					minutesAgo: 0,
+					status: SessionStatus.InProgress,
+					mainChatStatus: SessionStatus.Completed,
+					chats: [
+						{ id: 'layout', title: 'Fix single-pane details layout' },
+						{ id: 'restore', title: 'Fix empty files restore', status: SessionStatus.InProgress },
+					],
+				},
+			],
+			width: 620,
 		}),
 	}),
 	SessionsList_WorkspaceSection: defineComponentFixture({
@@ -359,6 +436,26 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 					],
 				},
 			],
+			width: 340,
+		}),
+	}),
+	SessionsList_NestedChatHierarchyGuides: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['An expanded session has two nested chat rows. A single vertical hierarchy guide runs continuously from below the parent session icon through the first child and ends in an L-shaped connector at the final child, with no gaps between rows.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [
+				{
+					id: 'a',
+					title: 'HTTP Client Retry Plan',
+					workspace: 'vscode-tools',
+					minutesAgo: 2,
+					chats: [
+						{ id: 'task-a', title: 'Task A' },
+						{ id: 'task-b', title: 'Task B' },
+					],
+				},
+			],
+			revealHierarchyGuides: true,
 			width: 340,
 		}),
 	}),

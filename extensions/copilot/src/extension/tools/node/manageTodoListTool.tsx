@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { isGpt5PlusFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
+import { isGpt5PlusFamily, isHiddenModelN } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { ToolName } from '../common/toolNames';
 import { ICopilotTool, ToolRegistry } from '../common/toolsRegistry';
@@ -17,7 +17,7 @@ class ManageTodoListTool implements ICopilotTool<unknown> {
 	public static readonly nonDeferred = true;
 
 	alternativeDefinition(tool: vscode.LanguageModelToolInformation, endpoint?: IChatEndpoint): vscode.LanguageModelToolInformation {
-		if (!isGpt5PlusFamily(endpoint)) {
+		if (!isGpt5PlusFamily(endpoint) && (!endpoint || !isHiddenModelN(endpoint))) {
 			return tool;
 		}
 

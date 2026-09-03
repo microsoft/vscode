@@ -106,6 +106,28 @@ suite('AgentHostRestrictedTelemetrySender', () => {
 		});
 	});
 
+	test('common properties are added to and removed from standard and enhanced envelopes', () => {
+		const { sender, envelopes } = createSender();
+		sender.setRestrictedTelemetryEnabled(true);
+
+		sender.setCommonProperty('copilotSku', 'copilot_for_business_seat');
+		sender.sendGHTelemetryEvent('standard');
+		sender.sendEnhancedGHTelemetryEvent('enhanced');
+		sender.setCommonProperty('copilotSku', undefined);
+		sender.sendGHTelemetryEvent('standard');
+		sender.sendEnhancedGHTelemetryEvent('enhanced');
+
+		assert.deepStrictEqual(envelopes.map(envelope => ({
+			hasCopilotSku: Object.hasOwn(envelope.data.baseData.properties, 'copilotSku'),
+			copilotSku: envelope.data.baseData.properties.copilotSku,
+		})), [
+			{ hasCopilotSku: true, copilotSku: 'copilot_for_business_seat' },
+			{ hasCopilotSku: true, copilotSku: 'copilot_for_business_seat' },
+			{ hasCopilotSku: false, copilotSku: undefined },
+			{ hasCopilotSku: false, copilotSku: undefined },
+		]);
+	});
+
 	test('oversized enhanced telemetry is not posted when property bytes are below the limit', () => {
 		const logService = new RecordingLogService();
 		const { sender, posts } = createSender(logService);

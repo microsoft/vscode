@@ -4,9 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { AGENT_HOST_LABEL_FORMATTER, agentHostAuthority, agentHostLabelFormatter, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
@@ -14,9 +21,74 @@ suite('ChatMarkdownRenderer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let testRenderer: ChatContentMarkdownRenderer;
+	let instantiationService: ReturnType<typeof workbenchInstantiationService>;
 	setup(() => {
-		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		instantiationService = store.add(workbenchInstantiationService(undefined, store));
 		testRenderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
+	});
+
+	suite('link hovers', () => {
+		let setupManagedHover: sinon.SinonSpy<Parameters<IHoverService['setupManagedHover']>, ReturnType<IHoverService['setupManagedHover']>>;
+
+		setup(() => {
+			setupManagedHover = sinon.spy(NullHoverService.setupManagedHover);
+			instantiationService.stub(IHoverService, { ...NullHoverService, setupManagedHover });
+			store.add(instantiationService.get(ILabelService).registerFormatter(AGENT_HOST_LABEL_FORMATTER));
+			testRenderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
+		});
+
+		test('shows host paths for transformed and already mapped links without changing their targets', () => {
+			const authority = agentHostAuthority('vscode-remote://wsl+Ubuntu');
+			store.add(instantiationService.get(ILabelService).registerFormatter(agentHostLabelFormatter(authority, OperatingSystem.Linux)));
+			const file = URI.file('/home/user/my project/a&b.ts').with({ fragment: 'L42,7' });
+			const target = toAgentHostUri(file, authority).toString();
+			const links = [
+				{ href: '/home/user/my%20project/a&b.ts:42:7', transformUri: () => target },
+				{ href: target, transformUri: undefined },
+			];
+
+			const actual = links.map(({ href, transformUri }) => {
+				const result = store.add(testRenderer.render(new MarkdownString(`[file](${href})`), { transformUri }));
+				const link = result.element.querySelector('a');
+				return {
+					hover: setupManagedHover.lastCall.args[2],
+					target: link?.dataset.href,
+					text: link?.textContent,
+					nativeTitle: link?.title,
+				};
+			});
+
+			assert.deepStrictEqual(actual, links.map(() => ({
+				hover: '/home/user/my project/a&b.ts#L42,7',
+				target,
+				text: 'file',
+				nativeTitle: '',
+			})));
+		});
+
+		test('uses the remote host operating system for path formatting', () => {
+			const labelService = instantiationService.get(ILabelService);
+			store.add(labelService.registerFormatter(agentHostLabelFormatter('windows-host', OperatingSystem.Windows)));
+			const target = toAgentHostUri(URI.file('C:/my project/file.ts'), 'windows-host').toString();
+			store.add(testRenderer.render(new MarkdownString(`[file](${target})`)));
+
+			assert.strictEqual(setupManagedHover.lastCall.args[2], 'C:\\my project\\file.ts');
+		});
+
+		test('preserves explicit titles and ordinary file, external, and command link behavior', () => {
+			const target = toAgentHostUri(URI.file('/home/user/file.ts'), 'remote-host').toString();
+			const file = URI.file('/my project/file.ts').with({ fragment: 'L7' });
+			const markdown = new MarkdownString(`[custom](${target} "Custom title") [file](${file}) [web](https://example.com/) [command](command:example)`, { isTrusted: true });
+			const result = store.add(testRenderer.render(markdown));
+
+			assert.deepStrictEqual({
+				hovers: setupManagedHover.getCalls().map(call => call.args[2]),
+				targets: Array.from(result.element.querySelectorAll('a'), link => link.dataset.href),
+			}, {
+				hovers: ['Custom title', `${file.fsPath}#L7`, 'https://example.com/'],
+				targets: [target, file.toString(), 'https://example.com/', 'command:example'],
+			});
+		});
 	});
 
 	test('simple', async () => {

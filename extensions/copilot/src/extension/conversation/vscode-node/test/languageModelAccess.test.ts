@@ -698,10 +698,10 @@ suite('auto mode tier schema', () => {
 		assert.deepStrictEqual(buildAutoModeTierSchemaProperty(selectableAutoModeTiers, defaultAutoModeTier), {
 			type: 'string',
 			title: 'Optimize for',
-			enum: ['eco', 'balanced', 'max'],
+			enum: ['efficiency', 'balance', 'intelligence'],
 			enumItemLabels: ['Efficiency', 'Balance', 'Intelligence'],
 			enumDescriptions: ['Cheaper models for everyday tasks', 'Balances capability and cost', 'Most capable models, higher cost'],
-			default: 'balanced',
+			default: 'balance',
 			group: 'navigation',
 		});
 	});

@@ -9,6 +9,7 @@ import { EventEmitter } from 'events';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { StorageScope, StorageTarget } from '../../../storage/common/storage.js';
 import { IApplicationStorageMainService } from '../../../storage/electron-main/storageMainService.js';
+import { BrowserViewStorageScope } from '../../common/browserView.js';
 import { BrowserSessionTrust } from '../../electron-main/browserSessionTrust.js';
 import type { BrowserSession } from '../../electron-main/browserSession.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -38,6 +39,7 @@ class TestBrowserSession {
 	constructor(
 		readonly id: string,
 		readonly electronSession: Electron.Session,
+		readonly storageScope: BrowserViewStorageScope,
 	) { }
 
 	asBrowserSession(): BrowserSession {
@@ -77,13 +79,13 @@ class TestWebContents extends EventEmitter {
 	}
 }
 
-function createTrust(sessionId = 'test-session'): {
+function createTrust(sessionId = 'test-session', storageScope = BrowserViewStorageScope.Global): {
 	trust: BrowserSessionTrust;
 	electronSession: TestElectronSession;
 	storage: TestApplicationStorageMainService;
 } {
 	const electronSession = new TestElectronSession();
-	const browserSession = new TestBrowserSession(sessionId, electronSession.asSession());
+	const browserSession = new TestBrowserSession(sessionId, electronSession.asSession(), storageScope);
 	const trust = new BrowserSessionTrust(browserSession.asBrowserSession());
 	const storage = new TestApplicationStorageMainService();
 
@@ -239,12 +241,53 @@ suite('BrowserSessionTrust', () => {
 		assert.deepStrictEqual(persisted['test-session'].trustedCerts.map((entry: { host: string; fingerprint: string }) => ({ host: entry.host, fingerprint: entry.fingerprint })), [{ host: 'valid.example.com', fingerprint: 'valid' }]);
 	}));
 
+	test('connectStorage ignores in-memory sessions', async () => {
+		const results = [];
+		for (const storageScope of [BrowserViewStorageScope.Ephemeral, BrowserViewStorageScope.Agent]) {
+			const { trust, storage } = createTrust('test-session', storageScope);
+			const persisted = JSON.stringify({
+				'test-session': {
+					trustedCerts: [{ host: 'persisted.example.com', fingerprint: 'persisted', expiresAt: Date.now() + 1000 }]
+				}
+			});
+			storage.seed(STORAGE_KEY, persisted);
+
+			trust.connectStorage(storage.asService());
+			await trust.trustCertificate('memory.example.com', 'memory');
+
+			results.push({
+				storageScope,
+				persistedTrustRestored: trust.isCertificateTrusted('persisted.example.com', 'persisted'),
+				inMemoryTrustAdded: trust.isCertificateTrusted('memory.example.com', 'memory'),
+				storageWrites: storage.store.callCount,
+				storageUnchanged: storage.read(STORAGE_KEY) === persisted,
+			});
+		}
+
+		assert.deepStrictEqual(results, [
+			{
+				storageScope: BrowserViewStorageScope.Ephemeral,
+				persistedTrustRestored: false,
+				inMemoryTrustAdded: true,
+				storageWrites: 0,
+				storageUnchanged: true,
+			},
+			{
+				storageScope: BrowserViewStorageScope.Agent,
+				persistedTrustRestored: false,
+				inMemoryTrustAdded: true,
+				storageWrites: 0,
+				storageUnchanged: true,
+			},
+		]);
+	});
+
 	test('stored and reloaded trust expires and is pruned', async () => {
 		const clock = sinon.useFakeTimers({ now: Date.parse('2026-03-01T00:00:00.000Z') });
 
 		const storage = new TestApplicationStorageMainService();
 		const firstSession = new TestElectronSession();
-		const firstBrowserSession = new TestBrowserSession('test-session', firstSession.asSession());
+		const firstBrowserSession = new TestBrowserSession('test-session', firstSession.asSession(), BrowserViewStorageScope.Global);
 		const firstTrust = new BrowserSessionTrust(firstBrowserSession.asBrowserSession());
 		firstTrust.connectStorage(storage.asService());
 		await firstTrust.trustCertificate('reload.example.com', 'reload-fingerprint');
@@ -252,7 +295,7 @@ suite('BrowserSessionTrust', () => {
 		clock.tick(TRUST_DURATION_MS + 1);
 
 		const secondSession = new TestElectronSession();
-		const secondBrowserSession = new TestBrowserSession('test-session', secondSession.asSession());
+		const secondBrowserSession = new TestBrowserSession('test-session', secondSession.asSession(), BrowserViewStorageScope.Global);
 		const secondTrust = new BrowserSessionTrust(secondBrowserSession.asBrowserSession());
 		const webContents = new TestWebContents();
 		secondTrust.installCertErrorHandler(webContents.asWebContents());

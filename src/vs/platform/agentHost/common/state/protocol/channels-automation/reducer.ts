@@ -9,36 +9,36 @@
 import type { AutomationAction } from '../action-origin.generated.js';
 import { ActionType } from '../common/actions.js';
 import { softAssertNever } from '../common/reducer-helpers.js';
-import type { AutomationCatalogState } from './state.js';
+import type { AutomationState } from './state.js';
 
 /** Pure reducer for automation catalogue state. */
-export function automationReducer(state: AutomationCatalogState, action: AutomationAction, log?: (msg: string) => void): AutomationCatalogState {
+export function automationReducer(state: AutomationState, action: AutomationAction, log?: (msg: string) => void): AutomationState {
 	switch (action.type) {
 		case ActionType.AutomationCreateRequested:
 		case ActionType.AutomationUpdateRequested:
 			return state;
 
 		case ActionType.AutomationSet: {
-			const idx = state.automations.findIndex(automation => automation.resource === action.automation.resource);
+			const idx = state.entries.findIndex(automation => automation.resource === action.automation.resource);
 			if (idx < 0) {
 				return {
 					...state,
-					automations: [...state.automations, action.automation],
+					entries: [...state.entries, action.automation],
 				};
 			}
-			const automations = state.automations.slice();
-			automations[idx] = action.automation;
-			return { ...state, automations };
+			const entries = state.entries.slice();
+			entries[idx] = action.automation;
+			return { ...state, entries };
 		}
 
 		case ActionType.AutomationRemoved: {
-			const idx = state.automations.findIndex(automation => automation.resource === action.resource);
+			const idx = state.entries.findIndex(automation => automation.resource === action.resource);
 			if (idx < 0) {
 				return state;
 			}
-			const automations = state.automations.slice();
-			automations.splice(idx, 1);
-			return { ...state, automations };
+			const entries = state.entries.slice();
+			entries.splice(idx, 1);
+			return { ...state, entries };
 		}
 
 		default:

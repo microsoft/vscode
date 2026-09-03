@@ -20,12 +20,6 @@
 	overflow: hidden;
 }
 
-.agent-sessions-workbench .sessions-account-titlebar-widget.has-chatgpt-account {
-	width: 28px;
-	min-width: 28px;
-	overflow: visible;
-}
-
 .agent-sessions-workbench .sessions-account-titlebar-widget:hover,
 .agent-sessions-workbench .action-item:focus-within .sessions-account-titlebar-widget {
 	background: var(--vscode-toolbar-hoverBackground);
@@ -67,57 +61,8 @@
 	display: block;
 }
 
-.agent-sessions-workbench .sessions-account-titlebar-widget.has-chatgpt-account .sessions-account-titlebar-widget-avatar,
-.agent-sessions-workbench .sessions-account-titlebar-widget.has-chatgpt-account .sessions-account-titlebar-widget-icon {
-	position: absolute;
-	left: 1px;
-	z-index: 2;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-widget-codex-avatar:not(.visible),
-.agent-sessions-workbench .sessions-account-titlebar-widget-codex-icon:not(.visible) {
-	display: none;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-widget-codex-avatar,
-.agent-sessions-workbench .sessions-account-titlebar-widget-codex-icon {
-	width: 18px;
-	height: 18px;
-	border: 1px solid var(--vscode-titleBar-activeBackground);
-	border-radius: 50%;
-	box-sizing: border-box;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-widget-codex-avatar.visible {
-	display: block;
-	object-fit: cover;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-widget-codex-icon {
-	align-items: center;
-	justify-content: center;
-	font-size: 15px;
-	background: var(--vscode-titleBar-activeBackground);
-	color: var(--vscode-foreground);
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-widget-codex-icon.visible {
-	display: flex;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-widget.has-chatgpt-account .sessions-account-titlebar-widget-codex-avatar,
-.agent-sessions-workbench .sessions-account-titlebar-widget.has-chatgpt-account .sessions-account-titlebar-widget-codex-icon {
-	position: absolute;
-	right: 0;
-	z-index: 1;
-}
-
 .monaco-workbench .part.titlebar.inactive .sessions-account-titlebar-widget-avatar {
 	border-color: var(--vscode-commandCenter-inactiveBorder, var(--vscode-commandCenter-border, transparent));
-}
-
-.monaco-workbench .part.titlebar.inactive .sessions-account-titlebar-widget-codex-avatar {
-	border-color: var(--vscode-titleBar-inactiveBackground);
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-widget-label {

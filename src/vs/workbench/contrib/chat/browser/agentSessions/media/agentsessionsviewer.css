@@ -372,7 +372,7 @@
 	.agent-session-section {
 		display: flex;
 		align-items: center;
-		font-size: 11px;
+		font-size: var(--vscode-fontSize-label1);
 		font-weight: var(--vscode-fontWeight-semiBold);
 		color: var(--vscode-descriptionForeground);
 		text-transform: uppercase;

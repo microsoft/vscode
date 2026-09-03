@@ -30,6 +30,7 @@ import {
 	buildAgentHostSpawnCommand,
 	buildAgentRelayCommand,
 	filterLiveAgentHostEndpoints,
+	getNewAgentHostRegistrationTimeoutMs,
 	getRemoteCLIDataDir,
 	ISshExec,
 	resolveRemotePlatform,
@@ -144,7 +145,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 
 			const serverDataFolderName = this._productService.serverDataFolderName ?? '.vscode-server-oss';
 			const quality = this._productService.quality || 'insider';
-			const cliBin = await ensureRemoteAgentHostCliInstalled(exec, platform, {
+			const cliInstallation = await ensureRemoteAgentHostCliInstalled(exec, platform, {
 				serverDataFolderName,
 				quality,
 				commit: this._productService.commit,
@@ -152,6 +153,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 				logService: this._logService,
 				logPrefix: LOG_PREFIX,
 			});
+			const { cliBin } = cliInstallation;
 			const cliDataDir = getRemoteCLIDataDir(serverDataFolderName);
 			const initial = await runAgentEndpoints(exec, cliBin, cliDataDir);
 			const live = await filterLiveAgentHostEndpoints(exec, initial.endpoints);
@@ -168,13 +170,18 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 				void exec(spawnCommand, { ignoreExitCode: true }).catch(error => {
 					this._logService.warn(`${LOG_PREFIX} Agent Host spawn command failed`, error);
 				});
+				this._logService.info(`${LOG_PREFIX} Waiting for the new agent host to register...`);
 				endpoint = await waitForNewStandaloneEndpoint(
 					exec,
 					cliBin,
 					cliDataDir,
 					initial.userDataPath,
 					live,
-					{ token: tokenSource.token },
+					{
+						timeoutMs: getNewAgentHostRegistrationTimeoutMs(cliInstallation.installed),
+						token: tokenSource.token,
+						progress: elapsedMs => this._logService.info(`${LOG_PREFIX} Waiting for the new agent host to register... (${Math.floor(elapsedMs / 1000)} seconds elapsed)`),
+					},
 				);
 			}
 
@@ -364,13 +371,20 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		return this._nativeRequire;
 	}
 
-	protected _resolveShellEnvironment(): Promise<typeof process.env> {
-		this._shellEnvironment ??= getResolvedShellEnv(
+	protected _resolveUserShellEnvironment(): Promise<typeof process.env> {
+		return getResolvedShellEnv(
 			this._configurationService,
 			this._logService,
 			{ ...this._environmentService.args, 'force-user-env': true },
 			process.env,
 		);
+	}
+
+	protected _resolveShellEnvironment(): Promise<typeof process.env> {
+		this._shellEnvironment ??= this._resolveUserShellEnvironment().catch(error => {
+			this._logService.error(`${LOG_PREFIX} Unable to resolve shell environment; using inherited environment`, error);
+			return process.env;
+		});
 		return this._shellEnvironment;
 	}
 

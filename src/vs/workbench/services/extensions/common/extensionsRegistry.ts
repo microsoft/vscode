@@ -587,6 +587,20 @@ export const schema: IJSONSchema = {
 							markdownDescription: nls.localize('vscode.extension.capabilities.untrustedWorkspaces.description', "A description of how workspace trust affects the extensions behavior and why it is needed. This only applies when `supported` is not `true`."),
 						}
 					}
+				},
+				agentsWindow: {
+					description: nls.localize('vscode.extension.capabilities.agentsWindow', "Declares whether the extension should be enabled in the Agents window. Requires the `agentsWindowActivation` API proposal."),
+					type: 'object',
+					required: ['supported'],
+					defaultSnippets: [
+						{ body: { supported: true } },
+					],
+					properties: {
+						supported: {
+							markdownDescription: nls.localize('vscode.extension.capabilities.agentsWindow.supported', "Declares whether the extension supports running in the Agents window. The extension must enable the `agentsWindowActivation` API proposal for this property to take effect."),
+							type: 'boolean'
+						}
+					}
 				}
 			}
 		},

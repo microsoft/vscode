@@ -7,8 +7,8 @@ import assert from 'assert';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
@@ -258,17 +258,14 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		assert.deepStrictEqual(bundler.received[0].map(f => f.uri.toString()), [enabled.toString()]);
 	});
 
-	test('omits built-in skills the user disabled in the Customizations UI from the bundle', async () => {
-		// Regression: the Enable/Disable actions write to `IPromptsService`,
-		// not to the per-harness sync provider, so a skill disabled from the UI
-		// must still be dropped from the bundle sent to the agent host.
+	test('omits user-disabled built-in skills from the bundle', async () => {
 		const enabled = URI.file('/builtin/create-pr/SKILL.md');
 		const disabled = URI.file('/builtin/merge/SKILL.md');
 		const promptsService = makePromptsService(
 			new Map([
 				[`${PromptsType.skill}/${BUILTIN_STORAGE}`, [
-					makePromptPath(enabled, PromptsType.skill, BUILTIN_STORAGE as unknown as PromptsStorage),
-					makePromptPath(disabled, PromptsType.skill, BUILTIN_STORAGE as unknown as PromptsStorage),
+					makePromptPath(enabled, PromptsType.skill, PromptsStorage.builtIn),
+					makePromptPath(disabled, PromptsType.skill, PromptsStorage.builtIn),
 				]],
 			]),
 			new Map([[PromptsType.skill, new ResourceSet([disabled])]]),
@@ -287,7 +284,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			undefined,
 		);
 
-		assert.deepStrictEqual(bundler.received[0].map(f => f.uri.toString()), [enabled.toString()]);
+		assert.deepStrictEqual(bundler.received[0].map(file => file.uri.toString()), [enabled.toString()]);
 	});
 
 	test('combines built-in skills with user files in a single bundle', async () => {

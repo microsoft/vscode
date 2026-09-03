@@ -12,6 +12,7 @@ import { dirname, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { FileKind } from '../../../../platform/files/common/files.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { BreadcrumbsConfig } from './breadcrumbs.js';
 import { IEditorPane } from '../../../common/editor.js';
@@ -30,7 +31,7 @@ export class FileElement {
 	}
 }
 
-type FileInfo = { path: FileElement[]; folder?: IWorkspaceFolder };
+type FileInfo = { path: FileElement[]; folder?: IWorkspaceFolder; home?: URI };
 
 export class OutlineElement2 {
 	constructor(
@@ -60,6 +61,7 @@ export class BreadcrumbsModel {
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IWorkspaceFolderLabelService private readonly _workspaceFolderLabelService: IWorkspaceFolderLabelService,
 		@IOutlineService private readonly _outlineService: IOutlineService,
+		@ILabelService private readonly _labelService: ILabelService,
 	) {
 		this._cfgFilePath = BreadcrumbsConfig.FilePath.bindTo(configurationService);
 		this._cfgSymbolPath = BreadcrumbsConfig.SymbolPath.bindTo(configurationService);
@@ -67,6 +69,11 @@ export class BreadcrumbsModel {
 		this._disposables.add(this._cfgFilePath.onDidChange(_ => this._onDidUpdate.fire(this)));
 		this._disposables.add(this._cfgSymbolPath.onDidChange(_ => this._onDidUpdate.fire(this)));
 		this._workspaceService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspaceFolders, this, this._disposables);
+		this._disposables.add(this._labelService.onDidChangeFormatters(e => {
+			if (e.scheme === this.resource.scheme) {
+				this._updateFileInfo();
+			}
+		}));
 		this._fileInfo = this._initFilePathInfo(resource);
 
 		if (editor) {
@@ -87,7 +94,7 @@ export class BreadcrumbsModel {
 	}
 
 	isRelative(): boolean {
-		return Boolean(this._fileInfo.folder);
+		return Boolean(this._fileInfo.folder || this._fileInfo.home);
 	}
 
 	getElements(): ReadonlyArray<FileElement | OutlineElement2> {
@@ -131,12 +138,13 @@ export class BreadcrumbsModel {
 
 		const info: FileInfo = {
 			folder: this._workspaceService.getWorkspaceFolder(uri) ?? undefined,
-			path: []
+			path: [],
+			home: this._labelService.getUriHome(uri),
 		};
 
 		let uriPrefix: URI | null = uri;
 		while (uriPrefix && uriPrefix.path !== '/') {
-			if (info.folder && isEqual(info.folder.uri, uriPrefix)) {
+			if ((info.folder && isEqual(info.folder.uri, uriPrefix)) || (info.home && isEqual(info.home, uriPrefix.with({ query: null, fragment: null })))) {
 				break;
 			}
 			info.path.unshift(new FileElement(uriPrefix, info.path.length === 0 ? FileKind.FILE : FileKind.FOLDER));
@@ -144,6 +152,14 @@ export class BreadcrumbsModel {
 			uriPrefix = dirname(uriPrefix);
 			if (uriPrefix.path.length === prevPathLength) {
 				break;
+			}
+		}
+
+		if (info.home) {
+			const separator = this._labelService.getSeparator(info.home.scheme, info.home.authority);
+			const labels = this._labelService.getUriLabel(info.home).split(separator).filter(Boolean);
+			for (let index = labels.length - 1; index >= 0; index--) {
+				info.path.unshift(new FileElement(info.home, index === 0 ? FileKind.ROOT_FOLDER : FileKind.FOLDER, labels[index]));
 			}
 		}
 
@@ -161,6 +177,10 @@ export class BreadcrumbsModel {
 	}
 
 	private _onDidChangeWorkspaceFolders() {
+		this._updateFileInfo();
+	}
+
+	private _updateFileInfo(): void {
 		this._fileInfo = this._initFilePathInfo(this.resource);
 		this._onDidUpdate.fire(this);
 	}

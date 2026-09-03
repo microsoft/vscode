@@ -31,10 +31,7 @@ rounds:
           turnId: ${turn_0}
           part:
             kind: markdown
-            content: |-
-              I'll remember the code word ORCHID.
-
-              ready
+            content: ready
       - channel: ${chat_0}
         action:
           type: chat/turnComplete

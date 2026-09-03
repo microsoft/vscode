@@ -6,9 +6,11 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').unlinkSync(''delete-me.txt'')"`. Then reply with exactly "deleted".'
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').unlinkSync(''delete-me.txt'')"`. Do not run any other command or tool. Then reply with exactly "deleted".'
     response:
       content:
+        - type: text
+          text: Running that exact command now.
         - type: tool_use
           id: toolcall_0
           name: exec_command
@@ -21,7 +23,9 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').unlinkSync(''delete-me.txt'')"`. Then reply with exactly "deleted".'
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').unlinkSync(''delete-me.txt'')"`. Do not run any other command or tool. Then reply with exactly "deleted".'
+        - role: assistant
+          content: Running that exact command now.
         - role: assistant
           content:
             - type: tool_use
@@ -34,8 +38,8 @@ exchanges:
             - type: tool_result
               tool_use_id: toolcall_0
               content: |-
-                Chunk ID: a444ab
-                Wall time: 0.0000 seconds
+                Chunk ID: 26c829
+                Wall time: 0.6549 seconds
                 Process exited with code 0
                 Original token count: 0
                 Output:

@@ -154,5 +154,24 @@
 		.editorContainer {
 			flex: 1;
 		}
+
+		.binary-file-placeholder {
+			display: none;
+			flex: 1;
+			place-items: center;
+			color: var(--vscode-descriptionForeground);
+
+			&:focus-visible {
+				outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+				outline-offset: calc(-1 * var(--vscode-strokeThickness));
+			}
+
+			.binary-file-placeholder-content {
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				gap: var(--vscode-spacing-size80);
+			}
+		}
 	}
 }

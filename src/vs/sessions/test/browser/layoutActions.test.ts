@@ -11,6 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../platform/accessibility/common/accessibility.js';
 import { ToggleAuxiliaryBarAction } from '../../../workbench/browser/parts/auxiliarybar/auxiliaryBarActions.js';
 import { PanelVisibleContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
@@ -42,6 +43,22 @@ suite('Sessions - Layout Actions', () => {
 
 		assert.ok(toggleAlwaysOnTop, 'toggleWindowAlwaysOnTop should be contributed to TitleBarRight');
 		assert.strictEqual(toggleAlwaysOnTop.group, 'navigation');
+	});
+
+	test('screen reader optimized action uses a title bar toolbar menu', () => {
+		const item = MenuRegistry.getMenuItems(Menus.TitleBarAccessibility)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === 'editor.action.toggleScreenReaderAccessibilityMode');
+
+		assert.deepStrictEqual({
+			title: item?.command.title,
+			tooltip: item?.command.tooltip,
+			when: item?.when?.serialize(),
+		}, {
+			title: 'Screen Reader Optimized',
+			tooltip: 'Disable Screen Reader Optimized Mode',
+			when: `${CONTEXT_ACCESSIBILITY_MODE_ENABLED.key} && !sessionsIsPhoneLayout`,
+		});
 	});
 
 	test('bottom panel layout action replaces the terminal action in the session title bar', () => {

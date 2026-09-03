@@ -345,7 +345,10 @@
 .changes-view-body .chat-editing-session-actions .monaco-button.monaco-text-button {
 	gap: 2px;
 
-	.codicon {
+	/* The leading icon is exempt: it shares its box — margin included — with the
+	 * spinner that replaces it while the action runs, so the button bar owns its
+	 * spacing and the button keeps its width across the swap. */
+	.codicon:not(.monaco-button-leading-icon) {
 		margin: 0;
 	}
 }

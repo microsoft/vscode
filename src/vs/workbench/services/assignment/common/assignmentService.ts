@@ -42,6 +42,27 @@ export interface IAssignmentFilter {
 
 export const IWorkbenchAssignmentService = createDecorator<IWorkbenchAssignmentService>('assignmentService');
 
+/**
+ * Scope prefix that the new TAS assignments endpoint (`/api/v1/assignments`) prepends to the
+ * feature variable keys it returns (e.g. `/vscode/config.chat...`). The legacy endpoint and
+ * VS Code both query treatments by the bare name, so this prefix must be accounted for when a
+ * bare lookup misses. This is an interim workaround until tas-client strips the scope itself.
+ */
+const ASSIGNMENTS_SCOPE_PREFIX = '/vscode/';
+
+/**
+ * Resolves a treatment value preferring the `/vscode/`-scoped key emitted by the new TAS
+ * assignments endpoint over the bare key used by the legacy endpoint, so the new endpoint wins
+ * when both assign a treatment (matching the behavior once tas-client strips the scope itself).
+ * Falls back to the bare key for treatments served only by the legacy endpoint.
+ *
+ * Exported for testing.
+ */
+export function resolveScopedTreatment<T extends string | number | boolean>(read: (name: string) => T | undefined, name: string): T | undefined {
+	const scoped = read(`${ASSIGNMENTS_SCOPE_PREFIX}${name}`);
+	return scoped !== undefined ? scoped : read(name);
+}
+
 export interface IWorkbenchAssignmentService extends IAssignmentService {
 	getCurrentExperiments(): Promise<string[] | undefined>;
 	addTelemetryAssignmentFilter(filter: IAssignmentFilter): void;
@@ -268,21 +289,22 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			return undefined;
 		}
 
-		let result: T | undefined;
 		const client = await this.tasClient;
 
-		// The TAS client is initialized but we need to check if the initial fetch has completed yet
-		// If it is complete, return a cached value for the treatment
-		// If not, use the async call with `checkCache: true`. This will allow the module to return a cached value if it is present.
-		// Otherwise it will await the initial fetch to return the most up to date value.
-		if (this.networkInitialized) {
-			result = client.getTreatmentVariable<T>('vscode', name);
-		} else {
-			result = await client.getTreatmentVariableAsync<T>('vscode', name, true);
+		// Await the initial network fetch when it has not completed yet, so treatments are
+		// available before we read them from memory. `checkCache: true` returns immediately when a
+		// value is already cached, otherwise it awaits the initial fetch.
+		if (!this.networkInitialized) {
+			await client.getTreatmentVariableAsync<T>('vscode', `${ASSIGNMENTS_SCOPE_PREFIX}${name}`, true);
 		}
 
-		result = client.getTreatmentVariable<T>('vscode', name);
-		return result;
+		// Interim workaround: the new TAS assignments endpoint (/api/v1/assignments) namespaces its
+		// returned feature variable keys with a `/vscode/` scope, whereas the legacy endpoint and
+		// VS Code query treatments by the bare name. Read the scoped key first so the new endpoint
+		// wins over the legacy (bare) key when both assign a treatment - matching the behavior once
+		// tas-client strips the scope itself. Fall back to the bare key for treatments served only
+		// by the legacy endpoint.
+		return resolveScopedTreatment<T>(readName => client.getTreatmentVariable<T>('vscode', readName), name);
 	}
 
 	/**

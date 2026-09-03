@@ -107,13 +107,19 @@ export interface IAgentPluginResource extends INamedPluginResource {
 	readonly disableUserInvocation?: boolean;
 }
 
+/** A parsed skill resource with normalized invocation metadata. */
+interface ISkillPluginResource extends INamedPluginResource {
+	readonly disableModelInvocation?: boolean;
+	readonly disableUserInvocation?: boolean;
+}
+
 /** A parsed agent paired with its protocol-level child customization. */
 export interface IParsedAgent extends IAgentPluginResource {
 	readonly customization: AgentCustomization;
 }
 
 /** A parsed skill paired with its protocol-level child customization. */
-export interface IParsedSkill extends INamedPluginResource {
+export interface IParsedSkill extends ISkillPluginResource {
 	readonly customization: SkillCustomization;
 }
 
@@ -323,7 +329,7 @@ function makeAgentCustomization(resource: IAgentPluginResource): AgentCustomizat
 	};
 }
 
-function makeSkillCustomization(resource: INamedPluginResource): SkillCustomization {
+function makeSkillCustomization(resource: ISkillPluginResource): SkillCustomization {
 	const uri = resource.uri.toString();
 	return {
 		type: CustomizationType.Skill,
@@ -331,6 +337,8 @@ function makeSkillCustomization(resource: INamedPluginResource): SkillCustomizat
 		uri,
 		name: resource.name,
 		...(resource.description ? { description: resource.description } : {}),
+		...(resource.disableModelInvocation ? { disableModelInvocation: true } : {}),
+		...(resource.disableUserInvocation ? { disableUserInvocation: true } : {}),
 	};
 }
 
@@ -492,6 +500,10 @@ export function normalizeMcpServerConfiguration(rawConfig: unknown): IMcpServerC
 			.filter(([, value]) => typeof value === 'string')
 			.map(([key, value]) => [key, value as string]))
 		: undefined;
+	const rawOAuth = candidate['oauth'] && typeof candidate['oauth'] === 'object' ? candidate['oauth'] as Record<string, unknown> : undefined;
+	const oauthClientId = (typeof rawOAuth?.['clientId'] === 'string' ? rawOAuth['clientId'] : undefined)
+		?? (typeof candidate['oauthClientId'] === 'string' ? candidate['oauthClientId'] : undefined);
+	const oauth = oauthClientId ? { clientId: oauthClientId } : undefined;
 	const dev = candidate['dev'] && typeof candidate['dev'] === 'object' ? candidate['dev'] as IMcpStdioServerConfiguration['dev'] : undefined;
 
 	if (type === 'ws') {
@@ -509,7 +521,7 @@ export function normalizeMcpServerConfiguration(rawConfig: unknown): IMcpServerC
 		if (!url) {
 			return undefined;
 		}
-		return { type: McpServerType.REMOTE, ...(type === 'sse' || transport === 'sse' ? { transport: 'sse' as const } : {}), url, headers, dev };
+		return { type: McpServerType.REMOTE, ...(type === 'sse' || transport === 'sse' ? { transport: 'sse' as const } : {}), url, headers, ...(oauth ? { oauth } : {}), dev };
 	}
 
 	return undefined;
@@ -905,19 +917,21 @@ export async function readSkills(
 	dirs: readonly URI[],
 	fileService: IFileService,
 	options?: { readonly childDirectoriesOnly?: boolean; readonly containmentRoot?: URI },
-): Promise<readonly INamedPluginResource[]> {
+): Promise<readonly ISkillPluginResource[]> {
 	const seen = new Set<string>();
-	const skills: INamedPluginResource[] = [];
+	const skills: ISkillPluginResource[] = [];
 
 	const addSkill = async (name: string, skillMd: URI) => {
 		if (options?.containmentRoot && !await isResolvedWithin(options.containmentRoot, skillMd, fileService)) {
 			return;
 		}
 		let description: string | undefined;
+		let invocationFlags: ReturnType<typeof toSkillInvocationFlags> = {};
 		try {
 			const parsedInfo = await parseSkillFile(skillMd, fileService);
 			description = parsedInfo.description;
 			name = parsedInfo.name || name;
+			invocationFlags = toSkillInvocationFlags(parsedInfo.userInvocable, parsedInfo.disableModelInvocation);
 		} catch {
 			// Keep the existing best-effort discovery behavior for malformed skills.
 		}
@@ -925,7 +939,7 @@ export async function readSkills(
 			return;
 		}
 		seen.add(name);
-		skills.push({ uri: skillMd, name, ...(description ? { description } : {}) });
+		skills.push({ uri: skillMd, name, ...(description ? { description } : {}), ...invocationFlags });
 	};
 
 	await Promise.all(dirs.map(async dir => {
@@ -967,7 +981,7 @@ export async function readSkills(
 	return skills;
 }
 
-export async function readPluginSkills(pluginRoot: URI, dirs: readonly URI[], format: IPluginFormatConfig, fileService: IFileService): Promise<readonly INamedPluginResource[]> {
+export async function readPluginSkills(pluginRoot: URI, dirs: readonly URI[], format: IPluginFormatConfig, fileService: IFileService): Promise<readonly ISkillPluginResource[]> {
 	return readSkills(pluginRoot, dirs, fileService, format.format === PluginFormat.AgentPlugin
 		? { childDirectoriesOnly: true, containmentRoot: pluginRoot }
 		: undefined);
@@ -1172,17 +1186,26 @@ export function resolveAgentDisableModelInvocation(infer: boolean | undefined, d
 	return infer !== undefined ? !infer : (disableModelInvocation ?? fallback);
 }
 
-export async function parseSkillFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvokable?: boolean }> {
+export async function parseSkillFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvocable?: boolean; disableModelInvocation?: boolean }> {
 	try {
 		const content = await fileService.readFile(uri);
 		const frontmatter = parseFrontMatter(content.value.toString());
 		const name = frontmatter?.getStringValue('name')?.trim() || basename(dirname(uri));
 		const description = frontmatter?.getStringValue('description')?.trim();
-		const userInvokable = frontmatter?.getBooleanValue('user-invocable');
-		return { name, description, userInvokable };
+		const userInvocable = frontmatter?.getBooleanValue('user-invocable');
+		const disableModelInvocation = frontmatter?.getBooleanValue('disable-model-invocation');
+		return { name, description, userInvocable, disableModelInvocation };
 	} catch {
 		return { name: basename(dirname(uri)) };
 	}
+}
+
+/** Maps SKILL.md invocation metadata onto the restrictive protocol flags. */
+export function toSkillInvocationFlags(userInvocable: boolean | undefined, disableModelInvocation: boolean | undefined): { readonly disableUserInvocation?: boolean; readonly disableModelInvocation?: boolean } {
+	return {
+		...(userInvocable === false ? { disableUserInvocation: true } : {}),
+		...(disableModelInvocation === true ? { disableModelInvocation: true } : {}),
+	};
 }
 
 export async function parseRuleFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; globs?: string[]; alwaysApply?: boolean }> {
@@ -1369,8 +1392,8 @@ export function toParsedAgent(resource: IAgentPluginResource): IParsedAgent {
 	return { ...resource, customization: makeAgentCustomization(resource) };
 }
 
-/** Pairs a skill {@link INamedPluginResource} with its protocol-level {@link SkillCustomization}. */
-export function toParsedSkill(resource: INamedPluginResource): IParsedSkill {
+/** Pairs a skill {@link ISkillPluginResource} with its protocol-level {@link SkillCustomization}. */
+export function toParsedSkill(resource: ISkillPluginResource): IParsedSkill {
 	return { ...resource, customization: makeSkillCustomization(resource) };
 }
 

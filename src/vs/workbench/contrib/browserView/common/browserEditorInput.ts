@@ -174,7 +174,9 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	get isSharingAvailable(): boolean {
-		return this._model ? this._model.sharingState !== BrowserViewSharingState.Unavailable : this.browserViewWorkbenchService.isSharingAvailable;
+		return this._model
+			? this._model.sharingState === BrowserViewSharingState.Shared || this._model.sharingState === BrowserViewSharingState.Available
+			: this.browserViewWorkbenchService.isSharingAvailable;
 	}
 
 	navigate(url: string, options?: INavigateOptions): void {

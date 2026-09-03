@@ -348,7 +348,7 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly warningText?: Record<string, string>;
 	/** Category-keyed info banners for the model picker. Unlike {@link warningText} these never signal a problem. */
 	readonly infoText?: Record<string, string>;
-	readonly promo?: { id: string; discountPercent: number; endsAt?: string; message: string };
+	readonly promo?: { id: string; discountPercent: number; endsAt?: string; message: string; showBanner?: boolean };
 	readonly multiplier?: number;
 	readonly restrictedToSkus?: string[];
 	/**

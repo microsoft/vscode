@@ -12,7 +12,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { buildTurnChangesetUri } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { buildBranchChangesetUri, buildTurnChangesetUri } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import {
@@ -85,6 +85,22 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		return {
 			changesets: [{ label: 'This Turn', uriTemplate: buildTurnChangesetUri(backendSession.toString(), '{turnId}'), changeKind: 'turn' }],
 		} as unknown as SessionState;
+	}
+
+	/** As {@link sessionStateWithTurnSupport} but flagged as an adopted legacy Copilot CLI session whose final migrated turn is `lastMigratedTurnId`. */
+	function adoptedSessionStateWithTurnSupport(lastMigratedTurnId: string): SessionState {
+		return {
+			changesets: [{ label: 'This Turn', uriTemplate: buildTurnChangesetUri(backendSession.toString(), '{turnId}'), changeKind: 'turn' }],
+			_meta: { ehcliAdopted: true, ehcliLastMigratedTurn: lastMigratedTurnId },
+		} as unknown as SessionState;
+	}
+
+	function branchChangesetUri(): string {
+		return URI.parse(buildBranchChangesetUri(backendSession.toString())).toString();
+	}
+
+	function branchFile(path: string, added: number, removed: number): unknown {
+		return { id: path, edit: { after: { uri: URI.file(path).toString(), content: { uri: `git-blob:/${path}` } }, diff: { added, removed } } };
 	}
 
 	function createProvider(
@@ -226,6 +242,62 @@ suite('AgentHostResponseFileChangesProvider', () => {
 				}],
 			}],
 		} as unknown as ChatState);
+
+		const { latest } = observe(provider, ds);
+		assert.deepStrictEqual(latest(), []);
+	});
+
+	test('the recorded migrated turn falls back to the branch changeset when its turn changeset is empty', () => {
+		// #333642: migrated legacy Copilot CLI sessions have no per-turn
+		// checkpoints, so the committed-on-branch work only lives in the
+		// session-wide branch changeset. Surface it under the recorded migration
+		// boundary turn so the chat editor shows the same changes as the Agents window.
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
+		const provider = ds.add(createProvider(conn, () => backendSession, () => defaultChatUri));
+
+		conn.setState(backendSession.toString(), adoptedSessionStateWithTurnSupport('t1'));
+		conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Ready, files: [] } satisfies ChangesetState);
+		conn.setState(branchChangesetUri(), { status: ChangesetStatus.Ready, files: [branchFile('/repo/committed.ts', 4, 2)] } as unknown as ChangesetState);
+
+		const { latest } = observe(provider, ds);
+		assert.deepStrictEqual(latest().map(d => ({ modified: d.modifiedURI.path, added: d.added, removed: d.removed })), [
+			{ modified: '/repo/committed.ts', added: 4, removed: 2 },
+		]);
+	});
+
+	test('a post-adoption turn with an empty changeset never shows the historical branch aggregate', () => {
+		// A no-op turn added after migration is authoritatively empty; it must show
+		// its own (empty) changes, not the migrated session's committed history.
+		// The recorded boundary turn is 't1'; the requested turn 't2' is later.
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
+		const provider = ds.add(createProvider(conn, () => backendSession, () => defaultChatUri));
+
+		conn.setState(backendSession.toString(), adoptedSessionStateWithTurnSupport('t1'));
+		conn.setState(turnChangesetUri('t2'), { status: ChangesetStatus.Ready, files: [] } satisfies ChangesetState);
+		conn.setState(branchChangesetUri(), { status: ChangesetStatus.Ready, files: [branchFile('/repo/committed.ts', 4, 2)] } as unknown as ChangesetState);
+
+		const obs = provider.getChangesForRequest(chatResource, 't2')!;
+		let latest: readonly IEditSessionEntryDiff[] = [];
+		ds.add(autorun(r => { latest = obs.read(r); }));
+		assert.deepStrictEqual(latest, []);
+	});
+
+	test('a native session never shows the branch changeset in place of an empty turn changeset', () => {
+		// The fallback is gated on the durable migration boundary, so a normal
+		// session with an authoritative empty turn changeset stays empty even if a
+		// branch changeset exists.
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
+		const provider = ds.add(createProvider(conn, () => backendSession, () => defaultChatUri));
+
+		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Ready, files: [] } satisfies ChangesetState);
+		conn.setState(branchChangesetUri(), { status: ChangesetStatus.Ready, files: [branchFile('/repo/committed.ts', 4, 2)] } as unknown as ChangesetState);
 
 		const { latest } = observe(provider, ds);
 		assert.deepStrictEqual(latest(), []);

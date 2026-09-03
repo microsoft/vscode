@@ -33,7 +33,7 @@ exchanges:
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: '{"sessions":[{"session":"claude:/${uuid_0}","title":"Call list_sessions exactly once with status [\"inProgress\"], then reply exactly \"filtered\".","status":"inProgress","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-02T04:39:56.119Z","modifiedAt":"2026-08-02T04:39:55.034Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"claude:/${uuid_0}/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"claude:/${uuid_0}/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}]}'
+              content: '{"sessions":[{"session":"claude:/${uuid_0}","title":"Call list_sessions exactly once with status [\"inProgress\"], then reply exactly \"filtered\".","status":"inProgress","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-28T00:10:15.680Z","modifiedAt":"2026-08-28T00:10:11.451Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"claude:/${uuid_0}/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"claude:/${uuid_0}/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}]}'
     response:
       content: filtered
       stopReason: end_turn

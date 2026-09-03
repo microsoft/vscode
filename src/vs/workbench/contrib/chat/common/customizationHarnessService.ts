@@ -261,6 +261,8 @@ export interface ICustomizationSourceFolder {
 	readonly label: string;
 	/** Customization source for this folder (typically 'local' or 'user' for writable creation locations). */
 	readonly source: AICustomizationSource;
+	/** Opaque provider-defined identity shared by folders that belong to the same destination. */
+	readonly destinationGroupId?: string;
 }
 
 /**

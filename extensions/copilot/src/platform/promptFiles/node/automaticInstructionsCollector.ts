@@ -36,6 +36,7 @@ import { ICustomInstructionsService } from '../../customInstructions/common/cust
 import { IPromptVariablesService } from '../../../extension/prompt/node/promptVariablesService';
 import { arrayEqual } from 'diff/lib/util/array.js';
 import { structuralEquals } from '../../../util/vs/base/common/equals';
+import { INativeEnvService } from '../../env/common/envService';
 
 /**
  * Telemetry payload (parity with core's `instructionsCollected` event).
@@ -136,6 +137,7 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
 		@IExperimentationService private readonly _experimentationService: IExperimentationService,
+		@INativeEnvService private readonly _envService: INativeEnvService,
 	) { }
 
 
@@ -316,7 +318,11 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 			// Resolve all referenced URIs from this file's body.
 			const candidates: URI[] = [];
 			for (const ref of parsed.body.fileReferences) {
-				const resolved = parsed.body.resolveFilePath(ref.content);
+				const resolved = ref.content === '~'
+					? this._envService.userHome
+					: ref.content.startsWith('~/')
+						? URI.joinPath(this._envService.userHome, ref.content.substring(2))
+						: parsed.body.resolveFilePath(ref.content);
 				if (!resolved || seen.has(resolved)) {
 					continue;
 				}

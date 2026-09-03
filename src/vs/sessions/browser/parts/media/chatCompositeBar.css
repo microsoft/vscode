@@ -248,6 +248,16 @@
 	max-width: var(--chat-tab-max-width);
 }
 
+/* Keep keyboard focus on the rounded fill; high-contrast styling is provided by the shared tab styles. */
+.monaco-workbench .session-chat-tabs-bar .chat-composite-bar-tab:focus {
+	outline: none;
+}
+
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-chat-tabs-bar .chat-composite-bar-tab:focus-visible > .chat-composite-bar-tab-fill {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
 .session-chat-tabs-bar .chat-composite-bar-tab-fill {
 	display: block;
 	pointer-events: none;

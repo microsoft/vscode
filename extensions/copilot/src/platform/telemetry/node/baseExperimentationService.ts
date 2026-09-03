@@ -15,6 +15,14 @@ import { IVSCodeExtensionContext } from '../../extContext/common/extensionContex
 import { ILogService } from '../../log/common/logService';
 import { IExperimentationService, TreatmentsChangeEvent } from '../common/nullExperimentationService';
 
+/**
+ * Scope prefix that the new TAS assignments endpoint (`/api/v1/assignments`) prepends to the
+ * feature variable keys it returns (e.g. `/vscode/config.chat...`). The legacy endpoint and
+ * callers query treatments by the bare name, so this prefix must be accounted for when a bare
+ * lookup misses. This is an interim workaround until vscode-tas-client strips the scope itself.
+ */
+const ASSIGNMENTS_SCOPE_PREFIX = '/vscode/';
+
 export class UserInfoStore extends Disposable {
 	private _internalOrg: string | undefined;
 	private _sku: string | undefined;
@@ -244,7 +252,7 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	private _signalTreatmentsChangeEvent = () => {
 		const affectedTreatmentVariables: string[] = [];
 		for (const [key, previousValue] of this._previouslyReadTreatments) {
-			const currentValue = this._delegate.getTreatmentVariable('vscode', key);
+			const currentValue = this._readTreatmentVariable(key);
 			if (currentValue !== previousValue) {
 				this._logService.trace(`[BaseExperimentationService] Treatment changed: ${key} from ${previousValue} to ${currentValue}`);
 				this._previouslyReadTreatments.set(key, currentValue);
@@ -267,8 +275,24 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	}
 
 	getTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
-		const result = this._delegate.getTreatmentVariable('vscode', name) as T;
+		const result = this._readTreatmentVariable<T>(name);
 		this._previouslyReadTreatments.set(name, result);
+		return result;
+	}
+
+	/**
+	 * Reads a treatment, preferring the `/vscode/`-scoped key over the bare key. Interim workaround
+	 * till its fixed upstream: the new TAS assignments endpoint namespaces its returned feature
+	 * variable keys with a `/vscode/` scope that vscode-tas-client does not strip. Reading the
+	 * scoped key first makes the new endpoint win over the legacy (bare) key when both assign a
+	 * treatment - matching the behavior once the scope is stripped upstream - while still resolving
+	 * legacy-only treatments from the bare key.
+	 */
+	private _readTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
+		let result = this._delegate.getTreatmentVariable('vscode', `${ASSIGNMENTS_SCOPE_PREFIX}${name}`) as T | undefined;
+		if (result === undefined) {
+			result = this._delegate.getTreatmentVariable('vscode', name) as T | undefined;
+		}
 		return result;
 	}
 

@@ -2621,7 +2621,7 @@ suite('AgentSessions', () => {
 
 		test('should return correct icon for AgentHostCopilot provider', () => {
 			const icon = getAgentSessionProviderIcon(AgentSessionProviders.AgentHostCopilot);
-			assert.strictEqual(icon.id, Codicon.vm.id);
+			assert.strictEqual(icon.id, Codicon.copilot.id);
 		});
 
 		test('should return simplified AgentHostCopilot name', () => {

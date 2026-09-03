@@ -1,0 +1,58 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY".
+    response:
+      content: READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY".
+        - role: assistant
+          content: READY
+        - role: user
+          content: Use edit exactly once to replace BEFORE_RESTART with AFTER_RESTART in ${workdir}/stored-edit.txt. Do not inspect or search for the file and do not run a shell command. Then reply exactly "done".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: edit
+          input:
+            path: ${workdir}/stored-edit.txt
+            old_str: BEFORE_RESTART
+            new_str: AFTER_RESTART
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY".
+        - role: assistant
+          content: READY
+        - role: user
+          content: Use edit exactly once to replace BEFORE_RESTART with AFTER_RESTART in ${workdir}/stored-edit.txt. Do not inspect or search for the file and do not run a shell command. Then reply exactly "done".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: edit
+              input:
+                path: ${workdir}/stored-edit.txt
+                old_str: BEFORE_RESTART
+                new_str: AFTER_RESTART
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: File ${workdir}/stored-edit.txt updated with changes.
+    response:
+      content: done
+      stopReason: end_turn

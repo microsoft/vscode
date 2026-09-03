@@ -17,6 +17,7 @@ exchanges:
           input:
             commentIds:
               - resolve-me
+            resolved: true
       stopReason: tool_use
   - request:
       model: claude-opus-5
@@ -33,6 +34,7 @@ exchanges:
               input:
                 commentIds:
                   - resolve-me
+                resolved: true
         - role: user
           content:
             - type: tool_result
@@ -56,6 +58,7 @@ exchanges:
                       },
                       "text": "resolve",
                       "kind": "codeReview",
+                      "author": "agent",
                       "resolved": true
                     }
                   ]

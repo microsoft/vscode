@@ -117,7 +117,7 @@
 	}
 
 	/* TODO@jrieken this isn't the nicest selector... */
-	.request-in-progress .monaco-editor [class^="ced-chat-session-detail"]::after {
+	.request-in-progress .monaco-editor .ced-chat-session-detail-4::after {
 		animation: pulse-opacity 2.5s ease-in-out infinite;
 	}
 

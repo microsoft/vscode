@@ -20,7 +20,8 @@ import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundConfigure
 
 export const AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING = 'chat.agentSessions.preferredDarkBackgroundImage';
 export const AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING = 'chat.agentSessions.preferredLightBackgroundImage';
-export const AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING = 'chat.agentSessions.backgroundImageLayout';
+export const AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING = 'chat.agentSessions.preferredDarkBackgroundImageLayout';
+export const AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING = 'chat.agentSessions.preferredLightBackgroundImageLayout';
 export const AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET = 'codicons';
 export type SessionsChatBackgroundPreset = typeof AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET;
 const RECENT_BACKGROUND_IMAGES_STORAGE_KEY = 'chat.agentSessions.recentBackgroundImages';
@@ -102,7 +103,8 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			const backgroundImageChanged = event.affectsConfiguration(AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING)
 				|| event.affectsConfiguration(AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING);
-			const backgroundImageLayoutChanged = event.affectsConfiguration(AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING);
+			const backgroundImageLayoutChanged = event.affectsConfiguration(AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING)
+				|| event.affectsConfiguration(AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING);
 			let backgroundChanged = backgroundImageChanged;
 			if (backgroundImageChanged) {
 				updateContextKeys();
@@ -119,6 +121,7 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 			}
 		}));
 		this._register(this.themeService.onDidColorThemeChange(() => {
+			this.backgroundImageLayout = this.readConfiguredBackgroundImageLayout();
 			updateContextKeys();
 			this._onDidChangeBackground.fire();
 		}));
@@ -171,13 +174,14 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 	}
 
 	async setBackgroundImageLayout(layout: ChatBackgroundImageLayout, persist = true): Promise<void> {
+		const setting = this.getBackgroundImageLayoutSetting(this.themeService.getColorTheme().type);
 		if (layout !== this.backgroundImageLayout) {
 			this.backgroundImageLayout = layout;
 			this._onDidChangeBackground.fire();
 		}
 		if (persist) {
 			try {
-				await this.configurationService.updateValue(AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, layout, ConfigurationTarget.APPLICATION);
+				await this.configurationService.updateValue(setting, layout, ConfigurationTarget.USER);
 			} catch (error) {
 				const configuredLayout = this.readConfiguredBackgroundImageLayout();
 				if (configuredLayout !== this.backgroundImageLayout) {
@@ -190,7 +194,8 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 	}
 
 	private readConfiguredBackgroundImageLayout(): ChatBackgroundImageLayout {
-		const value = this.configurationService.getValue<string>(AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING);
+		const colorSchemeSetting = this.getBackgroundImageLayoutSetting(this.themeService.getColorTheme().type);
+		const value = this.configurationService.getValue<string>(colorSchemeSetting);
 		return chatBackgroundImageLayoutValues.includes(value as ChatBackgroundImageLayout)
 			? value as ChatBackgroundImageLayout
 			: 'repeat';
@@ -200,6 +205,12 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 		return isDark(colorScheme)
 			? AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING
 			: AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING;
+	}
+
+	private getBackgroundImageLayoutSetting(colorScheme: ColorScheme): string {
+		return isDark(colorScheme)
+			? AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING
+			: AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING;
 	}
 
 	private getConfiguredBackground(): { readonly kind: 'codicons' } | { readonly kind: 'image'; readonly image: URI } | undefined {

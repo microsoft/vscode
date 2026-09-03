@@ -39,6 +39,9 @@ const CODEX_WARMUP_REPLY = 'MOCKED_CODEX_WARMUP_RESPONSE';
 
 const AGENT_HOST_SCENARIO_ID = 'smoke-hello-agent-host';
 const AGENT_HOST_REPLY = 'MOCKED_AGENT_HOST_RESPONSE';
+const AGENT_HOST_MODEL = 'gpt-5.3-codex';
+const AGENT_HOST_REPLACEMENT_SCENARIO_ID = 'smoke-agent-host-session-replacement';
+const AGENT_HOST_REPLACEMENT_REPLY = 'MOCKED_AGENT_HOST_REPLACEMENT_RESPONSE';
 
 const AGENT_HOST_SANDBOX_SCENARIO_ID = 'smoke-hello-agent-host-sandbox';
 const AGENT_HOST_SANDBOX_REPLY = 'MOCKED_AGENT_HOST_SANDBOX_RESPONSE';
@@ -60,6 +63,7 @@ export function setup(logger: Logger) {
 			serverLabel: 'AgentHost',
 			registerScenarios: ({ ScenarioBuilder, registerScenario }) => {
 				registerScenario(AGENT_HOST_SCENARIO_ID, new ScenarioBuilder().emit(AGENT_HOST_REPLY).build());
+				registerScenario(AGENT_HOST_REPLACEMENT_SCENARIO_ID, new ScenarioBuilder().emit(AGENT_HOST_REPLACEMENT_REPLY).build());
 				registerScenario(AGENT_HOST_SANDBOX_SCENARIO_ID, shellEchoScenario(AGENT_HOST_SANDBOX_REPLY));
 			},
 			settings: {
@@ -78,6 +82,25 @@ export function setup(logger: Logger) {
 					'terminal.integrated.defaultProfile.osx': 'Smoke AgentHost Sandbox sh',
 				} : {}),
 			},
+		});
+
+		it('Replaces the new session UI with the in-progress AgentHost session', async function () {
+			this.timeout(5 * 60 * 1000);
+
+			const app = this.app as Application;
+
+			try {
+				await app.workbench.agentsWindow.waitForNewSessionView();
+				await app.workbench.agentsWindow.selectSessionType('Copilot');
+				await app.workbench.agentsWindow.submitNewSessionPrompt(`replace the new session UI [scenario:${AGENT_HOST_REPLACEMENT_SCENARIO_ID}]`);
+				await app.workbench.agentsWindow.waitForActiveSessionView();
+				await app.workbench.agentsWindow.waitForAssistantText(AGENT_HOST_REPLACEMENT_REPLY);
+				await app.workbench.agentsWindow.startNewSession();
+			} catch (error) {
+				logger.log(`Agents Window (AgentHost replacement) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Agents Window (AgentHost replacement)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			}
 		});
 
 		it('Test Copilot CLI session via AgentHost', async function () {
@@ -204,9 +227,7 @@ export function setup(logger: Logger) {
 		// the SDK’s built-in shell tool runs commands. The AgentHost forwards
 		// `chat.agent.sandbox.*` into the SDK via `session.options.update`
 		// (mirroring how the Copilot extension configures the CLI sandbox), so
-		// shell commands still run mxc-wrapped and the SDK’s pre-call shell
-		// permission prompt is auto-approved on the same code path as the
-		// custom-terminal-tool variant above.
+		// shell commands still run mxc-wrapped.
 
 		const agentHost = setupAgentHostSuite(logger, {
 			serverLabel: 'AgentHost SDK sandbox',
@@ -228,9 +249,8 @@ export function setup(logger: Logger) {
 		it('Test Copilot CLI session via AgentHost (SDK sandbox)', async function () {
 			// See the Copilot CLI sandbox test above for the rationale on
 			// platform gating and where to find logs when debugging CI runs.
-			// The AgentHost-side sandbox log we assert on is
-			// `<logsPath>/agenthost.log` (the utility-process log), produced by
-			// CopilotAgentSession when it auto-approves a sandboxed shell call.
+			// The AgentHost-side log we assert on is `<logsPath>/agenthost.log`
+			// (the utility-process log), produced by CopilotAgentSession.
 			if (process.platform === 'win32') {
 				this.skip();
 			}
@@ -261,15 +281,20 @@ export function setup(logger: Logger) {
 				// in `agenthost.log`:
 				//   1. `Applied SDK sandboxConfig via session.options.update` — the
 				//      AgentHost pushed the mxc policy to the SDK.
-				//   2. `Auto-approving sandboxed shell command` — the SDK-side branch
-				//      of `_isShellSandboxedByDefault` confirmed the sandbox config
-				//      resolves to enabled, so the pre-call prompt was skipped.
+				//   2. `Tool started: bash` — the SDK's own shell tool ran the command.
 				//   3. NO `[ShellManager]` line — the AgentHost provided no shell tool
 				//      (customTerminalTool is off), so the SDK, not our engine, ran it.
-				// Poll for the auto-approve entry (the later of 1 & 2).
+				// There is deliberately no `Auto-approving sandboxed shell command`
+				// entry on this path. The session enables the runtime's script-safety
+				// classifier, which reports this `echo` as read-only, and the runtime
+				// resolves a read-only command without ever raising a permission
+				// request. The host's auto-approve branch still governs non-read-only
+				// sandboxed commands and is asserted by the custom-terminal-tool test
+				// above. Poll for the tool run: it lands after 1, and by that point a
+				// competing `[ShellManager]` run would have been logged too.
 				const agentHostLogPath = path.join(agentHost.logsPath, 'agenthost.log');
-				const autoApprove = /\[Copilot:[^\]]+\] Auto-approving sandboxed shell command for tool call /;
-				const agentHostLog = await waitForLogContent(() => readFileIfExists(agentHostLogPath), autoApprove);
+				const sdkShellRun = /\[Copilot:[^\]]+\] Tool started: bash/;
+				const agentHostLog = await waitForLogContent(() => readFileIfExists(agentHostLogPath), sdkShellRun);
 				assert.match(
 					agentHostLog,
 					/\[Copilot:[^\]]+\] Applied SDK sandboxConfig via session\.options\.update/,
@@ -277,8 +302,8 @@ export function setup(logger: Logger) {
 				);
 				assert.match(
 					agentHostLog,
-					autoApprove,
-					`expected an "Auto-approving sandboxed shell command" entry in ${agentHostLogPath}`
+					sdkShellRun,
+					`expected the SDK's own shell tool ("Tool started: bash") to have run the command in ${agentHostLogPath}`
 				);
 				assert.doesNotMatch(
 					agentHostLog,
@@ -520,7 +545,6 @@ function setupAgentHostSuite(logger: Logger, config: {
 			extraEnv: {
 				...(opts.extraEnv ?? {}),
 				...getCopilotSmokeTestEnv(mockServer, { userDataDir: opts.userDataDir }),
-				COPILOT_ENABLE_ALT_PROVIDERS: 'true',
 				COPILOT_API_URL: getMockLlmServerUrl(mockServer),
 				COPILOT_DEBUG_GITHUB_API_URL: getMockLlmServerUrl(mockServer),
 				GITHUB_COPILOT_API_TOKEN: 'smoketest-fake-agent-host-token',
@@ -548,6 +572,8 @@ function setupAgentHostSuite(logger: Logger, config: {
 				'chat.agentHost.unsafeTestToken': 'smoketest-fake-agent-host-token',
 				// Verbose Copilot runtime logging for capturable failure diagnostics.
 				'chat.agentHost.copilotSdk.logLevel': 'trace',
+				// These suites exercise Agent Host and sandbox behavior, not Auto routing.
+				'chat.defaultModel': AGENT_HOST_MODEL,
 				...config.settings,
 			}, null, 2);
 			for (const settingsPath of [

@@ -70,7 +70,6 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	multiSelectInputPrompt: 'Use AskUserQuestion exactly once to ask "Which colors?" with options "Red" and "Blue" and multiSelect true. After the answer, name the selected colors.',
 	supportsRuntimeSlashCommandsE2E: true,
 	supportsAttachmentsE2E: true,
-	fileToolDenialReplayUnstableOnLinux: true,
 	supportsWorktreeIncludeFilesE2E: true,
 	enabled: !!CLAUDE_SDK_ROOT,
 	claudeSdkRoot: CLAUDE_SDK_ROOT,

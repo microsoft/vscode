@@ -495,7 +495,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 				context.client,
 				sessionUri,
 				'turn-simple-attachment',
-				'Reply with only the value from the attachment.',
+				'Reply with only the value provided directly in the attachment. Do not inspect the workspace or use tools.',
 				attachments,
 				1,
 			);

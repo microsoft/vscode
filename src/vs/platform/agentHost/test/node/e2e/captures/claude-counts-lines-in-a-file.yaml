@@ -2,13 +2,15 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
           content: Count the lines in lines.txt and reply with the number only. Use your file tools; do not run a shell command.
     response:
       content:
+        - type: text
+          text: I'll read the file to count its lines.
         - type: tool_use
           id: toolcall_0
           name: Read
@@ -16,14 +18,15 @@ exchanges:
             file_path: ${workdir}/lines.txt
       stopReason: tool_use
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
           content: Count the lines in lines.txt and reply with the number only. Use your file tools; do not run a shell command.
         - role: assistant
           content:
-            - type: thinking
+            - type: text
+              text: I'll read the file to count its lines.
             - type: tool_use
               name: Read
               input:

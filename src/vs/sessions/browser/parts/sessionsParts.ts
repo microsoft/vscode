@@ -54,6 +54,10 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 		this._mainPart.updateVisibleSessions(visible, active);
 	}
 
+	setContentVisible(visible: boolean): void {
+		this._mainPart.setContentVisible(visible);
+	}
+
 	toggleMaximizeSession(session: IActiveSession | undefined): void {
 		if (!session) {
 			this._mainPart.toggleMaximizeSession(undefined);

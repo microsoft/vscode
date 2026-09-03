@@ -125,13 +125,13 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 ];
 
 export async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService): Promise<void> {
-	const sessionResource = sessionsService.activeSession.get()?.resource;
-	if (sessionResource) {
-		harnessService.setActiveSession(sessionResource);
+	const session = sessionsService.activeSession.get();
+	if (session) {
+		harnessService.setActiveSession(session.resource);
 	}
 
 	const input = AICustomizationManagementEditorInput.getOrCreate();
-	input.setTargetLabel(harnessService.getActiveDescriptor().label);
+	input.setTargetLabels(harnessService.getActiveDescriptor().label, session?.workspace.get()?.folders[0]?.name);
 	const pane = await editorService.openEditor(input, { pinned: true });
 	if (pane instanceof AICustomizationManagementEditor) {
 		pane.showWelcomePage();
@@ -139,13 +139,13 @@ export async function openCustomizationOverviewPage(editorService: IEditorServic
 }
 
 async function openCustomizationSectionPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService, section: typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection]): Promise<void> {
-	const sessionResource = sessionsService.activeSession.get()?.resource;
-	if (sessionResource) {
-		harnessService.setActiveSession(sessionResource);
+	const session = sessionsService.activeSession.get();
+	if (session) {
+		harnessService.setActiveSession(session.resource);
 	}
 
 	const input = AICustomizationManagementEditorInput.getOrCreate();
-	input.setTargetLabel(harnessService.getActiveDescriptor().label);
+	input.setTargetLabels(harnessService.getActiveDescriptor().label, session?.workspace.get()?.folders[0]?.name);
 	const pane = await editorService.openEditor(input, { pinned: true });
 	if (pane instanceof AICustomizationManagementEditor) {
 		pane.selectSectionById(section);

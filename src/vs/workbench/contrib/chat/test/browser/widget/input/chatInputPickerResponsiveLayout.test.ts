@@ -154,12 +154,12 @@ suite('ChatInputPickerResponsiveLayout', () => {
 		lane.style.overflow = 'hidden';
 
 		const actionBar = dom.append(lane, dom.$('.monaco-action-bar.has-overflow'));
-		const picker = dom.append(actionBar, dom.$('.picker'));
+		const picker = dom.$('.picker');
 		let compact = false;
 		let overflow = true;
 		const layout = store.add(new ChatInputPickerResponsiveLayout('test.overflowedPickerLane', lane, {
 			getItems: () => [{
-				element: picker,
+				element: picker.isConnected ? picker : undefined,
 				isCompact: () => compact,
 				setCompact: value => {
 					compact = value;
@@ -168,7 +168,10 @@ suite('ChatInputPickerResponsiveLayout', () => {
 			}],
 			hasOverflow: () => overflow,
 			relayout: () => {
-				overflow = picker.getBoundingClientRect().width > lane.getBoundingClientRect().width;
+				if (!picker.isConnected && compact && Number.parseFloat(picker.style.width) <= lane.getBoundingClientRect().width) {
+					actionBar.appendChild(picker);
+					overflow = false;
+				}
 			},
 		}));
 
@@ -187,6 +190,59 @@ suite('ChatInputPickerResponsiveLayout', () => {
 			tooNarrowForCompact: { compact: true, overflow: true },
 			compactItemsRestored: { compact: true, overflow: false },
 			expanded: { compact: false, overflow: false },
+		});
+	});
+
+	test('restores every hidden picker across repeated overflow cycles', () => {
+		const lane = dom.append(host, dom.$('.picker-lane'));
+		lane.style.display = 'flex';
+		lane.style.width = '400px';
+
+		const compact = [true, true, true, true];
+		const pickers = compact.map((_, index) => {
+			const picker = dom.$(`.picker-${index}`);
+			picker.style.width = '20px';
+			return picker;
+		});
+		let visibleItemCount = 1;
+		let overflow = true;
+		lane.appendChild(pickers[0]);
+
+		const hidePickers = () => {
+			for (const picker of pickers.slice(1)) {
+				picker.remove();
+			}
+			visibleItemCount = 1;
+			overflow = true;
+		};
+		const layout = store.add(new ChatInputPickerResponsiveLayout('test.restoreAllPickerLane', lane, {
+			getItems: () => pickers.map((picker, index) => ({
+				element: picker,
+				isCompact: () => compact[index],
+				setCompact: value => {
+					compact[index] = value;
+					picker.style.width = value ? '20px' : '80px';
+				},
+			})),
+			hasOverflow: () => overflow,
+			relayout: () => {
+				if (visibleItemCount < pickers.length && compact.slice(visibleItemCount).every(Boolean)) {
+					lane.appendChild(pickers[visibleItemCount++]);
+				}
+				overflow = visibleItemCount < pickers.length;
+			},
+		}));
+
+		layout.layout();
+		const firstRestore = { visibleItemCount, compact: [...compact], overflow };
+
+		hidePickers();
+		layout.layout();
+		const secondRestore = { visibleItemCount, compact: [...compact], overflow };
+
+		assert.deepStrictEqual({ firstRestore, secondRestore }, {
+			firstRestore: { visibleItemCount: 4, compact: [false, false, false, false], overflow: false },
+			secondRestore: { visibleItemCount: 4, compact: [false, false, false, false], overflow: false },
 		});
 	});
 
@@ -255,6 +311,96 @@ suite('ChatInputPickerResponsiveLayout', () => {
 		assert.strictEqual(compact, true);
 	});
 
+	test('lets a shrinkable picker ellipsize before compacting at its minimum width', () => {
+		const lane = dom.append(host, dom.$('.picker-lane'));
+		lane.style.display = 'flex';
+		lane.style.width = '100px';
+
+		const picker = dom.append(lane, dom.$('.picker'));
+		picker.style.flex = '0 1 160px';
+		picker.style.width = '160px';
+		picker.style.minWidth = '60px';
+		picker.style.overflow = 'hidden';
+		const label = dom.append(picker, dom.$('.picker-label'));
+		label.style.overflow = 'hidden';
+		label.style.textOverflow = 'ellipsis';
+		label.style.whiteSpace = 'nowrap';
+		label.textContent = 'A picker label that can ellipsize';
+
+		let compact = false;
+		let overflow = false;
+		const layout = store.add(new ChatInputPickerResponsiveLayout('test.shrinkablePickerLane', lane, {
+			getItems: () => [{
+				element: picker,
+				canShrink: true,
+				isCompact: () => compact,
+				setCompact: value => {
+					compact = value;
+				},
+			}],
+			hasOverflow: () => overflow,
+			relayout: () => {
+				picker.style.flexBasis = compact ? '20px' : '160px';
+				picker.style.width = compact ? '20px' : '160px';
+				picker.style.minWidth = compact ? '20px' : '60px';
+				overflow = picker.getBoundingClientRect().width > lane.getBoundingClientRect().width;
+			},
+		}));
+
+		layout.layout();
+		const truncated = { compact, overflow, width: picker.getBoundingClientRect().width };
+
+		lane.style.width = '50px';
+		layout.layout();
+		const collapsed = { compact, overflow, width: picker.getBoundingClientRect().width };
+
+		lane.style.width = '15px';
+		layout.layout();
+		const overflowed = { compact, overflow };
+
+		assert.deepStrictEqual({ truncated, collapsed, overflowed }, {
+			truncated: { compact: false, overflow: false, width: 100 },
+			collapsed: { compact: true, overflow: false, width: 20 },
+			overflowed: { compact: true, overflow: true },
+		});
+	});
+
+	test('uses a minimal picker state before overflowing', () => {
+		const lane = dom.append(host, dom.$('.picker-lane'));
+		lane.style.display = 'flex';
+		lane.style.width = '50px';
+
+		const picker = dom.append(lane, dom.$('.picker'));
+		let compact = false;
+		let minimal = false;
+		let overflow = false;
+		const layout = store.add(new ChatInputPickerResponsiveLayout('test.minimalPickerLane', lane, {
+			getItems: () => [{
+				element: picker,
+				canShrink: true,
+				isCompact: () => compact,
+				isMinimal: () => minimal,
+				setCompact: value => compact = value,
+				setMinimal: value => minimal = value,
+			}],
+			hasOverflow: () => overflow,
+			relayout: () => {
+				picker.style.width = minimal ? '20px' : compact ? '60px' : '120px';
+				picker.style.minWidth = minimal ? '20px' : '60px';
+				overflow = picker.getBoundingClientRect().width > lane.getBoundingClientRect().width;
+			},
+		}));
+
+		layout.layout();
+
+		assert.deepStrictEqual({ compact, minimal, overflow, width: picker.getBoundingClientRect().width }, {
+			compact: true,
+			minimal: true,
+			overflow: false,
+			width: 20,
+		});
+	});
+
 	test('keeps the toolbar row height stable when the model picker overflows', () => {
 		host.style.setProperty('--vscode-spacing-size40', '4px');
 		host.style.setProperty('--vscode-spacing-size60', '6px');
@@ -264,10 +410,15 @@ suite('ChatInputPickerResponsiveLayout', () => {
 		row.style.display = 'flex';
 		row.style.alignItems = 'center';
 
-		const modelItem = dom.append(row, dom.$('.chat-input-picker-item'));
+		const modelItem = dom.append(row, dom.$('.chat-input-picker-item.model-picker-item'));
+		modelItem.style.width = '100px';
 		const modelLabel = dom.append(modelItem, dom.$('a.action-label.model-picker-split'));
 		const modelName = dom.append(modelLabel, dom.$('.model-picker-section.model-picker-name'));
+		modelName.style.minWidth = '90px';
 		const pickerLabel = dom.append(modelName, dom.$('.chat-input-picker-label'));
+		pickerLabel.textContent = 'A very long model name';
+		const modelConfig = dom.append(modelLabel, dom.$('.model-picker-section.model-picker-config'));
+		modelConfig.style.width = '40px';
 
 		const overflowItem = dom.append(row, dom.$('.overflow-item'));
 		overflowItem.style.width = '22px';
@@ -275,6 +426,11 @@ suite('ChatInputPickerResponsiveLayout', () => {
 		overflowItem.style.display = 'none';
 
 		const withModelPicker = row.getBoundingClientRect().height;
+		const expandedModelNameFlexShrink = dom.getWindow(modelName).getComputedStyle(modelName).flexShrink;
+		const expandedLabelTextOverflow = dom.getWindow(pickerLabel).getComputedStyle(pickerLabel).textOverflow;
+		const expandedModelPickerWidth = modelLabel.getBoundingClientRect().width;
+		const expandedModelNameWidth = modelName.getBoundingClientRect().width;
+		const expandedLabelTruncated = pickerLabel.scrollWidth > pickerLabel.clientWidth;
 		const expandedIconOffset = modelName.getBoundingClientRect().left - modelLabel.getBoundingClientRect().left;
 		modelLabel.style.width = '22px';
 		modelItem.classList.add('compact-picker');
@@ -287,15 +443,21 @@ suite('ChatInputPickerResponsiveLayout', () => {
 		assert.deepStrictEqual({
 			withModelPicker,
 			withOverflow,
-			modelNameFlexShrink: dom.getWindow(modelName).getComputedStyle(modelName).flexShrink,
-			labelTextOverflow: dom.getWindow(pickerLabel).getComputedStyle(pickerLabel).textOverflow,
+			expandedModelNameFlexShrink,
+			expandedLabelTextOverflow,
+			expandedModelPickerWidth,
+			expandedModelNameWidth,
+			expandedLabelTruncated,
 			expandedIconOffset,
 			compactIconOffset,
 		}, {
 			withModelPicker: 22,
 			withOverflow: 22,
-			modelNameFlexShrink: '0',
-			labelTextOverflow: 'clip',
+			expandedModelNameFlexShrink: '1',
+			expandedLabelTextOverflow: 'ellipsis',
+			expandedModelPickerWidth: 100,
+			expandedModelNameWidth: 90,
+			expandedLabelTruncated: true,
 			expandedIconOffset: 0,
 			compactIconOffset: 0,
 		});

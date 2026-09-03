@@ -14,6 +14,47 @@
 		width: calc(100% - 20px);
 	}
 
+	&.session-list-row-spacing .monaco-list-row.session-list-inset-row {
+		padding-bottom: var(--vscode-spacing-size20);
+		background-clip: content-box;
+		outline: 0 !important;
+
+		> .monaco-tl-row {
+			border-radius: inherit;
+		}
+	}
+
+	&.session-list-row-spacing .monaco-list .monaco-list-row.session-list-inset-row {
+		&.selected > .monaco-tl-row {
+			outline: var(--vscode-strokeThickness) dotted var(--vscode-contrastActiveBorder, transparent);
+			outline-offset: calc(-1 * var(--vscode-strokeThickness));
+		}
+
+		&.focused > .monaco-tl-row {
+			outline: var(--vscode-strokeThickness) dotted var(--vscode-list-inactiveFocusOutline, transparent);
+			outline-offset: calc(-1 * var(--vscode-strokeThickness));
+		}
+
+		&.focused.selected > .monaco-tl-row {
+			outline-color: var(--vscode-contrastActiveBorder, var(--vscode-list-inactiveFocusOutline, transparent));
+		}
+
+		&:hover > .monaco-tl-row {
+			outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder, transparent);
+			outline-offset: calc(-1 * var(--vscode-strokeThickness));
+		}
+	}
+
+	&.session-list-row-spacing .monaco-list:focus .monaco-list-row.session-list-inset-row.focused > .monaco-tl-row,
+	.context-menu-visible &.session-list-row-spacing .monaco-list.last-focused .monaco-list-row.session-list-inset-row.focused > .monaco-tl-row {
+		outline: var(--vscode-strokeThickness) solid var(--vscode-list-focusOutline);
+		outline-offset: calc(-1 * var(--vscode-strokeThickness));
+	}
+
+	&.session-list-row-spacing .monaco-list:focus .monaco-list-row.session-list-inset-row.focused.selected > .monaco-tl-row {
+		outline-color: var(--vscode-list-focusAndSelectionOutline, var(--vscode-contrastActiveBorder, var(--vscode-list-focusOutline)));
+	}
+
 	/* Suppressed while selected so the selection highlight is not overpainted. */
 	.monaco-list-row:not(.selected):not(.focused):not(:hover):has(.session-item.needs-input),
 	.monaco-list-row:not(.selected):not(.focused):not(:hover) .session-chat-item.needs-input {
@@ -46,14 +87,13 @@
 		z-index: 1;
 	}
 
-	.monaco-list-row:hover .session-chat-twistie.collapsible,
-	.monaco-list-row.focused .session-chat-twistie.collapsible {
+	/* Replace the status icon with the twistie only while hovering the session row. */
+	.monaco-list-row:hover .session-chat-twistie.collapsible {
 		opacity: 1;
 		pointer-events: auto;
 	}
 
-	.monaco-list-row:hover[aria-expanded] .session-item .session-icon,
-	.monaco-list-row.focused[aria-expanded] .session-item .session-icon {
+	.monaco-list-row:hover[aria-expanded] .session-item .session-icon {
 		visibility: hidden;
 	}
 
@@ -152,6 +192,8 @@
 	height: 100%;
 	box-sizing: border-box;
 	position: relative;
+	overflow: visible;
+	min-width: 0;
 	padding: 8px 6px 8px 12px;
 
 	&.archived {
@@ -446,7 +488,7 @@
 	content: '';
 	position: absolute;
 	top: var(--vscode-spacing-size280);
-	bottom: 0;
+	bottom: calc(-1 * var(--vscode-spacing-size20));
 	left: var(--vscode-spacing-size200);
 	border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
 	opacity: 0;
@@ -465,6 +507,8 @@
 	flex-direction: column;
 	box-sizing: border-box;
 	position: relative;
+	overflow: visible;
+	min-width: 0;
 	padding: 0 var(--vscode-spacing-size120) 0 var(--vscode-spacing-size360);
 	color: var(--vscode-foreground);
 	font-size: var(--vscode-fontSize-body1);
@@ -474,7 +518,7 @@
 		content: '';
 		position: absolute;
 		top: 0;
-		bottom: 0;
+		bottom: calc(-1 * var(--vscode-spacing-size20));
 		left: var(--vscode-spacing-size200);
 		border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
 		opacity: 0;
@@ -649,7 +693,7 @@
 .session-section {
 	display: flex;
 	align-items: center;
-	font-size: var(--vscode-fontSize-label2, 11px);
+	font-size: var(--vscode-fontSize-label1, 12px);
 	font-weight: var(--vscode-fontWeight-semiBold, 600);
 	color: var(--vscode-descriptionForeground);
 	padding: 0 10px;

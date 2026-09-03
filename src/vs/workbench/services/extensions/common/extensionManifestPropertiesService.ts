@@ -100,6 +100,13 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 			return configuredSessionsWindowSupport;
 		}
 
+		if (manifest.enabledApiProposals?.includes('agentsWindowActivation')) {
+			const declaredSessionsWindowSupport = manifest.capabilities?.agentsWindow?.supported;
+			if (declaredSessionsWindowSupport !== undefined) {
+				return declaredSessionsWindowSupport;
+			}
+		}
+
 		// In the sessions window only extensions that have no code are currently allowed to run
 		if (manifest.main || manifest.browser) {
 			return false;

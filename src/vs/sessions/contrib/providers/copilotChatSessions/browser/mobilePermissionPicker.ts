@@ -47,11 +47,15 @@ export class MobilePermissionPicker extends PermissionPicker {
 	}
 
 	override showPicker(): void {
+		this._showPicker();
+	}
+
+	protected override _showPicker(): void {
 		if (!this._triggerElement || this.actionWidgetService.isVisible || this._isResolving()) {
 			return;
 		}
 		if (!isPhoneLayout(this._layoutService)) {
-			super.showPicker();
+			super._showPicker();
 			return;
 		}
 

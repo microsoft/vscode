@@ -47,6 +47,8 @@ import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { createCustomizationCardPrimaryAction, CustomizationCardListController } from './customizationCardList.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 
 const $ = DOM.$;
 
@@ -634,6 +636,8 @@ export class PluginListWidget extends Disposable {
 	private searchAndButtonContainer!: HTMLElement;
 	private searchInput!: InputBox;
 	private cardContainer!: HTMLElement;
+	private cardScrollable!: DomScrollableElement;
+	private cardScrollableNode!: HTMLElement;
 	private listContainer!: HTMLElement;
 	private list!: WorkbenchList<IPluginListEntry>;
 	private emptyContainer!: HTMLElement;
@@ -858,8 +862,24 @@ export class PluginListWidget extends Disposable {
 		disabledText.textContent = localize('pluginsDisabledTitle', "Plugins are disabled");
 		this.disabledMessage = DOM.append(this.disabledContainer, $('.empty-subtext'));
 
-		this.cardContainer = DOM.append(this.element, $('.plugin-card-container'));
-		this.cardContainer.style.display = 'none';
+		this.cardContainer = $('.plugin-card-container');
+		this.cardScrollable = this._register(new DomScrollableElement(this.cardContainer, {
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
+			useShadows: false,
+		}));
+		this._register(DOM.addDisposableListener(this.cardContainer, DOM.EventType.SCROLL, () => {
+			this.cardScrollable.setScrollPosition({ scrollTop: this.cardContainer.scrollTop });
+		}));
+		this.cardScrollableNode = this.cardScrollable.getDomNode();
+		this.cardScrollableNode.classList.add('plugin-card-scrollable');
+		this.cardScrollableNode.style.display = 'none';
+		this.element.appendChild(this.cardScrollableNode);
+		const cardResizeObserver = this._register(new DOM.DisposableResizeObserver(
+			'PluginListWidget.cardScrollable',
+			() => this.cardScrollable.scanDomNode(),
+		));
+		this._register(cardResizeObserver.observe(this.cardScrollableNode));
 
 		// List container
 		this.listContainer = DOM.append(this.element, $('.mcp-list-container'));
@@ -1180,13 +1200,24 @@ export class PluginListWidget extends Disposable {
 	private showCardSurface(): void {
 		this.emptyContainer.style.display = 'none';
 		this.listContainer.style.display = 'none';
-		this.cardContainer.style.display = '';
+		this.cardScrollableNode.style.display = '';
 	}
 
 	private showEmptySurface(): void {
-		this.cardContainer.style.display = 'none';
+		this.cardScrollableNode.style.display = 'none';
 		this.listContainer.style.display = 'none';
 		this.emptyContainer.style.display = 'flex';
+	}
+
+	private createCardScrollContent(...classNames: string[]): HTMLElement {
+		const content = DOM.append(this.cardContainer, $('.plugin-card-scroll.plugin-card-scroll-content'));
+		content.classList.add(...classNames);
+		const resizeObserver = this.cardDisposables.add(new DOM.DisposableResizeObserver(
+			'PluginListWidget.cardScrollContent',
+			() => this.cardScrollable.scanDomNode(),
+		));
+		this.cardDisposables.add(resizeObserver.observe(content));
+		return content;
 	}
 
 	private addSurfaceActivation(surface: HTMLElement, label: string, callback: () => void, ...classNames: string[]): HTMLButtonElement {
@@ -1231,8 +1262,9 @@ export class PluginListWidget extends Disposable {
 		DOM.clearNode(this.cardContainer);
 		this.showCardSurface();
 
-		const content = DOM.append(this.cardContainer, $('.plugin-card-scroll'));
+		const content = this.createCardScrollContent();
 		const installedPlugins = this.installedItems;
+		const hasMarketplaceInstalledPlugins = this.pluginMarketplaceService.installedPlugins.get().length > 0;
 
 		this.renderDiscoverySnapshot(content);
 		if (shouldLoadPluginMarketplaceSnapshot(this.visible, this.marketplaceSnapshot.state, this.isBrowseMarketplaceAvailable())) {
@@ -1245,7 +1277,7 @@ export class PluginListWidget extends Disposable {
 			undefined,
 			'installed-plugins-section',
 			installedPlugins.length,
-			header => this.renderInstalledSectionActions(header),
+			header => this.renderInstalledSectionActions(header, hasMarketplaceInstalledPlugins),
 		);
 		installedList.classList.add('plugin-inventory-list');
 		if (installedPlugins.length === 0) {
@@ -1278,7 +1310,7 @@ export class PluginListWidget extends Disposable {
 		this.renderAvailablePlugins(content, this.getUninstalledMarketplaceItems(this.marketplaceSnapshot.items), true);
 	}
 
-	private renderInstalledSectionActions(header: HTMLElement): void {
+	private renderInstalledSectionActions(header: HTMLElement, hasInstalledPlugins: boolean): void {
 		const actions = DOM.append(header, $('.plugin-card-section-actions'));
 		const createLabel = localize('createPlugin', "Create Plugin");
 		const create = this.installedCreateButton = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, ariaLabel: createLabel }));
@@ -1286,6 +1318,14 @@ export class PluginListWidget extends Disposable {
 		this.updateInstalledCreateButtonLabel();
 		this.rememberCardFocusElement(create.element);
 		this.cardDisposables.add(create.onDidClick(() => this.runCreatePluginAction()));
+
+		if (hasInstalledPlugins) {
+			const updateLabel = localize('checkForAndApplyPluginUpdates', "Check for and apply updates");
+			const update = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: updateLabel, ariaLabel: updateLabel }));
+			update.element.classList.add('plugin-card-icon-button', 'plugin-update-button');
+			update.label = `$(${Codicon.refresh.id})`;
+			this.cardDisposables.add(update.onDidClick(() => this.runUpdatePluginsAction(update)));
+		}
 	}
 
 	private renderAvailablePlugins(
@@ -1344,12 +1384,6 @@ export class PluginListWidget extends Disposable {
 			install.label = installLabel;
 			this.cardDisposables.add(install.onDidClick(() => this.runInstallFromSourceAction()));
 		}
-
-		const updateLabel = localize('updatePlugins', "Update Plugins");
-		const update = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: updateLabel, ariaLabel: updateLabel }));
-		update.element.classList.add('plugin-card-icon-button', 'plugin-update-available-button');
-		update.label = `$(${Codicon.refresh.id})`;
-		this.cardDisposables.add(update.onDidClick(() => this.runUpdatePluginsAction(update)));
 	}
 
 	private appendInstalledPluginRow(parent: HTMLElement, item: IInstalledPluginItem): void {
@@ -1587,7 +1621,7 @@ export class PluginListWidget extends Disposable {
 		}
 
 		this.showCardSurface();
-		const content = DOM.append(this.cardContainer, $('.plugin-card-scroll'));
+		const content = this.createCardScrollContent();
 		const recommendedKeys = this.pluginMarketplaceService.recommendedPlugins.get();
 		const recommended = marketplaceItems.filter(item => recommendedKeys.has(getMarketplaceRecommendationKey(item)));
 		const allPlugins = marketplaceItems.filter(item => !recommendedKeys.has(getMarketplaceRecommendationKey(item)));
@@ -1905,7 +1939,7 @@ export class PluginListWidget extends Disposable {
 		this.firstCardFocusElement = undefined;
 		DOM.clearNode(this.cardContainer);
 		this.showCardSurface();
-		const content = DOM.append(this.cardContainer, $('.plugin-card-scroll.plugin-search-results'));
+		const content = this.createCardScrollContent('plugin-search-results');
 		if (installedCount > 0) {
 			const installedList = this.renderCardSection(content, localize('installedSearchHeader', "Installed"), undefined, 'installed-plugins-section', installedCount);
 			installedList.classList.add('plugin-inventory-list');
@@ -2053,9 +2087,10 @@ export class PluginListWidget extends Disposable {
 		const backHeight = this.marketplaceBackContainer.offsetHeight;
 		const listHeight = Math.max(0, height - searchBarHeight - headerHeight - backHeight);
 
-		this.cardContainer.style.height = `${listHeight}px`;
+		this.cardScrollableNode.style.height = `${listHeight}px`;
 		this.listContainer.style.height = `${listHeight}px`;
 		this.list.layout(listHeight, width);
+		this.cardScrollable.scanDomNode();
 	}
 
 	focusSearch(): void {
@@ -2063,13 +2098,17 @@ export class PluginListWidget extends Disposable {
 	}
 
 	revealLastItem(): void {
+		if (this.cardScrollableNode.style.display !== 'none') {
+			this.cardScrollable.setScrollPosition({ scrollTop: this.cardContainer.scrollHeight });
+			return;
+		}
 		if (this.list.length > 0) {
 			this.list.reveal(this.list.length - 1);
 		}
 	}
 
 	focus(): void {
-		if (this.cardContainer.style.display !== 'none') {
+		if (this.cardScrollableNode.style.display !== 'none') {
 			this.firstCardFocusElement?.focus();
 		} else if (this.list.length > 0) {
 			this.list.domFocus();

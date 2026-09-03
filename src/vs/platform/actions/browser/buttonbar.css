@@ -1,0 +1,29 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Leading slot of a button: it holds either the icon its action carries or —
+ * while that action is in flight — the spinner, never both. The button lays its
+ * content out with flex, so giving both the same box and the same gap to the
+ * label they precede is enough for the swap to leave the button's width
+ * untouched. Both inherit the button foreground via `currentColor`. */
+.monaco-button.monaco-text-button > .monaco-button-leading-icon {
+	flex: 0 0 auto;
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-codiconFontSize);
+	margin: 0 var(--vscode-spacing-size40) 0 0;
+}
+
+.monaco-button.monaco-text-button > .codicon.monaco-button-leading-icon {
+	font-size: var(--vscode-codiconFontSize);
+	line-height: var(--vscode-codiconFontSize);
+}
+
+/* An icon-only button has no label for the slot to be separated from. Its icon
+ * variant renders as a codicon glyph on the button itself, which is one
+ * `--vscode-codiconFontSize` box wide, so the standing-in spinner matches it by
+ * dropping the gap. */
+.monaco-button.monaco-text-button > .monaco-button-leading-icon.monaco-button-leading-icon-only {
+	margin-right: 0;
+}

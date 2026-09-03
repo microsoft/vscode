@@ -123,6 +123,7 @@ async fn list_sessions(
 				channel: ROOT_RESOURCE_URI.to_string(),
 				limit: None,
 				cursor,
+				meta: None,
 			},
 		)
 		.await?;
@@ -201,9 +202,13 @@ async fn agent_ps_multi(
 /// complete).
 fn print_host_outcome_human(outcome: &HostSessions, all: bool) -> Result<(), AnyError> {
 	let header = Styles::title();
+	let separator = output::utf8_or_ascii("──", "--");
 	println!(
 		"\n{}",
-		header.apply_to(format!("── {} ──", outcome.endpoint.label()))
+		header.apply_to(format!(
+			"{separator} {} {separator}",
+			outcome.endpoint.label()
+		))
 	);
 
 	match &outcome.sessions {
@@ -216,7 +221,8 @@ fn print_host_outcome_human(outcome: &HostSessions, all: bool) -> Result<(), Any
 			}
 		}
 		Err(e) => {
-			println!("  {}", Styles::error().apply_to(format!("⚠ {e}")));
+			let warning = output::utf8_or_ascii("⚠", "!");
+			println!("  {}", Styles::error().apply_to(format!("{warning} {e}")));
 		}
 	}
 
@@ -385,13 +391,13 @@ fn format_sessions_list(sessions: &[&SessionSummary]) -> String {
 fn status_styled(status: u32) -> console::StyledObject<String> {
 	let status = SessionStatus::from_bits(status);
 	if status.contains(SessionStatus::InputNeeded) {
-		Styles::warning().apply_to("● input needed".to_string())
+		Styles::warning().apply_to(format!("{} input needed", output::utf8_or_ascii("●", "*")))
 	} else if status.contains(SessionStatus::InProgress) {
-		Styles::success().apply_to("● in progress".to_string())
+		Styles::success().apply_to(format!("{} in progress", output::utf8_or_ascii("●", "*")))
 	} else if status.contains(SessionStatus::Error) {
-		Styles::error().apply_to("● error".to_string())
+		Styles::error().apply_to(format!("{} error", output::utf8_or_ascii("●", "*")))
 	} else if status.contains(SessionStatus::Idle) {
-		Styles::muted().apply_to("○ idle".to_string())
+		Styles::muted().apply_to(format!("{} idle", output::utf8_or_ascii("○", "o")))
 	} else {
 		Styles::muted().apply_to(format!("? unknown ({})", status.bits()))
 	}
@@ -412,6 +418,7 @@ mod tests {
 			modified_at: modified_at.to_string(),
 			project: None,
 			working_directories: None,
+			origin: None,
 			changes: None,
 			annotations: None,
 			meta: None,

@@ -123,10 +123,17 @@ export interface SandboxSeatbeltPolicy {
  * Windows uses its platform-specific enablement and filesystem settings. It
  * does not fall back to the shared enablement setting so Windows rollout is
  * controlled independently.
+ *
+ * `extraReadonlyPaths` grants read access to host-generated files the shell
+ * tool needs, such as the session's shell init scripts. The SDK treats init
+ * script readability as a caller obligation and fails silently when a script
+ * cannot be read. `CopilotAgentSession` therefore includes the directory when
+ * it applies the effective sandbox immediately before each turn.
  */
 export function buildSandboxConfigForSdk(
 	platform: NodeJS.Platform,
 	sandbox: ISandboxConfigValue | undefined,
+	extraReadonlyPaths?: readonly string[],
 ): SandboxConfig | undefined {
 	const enabledRaw = platform === 'win32'
 		? sandbox?.[AgentHostSandboxKey.WindowsEnabled]
@@ -157,6 +164,15 @@ export function buildSandboxConfigForSdk(
 		}
 	}
 	for (const p of fs.allowRead ?? []) {
+		if (!denied.has(p) && !readonly.has(p) && !readwrite.has(p)) {
+			readonly.add(p);
+		}
+	}
+	// Host-generated files the shell tool must be able to read (see
+	// `extraReadonlyPaths`). Routed through the same precedence sets as user
+	// paths so an explicit `denyRead` still wins, and so a path the user already
+	// made readwrite is not downgraded.
+	for (const p of extraReadonlyPaths ?? []) {
 		if (!denied.has(p) && !readonly.has(p) && !readwrite.has(p)) {
 			readonly.add(p);
 		}

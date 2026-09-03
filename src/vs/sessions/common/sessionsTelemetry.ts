@@ -85,7 +85,7 @@ type ChangesViewVersionModeChangeEvent = {
 
 type ChangesViewVersionModeChangeClassification = {
 	owner: 'osortega';
-	comment: 'Tracks when the user switches the version mode in the Changes panel (Branch Changes, All Changes, Last Turn).';
+	comment: 'Tracks when the user switches the version mode in the Changes panel (Branch Changes, Session Changes, Last Turn).';
 	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version mode selected by the user.' };
 };
 

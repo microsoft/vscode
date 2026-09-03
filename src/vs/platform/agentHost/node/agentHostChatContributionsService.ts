@@ -8,7 +8,7 @@ import { NKeyMap } from '../../../base/common/map.js';
 import { observableValue, type ISettableObservable } from '../../../base/common/observable.js';
 import { IInstantiationService, type IConstructorSignature } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IAgentHostChatContributionHost, IAgentHostChatContributions, IChatMementoKey, IHydrationContext, IIncomingRequest, IObservedAction, IOutgoingTurn, IOutgoingTurnContributionResult, IncomingRequestDisposition, IRestoredChat, ISessionMementoKey, ITurnEnd } from '../common/agentHostChatContributionsService.js';
+import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IAgentHostChatContributionHost, IAgentHostChatContributions, IChatMementoKey, IHydrationContext, IIncomingRequest, IAppliedClientAction, IDispatchedAction, IOutgoingTurn, IOutgoingTurnContributionResult, IncomingRequestDisposition, IRestoredChat, ISessionMementoKey, ITurnEnd } from '../common/agentHostChatContributionsService.js';
 import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
 
 type MementoKeySegment = string | boolean | number;
@@ -146,14 +146,28 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 		}
 	}
 
-	action(action: IObservedAction): void {
+	didApplyClientAction(action: IAppliedClientAction): void {
 		for (const registration of this._getOrderedContributions()) {
 			const { contribution } = registration;
-			if (!contribution.onAction) {
+			if (!contribution.onDidApplyClientAction) {
 				continue;
 			}
 			try {
-				contribution.onAction(action);
+				contribution.onDidApplyClientAction(action);
+			} catch (err) {
+				this._logContributionFailure(registration, err);
+			}
+		}
+	}
+
+	didDispatchAction(dispatched: IDispatchedAction): void {
+		for (const registration of this._getOrderedContributions()) {
+			const { contribution } = registration;
+			if (!contribution.onDidDispatchAction) {
+				continue;
+			}
+			try {
+				contribution.onDidDispatchAction(dispatched);
 			} catch (err) {
 				this._logContributionFailure(registration, err);
 			}

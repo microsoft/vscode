@@ -101,6 +101,13 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 						this.updateImplicitContext();
 					}));
 				}
+				const browserEditor = this.findActiveBrowserEditor();
+				if (browserEditor) {
+					activeEditorDisposables.add(browserEditor.onceModelResolves(model => {
+						activeEditorDisposables.add(model.onDidChangeSharingState(() => this.updateImplicitContext()));
+						this.updateImplicitContext();
+					}));
+				}
 
 				this.updateImplicitContext();
 			})));
@@ -286,7 +293,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 				// existing values so the attachment bar stays visible.
 				// But when there's no active editor at all, clear the values.
 				const hasActiveEditor = !!this.editorService.activeEditor;
-				if (newValue !== undefined || !widget.input.implicitContext.hasValue || !hasActiveEditor) {
+				if (newValue !== undefined || !widget.input.implicitContext.hasValue || !hasActiveEditor || browser) {
 					widget.input.implicitContext.setValues([{ value: newValue, isSelection }, { value: providerContext, isSelection: false }]);
 				}
 			} else {

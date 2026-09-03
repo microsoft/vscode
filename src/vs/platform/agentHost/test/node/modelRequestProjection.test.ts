@@ -143,6 +143,33 @@ suite('modelRequestProjection', () => {
 		);
 	});
 
+	test('a runtime-authored change-notice preamble does not desync a capture on a CLI bump', () => {
+		// A newer CLI began prepending a `<tools_changed_notice>` block to the
+		// user turn when a plan-mode turn drops `exit_plan_mode`. The host
+		// composed the same question, so eliding the runtime's preamble on the
+		// live side matches it against a capture recorded before the change.
+		const recorded = request([{ role: 'user', content: 'What did the plan say to print? Reply with exactly "hello world".' }]);
+		const live = request([{
+			role: 'user', content: [
+				'<tools_changed_notice>',
+				'Tools no longer available: exit_plan_mode',
+				'</tools_changed_notice>',
+				'',
+				'What did the plan say to print? Reply with exactly "hello world".',
+			].join('\n'),
+		}]);
+		assert.ok(modelRequestsMatch(projectModelRequest(recorded), projectModelRequest(live)));
+	});
+
+	test('the question wrapped around a change-notice preamble still has to match', () => {
+		// Eliding the runtime preamble must not elide the user's own question.
+		const notice = '<mode_changed_notice>\nSwitched to default mode.\n</mode_changed_notice>\n\n';
+		assert.strictEqual(modelRequestsMatch(
+			projectModelRequest(request([{ role: 'user', content: notice + 'print the plan' }])),
+			projectModelRequest(request([{ role: 'user', content: notice + 'delete the plan' }])),
+		), false);
+	});
+
 	test('a tool input matches regardless of key order', () => {
 		// The `input` is JSON the model produced; its key order is not
 		// guaranteed to survive a re-record or a YAML round-trip, and comparing

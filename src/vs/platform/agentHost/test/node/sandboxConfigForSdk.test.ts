@@ -249,4 +249,38 @@ suite('buildSandboxConfigForSdk', () => {
 			});
 		});
 	});
+
+	suite('extraReadonlyPaths', () => {
+
+		test('grants read access to host-generated paths', () => {
+			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On), ['/data/shellInit/s1'])?.userPolicy?.filesystem, {
+				readonlyPaths: ['/data/shellInit/s1'],
+				clearPolicyOnExit: true,
+			});
+		});
+
+		test('keeps user denyRead winning over a host-generated path', () => {
+			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { denyRead: ['/data/shellInit/s1'] }), ['/data/shellInit/s1'])?.userPolicy?.filesystem, {
+				deniedPaths: ['/data/shellInit/s1'],
+				clearPolicyOnExit: true,
+			});
+		});
+
+		test('does not downgrade a path the user already made readwrite', () => {
+			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { allowWrite: ['/work'] }), ['/work'])?.userPolicy?.filesystem, {
+				readwritePaths: ['/work'],
+				clearPolicyOnExit: true,
+			});
+		});
+
+		test('changes nothing when omitted or empty', () => {
+			const base = buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { allowRead: ['/repo'] }));
+			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { allowRead: ['/repo'] }), []), base);
+			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { allowRead: ['/repo'] }), undefined), base);
+		});
+
+		test('stays undefined when sandboxing is off, regardless of extra paths', () => {
+			assert.strictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.Off), ['/data/shellInit/s1']), undefined);
+		});
+	});
 });

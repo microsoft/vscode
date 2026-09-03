@@ -2,7 +2,7 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
@@ -14,22 +14,21 @@ exchanges:
           name: Bash
           input:
             command: node -e "const fs=require('fs');fs.mkdirSync('output',{recursive:true});fs.writeFileSync('output/report.txt','NESTED_CREATED')"
-            description: Create output dir and write report file
+            description: Create output/report.txt via node
       stopReason: tool_use
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
           content: 'Run exactly this shell command, with no modifications: `node -e "const fs=require(''fs'');fs.mkdirSync(''output'',{recursive:true});fs.writeFileSync(''output/report.txt'',''NESTED_CREATED'')"`. Then reply with exactly "created".'
         - role: assistant
           content:
-            - type: thinking
             - type: tool_use
               name: Bash
               input:
                 command: node -e "const fs=require('fs');fs.mkdirSync('output',{recursive:true});fs.writeFileSync('output/report.txt','NESTED_CREATED')"
-                description: Create output dir and write report file
+                description: Create output/report.txt via node
         - role: user
           content:
             - type: tool_result

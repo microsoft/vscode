@@ -171,6 +171,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			const effectiveSubAgentName = subAgentName ?? currentModeInstructions?.name;
 
 			if (subAgentName) {
+				this.validateSubagentAllowed(subAgentName, currentModeInstructions);
 				subagent = await this.getSubAgentByName(subAgentName);
 				if (subagent) {
 					// Check the pre-resolved model cache from prepareToolInvocation
@@ -204,8 +205,8 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					modeInstructions = instructions && {
 						name: subAgentName,
 						content: instructions.content,
-						toolReferences: this.languageModelToolsService.toToolReferences(instructions.toolReferences),
-						allowedSubagents: undefined,
+						toolReferences: instructions.toolReferences.length ? this.languageModelToolsService.toToolReferences(instructions.toolReferences) : [],
+						allowedSubagents: subagent.agents,
 						metadata: instructions.metadata,
 						isBuiltin: isBuiltinAgent(subagent.source, subagent.uri, this.productService),
 					};
@@ -302,7 +303,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			const variableSet = new ChatRequestVariableSet();
 			// When the extension is responsible for instruction collection, skip the core path entirely.
 			if (this.configurationService.getValue<boolean>(ChatConfiguration.CollectInstructionsInExtension) !== true) {
-				const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, modeTools, undefined, getChatSessionType(invocation.context.sessionResource));
+				const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, modeTools, modeInstructions?.allowedSubagents, getChatSessionType(invocation.context.sessionResource));
 				await computer.collect(variableSet, token);
 			}
 
@@ -552,9 +553,12 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IRunSubagentToolInputParams;
 		const requestedAgentName = this.normalizeRequestedAgentName(args.agentName);
-
-		const subagent = requestedAgentName ? await this.getSubAgentByName(requestedAgentName) : undefined;
 		const currentModeInstructions = context.chatSessionResource ? this.getCurrentModeInstructions(context.chatSessionResource) : undefined;
+
+		if (requestedAgentName) {
+			this.validateSubagentAllowed(requestedAgentName, currentModeInstructions);
+		}
+		const subagent = requestedAgentName ? await this.getSubAgentByName(requestedAgentName) : undefined;
 
 		// Resolve the model early and cache it for invoke()
 		const resolved = this.resolveSubagentModel(subagent, context.modelId, args.model);
@@ -583,5 +587,12 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		}
 		const model = this.chatService.getSession(sessionResource) as ChatModel | undefined;
 		return model?.getRequests().at(-1)?.modeInfo?.modeInstructions;
+	}
+
+	private validateSubagentAllowed(subAgentName: string, currentModeInstructions: IChatRequestModeInstructions | undefined): void {
+		const allowedSubagents = currentModeInstructions?.allowedSubagents;
+		if (allowedSubagents && !allowedSubagents.includes('*') && !allowedSubagents.includes(subAgentName)) {
+			throw new Error(`Requested agent '${subAgentName}' is not allowed by the current agent.`);
+		}
 	}
 }

@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from '../../../../../base/common/arrays.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, dispose, isDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../editor/common/editorCommon.js';
 import { Command, isLocation } from '../../../../../editor/common/languages.js';
@@ -24,7 +26,17 @@ import { IChatWidgetContrib } from '../widget/chatWidget.js';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
 
+const issueIconCharacter = '\ueb0c';
+const pullRequestIconCharacter = '\uea64';
 
+/** Editor and attachment surface required by the shared inline-reference model. */
+export interface IChatDynamicVariableModelHost {
+	readonly inputEditor: ICodeEditor;
+	readonly attachments: readonly IChatRequestVariableEntry[];
+	readonly onDidChangeActiveInputEditor: Event<void>;
+	readonly onDidChangeAttachments: Event<unknown>;
+	refreshParsedInput(): void;
+}
 
 export class ChatDynamicVariableModel extends Disposable implements IChatWidgetContrib {
 	public static readonly ID = 'chatDynamicVariableModel';
@@ -50,33 +62,41 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		return ChatDynamicVariableModel.ID;
 	}
 
-	private decorationData: { id: string; text: string; rangeOffset: number }[] = [];
+	private decorationData: { id: string; text: string; rangeOffset: number; rangeLength: number; expectedRangeOffset?: number }[] = [];
 
 	private readonly _editorListener = this._register(new MutableDisposable());
+	private readonly host: IChatDynamicVariableModelHost;
 
 	constructor(
-		private readonly widget: IChatWidget,
+		widgetOrHost: IChatWidget | IChatDynamicVariableModelHost,
 		@ILabelService private readonly labelService: ILabelService,
 	) {
 		super();
+		this.host = isDynamicVariableModelHost(widgetOrHost) ? widgetOrHost : {
+			get inputEditor() { return widgetOrHost.inputEditor; },
+			get attachments() { return widgetOrHost.input.attachmentModel.attachments; },
+			onDidChangeActiveInputEditor: widgetOrHost.onDidChangeActiveInputEditor,
+			onDidChangeAttachments: widgetOrHost.input.attachmentModel.onDidChange,
+			refreshParsedInput: () => widgetOrHost.refreshParsedInput(),
+		};
 
 		this._subscribeToEditor();
-		this._register(widget.onDidChangeActiveInputEditor(() => {
+		this._register(this.host.onDidChangeActiveInputEditor(() => {
 			this._subscribeToEditor();
 			this.updateDecorations();
 		}));
-		this._register(widget.input.attachmentModel.onDidChange(() => this.updateDecorations()));
+		this._register(this.host.onDidChangeAttachments(() => this.updateDecorations()));
 	}
 
 	private _subscribeToEditor(): void {
-		this._editorListener.value = this.widget.inputEditor.onDidChangeModelContent(e => {
+		this._editorListener.value = this.host.inputEditor.onDidChangeModelContent(e => {
 
 			const removed: IDynamicVariable[] = [];
 			let didChange = false;
 
 			// Don't mutate entries in _variables, since they will be returned from the getter
 			this._variables = coalesce(this._variables.map((ref, idx): IDynamicVariable | null => {
-				const model = this.widget.inputEditor.getModel();
+				const model = this.host.inputEditor.getModel();
 
 				if (!model) {
 					removed.push(ref);
@@ -100,7 +120,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 				if (newText !== data.text) {
 					const replacement = e.changes.find(change =>
 						change.rangeOffset <= data.rangeOffset
-						&& change.rangeOffset + change.rangeLength >= data.rangeOffset + data.text.length
+						&& change.rangeOffset + change.rangeLength >= data.rangeOffset + data.rangeLength
 					);
 					const preservedRange = replacement && this.findReferenceRangeInReplacement(model, e.changes, replacement, data);
 					if (preservedRange) {
@@ -109,11 +129,11 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 					}
 
 					if (!replacement) {
-						this.widget.inputEditor.executeEdits(this.id, [{
+						this.host.inputEditor.executeEdits(this.id, [{
 							range: newRange,
 							text: '',
 						}]);
-						this.widget.refreshParsedInput();
+						this.host.refreshParsedInput();
 					}
 
 					removed.push(ref);
@@ -134,7 +154,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 			dispose(removed.filter(isDisposable));
 
 			if (didChange || removed.length > 0) {
-				this.widget.refreshParsedInput();
+				this.host.refreshParsedInput();
 				this._onDidChangeReferences.fire();
 			}
 
@@ -146,13 +166,13 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		model: ITextModel,
 		changes: readonly IModelContentChange[],
 		replacement: IModelContentChange,
-		data: { text: string; rangeOffset: number }
+		data: { text: string; rangeOffset: number; rangeLength: number; expectedRangeOffset?: number }
 	): Range | undefined {
 		if (!data.text) {
 			return undefined;
 		}
 
-		const previousRelativeOffset = data.rangeOffset - replacement.rangeOffset;
+		const previousRelativeOffset = (data.expectedRangeOffset ?? data.rangeOffset) - replacement.rangeOffset;
 		let matchOffset = replacement.text.indexOf(data.text);
 		let closestMatchOffset = matchOffset;
 		while (matchOffset !== -1) {
@@ -198,49 +218,99 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		}
 	}
 
-	addReference(ref: IDynamicVariable): void {
+	addReference(ref: IDynamicVariable, expectedText?: string, expectedRangeOffset?: number): void {
 		if (!isValidEditorRange(ref.range)) {
 			return;
 		}
 
-		const existingAttachment = this.widget.input.attachmentModel.attachments.find(attachment => attachment.id === ref.id && !attachment.range);
+		const existingAttachment = this.host.attachments.find(attachment => attachment.id === ref.id && !attachment.range);
 		if (existingAttachment) {
 			ref = toAttachedContextDynamicVariable(existingAttachment, ref.range);
 		}
 
 		this._variables.push(ref);
 		this.updateDecorations();
-		this.widget.refreshParsedInput();
+		if (expectedText !== undefined || expectedRangeOffset !== undefined) {
+			const addedDecoration = this.decorationData[this._variables.length - 1];
+			if (addedDecoration) {
+				addedDecoration.text = expectedText ?? addedDecoration.text;
+				addedDecoration.expectedRangeOffset = expectedRangeOffset;
+			}
+		}
+		this.host.refreshParsedInput();
 		this._onDidChangeReferences.fire();
 	}
 
+	removeReference(reference: IDynamicVariable): void {
+		const index = this._variables.findIndex(variable =>
+			variable.id === reference.id && Range.equalsRange(variable.range, reference.range));
+		if (index === -1) {
+			return;
+		}
+
+		const [removed] = this._variables.splice(index, 1);
+		if (isDisposable(removed)) {
+			removed.dispose();
+		}
+		this.updateDecorations();
+		this.host.refreshParsedInput();
+		this._onDidChangeReferences.fire();
+	}
+
+	/** Replaces visible reference labels with their agent-facing prompt text. */
+	getPromptText(text: string, textOffset = 0): string {
+		const model = this.host.inputEditor.getModel();
+		if (!model) {
+			return text;
+		}
+
+		const replacements = this._variables
+			.filter((variable): variable is IDynamicVariable & { promptText: string } => typeof variable.promptText === 'string')
+			.map(variable => ({
+				start: model.getOffsetAt(Range.getStartPosition(variable.range)) - textOffset,
+				endExclusive: model.getOffsetAt(Range.getEndPosition(variable.range)) - textOffset,
+				text: variable.promptText,
+			}))
+			.filter(replacement => replacement.start >= 0 && replacement.endExclusive <= text.length)
+			.sort((a, b) => b.start - a.start);
+
+		let result = text;
+		for (const replacement of replacements) {
+			result = result.slice(0, replacement.start) + replacement.text + result.slice(replacement.endExclusive);
+		}
+		return result;
+	}
+
 	private updateDecorations(): void {
-		const model = this.widget.inputEditor.getModel();
+		const model = this.host.inputEditor.getModel();
 		if (!model) {
 			this.decorationData = [];
 			return;
 		}
 
 		const validVariables = this._variables.filter(v => isValidEditorRange(v.range));
-		const decorationIds = this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, validVariables.map((r): IDecorationOptions => ({
+		const decorationIds = this.host.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, validVariables.map((r): IDecorationOptions => ({
 			range: r.range,
-			hoverMessage: this.getHoverForReference(r)
+			hoverMessage: this.getHoverForReference(r),
+			renderOptions: getReferenceIconRenderOptions(r),
 		})));
 
 		this._variables = validVariables.slice(0, decorationIds.length);
 		this.decorationData = [];
 		for (let i = 0; i < decorationIds.length; i++) {
 			const range = this._variables[i].range;
+			const text = model.getValueInRange(range);
 			this.decorationData.push({
 				id: decorationIds[i],
-				text: model.getValueInRange(range),
-				rangeOffset: model.getOffsetAt({ lineNumber: range.startLineNumber, column: range.startColumn })
+				text,
+				rangeOffset: model.getOffsetAt({ lineNumber: range.startLineNumber, column: range.startColumn }),
+				rangeLength: text.length,
 			});
 		}
 	}
 
 	private getHoverForReference(ref: IDynamicVariable): IMarkdownString | undefined {
-		const attachment = this.widget.input.attachmentModel.attachments.find(attachment => attachment.id === ref.id && !attachment.range);
+		const attachment = this.host.attachments.find(attachment => attachment.id === ref.id && !attachment.range);
 		if (attachment) {
 			return isImageVariableEntry(attachment) ? undefined : this.createAttachmentLabelHover(attachment);
 		}
@@ -282,6 +352,22 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	}
 }
 
+function getReferenceIconRenderOptions(reference: IDynamicVariable): IDecorationOptions['renderOptions'] {
+	const contentText = reference.icon?.id === Codicon.issues.id
+		? issueIconCharacter
+		: reference.icon?.id === Codicon.gitPullRequest.id
+			? pullRequestIconCharacter
+			: undefined;
+	return contentText ? {
+		before: {
+			contentText,
+			fontFamily: 'codicon',
+			margin: '0 2px 0 0',
+			verticalAlign: 'middle',
+		},
+	} : undefined;
+}
+
 /**
  * Loose check to filter objects that are obviously missing data
  */
@@ -308,6 +394,10 @@ function isValidEditorRange(range: IRange): boolean {
 	}
 
 	return true;
+}
+
+function isDynamicVariableModelHost(source: IChatWidget | IChatDynamicVariableModelHost): source is IChatDynamicVariableModelHost {
+	return 'attachments' in source;
 }
 
 

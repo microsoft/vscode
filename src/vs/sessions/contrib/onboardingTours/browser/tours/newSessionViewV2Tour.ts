@@ -7,6 +7,7 @@ import { IObservable } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
+import { SessionHarnessPickerVisibleContext } from '../../../../common/contextkeys.js';
 import { NEW_SESSION_ONBOARDING_SEEN_KEY } from './newSessionTour.js';
 import { createNewSessionViewRecentTourWhen, createNewSessionViewWorkspaceStep } from './newSessionViewTourShared.js';
 
@@ -30,6 +31,7 @@ const newSessionViewV2Payload: ISpotlightPayload = {
 			placement: 'above',
 			missingTarget: WAIT_FOR_PICKER,
 			openTarget: false,
+			when: SessionHarnessPickerVisibleContext,
 			allowTargetInteraction: true,
 		},
 		{

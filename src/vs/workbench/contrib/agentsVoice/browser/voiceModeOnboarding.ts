@@ -618,6 +618,11 @@ class VoiceSamplePlayer extends Disposable {
 			audio.src = '';
 		}));
 
+		// Tests inject audio elements to avoid opening the host audio output device.
+		if (this.audioFactory) {
+			return audio;
+		}
+
 		try {
 			const context = new targetWindow.AudioContext();
 			this._register(toDisposable(() => void context.close().catch(() => { /* already closing */ })));

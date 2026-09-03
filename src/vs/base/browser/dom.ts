@@ -1637,6 +1637,85 @@ export function windowOpenPopup(url: string): void {
 	);
 }
 
+let reservedExternalWindow: Window | undefined;
+
+function isUsable(candidate: Window | undefined): candidate is Window {
+	return !!candidate && !candidate.closed;
+}
+
+/**
+ * Opens a blank window now, for a later {@link windowOpenWithSuccess} to navigate.
+ *
+ * Browsers only allow `window.open` while a click's user activation is still live.
+ * Sign-in shows a dialog, activates an extension and fetches an authorization URL
+ * first, so by then the gesture has expired and the window is refused — fatal in an
+ * installed web app (PWA), where there is no tab to fall back to.
+ *
+ * Callers must consume or {@link releaseReservedWindowForExternalOpen} the
+ * reservation, or a blank window is left covering the app.
+ *
+ * @param targetWindow the window that was clicked; activation belongs to it.
+ * @param placeholder already-translated text, since `vs/base` cannot localize.
+ */
+export function reserveWindowForExternalOpen(targetWindow: Window = mainWindow, placeholder?: string): void {
+	if (isUsable(reservedExternalWindow)) {
+		return;
+	}
+
+	reservedExternalWindow = targetWindow.open() ?? undefined;
+	if (!isUsable(reservedExternalWindow)) {
+		reservedExternalWindow = undefined;
+		return;
+	}
+
+	if (placeholder) {
+		showMessageInWindow(reservedExternalWindow, placeholder);
+	}
+}
+
+/** Uses `textContent` so the message cannot inject markup. */
+function showMessageInWindow(target: Window, message: string): void {
+	try {
+		const doc = target.document;
+		doc.title = message; // otherwise announced as `about:blank`
+		doc.documentElement.style.cssText = 'color-scheme:light dark';
+		doc.body.style.cssText = 'margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:Canvas;color:CanvasText;font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif';
+		doc.body.textContent = message;
+	} catch {
+		// the window may already have navigated
+	}
+}
+
+function takeReservedWindowForExternalOpen(): Window | undefined {
+	const reserved = reservedExternalWindow;
+	reservedExternalWindow = undefined;
+	return isUsable(reserved) ? reserved : undefined;
+}
+
+/**
+ * Closes an unused reservation.
+ *
+ * @param fallbackMessage shown if the window refuses to close — an in-app browser
+ * view on iOS may ignore `close()`, and a blank window covering the app is worse
+ * than the problem this solves.
+ */
+export function releaseReservedWindowForExternalOpen(fallbackMessage?: string): void {
+	const reserved = takeReservedWindowForExternalOpen();
+	if (!reserved) {
+		return;
+	}
+
+	try {
+		reserved.close();
+	} catch {
+		// the window may already have navigated
+	}
+
+	if (!reserved.closed && fallbackMessage) {
+		showMessageInWindow(reserved, fallbackMessage);
+	}
+}
+
 /**
  * Attempts to open a window and returns whether it succeeded. This technique is
  * not appropriate in certain contexts, like for example when the JS context is
@@ -1650,10 +1729,11 @@ export function windowOpenPopup(url: string): void {
  * @param url the url to open
  * @param noOpener whether or not to set the {@link window.opener} to null. You should leave the default
  * (true) unless you trust the url that is being opened.
+ * @param targetWindow the window to open from when no window was reserved.
  * @returns boolean indicating if the {@link window.open} call succeeded
  */
-export function windowOpenWithSuccess(url: string, noOpener = true): boolean {
-	const newTab = mainWindow.open();
+export function windowOpenWithSuccess(url: string, noOpener = true, targetWindow: Window = mainWindow): boolean {
+	const newTab = takeReservedWindowForExternalOpen() ?? targetWindow.open();
 	if (newTab) {
 		if (noOpener) {
 			// see `windowOpenNoOpener` for details on why this is important

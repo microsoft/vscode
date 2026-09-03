@@ -274,7 +274,7 @@ export class QuickAccess {
 			// open quick outline via keybinding
 			await this.openQuickAccessWithRetry(QuickAccessKind.Symbols);
 
-			const { label } = await this.quickInput.waitForQuickInputElement();
+			const label = await this.quickInput.waitForQuickInputElementText();
 
 			// Retry for as long as no symbols are found
 			if (label === 'No symbol information for the file') {

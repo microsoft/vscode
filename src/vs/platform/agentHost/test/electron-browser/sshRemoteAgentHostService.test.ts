@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import type { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -21,24 +21,25 @@ import { IProductService } from '../../../product/common/productService.js';
 
 import { ISharedProcessService } from '../../../ipc/electron-browser/services.js';
 import { IQuickInputService } from '../../../quickinput/common/quickInput.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../common/remoteAgentHostService.js';
+import { addSSHRemoteAgentHostEntry, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, type IRawRemoteAgentHostEntry, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostConnectionInfo } from '../../common/remoteAgentHostService.js';
 import type { IAgentConnection } from '../../common/agentService.js';
 import { AHP_UNSUPPORTED_PROTOCOL_VERSION, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { IRemoteAgentHostLocationPreferenceService, type RemoteAgentHostLocationPreference } from '../../common/remoteAgentHostLocationPreference.js';
 import { ISSHHostKeyTrustService } from '../../common/sshHostKeyTrust.js';
 import { SSHHostKeyTrustService } from '../../browser/sshHostKeyTrustService.js';
-import { InMemoryStorageService } from '../../../storage/common/storage.js';
-import type {
-	ISSHAgentHostConfig,
-	ISSHConnectResult,
-	ISSHEndpointCandidate,
-	ISSHEndpointSelection,
-	ISSHEndpointSelectionRequest,
-	ISSHHostKeyVerificationRequest,
-	ISSHHostKeysAnnouncement,
-	ISSHKeyboardInteractiveRequest,
-	ISSHResolvedConfig,
-	ISSHRemoteAgentHostMainService,
+import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
+import {
+	SSHAuthMethod,
+	type ISSHAgentHostConfig,
+	type ISSHConnectResult,
+	type ISSHEndpointCandidate,
+	type ISSHEndpointSelection,
+	type ISSHEndpointSelectionRequest,
+	type ISSHHostKeyVerificationRequest,
+	type ISSHHostKeysAnnouncement,
+	type ISSHKeyboardInteractiveRequest,
+	type ISSHResolvedConfig,
+	type ISSHRemoteAgentHostMainService,
 } from '../../common/sshRemoteAgentHost.js';
 import type { IRelayMessage } from '../../common/relayTransport.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
@@ -166,6 +167,9 @@ class MockSSHMainService {
 			config: { host: config.host, username: config.username, authMethod: config.authMethod, name: config.name, sshConfigHost: config.sshConfigHost },
 			sshConfigHost: config.sshConfigHost,
 			serverType: this.connectResult?.serverType,
+			instanceId: this.connectResult?.instanceId,
+			primary: this.connectResult?.primary,
+			lifecycle: this.connectResult?.lifecycle,
 		};
 	}
 
@@ -176,9 +180,12 @@ class MockSSHMainService {
 			address: this.connectResult?.address ?? `ssh:${sshConfigHost}`,
 			name,
 			connectionToken: 'test-token',
-			config: { host: sshConfigHost, username: 'u', authMethod: 0 as never, name, sshConfigHost },
+			config: { host: sshConfigHost, username: 'u', authMethod: SSHAuthMethod.Agent, name, sshConfigHost },
 			sshConfigHost,
 			serverType: this.connectResult?.serverType,
+			instanceId: this.connectResult?.instanceId,
+			primary: this.connectResult?.primary,
+			lifecycle: this.connectResult?.lifecycle,
 		};
 	}
 
@@ -231,32 +238,115 @@ function asChannel(target: object): IChannel {
 	};
 }
 
-/** Captures addManagedConnection calls so tests can inspect transportDisposable. */
+/** Drives registered connection factories like RemoteAgentHostService. */
 class MockRemoteAgentHostService extends Disposable {
 	readonly added: Array<{ address: string; status?: RemoteAgentHostConnectionStatus; transport?: IDisposable }> = [];
 	private readonly _entries = new Map<string, { transport?: IDisposable; client: { dispose?: () => void }; status: RemoteAgentHostConnectionStatus }>();
-	// Holds transport disposables from prior registrations that were
-	// replaced by a later `addManagedConnection` for the same address.
+	// Holds transport disposables from prior service-owned connections that
+	// were replaced by a later connection for the same address.
 	// Production deliberately does NOT run them at replacement time (doing
 	// so would call _mainService.disconnect on the brand-new tunnel and
 	// kill it). They are released when the service itself is disposed.
 	private readonly _abandonedTransports: IDisposable[] = [];
+	private readonly _onDidChangeConnections = this._register(new Emitter<void>());
+	readonly onDidChangeConnections = this._onDidChangeConnections.event;
+	private readonly _connectionWaits = new Map<string, DeferredPromise<IRemoteAgentHostConnectionInfo>>();
+	private readonly _factories = new Map<RemoteAgentHostEntryType, IRemoteAgentHostConnectionFactory>();
 
-	async addManagedConnection(entry: { name: string; connection: { address?: string; sshConfigHost?: string } }, client: IAgentConnection, transportDisposable?: IDisposable, status: RemoteAgentHostConnectionStatus = RemoteAgentHostConnectionStatus.connected): Promise<unknown> {
-		const address = entry.connection.address ?? `ssh:${entry.connection.sshConfigHost}`;
-		// Mirror RemoteAgentHostService: re-registering an address replaces
-		// the previous entry and disposes its protocol client (but NOT its
-		// transport disposable — the new entry owns the underlying tunnel).
+	get connections(): readonly IRemoteAgentHostConnectionInfo[] {
+		return [...this._entries].map(([address, entry]) => ({
+			address,
+			name: address,
+			clientId: 'mock',
+			defaultDirectory: undefined,
+			status: entry.status,
+		}));
+	}
+
+	registerConnectionFactory(factory: IRemoteAgentHostConnectionFactory): IDisposable {
+		this._factories.set(factory.kind, factory);
+		return toDisposable(() => this._factories.delete(factory.kind));
+	}
+
+	reconnect(address: string, userInitiated = true): void {
+		void this._createAndConnect(address, userInitiated);
+	}
+
+	async waitForConnection(address: string): Promise<IRemoteAgentHostConnectionInfo> {
+		const existing = this.connections.find(connection => connection.address === address && RemoteAgentHostConnectionStatus.isConnected(connection.status));
+		if (existing) {
+			return existing;
+		}
+		let wait = this._connectionWaits.get(address);
+		if (!wait) {
+			wait = new DeferredPromise<IRemoteAgentHostConnectionInfo>();
+			this._connectionWaits.set(address, wait);
+		}
+		return wait.p;
+	}
+
+	private async _createAndConnect(address: string, userInitiated: boolean): Promise<void> {
+		const factory = this._factories.get(RemoteAgentHostEntryType.SSH);
+		const entry = factory?.entries.get().find(candidate => candidate.connection.type === RemoteAgentHostEntryType.SSH && candidate.connection.address === address);
+		if (!factory || !entry) {
+			this._rejectConnectionWait(address, new Error(`No SSH entry found for ${address}.`));
+			return;
+		}
+
 		const previous = this._entries.get(address);
 		if (previous) {
 			previous.client.dispose?.();
 			if (previous.transport) {
 				this._abandonedTransports.push(previous.transport);
 			}
+			this._entries.delete(address);
 		}
-		this.added.push({ address, status, transport: transportDisposable });
-		this._entries.set(address, { client: client as { dispose?: () => void }, transport: transportDisposable, status });
-		return { address, name: entry.name, clientId: 'mock', defaultDirectory: undefined, status };
+
+		try {
+			const created = await factory.createConnection(entry, { userInitiated });
+			const added = { address, status: RemoteAgentHostConnectionStatus.connecting, transport: created.transportDisposable };
+			this.added.push(added);
+			const managed = { client: created.connection as { dispose?: () => void }, transport: created.transportDisposable, status: RemoteAgentHostConnectionStatus.connecting };
+			this._entries.set(address, managed);
+			this._onDidChangeConnections.fire();
+			try {
+				await created.connection.connect();
+				managed.status = RemoteAgentHostConnectionStatus.connected;
+				added.status = managed.status;
+				this._resolveConnectionWait(address);
+			} catch (err) {
+				const incompatible = RemoteAgentHostConnectionStatus.fromConnectError(err, [PROTOCOL_VERSION]);
+				if (incompatible) {
+					managed.status = incompatible;
+					added.status = managed.status;
+				} else {
+					this._entries.delete(address);
+					managed.client.dispose?.();
+					managed.transport?.dispose();
+				}
+				this._rejectConnectionWait(address, err);
+			}
+			this._onDidChangeConnections.fire();
+		} catch (err) {
+			this._rejectConnectionWait(address, err);
+		}
+	}
+
+	private _resolveConnectionWait(address: string): void {
+		const wait = this._connectionWaits.get(address);
+		const connection = this.connections.find(candidate => candidate.address === address && RemoteAgentHostConnectionStatus.isConnected(candidate.status));
+		if (wait && connection) {
+			this._connectionWaits.delete(address);
+			wait.complete(connection);
+		}
+	}
+
+	private _rejectConnectionWait(address: string, err: unknown): void {
+		const wait = this._connectionWaits.get(address);
+		if (wait) {
+			this._connectionWaits.delete(address);
+			wait.error(err);
+		}
 	}
 
 	/** Mirrors IRemoteAgentHostService.getConnection: returns the client only when the entry is connected. */
@@ -278,6 +368,7 @@ class MockRemoteAgentHostService extends Disposable {
 		this._entries.delete(address);
 		e.client.dispose?.();
 		e.transport?.dispose();
+		this._onDidChangeConnections.fire();
 	}
 
 	override dispose(): void {
@@ -288,6 +379,10 @@ class MockRemoteAgentHostService extends Disposable {
 			e.transport?.dispose();
 		}
 		this._entries.clear();
+		for (const wait of this._connectionWaits.values()) {
+			wait.error(new Error('Mock remote agent host service disposed.'));
+		}
+		this._connectionWaits.clear();
 		// Release abandoned transports from prior registrations as well.
 		for (const t of this._abandonedTransports) {
 			t.dispose();
@@ -309,8 +404,32 @@ class MockProtocolClient extends Disposable {
 
 class TestConfigurationService {
 	readonly onDidChangeConfiguration = Event.None;
+	private _entries: readonly IRawRemoteAgentHostEntry[] = [];
+	updateValueCalls = 0;
+
 	constructor(private _remoteAgentHostsEnabled = true) { }
-	getValue(key?: string): unknown { return key === RemoteAgentHostsEnabledSettingId ? this._remoteAgentHostsEnabled : undefined; }
+	getValue(key?: string): unknown {
+		if (key === RemoteAgentHostsEnabledSettingId) {
+			return this._remoteAgentHostsEnabled;
+		}
+		if (key === RemoteAgentHostsSettingId) {
+			return this._entries;
+		}
+		return undefined;
+	}
+	inspect(): { userValue: readonly IRawRemoteAgentHostEntry[] } {
+		return { userValue: this._entries };
+	}
+	async updateValue(_key: string, value: readonly IRawRemoteAgentHostEntry[]): Promise<void> {
+		this.updateValueCalls++;
+		this._entries = value;
+	}
+	setRawEntries(entries: readonly IRawRemoteAgentHostEntry[]): void {
+		this._entries = entries;
+	}
+	get entries(): readonly IRawRemoteAgentHostEntry[] {
+		return this._entries;
+	}
 	setRemoteAgentHostsEnabled(enabled: boolean): void { this._remoteAgentHostsEnabled = enabled; }
 }
 
@@ -363,9 +482,11 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 	let createdClients: MockProtocolClient[];
 	let waitForClient: (index: number) => Promise<MockProtocolClient>;
 	let service: SSHRemoteAgentHostService;
+	let instantiationService: TestInstantiationService;
 	let quickInputServiceStub: Partial<IQuickInputService>;
 	let locationPreferenceService: TestRemoteAgentHostLocationPreferenceService;
 	let hostKeyTrustService: SSHHostKeyTrustService;
+	let sshStorageService: InMemoryStorageService;
 
 	setup(() => {
 		mainService = new MockSSHMainService();
@@ -377,10 +498,12 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 			getChannel: () => asChannel(mainService),
 		};
 
-		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService as Partial<IConfigurationService>);
+		sshStorageService = disposables.add(new InMemoryStorageService());
+		instantiationService.stub(IStorageService, sshStorageService);
 		quickInputServiceStub = {};
 		instantiationService.stub(IQuickInputService, quickInputServiceStub as Partial<IQuickInputService>);
 		instantiationService.stub(ISharedProcessService, sharedProcessService as ISharedProcessService);
@@ -424,7 +547,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 	const sampleConfig: ISSHAgentHostConfig = {
 		host: 'remote.example',
 		username: 'user',
-		authMethod: 0 as never,
+		authMethod: SSHAuthMethod.Agent,
 		name: 'My Remote',
 		sshConfigHost: 'remote.example',
 	};
@@ -435,17 +558,107 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		client.connectDeferred.complete();
 	}
 
-	test('connect registers a managed connection with a transport disposable', async () => {
+	test('connect registers an SSH factory connection with a transport disposable', async () => {
+		mainService.connectResult = { serverType: 'standalone', instanceId: 'standalone-1', primary: true, lifecycle: 'managed' };
 		const connectPromise = service.connect(sampleConfig);
 		await awaitClientThenResolve(0);
 		const handle = await connectPromise;
 
-		assert.strictEqual(remoteAgentHostService.added.length, 1);
-		assert.strictEqual(remoteAgentHostService.added[0].address, 'ssh:remote.example');
-		assert.strictEqual(remoteAgentHostService.added[0].status?.kind, 'connected');
-		assert.ok(remoteAgentHostService.added[0].transport, 'a transport disposable is passed so removal can tear down the SSH tunnel');
-		assert.strictEqual(service.connections.length, 1);
-		assert.strictEqual(handle.localAddress, 'ssh:remote.example');
+		assert.deepStrictEqual({
+			managedConnection: remoteAgentHostService.added.length,
+			address: remoteAgentHostService.added[0].address,
+			status: remoteAgentHostService.added[0].status?.kind,
+			hasTransport: !!remoteAgentHostService.added[0].transport,
+			stored: readSSHRemoteAgentHostEntries(sshStorageService),
+			connectionCount: service.connections.length,
+			handleAddress: handle.localAddress,
+		}, {
+			managedConnection: 1,
+			address: 'ssh:remote.example',
+			status: 'connected',
+			hasTransport: true,
+			stored: [{
+				name: 'My Remote',
+				connectionToken: 'test-token',
+				connection: {
+					type: RemoteAgentHostEntryType.SSH,
+					address: 'ssh:remote.example',
+					sshConfigHost: 'remote.example',
+					hostName: 'remote.example',
+					user: 'user',
+					port: undefined,
+					serverType: 'standalone',
+					instanceId: 'standalone-1',
+					primary: true,
+					lifecycle: 'managed',
+				},
+			}],
+			connectionCount: 1,
+			handleAddress: 'ssh:remote.example',
+		});
+	});
+
+	test('migrates legacy SSH settings to the SSH factory store once and preserves WebSocket settings', async () => {
+		service.dispose();
+		configurationService.setRawEntries([{
+			address: 'ssh:legacy',
+			name: 'Legacy SSH Host',
+			connectionToken: 'ssh-token',
+			sshConfigHost: 'legacy',
+			sshHostName: 'legacy.example',
+			sshUser: 'me',
+			sshPort: 2222,
+		}, {
+			address: 'host1:8080',
+			name: 'WebSocket Host',
+			connectionToken: 'websocket-token',
+		}]);
+
+		service = disposables.add(instantiationService.createInstance(SSHRemoteAgentHostService));
+		while (configurationService.updateValueCalls === 0) {
+			await Promise.resolve();
+		}
+
+		assert.deepStrictEqual({
+			settings: configurationService.entries,
+			stored: readSSHRemoteAgentHostEntries(sshStorageService),
+			settingsWrites: configurationService.updateValueCalls,
+		}, {
+			settings: [{
+				address: 'host1:8080',
+				name: 'WebSocket Host',
+				connectionToken: 'websocket-token',
+			}],
+			stored: [{
+				name: 'Legacy SSH Host',
+				connectionToken: 'ssh-token',
+				connection: {
+					type: RemoteAgentHostEntryType.SSH,
+					address: 'ssh:legacy',
+					sshConfigHost: 'legacy',
+					hostName: 'legacy.example',
+					user: 'me',
+					port: 2222,
+				},
+			}],
+			settingsWrites: 1,
+		});
+	});
+
+	test('disconnect removes the persisted SSH entry', async () => {
+		const connectPromise = service.connect(sampleConfig);
+		await awaitClientThenResolve(0);
+		await connectPromise;
+
+		await service.disconnect('ssh:remote.example');
+
+		assert.deepStrictEqual({
+			stored: readSSHRemoteAgentHostEntries(sshStorageService),
+			disconnectCalls: mainService.disconnectCalls,
+		}, {
+			stored: [],
+			disconnectCalls: ['ssh:remote.example'],
+		});
 	});
 
 	test('connect threads the stored location preference for the stable connection key into the main-process config', async () => {
@@ -457,6 +670,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 
 		assert.strictEqual(mainService.connectCalls.length, 1);
 		assert.strictEqual(mainService.connectCalls[0].preferredAgentLocation, 'editor');
+		assert.strictEqual(mainService.connectCalls[0].userInitiated, true);
 	});
 
 	test('connect omits preferredAgentLocation from the main-process config when no preference is stored', async () => {
@@ -470,6 +684,10 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 
 	test('reconnect threads the stored location preference for sshConfigHost into the main-process reconnect call', async () => {
 		locationPreferenceService.setPreference('ssh:remote.example', 'dedicated');
+		addSSHRemoteAgentHostEntry(sshStorageService, {
+			name: 'My Remote',
+			connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:remote.example', sshConfigHost: 'remote.example', hostName: 'remote.example', user: 'user' },
+		});
 
 		const reconnectPromise = service.reconnect('remote.example', 'My Remote');
 		await awaitClientThenResolve(0);
@@ -478,9 +696,15 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		assert.strictEqual(mainService.reconnectCalls.length, 1);
 		assert.strictEqual(mainService.reconnectCalls[0].sshConfigHost, 'remote.example');
 		assert.strictEqual(mainService.reconnectCalls[0].preferredAgentLocation, 'dedicated');
+		assert.strictEqual(mainService.reconnectCalls[0].userInitiated, true);
 	});
 
 	test('reconnect omits preferredAgentLocation from the main-process call when no preference is stored', async () => {
+		addSSHRemoteAgentHostEntry(sshStorageService, {
+			name: 'My Remote',
+			connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:remote.example', sshConfigHost: 'remote.example', hostName: 'remote.example', user: 'user' },
+		});
+
 		const reconnectPromise = service.reconnect('remote.example', 'My Remote');
 		await awaitClientThenResolve(0);
 		await reconnectPromise;
@@ -617,7 +841,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		await c2;
 
 		assert.strictEqual(service.connections.length, 1);
-		assert.strictEqual(remoteAgentHostService.added.length, 2, 'each connect produces a fresh managed-connection registration');
+		assert.strictEqual(remoteAgentHostService.added.length, 2, 'each connect produces a fresh service-owned connection');
 	});
 
 	test('main-process onDidCloseConnection cleans up renderer handle without double-disconnecting', async () => {
@@ -678,6 +902,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		await awaitClientThenResolve(1);
 		await r;
 
+		assert.strictEqual(mainService.reconnectCalls[0].userInitiated, false);
 		assert.deepStrictEqual(notificationService.infoMessages, [NOTIFICATION_MESSAGE]);
 	});
 
@@ -766,19 +991,19 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		assert.deepStrictEqual(notificationService.infoMessages, []);
 	});
 
-	test('a duplicate setup that reuses an already-connected handle does not notify', async () => {
+	test('a duplicate setup reconnects through the service without notifying', async () => {
 		mainService.connectResult = { connectionId: 'conn-1', serverType: 'editor' };
 		const c1 = service.connect(sampleConfig);
 		await awaitClientThenResolve(0);
 		await c1;
 
-		// Second connect resolves to the same connectionId while the entry
-		// is still connected — SSHRemoteAgentHostService short-circuits to
-		// the existing handle and never re-runs endpoint-selection tracking.
+		// Reconnecting through the shared service replaces its protocol client
+		// and performs a new handshake without treating it as a failover.
 		const c2 = service.connect(sampleConfig);
+		await awaitClientThenResolve(1);
 		await c2;
 
-		assert.strictEqual(createdClients.length, 1, 'no second protocol client is created for the duplicate setup');
+		assert.strictEqual(createdClients.length, 2, 'the service owns a new protocol client for the reconnect');
 		assert.deepStrictEqual(notificationService.infoMessages, []);
 	});
 });
@@ -801,6 +1026,7 @@ suite('SSHRemoteAgentHostService endpoint selection preference (renderer)', () =
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService() as Partial<IConfigurationService>);
+		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		instantiationService.stub(IQuickInputService, {} as Partial<IQuickInputService>);
 		instantiationService.stub(ISharedProcessService, sharedProcessService as ISharedProcessService);
 		instantiationService.stub(IRemoteAgentHostService, disposables.add(new MockRemoteAgentHostService()) as Partial<IRemoteAgentHostService>);
@@ -1072,6 +1298,7 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService() as Partial<IConfigurationService>);
+		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		instantiationService.stub(IQuickInputService, {} as Partial<IQuickInputService>);
 		instantiationService.stub(ISharedProcessService, sharedProcessService as ISharedProcessService);
 		instantiationService.stub(IRemoteAgentHostService, disposables.add(new MockRemoteAgentHostService()) as Partial<IRemoteAgentHostService>);

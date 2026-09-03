@@ -240,6 +240,7 @@ export interface ISessionCreationDefaults {
 	readonly model?: ModelSelection;
 	readonly config?: Record<string, unknown>;
 	readonly isolation?: 'folder' | 'worktree';
+	readonly project?: URI;
 }
 
 /** Point-in-time snapshot of a chat's conversation, read from the host state. */
@@ -404,6 +405,28 @@ function resolveWorkspace(workspace: string, sessions: readonly IAgentSessionMet
 		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: workspace must match a unique known project name, project URI, working directory, absolute path, or valid URI string.`);
 	}
 	return parsed;
+}
+
+async function getCreateSessionCatalog(accessor: ISessionServerToolAccessor, rawArgs: unknown): Promise<readonly IAgentSessionMetadata[]> {
+	const args = (rawArgs ?? {}) as ICreateSessionArgs;
+	if (getCreateSessionRelationship(args) !== 'independent') {
+		return [];
+	}
+	const workspace = getOptionalString(args.workspace, 'workspace', SessionServerToolName.CreateSession);
+	if (workspace === undefined) {
+		return [];
+	}
+	try {
+		// Prefer the catalog because a project display name can also be a valid URI.
+		return await accessor.listSessions();
+	} catch (error) {
+		// An explicit URI/path is self-contained, so it remains usable when a
+		// provider cannot enumerate its session catalog.
+		if (parseWorkspaceUri(workspace) !== undefined) {
+			return [];
+		}
+		throw error;
+	}
 }
 
 function resolveModel(modelName: string | undefined, models: readonly IAgentModelInfo[], provider?: AgentProvider): IAgentModelInfo | undefined {
@@ -719,7 +742,7 @@ export interface ICreateSessionResult {
  * Creates work with the requested relationship and sends its initial prompt.
  */
 export async function applyCreateSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI, sourceTurnId?: string): Promise<ICreateSessionResult> {
-	const sessions = await accessor.listSessions();
+	const sessions = await getCreateSessionCatalog(accessor, rawArgs);
 	const currentSession = source ? currentSessionUri(source.toString()) : undefined;
 	const currentProvider = currentSession ? AgentSession.provider(currentSession) : undefined;
 	const args = getCreateSessionArgs(rawArgs, sessions, accessor.getModels(), currentProvider);
@@ -747,11 +770,14 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	const provider = args.model?.provider ?? defaults?.provider;
 	const inheritsSourceProvider = provider !== undefined && provider === defaults?.provider;
 	const inheritedProviderConfig = inheritsSourceProvider ? defaults?.config : undefined;
-	const configValues = inheritedProviderConfig === undefined && defaults?.isolation === undefined
+	const isolation = defaults?.project !== undefined && isEqual(defaults.project, args.workspace)
+		? defaults.isolation
+		: 'worktree';
+	const configValues = inheritedProviderConfig === undefined && isolation === undefined
 		? undefined
 		: {
 			...inheritedProviderConfig,
-			...(defaults?.isolation !== undefined ? { [SessionConfigKey.Isolation]: defaults.isolation } : {}),
+			...(isolation !== undefined ? { [SessionConfigKey.Isolation]: isolation } : {}),
 		};
 	const config: IAgentCreateSessionConfig = {
 		workingDirectories: args.workspace ? [args.workspace] : undefined,
@@ -1387,7 +1413,11 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 						return serializeSessions(filterSessions(await accessor.listSessions(), getListSessionsArgs(rawArgs)));
 					}
 				case SessionServerToolName.GetCurrentSession:
-					return serializeCurrentSession(currentSessionUri(currentChannel), await accessor.listSessions());
+					{
+						const currentSession = currentSessionUri(currentChannel);
+						const metadata = await accessor.getSession(currentSession);
+						return serializeCurrentSession(currentSession, metadata ? [metadata] : []);
+					}
 				case SessionServerToolName.CreateSession: {
 					const relationship = getCreateSessionRelationship(rawArgs);
 					if (relationship === 'currentSession' && createdChatCount >= maxCreatedChats) {

@@ -1,0 +1,478 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.multi-diff-scroll-fixture {
+	box-sizing: border-box;
+	width: 1280px;
+	min-height: 900px;
+	padding: var(--vscode-spacing-size160);
+	color: var(--vscode-foreground);
+	background: var(--vscode-editor-background);
+	font-size: var(--vscode-fontSize-body1);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-title {
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-description {
+	margin: var(--vscode-spacing-size40) 0 var(--vscode-spacing-size160);
+	color: var(--vscode-descriptionForeground);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-columns {
+	display: grid;
+	grid-template-columns: 280px minmax(0, 1fr);
+	gap: var(--vscode-spacing-size160);
+	align-items: start;
+}
+
+.multi-diff-scroll-fixture.real-widget .multi-diff-scroll-fixture-columns {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.multi-diff-scroll-fixture.real-widget .multi-diff-scroll-fixture-visualization {
+	grid-column: 1;
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-panel,
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-visualization {
+	min-width: 0;
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-visualization {
+	display: grid;
+	grid-column: 2;
+	grid-row: 1;
+	grid-template-columns: minmax(380px, 9fr) minmax(480px, 11fr);
+	gap: var(--vscode-spacing-size160);
+	align-items: start;
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-panel.controls {
+	grid-column: 1;
+	grid-row: 1 / span 2;
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-panel.inspector {
+	grid-column: 2;
+	grid-row: 2;
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-editor-pane,
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-coordinate-pane {
+	min-width: 0;
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-real-diagnostics {
+	grid-column: 1 / -1;
+	max-height: 240px;
+	overflow: auto;
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-textCodeBlock-background);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-panel {
+	max-height: 800px;
+	overflow: auto;
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-sideBar-background);
+}
+
+.multi-diff-scroll-fixture h2 {
+	margin: var(--vscode-spacing-size160) 0 var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.multi-diff-scroll-fixture h2:first-child {
+	margin-top: 0;
+}
+
+.multi-diff-scroll-fixture h3 {
+	margin: 0 0 var(--vscode-spacing-size40);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-tabs {
+	display: flex;
+	gap: var(--vscode-spacing-size40);
+	margin-bottom: var(--vscode-spacing-size100);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-tabs .monaco-button {
+	margin-bottom: calc(-1 * var(--vscode-strokeThickness));
+	border-bottom-left-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-tabs .monaco-button[aria-selected='true'] {
+	border-bottom-color: var(--vscode-focusBorder);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-field {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 108px;
+	gap: var(--vscode-spacing-size80);
+	align-items: center;
+	margin-bottom: var(--vscode-spacing-size60);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-checkbox-field {
+	display: flex;
+	gap: var(--vscode-spacing-size60);
+	align-items: center;
+	margin-bottom: var(--vscode-spacing-size60);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-checkbox-field input {
+	width: auto;
+	height: auto;
+	margin: 0;
+}
+
+.multi-diff-scroll-fixture input,
+.multi-diff-scroll-fixture select {
+	box-sizing: border-box;
+	min-width: 0;
+	height: 26px;
+	padding: 0 var(--vscode-spacing-size60);
+	color: var(--vscode-input-foreground);
+	background: var(--vscode-input-background);
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border);
+	border-radius: var(--vscode-cornerRadius-small);
+	font: inherit;
+}
+
+.multi-diff-scroll-fixture input:focus-visible,
+.multi-diff-scroll-fixture select:focus-visible,
+.multi-diff-scroll-fixture textarea:focus-visible,
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-viewport:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-json-description {
+	margin: 0 0 var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-json-editor {
+	box-sizing: border-box;
+	width: 100%;
+	height: 520px;
+	resize: vertical;
+	padding: var(--vscode-spacing-size80);
+	color: var(--vscode-input-foreground);
+	background: var(--vscode-input-background);
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border);
+	border-radius: var(--vscode-cornerRadius-small);
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 20px;
+	tab-size: 2;
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-json-error:not(:empty) {
+	margin-top: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size80);
+	color: var(--vscode-inputValidation-errorForeground);
+	background: var(--vscode-inputValidation-errorBackground);
+	border: var(--vscode-strokeThickness) solid var(--vscode-inputValidation-errorBorder);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-button-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size40);
+	margin: var(--vscode-spacing-size80) 0;
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-button-column {
+	display: grid;
+	gap: var(--vscode-spacing-size60);
+	margin: var(--vscode-spacing-size80) 0;
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-item-controls {
+	margin: 0 0 var(--vscode-spacing-size100);
+	padding: var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-item-controls legend {
+	padding: 0 var(--vscode-spacing-size40);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-viewport {
+	position: relative;
+	overflow: hidden;
+	min-height: 120px;
+	border: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-multiDiffEditor-background);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-scroll-view {
+	width: 100%;
+	height: 100%;
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-row {
+	position: absolute;
+	left: var(--vscode-spacing-size80);
+	right: var(--vscode-spacing-size80);
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	border: var(--vscode-strokeThickness) solid var(--vscode-multiDiffEditor-border);
+	border-radius: var(--vscode-cornerRadius-small);
+	background: var(--vscode-editor-background);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-row.hidden {
+	display: none;
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-row.desynchronized {
+	border-color: var(--vscode-inputValidation-warningBorder);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-row-header {
+	position: relative;
+	z-index: 1000;
+	box-sizing: border-box;
+	flex: 0 0 32px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size80);
+	padding: 0 var(--vscode-spacing-size80);
+	background: var(--vscode-multiDiffEditor-headerBackground);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-sideBarSectionHeader-border);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-row-header.shadow {
+	box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px;
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-row-header.collapsed {
+	border-bottom-color: transparent;
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-row-header .title {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-row-header .selection-proof {
+	color: var(--vscode-textLink-foreground);
+	cursor: text;
+	user-select: text;
+	white-space: nowrap;
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-row-header .state {
+	color: var(--vscode-descriptionForeground);
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-editor-viewport {
+	position: relative;
+	flex: 1 1 auto;
+	overflow: hidden;
+	background: var(--vscode-editor-background);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-editor-content {
+	position: absolute;
+	inset: 0;
+	min-height: 100%;
+	padding: 0 var(--vscode-spacing-size80);
+	font-family: var(--monaco-monospace-font);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-editor-line {
+	box-sizing: border-box;
+	display: grid;
+	grid-template-columns: 40px minmax(0, 1fr);
+	white-space: nowrap;
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-editorIndentGuide-background1);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-editor-line .line-number {
+	padding-right: var(--vscode-spacing-size80);
+	color: var(--vscode-editorLineNumber-foreground);
+	text-align: right;
+	user-select: none;
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-editor-line .line-content {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-coordinate-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--vscode-spacing-size120);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-coordinate-scale .track {
+	position: relative;
+	height: 480px;
+	overflow: hidden;
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-sideBar-background);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-coordinate-scale .segment {
+	position: absolute;
+	left: var(--vscode-spacing-size80);
+	right: var(--vscode-spacing-size80);
+	min-height: 2px;
+	overflow: hidden;
+	background: var(--vscode-list-inactiveSelectionBackground);
+	border: var(--vscode-strokeThickness) solid var(--vscode-list-inactiveSelectionForeground);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-coordinate-scale .item-local-range {
+	position: absolute;
+	top: var(--vscode-spacing-size40);
+	bottom: var(--vscode-spacing-size40);
+	left: var(--vscode-spacing-size40);
+	width: var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	background: var(--vscode-editor-background);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-coordinate-scale .item-local-viewport {
+	position: absolute;
+	left: 0;
+	right: 0;
+	min-height: var(--vscode-strokeThickness);
+	background: var(--vscode-focusBorder);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-coordinate-scale .segment-label {
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	display: grid;
+	place-items: center;
+	padding: var(--vscode-spacing-size20);
+	text-align: center;
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-coordinate-scale .viewport-marker {
+	position: absolute;
+	left: 0;
+	right: 0;
+	border: 2px solid var(--vscode-focusBorder);
+	background: color-mix(in srgb, var(--vscode-focusBorder) 10%, transparent);
+	pointer-events: none;
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-equation {
+	display: grid;
+	gap: var(--vscode-spacing-size60);
+	padding: var(--vscode-spacing-size100);
+	border: var(--vscode-strokeThickness) solid var(--vscode-testing-iconPassed);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-editorWidget-background);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-equation.invalid {
+	border-color: var(--vscode-testing-iconFailed);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-equation code {
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-heading3);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-equation .status {
+	color: var(--vscode-testing-iconPassed);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-equation.invalid .status {
+	color: var(--vscode-testing-iconFailed);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-table caption {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-table th,
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-table td {
+	padding: var(--vscode-spacing-size40);
+	text-align: right;
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-table th:first-child,
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-table td:first-child,
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-table th:last-child,
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-table td:last-child {
+	text-align: left;
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-table tr.desynchronized {
+	color: var(--vscode-inputValidation-warningForeground);
+	background: var(--vscode-inputValidation-warningBackground);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-log {
+	display: grid;
+	gap: var(--vscode-spacing-size60);
+	margin: 0;
+	padding-left: var(--vscode-spacing-size200);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-log li {
+	padding-left: var(--vscode-spacing-size40);
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-log .action {
+	display: block;
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-log code {
+	display: block;
+	margin-top: var(--vscode-spacing-size20);
+	color: var(--vscode-descriptionForeground);
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-body2);
+	white-space: normal;
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-log li.invalid code {
+	color: var(--vscode-testing-iconFailed);
+}

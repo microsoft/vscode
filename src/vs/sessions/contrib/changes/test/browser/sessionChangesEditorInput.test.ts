@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -110,6 +111,38 @@ suite('SessionChangesEditorInput', () => {
 			inputReleased: true,
 			editorInput: undefined,
 		});
+	});
+
+	test('does not resolve a canceled editor input', async () => {
+		class TestSessionChangesEditorInput extends SessionChangesEditorInput {
+			viewModelRequested = false;
+
+			override async getViewModel(): Promise<MultiDiffEditorViewModel> {
+				this.viewModelRequested = true;
+				throw new Error('Canceled input must not be resolved');
+			}
+		}
+
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IChangesViewService, {});
+		instantiationService.stub(IAgentWorkbenchLayoutService, {});
+		instantiationService.stub(ISessionChangesService, {});
+		instantiationService.stub(IWorkbenchLayoutService, {
+			onDidChangePartVisibility: Event.None,
+			isVisible: () => true,
+		});
+
+		const editor = disposables.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
+		const input = disposables.add(instantiationService.createInstance(
+			TestSessionChangesEditorInput,
+			URI.parse('changes-multi-diff-source:?{"sessionResource":"agent-host-copilotcli:/session"}'),
+		));
+		const operation = disposables.add(new CancellationTokenSource());
+		operation.cancel();
+
+		await editor.setInput(input, undefined, {}, operation.token);
+
+		assert.deepStrictEqual(input.viewModelRequested, false);
 	});
 
 	test('updates managed Changes editor capabilities with editor area visibility', () => {

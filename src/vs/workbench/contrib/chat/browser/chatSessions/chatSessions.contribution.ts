@@ -1162,6 +1162,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		this._onDidChangeItemsProviders.fire({ chatSessionType });
 
 		disposables.add(controller.onDidChangeChatSessionItems(e => {
+			for (const sessionResource of e.removed ?? []) {
+				this._disposeSession(sessionResource);
+			}
 			this._onDidChangeSessionItems.fire(e);
 			this.updateInProgressStatus(chatSessionType);
 		}));
@@ -1256,8 +1259,21 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		await controllerData.initialRefresh;
 		await controllerData.controller.deleteChatSessionItem(sessionResource, token);
+		this._disposeSession(sessionResource);
+	}
 
-		const sessionData = this._sessions.get(sessionResource) ?? this._sessions.get(this._resolveResource(sessionResource));
+	private _disposeSession(sessionResource: URI): void {
+		const resolvedResource = this._resolveResource(sessionResource);
+		for (const resource of [sessionResource, resolvedResource]) {
+			const resourceKey = resource.toString();
+			const pendingSession = this._pendingSessionResolutions.get(resourceKey);
+			if (pendingSession) {
+				this._pendingSessionResolutions.delete(resourceKey);
+				pendingSession.cancellationTokenSource.cancel();
+			}
+		}
+
+		const sessionData = this._sessions.get(sessionResource) ?? this._sessions.get(resolvedResource);
 		if (sessionData) {
 			this._sessions.delete(sessionData.resource);
 			sessionData.dispose();

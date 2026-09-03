@@ -982,6 +982,10 @@ class StandaloneUriLabelService implements ILabelService {
 		throw new Error('Not implemented');
 	}
 
+	public getUriHome(): undefined {
+		return undefined;
+	}
+
 	public registerCachedFormatter(formatter: ResourceLabelFormatter): IDisposable {
 		return this.registerFormatter(formatter);
 	}

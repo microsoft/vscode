@@ -65,7 +65,16 @@ export class InMemoryConfigurationService extends AbstractConfigurationService {
 		if (override !== undefined) {
 			return override as T;
 		}
-		return this.baseConfigurationService.getExperimentBasedConfig(key, experimentationService);
+		return this.baseConfigurationService.getExperimentBasedConfig(key, experimentationService, scope);
+	}
+
+	override getExperimentBasedConfigIfSet<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope): T | undefined {
+		// An override stands in for a user setting, so it reads as explicitly set.
+		const override = this.overrides.get(key);
+		if (override !== undefined) {
+			return override as T;
+		}
+		return this.baseConfigurationService.getExperimentBasedConfigIfSet(key, experimentationService, scope);
 	}
 
 	dumpConfig(): { [key: string]: string } {

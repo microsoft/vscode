@@ -10,10 +10,13 @@ import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey } from '../../../../common/agentHostSchema.js';
 import { FEEDBACK_ANNOTATION_META_KEY, type IFeedbackAnnotationMeta } from '../../../../common/meta/agentFeedbackAnnotations.js';
 import { buildAnnotationsUri } from '../../../../common/annotationsUri.js';
 import { buildOpenSessionLinkUri } from '../../../../common/openSessionLink.js';
-import { SessionServerToolName } from '../../../../common/serverToolNames.js';
+import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
+import { ArtifactServerToolName, SessionServerToolName } from '../../../../common/serverToolNames.js';
+import { readSessionArtifacts } from '../../../../common/sessionArtifacts.js';
 import type { ListSessionsResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType, NotificationType, type ChatToolCallCompleteAction, type ChatToolCallStartAction, type SessionAddedParams, type StateAction } from '../../../../common/state/sessionActions.js';
 import {
@@ -101,7 +104,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		return { sessionUri, chatUri, workspace };
 	}
 
-	async function createSession(prefix: string, stableResource = false): Promise<IServerToolTestSession> {
+	async function createSession(prefix: string, stableResource = false, beforeCreateSession?: () => Promise<void>): Promise<IServerToolTestSession> {
 		const workspace = mkdtempSync(join(tmpdir(), `ahp-server-tools-${prefix}-`));
 		tempDirs.push(workspace);
 		if (!stableResource) {
@@ -111,6 +114,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 				`server-tools-${prefix}-${config.provider}`,
 				createdSessions,
 				URI.file(workspace),
+				beforeCreateSession,
 			);
 			context.client.clearReceived();
 			return { sessionUri, chatUri: buildDefaultChatUri(sessionUri), workspace };
@@ -155,6 +159,11 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			&& getActionEnvelope(n).origin?.clientSeq === clientSeq,
 			30_000,
 		);
+	}
+
+	async function setRootConfig(values: Readonly<Record<string, unknown>>): Promise<void> {
+		await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+		await dispatchAndWait(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: values });
 	}
 
 	async function seedFeedback(sessionUri: string, options: ISeedFeedbackOptions): Promise<void> {
@@ -265,6 +274,148 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			return state.serverTools.map(tool => tool.name);
 		}, 100, 30);
 		assert.deepStrictEqual(toolNames, [...feedbackToolNames, ...sessionToolNames]);
+	});
+
+	serverToolTest('server tool: rename_chat renames the chat it runs in', async function () {
+		try {
+			const session = await createSession('rename-chat', false, () => setRootConfig({
+				[AgentHostActiveAgentTitleGenerationConfigKey]: true,
+			}));
+			await driveTurnToCompletion(
+				context.client,
+				session.sessionUri,
+				'turn-rename-chat-seed',
+				'/rename Seeded Chat',
+				reserveClientSequenceBlock(),
+			);
+			const { tool } = await driveServerTool(
+				session,
+				'turn-rename-chat',
+				'Call the rename_chat tool exactly once with title "Coverage audit" and automatic false, then reply with exactly "renamed".',
+				SessionServerToolName.RenameChat,
+			);
+			const renamed = await retry(async () => {
+				const sessionTitle = (await sessionState(session.sessionUri)).title;
+				const chatTitle = (await chatState(session.chatUri)).title;
+				if (sessionTitle !== 'Coverage audit' || chatTitle !== 'Coverage audit') {
+					throw new Error('The chat rename has not completed');
+				}
+				return { sessionTitle, chatTitle };
+			}, 100, 100);
+
+			assert.deepStrictEqual({
+				succeeded: tool.completion.result.success,
+				...renamed,
+			}, {
+				succeeded: true,
+				sessionTitle: 'Coverage audit',
+				chatTitle: 'Coverage audit',
+			});
+		} finally {
+			await setRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: false });
+		}
+	});
+
+	serverToolTest('server tool: add_artifact_or_reference records a reference in session state', async function () {
+		try {
+			const session = await createSession('artifact-add', false, () => setRootConfig({
+				[AgentHostArtifactToolsConfigKey]: true,
+			}));
+			await driveServerTool(
+				session,
+				'turn-artifact-add',
+				'Call add_artifact_or_reference exactly once with type "website", label "Agent Host guide", isArtifact false, and link "https://example.com/agent-host". Then reply with exactly "recorded".',
+				ArtifactServerToolName.AddArtifactOrReference,
+				{ result: [/Added reference:/, /Agent Host guide/, /https:\/\/example\.com\/agent-host/] },
+			);
+			const [artifact] = readSessionArtifacts((await sessionState(session.sessionUri))._meta);
+
+			assert.deepStrictEqual({
+				artifact: artifact && {
+					type: artifact.type,
+					label: artifact.label,
+					isArtifact: artifact.isArtifact,
+					link: artifact.link,
+				},
+			}, {
+				artifact: {
+					type: 'website',
+					label: 'Agent Host guide',
+					isArtifact: false,
+					link: 'https://example.com/agent-host',
+				},
+			});
+		} finally {
+			await setRootConfig({ [AgentHostArtifactToolsConfigKey]: false });
+		}
+	});
+
+	serverToolTest('server tool: add_artifact_or_reference rejects a session-management link', async function () {
+		try {
+			const session = await createSession('artifact-reject-session', false, () => setRootConfig({
+				[AgentHostArtifactToolsConfigKey]: true,
+			}));
+			const { tool } = await driveServerTool(
+				session,
+				'turn-artifact-reject-session',
+				'Call add_artifact_or_reference exactly once with type "resource", label "Spawned session", isArtifact true, and uri "agent-host-session://copilot/spawned". Then reply with exactly "rejected".',
+				ArtifactServerToolName.AddArtifactOrReference,
+				{
+					success: false,
+					result: [/sessions and chats created with session-management tools must not be recorded/],
+				},
+			);
+
+			assert.deepStrictEqual({
+				succeeded: tool.completion.result.success,
+				artifacts: readSessionArtifacts((await sessionState(session.sessionUri))._meta),
+			}, {
+				succeeded: false,
+				artifacts: [],
+			});
+		} finally {
+			await setRootConfig({ [AgentHostArtifactToolsConfigKey]: false });
+		}
+	});
+
+	serverToolTest('server tool: list and remove round-trip a recorded reference', async function () {
+		try {
+			const session = await createSession('artifact-list-remove', false, () => setRootConfig({
+				[AgentHostArtifactToolsConfigKey]: true,
+			}));
+			await driveServerTool(
+				session,
+				'turn-artifact-list-remove-add',
+				'Call add_artifact_or_reference exactly once with type "website", label "Design notes", isArtifact false, and link "https://example.com/design". Then reply with exactly "added".',
+				ArtifactServerToolName.AddArtifactOrReference,
+			);
+			const [artifact] = readSessionArtifacts((await sessionState(session.sessionUri))._meta);
+			assert.ok(artifact);
+			const listed = await driveServerTool(
+				session,
+				'turn-artifact-list-remove-list',
+				'Call list_artifacts_and_references exactly once, then reply with exactly "listed".',
+				ArtifactServerToolName.ListArtifactsAndReferences,
+			);
+			const removed = await driveServerTool(
+				session,
+				'turn-artifact-list-remove-remove',
+				`Call remove_artifact_or_reference exactly once with id "${artifact.id}", then reply with exactly "removed".`,
+				ArtifactServerToolName.RemoveArtifactOrReference,
+			);
+
+			assert.deepStrictEqual({
+				listed: listed.tool.resultText.includes(`${artifact.id} (website, reference) Design notes — https://example.com/design`),
+				removed: removed.tool.resultText.includes(`Removed reference: ${artifact.id}`),
+				artifacts: readSessionArtifacts((await sessionState(session.sessionUri))._meta),
+			}, {
+				listed: true,
+				removed: true,
+				artifacts: [],
+			});
+		} finally {
+			await setRootConfig({ [AgentHostArtifactToolsConfigKey]: false });
+		}
 	});
 
 	serverToolTest('server tool: listComments executes in-process with an empty annotation channel', async function () {
@@ -875,9 +1026,11 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			return request;
 		}, 50, 600);
 		const childState = await waitForChatIdle(buildDefaultChatUri(child.resource));
+		const childSessionState = await sessionState(child.resource);
 		assert.deepStrictEqual({
 			sawPendingConfirmation: turn.sawPendingConfirmation,
 			provider: child.provider,
+			isolation: childSessionState.config?.values[SessionConfigKey.Isolation],
 			messages: childState.turns.map(turn => turn.message.text),
 			title: childState.title,
 			childRequestModel: childRequest.model,
@@ -885,6 +1038,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		}, {
 			sawPendingConfirmation: true,
 			provider: model.provider,
+			isolation: 'folder',
 			messages: [childPrompt],
 			title: 'Created Child',
 			childRequestModel: createSessionModelWireTarget,

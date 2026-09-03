@@ -725,7 +725,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const requestActivity = new MutableDisposable<IDisposable>();
 		try {
 			requestActivity.value = provider.startNewSessionRequest?.(session.sessionId);
-			({ provider, session } = await this._prepareNewSessionForSend(provider, session, requestActivity, true));
+			({ provider, session } = await this._prepareNewSessionForSend(provider, session, requestActivity, true, options.query));
 
 			// The session is graduating into the list (being sent),
 			// so the provider keeps owning it — just drop the pointer, do not delete.
@@ -768,6 +768,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		session: ISession,
 		requestActivity: MutableDisposable<IDisposable> | undefined,
 		replaceCurrentDraft: boolean,
+		query: string,
 	): Promise<{ provider: ISessionsProvider; session: ISession }> {
 		if (!provider.prepareNewSession) {
 			return { provider, session };
@@ -788,7 +789,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}));
 		let prepared: IPreparedNewSession;
 		try {
-			prepared = await provider.prepareNewSession(session.sessionId, preparationTokenSource.token);
+			prepared = await provider.prepareNewSession(session.sessionId, preparationTokenSource.token, query);
 		} finally {
 			preparationListeners.dispose();
 			preparationTokenSource.dispose();
@@ -1027,7 +1028,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		let graduatingProvider = provider;
 		let graduatingSession = session;
 		try {
-			({ provider: graduatingProvider, session: graduatingSession } = await this._prepareNewSessionForSend(provider, session, undefined, false));
+			({ provider: graduatingProvider, session: graduatingSession } = await this._prepareNewSessionForSend(provider, session, undefined, false, options.query));
 			await this._sendNewChatRequestInBackground(graduatingProvider, graduatingSession, options);
 		} catch (error) {
 			graduatingProvider.deleteNewSession(graduatingSession.sessionId);

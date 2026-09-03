@@ -37,8 +37,8 @@ suite('copilotCliConfig', () => {
 	test('resolveModelCapabilityOverrideField prefers a usable specific value, then the wildcard', () => {
 		const isString = (value: unknown): value is string => typeof value === 'string';
 		const overrides: CopilotCliModelCapabilityOverrides = {
-			'*': { family: 'gpt-5', reasoningEffort: 'medium' },
-			'preview-model-x': { family: 'claude-opus-4.8' },
+			'*': { family: 'gpt-5', reasoningEffort: 'medium', promptOverrideString: 'systemPrompt: wildcard prompt' },
+			'preview-model-x': { family: 'claude-opus-4.8', promptOverrideFile: '/prompts/specific.yaml' },
 			'bad-model': { family: 42 as never },
 		};
 		const invalid: unknown[] = [];
@@ -48,6 +48,9 @@ suite('copilotCliConfig', () => {
 				resolveModelCapabilityOverrideField(overrides, 'preview-model-x', 'family', isString),
 				// unset specific field falls back to the wildcard
 				resolveModelCapabilityOverrideField(overrides, 'preview-model-x', 'reasoningEffort', isString),
+				// prompt overrides use the same specific-then-wildcard field resolution
+				resolveModelCapabilityOverrideField(overrides, 'preview-model-x', 'promptOverrideString', isString),
+				resolveModelCapabilityOverrideField(overrides, 'preview-model-x', 'promptOverrideFile', isString),
 				// an invalid specific value falls through instead of masking the wildcard
 				resolveModelCapabilityOverrideField(overrides, 'bad-model', 'family', isString, value => invalid.push(value)),
 				// no model id (server-side "Auto"): only the wildcard can match
@@ -58,7 +61,7 @@ suite('copilotCliConfig', () => {
 				resolveModelCapabilityOverrideField({ 'preview-model-x': 'oops' as never, '*': 42 as never }, 'preview-model-x', 'family', isString),
 				invalid,
 			],
-			['claude-opus-4.8', 'medium', 'gpt-5', 'gpt-5', undefined, undefined, undefined, [42]]
+			['claude-opus-4.8', 'medium', 'systemPrompt: wildcard prompt', '/prompts/specific.yaml', 'gpt-5', 'gpt-5', undefined, undefined, undefined, [42]]
 		);
 	});
 

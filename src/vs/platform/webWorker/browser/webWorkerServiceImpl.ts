@@ -34,8 +34,13 @@ export class WebWorkerService implements IWebWorkerService {
 		const workerRunnerUrl = this.getWorkerUrl(descriptor);
 
 		const workerUrlWithNls = getWorkerBootstrapUrl(descriptor.label, workerRunnerUrl, this._getWorkerLoadingFailedErrorMessage(descriptor));
-		const worker = new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrlWithNls) as unknown as string : workerUrlWithNls, { name: descriptor.label, type: 'module' });
-		return whenESMWorkerReady(worker);
+		try {
+			const worker = createBlobWorker(workerUrlWithNls, { name: descriptor.label, type: 'module' });
+			return whenESMWorkerReady(worker).finally(() => URL.revokeObjectURL(workerUrlWithNls));
+		} catch (error) {
+			URL.revokeObjectURL(workerUrlWithNls);
+			throw error;
+		}
 	}
 
 	protected _getWorkerLoadingFailedErrorMessage(_descriptor: WebWorkerDescriptor): string | undefined {

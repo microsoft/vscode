@@ -200,6 +200,7 @@ export class NewChatWidget extends Disposable {
 		const newChatInput = this.instantiationService.createInstance(NewChatInputWidget, {
 			session: this._session,
 			getContextFolderUri: () => this._getContextFolderUri(),
+			getContextPickerActions: () => this._isQuickChatComposer.get() ? [] : this._workspacePicker.getContextPickerActions(),
 			getWorkspacePreselectionSource: () => this._isQuickChatComposer.get()
 				? NewSessionWorkspacePreselectionSource.None
 				: this._workspacePicker.preselectionSource,
@@ -210,10 +211,11 @@ export class NewChatWidget extends Disposable {
 			loading,
 			historyKey: constObservable(undefined), // no persisted history for the new-session view
 			placeholder: localize('newSessionPromptPlaceholder', "Pitch your idea"),
-			sessionTypePickerOptions: { showChevron: false },
 			supportsBackground: true,
 			deferredNotificationsEnabled,
 			petHostPreferred: this.options.petHostPreferred,
+			getChatPetPlatformElements: () => this._workspacePicker.getChatPetPlatformElements(),
+			onDidChangeChatPetPlatform: this._workspacePicker.onDidChangeChatPetPlatform,
 		});
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);
@@ -467,12 +469,7 @@ export class NewChatWidget extends Disposable {
 				if (!target) {
 					return;
 				}
-				this._newChatInput.sessionTypePicker.render(target, {
-					className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
-				});
-				if (!isQuickChat && target.lastElementChild) {
-					target.insertBefore(target.lastElementChild, target.firstElementChild);
-				}
+				this._renderSessionTypePicker(target, isQuickChat);
 			}));
 		}
 
@@ -703,31 +700,26 @@ export class NewChatWidget extends Disposable {
 			reflectsWorkspace: true,
 			attachesContext: false,
 		};
-		const gitHubContextTrigger: IWorkspacePickerTrigger = {
-			label: localize('newSessionWorkspacePicker.githubContext', "Issue/PR"),
-			ariaLabel: localize('newSessionWorkspacePicker.githubContextAriaLabel', "Attach a GitHub issue or pull request to the new session"),
-			tooltip: localize('newSessionWorkspacePicker.githubContextTooltip', "Attach an issue or pull request as context"),
-			icon: Codicon.add,
-			group: SESSION_WORKSPACE_GROUP_GITHUB,
-			attachesContext: true,
-			hideWhenNoGitHubRepository: true,
-		};
 		const row = this._workspacePicker.renderCategoryTriggers(container, [
 			workspaceTrigger,
-			gitHubContextTrigger,
 		]);
-		this._newChatInput.sessionTypePicker.render(row, {
-			className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
-		});
-		if (row.lastElementChild) {
-			row.insertBefore(row.lastElementChild, row.firstElementChild);
-		}
+		this._renderSessionTypePicker(row, false);
 		this._workspacePickerRow = row;
 		return toDisposable(() => {
 			if (this._workspacePickerRow === row) {
 				this._workspacePickerRow = undefined;
 			}
 		});
+	}
+
+	private _renderSessionTypePicker(container: HTMLElement, isQuickChat: boolean): void {
+		this._newChatInput.sessionTypePicker.render(container, {
+			className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
+		});
+		const sessionTypePicker = container.lastElementChild;
+		if (!isQuickChat && sessionTypePicker && container.firstElementChild !== sessionTypePicker) {
+			container.insertBefore(sessionTypePicker, container.firstElementChild?.nextSibling ?? null);
+		}
 	}
 
 	private _renderEmptyState(container: HTMLElement): IDisposable {

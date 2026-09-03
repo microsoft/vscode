@@ -8,7 +8,7 @@ import { findLast } from '../../../../base/common/arraysFind.js';
 import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
-import { toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, ITransaction, autorun, autorunWithStore, derived, derivedDisposable, disposableObservableValue, observableFromEvent, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../base/common/observable.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -52,6 +52,8 @@ import { CSSStyle, ObservableElementSizeObserver, RefCounted, applyStyle, applyV
 export interface IDiffCodeEditorWidgetOptions {
 	originalEditor?: ICodeEditorWidgetOptions;
 	modifiedEditor?: ICodeEditorWidgetOptions;
+	runWithOriginalEditorScrollAnchor?: (anchorLineNumber: number, update: () => void) => void;
+	runWithModifiedEditorScrollAnchor?: (anchorLineNumber: number, update: () => void) => void;
 }
 
 export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
@@ -60,6 +62,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	private readonly elements;
 	private readonly _diffModelSrc;
 	private readonly _diffModel;
+	private readonly _deferredDiffModelRefDisposals = this._register(new DisposableStore());
 	public readonly onDidChangeModel;
 
 	public get onDidContentSizeChange() { return this._editors.onDidContentSizeChange; }
@@ -284,7 +287,9 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		const unchangedRangesFeature = derivedDisposable(this, reader => /** @description UnchangedRangesFeature */
 			this._instantiationService.createInstance(
 				readHotReloadableExport(HideUnchangedRegionsFeature, reader),
-				this._editors, this._diffModel, this._options
+				this._editors, this._diffModel, this._options,
+				codeEditorWidgetOptions.runWithOriginalEditorScrollAnchor,
+				codeEditorWidgetOptions.runWithModifiedEditorScrollAnchor
 			)
 		).recomputeInitiallyAndOnChange(this._store);
 
@@ -431,7 +436,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	}
 
 	public getContentHeight() {
-		return this._editors.modified.getContentHeight();
+		return this._editors.getContentHeight();
 	}
 
 	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: Readonly<IEditorConstructionOptions>, editorWidgetOptions: ICodeEditorWidgetOptions): CodeEditorWidget {
@@ -531,11 +536,14 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 				});
 				const prevValueRef = this._diffModelSrc.get()?.createNewRef(this);
 				this._diffModelSrc.set(viewModel?.createNewRef(this) as RefCounted<DiffEditorViewModel> | undefined, tx);
-				setTimeout(() => {
-					// async, so that this runs after the transaction finished.
-					// TODO: use the transaction to schedule disposal
-					prevValueRef?.dispose();
-				}, 0);
+				if (prevValueRef) {
+					this._deferredDiffModelRefDisposals.add(prevValueRef);
+					setTimeout(() => {
+						// async, so that this runs after the transaction finished.
+						// TODO: use the transaction to schedule disposal
+						this._deferredDiffModelRefDisposals.delete(prevValueRef);
+					}, 0);
+				}
 			});
 		}
 	}

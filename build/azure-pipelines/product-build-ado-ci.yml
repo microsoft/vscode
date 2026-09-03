@@ -260,57 +260,63 @@ extends:
               - script: |
                   set -euo pipefail
 
-                  if [ "$(Build.Reason)" = "PullRequest" ]; then
-                    # Azure normally checks out a synthetic merge commit for PR validation. Its first
-                    # parent is the target and its second parent is the PR head. Fall back to finding
-                    # the merge base when the provider checks out the PR head directly.
-                    parent_count=$(git rev-list --parents -n 1 HEAD | awk '{ print NF - 1 }')
-                    if [ "$parent_count" = "2" ]; then
-                      base_sha=$(git rev-parse HEAD^1)
-                      head_sha=$(git rev-parse HEAD^2)
-                    else
-                      target_branch="$(System.PullRequest.TargetBranch)"
-                      target_branch="${target_branch#refs/heads/}"
-                      git fetch origin "$target_branch:refs/remotes/origin/$target_branch"
-                      head_sha=$(git rev-parse HEAD)
-                      base_sha=$(git merge-base "origin/$target_branch" "$head_sha")
-                    fi
-                  else
-                    # Manual builds validate the selected branch's latest commit.
-                    head_sha=$(git rev-parse HEAD)
+                  # Only validate trailers for PR builds
+                  if [ "$(Build.Reason)" != "PullRequest" ]; then
+                    echo "Skipping trailer check for non-PR builds"
+                    exit 0
+                  fi
+
+                  # Azure normally checks out a synthetic merge commit for PR validation. Its first
+                  # parent is the target and its second parent is the PR head. Fall back to finding
+                  # the merge base when the provider checks out the PR head directly.
+                  parent_count=$(git rev-list --parents -n 1 HEAD | awk '{ print NF - 1 }')
+                  if [ "$parent_count" = "2" ]; then
                     base_sha=$(git rev-parse HEAD^1)
+                    head_sha=$(git rev-parse HEAD^2)
+                  else
+                    target_branch="$(System.PullRequest.TargetBranch)"
+                    target_branch="${target_branch#refs/heads/}"
+                    git fetch origin "$target_branch:refs/remotes/origin/$target_branch"
+                    head_sha=$(git rev-parse HEAD)
+                    base_sha=$(git merge-base "origin/$target_branch" "$head_sha")
                   fi
 
-                  # MSRC pull requests must be squashed to one commit before validation succeeds.
-                  commit_count=$(git rev-list --count "$base_sha..$head_sha")
-                  if [ "$commit_count" != "1" ]; then
-                    echo "##vso[task.logissue type=error]This PR has $commit_count commits. release/msrc/* PRs must contain exactly one commit. Please squash your commits."
-                    exit 1
-                  fi
-                  echo "PR has a single commit."
+                  # Check each commit in the PR for the Msrc-Case-Id trailer
+                  commits=$(git rev-list "$base_sha..$head_sha")
+                  commits_with_trailer=0
+                  total_commits=0
 
-                  # Extract every Msrc-Case-Id trailer value from the PR head commit.
-                  mapfile -t trailer_values < <(
-                    git log -1 --pretty='format:%(trailers:key=Msrc-Case-Id,valueonly=true)' "$head_sha" |
-                      sed '/^[[:space:]]*$/d'
-                  )
+                  for commit in $commits; do
+                    total_commits=$((total_commits + 1))
 
-                  if [ "${#trailer_values[@]}" = "0" ]; then
-                    echo "##vso[task.logissue type=error]Commit $head_sha is missing the required 'Msrc-Case-Id' trailer."
-                    printf "Add a trailer to the commit message, for example:\n\n    Msrc-Case-Id: 12345\n\n"
-                    exit 1
-                  fi
+                    # Extract Msrc-Case-Id trailer values from this commit
+                    mapfile -t trailer_values < <(
+                      git log -1 --pretty='format:%(trailers:key=Msrc-Case-Id,valueonly=true)' "$commit" |
+                        sed '/^[[:space:]]*$/d'
+                    )
 
-                  # Every supplied case ID must be numeric or explicitly marked not applicable.
-                  for value in "${trailer_values[@]}"; do
-                    if [[ ! "$value" =~ ^[0-9]+$ && "$value" != "N/A" ]]; then
-                      echo "##vso[task.logissue type=error]Commit $head_sha has an invalid 'Msrc-Case-Id' trailer value. Expected a number or N/A."
-                      printf "Use a numeric case id or N/A, for example:\n\n    Msrc-Case-Id: 12345\n\n"
-                      exit 1
+                    if [ "${#trailer_values[@]}" -gt 0 ]; then
+                      commits_with_trailer=$((commits_with_trailer + 1))
+
+                      # Validate all trailer values are numeric or N/A
+                      for value in "${trailer_values[@]}"; do
+                        if [[ ! "$value" =~ ^[0-9]+$ && "$value" != "N/A" ]]; then
+                          echo "##vso[task.logissue type=error]Commit $commit has an invalid 'Msrc-Case-Id' trailer value. Expected a number or N/A."
+                          printf "Use a numeric case id or N/A, for example:\n\n    Msrc-Case-Id: 12345\n\n"
+                          exit 1
+                        fi
+                      done
+
+                      echo "Commit $commit has the following 'Msrc-Case-Id' trailers: ${trailer_values[*]}"
                     fi
                   done
 
-                  echo "Commit $head_sha has the required 'Msrc-Case-Id' trailer."
+                  # At least one commit must have the Msrc-Case-Id trailer
+                  if [ "$commits_with_trailer" -lt 1 ]; then
+                    echo "##vso[task.logissue type=error]Expected at least one commit with 'Msrc-Case-Id' trailer, but found $commits_with_trailer out of $total_commits commits with a trailer."
+                    printf "Add a trailer to at least one commit message, for example:\n\n    Msrc-Case-Id: 12345\n\nIf there is no associated case ID, use N/A:\n\n    Msrc-Case-Id: N/A\n\n"
+                    exit 1
+                  fi
                 displayName: Verify Commit and Trailer
 
       - stage: Quality

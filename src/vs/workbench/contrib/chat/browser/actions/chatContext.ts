@@ -11,9 +11,10 @@ import { localize } from '../../../../../nls.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
@@ -38,6 +39,21 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { buildHostLocalEventsPath } from '../copilotCliEventsUri.js';
+import { IGitService } from '../../../git/common/gitService.js';
+import { getGitHubRemoteInfo } from '../../../git/common/utils.js';
+
+const OPEN_GITHUB_ISSUE_COMMAND = 'github.copilot.chat.cloudSessions.openIssue';
+const OPEN_GITHUB_PULL_REQUEST_COMMAND = 'github.copilot.chat.cloudSessions.openPullRequest';
+
+interface IGitHubContextSelection {
+	readonly repoId: string;
+	readonly url: string;
+	readonly label: string;
+}
+
+interface IGitHubRepositoryQuickPickItem extends IQuickPickItem {
+	readonly repoId: string;
+}
 
 /**
  * Command ID that extensions can call to enable debug tools for the current
@@ -87,6 +103,89 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ClipboardImageContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ScreenshotContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(SessionReferenceContextPickerPick)));
+		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(GitHubContextValuePick, 'issue')));
+		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(GitHubContextValuePick, 'pullRequest')));
+	}
+}
+
+export class GitHubContextValuePick implements IChatContextValueItem {
+
+	readonly type = 'valuePick';
+	readonly label: string;
+	readonly icon: ThemeIcon;
+	readonly ordinal = -450;
+
+	private readonly _commandId: string;
+
+	constructor(
+		kind: 'issue' | 'pullRequest',
+		@IGitService private readonly gitService: IGitService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@ICommandService private readonly commandService: ICommandService,
+	) {
+		if (kind === 'issue') {
+			this.label = localize('chatContext.githubIssue', "Issue...");
+			this.icon = Codicon.issues;
+			this._commandId = OPEN_GITHUB_ISSUE_COMMAND;
+		} else {
+			this.label = localize('chatContext.githubPullRequest', "Pull Request...");
+			this.icon = Codicon.gitPullRequest;
+			this._commandId = OPEN_GITHUB_PULL_REQUEST_COMMAND;
+		}
+	}
+
+	isEnabled(): boolean {
+		return true;
+	}
+
+	async asAttachment(): Promise<IChatRequestVariableEntry | undefined> {
+		const repositories = this.getRepositories();
+		let repoId: string | undefined;
+
+		if (repositories.length === 1) {
+			repoId = repositories[0];
+		} else if (repositories.length > 1) {
+			repoId = await this.pickRepository(repositories);
+		}
+
+		if (repositories.length > 1 && !repoId) {
+			return undefined;
+		}
+
+		const selection = await this.commandService.executeCommand<IGitHubContextSelection | undefined>(this._commandId, repoId);
+		if (!selection) {
+			return undefined;
+		}
+
+		const resource = URI.parse(selection.url);
+		return {
+			kind: 'generic',
+			id: selection.url,
+			fullName: selection.label,
+			name: selection.label,
+			value: resource,
+			icon: this.icon,
+			references: [{ reference: resource, kind: 'reference' }],
+		};
+	}
+
+	protected async pickRepository(repositories: readonly string[]): Promise<string | undefined> {
+		const repository = await this.quickInputService.pick(
+			repositories.map((repoId): IGitHubRepositoryQuickPickItem => ({ label: repoId, repoId })),
+			{ placeHolder: localize('chatContext.githubRepository.placeholder', "Select a repository") }
+		);
+		return repository?.repoId;
+	}
+
+	private getRepositories(): readonly string[] {
+		const repositories = new Set<string>();
+		for (const repository of this.gitService.repositories) {
+			const info = getGitHubRemoteInfo(repository.state.get());
+			if (info) {
+				repositories.add(`${info.owner}/${info.repo}`);
+			}
+		}
+		return Array.from(repositories).sort();
 	}
 }
 

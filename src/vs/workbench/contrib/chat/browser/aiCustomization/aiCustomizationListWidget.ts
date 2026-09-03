@@ -49,6 +49,8 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from './aiCustomizationItemsModel.js';
 import { createCustomizationCardPrimaryAction, CustomizationCardListController } from './customizationCardList.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 
 export { truncateToFirstLine } from './aiCustomizationListWidgetUtils.js';
 
@@ -615,7 +617,8 @@ export class AICustomizationListWidget extends Disposable {
 	private listContainer!: HTMLElement;
 	private list!: WorkbenchList<IListEntry>;
 	private cardContainer!: HTMLElement;
-	private cardScrollElement: HTMLElement | undefined;
+	private cardScrollable!: DomScrollableElement;
+	private cardScrollableNode!: HTMLElement;
 	private firstCardFocusElement: HTMLElement | undefined;
 	private readonly cardRowsByUri = new Map<string, HTMLElement>();
 	private readonly cardRowsById = new Map<string, HTMLElement>();
@@ -781,7 +784,23 @@ export class AICustomizationListWidget extends Disposable {
 		this._register(this.addButton.onDidClick(() => this.executePrimaryCreateAction()));
 
 		this.cardContainer = DOM.append(this.element, $('.plugin-card-container.customization-card-container'));
-		this.cardContainer.style.display = 'none';
+		this.cardScrollable = this._register(new DomScrollableElement(this.cardContainer, {
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
+			useShadows: false,
+		}));
+		this._register(DOM.addDisposableListener(this.cardContainer, DOM.EventType.SCROLL, () => {
+			this.cardScrollable.setScrollPosition({ scrollTop: this.cardContainer.scrollTop });
+		}));
+		this.cardScrollableNode = this.cardScrollable.getDomNode();
+		this.cardScrollableNode.classList.add('plugin-card-scrollable');
+		this.cardScrollableNode.style.display = 'none';
+		this.element.appendChild(this.cardScrollableNode);
+		const cardResizeObserver = this._register(new DOM.DisposableResizeObserver(
+			'AICustomizationListWidget.cardScrollable',
+			() => this.cardScrollable.scanDomNode(),
+		));
+		this._register(cardResizeObserver.observe(this.cardScrollableNode));
 
 		// List container
 		this.listContainer = DOM.append(this.element, $('.list-container'));
@@ -1523,6 +1542,13 @@ export class AICustomizationListWidget extends Disposable {
 						break;
 					case 'remote-client':
 						label = localize('remoteClientGroupShort', "Local");
+						if (this.currentSection === AICustomizationManagementSection.Skills) {
+							description = localize(
+								'localSkillsGroupDescription',
+								"Skills stored on your local machine and synced to {0}, the active remote agent environment.",
+								this.harnessService.getActiveDescriptor().label,
+							);
+						}
 						break;
 					default:
 						label = formatDisplayName(key);
@@ -1565,10 +1591,9 @@ export class AICustomizationListWidget extends Disposable {
 			this.cardRowsByUri.clear();
 			this.cardRowsById.clear();
 			this.cardMenuButtonsById.clear();
-			this.cardScrollElement = undefined;
 			this.firstCardFocusElement = undefined;
 			DOM.clearNode(this.cardContainer);
-			this.cardContainer.style.display = 'none';
+			this.cardScrollableNode.style.display = 'none';
 			this.updateEmptyState();
 			return;
 		}
@@ -1587,8 +1612,8 @@ export class AICustomizationListWidget extends Disposable {
 		DOM.clearNode(this.cardContainer);
 		this.listContainer.style.display = 'none';
 		this.emptyStateContainer.style.display = 'none';
-		this.cardContainer.style.display = '';
-		const content = this.cardScrollElement = DOM.append(this.cardContainer, $('.plugin-card-scroll.customization-card-scroll'));
+		this.cardScrollableNode.style.display = '';
+		const content = DOM.append(this.cardContainer, $('.plugin-card-scroll.plugin-card-scroll-content.customization-card-scroll'));
 
 		for (const group of visibleGroups) {
 			const section = DOM.append(content, $('.plugin-card-section.customization-card-section'));
@@ -1621,6 +1646,7 @@ export class AICustomizationListWidget extends Disposable {
 			}
 			cardList.finalize();
 		}
+		this.cardScrollable.scanDomNode();
 		if (shouldRestoreFocus) {
 			DOM.getWindow(this.element).requestAnimationFrame(() => {
 				(this.cardMenuButtonsById.get(focusItemId ?? '') ?? this.cardRowsById.get(focusItemId ?? '') ?? this.firstCardFocusElement)?.focus();
@@ -1877,7 +1903,7 @@ export class AICustomizationListWidget extends Disposable {
 	private updateEmptyState(): void {
 		const hasItems = this.displayEntries.length > 0;
 		if (!hasItems) {
-			this.cardContainer.style.display = 'none';
+			this.cardScrollableNode.style.display = 'none';
 			this.emptyStateContainer.style.display = 'flex';
 			this.listContainer.style.display = 'none';
 
@@ -1894,7 +1920,7 @@ export class AICustomizationListWidget extends Disposable {
 		} else {
 			this.emptyStateContainer.style.display = 'none';
 			this.listContainer.style.display = this.usesCardLayout() ? 'none' : '';
-			this.cardContainer.style.display = this.usesCardLayout() ? '' : 'none';
+			this.cardScrollableNode.style.display = this.usesCardLayout() ? '' : 'none';
 		}
 	}
 
@@ -1969,9 +1995,7 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	revealLastItem(): void {
 		if (this.usesCardLayout()) {
-			if (this.cardScrollElement) {
-				this.cardScrollElement.scrollTop = this.cardScrollElement.scrollHeight;
-			}
+			this.cardScrollable.setScrollPosition({ scrollTop: this.cardContainer.scrollHeight });
 			return;
 		}
 		if (this.displayEntries.length > 0) {
@@ -2042,9 +2066,11 @@ export class AICustomizationListWidget extends Disposable {
 		const availableHeight = this.element.clientHeight || height;
 		const listHeight = Math.max(0, availableHeight - searchBarHeight - headerHeight);
 
-		this.cardContainer.style.height = `${listHeight}px`;
+		this.cardScrollableNode.style.height = `${listHeight}px`;
 		this.listContainer.style.height = `${listHeight}px`;
-		if (!this.usesCardLayout()) {
+		if (this.usesCardLayout()) {
+			this.cardScrollable.scanDomNode();
+		} else {
 			this.list.layout(listHeight, width);
 		}
 	}

@@ -9,7 +9,7 @@ import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/com
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import type { SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { getAgentHostSandboxSettingId, getConfigPickerItemHover, getConfigPickerListOptions, getConfigPickerTriggerHover, getConfigPickerTriggerLabel, resolveConfigChipValue } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
+import { getAgentHostSandboxSettingId, getConfigPickerAccessibleTriggerLabel, getConfigPickerItemHover, getConfigPickerListOptions, getConfigPickerTriggerHover, getConfigPickerTriggerLabel, resolveConfigChipValue } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
 import { AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
@@ -87,23 +87,25 @@ suite('AgentHostChatInputPicker - trigger labels', () => {
 		enumLabels: ['Default permissions', 'Assisted permissions', 'Allow all', 'Autopilot'],
 	} as SessionConfigPropertySchema;
 
-	test('appends the sandbox state to every selected permission mode', () => {
+	test('uses an icon-ready label while preserving the sandbox state for accessibility', () => {
 		assert.deepStrictEqual({
-			default: getConfigPickerTriggerLabel(permissionsSchema, ChatPermissionLevel.Default, true),
-			assisted: getConfigPickerTriggerLabel(permissionsSchema, ChatPermissionLevel.Assisted, true),
-			allowAll: getConfigPickerTriggerLabel(permissionsSchema, ChatPermissionLevel.AutoApprove, true),
-			autopilot: getConfigPickerTriggerLabel(permissionsSchema, ChatPermissionLevel.Autopilot, true),
+			default: getConfigPickerTriggerLabel(permissionsSchema, ChatPermissionLevel.Default),
+			assisted: getConfigPickerTriggerLabel(permissionsSchema, ChatPermissionLevel.Assisted),
+			allowAll: getConfigPickerTriggerLabel(permissionsSchema, ChatPermissionLevel.AutoApprove),
+			autopilot: getConfigPickerTriggerLabel(permissionsSchema, ChatPermissionLevel.Autopilot),
+			accessible: getConfigPickerAccessibleTriggerLabel('Default permissions', true),
 		}, {
-			default: 'Default permissions (sandboxed)',
-			assisted: 'Assisted permissions (sandboxed)',
-			allowAll: 'Allow all (sandboxed)',
-			autopilot: 'Autopilot (sandboxed)',
+			default: 'Default permissions',
+			assisted: 'Assisted permissions',
+			allowAll: 'Allow all',
+			autopilot: 'Autopilot',
+			accessible: 'Default permissions (sandboxed)',
 		});
 	});
 
-	test('leaves the selected permission label unchanged when sandboxing is disabled', () => {
+	test('leaves the accessible permission label unchanged when sandboxing is disabled', () => {
 		assert.strictEqual(
-			getConfigPickerTriggerLabel(permissionsSchema, ChatPermissionLevel.Assisted, false),
+			getConfigPickerAccessibleTriggerLabel('Assisted permissions', false),
 			'Assisted permissions'
 		);
 	});
@@ -172,10 +174,13 @@ suite('AgentHostChatInputPicker - resolveConfigChipValue', () => {
 		} as SessionConfigPropertySchema;
 
 		test('explains the selected approval level on the trigger hover', () => {
-			assert.strictEqual(
-				getConfigPickerTriggerHover(SessionConfigKey.AutoApprove, approvalsSchema, 'autoApprove', false),
-				'Copilot runs all tools without asking for approval.'
-			);
+			assert.deepStrictEqual({
+				unsandboxed: getConfigPickerTriggerHover(SessionConfigKey.AutoApprove, approvalsSchema, 'autoApprove', false),
+				sandboxed: getConfigPickerTriggerHover(SessionConfigKey.AutoApprove, approvalsSchema, 'autoApprove', false, true),
+			}, {
+				unsandboxed: 'Copilot runs all tools without asking for approval.',
+				sandboxed: 'Copilot runs all tools without asking for approval. Terminal commands are sandboxed.',
+			});
 		});
 
 		test('explains approval choices on item hover', () => {

@@ -82,6 +82,13 @@ export class SessionsPart extends Part {
 	 */
 	private _isPartVisible = true;
 
+	/** Whether the workbench permits the mounted session views to render. */
+	private _contentVisible = true;
+
+	private get _sessionViewsVisible(): boolean {
+		return this._isPartVisible && this._contentVisible;
+	}
+
 	get preferredHeight(): number | undefined {
 		return this.layoutService.mainContainerDimension.height * 0.4;
 	}
@@ -339,7 +346,7 @@ export class SessionsPart extends Part {
 	private _createSlot(): IGridSlot {
 		const disposables = new DisposableStore();
 		const view = disposables.add(this.instantiationService.createInstance(SessionView));
-		view.setPartVisible(this._isPartVisible);
+		view.setPartVisible(this._sessionViewsVisible);
 		const slot: IGridSlot = { view, disposables, boundSessionId: undefined };
 		// Promote a visible session to the active session when its view receives
 		// focus or is clicked. Pointer-down covers clicks on non-focusable chrome
@@ -382,13 +389,27 @@ export class SessionsPart extends Part {
 		this._gridWidget?.style({ separatorBorder: this._gridSeparatorBorder });
 	}
 
+	setContentVisible(visible: boolean): void {
+		if (this._contentVisible === visible) {
+			return;
+		}
+
+		this._contentVisible = visible;
+		this._updateSessionViewsVisibility();
+	}
+
+	private _updateSessionViewsVisibility(): void {
+		const visible = this._sessionViewsVisible;
+		for (const slot of this._slots) {
+			slot.view.setPartVisible(visible);
+		}
+	}
+
 	override setVisible(visible: boolean): void {
 		if (this._isPartVisible !== visible) {
 			// Update before `super`, whose event re-enters this method.
 			this._isPartVisible = visible;
-			for (const slot of this._slots) {
-				slot.view.setPartVisible(visible);
-			}
+			this._updateSessionViewsVisibility();
 		}
 
 		super.setVisible(visible);

@@ -1,0 +1,47 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: >-
+            Run exactly this shell command, with no modifications: `node -e
+            "console.log('marker=' + process.env.AHP_E2E_INIT_MARKER)"`. Then
+            reply with its exact output only.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ${shell}
+          input:
+            command: node -e "console.log('marker=' + process.env.AHP_E2E_INIT_MARKER)"
+            description: Print the init marker
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: >-
+            Run exactly this shell command, with no modifications: `node -e
+            "console.log('marker=' + process.env.AHP_E2E_INIT_MARKER)"`. Then
+            reply with its exact output only.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: bash
+              input:
+                command: node -e "console.log('marker=' + process.env.AHP_E2E_INIT_MARKER)"
+                description: Print the init marker
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                marker=init_marker_91
+                <shellId: 0 completed with exit code 0>
+    response:
+      content: marker=init_marker_91
+      stopReason: end_turn

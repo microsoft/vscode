@@ -200,7 +200,7 @@ export class ChatEndpoint implements IChatEndpoint {
 	public readonly maxPromptImages?: number | undefined;
 	public readonly warningText?: Record<string, string> | undefined;
 	public readonly infoText?: Record<string, string> | undefined;
-	public readonly promo?: { id: string; discountPercent: number; endsAt?: string; message: string } | undefined;
+	public readonly promo?: { id: string; discountPercent: number; endsAt?: string; message: string; showBanner?: boolean } | undefined;
 
 	private readonly _supportsStreaming: boolean;
 
@@ -259,6 +259,7 @@ export class ChatEndpoint implements IChatEndpoint {
 			discountPercent: modelMetadata.billing.promo.discount_percent,
 			endsAt: modelMetadata.billing.promo.ends_at,
 			message: modelMetadata.billing.promo.message,
+			showBanner: modelMetadata.billing.promo.show_banner,
 		} : undefined;
 	}
 
