@@ -41,6 +41,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ChatConfiguration } from '../../common/constants.js';
 import { IAICustomizationItemsModel } from './aiCustomizationItemsModel.js';
 import { UpdateAgentPluginsCommandId } from '../chat.js';
+import { Switch } from '../../../../../base/browser/ui/toggle/switch.js';
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
@@ -1424,10 +1425,9 @@ export class PluginListWidget extends Disposable {
 
 	private appendInstalledPluginToggle(parent: HTMLElement, row: HTMLElement, primaryAction: HTMLElement, item: IInstalledPluginItem): HTMLButtonElement {
 		let renderedState = item.plugin.enablement.get();
-		const switchElement = DOM.append(parent, $('button.plugin-enable-switch')) as HTMLButtonElement;
-		switchElement.type = 'button';
-		switchElement.setAttribute('role', 'switch');
-		DOM.append(switchElement, $('.plugin-enable-switch-thumb'));
+		const toggle = this.cardDisposables.add(new Switch({ ariaLabel: item.name }));
+		const switchElement = toggle.domNode;
+		DOM.append(parent, switchElement);
 		const update = (state: ContributionEnablementState, blocked: boolean) => {
 			renderedState = state;
 			const checked = isContributionEnabled(state);
@@ -1436,11 +1436,9 @@ export class PluginListWidget extends Disposable {
 				? (workspaceScope ? localize('excludePluginWorkspaceAria', "Exclude {0} from Workspace", item.name) : localize('excludePluginProfileAria', "Exclude {0} from Profile", item.name))
 				: (workspaceScope ? localize('includePluginWorkspaceAria', "Include {0} in Workspace", item.name) : localize('includePluginProfileAria', "Include {0} for Profile", item.name));
 			const accessibleLabel = blocked ? localize('pluginManagedByOrganizationAria', "{0} is managed by your organization", item.name) : toggleLabel;
-			switchElement.disabled = blocked;
-			switchElement.setAttribute('aria-checked', String(checked));
-			switchElement.setAttribute('aria-label', accessibleLabel);
-			switchElement.classList.toggle('checked', checked);
-			switchElement.title = blocked ? localize('pluginPolicyBlockedSwitch', "This plugin is managed by your organization.") : toggleLabel;
+			toggle.disabled = blocked;
+			toggle.checked = checked;
+			toggle.setAriaLabel(accessibleLabel, blocked ? localize('pluginPolicyBlockedSwitch', "This plugin is managed by your organization.") : toggleLabel);
 			row.classList.toggle('disabled', !checked || blocked);
 			primaryAction.setAttribute('aria-label', localize('installedPluginRowAriaLabel', "{0}. {1}", item.name, getPluginInclusionLabel(item.plugin)));
 		};
@@ -1449,7 +1447,7 @@ export class PluginListWidget extends Disposable {
 			const blocked = item.plugin.policyBlocked?.read(reader) === true;
 			update(state, blocked);
 		}));
-		this.cardDisposables.add(DOM.addDisposableListener(switchElement, 'click', () => {
+		this.cardDisposables.add(toggle.onChange(() => {
 			const nextState = getToggledPluginEnablementState(renderedState);
 			update(nextState, isPluginPolicyBlocked(item.plugin));
 			this.agentPluginService.enablementModel.setEnabled(item.plugin.uri.toString(), nextState);

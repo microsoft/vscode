@@ -3745,6 +3745,70 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('serializes draft config writes instead of dropping selections during resolution', async () => {
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { isolation: 'folder' },
+		};
+		const barrier = agentHost.resolveSessionConfigBarrier = new DeferredPromise<void>();
+
+		const isolationUpdate = provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
+		const branchUpdate = provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Branch, 'feature');
+		await timeout(0);
+		const requestsWhileResolving = agentHost.resolveSessionConfigRequests.slice(-1).map(request => request.config);
+
+		barrier.complete();
+		await Promise.all([isolationUpdate, branchUpdate]);
+
+		assert.deepStrictEqual({
+			requestsWhileResolving,
+			finalRequests: agentHost.resolveSessionConfigRequests.slice(-2).map(request => request.config),
+		}, {
+			requestsWhileResolving: [{ isolation: 'folder' }],
+			finalRequests: [
+				{ isolation: 'folder' },
+				{ isolation: 'folder', branch: 'feature' },
+			],
+		});
+	});
+
+	test('first send waits for tracked draft config operations', async () => {
+		let sendCalls = 0;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (): Promise<ChatSendResult> => {
+				sendCalls++;
+				agentHost.addSession(createSession('config-operation-send', { summary: 'Config Operation' }));
+				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
+		const chat = await provider.createNewChat(session.sessionId);
+		const barrier = new DeferredPromise<void>();
+		provider.trackSessionConfigOperation(session.sessionId, barrier.p);
+
+		const send = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await timeout(0);
+		const pendingSendCalls = sendCalls;
+
+		barrier.complete();
+		const committed = await send;
+
+		assert.deepStrictEqual({
+			pendingSendCalls,
+			sendCalls,
+			title: committed.title.get(),
+		}, {
+			pendingSendCalls: 0,
+			sendCalls: 1,
+			title: 'Config Operation',
+		});
+	});
+
 	test('first send waits for trusted eager backend creation', async () => {
 		const workspaceTrustBarrier = new DeferredPromise<void>();
 		let sendCalls = 0;
@@ -3860,14 +3924,18 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('maps the existing isolation setter to agent-host config without remembering it', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { isolation: 'worktree', branch: 'feature' },
+		};
 		const provider = createProvider(disposables, agentHost, undefined, { storageService });
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-		await timeout(0);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'feature');
 		const firstAutomationRequest = agentHost.resolveSessionConfigRequests.length;
 
 		agentHost.resolveSessionConfigResult = {
 			schema: { type: 'object', properties: {} },
-			values: { isolation: 'folder', branch: 'main' },
+			values: { isolation: 'folder', branch: 'feature' },
 		};
 		await provider.setIsolationMode(session.sessionId, 'workspace');
 
@@ -3881,6 +3949,40 @@ suite('LocalAgentHostSessionsProvider', () => {
 				{ isolation: 'folder' },
 			],
 			remembered: {},
+		});
+	});
+
+	test('resets the branch to the isolation default when New Worktree is toggled', async () => {
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { isolation: 'worktree', branch: 'main' },
+		};
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'main');
+		const firstToggleRequest = agentHost.resolveSessionConfigRequests.length;
+
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { isolation: 'folder', branch: 'feature' },
+		};
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
+
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { isolation: 'worktree', branch: 'main' },
+		};
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'worktree');
+
+		assert.deepStrictEqual({
+			requests: agentHost.resolveSessionConfigRequests.slice(firstToggleRequest).map(request => request.config),
+			config: provider.getCreateSessionConfig(session.sessionId),
+		}, {
+			requests: [
+				{ isolation: 'folder' },
+				{ isolation: 'worktree' },
+			],
+			config: { isolation: 'worktree', branch: 'main' },
 		});
 	});
 

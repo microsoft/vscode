@@ -18,6 +18,7 @@ import { agentHostUri } from '../../../../../platform/agentHost/common/agentHost
 import { AGENT_HOST_SCHEME, agentHostAuthority, type AgentHostUriMapper, fromAgentHostUri, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService, type IAgentHostSessionSchemeAlias } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { IRemoteAgentHostService, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -80,7 +81,7 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	 * the cloud sandbox host does (sessions are `ahp-session:/<id>` while the agent is `copilot`).
 	 * The provider derives both directions from this pair, so they cannot drift apart.
 	 */
-	readonly sessionSchemeAlias?: ISessionSchemeAlias;
+	readonly sessionSchemeAlias?: IAgentHostSessionSchemeAlias;
 	/**
 	 * Suppresses the `[host]` suffix that otherwise disambiguates this host's workspaces from
 	 * identically-named ones on other hosts. Set by hosts whose label names a task rather than a
@@ -103,13 +104,6 @@ export interface IRemoteAgentHostSessionsProviderConfig {
  * The two names a session goes by when the host's session scheme differs from its agent provider.
  * The raw session id is shared, so only the scheme is translated.
  */
-export interface ISessionSchemeAlias {
-	/** Scheme the UI routes by — the agent provider (e.g. `copilot`). */
-	readonly ui: string;
-	/** Scheme the host's session registry is keyed by (e.g. `ahp-session`). */
-	readonly backend: string;
-}
-
 /**
  * Sessions provider for a remote agent host connection. A thin subclass of
  * {@link BaseAgentHostSessionsProvider} that adds the connection-lifecycle
@@ -189,7 +183,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	private readonly _connectionAuthority: string;
 	private readonly _connectOnDemand: (() => Promise<void>) | undefined;
 	private readonly _disconnectOnDemand: (() => Promise<void>) | undefined;
-	private readonly _sessionSchemeAlias: ISessionSchemeAlias | undefined;
+	private readonly _sessionSchemeAlias: IAgentHostSessionSchemeAlias | undefined;
 	private readonly _omitHostFromWorkspaceLabel: boolean;
 	private readonly _workspaceTypeIcon: ThemeIcon | undefined;
 	private readonly _defaultChangesetKind: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind'];
@@ -213,6 +207,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@IAgentHostService private readonly _localAgentHostService: IAgentHostService,
+		@IAgentHostConnectionsService agentHostConnectionsService: IAgentHostConnectionsService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IChatService chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
@@ -237,6 +232,12 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._omitHostFromWorkspaceLabel = config.omitHostFromWorkspaceLabel === true;
 		this._workspaceTypeIcon = config.workspaceTypeIcon;
 		this._defaultChangesetKind = config.defaultChangesetKind;
+		if (this._sessionSchemeAlias || this._defaultChangesetKind) {
+			this._register(agentHostConnectionsService.registerSessionResolutionPolicy(this._connectionAuthority, {
+				sessionSchemeAlias: this._sessionSchemeAlias,
+				defaultChangesetKind: this._defaultChangesetKind,
+			}));
+		}
 		this._devContainerWorktreeScope = config.devContainerWorktreeScope;
 		this.onDidReportConnectProgress = config.onDidReportConnectProgress;
 		this.autoConnect = config.autoConnect;

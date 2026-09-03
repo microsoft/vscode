@@ -11,7 +11,7 @@ import { isCustomizationEnabled } from '../../common/customizationEnablement.js'
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, toDisposable, type DisposableStore, type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -290,6 +290,7 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async createBranch(_workingDirectory: URI, branchName: string): Promise<void> {
 		this.existingBranches.add(branchName);
 	}
+	async checkout(): Promise<void> { }
 	async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
 		return this.dirtyWorkingDirectories.has(workingDirectory.fsPath);
 	}
@@ -9222,6 +9223,8 @@ suite('CopilotAgent', () => {
 			readonly resets: { turnId: string; senderClientId: string | undefined }[];
 			readonly modelCalls: { id: string; effort: string | undefined; tier?: string | undefined }[];
 			readonly agentCalls: (string | undefined)[];
+			aborted: number;
+			discardedTurns: number;
 			readonly debugLogCalls: { outputDirectory: string; includeSessionLogs: boolean }[];
 		}
 
@@ -9241,6 +9244,8 @@ suite('CopilotAgent', () => {
 				resets: [],
 				modelCalls: [],
 				agentCalls: [],
+				aborted: 0,
+				discardedTurns: 0,
 				debugLogCalls: [],
 			};
 			const fake = {
@@ -9259,6 +9264,8 @@ suite('CopilotAgent', () => {
 				resetTurnState(turnId: string, senderClientId: string | undefined): void { rec.resets.push({ turnId, senderClientId }); },
 				async setModel(id: string, reasoningEffort?: string, contextTier?: string): Promise<void> { rec.modelCalls.push({ id, effort: reasoningEffort, tier: contextTier }); },
 				async setAgent(name: string | undefined): Promise<void> { rec.agentCalls.push(name); },
+				async abort(): Promise<void> { rec.aborted++; },
+				discardActiveTurn(): void { rec.discardedTurns++; },
 				async collectDebugLogs(outputDirectory: URI, includeSessionLogs: boolean): Promise<boolean> {
 					rec.debugLogCalls.push({ outputDirectory: outputDirectory.toString(), includeSessionLogs });
 					return true;
@@ -10344,6 +10351,83 @@ suite('CopilotAgent', () => {
 				await agent.chats.changeAgent(chatA, undefined, exactChatContext(session, chatA));
 
 				assert.deepStrictEqual(a.rec.agentCalls, ['Resolved Agent', undefined]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('continues queued sends after a non-settling control-plane RPC times out', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'control-rpc-timeout');
+				const chat = URI.parse(buildChatUri(session, 'peer-a'));
+				const target = makeFakeChatSession(session, 'sdk-a');
+				const neverSettles = new Promise<void>(() => { });
+				(target.fake as unknown as { setAgent(): Promise<void> }).setAgent = async () => {
+					if (await raceTimeout(neverSettles, 1) === undefined) {
+						throw new Error('rpc.agent.deselect timed out');
+					}
+				};
+				setPeerChatStub(agent, chat, target.fake);
+
+				const change = agent.chats.changeAgent(chat, undefined, exactChatContext(session, chat));
+				const send = agent.chats.sendMessage(chat, 'follow-up', undefined, undefined, 'turn-1', undefined, exactChatContext(session, chat));
+				await assert.rejects(change, /rpc\.agent\.deselect timed out/);
+				await send;
+
+				assert.deepStrictEqual(target.rec.sends, [{ prompt: 'follow-up', turnId: 'turn-1', mode: undefined, senderClientId: undefined }]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('aborts while a chat queue task is blocked', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'abort-queue-bypass');
+				const chat = URI.parse(buildChatUri(session, 'peer-a'));
+				const target = makeFakeChatSession(session, 'sdk-a');
+				const controlPlaneGate = new DeferredPromise<void>();
+				(target.fake as unknown as { setAgent(): Promise<void> }).setAgent = async () => controlPlaneGate.p;
+				setPeerChatStub(agent, chat, target.fake);
+
+				const change = agent.chats.changeAgent(chat, undefined, exactChatContext(session, chat));
+				await timeout(0);
+				await agent.chats.abort(chat, exactChatContext(session, chat));
+				controlPlaneGate.complete();
+				await change;
+
+				assert.deepStrictEqual({ aborted: target.rec.aborted, agentCalls: target.rec.agentCalls }, { aborted: 1, agentCalls: [] });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+		test('drops a queued send when abort arrives before the session materializes', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'abort-before-materialize');
+				const chat = URI.parse(buildChatUri(session, 'peer-a'));
+				const target = makeFakeChatSession(session, 'sdk-a');
+				// Register the backing (which fixes the chat's sequencer key) but no
+				// live entry, modelling a chat whose session is still materializing.
+				chatBackings(agent).set(chat.toString(), { sdkSessionId: 'sdk-a' });
+				chatScopes(agent).set(chat.toString(), session);
+				const materializeGate = new DeferredPromise<void>();
+				(agent as unknown as { _ensureResolvedChatSession(): Promise<CopilotAgentSession> })._ensureResolvedChatSession = async () => {
+					await materializeGate.p;
+					return target.fake;
+				};
+
+				const send = agent.chats.sendMessage(chat, 'cancelled', undefined, undefined, 'turn-1', undefined, exactChatContext(session, chat));
+				await timeout(0);
+				await agent.chats.abort(chat, exactChatContext(session, chat));
+				materializeGate.complete();
+				await send;
+
+				assert.deepStrictEqual(
+					{ sends: target.rec.sends, aborted: target.rec.aborted, discarded: target.rec.discardedTurns },
+					{ sends: [], aborted: 0, discarded: 1 },
+				);
 			} finally {
 				await disposeAgent(agent);
 			}

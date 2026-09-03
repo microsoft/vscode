@@ -1168,7 +1168,7 @@ suite('AgentService (node dispatcher)', () => {
 				providerSetting: 'initial',
 			},
 			selected: { isolation: 'worktree', branch: 'feature/config', branchPrefix: 'users/test/', includeFiles: ['.env'], branchTrack: false, createNewBranch: false, providerSetting: 'selected' },
-			folder: { isolation: 'folder', branch: 'feature', providerSetting: 'folder' },
+			folder: { isolation: 'folder', branch: 'feature/config', providerSetting: 'folder' },
 		});
 	});
 
@@ -6652,6 +6652,7 @@ suite('AgentService (node dispatcher)', () => {
 				removeWorktree: async () => { },
 				branchExists: async () => false,
 				createBranch: async () => { },
+				checkout: async () => { },
 				hasUncommittedChanges: async () => false,
 				commitAll: async () => { },
 				mergeBranch: async () => '',
@@ -6760,6 +6761,7 @@ suite('AgentService (node dispatcher)', () => {
 				removeWorktree: async () => { },
 				branchExists: async () => false,
 				createBranch: async () => { },
+				checkout: async () => { },
 				hasUncommittedChanges: async () => false,
 				commitAll: async () => { },
 				mergeBranch: async () => '',
@@ -9252,11 +9254,10 @@ suite('AgentService (node dispatcher)', () => {
 		test('registers subagent summaries without loading child transcripts until subscription', async () => {
 			class LazySubagentMockAgent extends MockAgent {
 				readonly messageReads: string[] = [];
-				private returnEmptyChildOnce = true;
+				childTranscriptAvailable = false;
 				override async getSessionMessages(session: URI): Promise<readonly Turn[]> {
 					this.messageReads.push(session.toString());
-					if (parseChatUri(session)?.chatId.startsWith('subagent/') && this.returnEmptyChildOnce) {
-						this.returnEmptyChildOnce = false;
+					if (parseChatUri(session)?.chatId.startsWith('subagent/') && !this.childTranscriptAvailable) {
 						return [];
 					}
 					return super.getSessionMessages(session);
@@ -9304,12 +9305,33 @@ suite('AgentService (node dispatcher)', () => {
 
 			await assert.rejects(service.subscribe(URI.parse(childChatUri), 'child-reader-first'), /Subagent transcript is not available yet/);
 			assert.strictEqual(getStateManager(service).getChatState(childChatUri), undefined);
+			const envelopePromise = Event.toPromise(Event.filter(service.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+			const sendPromise = Event.toPromise(agent.onDidSendMessage);
+			service.dispatchAction(buildDefaultChatUri(sessionResource), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-after-missing-subagent',
+				startedAt: '2026-09-02T16:15:03.293Z',
+				message: { text: 'Start it for me', origin: { kind: MessageKind.User } },
+			}, 'client-test', 1);
+			const [envelope, send] = await Promise.all([envelopePromise, sendPromise]);
+			agent.childTranscriptAvailable = true;
 			await service.subscribe(URI.parse(childChatUri), 'child-reader-second');
 			const childState = getStateManager(service).getChatState(childChatUri);
-			assert.ok(childState);
-			assert.strictEqual(childState.turns.length, 1);
-			assert.strictEqual(agent.messageReads.filter(resource => resource === childChatUri).length, 2);
-			assert.strictEqual(getStateManager(service).getSessionState(buildSubagentSessionUri(sessionResource.toString(), 'tc-sub')), undefined);
+			assert.deepStrictEqual({
+				turnRejected: envelope.rejectionReason !== undefined,
+				parentActiveTurn: getStateManager(service).getChatState(buildDefaultChatUri(sessionResource))?.activeTurn?.id,
+				sentPrompt: send.prompt,
+				childTurnCount: childState?.turns.length,
+				childMessageReads: agent.messageReads.filter(resource => resource === childChatUri).length,
+				legacyChildSession: getStateManager(service).getSessionState(buildSubagentSessionUri(sessionResource.toString(), 'tc-sub')),
+			}, {
+				turnRejected: false,
+				parentActiveTurn: 'turn-after-missing-subagent',
+				sentPrompt: 'Start it for me',
+				childTurnCount: 1,
+				childMessageReads: 3,
+				legacyChildSession: undefined,
+			});
 		});
 
 		test('legacy subagent reconstruction replaces only a generic restored title', async () => {
@@ -14602,7 +14624,7 @@ suite('AgentService (node dispatcher)', () => {
 					gitStateCalls: [{ resource: sourceDir.toString(), baseBranch: undefined }],
 					diffCalls: [sourceDir.toString()],
 					uncommittedFiles: [sourceFile],
-					uncommittedOperations: ['commit', 'discard-changes'],
+					uncommittedOperations: ['checkout', 'commit', 'discard-changes'],
 				},
 				afterMaterialization: {
 					workingDirectory: worktreeDir.toString(),
