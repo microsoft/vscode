@@ -30,10 +30,13 @@ export type AgentHostUserMessageSentSource = 'direct' | 'queued';
  * and reporting those under their own value keeps automated merge work
  * separable from turns a person or an agent asked for.
  */
-export type AgentHostMessageOriginTelemetryKind = MessageKind | 'agentMerge';
+export type AgentHostMessageOriginTelemetryKind = MessageKind | 'agentMerge' | 'inline';
 
 /** Classifies the actor that produced a turn's message for telemetry. */
-export function getMessageOriginTelemetryKind(message: Message): AgentHostMessageOriginTelemetryKind {
+export function getMessageOriginTelemetryKind(message: Message, isEphemeralSession: boolean): AgentHostMessageOriginTelemetryKind {
+	if (isEphemeralSession) {
+		return 'inline';
+	}
 	// The marker only counts on the origin the host stamps it with, so a client
 	// cannot dress a user message up as automated merge work.
 	if (message.origin.kind === MessageKind.SystemNotification && isAgentMergeMessage(message)) {
@@ -270,6 +273,7 @@ export interface IAgentHostTurnFailedEvent extends IAgentHostEventTelemetry {
 	chatSessionId: string;
 	isSubagentSession: boolean;
 	turnId: string;
+	messageOriginKind: AgentHostMessageOriginTelemetryKind | undefined;
 	failureStage: AgentHostTurnFailureStage;
 	errorType: string;
 	errorName: string | undefined;
@@ -286,6 +290,7 @@ export type IAgentHostTurnFailedClassification = IAgentHostEventClassification &
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The chat identifier within the agent host session.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the failed turn belongs to a subagent session.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the failed turn within the agent host session.' };
+	messageOriginKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The kind of actor or host-owned session classification that started the failed turn.' };
 	failureStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded stage at which the agent host turn failed.' };
 	errorType: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The structured agent host or provider error type.' };
 	errorName: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The name of the exception, when available.' };
@@ -406,6 +411,7 @@ export interface IAgentHostTurnHungEvent extends IAgentHostEventTelemetry {
 	chatSessionId: string;
 	isSubagentSession: boolean;
 	turnId: string;
+	messageOriginKind: AgentHostMessageOriginTelemetryKind | undefined;
 	hangReason: AgentHostTurnHangReason;
 	isExpected: boolean;
 	hadAnyProgress: boolean;
@@ -433,6 +439,7 @@ export type IAgentHostTurnHungClassification = IAgentHostEventClassification & {
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The chat identifier within the agent host session.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the hung turn belongs to a subagent session.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the hung turn within the agent host session.' };
+	messageOriginKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The kind of actor or host-owned session classification that started the hung turn.' };
 	hangReason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded state the turn was quiet in: noProgress, stalledAfterProgress, waitingOnUser, or runningTool.' };
 	isExpected: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the quiet period is explained by a legitimate wait (blocked on the user or running a tool) rather than an unexplained hang.' };
 	hadAnyProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether any turn activity at all was observed before the watchdog fired.' };
@@ -460,6 +467,7 @@ export interface IAgentHostTurnHungReport extends IAgentHostTurnAttributedReport
 	provider: string;
 	session: string;
 	turnId: string;
+	messageOriginKind: AgentHostMessageOriginTelemetryKind | undefined;
 	hangReason: AgentHostTurnHangReason;
 	hadAnyProgress: boolean;
 	lastActivityKind: string;
@@ -485,6 +493,7 @@ export interface IAgentHostHungTurnCompletedEvent extends IAgentHostEventTelemet
 	chatSessionId: string;
 	isSubagentSession: boolean;
 	turnId: string;
+	messageOriginKind: AgentHostMessageOriginTelemetryKind | undefined;
 	hangReason: AgentHostTurnHangReason;
 	result: AgentHostTurnResult;
 	hangReportCount: number;
@@ -498,6 +507,7 @@ export type IAgentHostHungTurnCompletedClassification = IAgentHostEventClassific
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The chat identifier within the agent host session.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the recovered turn belongs to a subagent session.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the recovered turn within the agent host session.' };
+	messageOriginKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The kind of actor or host-owned session classification that started the recovered turn.' };
 	hangReason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The most recently reported hang reason for the turn before it completed.' };
 	result: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the previously hung turn eventually completed successfully, with an error, or was cancelled.' };
 	hangReportCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of hang reports emitted for the turn before it completed.' };
@@ -511,6 +521,7 @@ export interface IAgentHostHungTurnCompletedReport extends IAgentHostTurnAttribu
 	provider: string;
 	session: string;
 	turnId: string;
+	messageOriginKind: AgentHostMessageOriginTelemetryKind | undefined;
 	hangReason: AgentHostTurnHangReason;
 	result: AgentHostTurnResult;
 	hangReportCount: number;
@@ -886,7 +897,7 @@ export class AgentHostTelemetryReporter {
 		});
 	}
 
-	userMessageSent(provider: string, clientId: string | undefined, clientContext: IAgentHostClientTelemetryContext, session: string, turnId: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, message: Message): void {
+	userMessageSent(provider: string, clientId: string | undefined, clientContext: IAgentHostClientTelemetryContext, session: string, turnId: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, message: Message, isEphemeralSession: boolean): void {
 		const attachmentCount = message.attachments?.length ?? 0;
 		const activeClients = sessionState?.activeClients ?? [];
 		const sessionUri = isAhpChatChannel(session) ? parseRequiredSessionUriFromChatUri(session) : session;
@@ -901,7 +912,7 @@ export class AgentHostTelemetryReporter {
 			...(clientContext.devDeviceId ? { initiatorDevDeviceId: clientContext.devDeviceId } : {}),
 			agentSessionId: AgentSession.id(sessionUri),
 			source,
-			messageOriginKind: getMessageOriginTelemetryKind(message),
+			messageOriginKind: getMessageOriginTelemetryKind(message, isEphemeralSession),
 			isSubagentSession: isSubagentSession(sessionUri),
 			turnCount: sessionState?.turns.length ?? 0,
 			...(activeClients.length > 0 ? {
@@ -916,7 +927,7 @@ export class AgentHostTelemetryReporter {
 			initiatorClientType: clientContext.clientType,
 			conversationId: AgentSession.id(sessionUri),
 			turnId,
-			messageOriginKind: getMessageOriginTelemetryKind(message),
+			messageOriginKind: getMessageOriginTelemetryKind(message, isEphemeralSession),
 		});
 	}
 
@@ -1270,6 +1281,7 @@ export class AgentHostTelemetryReporter {
 				chatSessionId,
 				isSubagentSession: isSubagent,
 				turnId: report.turnId,
+				messageOriginKind: report.messageOriginKind,
 				failureStage: report.failure.stage,
 				errorType: report.failure.error.errorType,
 				errorName: report.failure.errorName,
@@ -1296,6 +1308,7 @@ export class AgentHostTelemetryReporter {
 			chatSessionId: getTelemetryChatSessionId(report.session),
 			isSubagentSession: isSubagentChatUri(report.session) || isSubagentSession(session),
 			turnId: report.turnId,
+			messageOriginKind: report.messageOriginKind,
 			hangReason: report.hangReason,
 			isExpected: report.hangReason === 'waitingOnUser' || report.hangReason === 'runningTool',
 			hadAnyProgress: report.hadAnyProgress,
@@ -1330,6 +1343,7 @@ export class AgentHostTelemetryReporter {
 			chatSessionId: getTelemetryChatSessionId(report.session),
 			isSubagentSession: isSubagentChatUri(report.session) || isSubagentSession(session),
 			turnId: report.turnId,
+			messageOriginKind: report.messageOriginKind,
 			hangReason: report.hangReason,
 			result: report.result,
 			hangReportCount: report.hangReportCount,
