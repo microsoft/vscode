@@ -786,7 +786,6 @@
 .hc-black .session-section-new-badge,
 .hc-light .session-section-new-badge {
 	border-color: var(--vscode-contrastBorder);
-	color: var(--vscode-foreground);
 }
 
 .monaco-list-row:hover .session-section .session-section-toolbar,

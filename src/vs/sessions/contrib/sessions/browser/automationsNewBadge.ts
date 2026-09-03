@@ -102,9 +102,16 @@ export class AutomationsNewBadgeState extends Disposable {
 
 		const request = ++this.styleRequest;
 		const inspection = this.configurationService.inspect<string>(AUTOMATIONS_NEW_BADGE_STYLE_SETTING);
-		const value = isConfigured(inspection)
-			? inspection.value
-			: await this.assignmentService.getTreatment<string>(AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT);
+		let value: string | undefined;
+		if (isConfigured(inspection)) {
+			value = inspection.value;
+		} else {
+			try {
+				value = await this.assignmentService.getTreatment<string>(AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT);
+			} catch (error) {
+				this.logService.warn(`[AutomationsNewBadgeState] Failed to resolve badge style treatment; using '${DEFAULT_AUTOMATIONS_NEW_BADGE_STYLE}'.`, error);
+			}
+		}
 		if (request !== this.styleRequest || this.seen.get()) {
 			return;
 		}

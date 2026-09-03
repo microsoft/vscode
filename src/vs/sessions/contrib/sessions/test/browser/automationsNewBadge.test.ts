@@ -30,6 +30,7 @@ suite('AutomationsNewBadgeState', () => {
 		constructor(
 			private readonly style: AutomationsNewBadgeStyle | undefined,
 			refetchAssignments: Emitter<void>,
+			private readonly error?: Error,
 		) {
 			super();
 			this.onDidRefetchAssignments = refetchAssignments.event;
@@ -37,6 +38,9 @@ suite('AutomationsNewBadgeState', () => {
 
 		override async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
 			this.treatments.push(name);
+			if (this.error) {
+				throw this.error;
+			}
 			return this.style as T | undefined;
 		}
 	}
@@ -48,6 +52,7 @@ suite('AutomationsNewBadgeState', () => {
 		readonly seen?: boolean;
 		readonly style?: AutomationsNewBadgeStyle;
 		readonly configuredStyle?: AutomationsNewBadgeStyle;
+		readonly treatmentError?: Error;
 	} = {}) {
 		const storageService = disposables.add(new InMemoryStorageService());
 		if (options.seen) {
@@ -64,7 +69,7 @@ suite('AutomationsNewBadgeState', () => {
 			override readonly activeCustomView = activeView;
 		};
 		const refetchAssignments = disposables.add(new Emitter<void>());
-		const assignmentService = new TestAssignmentService(options.style, refetchAssignments);
+		const assignmentService = new TestAssignmentService(options.style, refetchAssignments, options.treatmentError);
 		const configurationService = new TestConfigurationService();
 		if (options.configuredStyle) {
 			void configurationService.setUserConfiguration(AUTOMATIONS_NEW_BADGE_STYLE_SETTING, options.configuredStyle);
@@ -123,6 +128,20 @@ suite('AutomationsNewBadgeState', () => {
 			{ style: 'soft', treatments: [AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT] },
 			{ style: 'outline', treatments: [AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT] },
 		]);
+	});
+
+	test('falls back to outline when treatment resolution fails', async () => {
+		const fixture = createState({ treatmentError: new Error('Unavailable') });
+
+		await fixture.state.initialize();
+
+		assert.deepStrictEqual({
+			style: fixture.state.presentation.get(),
+			treatments: fixture.assignmentService.treatments,
+		}, {
+			style: 'outline',
+			treatments: [AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT],
+		});
 	});
 
 	test('lets the hidden setting override and live-update the treatment', async () => {

@@ -5,21 +5,25 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import * as DOM from '../../../../../base/browser/dom.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IMenu, IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IAgentHostFilterService } from '../../../../../sessions/services/agentHostFilter/common/agentHostFilter.js';
@@ -36,6 +40,8 @@ import { ISessionsService } from '../../../../../sessions/services/sessions/brow
 // eslint-disable-next-line local/code-import-patterns
 import { ICustomViewService } from '../../../../../sessions/services/customView/browser/customViewService.js';
 // eslint-disable-next-line local/code-import-patterns
+import { Menus } from '../../../../../sessions/browser/menus.js';
+// eslint-disable-next-line local/code-import-patterns
 import { IChat, ISession, ISessionChangesSummary, ISessionFolder, ISessionWorkspace, SessionStatus, ChatInteractivity } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
@@ -43,6 +49,12 @@ import { IActiveSession, ISessionsManagementService } from '../../../../../sessi
 import { SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
 // eslint-disable-next-line local/code-import-patterns
 import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, type AutomationsNewBadgeStyle } from '../../../../../sessions/contrib/sessions/browser/automationsNewBadge.js';
+// eslint-disable-next-line local/code-import-patterns
+import { renderSessionsHeader } from '../../../../../sessions/contrib/sessions/browser/views/sessionsView.js';
+// eslint-disable-next-line local/code-import-patterns
+import { NewSessionActionViewItemContribution } from '../../../../../sessions/contrib/sessions/browser/sessionsActions.js';
+// eslint-disable-next-line local/code-import-patterns
+import { NEW_SESSION_ACTION_ID } from '../../../../../sessions/contrib/chat/common/constants.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IsPhoneLayoutContext } from '../../../../../sessions/common/contextkeys.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
@@ -55,6 +67,7 @@ import { IChatService } from '../../../../contrib/chat/common/chatService/chatSe
 import { IChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../../contrib/chat/common/voicePlaybackService.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
+import { TestProductService } from '../../../common/workbenchTestServices.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 // eslint-disable-next-line local/code-import-patterns
@@ -63,6 +76,28 @@ import '../../../../../sessions/contrib/sessions/browser/media/sessionsList.css'
 import '../../../../../sessions/contrib/sessions/browser/media/sessionsViewPane.css';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../sessions/contrib/sessions/browser/media/newSessionActionViewItem.css';
+
+class FixtureActionViewItemService extends Disposable implements IActionViewItemService {
+	declare _serviceBrand: undefined;
+
+	private readonly providers = new Map<string, IActionViewItemFactory>();
+	private readonly changeEmitter = this._register(new Emitter<MenuId>());
+	readonly onDidChange = this.changeEmitter.event;
+
+	register(menu: MenuId, commandId: string | MenuId, provider: IActionViewItemFactory, event?: Event<unknown>): IDisposable {
+		const key = `${menu.id}/${commandId instanceof MenuId ? commandId.id : commandId}`;
+		this.providers.set(key, provider);
+		const listener = event?.(() => this.changeEmitter.fire(menu));
+		return toDisposable(() => {
+			listener?.dispose();
+			this.providers.delete(key);
+		});
+	}
+
+	lookUp(menu: MenuId, commandId: string | MenuId): IActionViewItemFactory | undefined {
+		return this.providers.get(`${menu.id}/${commandId instanceof MenuId ? commandId.id : commandId}`);
+	}
+}
 
 interface IChatSpec {
 	readonly id: string;
@@ -194,6 +229,7 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	const approvalModel = createApprovalModel(approvals);
 	const groups = options.groups ?? [];
 	const automationRuns = observableValue<readonly IAutomationRun[]>(disposableStore, []);
+	const actionViewItemService = disposableStore.add(new FixtureActionViewItemService());
 	const membership = new Map<string, string>();
 	for (const spec of options.sessions) {
 		if (spec.group) {
@@ -205,6 +241,7 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		colorTheme: ctx.theme,
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
+			reg.defineInstance(IProductService, TestProductService);
 			if (options.showFocusedToolbar) {
 				const archiveAction = new class extends mock<MenuItemAction>() {
 					override readonly id = 'sessions.fixture.archive';
@@ -307,6 +344,28 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			}());
 		},
 	});
+	if (options.showAutomations) {
+		const contextKeyService = instantiationService.get(IContextKeyService);
+		const newSessionAction = new MenuItemAction(
+			{ id: NEW_SESSION_ACTION_ID, title: 'New Session' },
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			contextKeyService,
+			instantiationService.get(ICommandService),
+		);
+		instantiationService.stub(IActionViewItemService, actionViewItemService);
+		instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(id: MenuId): IMenu {
+				return {
+					onDidChange: Event.None,
+					getActions: () => id === Menus.SidebarSessionsHeader ? [['navigation', [newSessionAction]]] : [],
+					dispose: () => { },
+				};
+			}
+		}());
+	}
 
 	// Render terminal-approval labels as real (monospace) code blocks — otherwise
 	// the markdown renderer emits empty code-block spans and the command is blank.
@@ -338,12 +397,8 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	if (options.showAutomations) {
 		container.classList.add('agent-sessions-viewpane', 'agent-sessions-section');
 		const content = DOM.append(container, DOM.$('.agent-sessions-content'));
-		const header = DOM.append(content, DOM.$('.agent-sessions-header-row'));
-		DOM.append(header, DOM.$('.agent-sessions-header-label', undefined, 'Sessions'));
-		const actions = DOM.append(header, DOM.$('.agent-sessions-header-actions'));
-		const newButton = DOM.append(actions, DOM.$<HTMLButtonElement>('button.monaco-button.agent-sessions-compact-new-button.default-colors'));
-		newButton.type = 'button';
-		DOM.append(newButton, DOM.$('span.new-session-button-label', undefined, 'New'));
+		disposableStore.add(instantiationService.createInstance(NewSessionActionViewItemContribution));
+		renderSessionsHeader(content, false, instantiationService, instantiationService.get(IContextKeyService), disposableStore).toolbar?.refresh();
 		listParent = content;
 	}
 	const listHost = DOM.append(listParent, DOM.$(options.showAutomations ? '.agent-sessions-control-container' : 'div'));
@@ -366,6 +421,13 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		}], undefined);
 	}
 	await Promise.resolve();
+	if (options.showAutomations && !container.querySelector('.agent-sessions-compact-new-button')) {
+		const menu = instantiationService.get(IMenuService).createMenu(Menus.SidebarSessionsHeader, instantiationService.get(IContextKeyService));
+		const actionCount = menu.getActions().flatMap(([, actions]) => actions).length;
+		menu.dispose();
+		const hasProvider = !!instantiationService.get(IActionViewItemService).lookUp(Menus.SidebarSessionsHeader, NEW_SESSION_ACTION_ID);
+		throw new Error(`Expected the production New Session action; found ${actionCount} menu action(s), provider=${hasProvider}.`);
+	}
 
 	if (options.showFocusedToolbar) {
 		return Promise.resolve().then(() => {
