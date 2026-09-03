@@ -1994,6 +1994,99 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('validates resolvable peers while tolerating an unavailable restored subagent transcript', async () => {
+			class TranscriptlessSubagentMockAgent extends MockAgent {
+				subagentTurns: readonly Turn[] = [];
+				subagentReads = 0;
+
+				override async getSessionMessages(session: URI): Promise<readonly Turn[]> {
+					if (parseChatUri(session)?.chatId.startsWith('subagent/')) {
+						this.subagentReads++;
+						return this.subagentTurns;
+					}
+					return super.getSessionMessages(session);
+				}
+			}
+
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new TranscriptlessSubagentMockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const { session } = await createAgentSession(agent);
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Run tests', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: '', toolRequests: [{ toolCallId: 'failed-subagent', name: 'task' }] },
+				{ type: 'tool_start', session, toolCallId: 'failed-subagent', toolName: 'task', displayName: 'Task', invocationMessage: 'Running tests...', toolKind: 'subagent', subagentDescription: 'Run tests', subagentAgentName: 'task' },
+				{ type: 'subagent_started', session, toolCallId: 'failed-subagent', agentName: 'task', agentDisplayName: 'Task', agentDescription: 'Runs tests' },
+				{ type: 'tool_complete', session, toolCallId: 'failed-subagent', result: { success: false, pastTenseMessage: 'Failed to run tests', content: [] } },
+			];
+			await svc.restoreSession(session);
+			const defaultChat = buildDefaultChatUri(session);
+			const childChat = buildSubagentChatUri(session.toString(), 'failed-subagent');
+			const peerChat = buildChatUri(session, 'peer-1');
+			let peerResolverCalls = 0;
+			getStateManager(svc).registerRestoredChatSummary(session.toString(), peerChat, {
+				resolver: async () => {
+					peerResolverCalls++;
+					return {
+						turns: [{
+							id: 'duplicate-turn',
+							state: TurnState.Complete,
+							message: { text: 'peer', origin: { kind: MessageKind.User } },
+							responseParts: [],
+							usage: undefined,
+						}],
+					};
+				},
+			});
+			const duplicateEnvelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(defaultChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'duplicate-turn',
+				startedAt: '2025-01-01T00:00:01.000Z',
+				message: { text: 'Duplicate', origin: { kind: MessageKind.User } },
+			}, 'test-client', 1);
+			const duplicateEnvelope = await duplicateEnvelopePromise;
+			const acceptedEnvelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 2));
+			const sendPromise = Event.toPromise(agent.onDidSendMessage);
+
+			svc.dispatchAction(defaultChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'next-turn',
+				startedAt: '2025-01-01T00:00:02.000Z',
+				message: { text: 'Try again', origin: { kind: MessageKind.User } },
+			}, 'test-client', 2);
+			const [acceptedEnvelope, sent] = await Promise.all([acceptedEnvelopePromise, sendPromise]);
+			const childSummaryRemains = getStateManager(svc).getSessionState(session.toString())?.chats.some(chat => chat.resource === childChat);
+			agent.subagentTurns = [{
+				id: 'child-turn',
+				state: TurnState.Complete,
+				message: { text: 'child', origin: { kind: MessageKind.User } },
+				responseParts: [],
+				usage: undefined,
+			}];
+			const resolvedChild = await getStateManager(svc).resolveChatState(childChat);
+
+			assert.deepStrictEqual({
+				duplicateRejected: duplicateEnvelope.rejectionReason !== undefined,
+				acceptedRejectionReason: acceptedEnvelope.rejectionReason,
+				peerResolverCalls,
+				childSummaryRemains,
+				childTurnIds: resolvedChild?.turns.map(turn => turn.id),
+				subagentReads: agent.subagentReads,
+				sent: { chat: sent.chat?.toString(), prompt: sent.prompt },
+			}, {
+				duplicateRejected: true,
+				acceptedRejectionReason: undefined,
+				peerResolverCalls: 1,
+				childSummaryRemains: true,
+				childTurnIds: ['child-turn'],
+				subagentReads: 3,
+				sent: { chat: defaultChat, prompt: 'Try again' },
+			});
+		});
+
 		test('rejects working-directory mutations from non-Editor clients', async () => {
 			const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession();
 			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
