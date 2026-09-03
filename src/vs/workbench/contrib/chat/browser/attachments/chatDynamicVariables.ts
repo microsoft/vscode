@@ -8,6 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, dispose, isDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
@@ -19,6 +20,7 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { textLinkForeground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IChatRequestVariableEntry, isImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatRequestVariableValue, IDynamicVariable, toAttachedContextDynamicVariable } from '../../common/attachments/chatVariables.js';
 import { IChatWidget } from '../chat.js';
@@ -361,6 +363,7 @@ function getReferenceIconRenderOptions(reference: IDynamicVariable): IDecoration
 	return contentText ? {
 		before: {
 			contentText,
+			color: themeColorFromId(textLinkForeground),
 			fontFamily: 'codicon',
 			margin: '0 2px 0 0',
 			verticalAlign: 'middle',

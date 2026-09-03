@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { IDecorationOptions } from '../../../../../../editor/common/editorCommon.js';
 import { TrackedRangeStickiness } from '../../../../../../editor/common/model.js';
 import { TestCodeEditorService } from '../../../../../../editor/test/browser/editorTestServices.js';
 import { createTestCodeEditor } from '../../../../../../editor/test/browser/testCodeEditor.js';
@@ -277,6 +279,42 @@ suite('ChatDynamicVariableModel', () => {
 			text: 'describe #sym:example ',
 			variables: [new Range(1, 10, 1, 22)],
 		});
+	});
+
+	test('renders GitHub reference icons with the link foreground color', () => {
+		const issueText = 'microsoft/vscode#334284';
+		const pullRequestText = 'microsoft/vscode#333953';
+		const { editor, model } = createDynamicVariableModel(`${issueText} ${pullRequestText}`);
+		let decorations: readonly IDecorationOptions[] = [];
+		const setDecorationsByType = editor.setDecorationsByType.bind(editor);
+		editor.setDecorationsByType = ((description: string, key: string, options: IDecorationOptions[]) => {
+			decorations = options;
+			return setDecorationsByType(description, key, options);
+		}) as typeof editor.setDecorationsByType;
+
+		model.addReference(createMockVariable({
+			range: new Range(1, 1, 1, issueText.length + 1),
+			icon: Codicon.issues,
+		}));
+		model.addReference(createMockVariable({
+			id: 'var-2',
+			range: new Range(1, issueText.length + 2, 1, issueText.length + pullRequestText.length + 2),
+			icon: Codicon.gitPullRequest,
+		}));
+
+		assert.deepStrictEqual(decorations.map(decoration => decoration.renderOptions?.before), [{
+			contentText: '\ueb0c',
+			color: { id: 'textLink.foreground' },
+			fontFamily: 'codicon',
+			margin: '0 2px 0 0',
+			verticalAlign: 'middle',
+		}, {
+			contentText: '\uea64',
+			color: { id: 'textLink.foreground' },
+			fontFamily: 'codicon',
+			margin: '0 2px 0 0',
+			verticalAlign: 'middle',
+		}]);
 	});
 
 	test('removes a reference without deleting replacement text', () => {
