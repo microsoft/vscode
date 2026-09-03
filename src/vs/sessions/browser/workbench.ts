@@ -615,9 +615,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				}));
 
 				SinglePaneLayoutEnabledContext.bindTo(contextKeyService).set(this.isSinglePaneLayoutEnabled);
-				accessor.get(ITelemetryService).publicLog2<SessionsWindowLayoutEvent, SessionsWindowLayoutClassification>('agents/windowLayout', {
-					layout: this.isSinglePaneLayoutEnabled ? 'sidePane' : 'classic'
-				});
+				this.logWindowLayout(accessor.get(ITelemetryService));
 
 				// Virtual keyboard tracking (visualViewport): publishes the
 				// keyboard height as an observable, mirrors it onto the
@@ -664,6 +662,12 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 			throw error; // rethrow because this is a critical issue we cannot handle properly here
 		}
+	}
+
+	private logWindowLayout(telemetryService: ITelemetryService): void {
+		telemetryService.publicLog2<SessionsWindowLayoutEvent, SessionsWindowLayoutClassification>('agents/windowLayout', {
+			layout: this.isSinglePaneLayoutEnabled ? 'sidePane' : 'classic'
+		});
 	}
 
 	private initServices(serviceCollection: ServiceCollection): IInstantiationService {
