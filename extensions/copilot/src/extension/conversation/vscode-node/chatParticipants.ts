@@ -298,9 +298,12 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 		if (!baseLmModel) {
 			return request;
 		}
-		await vscode.commands.executeCommand('workbench.action.chat.changeModel', { vendor: baseLmModel.vendor, id: baseLmModel.id, family: baseLmModel.family });
-		// Switch to the base model and show a warning
 		request = { ...request, model: baseLmModel };
+		if (request.subAgentInvocationId === undefined) {
+			// A subagent runs inside the main request; changing the picker there would flip every widget mid-turn.
+			await vscode.commands.executeCommand('workbench.action.chat.changeModel', { vendor: baseLmModel.vendor, id: baseLmModel.id, family: baseLmModel.family });
+		}
+		// Switch to the base model and show a warning
 		let messageString: vscode.MarkdownString;
 		if (this.authenticationService.copilotToken?.isIndividual) {
 			messageString = new vscode.MarkdownString(vscode.l10n.t({
