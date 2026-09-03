@@ -104,6 +104,9 @@ class MockCopilotSession {
 	shellInitScriptUpdateSuccess = true;
 	abortCalls = 0;
 	abortGate: Promise<void> | undefined;
+	modelGate: Promise<void> | undefined;
+	agentSelectGate: Promise<void> | undefined;
+	agentDeselectGate: Promise<void> | undefined;
 	readonly compactCalls: unknown[] = [];
 	readonly commandListCalls: unknown[] = [];
 	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
@@ -262,7 +265,7 @@ class MockCopilotSession {
 		this.abortCalls++;
 		await this.abortGate;
 	}
-	async setModel() { }
+	async setModel() { await this.modelGate; }
 	async getEvents(): Promise<SessionEvent[]> { return this.messages; }
 	async disconnect() {
 		this.disconnectCalls++;
@@ -274,6 +277,10 @@ class MockCopilotSession {
 	}
 
 	readonly rpc = {
+		agent: {
+			select: async () => { await this.agentSelectGate; },
+			deselect: async () => { await this.agentDeselectGate; },
+		},
 		sendMessages: async (request: unknown) => {
 			this.sendMessagesRequests.push(request);
 			if (this.sendMessagesError) {
@@ -738,6 +745,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	sessionDatabase?: ISessionDatabase;
 	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
 	configureMockSession?: (session: MockCopilotSession) => void;
+	controlPlaneRpcTimeoutMs?: number;
 	sessionCustomizations?: () => readonly Customization[];
 	resolveCustomizationEnablement?: (target: ICustomizationEnablementTarget) => CustomizationEnablementResolution;
 	initialSessionMeta?: Record<string, unknown>;
@@ -1054,6 +1062,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			onTurnEnded: options?.onTurnEnded,
 			enableDevelopmentErrorInjection: options?.enableDevelopmentErrorInjection ?? true,
 			realpath: options?.realpath,
+			controlPlaneRpcTimeoutMs: options?.controlPlaneRpcTimeoutMs,
 		},
 	));
 
@@ -1144,6 +1153,25 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('times out non-settling SDK control-plane RPCs', async () => {
+		const neverSettles = new Promise<void>(() => { });
+		const { session, mockSession } = await createAgentSession(disposables, { controlPlaneRpcTimeoutMs: 1 });
+		mockSession.modelGate = neverSettles;
+		mockSession.agentSelectGate = neverSettles;
+		mockSession.agentDeselectGate = neverSettles;
+
+		const results = await Promise.allSettled([
+			session.setModel('test-model'),
+			session.setAgent('test-agent'),
+			session.setAgent(),
+		]);
+
+		assert.deepStrictEqual(results.map(result => result.status === 'rejected' ? (result.reason as Error).message : 'fulfilled'), [
+			'[Copilot:test-session-1] session.setModel timed out after 1ms',
+			'[Copilot:test-session-1] rpc.agent.select timed out after 1ms',
+			'[Copilot:test-session-1] rpc.agent.deselect timed out after 1ms',
+		]);
+	});
 	test('updates GitHub credentials through the SDK session RPC', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		await session.initializeSession();
@@ -1156,7 +1184,7 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
-	test('collects SDK debug logs without process logs', async () => {
+	test('collects SDK debug logs with process logs', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		const outputDirectory = URI.file('/tmp/agent-host-debug');
 
@@ -1170,10 +1198,10 @@ suite('CopilotAgentSession', () => {
 			included: [false, false],
 			calls: [{
 				destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
-				include: { events: true, processLogs: false, shellLogs: true },
+				include: { events: true, processLogs: true, shellLogs: true },
 			}, {
 				destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
-				include: { events: false, processLogs: false, shellLogs: false },
+				include: { events: false, processLogs: true, shellLogs: false },
 			}],
 		});
 	});
@@ -11971,7 +11999,7 @@ Use the attached image as context.
 			});
 		});
 
-		test('MCP auth request publishes authRequired state and resolves with authenticate token', async () => {
+		test('MCP auth request prioritizes a static client secret when publishing authRequired state', async () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables, { githubToken: 'existing-token' });
 
 			const authPromise = runtime.handleMcpAuthRequest({
@@ -11982,7 +12010,7 @@ Use the attached image as context.
 				staticClientConfig: {
 					clientId: 'configured-client-id',
 					clientSecret: 'configured-client-secret',
-					publicClient: false,
+					publicClient: true,
 				},
 				resourceMetadata: JSON.stringify({
 					resource: 'https://api.githubcopilot.com/mcp',
@@ -12035,7 +12063,6 @@ Use the attached image as context.
 				reason: 'initial',
 				staticClientConfig: {
 					clientId: 'public-client-id',
-					publicClient: true,
 				},
 				resourceMetadata: JSON.stringify({
 					resource: 'https://mcp.example.com',

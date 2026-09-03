@@ -74,6 +74,7 @@ import { showConfigureHooksQuickPick } from '../promptSyntax/hookActions.js';
 import { resolveWorkspaceTargetDirectory, resolveUserTargetDirectory, CustomizationLocationPicker } from './customizationCreatorService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Checkbox, TriStateCheckbox } from '../../../../../base/browser/ui/toggle/toggle.js';
@@ -439,11 +440,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.inEditorContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR.bindTo(contextKeyService);
 		this.sectionContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION.bindTo(contextKeyService);
 		this.harnessContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_HARNESS.bindTo(contextKeyService);
-		this.updateHarnessLabelPresentation();
+		this.updateTargetLabelPresentation();
 
 		// Track workspace changes for embedded editor
 		this._register(autorun(reader => {
 			this.workspaceService.activeProjectRoot.read(reader);
+			this.workspaceService.activeProjectLabel.read(reader);
+			this.updateTargetLabelPresentation();
 			if (this.viewMode === 'editor') {
 				this.currentEditingProjectRoot = this.workspaceService.getActiveProjectRoot();
 			}
@@ -585,11 +588,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		return label || (this.workspaceService.isSessionsWindow ? '' : localize('localHarnessLabel', "Local"));
 	}
 
-	private updateHarnessLabelPresentation(): void {
+	private updateTargetLabelPresentation(): void {
 		const harnessLabel = this.getActiveHarnessLabel();
+		const workspaceLabel = this.workspaceService.activeProjectLabel.get();
 		this.welcomePage?.setHarnessLabel(harnessLabel);
 		if (this.input instanceof AICustomizationManagementEditorInput) {
-			this.input.setTargetLabel(harnessLabel);
+			this.input.setTargetLabels(harnessLabel, workspaceLabel);
 		}
 	}
 
@@ -761,7 +765,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private updateHomeButtonHarnessPresentation(): void {
-		this.updateHarnessLabelPresentation();
+		this.updateTargetLabelPresentation();
 
 		if (!this.homeButton || !this.homeButtonIcon || !this.homeButtonLabel) {
 			return;
@@ -2285,7 +2289,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		});
 
 		await super.setInput(input, options, context, token);
-		input.setTargetLabel(this.getActiveHarnessLabel());
+		input.setTargetLabels(this.getActiveHarnessLabel(), this.workspaceService.activeProjectLabel.get());
 
 		if (this.dimension) {
 			this.layout(this.dimension);
@@ -2578,6 +2582,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private async showEmbeddedEditor(uri: URI, displayName: string, promptType: PromptsType, source: AICustomizationSource, isWorkspaceFile = false, isReadOnly = false): Promise<void> {
+		if (!hasReadableCustomizationContent(uri)) {
+			return;
+		}
+
 		this.editorReturnViewMode = this.viewMode === 'migration' ? 'migration' : 'list';
 		this.currentModelRef?.dispose();
 		this.currentModelRef = undefined;

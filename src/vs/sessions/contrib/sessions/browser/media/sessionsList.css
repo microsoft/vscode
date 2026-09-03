@@ -724,6 +724,39 @@
 		margin-right: 4px;
 	}
 
+	.session-section-new-badge {
+		display: none;
+		align-items: center;
+		flex-shrink: 0;
+		height: var(--vscode-spacing-size160);
+		margin-left: var(--vscode-spacing-size40);
+		padding: 0 var(--vscode-spacing-size40);
+		box-sizing: border-box;
+		border: var(--vscode-strokeThickness) solid transparent;
+		border-radius: var(--vscode-cornerRadius-circle);
+		color: var(--vscode-foreground);
+		font-size: var(--vscode-fontSize-label3);
+		font-weight: var(--vscode-fontWeight-semiBold);
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		white-space: nowrap;
+		pointer-events: none;
+	}
+
+	.session-section-new-badge-accent {
+		border-color: var(--vscode-activityBarBadge-background);
+		background-color: var(--vscode-activityBarBadge-background);
+		color: var(--vscode-activityBarBadge-foreground);
+	}
+
+	.session-section-new-badge-soft {
+		background-color: color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+	}
+
+	.session-section-new-badge-outline {
+		border-color: var(--vscode-descriptionForeground);
+	}
+
 	.session-section-toolbar {
 		flex-shrink: 0;
 		margin-left: 4px;
@@ -748,6 +781,11 @@
 		border-radius: var(--vscode-cornerRadius-small);
 		justify-content: center;
 	}
+}
+
+.hc-black .session-section-new-badge,
+.hc-light .session-section-new-badge {
+	border-color: var(--vscode-contrastBorder);
 }
 
 .monaco-list-row:hover .session-section .session-section-toolbar,

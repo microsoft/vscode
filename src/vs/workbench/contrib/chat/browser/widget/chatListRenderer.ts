@@ -338,12 +338,18 @@ export function moveResponseOutcomeToolsAfterFinalResponse(content: ReadonlyArra
 	const responseLinkTargets = outcomeTools.some(part => getSessionCreatedOutcomeLink(part) !== undefined)
 		? getFinalResponseLinkTargets(content)
 		: undefined;
-	const uniqueOutcomeTools = responseLinkTargets
-		? outcomeTools.filter(part => {
-			const openLink = getSessionCreatedOutcomeLink(part);
-			return openLink === undefined || !responseLinkTargets.has(openLink);
-		})
-		: outcomeTools;
+	const seenSessionLinks = new Set<string>();
+	const uniqueOutcomeTools = outcomeTools.filter(part => {
+		const openLink = getSessionCreatedOutcomeLink(part);
+		if (openLink === undefined) {
+			return true;
+		}
+		if (responseLinkTargets?.has(openLink) || seenSessionLinks.has(openLink)) {
+			return false;
+		}
+		seenSessionLinks.add(openLink);
+		return true;
+	});
 
 	const finalResponseStartIndex = getFinalResponseStartIndexAfterMovingResponseOutcomeTools(content);
 	if (finalResponseStartIndex === undefined) {
@@ -655,6 +661,10 @@ function upvoteAnimationSettingToEnum(value: string | undefined): ClickAnimation
 		case 'radiantLines': return ClickAnimation.RadiantLines;
 		default: return undefined;
 	}
+}
+
+export function isAnchorTarget(target: EventTarget | null): boolean {
+	return dom.isHTMLElement(target) && !!target.closest('a');
 }
 
 export class ChatListItemRenderer extends Disposable implements ITreeRenderer<ChatTreeItem, FuzzyScore, IChatListItemTemplate> {
@@ -2131,7 +2141,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (this.configService.getValue<string>('chat.editRequests') !== 'none' && this.rendererOptions.editable) {
 			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.KEY_DOWN, e => {
 				const ev = new StandardKeyboardEvent(e);
-				if (ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) {
+				if ((ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) && !isAnchorTarget(e.target)) {
 					if (this.viewModel?.editing?.id !== element.id) {
 						ev.preventDefault();
 						ev.stopPropagation();
@@ -2539,7 +2549,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// gets summarized instead of being shown to the user verbatim.
 		const agentMerge = element.systemInitiatedLabel === undefined ? parseAgentMergePrompt(element.messageText) : undefined;
 		if (agentMerge) {
-			const agentMergePart = this.instantiationService.createInstance(ChatAgentMergeContentPart, agentMerge, element.sessionResource, this.chatContentMarkdownRenderer);
+			const agentMergePart = this.instantiationService.createInstance(ChatAgentMergeContentPart, agentMerge, element.sessionResource, this.chatContentMarkdownRenderer, element.requestTimestamp);
 			templateData.elementDisposables.add(agentMergePart);
 			templateData.value.appendChild(agentMergePart.domNode);
 			return;
@@ -4558,11 +4568,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						return;
 					}
 
-					// Don't handle clicks on links
-					const clickedElement = e.target as HTMLElement;
-					if (clickedElement.tagName === 'A') {
+					if (isAnchorTarget(e.target)) {
 						return;
 					}
+					const clickedElement = e.target as HTMLElement;
 
 					// Don't handle if there's a text selection in the window
 					const selection = dom.getWindow(templateData.rowContainer).getSelection();

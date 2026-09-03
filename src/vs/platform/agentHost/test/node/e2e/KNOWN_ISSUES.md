@@ -276,6 +276,23 @@ A user can contribute lifecycle hooks through a client-pushed Copilot plugin to 
     --grep "plugin .* hook|failing plugin hook|non-JSON plugin hook"
   ```
 
+### Copilot file edit metadata is lost after a host restart
+
+A user can reopen an Agent Host session and ask Copilot to edit a file. The file changes successfully, but the restored provider does not publish the before-and-after edit metadata, so the completed edit renders as a generic tool call instead of an edit pill and edit attribution is unavailable.
+
+- Test: `file edit metadata survives a host restart`.
+- Scope: Copilot on all platforms.
+- Expected: an edit made after the host restores the provider session includes readable before-and-after content references in the completed tool result.
+- Observed: the edit tool succeeds, but its completed tool result contains no file edit metadata.
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "file edit metadata survives a host restart"
+  ```
+
 ### Client-pushed plugin MCP coverage is provider-scoped
 
 - Tests: the `client plugin …` and `plugin MCP …` scenarios in `mcpPluginSuite.ts`.
@@ -789,6 +806,23 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 - Gate: `subagentReplayUnstableOnWindows: true`.
 - Related investigation: [#325284](https://github.com/microsoft/vscode/pull/325284).
 - Reproduce: temporarily clear the gate and run the exact title with `scripts\test-integration.bat`.
+
+### Copilot custom subagent without a display name
+
+A client-contributed custom agent can specify its stable name, description, and prompt without a separate display name. Invoking that agent as a child should run its prompt and return its response to the parent. Instead, the bundled Copilot runtime starts the child and immediately fails it with `failed to assemble custom-agent system prompt: displayName: Required`. The same validation boundary also rejects the SDK's documented `null`/omitted all-tools representation with `tools: Expected array`, so custom agents that follow either optional-field contract cannot run as subagents.
+
+- Test: `custom agent without a display name completes as a subagent`.
+- Scope: Copilot.
+- Expected: the child responds with `CUSTOM_AGENT_CHILD_OK` and completes.
+- Observed: `subagent.started` is followed by `subagent.failed` before the child makes a model request.
+- Gate: live recording with `AGENT_HOST_RUN_KNOWN_ISSUES=1` until the runtime fix is included in the bundled SDK.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_REPLAY_RECORD=1 AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "custom agent without a display name completes as a subagent"
+  ```
 
 ### Mid-turn abort is record-only
 

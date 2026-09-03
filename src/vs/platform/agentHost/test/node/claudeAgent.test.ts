@@ -891,6 +891,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	setMcpPermissionModeOverride(): never { throw new Error('FakeQuery: setMcpPermissionModeOverride not modeled'); }
 	setMaxThinkingTokens(): never { throw new Error('FakeQuery: setMaxThinkingTokens not modeled'); }
 	async applyFlagSettings(s: Settings): Promise<void> { this.recordedFlagSettings.push(s); }
+	updateSettings(): never { throw new Error('FakeQuery: updateSettings not modeled'); }
 	initializationResult(): never { throw new Error('FakeQuery: initializationResult not modeled'); }
 	reinitialize(): never { throw new Error('FakeQuery: reinitialize not modeled'); }
 

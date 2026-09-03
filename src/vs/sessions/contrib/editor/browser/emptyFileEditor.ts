@@ -6,7 +6,6 @@
 import './media/emptyFileEditor.css';
 import { $, append, Dimension } from '../../../../base/browser/dom.js';
 import { Action } from '../../../../base/common/actions.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -15,6 +14,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../../workbench/browser/parts/editor/editorPane.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { renderSessionsEmptyState } from '../../../browser/parts/sessionsEmptyState.js';
 import { CompactButtonActionViewItem } from '../../sessions/browser/sessionsActions.js';
 import { EmptyFileEditorInput } from './emptyFileEditorInput.js';
 
@@ -62,10 +62,11 @@ export class EmptyFileEditor extends EditorPane {
 		const container = append(parent, $('.empty-file-editor'));
 		const content = append(container, $('.empty-file-editor-content'));
 
-		append(content, $(`.empty-file-editor-icon${ThemeIcon.asCSSSelector(EmptyFileEditorInput.ICON)}`));
-
-		const description = append(content, $('.empty-file-editor-description'));
-		description.textContent = localize('emptyFileEditor.description', "Select a file from the Files view");
+		renderSessionsEmptyState(
+			content,
+			localize('emptyFileEditor.title', "Files"),
+			localize('emptyFileEditor.description', "Select a file from the Files view"),
+		);
 
 		const actions = append(content, $('.empty-file-editor-actions'));
 		const action = this._register(this.createSearchAction());

@@ -47,6 +47,7 @@ const updateAndSaveDraftState = Reflect.get(NewChatInputWidget.prototype, '_upda
 const updateSendButtonState = Reflect.get(NewChatInputWidget.prototype, '_updateSendButtonState') as (this: IUpdateSendButtonStateHarness) => void;
 const setInputEditorFocused = Reflect.get(NewChatInputWidget.prototype, '_setInputEditorFocused') as (container: HTMLElement, focused: boolean) => void;
 const updateAttachmentRendering = Reflect.get(NewChatContextAttachments.prototype, '_updateRendering') as (this: IAttachmentRenderingHarness) => void;
+const getStaticContextPicks = Reflect.get(NewChatContextAttachments.prototype, '_getStaticPicks') as (contextActions: readonly { label: string; icon: ThemeIcon }[]) => readonly { label?: string; type?: string }[];
 
 interface IDraftStateHarness {
 	readonly storageService: {
@@ -406,6 +407,20 @@ suite('NewChatInputWidget', () => {
 			inputText: '',
 			attachments: [],
 		});
+	});
+
+	test('orders native attachment picks before provider context actions', () => {
+		const picks = getStaticContextPicks([{
+			label: 'Issue...',
+			icon: Codicon.issues,
+		}]);
+
+		assert.deepStrictEqual(picks.map(pick => pick.label ?? pick.type), [
+			'Files...',
+			'Image from Clipboard',
+			'separator',
+			'Issue...',
+		]);
 	});
 
 	test('enables send after restoring an unchanged retained input model', () => {

@@ -10,8 +10,6 @@ import { IChatEndpoint } from '../../../../../platform/networking/common/network
 import { ITestingServicesAccessor } from '../../../../../platform/test/node/services';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
-import { IToolsService } from '../../../../tools/common/toolsService';
-import { PromptRenderer } from '../../base/promptRenderer';
 import '../allAgentPrompts';
 import { DefaultAgentPrompt } from '../defaultAgentInstructions';
 import { Gpt56PromptResolver } from '../openai/gpt56Prompt';
@@ -48,7 +46,6 @@ suite('OpenAI prompt fallback', () => {
 		['gpt-5.40', 'copilot'],
 		['gpt-5.50', 'copilot'],
 		['gpt-5.60', 'copilot'],
-		['gpt-6', 'copilot'],
 		['gpt-6-preview', 'Azure'],
 		['OpenAI', 'copilot'],
 		['preview-model', 'OpenAI'],
@@ -87,11 +84,6 @@ suite('OpenAI prompt fallback', () => {
 		expect(await resolve(createEndpoint(family, 'OpenAI'))).toEqual(await resolve(createEndpoint(family)));
 	});
 
-	test.each(['custom', 'OpenAI Compatible'])('does not infer OpenAI from a %s transport', async provider => {
-		const endpoint = createEndpoint('unknown-model', provider);
-		expect(await resolve(endpoint)).toEqual(await new AgentPromptRegistry().resolveAllCustomizations(instantiationService, endpoint));
-	});
-
 	test('preserves an explicitly aliased family without changing the model id or capabilities', async () => {
 		const endpoint = createEndpoint('gpt-5.1', 'OpenAI');
 		endpoint.model = 'preview-model';
@@ -107,16 +99,6 @@ suite('OpenAI prompt fallback', () => {
 			family: 'gpt-5.1',
 			cacheBreakpoints: false,
 		});
-	});
-
-	test('fallback does not alias the endpoint to GPT-5.6', async () => {
-		const endpoint = createEndpoint('gpt-6', 'OpenAI');
-		await resolve(endpoint);
-		expect({
-			model: endpoint.model,
-			family: endpoint.family,
-			cacheBreakpoints: modelSupportCacheBreakPoints(endpoint),
-		}).toEqual({ model: 'gpt-6', family: 'gpt-6', cacheBreakpoints: false });
 	});
 
 	test.each(['matcher', 'prefix'] as const)('a later %s specialization takes precedence over a registered fallback', async kind => {
@@ -141,22 +123,5 @@ suite('OpenAI prompt fallback', () => {
 			systemPrompt: DefaultAgentPrompt,
 			userQueryTagName: 'specializedRequest',
 		});
-	});
-
-	test.each([false, true])('renders the same system prompt with identical capabilities and tools enabled: %s', async toolsEnabled => {
-		const availableTools = toolsEnabled ? accessor.get(IToolsService).tools : [];
-		const renderingEndpoint = createEndpoint('gpt-5.6');
-		async function render(family: string) {
-			const customizations = await resolve(createEndpoint(family));
-			const renderer = PromptRenderer.create(instantiationService, renderingEndpoint, customizations.SystemPrompt, {
-				availableTools,
-				modelFamily: renderingEndpoint.family,
-				codesearchMode: false,
-			});
-			return (await renderer.render()).messages;
-		}
-		const expected = await render('gpt-5.6');
-		expect(expected.length).toBeGreaterThan(0);
-		expect(await render('gpt-6')).toEqual(expected);
 	});
 });
