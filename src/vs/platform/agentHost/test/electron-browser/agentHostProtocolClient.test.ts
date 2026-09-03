@@ -31,7 +31,7 @@ import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, ty
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, customizationId, withSessionExternal, withSessionWorkspaceless } from '../../common/state/sessionState.js';
-import { NonReconnectableTransportError, type IClientTransport, type IProtocolTransport } from '../../common/state/sessionTransport.js';
+import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -2340,6 +2340,7 @@ suite('AgentHostProtocolClient', () => {
 		test('does not retry a non-reconnectable initial transport failure', async () => {
 			const { client, transports } = createFactoryClient();
 			const fatalErrors: string[] = [];
+			const closeReason = Event.toPromise(client.onDidClose);
 			disposables.add(client.onDidFatalClose(error => fatalErrors.push(error.message)));
 			const connectPromise = client.connect();
 			transports[0].connectDeferred.error(new NonReconnectableTransportError('terminal failure'));
@@ -2350,10 +2351,29 @@ suite('AgentHostProtocolClient', () => {
 				state: client.connectionState,
 				transportCount: transports.length,
 				fatalErrors,
+				closeReason: await closeReason,
 			}, {
 				state: AgentHostClientState.Closed,
 				transportCount: 1,
 				fatalErrors: ['terminal failure'],
+				closeReason: AgentHostTransportFailureReason.Unknown,
+			});
+		});
+
+		test('reports a host-not-running terminal transport failure when it closes', async () => {
+			const { client, transports } = createFactoryClient();
+			const closeReason = Event.toPromise(client.onDidClose);
+			const connectPromise = client.connect();
+			transports[0].connectDeferred.error(new NonReconnectableTransportError('WSL distro is not running.', AgentHostTransportFailureReason.HostNotRunning));
+
+			await assert.rejects(connectPromise, /not running/);
+
+			assert.deepStrictEqual({
+				state: client.connectionState,
+				closeReason: await closeReason,
+			}, {
+				state: AgentHostClientState.Closed,
+				closeReason: AgentHostTransportFailureReason.HostNotRunning,
 			});
 		});
 
@@ -2421,6 +2441,74 @@ suite('AgentHostProtocolClient', () => {
 
 				assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
 			});
+		});
+
+		test('reports the deadline for each scheduled reconnect backoff', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const reconnectPolicy: IRemoteAgentHostReconnectPolicy = {
+					autoRestore: true,
+					initialDelayMs: 60_000,
+					maxDelayMs: 60_000,
+					maxAttempts: 3,
+				};
+				const { client, transports } = createFactoryClient(createPermissionService(), undefined, NullTelemetryService, reconnectPolicy);
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+				const reconnectDeadlines: (number | undefined)[] = [];
+				// The client stays `reconnecting` across rounds, so the schedule
+				// event — not the state event — reports each new deadline.
+				const stateListener = client.onDidScheduleReconnect(() => {
+					reconnectDeadlines.push(client.nextReconnectAt);
+				});
+
+				transports[0].fireClose();
+				const firstDeadline = client.nextReconnectAt;
+				assert.ok(firstDeadline !== undefined);
+				await timeout(reconnectPolicy.initialDelayMs);
+				transports[1].connectDeferred.error(new Error('reconnect failed'));
+				await flushMicrotasks();
+				const secondDeadline = client.nextReconnectAt;
+				assert.ok(secondDeadline !== undefined);
+
+				assert.deepStrictEqual(reconnectDeadlines, [firstDeadline, secondDeadline]);
+				stateListener.dispose();
+				client.dispose();
+			});
+		});
+
+		test('reconnectNow clears a pending backoff and retries immediately', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const reconnectPolicy: IRemoteAgentHostReconnectPolicy = {
+					autoRestore: true,
+					initialDelayMs: 60_000,
+					maxDelayMs: 60_000,
+					maxAttempts: 3,
+				};
+				const { client, transports } = createFactoryClient(createPermissionService(), undefined, NullTelemetryService, reconnectPolicy);
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				transports[0].fireClose();
+				assert.strictEqual(client.reconnectNow(), true);
+				await timeout(reconnectPolicy.initialDelayMs - 1);
+
+				assert.deepStrictEqual({
+					nextReconnectAt: client.nextReconnectAt,
+					transportCount: transports.length,
+				}, {
+					nextReconnectAt: undefined,
+					transportCount: 2,
+				});
+				client.dispose();
+			});
+		});
+
+		test('reconnectNow returns false when no reconnect backoff is pending', () => {
+			const { client } = createFactoryClient();
+
+			assert.strictEqual(client.reconnectNow(), false);
 		});
 
 		test('does not automatically reconnect when the policy disables automatic restore', async () => {

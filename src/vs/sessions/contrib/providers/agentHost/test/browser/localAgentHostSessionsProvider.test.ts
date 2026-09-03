@@ -679,6 +679,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(provider.sessionTypes[0].label, 'Copilot');
 	});
 
+	test('leaves remote connection status absent from local sessions', () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'local-connection-status');
+
+		assert.deepStrictEqual(provider.getSessions().map(session => session.remoteConnectionStatus), [undefined]);
+	});
+
 	test('session types update when the local host advertises additional agents', () => {
 		const provider = createProvider(disposables, agentHost);
 		assert.deepStrictEqual(provider.sessionTypes.map(t => ({ id: t.id, label: t.label })), [

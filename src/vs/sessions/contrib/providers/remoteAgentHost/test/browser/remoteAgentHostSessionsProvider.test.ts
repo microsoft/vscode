@@ -17,6 +17,8 @@ import { AgentSession, type IAgentSessionMetadata } from '../../../../../../plat
 import { agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { MessageKind, SessionLifecycle, type AgentInfo, type AutomationState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -36,7 +38,7 @@ import { IChatService, type ChatSendResult, type IChatSendRequestOptions } from 
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { ChatModelSource, SessionStatus, type ISession } from '../../../../../services/sessions/common/session.js';
+import { ChatModelSource, SessionRemoteConnectionFailureReason, SessionStatus, type ISession } from '../../../../../services/sessions/common/session.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -226,12 +228,13 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 
 // ---- Test helpers -----------------------------------------------------------
 
-function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; _meta?: IAgentSessionMetadata['_meta'] }): IAgentSessionMetadata {
+function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; status?: ProtocolSessionStatus; _meta?: IAgentSessionMetadata['_meta'] }): IAgentSessionMetadata {
 	return {
 		session: AgentSession.uri(opts?.provider ?? 'copilotcli', id),
 		startTime: opts?.startTime ?? 1000,
 		modifiedTime: opts?.modifiedTime ?? 2000,
 		summary: opts?.summary,
+		status: opts?.status,
 		project: opts?.project,
 		workingDirectories: opts?.workingDirectory ? [opts?.workingDirectory] : undefined,
 		_meta: opts?._meta,
@@ -421,6 +424,53 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, connection, { connectionName: undefined, address: 'myhost:9999' });
 
 		assert.strictEqual(provider.label, 'myhost:9999');
+	});
+
+	test('derives session remote connection status from the backing provider', () => {
+		const provider = createProvider(disposables, connection);
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+		fireSessionAdded(connection, 'connection-status');
+		const session = provider.getSessions()[0];
+		const statuses = [session.remoteConnectionStatus?.get()];
+
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.reconnecting);
+		statuses.push(session.remoteConnectionStatus?.get());
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
+		statuses.push(session.remoteConnectionStatus?.get());
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.HostNotRunning));
+		statuses.push(session.remoteConnectionStatus?.get());
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.incompatible('Protocol version mismatch', ['1']));
+		statuses.push(session.remoteConnectionStatus?.get());
+
+		assert.deepStrictEqual({
+			hasRemoteHost: session.remoteConnectionStatus !== undefined,
+			statuses,
+		}, {
+			hasRemoteHost: true,
+			statuses: [
+				{ kind: 'connected' },
+				{ kind: 'reconnecting' },
+				{ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown },
+				{ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.HostNotRunning },
+				{ kind: 'incompatible' },
+			],
+		});
+	});
+
+	test('does not present an active chat as busy while its remote host is unavailable', () => {
+		const provider = createProvider(disposables, connection);
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+		provider.seedSessions([createSession('active-session', { status: ProtocolSessionStatus.InProgress })]);
+		const session = provider.getSessions()[0];
+		const chat = session.mainChat.get();
+		const statuses = [chat.status.get()];
+
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.HostNotRunning));
+		statuses.push(chat.status.get());
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+		statuses.push(chat.status.get());
+
+		assert.deepStrictEqual(statuses, [SessionStatus.InProgress, SessionStatus.Error, SessionStatus.InProgress]);
 	});
 
 	test('remoteLocationPreferenceKey defaults to the live address when no stable preference key is given (e.g. tunnels/WSL)', () => {
@@ -1060,6 +1110,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	test('cached session loading reflects authenticationPending', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('cached-auth', { summary: 'Cached' }));
 		const provider = createProvider(disposables, connection);
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
 		await timeout(0);
 
 		const session = provider.getSessions().find(s => s.title.get() === 'Cached');
@@ -1074,6 +1125,29 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		provider.setAuthenticationPending(true);
 		assert.strictEqual(session!.loading.get(), false);
 	}));
+
+	test('cached session loading settles while the host is unavailable but stays pending while it connects', async () => {
+		connection.addSession(createSession('cached-connection-state', { summary: 'Cached' }));
+		const provider = createProvider(disposables, connection);
+		await timeout(0);
+
+		const session = provider.getSessions().find(s => s.title.get() === 'Cached');
+		assert.ok(session);
+		const loading = [session!.loading.get()];
+
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
+		loading.push(session!.loading.get());
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.reconnecting);
+		loading.push(session!.loading.get());
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.incompatible('Protocol version mismatch', ['1']));
+		loading.push(session!.loading.get());
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
+		loading.push(session!.loading.get());
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+		loading.push(session!.loading.get());
+
+		assert.deepStrictEqual(loading, [false, true, true, false, false, true]);
+	});
 
 	test('unpublishCachedSessions hides sessions but retains persisted cache', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
