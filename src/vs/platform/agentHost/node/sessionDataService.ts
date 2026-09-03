@@ -106,7 +106,7 @@ export class SessionDataService implements ISessionDataService {
 		const key = this._sanitizedSessionKey(session);
 		const dbPath = URI.joinPath(this._basePath, key, SESSION_DB_FILENAME);
 		try {
-			await this._fileService.resolve(dbPath, { resolveMetadata: false });
+			await this._fileService.stat(dbPath);
 		} catch (error) {
 			if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
 				return undefined;

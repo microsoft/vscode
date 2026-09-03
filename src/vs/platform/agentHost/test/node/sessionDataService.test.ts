@@ -10,11 +10,20 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
+import { createFileSystemProviderError, FileSystemProviderErrorCode, type IStat } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
 import { buildChatUri } from '../../common/state/sessionState.js';
 import { SessionDataService } from '../../node/sessionDataService.js';
+
+class ControllableStatFileSystemProvider extends InMemoryFileSystemProvider {
+	statError: Error | undefined;
+
+	override stat(resource: URI): Promise<IStat> {
+		return this.statError ? Promise.reject(this.statError) : super.stat(resource);
+	}
+}
 
 suite('SessionDataService', () => {
 
@@ -120,11 +129,14 @@ suite('SessionDataService — openDatabase ref-counting', () => {
 
 	const disposables = new DisposableStore();
 	const basePath = URI.from({ scheme: Schemas.inMemory, path: '/userData' });
+	let fileService: FileService;
+	let provider: ControllableStatFileSystemProvider;
 	let service: SessionDataService;
 
 	setup(() => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		fileService = disposables.add(new FileService(new NullLogService()));
+		provider = disposables.add(new ControllableStatFileSystemProvider());
+		disposables.add(fileService.registerProvider(Schemas.inMemory, provider));
 		service = new SessionDataService(basePath, fileService, new NullLogService(), () => ':memory:');
 	});
 
@@ -142,6 +154,16 @@ suite('SessionDataService — openDatabase ref-counting', () => {
 		const edits = await ref.object.getFileEdits([]);
 		assert.deepStrictEqual(edits, []);
 		await ref.object.close();
+	});
+
+	test('tryOpenDatabase returns undefined only for a missing database', async () => {
+		const session = AgentSession.uri('copilot', 'strict-existing-test');
+		const missing = await service.tryOpenDatabase(session);
+		const permissionError = createFileSystemProviderError('permission denied', FileSystemProviderErrorCode.NoPermissions);
+		provider.statError = permissionError;
+
+		assert.strictEqual(missing, undefined);
+		await assert.rejects(service.tryOpenDatabase(session), error => error === permissionError);
 	});
 
 	test('multiple references share the same database', async () => {

@@ -10,7 +10,6 @@ import { IObservable, IReader, ITransaction, autorun, autorunWithStore, constObs
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyValue, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -19,6 +18,7 @@ import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { IRange } from '../../../common/core/range.js';
 import { ISelection, Selection } from '../../../common/core/selection.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
+import { IMultiDiffResourceId } from '../../../common/multiDiffEditor.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { ICodeEditor } from '../../editorBrowser.js';
 import { CompressedVirtualizedScrollView, ICompressedVirtualizedScrollItem, ICompressedVirtualizedScrollItemContext } from './compressedVirtualizedScrollView.js';
@@ -663,19 +663,6 @@ interface IMultiDiffDocState {
 	collapsed: boolean;
 	selections?: ISelection[];
 }
-
-export interface IMultiDiffEditorOptions extends ITextEditorOptions {
-	viewState?: IMultiDiffEditorOptionsViewState;
-}
-
-export interface IMultiDiffEditorOptionsViewState {
-	revealData?: {
-		resource: IMultiDiffResourceId;
-		range?: IRange;
-	};
-}
-
-export type IMultiDiffResourceId = { original: URI | undefined; modified: URI | undefined };
 
 export interface IMultiDiffEditorLayoutDebugState {
 	readonly scrollLeft: number;

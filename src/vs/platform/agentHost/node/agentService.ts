@@ -483,7 +483,8 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Backing-session URIs suppressed until `sessions_v2` acknowledges their
-	 * backing state, including when the local marker cannot be persisted.
+	 * backing state. This also suppresses backing sessions when the local
+	 * marker cannot be persisted, so discovery never exposes them.
 	 */
 	private readonly _unpersistedChatBackings = new Set<string>();
 
@@ -2184,7 +2185,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let registryChanged = false;
 		const untitledExternal: IAgentSessionMetadata[] = [];
 		const modifiedTimeAdvances: { readonly session: URI; readonly modifiedTime: number }[] = [];
-		const results = await Promise.all(chats.map(({ external, ...metadata }) => discoveryLimiter.queue(async () => {
+		const results = await Promise.all(chats.map(({ external: reportedExternal, ...metadata }) => discoveryLimiter.queue(async () => {
 			const sessionMetadata = this._toSessionMetadata(metadata);
 			const session = sessionMetadata.session;
 			try {
@@ -2218,6 +2219,12 @@ export class AgentService extends Disposable implements IAgentService {
 					suppressed++;
 					return false;
 				}
+				const registrationFacts = await this._readSessionRegistrationFacts(session);
+				if (registrationFacts.chatBacking) {
+					suppressed++;
+					return false;
+				}
+				const external = reportedExternal && !registrationFacts.hostCreated;
 				if (external && !readSessionEhcliAdoptable(sessionMetadata._meta) && this._isExternalSessionOlderThanMaxAge(sessionMetadata.modifiedTime, Date.now())) {
 					queueExclusion({
 						provider: provider.id,
@@ -2467,7 +2474,7 @@ export class AgentService extends Disposable implements IAgentService {
 			project: metadata.project ? { uri: metadata.project.uri.toString(), displayName: metadata.project.displayName } : undefined,
 			workingDirectories: metadata.workingDirectories?.map(directory => directory.toString()) ?? [],
 			changes: metadata.changes,
-			meta: external ? withSessionMultiRootMetadata(meta, undefined) : meta,
+			meta: withSessionMultiRootMetadata(meta, undefined),
 			chats: [
 				{
 					uri: buildDefaultChatUri(metadata.session),
@@ -2559,9 +2566,9 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Both facts registry backfill needs about a session, from a single database
-	 * open — it asks for both per session, and a large catalogue makes the second
-	 * open the dominant cost of the pass.
+	 * Both facts discovery and registry backfill need about a session, from a
+	 * single database open — they ask for both per session, and a large catalogue
+	 * makes a second open the dominant cost of the pass.
 	 */
 	private async _readSessionRegistrationFacts(session: URI): Promise<{ readonly chatBacking: boolean; readonly hostCreated: boolean }> {
 		if (this._unpersistedChatBackings.has(session.toString())) {
@@ -6578,6 +6585,7 @@ export class AgentService extends Disposable implements IAgentService {
 		]);
 		if (restoredConfig) {
 			this._stateManager.setSessionConfig(sessionStr, restoredConfig);
+			this._changesetCoordinator.onSessionConfigRestored(sessionStr);
 			// Seeded config bypasses `onDidChangeSessionConfig`, so heal the
 			// index for a session enabled before it was introduced.
 			this._syncAgentMergeIndex(session, undefined, restoredConfig);

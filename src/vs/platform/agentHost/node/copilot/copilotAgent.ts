@@ -2658,6 +2658,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					return undefined;
 				}
 				const modifiedTime = new Date(s.modifiedTime).getTime();
+				let externalClientName: string | undefined;
 				if (!adoptable) {
 					const clientName = s.isRemote ? undefined : s.clientName;
 					if (clientName === undefined || !COPILOT_EXTERNAL_SESSION_CLIENT_NAMES.has(clientName)) {
@@ -2672,8 +2673,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 						withoutRepository++;
 						return undefined;
 					}
+					externalClientName = clientName;
 				}
-				return {
+				const discoveredChat = {
 					chat: URI.parse(buildDefaultChatUri(session)),
 					startTime: new Date(s.startTime).getTime(),
 					modifiedTime,
@@ -2688,6 +2690,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 					_meta: adoptable ? withSessionEhcliAdoptable(undefined) : undefined,
 					external: !adoptable,
 				} satisfies IAgentDiscoveredChat;
+				if (externalClientName !== undefined) {
+					this._logService.info(`[Copilot] Chat discovery: classified ${session.toString()} as external (clientName: ${externalClientName})`);
+				}
+				return discoveredChat;
 			} catch (err) {
 				failed++;
 				this._logService.warn(`[Copilot] Failed to classify discovered chat ${session.toString()}; skipping it`, err);

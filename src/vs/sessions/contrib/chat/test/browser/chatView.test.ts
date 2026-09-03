@@ -14,9 +14,9 @@ import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workb
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
-import { findInitialTranscriptContextEntry, findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
@@ -28,6 +28,42 @@ suite('Sessions - Chat View', () => {
 	interface ISubSessionTipRenderer {
 		_renderSubSessionTip(): void;
 	}
+
+	test('retries an unresolved chat when its content provider is registered', () => {
+		const resource = URI.parse('remote-agent:/session');
+		const loads: URI[] = [];
+		const modelRef = { value: undefined as object | undefined };
+		const view = Object.assign(Object.create(ChatView.prototype), {
+			_currentChatResource: resource,
+			_currentSessionObs: { get: () => undefined },
+			_modelRef: modelRef,
+			_loadChat: (chatResource: URI) => loads.push(chatResource),
+		}) as {
+			_retryUnresolvedChatLoad(addedSessionTypes: readonly string[]): void;
+		};
+
+		view._retryUnresolvedChatLoad(['other-agent']);
+		view._retryUnresolvedChatLoad(['remote-agent']);
+		modelRef.value = {};
+		view._retryUnresolvedChatLoad(['remote-agent']);
+
+		assert.deepStrictEqual(loads, [resource]);
+	});
+
+	test('shows the external session banner only in the primary chat group', () => {
+		const session = Object.create(null) as ISession;
+		const bannerSessions: Array<ISession | undefined> = [];
+		const view = Object.assign(Object.create(ChatView.prototype), {
+			_isPrimary: true,
+			_currentSessionObs: observableValue<ISession | undefined>(disposables, session),
+			_externalSessionBanner: { setSession: (value: ISession | undefined) => bannerSessions.push(value) },
+		}) as ChatView;
+
+		view.setPrimary(false);
+		view.setPrimary(true);
+
+		assert.deepStrictEqual(bannerSessions, [undefined, session]);
+	});
 
 	test('forwards new chat visibility to the aquarium host', () => {
 		const forwarded: boolean[] = [];

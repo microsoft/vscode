@@ -209,12 +209,10 @@ suite('NewChatWidget', () => {
 			[
 				{ label: 'Workspace', className: '' },
 				{ label: 'Copilot', className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' },
-				{ label: 'Issue/PR', className: '' },
 			],
 		);
 		assert.deepStrictEqual(workspaceTriggers, [
 			{ tooltip: 'Choose where the new session runs', icon: 'project', attachesContext: false },
-			{ tooltip: 'Attach an issue or pull request as context', icon: undefined, attachesContext: true },
 		]);
 	});
 
