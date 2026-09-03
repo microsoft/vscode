@@ -179,6 +179,8 @@ export class ChatView extends AbstractChatView {
 
 	/** Whether this view currently represents the active session. */
 	private _isActive = true;
+	/** Whether this view occupies the first group in the session's chat grid. */
+	private _isPrimary = false;
 	/** Observable mirror of {@link _isActive} so the voice overlay can react. */
 	private readonly _isActiveObs = observableValue<boolean>(this, true);
 
@@ -412,7 +414,7 @@ export class ChatView extends AbstractChatView {
 		this.chatPillsDebugService.clear(this._chatPills);
 		const previousSession = this._currentSessionObs.get();
 		this._currentSessionObs.set(session, undefined);
-		this._externalSessionBanner.setSession(session);
+		this._externalSessionBanner.setSession(this._isPrimary ? session : undefined);
 		const resource = chat.resource;
 		const previousChatResource = this._currentChatResource;
 		const chatChanged = !isEqual(previousChatResource, resource);
@@ -656,6 +658,14 @@ export class ChatView extends AbstractChatView {
 		for (const uri of uris) {
 			this._widget.attachmentModel.addFile(uri).catch(err => this.logService.error('[ChatView] Failed to attach file as context', err));
 		}
+	}
+
+	override setPrimary(primary: boolean): void {
+		if (this._isPrimary === primary) {
+			return;
+		}
+		this._isPrimary = primary;
+		this._externalSessionBanner.setSession(primary ? this._currentSessionObs.get() : undefined);
 	}
 
 	override setActive(active: boolean): void {
