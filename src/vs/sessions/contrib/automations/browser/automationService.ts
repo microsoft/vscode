@@ -726,13 +726,17 @@ function mergeAutomation(current: IAutomationDescriptor, patch: IUpdateAutomatio
 	const target = patch.target ? normalizeAutomationTarget(patch.target) : current.target;
 	const targetAuthorityChanged = patch.target !== undefined
 		&& (target.providerId !== current.target.providerId || target.sessionTypeId !== current.target.sessionTypeId);
-	const modelId = patch.modelId === null ? undefined : (patch.modelId ?? (targetAuthorityChanged ? undefined : current.modelId));
-	const mode = patch.mode === null ? undefined : (patch.mode ?? (targetAuthorityChanged ? undefined : current.mode));
-	const permissionLevel = patch.permissionLevel === null
+	const currentModelId = current.sessionTemplate?.modelId ?? current.modelId;
+	const currentMode = readString(current.sessionTemplate?.config?.['mode']) ?? current.mode;
+	const currentPermissionLevel = readString(current.sessionTemplate?.config?.['autoApprove']) ?? current.permissionLevel;
+	const templatePatched = patch.sessionTemplate !== undefined;
+	const modelId = templatePatched ? undefined : patch.modelId === null ? undefined : (patch.modelId ?? (targetAuthorityChanged ? undefined : currentModelId));
+	const mode = templatePatched ? undefined : patch.mode === null ? undefined : (patch.mode ?? (targetAuthorityChanged ? undefined : currentMode));
+	const permissionLevel = templatePatched || patch.permissionLevel === null
 		? undefined
 		: patch.permissionLevel && isChatPermissionLevel(patch.permissionLevel)
 			? patch.permissionLevel
-			: targetAuthorityChanged ? ChatPermissionLevel.Default : current.permissionLevel;
+			: targetAuthorityChanged ? ChatPermissionLevel.Default : currentPermissionLevel;
 	const sessionTemplate = patch.sessionTemplate === null
 		? undefined
 		: patch.sessionTemplate ?? (targetAuthorityChanged
@@ -750,6 +754,10 @@ function mergeAutomation(current: IAutomationDescriptor, patch: IUpdateAutomatio
 		permissionLevel,
 		enabled: patch.enabled ?? current.enabled,
 	};
+}
+
+function readString(value: unknown): string | undefined {
+	return typeof value === 'string' ? value : undefined;
 }
 
 function normalizeAutomationTarget(target: AutomationTarget): AutomationTarget {

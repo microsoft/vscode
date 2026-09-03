@@ -78,13 +78,13 @@ export interface IAutomationDescriptor {
 	/** Complete provider-owned session template. */
 	readonly sessionTemplate?: IAutomationSessionTemplate;
 
-	/** Optional language model identifier to seed the new session with. */
+	/** @deprecated Legacy decode alias. New Automations store this in {@link sessionTemplate}. */
 	readonly modelId?: string;
 
-	/** Optional provider mode identifier. Defaults to the provider's mode. */
+	/** @deprecated Legacy decode alias. New Automations store this in {@link sessionTemplate}. */
 	readonly mode?: string;
 
-	/** Optional permission level (`default`/`assisted`/`autoApprove`/`autopilot`). Defaults to the provider's level. */
+	/** @deprecated Legacy decode alias. New Automations store this in {@link sessionTemplate}. */
 	readonly permissionLevel?: string;
 
 	readonly enabled: boolean;

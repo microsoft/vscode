@@ -83,15 +83,17 @@ export class AutomationRunner implements IAutomationRunner {
 				? target.isolation.kind === 'folder' ? 'workspace' : target.isolation.kind === 'worktree' ? 'worktree' : undefined
 				: undefined;
 			const branch = target.kind === 'workspace' && target.isolation.kind === 'worktree' ? target.isolation.branch : undefined;
+			const templateMode = automation.sessionTemplate?.config?.['mode'];
+			const templatePermissionLevel = automation.sessionTemplate?.config?.['autoApprove'];
 			const automationConfiguration: IAutomationSessionConfiguration | undefined = automation.sessionTemplate !== undefined
 				|| automation.modelId !== undefined
 				|| automation.mode !== undefined
 				|| automation.permissionLevel !== undefined
 				? {
 					sessionTemplate: automation.sessionTemplate,
-					modelId: automation.modelId,
-					mode: automation.mode,
-					permissionLevel: automation.permissionLevel,
+					modelId: automation.sessionTemplate?.modelId ?? automation.modelId,
+					mode: typeof templateMode === 'string' ? templateMode : automation.mode,
+					permissionLevel: typeof templatePermissionLevel === 'string' ? templatePermissionLevel : automation.permissionLevel,
 				}
 				: undefined;
 

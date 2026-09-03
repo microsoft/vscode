@@ -1741,11 +1741,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			return;
 		}
 		const template = configuration.sessionTemplate;
-		const modelId = configuration.modelId ?? template?.modelId;
+		const modelId = template?.modelId ?? configuration.modelId;
 		if (modelId) {
 			session.setModelId(modelId, ChatModelSource.Chosen);
 		}
-		const mode = configuration.mode ?? template?.config?.[SessionConfigKey.Mode];
+		const mode = template?.config?.[SessionConfigKey.Mode] ?? configuration.mode;
 		if (typeof mode === 'string') {
 			const restored = this._setSessionMode(session, mode);
 			if (!restored && session instanceof CopilotCLISession) {
@@ -1753,7 +1753,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				void this._resolveAutomationSessionMode(session, mode);
 			}
 		}
-		const permissionLevel = configuration.permissionLevel ?? template?.config?.[SessionConfigKey.AutoApprove];
+		const permissionLevel = template?.config?.[SessionConfigKey.AutoApprove] ?? configuration.permissionLevel;
 		if (!(session instanceof RemoteNewSession) && isChatPermissionLevel(permissionLevel)) {
 			session.setPermissionLevel(permissionLevel);
 		}

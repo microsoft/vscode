@@ -867,7 +867,7 @@ suite('AgentHostAutomationStore', () => {
 			hostDirectory: create.type === ActionType.AutomationCreateRequested ? create.definition.session.workingDirectories : undefined,
 			hostModel: create.type === ActionType.AutomationCreateRequested ? create.definition.session.model?.id : undefined,
 			clientDirectory: automation.target.kind === 'workspace' ? automation.target.folderUri.toString() : undefined,
-			clientModel: automation.modelId,
+			clientModel: automation.sessionTemplate?.modelId,
 			clientSession: claim.run.sessionResource?.toString(),
 		}, {
 			hostDirectory: ['file:///workspace'],
@@ -901,7 +901,7 @@ suite('AgentHostAutomationStore', () => {
 
 		assert.deepStrictEqual({
 			hostModel: create.type === ActionType.AutomationCreateRequested ? create.definition.session.model?.id : undefined,
-			clientModel: automation.modelId,
+			clientModel: automation.sessionTemplate?.modelId,
 		}, {
 			hostModel: 'auto',
 			clientModel: 'agent-host-copilotcli:auto',
@@ -934,7 +934,7 @@ suite('AgentHostAutomationStore', () => {
 
 		assert.deepStrictEqual({
 			hostModel: update?.type === ActionType.AutomationUpdateRequested ? update.changes.session?.model : undefined,
-			clientModel: updated.modelId,
+			clientModel: updated.sessionTemplate?.modelId,
 		}, {
 			hostModel: undefined,
 			clientModel: undefined,
@@ -975,7 +975,7 @@ suite('AgentHostAutomationStore', () => {
 		assert.deepStrictEqual({
 			hostProviders: createActions.map(action => action.definition.session.provider),
 			hostModels: createActions.map(action => action.definition.session.model?.id),
-			clientModels: [defaultProvider.modelId, nativeColon.modelId],
+			clientModels: [defaultProvider.sessionTemplate?.modelId, nativeColon.sessionTemplate?.modelId],
 		}, {
 			hostProviders: ['copilotcli', 'copilotcli'],
 			hostModels: ['auto', 'openai/gpt-5:high'],
@@ -1023,7 +1023,7 @@ suite('AgentHostAutomationStore', () => {
 		});
 
 		assert.deepStrictEqual({
-			modelId: store.getAutomation('host-authored')?.modelId,
+			modelId: store.getAutomation('host-authored')?.sessionTemplate?.modelId,
 			sessionResource: store.runs.get()[0].sessionResource?.toString(),
 		}, {
 			modelId: 'agent-host-codex:auto',

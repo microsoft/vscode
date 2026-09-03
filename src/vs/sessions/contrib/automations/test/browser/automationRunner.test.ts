@@ -625,6 +625,9 @@ suite('AutomationRunner', () => {
 			schedule: hourly(),
 			target: workspaceTarget(FOLDER_A, { providerId: 'local-agent-host', sessionTypeId: 'copilotcli' }),
 			sessionTemplate,
+			modelId: 'stale-model',
+			mode: 'interactive',
+			permissionLevel: 'default',
 		});
 
 		await runner.runOnce(automation, 'schedule', 1).whenCompleted;
@@ -635,9 +638,9 @@ suite('AutomationRunner', () => {
 			sessionTemplate,
 			automationConfiguration: {
 				sessionTemplate,
-				modelId: undefined,
-				mode: undefined,
-				permissionLevel: undefined,
+				modelId: 'model',
+				mode: 'plan',
+				permissionLevel: 'assisted',
 			},
 			isolationMode: undefined,
 			branch: undefined,

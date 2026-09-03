@@ -222,9 +222,6 @@ export class AutomationDialogService implements IAutomationDialogService {
 			const prompt = getPrompt();
 			const sessionConfiguration = await getSessionConfiguration();
 			const sessionTemplate = sessionConfiguration?.sessionTemplate;
-			const mode = sessionConfiguration?.mode;
-			const permissionLevel = sessionConfiguration?.permissionLevel;
-			const modelId = sessionConfiguration?.modelId;
 			const branch = getBranch();
 			const target = createAutomationTarget(state, branch);
 			if (!target) {
@@ -239,9 +236,6 @@ export class AutomationDialogService implements IAutomationDialogService {
 					target,
 					...(sessionConfiguration ? {
 						sessionTemplate: sessionTemplate ?? null,
-						modelId: modelId ?? null,
-						mode: mode ?? null,
-						permissionLevel: permissionLevel ?? null,
 					} : {}),
 					enabled: state.enabled,
 				};
@@ -254,9 +248,6 @@ export class AutomationDialogService implements IAutomationDialogService {
 				schedule,
 				target,
 				sessionTemplate,
-				modelId,
-				mode,
-				permissionLevel,
 				enabled: state.enabled,
 			};
 			return { kind: 'create', value: create };

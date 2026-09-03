@@ -178,6 +178,41 @@ suite('AutomationService', () => {
 		});
 	});
 
+	test('an explicit session template replaces stale legacy aliases', async () => {
+		const { service } = createService();
+		const automation = await service.createAutomation({
+			name: 'Daily review',
+			prompt: 'Summarize what changed',
+			schedule: dailySchedule(),
+			target: workspaceTarget(),
+			sessionTemplate: {
+				modelId: 'old-model',
+				config: { mode: 'interactive', autoApprove: 'default' },
+			},
+			modelId: 'old-model',
+			mode: 'interactive',
+			permissionLevel: 'default',
+		});
+		const sessionTemplate = {
+			modelId: 'new-model',
+			config: { mode: 'plan', autoApprove: 'assisted' },
+		};
+
+		const updated = await service.updateAutomation(automation.id, { sessionTemplate });
+
+		assert.deepStrictEqual({
+			sessionTemplate: updated.sessionTemplate,
+			modelId: updated.modelId,
+			mode: updated.mode,
+			permissionLevel: updated.permissionLevel,
+		}, {
+			sessionTemplate,
+			modelId: undefined,
+			mode: undefined,
+			permissionLevel: undefined,
+		});
+	});
+
 	test('createAutomation with manual schedule leaves nextRunAt undefined', async () => {
 		const { service } = createService();
 		const a = await service.createAutomation({

@@ -41,8 +41,11 @@ export interface ICreateAutomationOptions {
 	readonly schedule: IAutomationSchedule;
 	readonly target: AutomationTarget;
 	readonly sessionTemplate?: IAutomationSessionTemplate;
+	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly modelId?: string;
+	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly mode?: string;
+	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly permissionLevel?: string;
 	readonly enabled?: boolean;
 }
@@ -57,8 +60,11 @@ export interface IUpdateAutomationOptions {
 	readonly schedule?: IAutomationSchedule;
 	readonly target?: AutomationTarget;
 	readonly sessionTemplate?: IAutomationSessionTemplate | null;
+	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly modelId?: string | null;
+	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly mode?: string | null;
+	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly permissionLevel?: string | null;
 	readonly enabled?: boolean;
 }

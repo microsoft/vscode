@@ -34,7 +34,7 @@ type AutomationCreateClassification = {
 export function publishAutomationCreated(telemetryService: ITelemetryService, automation: IAutomationDescriptor): void {
 	telemetryService.publicLog2<AutomationCreateEvent, AutomationCreateClassification>('automation.create', {
 		intervalKind: automation.schedule.interval,
-		permissionLevel: automation.permissionLevel ?? '',
+		permissionLevel: getAutomationPermissionLevel(automation),
 		isolationMode: getAutomationIsolationMode(automation),
 		enabled: automation.enabled,
 	});
@@ -115,7 +115,7 @@ export function publishAutomationRun(telemetryService: ITelemetryService, args: 
 		intervalKind: args.automation.schedule.interval,
 		success: args.success,
 		durationMs: Math.max(0, Math.round(args.durationMs)),
-		permissionLevel: args.automation.permissionLevel ?? '',
+		permissionLevel: getAutomationPermissionLevel(args.automation),
 		isolationMode: getAutomationIsolationMode(args.automation),
 	});
 }
@@ -127,6 +127,13 @@ function getAutomationIsolationMode(automation: IAutomationDescriptor): string {
 	return automation.target.isolation.kind === 'folder'
 		? 'workspace'
 		: automation.target.isolation.kind === 'worktree' ? 'worktree' : '';
+}
+
+const automationPermissionLevels = new Set(['default', 'assisted', 'autoApprove', 'autopilot']);
+
+function getAutomationPermissionLevel(automation: IAutomationDescriptor): string {
+	const value = automation.sessionTemplate?.config?.['autoApprove'] ?? automation.permissionLevel;
+	return typeof value === 'string' && automationPermissionLevels.has(value) ? value : '';
 }
 
 type AutomationRunErrorEvent = {

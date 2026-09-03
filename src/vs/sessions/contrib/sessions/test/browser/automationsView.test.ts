@@ -861,9 +861,15 @@ suite('AutomationsCardsWidget', () => {
 			prompt: 'Review all open issues',
 			schedule: { interval: 'weekly', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 1 },
 			target: { kind: 'quickChat', providerId: 'provider', sessionTypeId: 'agent' },
-			modelId: 'model',
-			mode: 'agent',
-			permissionLevel: 'autopilot',
+			sessionTemplate: {
+				modelId: 'model',
+				agent: { uri: 'file:///agents/reviewer.agent.md' },
+				config: {
+					mode: 'agent',
+					autoApprove: 'autopilot',
+					providerOption: true,
+				},
+			},
 			enabled: false,
 		});
 		automationService.setAutomations([source]);
@@ -902,9 +908,7 @@ suite('AutomationsCardsWidget', () => {
 					prompt: 'Review all open issues',
 					schedule: source.schedule,
 					target: source.target,
-					modelId: 'model',
-					mode: 'agent',
-					permissionLevel: 'autopilot',
+					sessionTemplate: source.sessionTemplate,
 					enabled: false,
 				},
 			},

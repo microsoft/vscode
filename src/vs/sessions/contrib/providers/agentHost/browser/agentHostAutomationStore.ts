@@ -664,7 +664,6 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			this._logService.warn(`[AgentHostAutomationStore] Cannot project Automation with no provider: resource=${state.resource}.`);
 			return undefined;
 		}
-		const config = state.definition.session.config;
 		const modelId = this._projectModelId(state.definition.session.model?.id, state.definition.session.provider);
 		const newestRun = state.runs[0];
 		return {
@@ -674,9 +673,6 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			schedule: projectSchedule(state.definition.triggers),
 			target,
 			sessionTemplate: projectAutomationSessionTemplate(state.definition, modelId),
-			modelId,
-			mode: readString(config?.[SessionConfigKey.Mode]),
-			permissionLevel: readString(config?.[SessionConfigKey.AutoApprove]),
 			enabled: state.definition.enabled,
 			createdAt: state.createdAt,
 			updatedAt: state.modifiedAt,
@@ -918,11 +914,15 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		const target = patch.target ?? current.target;
 		const targetAuthorityChanged = patch.target !== undefined
 			&& (patch.target.providerId !== current.target.providerId || patch.target.sessionTypeId !== current.target.sessionTypeId);
-		const modelId = patch.modelId === null
+		const currentModelId = current.sessionTemplate?.modelId ?? current.modelId;
+		const currentMode = readString(current.sessionTemplate?.config?.[SessionConfigKey.Mode]) ?? current.mode;
+		const currentPermissionLevel = readString(current.sessionTemplate?.config?.[SessionConfigKey.AutoApprove]) ?? current.permissionLevel;
+		const templatePatched = patch.sessionTemplate !== undefined;
+		const modelId = templatePatched || patch.modelId === null
 			? undefined
-			: patch.modelId ?? (targetAuthorityChanged ? undefined : current.modelId);
-		const mode = patch.mode === null ? undefined : patch.mode ?? (targetAuthorityChanged ? undefined : current.mode);
-		const permissionLevel = patch.permissionLevel === null ? undefined : patch.permissionLevel ?? (targetAuthorityChanged ? undefined : current.permissionLevel);
+			: patch.modelId ?? (targetAuthorityChanged ? undefined : currentModelId);
+		const mode = templatePatched || patch.mode === null ? undefined : patch.mode ?? (targetAuthorityChanged ? undefined : currentMode);
+		const permissionLevel = templatePatched || patch.permissionLevel === null ? undefined : patch.permissionLevel ?? (targetAuthorityChanged ? undefined : currentPermissionLevel);
 		const provider = target.sessionTypeId ?? this._providerFromModelId(modelId);
 		const sessionTemplate = patch.sessionTemplate === null
 			? undefined
