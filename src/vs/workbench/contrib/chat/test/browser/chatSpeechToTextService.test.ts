@@ -751,14 +751,14 @@ suite('ChatSpeechToTextService', () => {
 
 		assert.deepStrictEqual(selectors, [
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
-			{ vendor: 'copilot', id: 'copilot-dictation-cleanup-nano' },
+			{ vendor: 'copilot', id: 'gpt-5.4-nano' },
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
-			{ vendor: 'copilot', id: 'copilot-dictation-cleanup-luna' },
+			{ vendor: 'copilot', id: 'gpt-5.6-luna' },
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
-			{ vendor: 'copilot', id: 'copilot-dictation-cleanup-nano' },
+			{ vendor: 'copilot', id: 'gpt-5.4-nano' },
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
-			{ vendor: 'copilot', id: 'copilot-dictation-cleanup-luna' },
+			{ vendor: 'copilot', id: 'gpt-5.6-luna' },
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
 		]);

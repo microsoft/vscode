@@ -142,9 +142,9 @@ const LLM_CLEANUP_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-sma
 
 const LLM_CLEANUP_MODEL_SETTING = 'dictation.experimental.llmCleanupModel';
 const LLM_CLEANUP_NANO_MODEL_ID = 'gpt-5.4-nano';
-const LLM_CLEANUP_NANO_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-dictation-cleanup-nano' } as const;
+const LLM_CLEANUP_NANO_MODEL_SELECTOR = { vendor: 'copilot', id: LLM_CLEANUP_NANO_MODEL_ID } as const;
 const LLM_CLEANUP_LUNA_MODEL_ID = 'gpt-5.6-luna';
-const LLM_CLEANUP_LUNA_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-dictation-cleanup-luna' } as const;
+const LLM_CLEANUP_LUNA_MODEL_SELECTOR = { vendor: 'copilot', id: LLM_CLEANUP_LUNA_MODEL_ID } as const;
 
 type DictationCleanupModel = 'none' | 'copilot-utility-small' | 'gpt-5.4-nano' | 'gpt-5.6-luna';
 
@@ -1382,6 +1382,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				: cleanupModel === LLM_CLEANUP_LUNA_MODEL_ID
 					? LLM_CLEANUP_LUNA_MODEL_SELECTOR
 					: LLM_CLEANUP_MODEL_SELECTOR;
+			this._logService.info(`[chat-stt] selecting language model cleanup model (vendor=${modelSelector.vendor}, id=${modelSelector.id})`);
 			let models = await raceCancellation(
 				this._languageModelsService.selectLanguageModels(modelSelector),
 				cts.token,
@@ -1409,7 +1410,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				this._logService.info(`[chat-stt] skipped language model cleanup (reason=noModel, phase=${phase}, elapsedMs=${Date.now() - cleanupStartMs}); using raw transcript`);
 				return undefined;
 			}
-			this._logService.trace(`[chat-stt] language model cleanup selected model (elapsedMs=${Date.now() - cleanupStartMs}, modelCount=${models.length})`);
+			this._logService.info(`[chat-stt] selected language model cleanup model (id=${selectedCleanupModel}, elapsedMs=${Date.now() - cleanupStartMs}, modelCount=${models.length})`);
 
 			phase = 'loadInstructions';
 			const dictationInstructions = await raceCancellation(
@@ -1495,7 +1496,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				this._logService.warn(`[chat-stt] language model cleanup returned refusal-like output (rawChars=${text.length}, cleanedChars=${cleaned.length}); using raw transcript`);
 				return undefined;
 			}
-			this._logService.info(`[chat-stt] applied language model cleanup (rawChars=${text.length}, cleanedChars=${cleaned.length}, elapsedMs=${Date.now() - cleanupStartMs}, firstTextMs=${firstTextMs ?? -1})`);
+			this._logService.info(`[chat-stt] applied language model cleanup (model=${selectedCleanupModel}, rawChars=${text.length}, cleanedChars=${cleaned.length}, elapsedMs=${Date.now() - cleanupStartMs}, firstTextMs=${firstTextMs ?? -1})`);
 			return cleaned;
 		} catch (err) {
 			const reason = timedOut ? 'timeout' : cts.token.isCancellationRequested ? 'cancelled' : 'error';
