@@ -18,7 +18,7 @@ import { autorun, constObservable, derived, ISettableObservable, observableValue
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
-import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
@@ -1146,6 +1146,7 @@ async function startTurn(
 		agentHostSessionConfig: Record<string, string>;
 		cancellationToken: CancellationToken;
 		agentId: string;
+		beforeInvoke: () => void;
 	}>,
 ) {
 	const agentId = overrides?.agentId ?? 'agent-host-copilot';
@@ -1163,6 +1164,7 @@ async function startTurn(
 	const registered = chatAgentService.registeredAgents.get(agentId);
 	assert.ok(registered, `${agentId} agent should be registered`);
 
+	overrides?.beforeInvoke?.();
 	const turnPromise = registered.impl.invoke(
 		makeRequest({
 			message: overrides?.message ?? 'Hello',
@@ -12757,6 +12759,57 @@ suite('AgentHostChatContribution', () => {
 			);
 		});
 
+		test('cancels a turn while active client scope resolution is pending', async () => {
+			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
+			const initialResolution = new DeferredPromise<void>();
+			disposables.add(seedActiveClient('agent-host-copilot', {
+				customizations: constObservable<readonly ClientPluginCustomization[]>([]),
+				isResolved: constObservable(false),
+				whenResolved: initialResolution.p,
+			}));
+			const sessionResource = AgentSession.uri('copilot', 'pending-active-client');
+			const summary: SessionSummary = {
+				resource: sessionResource.toString(),
+				provider: 'copilot',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			};
+			agentHostService.sessionStates.set(sessionResource.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+			});
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const turnPromise = registered.impl.invoke(makeRequest({ sessionResource }), () => { }, [], cancellation.token);
+
+			await timeout(10);
+			cancellation.cancel();
+			const settled = await raceTimeout(turnPromise.then(() => true), 1_000) ?? false;
+			initialResolution.complete();
+
+			assert.deepStrictEqual({
+				settled,
+				turns: agentHostService.dispatchedActions.filter(({ action }) => action.type === ActionType.ChatTurnStarted),
+			}, {
+				settled: true,
+				turns: [],
+			});
+		});
+
 		test('re-dispatches activeClientSet when customizations observable changes', async () => {
 			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
 
@@ -12892,6 +12945,56 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 		}));
+
+		test('publishes newly registered tools before starting the next turn', async () => {
+			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
+			const tools = observableValue<readonly ToolDefinition[]>('lateTools', []);
+			disposables.add(seedActiveClient('agent-host-copilot', {
+				customizations: constObservable<readonly ClientPluginCustomization[]>([]),
+				tools,
+			}));
+			const sessionResource = AgentSession.uri('copilot', 'late-tools');
+			const summary: SessionSummary = {
+				resource: sessionResource.toString(),
+				provider: 'copilot',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			};
+			agentHostService.sessionStates.set(sessionResource.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [{ clientId: agentHostService.clientId, tools: [], customizations: [] }],
+			});
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const turn = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				sessionResource,
+				beforeInvoke: () => tools.set([{ name: 'late_tool' }], undefined),
+			});
+			const orderedActions = agentHostService.dispatchedActions
+				.filter(({ action }) => action.type === ActionType.SessionActiveClientSet || action.type === ActionType.ChatTurnStarted)
+				.map(({ action }) => action.type === ActionType.SessionActiveClientSet
+					? { type: action.type, tools: action.activeClient.tools.map(tool => tool.name) }
+					: { type: action.type });
+
+			turn.fire({ type: ActionType.ChatTurnComplete, endedAt: '2025-01-01T00:00:00.000Z', session: turn.session, turnId: turn.turnId } as ChatAction);
+			await turn.turnPromise;
+
+			assert.deepStrictEqual(orderedActions, [
+				{ type: ActionType.SessionActiveClientSet, tools: ['late_tool'] },
+				{ type: ActionType.ChatTurnStarted },
+			]);
+		});
 
 		test('coalesces customization, custom-agent, and tool changes into one active-client dispatch', async () => {
 			const { instantiationService, agentHostService, seedActiveClient } = createTestServices(disposables);
