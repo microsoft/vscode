@@ -495,6 +495,14 @@ suite('Sessions - Chat View', () => {
 		const iconOnlyActionHorizontalCenterOffset = horizontalCenterOffset(iconOnlyAction, iconOnlyActionIcon);
 		const contextUsageHorizontalCenterOffset = horizontalCenterOffset(contextUsage, contextUsageIcon);
 		const contextUsageGap = contextUsageStyle.gap;
+		// The Electron unit-test window is hidden, so assert the focus guard on the loaded rule instead.
+		const chatViewStyleSheet = Array.from(contextUsage.ownerDocument.styleSheets)
+			.flatMap(styleSheet => Array.from(styleSheet.cssRules))
+			.filter((rule): rule is CSSImportRule => rule instanceof CSSImportRule)
+			.find(rule => rule.href.endsWith('/vs/sessions/contrib/chat/browser/media/chatView.css'))?.styleSheet;
+		const focusGuardedContextUsageRule = Array.from(chatViewStyleSheet?.cssRules ?? [])
+			.find((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule && rule.selectorText.endsWith('.chat-context-usage-widget:not(:hover):not(:focus)'));
+		const focusGuardedContextUsageGap = focusGuardedContextUsageRule?.style.gap;
 		assert.deepStrictEqual({
 			newChatBackgroundColor: newChatStyle.backgroundColor,
 			newChatBorderRadius: newChatStyle.borderRadius,
@@ -512,6 +520,7 @@ suite('Sessions - Chat View', () => {
 			contextUsageBorderRadius: contextUsageStyle.borderRadius,
 			contextUsageGap,
 			contextUsageHorizontalCenterOffset,
+			focusGuardedContextUsageGap,
 			plainNewChatBackgroundColor: dom.getWindow(plainNewChatContent).getComputedStyle(plainNewChatContent).backgroundColor,
 			plainNewChatPadding: dom.getWindow(plainNewChatContent).getComputedStyle(plainNewChatContent).padding,
 			plainSecondaryActionBackgroundColor: dom.getWindow(plainSecondaryAction).getComputedStyle(plainSecondaryAction).backgroundColor,
@@ -538,6 +547,7 @@ suite('Sessions - Chat View', () => {
 			contextUsageBorderRadius: '4px',
 			contextUsageGap: '0px',
 			contextUsageHorizontalCenterOffset: 0,
+			focusGuardedContextUsageGap: '0px',
 			plainNewChatBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainNewChatPadding: '0px',
 			plainSecondaryActionBackgroundColor: 'rgba(0, 0, 0, 0)',
