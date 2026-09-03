@@ -185,6 +185,10 @@
 	top: var(--vscode-strokeThickness);
 }
 
+.agent-sessions-workbench.editor-tabs-compact-height:not(.phone-layout) .agent-sessions-viewpane .agent-sessions-header-row {
+	height: var(--vscode-spacing-size280);
+}
+
 .agent-sessions-workbench.shell-gradient-background .agent-sessions-viewpane {
 	background: transparent !important;
 }
