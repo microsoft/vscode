@@ -209,7 +209,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this._options = this._instantiationService.createInstance(DiffEditorOptions, options);
 		let lastWidth: number | undefined;
 		let resizeStartWidth: number | undefined;
-		let resizeUpdateCount = 0;
+		let windowResizeEventCount = 0;
 		let resizeWasPointerDriven = false;
 		let pointerDown = false;
 		const finishSmoothResize = () => {
@@ -218,11 +218,15 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 				return;
 			}
 			resizeStartWidth = undefined;
-			resizeUpdateCount = 0;
+			windowResizeEventCount = 0;
 			resizeWasPointerDriven = false;
 		};
 		const smoothResizeScheduler = this._register(new RunOnceScheduler(finishSmoothResize, 200));
 		const targetWindow = getWindow(this._domElement);
+		this._register(addDisposableListener(targetWindow, 'resize', () => {
+			windowResizeEventCount++;
+			smoothResizeScheduler.schedule();
+		}));
 		const onPointerDown = () => pointerDown = true;
 		const onPointerUp = () => {
 			if (!pointerDown) {
@@ -241,14 +245,11 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			const width = this._rootSizeObserver.width.read(reader);
 			let smoothResizeStartWidth: number | undefined;
 			if (lastWidth !== undefined && width !== lastWidth) {
-				if (!smoothResizeScheduler.isScheduled()) {
+				if (resizeStartWidth === undefined) {
 					resizeStartWidth = lastWidth;
-					resizeUpdateCount = 1;
-				} else {
-					resizeUpdateCount++;
 				}
 				resizeWasPointerDriven ||= pointerDown;
-				if (resizeStartWidth !== undefined && (resizeWasPointerDriven || resizeUpdateCount > 1)) {
+				if (resizeStartWidth !== undefined && (resizeWasPointerDriven || windowResizeEventCount > 1)) {
 					smoothResizeStartWidth = resizeStartWidth;
 				}
 				smoothResizeScheduler.schedule();
