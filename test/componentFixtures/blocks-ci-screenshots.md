@@ -199,7 +199,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/fe4b95bf8348637bba9f8c0dda791924e6c67fd7b5d173398f9b2c0bfc9f7071)
 
 #### sessions/chat/input/chatInput/ResponsiveModelResizeCycleCompact/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/775f5224093a31def9894be115986d638c786720ff39bf1f878fdf79bce0a71e)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/a92c03d2a84e6fa15cfa01193f81961fb648ec03571e97030c458348ea81b759)
 
 #### sessions/chat/input/chatInput/ResponsiveModelResizeCycleCompact/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/53fe36871b8b384e93c928b25acad531c2bcec683521d22307d025265ed19d9c)
