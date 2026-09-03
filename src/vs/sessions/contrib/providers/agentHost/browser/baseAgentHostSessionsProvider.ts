@@ -2009,6 +2009,7 @@ class NewSession extends Disposable {
 	 */
 	private _config: ResolveSessionConfigResult | undefined = { schema: { type: 'object', properties: {} }, values: {} };
 	private _configResolution: Promise<void> | undefined;
+	private _configOperation: Promise<void> | undefined;
 
 	/**
 	 * Monotonic counter for in-flight {@link resolveConfig} calls. Each call
@@ -2278,23 +2279,54 @@ class NewSession extends Disposable {
 		}
 	}
 
+	trackConfigOperation(operation: Promise<void>): void {
+		this._configOperation = operation;
+		void operation.then(
+			() => this._clearConfigOperation(operation),
+			() => this._clearConfigOperation(operation),
+		);
+	}
+
+	async waitForConfigurationReady(): Promise<void> {
+		while (this._configOperation || this._configResolution) {
+			if (this._configOperation) {
+				await raceCancellationError(this._configOperation, this.cancellationToken);
+			} else {
+				await this.waitForConfigResolution();
+			}
+		}
+	}
+
 	private _clearConfigResolution(promise: Promise<void>): void {
 		if (this._configResolution === promise) {
 			this._configResolution = undefined;
 		}
 	}
 
+	private _clearConfigOperation(promise: Promise<void>): void {
+		if (this._configOperation === promise) {
+			this._configOperation = undefined;
+		}
+	}
+
 	/**
-	 * Optimistically merges a single property into the cached config.
+	 * Optimistically updates a single property in the cached config.
+	 * An undefined value removes the property.
 	 * Preserves the existing schema so schema-driven pickers don't flash
 	 * during the async re-resolve. {@link resolveConfig} replaces both
 	 * schema and values when its response lands.
 	 */
 	setConfigValue(property: string, value: unknown): void {
 		const current = this._config;
+		const values = { ...(current?.values ?? {}) };
+		if (value === undefined) {
+			delete values[property];
+		} else {
+			values[property] = value;
+		}
 		this._config = {
 			schema: current?.schema ?? { type: 'object', properties: {} },
-			values: { ...(current?.values ?? {}), [property]: value },
+			values,
 		};
 		this._syncWorktreePending();
 	}
@@ -3797,13 +3829,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Mark resolution before firing so the first picker render is already inert.
 		const newSession = this._getNewSession(sessionId);
 		if (newSession) {
-			// Defense-in-depth: pickers render disabled during a resolve,
-			// but keyboard dropdown and mobile sheet paths bypass that.
-			// Drop the second pick so it can't race the schema replacement.
-			if (newSession.isResolvingConfig.get()) {
-				return;
+			while (newSession.isResolvingConfig.get()) {
+				await newSession.waitForConfigResolution();
+				if (this._getNewSession(sessionId) !== newSession) {
+					return;
+				}
 			}
 			newSession.beginResolveConfigSync();
+			if (property === SessionConfigKey.Isolation) {
+				newSession.setConfigValue(SessionConfigKey.Branch, undefined);
+			}
 			newSession.setConfigValue(property, normalizedValue);
 			this._onDidChangeSessionConfig.fire(sessionId);
 			await newSession.trackConfigResolution(this._refreshNewSessionConfig(newSession));
@@ -3816,6 +3851,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!runningConfig || !connection) {
 			return;
 		}
+
 		const schema = runningConfig.schema.properties[property];
 		if (!schema?.sessionMutable) {
 			return;
@@ -3838,6 +3874,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			connection.dispatch(sessionUri.toString(), action);
 			void this._resolveRunningSessionConfig(sessionId, cached, nextValues);
 		}
+	}
+
+	trackSessionConfigOperation(sessionId: string, operation: Promise<void>): void {
+		this._getNewSession(sessionId)?.trackConfigOperation(operation);
 	}
 
 	async replaceSessionConfig(sessionId: string, values: Record<string, unknown>): Promise<void> {
@@ -3996,7 +4036,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			mode === 'workspace' ? 'folder' : mode,
 			policyRestricted,
 		);
-		await this._setTransientNewSessionConfigValue(sessionId, SessionConfigKey.Isolation, value);
+		await this._setTransientNewSessionConfigValues(sessionId, { [SessionConfigKey.Isolation]: value }, true, [SessionConfigKey.Branch]);
 	}
 
 	async setWorktreeConfiguration(sessionId: string, configuration: ISessionWorktreeConfiguration): Promise<void> {
@@ -4018,7 +4058,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (configuration.branch) {
 			values[SessionConfigKey.Branch] = normalizeSessionConfigValue(SessionConfigKey.Branch, configuration.branch, policyRestricted);
 		}
-		await this._setTransientNewSessionConfigValues(sessionId, values, false);
+		const unsetProperties = configuration.isolationMode && !configuration.branch ? [SessionConfigKey.Branch] : undefined;
+		await this._setTransientNewSessionConfigValues(sessionId, values, false, unsetProperties);
 	}
 
 	async setWorktreeBranchTrack(sessionId: string, enabled: boolean): Promise<void> {
@@ -4039,7 +4080,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		await this._setTransientNewSessionConfigValues(sessionId, { [property]: value }, true);
 	}
 
-	private async _setTransientNewSessionConfigValues(sessionId: string, values: Readonly<Record<string, unknown>>, waitForCurrentResolve: boolean): Promise<void> {
+	private async _setTransientNewSessionConfigValues(sessionId: string, values: Readonly<Record<string, unknown>>, waitForCurrentResolve: boolean, unsetProperties?: readonly string[]): Promise<void> {
 		const newSession = this._getNewSession(sessionId);
 		if (!newSession) {
 			throw new Error('Cannot configure repository settings after session creation.');
@@ -4053,6 +4094,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		newSession.beginResolveConfigSync();
+		for (const property of unsetProperties ?? []) {
+			newSession.setConfigValue(property, undefined);
+		}
 		for (const [property, value] of Object.entries(values)) {
 			newSession.setConfigValue(property, value);
 		}
@@ -4878,7 +4922,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!this.connection) {
 			throw new Error(this._notConnectedSendErrorMessage());
 		}
-		await newSession.waitForConfigResolution();
+		await newSession.waitForConfigurationReady();
 		await newSession.waitForEagerCreate();
 		if (this._getNewSession(newSession.sessionId) !== newSession) {
 			throw new Error('Session was disposed before its configuration could be applied.');

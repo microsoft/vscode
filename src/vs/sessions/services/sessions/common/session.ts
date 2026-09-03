@@ -476,11 +476,10 @@ export interface ISessionChangeset {
 
 	/**
 	 * Invoke an operation declared in {@link operations}. `target` must be
-	 * provided for resource-scoped operations and omitted for changeset-
-	 * scoped ones — implementations are expected to validate this against
-	 * the corresponding {@link ISessionChangesetOperation.scopes}.
+	 * provided for resource-scoped operations and omitted for changeset-scoped
+	 * ones. `_meta` carries optional operation-specific request metadata.
 	 */
-	invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget): Promise<void>;
+	invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget, _meta?: Record<string, unknown>): Promise<void>;
 
 	/**
 	 * Sets the review state for a list of resources when the changeset supports review.

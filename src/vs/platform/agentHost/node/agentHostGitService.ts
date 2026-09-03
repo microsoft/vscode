@@ -367,6 +367,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 		await this._runGit(workingDirectory, args, { throwOnError: true });
 	}
 
+	async checkout(workingDirectory: URI, treeish: string): Promise<void> {
+		await this._runGit(workingDirectory, ['checkout', '-q', treeish], { throwOnError: true });
+	}
+
 	async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
 		const output = await this._runGitStatus(workingDirectory, ['--porcelain']);
 		return !!output && output.trim().length > 0;
