@@ -388,50 +388,6 @@ suite('GitHubPullRequestPollingContribution', () => {
 		});
 	});
 
-	test('auto-archives an inactive session after its pull request merges when enabled', () => {
-		configurationService = new TestConfigurationService({
-			[AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING]: 1,
-		});
-		const session = sessionsManagementService.addSession('session', makeGitHubInfo(1));
-		session.updatedAt.set(new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), undefined);
-		store.add(createContribution());
-
-		gitHubService.setPullRequestDetails('owner', 'repo', 1, { state: GitHubPullRequestState.Merged, isDraft: false, headSha: 'sha1' });
-
-		assert.deepStrictEqual(sessionsManagementService.archivedSessionIds, ['test:session']);
-		assert.strictEqual(session.isArchived.get(), true);
-	});
-
-	test('waits for a running merged-pull-request session to complete before auto-archiving', () => {
-		configurationService = new TestConfigurationService({
-			[AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING]: 1,
-		});
-		const session = sessionsManagementService.addSession('session', makeGitHubInfo(1));
-		session.updatedAt.set(new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), undefined);
-		session.status.set(SessionStatus.InProgress, undefined);
-		store.add(createContribution());
-
-		gitHubService.setPullRequestDetails('owner', 'repo', 1, { state: GitHubPullRequestState.Merged, isDraft: false, headSha: 'sha1' });
-		assert.deepStrictEqual(sessionsManagementService.archivedSessionIds, []);
-
-		session.status.set(SessionStatus.Completed, undefined);
-		assert.deepStrictEqual(sessionsManagementService.archivedSessionIds, ['test:session']);
-	});
-
-	test('does not auto-archive a recently active merged-pull-request session', () => {
-		configurationService = new TestConfigurationService({
-			[AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING]: 1,
-		});
-		const session = sessionsManagementService.addSession('session', makeGitHubInfo(1));
-		session.updatedAt.set(new Date(), undefined);
-		store.add(createContribution());
-
-		gitHubService.setPullRequestDetails('owner', 'repo', 1, { state: GitHubPullRequestState.Merged, isDraft: false, headSha: 'sha1' });
-
-		assert.deepStrictEqual(sessionsManagementService.archivedSessionIds, []);
-		assert.strictEqual(session.isArchived.get(), false);
-	});
-
 	test('prompts once when disabled and an inactive merged-pull-request session is eligible', () => {
 		const first = sessionsManagementService.addSession('first', makeGitHubInfo(1));
 		first.updatedAt.set(new Date(Date.now() - 16 * 24 * 60 * 60 * 1000), undefined);
@@ -445,11 +401,9 @@ suite('GitHubPullRequestPollingContribution', () => {
 		assert.deepStrictEqual({
 			promptCount: notificationService.prompts.length,
 			choiceLabels: notificationService.prompts[0]?.choices.map(choice => choice.label),
-			archivedSessionIds: sessionsManagementService.archivedSessionIds,
 		}, {
 			promptCount: 1,
 			choiceLabels: ['Turn On Auto-Archive', 'Open Settings'],
-			archivedSessionIds: [],
 		});
 	});
 
@@ -473,8 +427,6 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 	private readonly _sessions = new Map<string, ISession>();
 
 	override readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
-	readonly archivedSessionIds: string[] = [];
-
 	constructor(disposables: DisposableStore) {
 		super();
 		this._onDidChangeSessions = disposables.add(new Emitter<ISessionsChangeEvent>());
@@ -506,12 +458,6 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 
 	override getSessions(): ISession[] {
 		return [...this._sessions.values()];
-	}
-
-	override async archiveSession(session: ISession): Promise<void> {
-		this.archivedSessionIds.push(session.sessionId);
-		this.setArchived(session, true);
-		this.fireSessionsChanged({ changed: [session] });
 	}
 
 	fireSessionsChanged(event?: Partial<ISessionsChangeEvent>): void {

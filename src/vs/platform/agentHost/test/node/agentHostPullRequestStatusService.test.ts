@@ -10,7 +10,7 @@ import { observableValue } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
-import type { PullRequestRef, PullRequestSnapshot, PullRequestSubscription, PullRequestSubscriptionOptions } from '../../../github/common/githubPullRequestService.js';
+import type { PullRequestFragment, PullRequestRef, PullRequestSnapshot, PullRequestSubscription, PullRequestSubscriptionOptions } from '../../../github/common/githubPullRequestService.js';
 import type { IGitHubService } from '../../../github/common/githubService.js';
 import type { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -109,6 +109,7 @@ class TestPullRequestResources implements IPullRequestResources {
 	disposedCount = 0;
 	private _snapshot = observableValue<PullRequestSnapshot | undefined>('snapshot', undefined);
 	private _nextSubscriptionSnapshot: PullRequestSnapshot | undefined;
+	readonly refreshedFragments: (PullRequestFragment | undefined)[] = [];
 	refreshHandler: (() => Promise<void>) | undefined;
 
 	get liveSubscriptions(): number { return this.subscribed.length - this.disposedCount; }
@@ -121,7 +122,10 @@ class TestPullRequestResources implements IPullRequestResources {
 		return {
 			resource: { ref, snapshot: this._snapshot as never },
 			update: next => this.subscriptionOptions.push(next),
-			refresh: async () => this.refreshHandler?.(),
+			refresh: async fragment => {
+				this.refreshedFragments.push(fragment);
+				await this.refreshHandler?.();
+			},
 			dispose: () => { this.disposedCount++; },
 		} as PullRequestSubscription;
 	}
@@ -274,6 +278,30 @@ suite('AgentHostPullRequestStatusService', () => {
 			whileSubscribed: { live: 1, status: 'open' },
 			afterUnsubscribe: 0,
 			statusAfterUnsubscribe: undefined,
+		});
+	});
+
+	test('resolves a background lifecycle check without a client subscription', async () => {
+		const { service, resources, session } = createHarness();
+
+		const status = await service.resolveForLifecycle(session);
+		await pump();
+
+		assert.deepStrictEqual({
+			status: status?.state,
+			subscribed: resources.subscribed.length,
+			options: resources.subscriptionOptions[0],
+			refreshedFragments: resources.refreshedFragments,
+			live: resources.liveSubscriptions,
+		}, {
+			status: 'open',
+			subscribed: 1,
+			options: {
+				priority: 'background',
+				core: true,
+			},
+			refreshedFragments: ['core'],
+			live: 0,
 		});
 	});
 

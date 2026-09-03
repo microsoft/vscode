@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedOpts, IObservable, IReader, IReaderWithStore, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, IReader, IReaderWithStore, observableFromEvent } from '../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -34,7 +34,6 @@ import './issueActions.js';
 
 const TRACE_PREFIX = '[PR-ICON-TRACE]';
 const DAY_MS = 24 * 60 * 60 * 1000;
-const SESSION_LIFECYCLE_INTERVAL_MS = 60 * 60 * 1000;
 const DEFAULT_AUTO_ARCHIVE_AFTER_DAYS = 15;
 const AUTO_ARCHIVE_PROMPTED_STORAGE_KEY = 'sessions.github.autoArchiveMerged.prompted';
 
@@ -57,6 +56,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview'],
 			description: localize('autoArchiveMergedSessions.description', "Controls when inactive agent sessions with a merged pull request are automatically archived. Set to 0 to disable automatic archiving."),
+			agentHost: { key: AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey },
 		},
 	},
 });
@@ -98,8 +98,6 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 
 	/** Per-session pollers, keyed by `session.sessionId`. */
 	private readonly _sessionTrackers = this._register(new DisposableMap<string, SessionPollingTracker>());
-	private readonly _archiveRequests = new Set<string>();
-	private readonly _lifecycleTick = observableValue(this, 0);
 	private readonly _archiveAfterDays: IObservable<number>;
 
 	constructor(
@@ -118,12 +116,6 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 			Event.filter(this._configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING)),
 			() => this._getArchiveAfterDays(),
 		);
-
-		const lifecycleScheduler = this._register(new RunOnceScheduler(() => {
-			this._lifecycleTick.set(this._lifecycleTick.get() + 1, undefined);
-			lifecycleScheduler.schedule();
-		}, SESSION_LIFECYCLE_INTERVAL_MS));
-		lifecycleScheduler.schedule();
 
 		const activeSessionResourceObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
 			const activeSession = this._sessionsService.activeSession.read(reader);
@@ -346,23 +338,19 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 			statusReader.store.add(reviewThreadsModelRef.object.startPolling());
 		}));
 
-		reader.store.add(autorun(lifecycleReader => {
-			this._lifecycleTick.read(lifecycleReader);
-			const pullRequest = model.pullRequest.read(lifecycleReader);
-			if (pullRequest?.state !== GitHubPullRequestState.Merged || session.isArchived.read(lifecycleReader)) {
+		reader.store.add(autorun(promptReader => {
+			const pullRequest = model.pullRequest.read(promptReader);
+			if (pullRequest?.state !== GitHubPullRequestState.Merged || session.isArchived.read(promptReader)) {
 				return;
 			}
 
-			const status = session.status.read(lifecycleReader);
+			const status = session.status.read(promptReader);
 			if (isActiveSessionStatus(status)) {
 				return;
 			}
 
-			const updatedAt = session.updatedAt.read(lifecycleReader);
-			const archiveAfterDays = this._archiveAfterDays.read(lifecycleReader);
-			if (archiveAfterDays > 0 && this._isInactiveForDays(updatedAt, archiveAfterDays)) {
-				this._archiveSession(session);
-			} else if (archiveAfterDays === 0 && this._isInactiveForDays(updatedAt, DEFAULT_AUTO_ARCHIVE_AFTER_DAYS)) {
+			const updatedAt = session.updatedAt.read(promptReader);
+			if (this._archiveAfterDays.read(promptReader) === 0 && this._isInactiveForDays(updatedAt, DEFAULT_AUTO_ARCHIVE_AFTER_DAYS)) {
 				this._promptToEnableAutoArchive();
 			}
 		}));
@@ -375,19 +363,6 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 
 	private _isInactiveForDays(updatedAt: Date, days: number): boolean {
 		return Date.now() - updatedAt.getTime() >= days * DAY_MS;
-	}
-
-	private _archiveSession(session: ISession): void {
-		if (this._archiveRequests.has(session.sessionId)) {
-			return;
-		}
-
-		this._archiveRequests.add(session.sessionId);
-		this._sessionsManagementService.archiveSession(session).catch(error => {
-			this._logService.warn(`[SessionLifecycle] Failed to auto-archive session ${session.sessionId}`, error);
-		}).finally(() => {
-			this._archiveRequests.delete(session.sessionId);
-		});
 	}
 
 	private _promptToEnableAutoArchive(): void {
