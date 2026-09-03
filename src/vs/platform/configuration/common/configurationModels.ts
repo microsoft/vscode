@@ -441,18 +441,57 @@ export class ConfigurationModelParser {
 				hasExcludedProperties = hasExcludedProperties || result.hasExcludedProperties;
 				restricted.push(...result.restricted);
 			} else {
-				const propertySchema = configurationProperties[key];
-				if (propertySchema?.restricted) {
-					restricted.push(key);
-				}
-				if (this.shouldInclude(key, propertySchema, excludedConfigurationProperties, options)) {
-					raw[key] = properties[key];
+				const result = this.filterProperty(key, properties[key], configurationProperties, excludedConfigurationProperties, options);
+				restricted.push(...result.restricted);
+				hasExcludedProperties = hasExcludedProperties || result.hasExcludedProperties;
+				if (result.included) {
+					raw[key] = result.value;
 				} else {
 					hasExcludedProperties = true;
 				}
 			}
 		}
 		return { raw, restricted, hasExcludedProperties };
+	}
+
+	private filterProperty(path: string, value: unknown, configurationProperties: IStringDictionary<IRegisteredConfigurationPropertySchema>, excludedConfigurationProperties: IStringDictionary<IRegisteredConfigurationPropertySchema>, options: ConfigurationParseOptions): { included: boolean; value: unknown; restricted: string[]; hasExcludedProperties: boolean } {
+		const propertySchema = configurationProperties[path];
+		if (propertySchema) {
+			return { included: this.shouldInclude(path, propertySchema, excludedConfigurationProperties, options), value, restricted: propertySchema.restricted ? [path] : [], hasExcludedProperties: false };
+		}
+		if (!types.isObject(value) || Array.isArray(value)) {
+			return { included: this.shouldInclude(path, propertySchema, excludedConfigurationProperties, options), value, restricted: [], hasExcludedProperties: false };
+		}
+		// Excluded properties can themselves be object-typed (e.g. `mcp.enterpriseManagedAuth.idp`), so treat them as a leaf too.
+		if (excludedConfigurationProperties[path]) {
+			return { included: this.shouldInclude(path, propertySchema, excludedConfigurationProperties, options), value, restricted: [], hasExcludedProperties: false };
+		}
+		// If the whole object is explicitly excluded, do not recurse into its children.
+		if (options.exclude?.includes(path)) {
+			return { included: false, value, restricted: [], hasExcludedProperties: false };
+		}
+		const keys = Object.keys(value);
+		if (keys.length === 0) {
+			return { included: this.shouldInclude(path, propertySchema, excludedConfigurationProperties, options), value, restricted: [], hasExcludedProperties: false };
+		}
+		const nested: IStringDictionary<unknown> = {};
+		const restricted: string[] = [];
+		let included = false;
+		let hasExcludedProperties = false;
+		for (const key of keys) {
+			const result = this.filterProperty(`${path}.${key}`, (value as IStringDictionary<unknown>)[key], configurationProperties, excludedConfigurationProperties, options);
+			if (result.restricted.length) {
+				restricted.push(...result.restricted);
+			}
+			hasExcludedProperties = hasExcludedProperties || result.hasExcludedProperties;
+			if (result.included) {
+				nested[key] = result.value;
+				included = true;
+			} else {
+				hasExcludedProperties = true;
+			}
+		}
+		return { included, value: nested, restricted, hasExcludedProperties };
 	}
 
 	private shouldInclude(key: string, propertySchema: IConfigurationPropertySchema | undefined, excludedConfigurationProperties: IStringDictionary<IRegisteredConfigurationPropertySchema>, options: ConfigurationParseOptions): boolean {

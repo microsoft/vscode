@@ -366,6 +366,221 @@ suite('ConfigurationModelParser - Excluded Properties', () => {
 	});
 });
 
+suite('ConfigurationModelParser - Nested Restricted Properties', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+	let testConfigurationNodes: IConfigurationNode[] = [];
+
+	setup(() => reset());
+	teardown(() => reset());
+
+	function reset() {
+		if (testConfigurationNodes.length > 0) {
+			configurationRegistry.deregisterConfigurations(testConfigurationNodes);
+			testConfigurationNodes = [];
+		}
+	}
+
+	function registerTerminalLikeConfiguration() {
+		const node: IConfigurationNode = {
+			'id': 'NestedRestrictedTest',
+			'type': 'object',
+			'properties': {
+				'terminal.integrated.allowInUntrustedWorkspace': {
+					'type': 'boolean' as const,
+					'default': false,
+					'restricted': true
+				},
+				'terminal.integrated.defaultProfile.windows': {
+					'type': ['string', 'null'],
+					'default': null,
+					'restricted': true
+				},
+				'terminal.integrated.profiles.windows': {
+					'type': 'object' as const,
+					'default': {},
+					'restricted': true
+				},
+				'terminal.integrated.fontSize': {
+					'type': 'number' as const,
+					'default': 12,
+					'scope': ConfigurationScope.MACHINE
+				},
+				'terminal.integrated.cwd': {
+					'type': 'string' as const,
+					'default': ''
+				}
+			}
+		};
+		configurationRegistry.registerConfiguration(node);
+		testConfigurationNodes.push(node);
+		return node;
+	}
+
+	test('nested restricted settings are removed with skipRestricted, sibling remains', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		const testData = {
+			'terminal': {
+				'integrated': {
+					'allowInUntrustedWorkspace': true,
+					'profiles': {
+						'windows': {
+							'auto-poc': {
+								'path': 'powershell.exe',
+								'args': ['-Command', 'Start-Process calc.exe']
+							}
+						}
+					},
+					'defaultProfile': { 'windows': 'auto-poc' },
+					'cwd': '/safe'
+				}
+			}
+		};
+
+		testObject.parse(JSON.stringify(testData), { skipRestricted: true });
+
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.allowInUntrustedWorkspace'), undefined);
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.profiles.windows'), undefined);
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.defaultProfile.windows'), undefined);
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.cwd'), '/safe');
+		assert.deepStrictEqual(new Set(testObject.restrictedConfigurations), new Set([
+			'terminal.integrated.allowInUntrustedWorkspace',
+			'terminal.integrated.profiles.windows',
+			'terminal.integrated.defaultProfile.windows'
+		]));
+	});
+
+	test('nested restricted settings remain when trusted (no skipRestricted)', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		const testData = {
+			'terminal': {
+				'integrated': {
+					'allowInUntrustedWorkspace': true,
+					'cwd': '/safe'
+				}
+			}
+		};
+
+		testObject.parse(JSON.stringify(testData), { skipRestricted: false, scopes: [ConfigurationScope.WINDOW] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.allowInUntrustedWorkspace'), true);
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.cwd'), '/safe');
+		assert.ok(testObject.restrictedConfigurations.includes('terminal.integrated.allowInUntrustedWorkspace'));
+	});
+
+	test('dotted and nested forms produce identical filtered results', () => {
+		registerTerminalLikeConfiguration();
+
+		const dottedObject = new ConfigurationModelParser('dotted', new NullLogService());
+		dottedObject.parse(JSON.stringify({
+			'terminal.integrated.allowInUntrustedWorkspace': true,
+			'terminal.integrated.cwd': '/safe'
+		}), { skipRestricted: true });
+
+		const nestedObject = new ConfigurationModelParser('nested', new NullLogService());
+		nestedObject.parse(JSON.stringify({
+			'terminal': {
+				'integrated': {
+					'allowInUntrustedWorkspace': true,
+					'cwd': '/safe'
+				}
+			}
+		}), { skipRestricted: true });
+
+		assert.strictEqual(JSON.stringify(dottedObject.configurationModel.contents), JSON.stringify(nestedObject.configurationModel.contents));
+		assert.deepStrictEqual(new Set(dottedObject.restrictedConfigurations), new Set(nestedObject.restrictedConfigurations));
+	});
+
+	test('nested machine-scoped settings respect scope filtering', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		const testData = {
+			'terminal': {
+				'integrated': {
+					'fontSize': 20,
+					'cwd': '/safe'
+				}
+			}
+		};
+
+		testObject.parse(JSON.stringify(testData), { scopes: [ConfigurationScope.WINDOW] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.fontSize'), undefined);
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.cwd'), '/safe');
+	});
+
+	test('nested restricted settings inside language override blocks are filtered', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		const testData = {
+			'[typescript]': {
+				'terminal': {
+					'integrated': {
+						'allowInUntrustedWorkspace': true,
+						'cwd': '/safe'
+					}
+				}
+			}
+		};
+
+		testObject.parse(JSON.stringify(testData), { skipRestricted: true });
+
+		const overrideConfig = testObject.configurationModel.override('typescript');
+		assert.strictEqual(overrideConfig.getValue('terminal.integrated.allowInUntrustedWorkspace'), undefined);
+		assert.strictEqual(overrideConfig.getValue('terminal.integrated.cwd'), '/safe');
+	});
+
+	test('partial nested exclusion reports hasExcludedProperties and preserves unfiltered raw', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		const testData = {
+			'terminal': {
+				'integrated': {
+					'allowInUntrustedWorkspace': true,
+					'cwd': '/safe'
+				}
+			}
+		};
+
+		testObject.parse(JSON.stringify(testData), { skipRestricted: true });
+
+		const model = testObject.configurationModel;
+		// The restricted nested setting is filtered out while a sibling remains, so the model must
+		// still flag that raw was filtered and retain the unfiltered raw for trust re-evaluation.
+		assert.notStrictEqual(model.raw, undefined);
+		assert.strictEqual(model.getValue('terminal.integrated.allowInUntrustedWorkspace'), undefined);
+		assert.strictEqual(model.rawConfiguration.getValue('terminal.integrated.allowInUntrustedWorkspace'), true);
+	});
+
+	test('nested object whose parent key is explicitly excluded is dropped entirely', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		const testData = {
+			'terminal': {
+				'integrated': {
+					'cwd': '/safe'
+				}
+			}
+		};
+
+		testObject.parse(JSON.stringify(testData), { exclude: ['terminal'] });
+
+		const model = testObject.configurationModel;
+		assert.strictEqual(model.getValue('terminal.integrated.cwd'), undefined);
+		assert.notStrictEqual(model.raw, undefined);
+	});
+});
+
 suite('ConfigurationModel', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
