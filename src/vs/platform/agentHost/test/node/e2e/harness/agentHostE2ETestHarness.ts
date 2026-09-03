@@ -1123,9 +1123,15 @@ export class AgentHostE2EServerLease {
 		const client = this._client;
 		const cleanupErrors: Error[] = [];
 		if (client) {
+			// Cleanup runs against whatever the test left behind: a session that
+			// was never re-subscribed after a host restart has to be restored from
+			// disk (and its provider re-materialized) before these calls answer,
+			// so give them the same extended bound as the dispose calls below
+			// rather than the per-operation default.
+			const cleanupTimeout = getAgentHostE2ETestTimeout(30_000, 90_000);
 			for (const session of createdSessions) {
 				try {
-					const state = await fetchSessionWithChat(client, session);
+					const state = await fetchSessionWithChat(client, session, cleanupTimeout);
 					if (state.activeTurn) {
 						const chat = buildDefaultChatUri(session);
 						const turnId = state.activeTurn.id;
@@ -1141,14 +1147,14 @@ export class AgentHostE2EServerLease {
 							10_000,
 						);
 					}
-					const root = await client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+					const root = await client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI }, cleanupTimeout);
 					const terminals = (root.snapshot!.state as RootState).terminals ?? [];
 					for (const terminal of terminals) {
 						if (terminal.claim.kind === TerminalClaimKind.Session && terminal.claim.session === session) {
-							await client.call('disposeTerminal', { channel: terminal.resource }, getAgentHostE2ETestTimeout(30_000, 90_000));
+							await client.call('disposeTerminal', { channel: terminal.resource }, cleanupTimeout);
 						}
 					}
-					await client.call('disposeSession', { channel: session }, getAgentHostE2ETestTimeout(30_000, 90_000));
+					await client.call('disposeSession', { channel: session }, cleanupTimeout);
 				} catch (error) {
 					cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
 				}

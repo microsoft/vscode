@@ -46,7 +46,7 @@ import {
 	buildUncommittedChangesetUri,
 } from '../../../../common/changesetUri.js';
 import { createRealSession, dispatchTurn, driveChatTurnToCompletion, driveTurnToCompletion, initTestGitRepo, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 /** The subset of `ChangesetFile` these tests assert on. */
@@ -275,6 +275,10 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		return state;
 	}
 
+	// Operations are re-advertised after the host re-reads git state, which
+	// competes with the other parallel E2E suites on CI; allow a longer poll there.
+	const operationPollRetries = getAgentHostE2ETestTimeout(100, 300);
+
 	async function waitForOperation(channel: string, operationId: string): Promise<IObservedOperation> {
 		return retry(async () => {
 			const operation = (await changesetState(channel)).operations?.find(operation => operation.id === operationId);
@@ -282,7 +286,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 				throw new Error(`Changeset ${channel} has not advertised idle operation ${operationId}`);
 			}
 			return operation;
-		}, 100, 100);
+		}, 100, operationPollRetries);
 	}
 
 	async function waitForOperationRemoved(channel: string, operationId: string): Promise<void> {
@@ -290,7 +294,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			if ((await changesetState(channel)).operations?.some(operation => operation.id === operationId)) {
 				throw new Error(`Changeset ${channel} still advertises operation ${operationId}`);
 			}
-		}, 100, 100);
+		}, 100, operationPollRetries);
 	}
 
 	async function invokeChangesetOperation(channel: string, operationId: string): Promise<{
@@ -1492,7 +1496,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			const workspace = createGitWorkspace(`ahp-provider-session-changeset-${config.provider}-`);
 			const sessionUri = await createSessionIn(workspace, 'provider-session-changeset');
 			const peerUri = buildChatUri(sessionUri, generateUuid());
-			await context.client.call('createChat', { channel: sessionUri, chat: peerUri, title: 'Changes Peer' });
+			await context.client.call('createChat', { channel: sessionUri, chat: peerUri, title: 'Changes Peer' }, 30_000);
 			await context.client.call<SubscribeResult>('subscribe', { channel: peerUri });
 			const sessionChangeset = buildSessionChangesetUri(sessionUri);
 			await context.client.call<SubscribeResult>('subscribe', { channel: sessionChangeset });
