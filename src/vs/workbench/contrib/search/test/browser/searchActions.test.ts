@@ -24,6 +24,12 @@ import { ISearchTreeFileMatch, ISearchTreeMatch, FileMatchOrMatch } from '../../
 import { NotebookCompatibleFileMatch } from '../../browser/notebookSearch/notebookSearchModel.js';
 import { INotebookFileInstanceMatch } from '../../browser/notebookSearch/notebookSearchModelBase.js';
 import { MatchImpl } from '../../browser/searchTreeModel/match.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { IView } from '../../../../common/views.js';
+import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../../files/browser/fileConstants.js';
+import * as Constants from '../../common/constants.js';
+import '../../browser/searchActionsFind.js';
 
 suite('Search Actions', () => {
 
@@ -111,6 +117,31 @@ suite('Search Actions', () => {
 
 		const actual = await getElementToFocusAfterRemoved(tree, target, []);
 		assert.strictEqual(undefined, actual);
+	});
+
+	test('reveal in explorer view delegates to the explorer command with the file resource', async function () {
+		const fileMatch = aFileMatch();
+		const executed: { id: string; args: unknown[] }[] = [];
+		instantiationService.stub(ICommandService, { executeCommand: <R>(id: string, ...args: unknown[]): Promise<R | undefined> => { executed.push({ id, args }); return Promise.resolve(undefined); } });
+		instantiationService.stub(IViewsService, { getActiveViewWithId: <T extends IView>(_id: string): T | null => ({ getControl: () => ({ getFocus: () => [] }) } as unknown as T) });
+
+		const command = CommandsRegistry.getCommand(Constants.SearchCommandIds.RevealInSideBarForSearchResults);
+		assert.ok(command);
+
+		await instantiationService.invokeFunction(command.handler, fileMatch);
+		assert.deepStrictEqual(executed, [{ id: REVEAL_IN_EXPLORER_COMMAND_ID, args: [fileMatch.resource] }]);
+	});
+
+	test('reveal in explorer view does nothing without a file match argument', async function () {
+		const executed: string[] = [];
+		instantiationService.stub(ICommandService, { executeCommand: <R>(id: string): Promise<R | undefined> => { executed.push(id); return Promise.resolve(undefined); } });
+		instantiationService.stub(IViewsService, { getActiveViewWithId: <T extends IView>(_id: string): T | null => ({ getControl: () => ({ getFocus: () => [aFileMatch()] }) } as unknown as T) });
+
+		const command = CommandsRegistry.getCommand(Constants.SearchCommandIds.RevealInSideBarForSearchResults);
+		assert.ok(command);
+
+		await instantiationService.invokeFunction(command.handler, undefined);
+		assert.deepStrictEqual(executed, []);
 	});
 
 	function aFileMatch(): INotebookFileInstanceMatch {
