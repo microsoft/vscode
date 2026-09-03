@@ -327,7 +327,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionAttachedContext: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The new-session workspace row shows Copilot, microsoft/vscode with a count badge showing 2, and Issue/PR with a count badge showing 1. The composer attachment row shows removable docs, microsoft/typescript, and microsoft/vscode#333053 context pills with compact dismiss icons. The folder icon is fully visible without cropping, and the GitHub issue pill includes an issue icon.'],
+		expectedVisualDescriptions: ['The new-session workspace row shows Copilot, microsoft/vscode with a count badge showing 2, and Issue/PR with a count badge showing 1. The composer attachment row shows removable docs, microsoft/typescript, and microsoft/vscode#333053 context pills with compact dismiss icons. Each pill has even spacing between its dismiss control, icon, and label. The folder icon is fully visible without cropping, and the GitHub issue pill includes an issue icon.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withAttachedContext: true }),
 	}),
 	NewSessionRemoteWorkspace: defineComponentFixture({

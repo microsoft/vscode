@@ -631,12 +631,12 @@
 	border-radius: var(--vscode-cornerRadius-xSmall);
 	object-fit: cover;
 	flex-shrink: 0;
-	margin: 0 var(--vscode-spacing-size40);
 }
 
 .sessions-chat-attachment-pill {
 	display: inline-flex;
 	align-items: center;
+	gap: var(--vscode-spacing-size40);
 	overflow: hidden;
 	font-size: var(--vscode-fontSize-body2, 11px);
 	padding: 0 var(--vscode-spacing-size20) 0 var(--vscode-spacing-size40);
@@ -657,6 +657,7 @@
 .sessions-chat-attachment-open {
 	display: inline-flex;
 	align-items: center;
+	gap: var(--vscode-spacing-size40);
 	min-width: 0;
 	height: 100%;
 	overflow: hidden;
@@ -681,7 +682,6 @@
 .sessions-chat-attachment-info {
 	opacity: 0.7;
 	font-size: .9em;
-	padding-left: 4px;
 	white-space: nowrap;
 }
 
@@ -689,16 +689,15 @@
 .monaco-workbench .sessions-chat-attachment-pill .sessions-chat-attachment-open .codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 	flex-shrink: 0;
-	padding: 0 var(--vscode-spacing-size20);
 }
 
 .sessions-chat-attachment-pill .monaco-icon-label {
-	gap: 4px;
+	gap: var(--vscode-spacing-size40);
 }
 
 .sessions-chat-attachment-pill .monaco-icon-label::before {
 	height: auto;
-	padding: 0 0 0 2px;
+	padding: 0;
 	line-height: 100% !important;
 	align-self: center;
 	background-size: contain;
@@ -731,7 +730,6 @@
 	cursor: pointer;
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
-	margin-right: var(--vscode-spacing-size20);
 }
 
 .sessions-chat-attachment-pill.openable:hover {
