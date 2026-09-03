@@ -28,7 +28,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
 import { ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry, SessionsWindowSessionStartTelemetry } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from '../browser/newSessionComposerService.js';
-import { shouldPreferDevContainer } from '../browser/agentsWindowOpenIntent.js';
+import { resolveAgentsWindowFolderIntent } from '../browser/agentsWindowOpenIntent.js';
 
 class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 
@@ -53,10 +53,10 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		super();
 		const handleSelectAgentsFolder = (_: unknown, ...args: unknown[]) => {
 			const request = args[0] as IAgentsWindowOpenRequest | undefined;
-			const folderUri = request?.folderUri ? URI.revive(request.folderUri) : undefined;
+			const workspaceUri = request?.folderUri ? URI.revive(request.folderUri) : undefined;
+			const { folderUri, preferDevContainer } = resolveAgentsWindowFolderIntent(workspaceUri, this.configurationService);
 			const sessionResource = request?.sessionResource ? URI.revive(request.sessionResource) : undefined;
 			const source = isAgentsWindowOpenSource(request?.source) ? request.source : AgentsWindowOpenSource.Unknown;
-			const preferDevContainer = shouldPreferDevContainer(request?.preferDevContainer, this.configurationService);
 			this.logService.info(`[AgentsHandoff] IPC received: folderUri=${folderUri?.toString() ?? '(none)'} sessionResource=${sessionResource?.toString() ?? '(none)'}`);
 			this._startWindowOpenTelemetry(source);
 

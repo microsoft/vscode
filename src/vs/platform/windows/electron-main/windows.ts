@@ -26,7 +26,6 @@ export interface IOpenAgentsWindowMainOptions {
 	readonly folderUri?: URI;
 	readonly sessionResource?: URI;
 	readonly source?: AgentsWindowOpenSource;
-	readonly preferDevContainer?: boolean;
 }
 
 export interface IWindowsMainService {

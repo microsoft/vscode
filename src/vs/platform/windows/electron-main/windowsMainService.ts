@@ -308,7 +308,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				folderUri: options?.folderUri?.toJSON(),
 				sessionResource: options?.sessionResource?.toJSON(),
 				source: openSource,
-				preferDevContainer: options?.preferDevContainer,
 			};
 			windows[0].sendWhenReady('vscode:selectAgentsFolder', CancellationToken.None, request);
 		}

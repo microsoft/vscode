@@ -55,15 +55,12 @@ suite('OpenWorkspaceInAgentsWindowAction', () => {
 		assert.deepStrictEqual(calls.map(call => ({
 			folderUri: URI.revive(call.folderUri)?.toString(),
 			source: call.source,
-			preferDevContainer: call.preferDevContainer,
 		})), [{
 			folderUri: URI.file('/workspace').toString(),
 			source: AgentsWindowOpenSource.TitleBar,
-			preferDevContainer: false,
 		}, {
-			folderUri: hostFolderUri.toString(),
+			folderUri: workspaceFolderUri.toString(),
 			source: AgentsWindowOpenSource.ChatTitleBar,
-			preferDevContainer: true,
 		}]);
 	});
 });
