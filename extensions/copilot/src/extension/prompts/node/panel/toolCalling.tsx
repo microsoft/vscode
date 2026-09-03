@@ -338,7 +338,7 @@ function buildToolResultElement(accessor: ServicesAccessor, props: ToolResultOpt
 					});
 
 					// Run hook context handling after tool execution
-					appendHookContext(toolResult, hookResult, chatHookService, props, inputObj, promptContext);
+					await appendHookContext(toolResult, hookResult, chatHookService, props, inputObj, promptContext);
 
 					if (transcriptSessionId) {
 						sessionTranscriptService.logToolExecutionComplete(transcriptSessionId, props.toolCall.id, true);
