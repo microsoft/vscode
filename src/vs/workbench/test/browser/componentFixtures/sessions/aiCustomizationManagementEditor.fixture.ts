@@ -1159,6 +1159,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		}
 	}
 
+	if (options.migrationCategory) {
+		editor.showCustomizationMigrationPage(options.migrationCategory);
+	}
+
 	if (options.migrationPartialSelection) {
 		let firstMigrationCheckbox: HTMLElement | null = null;
 		for (let attempt = 0; attempt < 20 && !firstMigrationCheckbox; attempt++) {
@@ -1175,10 +1179,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		editor.revealLastItem();
 		// Allow the 500ms hide delay and 800ms fade transition to complete.
 		await new Promise(resolve => setTimeout(resolve, 1400));
-	}
-
-	if (options.migrationCategory) {
-		editor.showCustomizationMigrationPage(options.migrationCategory);
 	}
 
 	if (options.openFirstItem) {
@@ -1867,8 +1867,8 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			isSessionsWindow: true,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			activeSessionMcpServers,
-			mcpSearchQuery: 'Remote Browser',
 			openFirstItem: true,
+			openItemLabel: 'Remote Browser',
 		}),
 	}),
 
