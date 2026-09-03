@@ -36,6 +36,7 @@
 	font-size: 13px;
 	font-weight: 600;
 	color: var(--vscode-foreground);
+	margin: 0;
 	margin-top: 5px;
 	text-align: center;
 	line-height: normal;
