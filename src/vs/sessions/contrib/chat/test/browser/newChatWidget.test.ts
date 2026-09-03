@@ -112,6 +112,7 @@ interface ISendHarness {
 	readonly agentFeedbackService: { removeFeedback(resource: URI, id: string): void };
 	readonly sessionsManagementService: { sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> };
 	readonly logService: { error(message: string, ...args: unknown[]): void };
+	_getWorkspaceRoots(session: ISession): readonly URI[];
 }
 
 interface IRenderSessionTypePickerHarness {
@@ -131,8 +132,21 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 	_workspacePickerRow: HTMLElement | undefined;
 }
 
+interface ISelectNoWorkspaceHarness {
+	readonly _pendingPreferredUpgrade: MutableDisposable<IDisposable>;
+	readonly _newSessionCreation: MutableDisposable<IDisposable>;
+	readonly sessionsService: { openQuickChat(): void };
+}
+
+interface IWorkspaceRootsHarness {
+	readonly _isQuickChatComposer: IObservable<boolean>;
+	readonly _workspacePicker: { readonly selectedFolderUri: URI | undefined };
+}
+
 const renderWorkspacePicker = Reflect.get(NewChatWidget.prototype, '_renderWorkspacePicker') as (this: IRenderWorkspacePickerHarness, container: HTMLElement) => IDisposable;
 const renderSessionTypePicker = Reflect.get(NewChatWidget.prototype, '_renderSessionTypePicker') as (this: IRenderSessionTypePickerHarness, container: HTMLElement, isQuickChat: boolean) => void;
+const selectNoWorkspace = Reflect.get(NewChatWidget.prototype, '_selectNoWorkspace') as (this: ISelectNoWorkspaceHarness) => void;
+const getWorkspaceRoots = Reflect.get(NewChatWidget.prototype, '_getWorkspaceRoots') as (this: IWorkspaceRootsHarness, session: ISession) => readonly URI[];
 
 function createHarness(
 	pendingPreferredUpgrade: MutableDisposable<IDisposable>,
@@ -258,6 +272,51 @@ suite('NewChatWidget', () => {
 			domOrder: ['Workspace', 'Copilot', 'Issue/PR'],
 			tabOrder: ['Workspace', 'Copilot', 'Issue/PR'],
 			quickChatHeader: [],
+		});
+	});
+
+	test('selecting No workspace cancels pending workspace creation', () => {
+		let pendingUpgradeDisposed = false;
+		let sessionCreationDisposed = false;
+		let quickChatOpenCount = 0;
+		const pendingPreferredUpgrade = disposables.add(new MutableDisposable<IDisposable>());
+		const newSessionCreation = disposables.add(new MutableDisposable<IDisposable>());
+		pendingPreferredUpgrade.value = toDisposable(() => pendingUpgradeDisposed = true);
+		newSessionCreation.value = toDisposable(() => sessionCreationDisposed = true);
+
+		selectNoWorkspace.call({
+			_pendingPreferredUpgrade: pendingPreferredUpgrade,
+			_newSessionCreation: newSessionCreation,
+			sessionsService: { openQuickChat: () => quickChatOpenCount++ },
+		});
+
+		assert.deepStrictEqual({
+			pendingUpgradeDisposed,
+			sessionCreationDisposed,
+			quickChatOpenCount,
+		}, {
+			pendingUpgradeDisposed: true,
+			sessionCreationDisposed: true,
+			quickChatOpenCount: 1,
+		});
+	});
+
+	test('workspace-less chats do not inherit the previous picker workspace', () => {
+		const staleFolder = URI.file('/previous-workspace');
+		const session = upcastPartial<ISession>({ workspace: constObservable(undefined) });
+
+		assert.deepStrictEqual({
+			quickChat: getWorkspaceRoots.call({
+				_isQuickChatComposer: constObservable(true),
+				_workspacePicker: { selectedFolderUri: staleFolder },
+			}, session).map(uri => uri.toString()),
+			workspaceDraft: getWorkspaceRoots.call({
+				_isQuickChatComposer: constObservable(false),
+				_workspacePicker: { selectedFolderUri: staleFolder },
+			}, session).map(uri => uri.toString()),
+		}, {
+			quickChat: [],
+			workspaceDraft: [staleFolder.toString()],
 		});
 	});
 
@@ -500,6 +559,7 @@ suite('NewChatWidget', () => {
 				},
 			},
 			logService: { error: () => { } },
+			_getWorkspaceRoots: () => [primaryFolder],
 		}, 'work across contexts', [
 			composerAttachment,
 			duplicateRepositoryAttachment,
@@ -549,6 +609,7 @@ suite('NewChatWidget', () => {
 				},
 			},
 			logService: { error: () => { } },
+			_getWorkspaceRoots: () => [],
 		}, 'work across contexts');
 
 		assert.deepStrictEqual({ result, pickerOpenCount, sendCount }, {
