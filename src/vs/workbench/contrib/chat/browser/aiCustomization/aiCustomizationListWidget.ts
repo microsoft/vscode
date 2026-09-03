@@ -49,7 +49,7 @@ import { ICustomizationHarnessService } from '../../common/customizationHarnessS
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from './aiCustomizationItemsModel.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, setupCollapsibleSection } from './customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setupCollapsibleSection } from './customizationCardList.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 
@@ -74,7 +74,6 @@ type CustomizationEditorSearchClassification = {
 //#endregion
 
 const ITEM_HEIGHT = 44;
-const MAX_VISIBLE_SECTION_ITEMS = 6;
 const GROUP_HEADER_HEIGHT = 36;
 const GROUP_HEADER_HEIGHT_WITH_SEPARATOR = 40;
 
@@ -107,6 +106,7 @@ interface ICustomizationSectionList {
 	readonly list: WorkbenchList<IFileItemEntry>;
 	readonly items: readonly IAICustomizationListItem[];
 	readonly container: HTMLElement;
+	readonly key: string;
 }
 
 /**
@@ -641,6 +641,7 @@ export class AICustomizationListWidget extends Disposable {
 	private cardContainer!: HTMLElement;
 	private cardScrollable!: DomScrollableElement;
 	private cardScrollableNode!: HTMLElement;
+	private cardSectionLayoutContainer: HTMLElement | undefined;
 	private cardSectionLists: ICustomizationSectionList[] = [];
 	private firstCardFocusElement: HTMLElement | undefined;
 	private readonly cardRowsByUri = new Map<string, HTMLElement>();
@@ -656,6 +657,7 @@ export class AICustomizationListWidget extends Disposable {
 	private allItems: readonly IAICustomizationListItem[] = [];
 	private displayEntries: IListEntry[] = [];
 	private searchQuery: string = '';
+	private sectionLoading = false;
 	private readonly collapsedGroups = new Set<string>();
 	private _layoutDeferred = false;
 	private readonly revealLastItemScheduler = this._register(new MutableDisposable());
@@ -664,6 +666,8 @@ export class AICustomizationListWidget extends Disposable {
 	private lastHeaderHeight = 0;
 	private readonly dropdownActionDisposables = this._register(new DisposableStore());
 	private readonly cardDisposables = this._register(new DisposableStore());
+	private readonly pendingCardSectionLayout = this._register(new MutableDisposable());
+	private readonly cardSectionScrollPositions = new Map<string, number>();
 
 	/** Monotonically increasing counter; guards the post-load announcement against stale calls. */
 	private _sectionLoadId = 0;
@@ -822,7 +826,7 @@ export class AICustomizationListWidget extends Disposable {
 		this.element.appendChild(this.cardScrollableNode);
 		const cardResizeObserver = this._register(new DOM.DisposableResizeObserver(
 			'AICustomizationListWidget.cardScrollable',
-			() => this.cardScrollable.scanDomNode(),
+			() => this.scheduleCardSectionLayout(),
 		));
 		this._register(cardResizeObserver.observe(this.cardScrollableNode));
 
@@ -1104,6 +1108,7 @@ export class AICustomizationListWidget extends Disposable {
 
 		const modelSection = toItemsModelSection(section);
 		if (!modelSection) {
+			this.sectionLoading = false;
 			this.currentSectionSubscription.clear();
 			this.allItems = [];
 			const matchCount = this.filterItems();
@@ -1114,6 +1119,7 @@ export class AICustomizationListWidget extends Disposable {
 		}
 
 		const observable = this.itemsModel.getItems(modelSection);
+		this.sectionLoading = true;
 		this.currentSectionSubscription.value = autorun(reader => {
 			const items = observable.read(reader);
 			this.allItems = items;
@@ -1126,6 +1132,8 @@ export class AICustomizationListWidget extends Disposable {
 		// setSection() call may have already taken over and will make its own
 		// announcement once its own load resolves.
 		if (loadId === this._sectionLoadId) {
+			this.sectionLoading = false;
+			this.filterItems();
 			this.announceItemCount(this.applySearchFilter(this.allItems).length);
 		}
 	}
@@ -1636,14 +1644,16 @@ export class AICustomizationListWidget extends Disposable {
 		const usesTargetedCreateActions = this.usesTargetedCreateActions();
 		const createGroupKey = isFiltering || usesTargetedCreateActions ? undefined : this.getCreateActionGroupKey();
 		const alwaysVisibleGroupKeys = new Set(getAlwaysVisibleCustomizationGroupKeys(this.currentSection, isFiltering));
-		const visibleGroups = groups.filter(group => group.items.length > 0 || alwaysVisibleGroupKeys.has(group.groupKey) || group.groupKey === createGroupKey);
+		const visibleGroups = groups.filter(group => group.items.length > 0 || alwaysVisibleGroupKeys.has(group.groupKey) || group.groupKey === createGroupKey || this.sectionLoading && !isFiltering);
 		if (visibleGroups.length === 0) {
+			this.captureCardSectionScrollPositions();
 			this.cardDisposables.clear();
+			this.cardSectionLists = [];
 			this.cardRowsByUri.clear();
 			this.cardRowsById.clear();
 			this.cardMenuButtonsById.clear();
-			this.cardSectionLists = [];
 			this.firstCardFocusElement = undefined;
+			this.cardSectionLayoutContainer = undefined;
 			DOM.clearNode(this.cardContainer);
 			this.cardScrollableNode.style.display = 'none';
 			this.updateEmptyState();
@@ -1656,16 +1666,25 @@ export class AICustomizationListWidget extends Disposable {
 			}
 		}
 
+		this.captureCardSectionScrollPositions();
 		this.cardDisposables.clear();
+		this.cardSectionLists = [];
 		this.cardRowsByUri.clear();
 		this.cardRowsById.clear();
 		this.cardMenuButtonsById.clear();
 		this.firstCardFocusElement = undefined;
+		this.cardSectionLayoutContainer = undefined;
 		DOM.clearNode(this.cardContainer);
 		this.listContainer.style.display = 'none';
 		this.emptyStateContainer.style.display = 'none';
 		this.cardScrollableNode.style.display = '';
-		const content = DOM.append(this.cardContainer, $('.plugin-card-scroll.plugin-card-scroll-content.customization-card-scroll'));
+		const content = DOM.append(this.cardContainer, $('.plugin-card-scroll.plugin-card-scroll-content.customization-card-scroll.distributed-section-layout'));
+		this.cardSectionLayoutContainer = content;
+		const contentResizeObserver = this.cardDisposables.add(new DOM.DisposableResizeObserver(
+			'AICustomizationListWidget.cardScrollContent',
+			() => this.scheduleCardSectionLayout(),
+		));
+		this.cardDisposables.add(contentResizeObserver.observe(content));
 
 		for (const group of visibleGroups) {
 			const section = DOM.append(content, $('.plugin-card-section.customization-card-section'));
@@ -1698,20 +1717,26 @@ export class AICustomizationListWidget extends Disposable {
 						this.collapsedGroups.add(group.groupKey);
 					} else {
 						this.collapsedGroups.delete(group.groupKey);
-						this.layoutCardSectionLists();
 					}
+					this.layoutCardSectionLists();
 					this.cardScrollable.scanDomNode();
+					this.scheduleCardSectionLayout();
 				},
 			);
 			if (group.items.length === 0) {
-				const empty = DOM.append(inventory, $('.plugin-inventory-empty'));
-				empty.textContent = this.getEmptyGroupMessage(group.groupKey);
+				if (this.sectionLoading) {
+					renderVirtualizedSectionLoadingPlaceholder(inventory, localize('loadingCustomizations', "Loading customizations..."), ITEM_HEIGHT);
+				} else {
+					const empty = DOM.append(inventory, $('.plugin-inventory-empty'));
+					empty.textContent = this.getEmptyGroupMessage(group.groupKey);
+				}
 				continue;
 			}
-			this.createCustomizationSectionList(inventory, group.label, group.items);
+			this.createCustomizationSectionList(inventory, group.groupKey, group.label, group.items);
 		}
 		this.layoutCardSectionLists();
 		this.cardScrollable.scanDomNode();
+		this.scheduleCardSectionLayout();
 		if (shouldRestoreFocus) {
 			DOM.getWindow(this.element).requestAnimationFrame(() => {
 				if (!focusItemId || !this.focusCardSectionItem(focusItemId)) {
@@ -1721,7 +1746,9 @@ export class AICustomizationListWidget extends Disposable {
 		}
 	}
 
-	private createCustomizationSectionList(container: HTMLElement, label: string, items: readonly IAICustomizationListItem[]): void {
+	private createCustomizationSectionList(container: HTMLElement, groupKey: string, label: string, items: readonly IAICustomizationListItem[]): void {
+		const key = `${this.currentSection}:${groupKey}`;
+		container.style.height = `${ITEM_HEIGHT}px`;
 		const itemRenderer = this.instantiationService.createInstance(
 			AICustomizationItemRenderer,
 			(item: IAICustomizationListItem, anchor: HTMLElement) => this.showCardItemActions(item, anchor),
@@ -1753,6 +1780,7 @@ export class AICustomizationListWidget extends Disposable {
 			},
 		));
 		list.splice(0, 0, items.map(item => ({ type: 'file-item', item })));
+		list.scrollTop = this.cardSectionScrollPositions.get(key) ?? 0;
 		this.cardDisposables.add(list.onDidOpen(event => {
 			if (event.element) {
 				this._onDidSelectItem.fire(event.element.item);
@@ -1770,16 +1798,38 @@ export class AICustomizationListWidget extends Disposable {
 			}
 		}));
 		this.cardDisposables.add(list.onContextMenu(event => this.onContextMenu(event as IListContextMenuEvent<IListEntry>)));
-		this.cardSectionLists.push({ list, items, container });
+		this.cardSectionLists.push({ list, items, container, key });
+	}
+
+	private captureCardSectionScrollPositions(): void {
+		for (const section of this.cardSectionLists) {
+			this.cardSectionScrollPositions.set(section.key, section.list.scrollTop);
+		}
 	}
 
 	private layoutCardSectionLists(): void {
-		const width = Math.max(0, this.cardContainer.clientWidth - 16);
-		for (const section of this.cardSectionLists) {
-			const height = Math.min(section.items.length, MAX_VISIBLE_SECTION_ITEMS) * ITEM_HEIGHT;
-			section.container.style.height = `${height}px`;
-			section.list.layout(height, width);
+		const content = this.cardSectionLayoutContainer;
+		if (!content) {
+			return;
 		}
+		const heights = layoutVirtualizedSections(content, this.cardSectionLists.map(section => ({
+			container: section.container,
+			contentHeight: section.items.length * ITEM_HEIGHT,
+			minimumHeight: ITEM_HEIGHT,
+		})));
+		for (let index = 0; index < this.cardSectionLists.length; index++) {
+			const section = this.cardSectionLists[index];
+			const height = heights[index];
+			layoutVirtualizedSectionList(section.list, section.container, height, section.container.clientWidth || undefined);
+		}
+	}
+
+	private scheduleCardSectionLayout(): void {
+		const targetWindow = DOM.getWindow(this.element);
+		this.pendingCardSectionLayout.value = DOM.scheduleAtNextAnimationFrame(targetWindow, () => {
+			this.layoutCardSectionLists();
+			this.cardScrollable.scanDomNode();
+		});
 	}
 
 	private focusCardSectionItem(itemId: string): boolean {
@@ -2244,6 +2294,7 @@ export class AICustomizationListWidget extends Disposable {
 		if (this.usesCardLayout()) {
 			this.layoutCardSectionLists();
 			this.cardScrollable.scanDomNode();
+			this.scheduleCardSectionLayout();
 		} else {
 			this.list.layout(listHeight, width);
 		}

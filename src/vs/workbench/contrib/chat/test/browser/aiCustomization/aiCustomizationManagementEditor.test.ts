@@ -625,6 +625,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.customizationsByMigrationCategory = new Map([[CustomizationMigrationCategoryId.PromptFiles, promptFiles]]);
 		editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.PromptFiles;
 		editor.migrationListContainer = document.createElement('div');
+		Object.defineProperty(editor.migrationListContainer, 'clientHeight', { configurable: true, value: 500 });
 		editor.migrationMigrateButton = { enabled: false, label: '' };
 		document.body.appendChild(editor.migrationListContainer);
 
@@ -683,6 +684,7 @@ suite('aiCustomizationManagementEditor', () => {
 			editor.setCustomizationSelectedForMigration(promptFile, true);
 		}
 		editor.migrationListContainer = document.createElement('div');
+		Object.defineProperty(editor.migrationListContainer, 'clientHeight', { configurable: true, value: 500 });
 		editor.migrationMigrateButton = { enabled: false, label: '' };
 		document.body.appendChild(editor.migrationListContainer);
 
@@ -834,6 +836,7 @@ suite('aiCustomizationManagementEditor', () => {
 			editor.setCustomizationSelectedForMigration(promptFile, true);
 		}
 		editor.migrationListContainer = document.createElement('div');
+		Object.defineProperty(editor.migrationListContainer, 'clientHeight', { configurable: true, value: 500 });
 		editor.migrationTitleElement = document.createElement('h2');
 		editor.migrationDescriptionElement = document.createElement('p');
 		editor.migrationLinkElement = document.createElement('a');

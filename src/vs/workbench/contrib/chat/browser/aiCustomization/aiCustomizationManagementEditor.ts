@@ -11,7 +11,7 @@ import { RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { getErrorMessage, onUnexpectedError } from '../../../../../base/common/errors.js';
-import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -100,7 +100,7 @@ import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { IExtension } from '../../../extensions/common/extensions.js';
 import { EmbeddedMcpServerDetail, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
-import { setupCollapsibleSection } from './customizationCardList.js';
+import { layoutVirtualizedSectionList, layoutVirtualizedSections, setupCollapsibleSection } from './customizationCardList.js';
 import { EmbeddedExtensionToolsDetail } from './embeddedExtensionToolsDetail.js';
 import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -283,13 +283,13 @@ class SectionItemRenderer implements IListRenderer<ISectionItem, ISectionItemTem
 //#region Migration Items
 
 const MIGRATION_ITEM_HEIGHT = 56;
-const MIGRATION_SECTION_VISIBLE_ITEMS = 5;
 
 interface IMigrationSectionList {
 	readonly list: WorkbenchList<MigratableConfiguration>;
 	readonly renderer: MigrationItemRenderer;
 	readonly container: HTMLElement;
 	readonly items: readonly MigratableConfiguration[];
+	readonly key: string;
 }
 
 interface IMigrationItemTemplateData {
@@ -301,6 +301,7 @@ interface IMigrationItemTemplateData {
 	readonly moreButton: HTMLButtonElement;
 	readonly templateDisposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
+	currentIndex?: number;
 	currentElement?: MigratableConfiguration;
 }
 
@@ -357,6 +358,7 @@ class MigrationItemRenderer implements IListRenderer<MigratableConfiguration, IM
 	renderElement(customization: MigratableConfiguration, index: number, templateData: IMigrationItemTemplateData): void {
 		templateData.elementDisposables.clear();
 		templateData.container.removeAttribute('aria-selected');
+		templateData.currentIndex = index;
 		templateData.currentElement = customization;
 		const displayName = customization.name ?? basename(customization.uri);
 		const relativePath = this.getRelativePath(customization);
@@ -398,6 +400,24 @@ class MigrationItemRenderer implements IListRenderer<MigratableConfiguration, IM
 		const selected = this.isSelected(customization);
 		templateData.checkbox.checked = selected;
 		templateData.checkbox.domNode.setAttribute('aria-checked', String(selected));
+	}
+
+	getIndex(target: HTMLElement): number | undefined {
+		for (const template of this.templates) {
+			if (template.container.contains(target)) {
+				return template.currentIndex;
+			}
+		}
+		return undefined;
+	}
+
+	getControls(index: number): HTMLElement[] {
+		for (const template of this.templates) {
+			if (template.currentIndex === index) {
+				return [template.checkbox.domNode, template.openButton.element, template.moreButton];
+			}
+		}
+		return [];
 	}
 
 	disposeTemplate(templateData: IMigrationItemTemplateData): void {
@@ -484,6 +504,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private migrationFirstFocusableElement: HTMLElement | undefined;
 	private migrationSectionLists: IMigrationSectionList[] = [];
 	private collapsedMigrationSections: Set<string> | undefined = new Set<string>();
+	private readonly migrationSectionScrollPositions = new Map<string, number>();
 	private activeMigrationCategoryId: CustomizationMigrationCategoryId | undefined;
 	private selectedCustomizationMigrationItems = new ResourceMap<Set<PromptsStorage>>();
 	private readonly migrationPageDisposables = this._register(new DisposableStore());
@@ -523,6 +544,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private customizationMigrationWritesInProgress = false;
 
 	private readonly editorDisposables = this._register(new DisposableStore());
+	private readonly pendingMigrationLayout = this._register(new MutableDisposable());
 	private _editorContentChanged = false;
 	private _previousActiveHarnessId: string | undefined;
 
@@ -621,6 +643,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
+		this.pendingMigrationLayout.clear();
 		this.editorDisposables.clear();
 		this.contributedSectionContainers.clear();
 		this.contributedSectionWidgets.clear();
@@ -1026,7 +1049,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.migrationBannerContainer = DOM.append(this.migrationContentContainer, $('.customization-migration-banner'));
 		this.migrationBannerContainer.style.display = 'none';
 
-		this.migrationListContainer = $('.prompt-migration-list.list-container');
+		this.migrationListContainer = $('.prompt-migration-list.list-container.distributed-section-layout');
 		this.migrationListScrollable = this.editorDisposables.add(new DomScrollableElement(this.migrationListContainer, {
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: ScrollbarVisibility.Auto,
@@ -1035,16 +1058,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const migrationListScrollableNode = this.migrationListScrollable.getDomNode();
 		migrationListScrollableNode.classList.add('prompt-migration-list-scrollable');
 		this.migrationContentContainer.appendChild(migrationListScrollableNode);
-		const targetWindow = DOM.getWindow(this.migrationContentContainer);
-		const migrationResizeObserver = this.editorDisposables.add(new DOM.DisposableResizeObserver(
-			'AICustomizationManagementEditor.promptMigrationListScrollable',
-			() => {
-				this.layoutMigrationSectionLists();
-				this.migrationListScrollable?.scanDomNode();
-			},
-			targetWindow,
-		));
-		this.editorDisposables.add(migrationResizeObserver.observe(migrationListScrollableNode));
 
 		const footer = DOM.append(this.migrationContentContainer, $('.prompt-migration-footer'));
 		this.migrationSelectedCountElement = DOM.append(footer, $('span.prompt-migration-selected-count'));
@@ -1062,7 +1075,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 				.filter(customization => this.isCustomizationSelectedForMigration(customization));
 			void this.migrateSelectedCustomizations(category, selectedCustomizations);
 		}));
+		const targetWindow = DOM.getWindow(this.migrationContentContainer);
+		const migrationResizeObserver = this.editorDisposables.add(new DOM.DisposableResizeObserver(
+			'AICustomizationManagementEditor.promptMigrationListScrollable',
+			() => this.scheduleMigrationSectionLayout(),
+			targetWindow,
+		));
+		this.editorDisposables.add(migrationResizeObserver.observe(migrationListScrollableNode));
 		this.renderCustomizationMigrationPage();
+		this.scheduleMigrationSectionLayout();
 	}
 
 	private createContent(): void {
@@ -1526,6 +1547,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
+		for (const section of this.migrationSectionLists) {
+			this.migrationSectionScrollPositions?.set(section.key, section.list.scrollTop);
+		}
 		this.migrationPageDisposables.clear();
 		DOM.clearNode(this.migrationListContainer);
 		this.migrationFirstFocusableElement = undefined;
@@ -1591,7 +1615,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 						} else {
 							collapsedSections.delete(sectionKey);
 						}
-						this.migrationListScrollable?.scanDomNode();
+						this.scheduleMigrationSectionLayout();
 					},
 				);
 				return;
@@ -1633,12 +1657,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 						collapsedSections.add(sectionKey);
 					} else {
 						collapsedSections.delete(sectionKey);
-						this.layoutMigrationSectionLists();
 					}
-					this.migrationListScrollable?.scanDomNode();
+					this.scheduleMigrationSectionLayout();
 				},
 			);
-			const section = this.createMigrationSectionList(groupItems, groupLabel, customizations, updateGroupCheckboxState);
+			const section = this.createMigrationSectionList(groupItems, sectionKey, groupLabel, customizations, updateGroupCheckboxState);
 			const setGroupSelection = (selected: boolean): void => {
 				for (const customization of customizations) {
 					this.setCustomizationSelectedForMigration(customization, selected);
@@ -1668,20 +1691,21 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const ungroupedCandidates = candidates.filter(item => !groupedUris.has(item.uri));
 		if (ungroupedCandidates.length > 0) {
 			const ungroupedItems = DOM.append(this.migrationListContainer, $('.prompt-migration-group-items.virtualized-section-list'));
-			this.createMigrationSectionList(ungroupedItems, category.pageTitle, ungroupedCandidates);
+			this.createMigrationSectionList(ungroupedItems, `${category.id}:ungrouped`, category.pageTitle, ungroupedCandidates);
 		}
 
 		this.updateCustomizationMigrationActionState();
-		this.layoutMigrationSectionLists();
-		this.migrationListScrollable?.scanDomNode();
+		this.scheduleMigrationSectionLayout();
 	}
 
 	private createMigrationSectionList(
 		container: HTMLElement,
+		key: string,
 		label: string,
 		items: readonly MigratableConfiguration[],
 		onSelectionChange?: () => void,
 	): IMigrationSectionList {
+		container.style.height = `${MIGRATION_ITEM_HEIGHT}px`;
 		const renderer = new MigrationItemRenderer(
 			customization => this.isCustomizationSelectedForMigration(customization),
 			customization => this.labelService.getUriLabel(customization.uri, { relative: true }),
@@ -1730,13 +1754,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 			},
 		));
 		list.splice(0, 0, items);
+		list.scrollTop = this.migrationSectionScrollPositions?.get(key) ?? 0;
 		this.migrationPageDisposables.add(list.onDidChangeSelection(event => {
 			if (event.indexes.length > 0) {
 				list.setSelection([]);
-				return;
-			}
-			for (const row of container.querySelectorAll<HTMLElement>('.monaco-list-row')) {
-				row.removeAttribute('aria-selected');
 			}
 		}));
 		this.migrationPageDisposables.add(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_DOWN, event => {
@@ -1744,17 +1765,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 				return;
 			}
 			const target = event.target;
-			if (!(target instanceof HTMLElement)) {
+			if (!DOM.isHTMLElement(target)) {
 				return;
 			}
-			const row = target.closest<HTMLElement>('.monaco-list-row');
-			const index = Number(row?.dataset.index);
-			if (!row || !Number.isInteger(index)) {
+			const index = renderer.getIndex(target);
+			if (index === undefined) {
 				return;
 			}
-			const controls = this.getMigrationRowControls(row);
-			const activeControl = target.closest<HTMLElement>('.monaco-checkbox, .prompt-migration-open-button, .prompt-migration-more-action');
-			const controlIndex = activeControl ? controls.indexOf(activeControl) : -1;
+			const controls = renderer.getControls(index);
+			const controlIndex = controls.findIndex(control => control === target || control.contains(target));
 			const targetIndex = event.shiftKey ? index - 1 : index + 1;
 			const crossesRowBoundary = event.shiftKey ? controlIndex === 0 : controlIndex === controls.length - 1;
 			if (!crossesRowBoundary || targetIndex < 0 || targetIndex >= items.length) {
@@ -1765,21 +1784,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			event.stopPropagation();
 			list.setFocus([targetIndex]);
 			list.reveal(targetIndex);
-			const targetRow = container.querySelector<HTMLElement>(`.monaco-list-row[data-index="${targetIndex}"]`);
-			const targetControls = targetRow ? this.getMigrationRowControls(targetRow) : [];
+			const targetControls = renderer.getControls(targetIndex);
 			targetControls[event.shiftKey ? targetControls.length - 1 : 0]?.focus();
 		}));
-		const section = { list, renderer, container, items };
+		const section = { list, renderer, container, items, key };
 		this.migrationSectionLists.push(section);
 		return section;
-	}
-
-	private getMigrationRowControls(row: HTMLElement): HTMLElement[] {
-		return [
-			row.querySelector<HTMLElement>('.prompt-migration-checkbox .monaco-checkbox'),
-			row.querySelector<HTMLElement>('.prompt-migration-open-button'),
-			row.querySelector<HTMLElement>('.prompt-migration-more-action'),
-		].filter(element => element !== null);
 	}
 
 	private showCustomizationMigrationItemActions(customization: MigratableConfiguration, anchor: HTMLElement): void {
@@ -1799,11 +1809,36 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private layoutMigrationSectionLists(): void {
-		for (const section of this.migrationSectionLists) {
-			const height = Math.min(section.items.length, MIGRATION_SECTION_VISIBLE_ITEMS) * MIGRATION_ITEM_HEIGHT;
-			section.container.style.height = `${height}px`;
-			section.list.layout(height, section.container.clientWidth || undefined);
+		if (!this.migrationListContainer) {
+			return;
 		}
+		const heights = layoutVirtualizedSections(this.migrationListContainer, this.migrationSectionLists.map(section => ({
+			container: section.container,
+			contentHeight: section.items.length * MIGRATION_ITEM_HEIGHT,
+			minimumHeight: MIGRATION_ITEM_HEIGHT,
+		})));
+		for (let index = 0; index < this.migrationSectionLists.length; index++) {
+			const section = this.migrationSectionLists[index];
+			const height = heights[index];
+			layoutVirtualizedSectionList(section.list, section.container, height, section.container.clientWidth || undefined);
+		}
+	}
+
+	private scheduleMigrationSectionLayout(): void {
+		if (!this.pendingMigrationLayout) {
+			this.layoutMigrationSectionLists();
+			this.migrationListScrollable?.scanDomNode();
+			return;
+		}
+
+		if (!this.migrationListContainer) {
+			this.pendingMigrationLayout.clear();
+			return;
+		}
+		this.pendingMigrationLayout.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.migrationListContainer), () => {
+			this.layoutMigrationSectionLists();
+			this.migrationListScrollable?.scanDomNode();
+		});
 	}
 
 	private renderCustomizationMigrationState(title: string, description: string, retry?: () => void): void {
@@ -2568,8 +2603,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		for (const widget of this.contributedSectionWidgets.values()) {
 			widget.layout?.(dimension);
 		}
-		this.layoutMigrationSectionLists();
-		this.migrationListScrollable?.scanDomNode();
+		this.scheduleMigrationSectionLayout();
 	}
 
 	override focus(): void {

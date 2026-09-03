@@ -72,6 +72,101 @@ export function setupCollapsibleSection(
 	return toggle;
 }
 
+export interface IVirtualizedSectionLayout {
+	readonly container: HTMLElement;
+	readonly contentHeight: number;
+	readonly minimumHeight: number;
+}
+
+export function renderVirtualizedSectionLoadingPlaceholder(container: HTMLElement, label: string, height: number): HTMLElement {
+	const placeholder = DOM.append(container, $('.virtualized-section-loading'));
+	placeholder.style.height = `${height}px`;
+	placeholder.textContent = label;
+	return placeholder;
+}
+
+export interface IVirtualizedSectionList {
+	scrollTop: number;
+	layout(height: number, width?: number): void;
+}
+
+export function layoutVirtualizedSectionList(list: IVirtualizedSectionList, container: HTMLElement, height: number, width?: number): void {
+	if (height === 0) {
+		container.style.height = '0px';
+		return;
+	}
+
+	const scrollTop = list.scrollTop;
+	container.style.height = `${height}px`;
+	list.layout(height, width);
+	list.scrollTop = scrollTop;
+}
+
+export function layoutVirtualizedSections(root: HTMLElement, sections: readonly IVirtualizedSectionLayout[]): readonly number[] {
+	const visibleSections = sections.filter(section => !section.container.hidden);
+	if (visibleSections.length === 0) {
+		return sections.map(() => 0);
+	}
+
+	const availableRootHeight = root.clientHeight;
+	if (availableRootHeight <= 0) {
+		return sections.map(section => section.container.hidden ? 0 : section.contentHeight);
+	}
+
+	const targetWindow = DOM.getWindow(root);
+	const rootStyle = targetWindow.getComputedStyle(root);
+	let fixedHeight = (parseFloat(rootStyle.paddingTop) || 0) + (parseFloat(rootStyle.paddingBottom) || 0);
+	const children = Array.from(root.children) as HTMLElement[];
+	const rowGap = parseFloat(rootStyle.rowGap) || 0;
+	fixedHeight += Math.max(0, children.length - 1) * rowGap;
+
+	for (const child of children) {
+		const childStyle = targetWindow.getComputedStyle(child);
+		let childHeight = child.offsetHeight + (parseFloat(childStyle.marginTop) || 0) + (parseFloat(childStyle.marginBottom) || 0);
+		for (const section of visibleSections) {
+			if (child === section.container || child.contains(section.container)) {
+				childHeight -= section.container.clientHeight || section.container.offsetHeight;
+			}
+		}
+		fixedHeight += childHeight;
+	}
+
+	const availableListHeight = Math.max(0, availableRootHeight - fixedHeight);
+	const allocations = new Map<IVirtualizedSectionLayout, number>();
+	const minimumAllocations = new Map(visibleSections.map(section => [
+		section,
+		Math.min(section.contentHeight, section.minimumHeight),
+	]));
+	const minimumListHeight = visibleSections.reduce((height, section) => height + minimumAllocations.get(section)!, 0);
+	root.style.overflow = minimumListHeight - availableListHeight > 1 ? 'visible' : '';
+	if (availableListHeight <= minimumListHeight) {
+		return sections.map(section => section.container.hidden ? 0 : minimumAllocations.get(section) ?? 0);
+	}
+
+	for (const section of visibleSections) {
+		allocations.set(section, minimumAllocations.get(section)!);
+	}
+	let remainingHeight = availableListHeight - minimumListHeight;
+	let remainingSections = visibleSections.filter(section => section.contentHeight > minimumAllocations.get(section)!);
+	while (remainingSections.length > 0) {
+		const equalShare = remainingHeight / remainingSections.length;
+		const completed = remainingSections.filter(section => section.contentHeight - allocations.get(section)! <= equalShare);
+		if (completed.length === 0) {
+			for (const section of remainingSections) {
+				allocations.set(section, allocations.get(section)! + equalShare);
+			}
+			break;
+		}
+		for (const section of completed) {
+			remainingHeight -= section.contentHeight - allocations.get(section)!;
+			allocations.set(section, section.contentHeight);
+		}
+		remainingSections = remainingSections.filter(section => !completed.includes(section));
+	}
+
+	return sections.map(section => section.container.hidden ? 0 : Math.max(0, Math.floor(allocations.get(section) ?? 0)));
+}
+
 export class CustomizationCardListController extends Disposable {
 
 	private readonly items: ICardListItem[] = [];

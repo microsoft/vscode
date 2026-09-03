@@ -46,7 +46,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, setupCollapsibleSection } from './customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setupCollapsibleSection } from './customizationCardList.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 
@@ -54,7 +54,6 @@ const $ = DOM.$;
 
 const PLUGIN_ITEM_HEIGHT = 66;
 const PLUGIN_MARKETPLACE_ITEM_HEIGHT = 68;
-const MAX_VISIBLE_PLUGIN_SECTION_ITEMS = 5;
 
 type PluginMarketplaceSnapshotState = 'uninitialized' | 'loading' | 'loaded' | 'failed';
 
@@ -155,6 +154,7 @@ interface IPluginSectionList {
 	readonly list: WorkbenchList<IPluginListEntry>;
 	readonly entries: readonly IPluginListEntry[];
 	readonly container: HTMLElement;
+	readonly key: string;
 }
 
 //#endregion
@@ -575,9 +575,15 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 }
 
 function setPluginRowActionsTabbable(container: HTMLElement, tabbable: boolean): void {
-	for (const element of container.querySelectorAll<HTMLElement>('button, a[href]')) {
-		element.tabIndex = tabbable ? 0 : -1;
-	}
+	const visit = (element: Element): void => {
+		if (DOM.isHTMLButtonElement(element) || DOM.isHTMLAnchorElement(element) && element.hasAttribute('href')) {
+			element.tabIndex = tabbable ? 0 : -1;
+		}
+		for (const child of element.children) {
+			visit(child);
+		}
+	};
+	visit(container);
 }
 
 //#endregion
@@ -716,6 +722,7 @@ export class PluginListWidget extends Disposable {
 	private cardContainer!: HTMLElement;
 	private cardScrollable!: DomScrollableElement;
 	private cardScrollableNode!: HTMLElement;
+	private sectionLayoutContainer: HTMLElement | undefined;
 	private listContainer!: HTMLElement;
 	private list!: WorkbenchList<IPluginListEntry>;
 	private emptyContainer!: HTMLElement;
@@ -736,6 +743,7 @@ export class PluginListWidget extends Disposable {
 	private updatePluginsButton!: Button;
 	private readonly addDropdownActions = this._register(new DisposableStore());
 	private readonly cardDisposables = this._register(new DisposableStore());
+	private readonly pendingSectionLayout = this._register(new MutableDisposable());
 	private readonly cardListControllers = new WeakMap<HTMLElement, CustomizationCardListController>();
 	private sectionLists: IPluginSectionList[] = [];
 	private collapsedSections: Set<string> | undefined = new Set<string>();
@@ -756,6 +764,7 @@ export class PluginListWidget extends Disposable {
 	private _layoutDeferred = false;
 	private readonly revealLastItemScheduler = this._register(new MutableDisposable());
 	private readonly collapsedGroups = new Set<string>();
+	private readonly sectionScrollPositions = new Map<string, number>();
 	private marketplaceCts: CancellationTokenSource | undefined;
 	private marketplaceSnapshotCts: CancellationTokenSource | undefined;
 	private readonly delayedFilter = new Delayer<void>(200);
@@ -1299,9 +1308,10 @@ export class PluginListWidget extends Disposable {
 	private createCardScrollContent(...classNames: string[]): HTMLElement {
 		const content = DOM.append(this.cardContainer, $('.plugin-card-scroll.plugin-card-scroll-content'));
 		content.classList.add(...classNames);
+		this.sectionLayoutContainer = classNames.includes('distributed-section-layout') ? content : undefined;
 		const resizeObserver = this.cardDisposables.add(new DOM.DisposableResizeObserver(
 			'PluginListWidget.cardScrollContent',
-			() => this.cardScrollable.scanDomNode(),
+			() => this.schedulePluginSectionLayout(),
 		));
 		this.cardDisposables.add(resizeObserver.observe(content));
 		return content;
@@ -1335,6 +1345,7 @@ export class PluginListWidget extends Disposable {
 		renderActions?.(header);
 		const list = DOM.append(section, $('.plugin-card-grid'));
 		const sectionKey = className ?? title;
+		list.dataset.virtualizedSectionKey = sectionKey;
 		const collapsedSections = this.collapsedSections ??= new Set<string>();
 		setupCollapsibleSection(
 			headingRow,
@@ -1347,9 +1358,8 @@ export class PluginListWidget extends Disposable {
 					collapsedSections.add(sectionKey);
 				} else {
 					collapsedSections.delete(sectionKey);
-					this.layoutPluginSectionLists();
 				}
-				this.cardScrollable.scanDomNode();
+				this.schedulePluginSectionLayout();
 			},
 		);
 		this.cardListControllers.set(list, this.cardDisposables.add(new CustomizationCardListController(list, title)));
@@ -1357,12 +1367,14 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private createPluginSectionList(container: HTMLElement, label: string, entries: readonly IPluginListEntry[]): void {
+		const key = container.dataset.virtualizedSectionKey ?? label;
+		const delegate = new PluginItemDelegate();
+		container.style.height = `${entries.length > 0 ? delegate.getHeight(entries[0]) : PLUGIN_ITEM_HEIGHT}px`;
 		container.classList.add('virtualized-section-list');
 		this.cardListControllers.get(container)?.dispose();
 		this.cardListControllers.delete(container);
 		container.removeAttribute('role');
 		container.removeAttribute('aria-label');
-		const delegate = new PluginItemDelegate();
 		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService, (item, row, actions, disposables) => this.renderInstalledListActions(item, row, actions, disposables), false);
 		const remoteRenderer = new PluginRemoteItemRenderer((item, actions, disposables) => this.renderRemoteListActions(item, actions, disposables));
 		const marketplaceRenderer = new PluginMarketplaceItemRenderer(this.pluginInstallService, this.agentPluginService, this.pluginMarketplaceService, this.notificationService);
@@ -1387,6 +1399,7 @@ export class PluginListWidget extends Disposable {
 			},
 		));
 		list.splice(0, 0, entries);
+		list.scrollTop = this.sectionScrollPositions.get(key) ?? 0;
 		this.cardDisposables.add(list.onDidOpen(event => {
 			const entry = event.element;
 			if (entry?.type === 'plugin-item' || entry?.type === 'marketplace-item') {
@@ -1405,7 +1418,13 @@ export class PluginListWidget extends Disposable {
 				list.setFocus([0]);
 			}
 		}));
-		this.sectionLists.push({ list, entries, container });
+		this.sectionLists.push({ list, entries, container, key });
+	}
+
+	private captureSectionScrollPositions(): void {
+		for (const section of this.sectionLists) {
+			this.sectionScrollPositions.set(section.key, section.list.scrollTop);
+		}
 	}
 
 	private getPluginEntryAriaLabel(element: IPluginListEntry): string {
@@ -1514,14 +1533,28 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private layoutPluginSectionLists(): void {
-		const width = Math.max(0, this.cardContainer.clientWidth - 16);
 		const delegate = new PluginItemDelegate();
-		for (const section of this.sectionLists) {
-			const contentHeight = section.entries.reduce((height, entry) => height + delegate.getHeight(entry), 0);
-			const height = Math.min(contentHeight, MAX_VISIBLE_PLUGIN_SECTION_ITEMS * PLUGIN_MARKETPLACE_ITEM_HEIGHT);
-			section.container.style.height = `${height}px`;
-			section.list.layout(height, width);
+		const content = this.sectionLayoutContainer;
+		if (!content) {
+			return;
 		}
+		const heights = layoutVirtualizedSections(content, this.sectionLists.map(section => ({
+			container: section.container,
+			contentHeight: section.entries.reduce((height, entry) => height + delegate.getHeight(entry), 0),
+			minimumHeight: section.entries.length > 0 ? delegate.getHeight(section.entries[0]) : 0,
+		})));
+		for (let index = 0; index < this.sectionLists.length; index++) {
+			const section = this.sectionLists[index];
+			const height = heights[index];
+			layoutVirtualizedSectionList(section.list, section.container, height, section.container.clientWidth || undefined);
+		}
+	}
+
+	private schedulePluginSectionLayout(): void {
+		this.pendingSectionLayout.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.element), () => {
+			this.layoutPluginSectionLists();
+			this.cardScrollable.scanDomNode();
+		});
 	}
 
 	private renderPluginHome(): void {
@@ -1529,6 +1562,7 @@ export class PluginListWidget extends Disposable {
 			return;
 		}
 
+		this.captureSectionScrollPositions();
 		this.cardDisposables.clear();
 		this.sectionLists = [];
 		this.installedCreateButton = undefined;
@@ -1536,14 +1570,14 @@ export class PluginListWidget extends Disposable {
 		DOM.clearNode(this.cardContainer);
 		this.showCardSurface();
 
-		const content = this.createCardScrollContent();
+		const content = this.createCardScrollContent('distributed-section-layout');
 		const installedPlugins = this.installedItems;
 		const hasMarketplaceInstalledPlugins = this.pluginMarketplaceService.installedPlugins.get().length > 0;
 
-		this.renderDiscoverySnapshot(content);
 		if (shouldLoadPluginMarketplaceSnapshot(this.visible, this.marketplaceSnapshot.state, this.isBrowseMarketplaceAvailable())) {
 			void this.queryMarketplaceSnapshot();
 		}
+		this.renderDiscoverySnapshot(content);
 
 		const installedList = this.renderCardSection(
 			content,
@@ -1576,7 +1610,7 @@ export class PluginListWidget extends Disposable {
 		}
 
 		this.renderAvailablePlugins(content, this.getUninstalledMarketplaceItems(this.marketplaceSnapshot.items), true);
-		this.layoutPluginSectionLists();
+		this.schedulePluginSectionLayout();
 	}
 
 	private renderInstalledSectionActions(header: HTMLElement, hasInstalledPlugins: boolean): void {
@@ -1614,8 +1648,12 @@ export class PluginListWidget extends Disposable {
 		);
 		availableList.classList.add('plugin-inventory-list');
 		if (items.length === 0) {
-			const empty = DOM.append(availableList, $('.plugin-inventory-empty'));
-			empty.textContent = localize('noAvailablePlugins', "No marketplace plugins are available.");
+			if (this.marketplaceSnapshot.state === 'loading') {
+				renderVirtualizedSectionLoadingPlaceholder(availableList, localize('loadingMarketplace', "Loading marketplace..."), PLUGIN_MARKETPLACE_ITEM_HEIGHT);
+			} else {
+				const empty = DOM.append(availableList, $('.plugin-inventory-empty'));
+				empty.textContent = localize('noAvailablePlugins', "No marketplace plugins are available.");
+			}
 			this.cardListControllers.get(availableList)?.finalize();
 			return;
 		}
@@ -1842,15 +1880,12 @@ export class PluginListWidget extends Disposable {
 			...recommended,
 			...marketplaceItems.filter(item => !recommendedKeys.has(getMarketplaceRecommendationKey(item))),
 		].slice(0, 3);
-		const section = DOM.append(parent, $('.plugin-card-section.plugin-discovery-section'));
-		const header = DOM.append(section, $('.plugin-card-section-header'));
-		const text = DOM.append(header, $('.plugin-card-section-text'));
-		const title = DOM.append(text, $('h3.plugin-card-section-title'));
-		title.textContent = localize('featuredPlugins', "Featured");
-		const description = DOM.append(text, $('.plugin-card-section-description'));
-		description.textContent = localize('discoverMorePluginsDescription', "Curated plugins that add tools and expertise.");
-		const grid = DOM.append(section, $('.plugin-card-grid'));
-		this.cardListControllers.set(grid, this.cardDisposables.add(new CustomizationCardListController(grid, localize('featuredPlugins', "Featured"))));
+		const grid = this.renderCardSection(
+			parent,
+			localize('featuredPlugins', "Featured"),
+			localize('discoverMorePluginsDescription', "Curated plugins that add tools and expertise."),
+			'plugin-discovery-section',
+		);
 		for (const item of snapshotItems) {
 			this.appendMarketplacePluginCard(grid, item, false);
 		}
@@ -1858,22 +1893,25 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private renderDiscoveryError(parent: HTMLElement): void {
-		const section = DOM.append(parent, $('.plugin-card-section.plugin-discovery-section'));
-		const header = DOM.append(section, $('.plugin-card-section-header'));
-		const text = DOM.append(header, $('.plugin-card-section-text'));
-		const title = DOM.append(text, $('h3.plugin-card-section-title'));
-		title.textContent = localize('pluginDiscoveryUnavailable', "Available plugins could not be loaded");
-		const description = DOM.append(text, $('.plugin-card-section-description'));
-		description.textContent = localize('pluginDiscoveryUnavailableDescription', "Check your connection, then try loading results from the configured marketplaces again.");
-		const retry = this.cardDisposables.add(new Button(header, { ...defaultButtonStyles, secondary: true, ariaLabel: localize('retryPluginDiscovery', "Retry Loading Plugins") }));
-		retry.label = localize('retry', "Retry");
-		this.cardDisposables.add(retry.onDidClick(() => {
-			this.marketplaceSnapshot.reset();
-			void this.queryMarketplaceSnapshot();
-		}));
+		this.renderCardSection(
+			parent,
+			localize('pluginDiscoveryUnavailable', "Available plugins could not be loaded"),
+			localize('pluginDiscoveryUnavailableDescription', "Check your connection, then try loading results from the configured marketplaces again."),
+			'plugin-discovery-section',
+			undefined,
+			header => {
+				const retry = this.cardDisposables.add(new Button(header, { ...defaultButtonStyles, secondary: true, ariaLabel: localize('retryPluginDiscovery', "Retry Loading Plugins") }));
+				retry.label = localize('retry', "Retry");
+				this.cardDisposables.add(retry.onDidClick(() => {
+					this.marketplaceSnapshot.reset();
+					void this.queryMarketplaceSnapshot();
+				}));
+			},
+		);
 	}
 
 	private renderBrowseMarketplaceCards(): void {
+		this.captureSectionScrollPositions();
 		this.cardDisposables.clear();
 		this.sectionLists = [];
 		this.installedCreateButton = undefined;
@@ -2201,13 +2239,14 @@ export class PluginListWidget extends Disposable {
 			return;
 		}
 
+		this.captureSectionScrollPositions();
 		this.cardDisposables.clear();
 		this.sectionLists = [];
 		this.installedCreateButton = undefined;
 		this.firstCardFocusElement = undefined;
 		DOM.clearNode(this.cardContainer);
 		this.showCardSurface();
-		const content = this.createCardScrollContent('plugin-search-results');
+		const content = this.createCardScrollContent('plugin-search-results', 'distributed-section-layout');
 		if (installedCount > 0) {
 			const installedList = this.renderCardSection(content, localize('installedSearchHeader', "Installed"), undefined, 'installed-plugins-section', installedCount);
 			installedList.classList.add('plugin-inventory-list');
@@ -2219,7 +2258,7 @@ export class PluginListWidget extends Disposable {
 		if (this.marketplaceItems.length > 0) {
 			this.renderAvailablePlugins(content, this.marketplaceItems, false, localize('availableSearchHeader', "Available to install"), undefined);
 		}
-		this.layoutPluginSectionLists();
+		this.schedulePluginSectionLayout();
 		this.list.splice(0, this.list.length, []);
 	}
 
@@ -2356,8 +2395,7 @@ export class PluginListWidget extends Disposable {
 		this.cardScrollableNode.style.height = `${listHeight}px`;
 		this.listContainer.style.height = `${listHeight}px`;
 		this.list.layout(listHeight, width);
-		this.layoutPluginSectionLists();
-		this.cardScrollable.scanDomNode();
+		this.schedulePluginSectionLayout();
 	}
 
 	focusSearch(): void {

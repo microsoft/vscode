@@ -20,7 +20,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMatch, matchesContiguousSubString } from '../../../../../base/common/filters.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -31,7 +31,7 @@ import { IContextMenuService, IContextViewService } from '../../../../../platfor
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
-import { setupCollapsibleSection } from './customizationCardList.js';
+import { layoutVirtualizedSectionList, layoutVirtualizedSections, setupCollapsibleSection } from './customizationCardList.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IExtensionManifestPropertiesService } from '../../../../services/extensions/common/extensionManifestPropertiesService.js';
@@ -394,6 +394,7 @@ export class ToolsListWidget extends Disposable {
 	readonly onDidSelectExtension = this._onDidSelectExtension.event;
 
 	private readonly _rowStore = this._register(new DisposableStore());
+	private readonly _pendingSectionLayout = this._register(new MutableDisposable());
 	private readonly _searchQuery = observableValue<string>('toolsSearchQuery', '');
 	private readonly _expanded = observableValue<ReadonlySet<string>>('toolsExpanded', new Set());
 	private readonly _delayedSearch = this._register(new Delayer<void>(200));
@@ -417,6 +418,7 @@ export class ToolsListWidget extends Disposable {
 
 	private _sectionLists: IToolsSectionList[] = [];
 	private _collapsedSections: Set<string> | undefined = new Set<string>();
+	private readonly _sectionScrollPositions = new Map<string, number>();
 
 	/** Read-only tool sets injected for the current session type (e.g. the Copilot CLI built-ins). */
 	private readonly _staticReadOnlySets: readonly IToolSet[];
@@ -444,6 +446,7 @@ export class ToolsListWidget extends Disposable {
 
 		// Wrap the tree in a DomScrollableElement for an overlay scrollbar (not the native one).
 		this._treeContainer = $('.tools-list-tree');
+		this._treeContainer.classList.add('distributed-section-layout');
 		this._treeScrollable = this._register(new DomScrollableElement(this._treeContainer, {
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: ScrollbarVisibility.Auto,
@@ -653,8 +656,7 @@ export class ToolsListWidget extends Disposable {
 		this._lastWidth = width;
 		this.element.classList.toggle('narrow-layout', width < 500);
 		this._searchInput.layout();
-		this._layoutSectionLists();
-		this._treeScrollable.scanDomNode();
+		this._scheduleSectionListLayout();
 
 		const galleryOffset = this._galleryContainer.getBoundingClientRect().top - this.element.getBoundingClientRect().top;
 		this._galleryList.layout(Math.max(0, height - galleryOffset), width);
@@ -788,6 +790,9 @@ export class ToolsListWidget extends Disposable {
 		// A live update (search/tool-set change) rebuilds sections; keep keyboard focus if it was in the tree.
 		const focusedSection = this._sectionLists.find(s => DOM.isAncestor(this._treeContainer.ownerDocument.activeElement, s.container));
 		const focusedRowId = focusedSection ? this._currentFocusedRowId(focusedSection) : undefined;
+		for (const section of this._sectionLists) {
+			this._sectionScrollPositions.set(section.label, section.list.scrollTop);
+		}
 
 		this._rowStore.clear();
 		this._sectionLists = [];
@@ -839,11 +844,10 @@ export class ToolsListWidget extends Disposable {
 			} : undefined,
 		);
 
-		this._layoutSectionLists();
+		this._scheduleSectionListLayout();
 		if (focusedRowId) {
 			this._restoreFocus(focusedRowId);
 		}
-		this._treeScrollable.scanDomNode();
 	}
 
 	private _renderToolSection(
@@ -886,9 +890,8 @@ export class ToolsListWidget extends Disposable {
 					collapsedSections.add(title);
 				} else {
 					collapsedSections.delete(title);
-					this._layoutSectionLists();
 				}
-				this._treeScrollable.scanDomNode();
+				this._scheduleSectionListLayout();
 			},
 		);
 	}
@@ -936,14 +939,14 @@ export class ToolsListWidget extends Disposable {
 			container: listContainer,
 			label,
 		};
+		if (section.entries.length > 0) {
+			listContainer.style.height = `${computeToolsRowHeight(section.entries[0])}px`;
+		}
 		list.splice(0, list.length, section.entries as IToolsRowEntry[]);
+		list.scrollTop = this._sectionScrollPositions.get(label) ?? 0;
 		this._rowStore.add(list.onDidChangeSelection(event => {
 			if (event.indexes.length > 0) {
 				list.setSelection([]);
-				return;
-			}
-			for (const row of listContainer.querySelectorAll<HTMLElement>('.monaco-list-row')) {
-				row.removeAttribute('aria-selected');
 			}
 		}));
 
@@ -1013,8 +1016,7 @@ export class ToolsListWidget extends Disposable {
 				section.list.domFocus();
 			}
 		}
-		this._layoutSection(section);
-		this._treeScrollable.scanDomNode();
+		this._scheduleSectionListLayout();
 	}
 
 	/** Restore keyboard focus to a row by its stable id after a full re-render, falling back to the first row. */
@@ -1035,17 +1037,27 @@ export class ToolsListWidget extends Disposable {
 	}
 
 	private _layoutSectionLists(): void {
-		for (const section of this._sectionLists) {
-			this._layoutSection(section);
+		const heights = layoutVirtualizedSections(this._treeContainer, this._sectionLists.map(section => ({
+			container: section.container,
+			contentHeight: section.entries.reduce((sum, entry) => sum + computeToolsRowHeight(entry), 0),
+			minimumHeight: section.entries.length > 0 ? computeToolsRowHeight(section.entries[0]) : 0,
+		})));
+		for (let index = 0; index < this._sectionLists.length; index++) {
+			this._layoutSection(this._sectionLists[index], heights[index]);
 		}
 	}
 
-	/** Caps a section's own scroll viewport at `TOOLS_SECTION_MAX_HEIGHT`; larger sections scroll internally. */
-	private _layoutSection(section: IToolsSectionList): void {
+	private _scheduleSectionListLayout(): void {
+		this._pendingSectionLayout.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.element), () => {
+			this._layoutSectionLists();
+			this._treeScrollable.scanDomNode();
+		});
+	}
+
+	private _layoutSection(section: IToolsSectionList, allocatedHeight?: number): void {
 		const contentHeight = section.entries.reduce((sum, e) => sum + computeToolsRowHeight(e), 0);
-		const height = Math.min(contentHeight, TOOLS_SECTION_MAX_HEIGHT);
-		section.container.style.height = `${height}px`;
-		section.list.layout(height, this._lastWidth || undefined);
+		const height = allocatedHeight ?? Math.min(contentHeight, TOOLS_SECTION_MAX_HEIGHT);
+		layoutVirtualizedSectionList(section.list, section.container, height, section.container.clientWidth || this._lastWidth || undefined);
 	}
 
 	// --- Tree keyboard navigation (supplemental to WorkbenchList's own Up/Down/Enter/PageUp/PageDown/Escape) ---

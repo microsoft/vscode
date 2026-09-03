@@ -26,7 +26,7 @@ import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/se
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, setupCollapsibleSection } from '../../../browser/aiCustomization/customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setupCollapsibleSection } from '../../../browser/aiCustomization/customizationCardList.js';
 
 suite('aiCustomizationListWidget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -139,6 +139,123 @@ suite('aiCustomizationListWidget', () => {
 		} finally {
 			disposables.dispose();
 		}
+	});
+
+	test('virtualized section height is redistributed when a sibling collapses', () => {
+		const root = document.createElement('div');
+		const createSection = () => {
+			const section = document.createElement('section');
+			const list = document.createElement('div');
+			section.appendChild(list);
+			root.appendChild(section);
+			Object.defineProperty(list, 'offsetHeight', { configurable: true, get: () => list.hidden ? 0 : Number.parseFloat(list.style.height) || 100 });
+			Object.defineProperty(section, 'offsetHeight', { configurable: true, get: () => 40 + list.offsetHeight });
+			return list;
+		};
+		const first = createSection();
+		const second = createSection();
+		Object.defineProperty(root, 'clientHeight', { configurable: true, value: 300 });
+
+		const expanded = layoutVirtualizedSections(root, [
+			{ container: first, contentHeight: 300, minimumHeight: 44 },
+			{ container: second, contentHeight: 300, minimumHeight: 44 },
+		]);
+		first.hidden = true;
+		const redistributed = layoutVirtualizedSections(root, [
+			{ container: first, contentHeight: 300, minimumHeight: 44 },
+			{ container: second, contentHeight: 300, minimumHeight: 44 },
+		]);
+
+		assert.deepStrictEqual({ expanded, redistributed }, {
+			expanded: [110, 110],
+			redistributed: [0, 220],
+		});
+	});
+
+	test('virtualized sections keep one complete row when the initial height is constrained', () => {
+		const root = document.createElement('div');
+		const sections = Array.from({ length: 3 }, () => {
+			const section = document.createElement('section');
+			const list = document.createElement('div');
+			section.appendChild(list);
+			root.appendChild(section);
+			Object.defineProperty(list, 'offsetHeight', { configurable: true, get: () => Number.parseFloat(list.style.height) || 0 });
+			Object.defineProperty(section, 'offsetHeight', { configurable: true, get: () => 40 + list.offsetHeight });
+			return list;
+		});
+		Object.defineProperty(root, 'clientHeight', { configurable: true, value: 180 });
+
+		const constrained = layoutVirtualizedSections(root, sections.map(container => ({
+			container,
+			contentHeight: 300,
+			minimumHeight: 44,
+		})));
+
+		assert.deepStrictEqual(constrained, [44, 44, 44]);
+		assert.strictEqual(root.style.overflow, 'visible');
+	});
+
+	test('virtualized sections distribute remaining height after reserving complete rows', () => {
+		const root = document.createElement('div');
+		const sections = [352, 88, 44, 220].map(contentHeight => {
+			const section = document.createElement('section');
+			const list = document.createElement('div');
+			section.appendChild(list);
+			root.appendChild(section);
+			Object.defineProperty(list, 'offsetHeight', { configurable: true, get: () => Number.parseFloat(list.style.height) || 44 });
+			Object.defineProperty(section, 'offsetHeight', { configurable: true, get: () => 40 + list.offsetHeight });
+			return { container: list, contentHeight, minimumHeight: 44 };
+		});
+		Object.defineProperty(root, 'clientHeight', { configurable: true, value: 349 });
+
+		const heights = layoutVirtualizedSections(root, sections);
+
+		assert.deepStrictEqual(heights, [48, 48, 44, 48]);
+	});
+
+	test('loading placeholders and replacement lists keep a stable row height and scroll position', () => {
+		const container = document.createElement('div');
+		const placeholder = renderVirtualizedSectionLoadingPlaceholder(container, 'Loading customizations...', 44);
+		const list = {
+			scrollTop: 88,
+			layout: (height: number) => {
+				assert.strictEqual(height, 44);
+				list.scrollTop = 0;
+			},
+		};
+
+		layoutVirtualizedSectionList(list, container, 44);
+
+		assert.deepStrictEqual({
+			placeholderHeight: placeholder.style.height,
+			containerHeight: container.style.height,
+			scrollTop: list.scrollTop,
+		}, {
+			placeholderHeight: '44px',
+			containerHeight: '44px',
+			scrollTop: 88,
+		});
+	});
+
+	test('collapsed virtualized lists retain their scroll position', () => {
+		const container = document.createElement('div');
+		let layoutCount = 0;
+		const list = {
+			scrollTop: 88,
+			layout: () => layoutCount++,
+		};
+
+		layoutVirtualizedSectionList(list, container, 0);
+
+		assert.deepStrictEqual({
+			containerHeight: container.style.height,
+			scrollTop: list.scrollTop,
+			layoutCount,
+		}, {
+			containerHeight: '0px',
+			scrollTop: 88,
+			layoutCount: 0,
+		});
 	});
 
 	test('card lists use roving focus and expose focused-row actions', async () => {
@@ -509,6 +626,60 @@ suite('aiCustomizationListWidget', () => {
 				statusDisplay: 'none',
 				hasOverflowAction: true,
 				sectionExpanded: 'true',
+			});
+		});
+
+		test('async section rerenders discard disposed virtual lists before redistributing height', async () => {
+			const items = observableValue<readonly IAICustomizationListItem[]>('test', []);
+			let completeLoading!: () => void;
+			const loading = new Promise<void>(resolve => completeLoading = resolve);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', 0),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: () => loading,
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+
+			const setSection = widget.setSection(AICustomizationManagementSection.Skills);
+			items.set([
+				...Array.from({ length: 4 }, (_, index): IAICustomizationListItem => ({
+					id: `workspace-${index}`,
+					uri: URI.file(`Q:\\workspace\\.github\\skills\\workspace-${index}\\SKILL.md`),
+					name: `Workspace ${index}`,
+					filename: 'SKILL.md',
+					source: PromptsStorage.local,
+					promptType: PromptsType.skill,
+					disabled: false,
+				})),
+				...Array.from({ length: 2 }, (_, index): IAICustomizationListItem => ({
+					id: `user-${index}`,
+					uri: URI.file(`Q:\\user\\skills\\user-${index}\\SKILL.md`),
+					name: `User ${index}`,
+					filename: 'SKILL.md',
+					source: PromptsStorage.user,
+					promptType: PromptsType.skill,
+					disabled: false,
+				})),
+			], undefined);
+			completeLoading();
+			await setSection;
+
+			const content = widget.element.querySelector<HTMLElement>('.distributed-section-layout')!;
+			Object.defineProperty(content, 'clientHeight', { configurable: true, value: 399 });
+			widget.layout(500, 800);
+
+			const sectionHeights = Array.from(content.querySelectorAll<HTMLElement>('.virtualized-section-list'), section => section.style.height);
+			assert.deepStrictEqual({
+				sectionCount: sectionHeights.length,
+				hasExpandedSection: sectionHeights.some(height => Number.parseInt(height) > 44),
+			}, {
+				sectionCount: 2,
+				hasExpandedSection: true,
 			});
 		});
 	});
