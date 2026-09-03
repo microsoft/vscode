@@ -98,6 +98,10 @@ class EditorOpener implements IOpener {
 	}
 }
 
+function shouldOpenExternal(target: URI | string, options: OpenOptions | undefined): boolean {
+	return !!options?.openExternal || matchesSomeScheme(target, Schemas.mailto, Schemas.http, Schemas.https, Schemas.vsls);
+}
+
 export class OpenerService implements IOpenerService {
 
 	declare readonly _serviceBrand: undefined;
@@ -109,6 +113,7 @@ export class OpenerService implements IOpenerService {
 
 	private _defaultExternalOpener: IExternalOpener;
 	private readonly _externalOpeners = new LinkedList<IExternalOpener>();
+	private readonly _externalResourceOpener: IOpener;
 
 	constructor(
 		@ICodeEditorService editorService: ICodeEditorService,
@@ -131,16 +136,17 @@ export class OpenerService implements IOpenerService {
 		};
 
 		// Default opener: any external, maito, http(s), command, and catch-all-editors
-		this._openers.push({
+		this._externalResourceOpener = {
 			open: async (target: URI | string, options?: OpenOptions) => {
-				if (options?.openExternal || matchesSomeScheme(target, Schemas.mailto, Schemas.http, Schemas.https, Schemas.vsls)) {
+				if (shouldOpenExternal(target, options)) {
 					// open externally
 					await this._doOpenExternal(target, options);
 					return true;
 				}
 				return false;
 			}
-		});
+		};
+		this._openers.push(this._externalResourceOpener);
 		this._openers.push(new CommandOpener(commandService));
 		this._openers.push(new EditorOpener(editorService));
 	}
@@ -177,18 +183,19 @@ export class OpenerService implements IOpenerService {
 			return false;
 		}
 
-		// check with contributed validators
-		if (!options?.skipValidation) {
+		const deferValidation = !!options?.allowContributedOpeners && shouldOpenExternal(target, options);
+		if (!options?.skipValidation && !deferValidation) {
 			const validationTarget = this._resolvedUriTargets.get(targetURI) ?? target; // validate against the original URI that this URI resolves to, if one exists
-			for (const validator of this._validators) {
-				if (!(await validator.shouldOpen(validationTarget, options))) {
-					return false;
-				}
+			if (!(await this._validate(validationTarget, options))) {
+				return false;
 			}
 		}
 
 		// check with contributed openers
 		for (const opener of this._openers) {
+			if (deferValidation && opener === this._externalResourceOpener) {
+				return this._doOpenExternal(target, options, true);
+			}
 			const handled = await opener.open(target, options);
 			if (handled) {
 				return true;
@@ -216,7 +223,7 @@ export class OpenerService implements IOpenerService {
 		throw new Error('Could not resolve external URI: ' + resource.toString());
 	}
 
-	private async _doOpenExternal(resource: URI | string, options: OpenOptions | undefined): Promise<boolean> {
+	private async _doOpenExternal(resource: URI | string, options: OpenOptions | undefined, validateResolved = false): Promise<boolean> {
 
 		//todo@jrieken IExternalUriResolver should support `uri: URI | string`
 		const uri = typeof resource === 'string' ? URI.parse(resource) : resource;
@@ -228,8 +235,9 @@ export class OpenerService implements IOpenerService {
 			externalUri = uri;
 		}
 
+		const preserveOriginalString = typeof resource === 'string' && uri.toString() === externalUri.toString();
 		let href: string;
-		if (typeof resource === 'string' && uri.toString() === externalUri.toString()) {
+		if (preserveOriginalString) {
 			// open the url-string AS IS
 			href = resource;
 		} else {
@@ -250,7 +258,23 @@ export class OpenerService implements IOpenerService {
 			}
 		}
 
+		if (validateResolved && !options?.skipValidation) {
+			const validationTarget = preserveOriginalString ? resource : externalUri;
+			if (!(await this._validate(validationTarget, options))) {
+				return false;
+			}
+		}
+
 		return this._defaultExternalOpener.openExternal(href, { sourceUri: uri }, CancellationToken.None);
+	}
+
+	private async _validate(resource: URI | string, options: OpenOptions | undefined): Promise<boolean> {
+		for (const validator of this._validators) {
+			if (!(await validator.shouldOpen(resource, options))) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	dispose() {
