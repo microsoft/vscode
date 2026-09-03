@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import type { IAgentSessionMetadata } from '../../common/agent.js';
-import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey } from '../../common/agentHostSchema.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { isSessionStatusArchived, SessionStatus, withSessionExternal, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -33,6 +33,8 @@ suite('AgentHostSessionLifecycle', () => {
 		readonly modifiedTime?: number;
 		readonly external?: boolean;
 		readonly enabled?: boolean;
+		readonly archiveAfterDays?: number;
+		readonly deleteAfterDays?: number;
 		readonly onResolve?: (configurationService: AgentConfigurationService, stateManager: AgentHostStateManager, session: URI) => void;
 		readonly pullRequestUrls?: readonly string[];
 		readonly deleteError?: Error;
@@ -45,7 +47,10 @@ suite('AgentHostSessionLifecycle', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 		if (options?.enabled !== false) {
-			configurationService.updateRootConfig({ [AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey]: 1 });
+			configurationService.updateRootConfig({
+				[AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey]: options?.archiveAfterDays ?? 1,
+				[AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey]: options?.deleteAfterDays ?? 1,
+			});
 		}
 
 		const session = URI.parse('ahp-copilot://auto-archive');
@@ -195,7 +200,7 @@ suite('AgentHostSessionLifecycle', () => {
 		});
 	});
 
-	test('permanently deletes an archived merged-pull-request session after twice the configured period', async () => {
+	test('permanently deletes an automatically archived merged-pull-request session after the deletion grace period', async () => {
 		const { lifecycle, stateManager, session, restored, resolved, deleted } = createHarness({
 			sessionStatus: SessionStatus.Idle | SessionStatus.IsArchived,
 			modifiedTime: NOW - 3 * DAY_MS,
@@ -234,8 +239,57 @@ suite('AgentHostSessionLifecycle', () => {
 			deleted,
 			archived: isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status),
 		}, {
-			restored: [session.toString()],
+			restored: [],
 			resolved: [],
+			deleted: [],
+			archived: true,
+		});
+	});
+
+	test('archives an inactive session when permanent deletion is disabled', async () => {
+		const { lifecycle, stateManager, session } = createHarness({
+			status: mergedPullRequestStatus(),
+			deleteAfterDays: 0,
+		});
+
+		await lifecycle.run();
+
+		assert.strictEqual(isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status), true);
+	});
+
+	test('deletes an automatically archived session when automatic archival is disabled', async () => {
+		const { lifecycle, stateManager, session, deleted } = createHarness({
+			sessionStatus: SessionStatus.Idle | SessionStatus.IsArchived,
+			status: mergedPullRequestStatus(),
+			autoArchivedAt: NOW - 2 * DAY_MS,
+			archiveAfterDays: 0,
+		});
+
+		await lifecycle.run();
+
+		assert.deepStrictEqual({
+			deleted,
+			summary: stateManager.getSessionSummary(session.toString()),
+		}, {
+			deleted: [session.toString()],
+			summary: undefined,
+		});
+	});
+
+	test('does not delete an automatically archived session when permanent deletion is disabled', async () => {
+		const { lifecycle, stateManager, session, deleted } = createHarness({
+			sessionStatus: SessionStatus.Idle | SessionStatus.IsArchived,
+			status: mergedPullRequestStatus(),
+			autoArchivedAt: NOW - 30 * DAY_MS,
+			deleteAfterDays: 0,
+		});
+
+		await lifecycle.run();
+
+		assert.deepStrictEqual({
+			deleted,
+			archived: isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status),
+		}, {
 			deleted: [],
 			archived: true,
 		});
@@ -256,7 +310,7 @@ suite('AgentHostSessionLifecycle', () => {
 			deleted,
 			archived: isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status),
 		}, {
-			restored: [session.toString()],
+			restored: [],
 			resolved: [],
 			deleted: [],
 			archived: true,
@@ -336,7 +390,7 @@ suite('AgentHostSessionLifecycle', () => {
 			autoArchivedAt: NOW - 2 * DAY_MS,
 			onGetAutoArchivedAt: configurationService => {
 				if (++metadataReads === 3) {
-					configurationService.updateRootConfig({ [AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey]: 0 });
+					configurationService.updateRootConfig({ [AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey]: 0 });
 				}
 			},
 		});

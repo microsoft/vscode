@@ -429,7 +429,29 @@
             "localization": {
                 "description": {
                     "key": "autoArchiveMergedSessions.policy",
-                    "value": "Configure when inactive agent sessions with a merged pull request are automatically archived and permanently deleted."
+                    "value": "Configure when inactive agent sessions with a merged pull request are automatically archived."
+                }
+            },
+            "type": "integer",
+            "default": 0,
+            "enum": [
+                0,
+                1,
+                7,
+                15,
+                30
+            ],
+            "included": true
+        },
+        {
+            "key": "chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays",
+            "name": "ChatAgentSessionsAutoDeleteArchivedMergedSessionsAfterDays",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.137",
+            "localization": {
+                "description": {
+                    "key": "autoDeleteArchivedMergedSessions.policy",
+                    "value": "Configure when automatically archived agent sessions with a merged pull request are permanently deleted."
                 }
             },
             "type": "integer",

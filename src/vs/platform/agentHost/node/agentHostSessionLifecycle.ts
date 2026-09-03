@@ -7,7 +7,7 @@ import { RunOnceScheduler } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentSessionMetadata } from '../common/agent.js';
-import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { getSessionRelatedPullRequestUrls, isSessionStatusArchived, readSessionExternal, readSessionGitHubState, SessionStatus, type SessionSummary } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -84,7 +84,7 @@ export class AgentHostSessionLifecycle extends Disposable {
 			.then(() => this.run())
 			.catch(error => this._logService.warn('[AgentHostSessionLifecycle] Auto-archive pass failed', error))
 			.finally(() => {
-				if (this._getArchiveAfterDays() > 0) {
+				if (this._getArchiveAfterDays() > 0 || this._getDeleteAfterDays() > 0) {
 					this._schedule(this._intervalMs);
 				}
 			});
@@ -92,15 +92,20 @@ export class AgentHostSessionLifecycle extends Disposable {
 
 	async run(): Promise<void> {
 		const archiveAfterDays = this._getArchiveAfterDays();
-		if (archiveAfterDays === 0) {
+		const deleteAfterDays = this._getDeleteAfterDays();
+		if (archiveAfterDays === 0 && deleteAfterDays === 0) {
 			return;
 		}
 
-		const archiveCutoff = this._now() - archiveAfterDays * DAY_MS;
-		const deleteCutoff = this._now() - archiveAfterDays * 2 * DAY_MS;
+		const archiveCutoff = archiveAfterDays > 0 ? this._now() - archiveAfterDays * DAY_MS : undefined;
+		const deleteCutoff = deleteAfterDays > 0 ? this._now() - deleteAfterDays * DAY_MS : undefined;
 		const sessions = await this._accessor.listSessions();
 		for (const session of sessions) {
 			if (!this._isCandidate(session, archiveCutoff, deleteCutoff)) {
+				continue;
+			}
+			if (isSessionStatusArchived(session.status)
+				&& (deleteCutoff === undefined || !await this._isAutoDeleteCandidate(session.session, deleteCutoff))) {
 				continue;
 			}
 			await this._evaluateCandidate(session.session, archiveCutoff, deleteCutoff);
@@ -112,17 +117,28 @@ export class AgentHostSessionLifecycle extends Disposable {
 		return value === 1 || value === 7 || value === 15 || value === 30 ? value : 0;
 	}
 
-	private _isCandidate(session: IAgentSessionMetadata, archiveCutoff: number, deleteCutoff: number): boolean {
+	private _getDeleteAfterDays(): number {
+		const value = this._configurationService.getRootValue(platformRootSchema, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey);
+		return value === 1 || value === 7 || value === 15 || value === 30 ? value : 0;
+	}
+
+	private _isCandidate(session: IAgentSessionMetadata, archiveCutoff: number | undefined, deleteCutoff: number | undefined): boolean {
 		if (readSessionExternal(session._meta)
 			|| isSessionStatusActive(session.status)
-			|| !Number.isFinite(session.modifiedTime)
-			|| session.modifiedTime > (isSessionStatusArchived(session.status) ? deleteCutoff : archiveCutoff)) {
+			|| (isSessionStatusArchived(session.status)
+				? deleteCutoff === undefined
+				: archiveCutoff === undefined || !Number.isFinite(session.modifiedTime) || session.modifiedTime > archiveCutoff)) {
 			return false;
 		}
 		return getSessionRelatedPullRequestUrls(readSessionGitHubState(session._meta)).length > 0;
 	}
 
-	private async _evaluateCandidate(session: URI, archiveCutoff: number, deleteCutoff: number): Promise<void> {
+	private async _isAutoDeleteCandidate(session: URI, deleteCutoff: number): Promise<boolean> {
+		const autoArchivedAt = await this._accessor.getAutoArchivedAt(session);
+		return autoArchivedAt !== undefined && autoArchivedAt <= deleteCutoff;
+	}
+
+	private async _evaluateCandidate(session: URI, archiveCutoff: number | undefined, deleteCutoff: number | undefined): Promise<void> {
 		try {
 			await this._accessor.restoreSession(session);
 		} catch (error) {
@@ -140,12 +156,13 @@ export class AgentHostSessionLifecycle extends Disposable {
 		const pullRequest = await this._pullRequestStatusService.resolveForLifecycle(sessionKey);
 		const afterRefresh = this._stateManager.getSessionSummary(sessionKey);
 		const currentArchiveAfterDays = this._getArchiveAfterDays();
-		const refreshedCandidate = currentArchiveAfterDays > 0
+		const currentDeleteAfterDays = this._getDeleteAfterDays();
+		const refreshedCandidate = currentArchiveAfterDays > 0 || currentDeleteAfterDays > 0
 			? await this._getCleanupCandidate(
 				session,
 				afterRefresh,
-				this._now() - currentArchiveAfterDays * DAY_MS,
-				this._now() - currentArchiveAfterDays * 2 * DAY_MS,
+				currentArchiveAfterDays > 0 ? this._now() - currentArchiveAfterDays * DAY_MS : undefined,
+				currentDeleteAfterDays > 0 ? this._now() - currentDeleteAfterDays * DAY_MS : undefined,
 			)
 			: undefined;
 		if (pullRequest?.state !== 'merged'
@@ -179,16 +196,16 @@ export class AgentHostSessionLifecycle extends Disposable {
 						this._logService.info(`[AgentHostSessionLifecycle] Skipping permanent deletion because the archived session still has a worktree: session=${sessionKey}`);
 						return false;
 					}
-					const finalArchiveAfterDays = this._getArchiveAfterDays();
-					const finalCandidate = finalArchiveAfterDays > 0
+					const finalDeleteAfterDays = this._getDeleteAfterDays();
+					const finalCandidate = finalDeleteAfterDays > 0
 						? await this._getCleanupCandidate(
 							session,
 							this._stateManager.getSessionSummary(sessionKey),
-							this._now() - finalArchiveAfterDays * DAY_MS,
-							this._now() - finalArchiveAfterDays * 2 * DAY_MS,
+							undefined,
+							this._now() - finalDeleteAfterDays * DAY_MS,
 						)
 						: undefined;
-					return this._getArchiveAfterDays() === finalArchiveAfterDays
+					return this._getDeleteAfterDays() === finalDeleteAfterDays
 						&& finalCandidate?.action === 'delete'
 						&& finalCandidate.pullRequestUrl.toLowerCase() === pullRequest.url.toLowerCase();
 				});
@@ -201,12 +218,9 @@ export class AgentHostSessionLifecycle extends Disposable {
 		}
 	}
 
-	private async _getCleanupCandidate(session: URI, summary: SessionSummary | undefined, archiveCutoff: number, deleteCutoff: number): Promise<{ readonly pullRequestUrl: string; readonly action: 'archive' | 'delete' } | undefined> {
-		const modifiedTime = summary ? Date.parse(summary.modifiedAt) : Number.NaN;
+	private async _getCleanupCandidate(session: URI, summary: SessionSummary | undefined, archiveCutoff: number | undefined, deleteCutoff: number | undefined): Promise<{ readonly pullRequestUrl: string; readonly action: 'archive' | 'delete' } | undefined> {
 		if (!summary
-			|| isSessionStatusActive(summary.status)
-			|| !Number.isFinite(modifiedTime)
-			|| modifiedTime > (isSessionStatusArchived(summary.status) ? deleteCutoff : archiveCutoff)) {
+			|| isSessionStatusActive(summary.status)) {
 			return undefined;
 		}
 		const pullRequestUrl = getSessionRelatedPullRequestUrls(readSessionGitHubState(summary._meta))[0];
@@ -214,10 +228,16 @@ export class AgentHostSessionLifecycle extends Disposable {
 			return undefined;
 		}
 		if (!isSessionStatusArchived(summary.status)) {
-			return { pullRequestUrl, action: 'archive' };
+			const modifiedTime = Date.parse(summary.modifiedAt);
+			return archiveCutoff !== undefined && modifiedTime <= archiveCutoff
+				? { pullRequestUrl, action: 'archive' }
+				: undefined;
+		}
+		if (deleteCutoff === undefined) {
+			return undefined;
 		}
 		const autoArchivedAt = await this._accessor.getAutoArchivedAt(session);
-		return autoArchivedAt !== undefined && autoArchivedAt <= archiveCutoff
+		return autoArchivedAt !== undefined && autoArchivedAt <= deleteCutoff
 			? { pullRequestUrl, action: 'delete' }
 			: undefined;
 	}

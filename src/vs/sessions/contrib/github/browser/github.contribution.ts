@@ -13,7 +13,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -36,9 +36,11 @@ import './issueActions.js';
 const TRACE_PREFIX = '[PR-ICON-TRACE]';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_AUTO_ARCHIVE_AFTER_DAYS = 15;
+const DEFAULT_AUTO_DELETE_AFTER_DAYS = 15;
 const AUTO_ARCHIVE_PROMPTED_STORAGE_KEY = 'sessions.github.autoArchiveMerged.prompted';
 
 export const AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING = 'chat.agentSessions.autoArchiveMergedSessionsAfterDays';
+export const AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING = 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'chat',
@@ -56,7 +58,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 0,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview'],
-			description: localize('autoArchiveMergedSessions.description', "Controls when inactive agent sessions with a merged pull request are automatically archived. Archived sessions are permanently deleted after twice this period. Set to 0 to disable both operations."),
+			description: localize('autoArchiveMergedSessions.description', "Controls when inactive agent sessions with a merged pull request are automatically archived. Set to 0 to disable automatic archival."),
 			policy: {
 				name: 'ChatAgentSessionsAutoArchiveMergedSessionsAfterDays',
 				category: PolicyCategory.InteractiveSession,
@@ -64,11 +66,38 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				localization: {
 					description: {
 						key: 'autoArchiveMergedSessions.policy',
-						value: localize('autoArchiveMergedSessions.policy', "Configure when inactive agent sessions with a merged pull request are automatically archived and permanently deleted."),
+						value: localize('autoArchiveMergedSessions.policy', "Configure when inactive agent sessions with a merged pull request are automatically archived."),
 					},
 				},
 			},
 			agentHost: { key: AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey },
+		},
+		[AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING]: {
+			type: 'integer',
+			enum: [0, 1, 7, 15, 30],
+			enumItemLabels: [
+				localize('autoDeleteArchivedMergedSessions.disabled', "Disabled"),
+				localize('autoDeleteArchivedMergedSessions.oneDay', "1 day"),
+				localize('autoDeleteArchivedMergedSessions.sevenDays', "7 days"),
+				localize('autoDeleteArchivedMergedSessions.fifteenDays', "15 days"),
+				localize('autoDeleteArchivedMergedSessions.thirtyDays', "30 days"),
+			],
+			default: 0,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['preview'],
+			description: localize('autoDeleteArchivedMergedSessions.description', "Controls when automatically archived agent sessions with a merged pull request are permanently deleted. The period starts when the session is automatically archived. Set to 0 to disable permanent deletion."),
+			policy: {
+				name: 'ChatAgentSessionsAutoDeleteArchivedMergedSessionsAfterDays',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.137',
+				localization: {
+					description: {
+						key: 'autoDeleteArchivedMergedSessions.policy',
+						value: localize('autoDeleteArchivedMergedSessions.policy', "Configure when automatically archived agent sessions with a merged pull request are permanently deleted."),
+					},
+				},
+			},
+			agentHost: { key: AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey },
 		},
 	},
 });
@@ -110,7 +139,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 
 	/** Per-session pollers, keyed by `session.sessionId`. */
 	private readonly _sessionTrackers = this._register(new DisposableMap<string, SessionPollingTracker>());
-	private readonly _archiveAfterDays: IObservable<number>;
+	private readonly _cleanupEnabled: IObservable<boolean>;
 
 	constructor(
 		@IGitHubService private readonly _gitHubService: IGitHubService,
@@ -124,9 +153,11 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 	) {
 		super();
 
-		this._archiveAfterDays = observableFromEvent(
-			Event.filter(this._configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING)),
-			() => this._getArchiveAfterDays(),
+		this._cleanupEnabled = observableFromEvent(
+			Event.filter(this._configurationService.onDidChangeConfiguration, event =>
+				event.affectsConfiguration(AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING)
+				|| event.affectsConfiguration(AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING)),
+			() => this._getArchiveAfterDays() > 0 || this._getDeleteAfterDays() > 0,
 		);
 
 		const activeSessionResourceObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
@@ -363,7 +394,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 				}
 
 				const updatedAt = session.updatedAt.read(promptReader);
-				if (this._archiveAfterDays.read(promptReader) === 0 && this._isInactiveForDays(updatedAt, DEFAULT_AUTO_ARCHIVE_AFTER_DAYS)) {
+				if (!this._cleanupEnabled.read(promptReader) && this._isInactiveForDays(updatedAt, DEFAULT_AUTO_ARCHIVE_AFTER_DAYS)) {
 					this._promptToEnableAutoArchive();
 				}
 			}));
@@ -372,6 +403,11 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 
 	private _getArchiveAfterDays(): number {
 		const value = this._configurationService.getValue<number>(AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING);
+		return value === 1 || value === 7 || value === 15 || value === 30 ? value : 0;
+	}
+
+	private _getDeleteAfterDays(): number {
+		const value = this._configurationService.getValue<number>(AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING);
 		return value === 1 || value === 7 || value === 15 || value === 30 ? value : 0;
 	}
 
@@ -387,12 +423,15 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 
 		this._notificationService.prompt(
 			Severity.Info,
-			localize('autoArchiveMergedSessions.prompt', "Free up space from finished agent sessions? Sessions with merged pull requests can be archived after 15 days of inactivity and permanently deleted after 30 days. Deletion cannot be undone."),
+			localize('autoArchiveMergedSessions.prompt', "Free up space from finished agent sessions? Sessions with merged pull requests can be archived after 15 days of inactivity and permanently deleted 15 days later. Deletion cannot be undone."),
 			[
 				{
 					label: localize('autoArchiveMergedSessions.enable', "Turn On Session Cleanup"),
 					run: () => {
-						void this._configurationService.updateValue(AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, DEFAULT_AUTO_ARCHIVE_AFTER_DAYS, ConfigurationTarget.USER).catch(error => {
+						void Promise.all([
+							this._configurationService.updateValue(AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, DEFAULT_AUTO_ARCHIVE_AFTER_DAYS, ConfigurationTarget.USER),
+							this._configurationService.updateValue(AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, DEFAULT_AUTO_DELETE_AFTER_DAYS, ConfigurationTarget.USER),
+						]).catch(error => {
 							this._storageService.remove(AUTO_ARCHIVE_PROMPTED_STORAGE_KEY, StorageScope.APPLICATION);
 							this._notificationService.error(localize('autoArchiveMergedSessions.enableFailed', "Failed to turn on automatic session cleanup."));
 							this._logService.warn('[SessionLifecycle] Failed to enable automatic session cleanup', error);
@@ -403,7 +442,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 					label: localize('autoArchiveMergedSessions.openSettings', "Open Settings"),
 					isSecondary: true,
 					run: () => {
-						void this._commandService.executeCommand('workbench.action.openSettings', AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING).catch(onUnexpectedError);
+						void this._commandService.executeCommand('workbench.action.openSettings', 'chat.agentSessions.auto').catch(onUnexpectedError);
 					},
 				},
 			],
