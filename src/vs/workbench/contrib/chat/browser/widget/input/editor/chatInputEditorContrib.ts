@@ -16,7 +16,7 @@ import { Range } from '../../../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../../../editor/common/editorCommon.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
-import { getInputPlaceholderColor, getRangeForPlaceholder } from './chatInputPlaceholderDecoration.js';
+import { getInputPlaceholderColor, getRangeForPlaceholder, resolveInputPlaceholder } from './chatInputPlaceholderDecoration.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../../../common/participants/chatAgents.js';
 import { localize } from '../../../../../../../nls.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../../common/widget/chatColors.js';
@@ -223,7 +223,7 @@ class InputEditorDecorations extends Disposable {
 			// "Listening…"), PlaceholderTextContribution renders it already; skip
 			// the decoration placeholder so the two don't render on top of each
 			// other.
-			if (this.widget.inputEditor.getOption(EditorOption.placeholder)) {
+			if (this.widget.inputEditor.getOption(EditorOption.placeholder) !== undefined) {
 				this.updateAriaPlaceholder(undefined);
 				this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, []);
 				return;
@@ -231,7 +231,7 @@ class InputEditorDecorations extends Disposable {
 
 			const mode = this.widget.input.currentModeObs.get();
 			const placeholder = mode.argumentHint?.get() ?? mode.description.get() ?? '';
-			const displayPlaceholder = viewModel.inputPlaceholder || placeholder;
+			const displayPlaceholder = resolveInputPlaceholder(viewModel.inputPlaceholder, placeholder);
 
 			const decoration: IDecorationOptions[] = [
 				{
