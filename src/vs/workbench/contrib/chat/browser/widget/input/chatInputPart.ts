@@ -121,7 +121,7 @@ import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../speechToT
 import { IDictationOnboardingService } from '../../speechToText/dictationOnboarding.js';
 import { isDictationActiveForEditor, notifyDictationSubmitted, onDidChangeDictationEditor } from '../../speechToText/dictationSession.js';
 import { VoiceModeActionViewItem } from '../../voiceClient/voiceModeActionViewItem.js';
-import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
+import { isVoiceSessionActiveForInput, IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { getAgentSessionPullRequestContextValue } from '../../agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
@@ -185,6 +185,7 @@ const INPUT_EDITOR_LINE_HEIGHT = 20;
 const INPUT_EDITOR_PADDING = { compact: { top: 2, bottom: 2 }, default: { top: 12, bottom: 12 } };
 const CachedLanguageModelsKey = 'chat.cachedLanguageModels.v2';
 const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
+const CHAT_INPUT_COMPACT_PICKER_WIDTH = 22;
 
 function getToolbarPickerResponsiveItems(
 	toolbar: MenuWorkbenchToolBar,
@@ -3444,15 +3445,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const { location } = this.getWidgetLocationInfo(widget);
 		const focusedWidget = observableFromEvent(this, this.chatWidgetService.onDidChangeFocusedSession, () => this.chatWidgetService.lastFocusedWidget);
+		const voiceSessionResource = observableFromEvent(this, widget.onDidChangeViewModel, () => widget.viewModel?.sessionResource);
 		const isVoiceInputActive = derived(this, reader => focusedWidget.read(reader) === widget);
 		const isVoiceSessionActive = derived(this, reader => {
-			if (!isVoiceInputActive.read(reader)) {
-				return false;
-			}
 			const target = this.voiceSessionController.targetSession.read(reader);
 			const hasDraftTarget = this.voiceSessionController.hasDraftTarget.read(reader);
-			const resource = widget.viewModel?.sessionResource;
-			return !hasDraftTarget && (!target || (!!resource && isEqual(target, resource)));
+			const resource = voiceSessionResource.read(reader);
+			return isVoiceSessionActiveForInput(isVoiceInputActive.read(reader), target, hasDraftTarget, resource);
 		});
 
 		const inputPickerCompactStates = new Map<string, ISettableObservable<boolean>>();
@@ -3539,9 +3538,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return this.modelWidget?.minimumWidth ?? 60;
 			}
 			if (shorterChatInputActionIds.has(action.id)) {
-				return 22;
+				return CHAT_INPUT_COMPACT_PICKER_WIDTH;
 			}
-			return inputPickerCompactStates.get(action.id)?.get() ? 22 : undefined;
+			return inputPickerCompactStates.get(action.id)?.get() ? CHAT_INPUT_COMPACT_PICKER_WIDTH : undefined;
 		};
 
 		this._register(dom.addStandardDisposableListener(toolbarsContainer, dom.EventType.CLICK, e => this.inputEditor.focus()));
@@ -3747,20 +3746,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// floor so icon-only items do not retain empty space from the labeled form.
 		// The tunnel-sharing toggle has no chevron and can collapse further.
 		const secondaryPickerMinWidths = new Map<string, number>([
-			[OpenSessionTargetPickerAction.ID, 22],
-			[OpenDelegationPickerAction.ID, 22],
-			[OpenWorkspacePickerAction.ID, 22],
-			[OpenPermissionPickerAction.ID, 22],
-			[ChatSessionPrimaryPickerAction.ID, 22],
-			[OpenAgentHostModePickerAction.ID, 22],
-			['sessions.agentHost.runningSessionModePicker', 22],
-			['sessions.agentHost.runningSessionConfigPicker', 22],
-			['sessions.agentHost.runningSessionPermissionModePicker', 22],
-			['sessions.agentHost.runningSessionCodexApprovalsPicker', 22],
-			[OpenAgentHostAutoApprovePickerAction.ID, 22],
-			[OpenAgentHostPermissionModePickerAction.ID, 22],
-			[OpenAgentHostCodexApprovalsPickerAction.ID, 22],
-			[OpenAgentHostFolderPickerAction.ID, 22],
+			[OpenSessionTargetPickerAction.ID, CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			[OpenDelegationPickerAction.ID, CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			[OpenWorkspacePickerAction.ID, CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			[OpenPermissionPickerAction.ID, CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			[ChatSessionPrimaryPickerAction.ID, CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			[OpenAgentHostModePickerAction.ID, CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			['sessions.agentHost.runningSessionModePicker', CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			['sessions.agentHost.runningSessionConfigPicker', CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			['sessions.agentHost.runningSessionPermissionModePicker', CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			['sessions.agentHost.runningSessionCodexApprovalsPicker', CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			[OpenAgentHostAutoApprovePickerAction.ID, CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			[OpenAgentHostPermissionModePickerAction.ID, CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			[OpenAgentHostCodexApprovalsPickerAction.ID, CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			[OpenAgentHostFolderPickerAction.ID, CHAT_INPUT_COMPACT_PICKER_WIDTH],
 			['sessions.tunnelHost.toggleSharing', 16],
 		]);
 		// Direct-rendered chip lane for agent-host config properties that

@@ -59,7 +59,7 @@ export const TABBED_MODEL_PICKER_SETTING_ID = 'chat.experimentalModelPicker';
 const MODEL_PICKER_MINIMUM_LABEL_WIDTH = 60;
 const MODEL_PICKER_NAME_CHROME_WIDTH = 30;
 const MODEL_PICKER_MINIMUM_NAME_WIDTH = MODEL_PICKER_MINIMUM_LABEL_WIDTH + MODEL_PICKER_NAME_CHROME_WIDTH;
-const MODEL_PICKER_COMPACT_NAME_WIDTH = 24;
+const MODEL_PICKER_COMPACT_NAME_WIDTH = 22;
 type ChatModelChangeClassification = {
 	owner: 'lramos15';
 	comment: 'Reporting when the model picker is switched';

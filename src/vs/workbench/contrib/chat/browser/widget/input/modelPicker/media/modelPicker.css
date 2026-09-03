@@ -88,14 +88,23 @@
 
 .chat-input-picker-item .action-label.model-picker-split.compact .model-picker-name {
 	flex: 0 0 auto;
-	padding: 0 var(--vscode-spacing-size60);
-	justify-content: flex-start;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	justify-content: center;
+}
+
+.chat-input-picker-item .action-label.model-picker-split.compact .model-picker-name > .codicon {
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-codiconFontSize-compact);
 }
 
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split.icon-only.minimal .model-picker-name {
-	width: 24px;
-	padding: 0 var(--vscode-spacing-size60);
-	justify-content: flex-start;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	justify-content: center;
 }
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-config-summary {

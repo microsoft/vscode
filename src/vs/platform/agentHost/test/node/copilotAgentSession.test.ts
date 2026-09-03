@@ -1156,7 +1156,7 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
-	test('collects SDK debug logs without process logs', async () => {
+	test('collects SDK debug logs with process logs', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		const outputDirectory = URI.file('/tmp/agent-host-debug');
 
@@ -1170,10 +1170,10 @@ suite('CopilotAgentSession', () => {
 			included: [false, false],
 			calls: [{
 				destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
-				include: { events: true, processLogs: false, shellLogs: true },
+				include: { events: true, processLogs: true, shellLogs: true },
 			}, {
 				destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
-				include: { events: false, processLogs: false, shellLogs: false },
+				include: { events: false, processLogs: true, shellLogs: false },
 			}],
 		});
 	});
