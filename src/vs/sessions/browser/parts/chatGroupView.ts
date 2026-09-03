@@ -13,10 +13,13 @@ import { localize } from '../../../nls.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
+import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
 import { ChatInteractivity, IChat, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
+import { SessionFocusedChatIsRenameTargetContext } from '../../common/contextkeys.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from './chatCompositeBar.js';
 import { SessionReadOnlyBanner } from './sessionReadOnlyBanner.js';
@@ -89,6 +92,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 	private readonly _currentView = this._register(new MutableDisposable<AbstractChatView>());
 	private readonly _contextDisposables = this._register(new DisposableStore());
+	private readonly _scopedInstantiationService: IInstantiationService;
+	private readonly _focusedChatIsRenameTargetKey: IContextKey<boolean>;
 
 	/** The configured wording for the archive/unarchive action (Archive vs Delete). */
 	private readonly _archiveActionWording: IObservable<ReturnType<typeof getChatSessionArchiveActionWording>>;
@@ -109,8 +114,12 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
+		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
+		this._scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
+		this._focusedChatIsRenameTargetKey = SessionFocusedChatIsRenameTargetContext.bindTo(scopedContextKeyService);
 
 		this._archiveActionWording = observableFromEvent(
 			this,
@@ -121,7 +130,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._barContainer = $('.chat-group-view-bar');
 		this.element.appendChild(this._barContainer);
 
-		this._compositeBar = this._register(instantiationService.createInstance(ChatCompositeBar, undefined));
+		this._compositeBar = this._register(this._scopedInstantiationService.createInstance(ChatCompositeBar, undefined));
 		this._barContainer.appendChild(this._compositeBar.element);
 
 		// Read-only status banner, shown flush below this group's tab bar when the
@@ -158,6 +167,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._contextDisposables.clear();
 
 		if (!context) {
+			this._focusedChatIsRenameTargetKey.reset();
 			this._compositeBar.setGroup(undefined);
 			this._currentView.clear();
 			this._contentContainer.replaceChildren();
@@ -181,6 +191,11 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			const activeResource = context.activeChatResource.read(reader);
 			return context.chats.read(reader).find(c => c.resource.toString() === activeResource);
 		});
+		this._contextDisposables.add(autorun(reader => {
+			const activeResource = context.activeChatResource.read(reader);
+			const mainResource = context.mainChatResource.read(reader);
+			this._focusedChatIsRenameTargetKey.set(activeResource !== mainResource);
+		}));
 
 		this._contextDisposables.add(autorun(reader => {
 			const session = context.session;
@@ -200,8 +215,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			let view = this._currentView.value;
 			if (!view || view.kind !== desiredKind) {
 				view = desiredKind === 'chat'
-					? this._chatViewFactory.createChatView()
-					: this._chatViewFactory.createNewChatView(desiredKind === 'newChatInSession', context.options);
+					? this._chatViewFactory.createChatView(this._scopedInstantiationService)
+					: this._chatViewFactory.createNewChatView(desiredKind === 'newChatInSession', context.options, this._scopedInstantiationService);
 				this._contentContainer.replaceChildren(view.element);
 				this._currentView.value = view;
 				view.setActive(this._sessionActive);

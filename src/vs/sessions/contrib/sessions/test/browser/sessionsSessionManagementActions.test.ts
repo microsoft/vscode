@@ -10,7 +10,7 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -25,7 +25,9 @@ import { IView } from '../../../../../workbench/common/views.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { SessionActiveChatIsDeletableContext, SessionActiveChatIsRenameTargetContext, SessionSupportsRenameContext, SessionsFocusContext } from '../../../../common/contextkeys.js';
+import { SessionActiveChatIsDeletableContext, SessionFocusedChatIsRenameTargetContext, SessionSupportsRenameContext, SessionsFocusContext } from '../../../../common/contextkeys.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -76,9 +78,9 @@ suite('Sessions - Session management actions', () => {
 			[ChatContextKeys.inChatSession.key]: true,
 			[SessionSupportsRenameContext.key]: true,
 			[SessionsFocusContext.key]: true,
-			[SessionActiveChatIsRenameTargetContext.key]: false,
+			[SessionFocusedChatIsRenameTargetContext.key]: false,
 		};
-		const peerChatTranscript = { ...chatTranscript, [SessionActiveChatIsRenameTargetContext.key]: true };
+		const peerChatTranscript = { ...chatTranscript, [SessionFocusedChatIsRenameTargetContext.key]: true };
 		const nestedChat = { ...sessionsList, [SessionsListFocusedChatItemContext.key]: true };
 
 		assert.deepStrictEqual({
@@ -97,7 +99,7 @@ suite('Sessions - Session management actions', () => {
 			renamePeerChatInput: evaluate(renameChatRule, { ...peerChatTranscript, [ChatContextKeys.inChatInput.key]: true, [InputFocusedContext.key]: true }),
 			renameUnsupportedPeerAsChat: evaluate(renameChatRule, { ...peerChatTranscript, [SessionSupportsRenameContext.key]: false }),
 			renameOutsideAgentsWindow: evaluate(renameRule, { [ChatContextKeys.inChatSession.key]: true, [SessionSupportsRenameContext.key]: true }),
-			renameChatOutsideAgentsWindow: evaluate(renameChatRule, { [ChatContextKeys.inChatSession.key]: true, [SessionActiveChatIsRenameTargetContext.key]: true }),
+			renameChatOutsideAgentsWindow: evaluate(renameChatRule, { [ChatContextKeys.inChatSession.key]: true, [SessionFocusedChatIsRenameTargetContext.key]: true }),
 			archiveWeight: archiveSessionRule.weight1,
 			archiveMacWeight: archiveSessionMacRule.weight1,
 			archiveInList: evaluate(archiveSessionRule, sessionsList),
@@ -136,7 +138,7 @@ suite('Sessions - Session management actions', () => {
 		});
 	});
 
-	function createActionHarness(focusedSessions: readonly ISession[] | undefined, activeSession: IActiveSession | undefined, focusedChat?: ISessionChatItem) {
+	function createActionHarness(focusedSessions: readonly ISession[] | undefined, activeSession: IActiveSession | undefined, focusedChat?: ISessionChatItem, focusedGroupChat?: IChat) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const managementService = new TestSessionsManagementService([]);
 		const sessionsControl = upcastPartial<SessionsList>({
@@ -150,6 +152,13 @@ suite('Sessions - Session management actions', () => {
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
 			activeSession: constObservable<IActiveSession | undefined>(activeSession ? upcastPartial<IActiveSession>(activeSession) : undefined),
 		}));
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+			override getFocusedSessionView(): SessionView | undefined {
+				return focusedGroupChat && activeSession
+					? upcastPartial<SessionView>({ getSession: () => activeSession, getFocusedChat: () => focusedGroupChat })
+					: undefined;
+			}
+		}());
 		instantiationService.stub(ISessionsManagementService, managementService);
 		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
 		instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({
@@ -178,7 +187,7 @@ suite('Sessions - Session management actions', () => {
 			mainChat: constObservable(mainChat),
 			activeChat: constObservable(peerChat),
 		});
-		const chatHarness = createActionHarness(undefined, activeSession);
+		const chatHarness = createActionHarness(undefined, activeSession, undefined, peerChat);
 		const nestedChatHarness = createActionHarness([], listActiveSession, { session: activeSession, chat: peerChat });
 		const archiveSession = createTestSession('Archive target').session;
 		const archivedSession = createTestSession('Already archived', { isArchived: true }).session;

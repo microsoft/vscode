@@ -12,10 +12,15 @@ import { constObservable, derived, IObservable, ISettableObservable, observableV
 import { URI } from '../../../base/common/uri.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { AbstractChatView, ChatViewKind } from '../../browser/parts/chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
+import { SessionFocusedChatIsRenameTargetContext } from '../../common/contextkeys.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
@@ -27,8 +32,12 @@ class TestChatView extends AbstractChatView {
 	private readonly _focusTarget = mainWindow.document.createElement('button');
 	layoutCount = 0;
 
-	constructor(readonly kind: ChatViewKind) {
+	constructor(
+		readonly kind: ChatViewKind,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
 		super();
+		this._register(contextKeyService.createScoped(this.element));
 		this.element.dataset.kind = kind;
 		this.element.appendChild(this._focusTarget);
 	}
@@ -49,16 +58,17 @@ class TestChatView extends AbstractChatView {
 class TestChatViewFactory extends mock<IChatViewFactory>() {
 	readonly views: TestChatView[] = [];
 
-	override createNewChatView(isNewChatInSession: boolean): AbstractChatView {
-		return this._createView(isNewChatInSession ? 'newChatInSession' : 'newSession');
+	override createNewChatView(isNewChatInSession: boolean, _options: IChatViewOptions, instantiationService?: IInstantiationService): AbstractChatView {
+		return this._createView(isNewChatInSession ? 'newChatInSession' : 'newSession', instantiationService);
 	}
 
-	override createChatView(): AbstractChatView {
-		return this._createView('chat');
+	override createChatView(instantiationService?: IInstantiationService): AbstractChatView {
+		return this._createView('chat', instantiationService);
 	}
 
-	private _createView(kind: ChatViewKind): TestChatView {
-		const view = new TestChatView(kind);
+	private _createView(kind: ChatViewKind, instantiationService?: IInstantiationService): TestChatView {
+		assert.ok(instantiationService);
+		const view = instantiationService.createInstance(TestChatView, kind);
 		this.views.push(view);
 		return view;
 	}
@@ -153,6 +163,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	const sessionsService = new TestSessionsService();
 	const chatViewFactory = new TestChatViewFactory();
+	instantiationService.stub(IContextKeyService, store.add(new ContextKeyService(new TestConfigurationService())));
 	instantiationService.stub(IChatViewFactory, chatViewFactory);
 	instantiationService.stub(ISessionsService, sessionsService);
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
@@ -249,6 +260,69 @@ suite('Sessions - ChatGroupsView', () => {
 		}, {
 			activeChat: main.resource.toString(),
 			focusedGroup: main.resource.toString(),
+		});
+	});
+
+	test('focused group publishes its rename target before the session active chat updates', async () => {
+		const { instantiationService, sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const session = new TestActiveSession([main, secondary]);
+		sessionsService.activeSession.set(session, undefined);
+		view.setSession(session, options);
+		view.splitChatToSide(secondary.resource);
+		view.focusAdjacentGroup('previous');
+
+		const gate = new DeferredPromise<void>();
+		sessionsService.openChatGate = gate.p;
+		view.focusAdjacentGroup('next');
+
+		const contextKeyService = instantiationService.get(IContextKeyService);
+		const focusedContext = contextKeyService.getContext(mainWindow.document.activeElement);
+		const beforeOpenSettles = {
+			sessionActiveChat: session.activeChat.get().resource.toString(),
+			focusedChat: view.getFocusedChat()?.resource.toString(),
+			focusedChatClaimsRename: focusedContext.getValue<boolean>(SessionFocusedChatIsRenameTargetContext.key),
+		};
+		gate.complete();
+		await gate.p;
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			beforeOpenSettles,
+			sessionActiveChatAfterOpen: session.activeChat.get().resource.toString(),
+		}, {
+			beforeOpenSettles: {
+				sessionActiveChat: main.resource.toString(),
+				focusedChat: secondary.resource.toString(),
+				focusedChatClaimsRename: true,
+			},
+			sessionActiveChatAfterOpen: secondary.resource.toString(),
+		});
+	});
+
+	test('focused DOM group remains the rename target when session reconciliation promotes another group', async () => {
+		const { instantiationService, sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const session = new TestActiveSession([main, secondary]);
+		sessionsService.activeSession.set(session, undefined);
+		view.setSession(session, options);
+		view.splitChatToSide(secondary.resource);
+		view.focusAdjacentGroup('previous');
+
+		await sessionsService.openChat(session, secondary.resource);
+
+		const contextKeyService = instantiationService.get(IContextKeyService);
+		const focusedContext = contextKeyService.getContext(mainWindow.document.activeElement);
+		assert.deepStrictEqual({
+			sessionActiveChat: session.activeChat.get().resource.toString(),
+			focusedChat: view.getFocusedChat()?.resource.toString(),
+			focusedChatClaimsRename: focusedContext.getValue<boolean>(SessionFocusedChatIsRenameTargetContext.key),
+		}, {
+			sessionActiveChat: secondary.resource.toString(),
+			focusedChat: main.resource.toString(),
+			focusedChatClaimsRename: false,
 		});
 	});
 

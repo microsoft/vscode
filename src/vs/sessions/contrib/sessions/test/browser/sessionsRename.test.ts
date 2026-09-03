@@ -277,6 +277,7 @@ suite('Sessions rename', () => {
 				mainChat: constObservable(mainChat),
 			};
 			const activeChat = observableValue<IChat>('renameActiveChat', peerChat);
+			const focusedChat = observableValue<IChat | undefined>('renameFocusedChat', peerChat);
 			const activeSession = upcastPartial<IActiveSession>({
 				...session,
 				activeChat,
@@ -286,6 +287,11 @@ suite('Sessions rename', () => {
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
 			}());
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+				override getFocusedSessionView(): SessionView {
+					return upcastPartial<SessionView>({ getSession: () => activeSession, getFocusedChat: () => focusedChat.get() });
+				}
+			}());
 			instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
 				override getViewWithId() { return null; }
 			}());
@@ -294,7 +300,7 @@ suite('Sessions rename', () => {
 			}());
 			const handler = CommandsRegistry.getCommand(RENAME_CHAT_COMMAND_ID)?.handler;
 			assert.ok(handler);
-			return { handler, instantiationService, quickInputService, managementService, session, activeSession, mainChat, peerChat, otherPeerChat, activeChat, chats };
+			return { handler, instantiationService, quickInputService, managementService, session, activeSession, mainChat, peerChat, otherPeerChat, activeChat, focusedChat, chats };
 		}
 
 		test('renames the exact peer chat with the peer title as the prompt value', async () => {
@@ -381,13 +387,14 @@ suite('Sessions rename', () => {
 			assert.deepStrictEqual(harness.managementService.renamedChats, []);
 		});
 
-		test('keeps the captured peer when the active chat changes while Quick Input is open', async () => {
+		test('uses and captures the focused group chat while the session active chat is stale', async () => {
 			const harness = createChatHarness();
 			const input = new DeferredPromise<string | undefined>();
 			harness.quickInputService.inputHandler = async () => input.p;
+			harness.activeChat.set(harness.mainChat, undefined);
 
 			const rename = harness.handler(harness.instantiationService);
-			harness.activeChat.set(harness.otherPeerChat, undefined);
+			harness.focusedChat.set(harness.otherPeerChat, undefined);
 			input.complete('Renamed Peer');
 			await rename;
 
@@ -505,6 +512,7 @@ suite('Sessions rename', () => {
 				hasContextMenu: content.includes('open its context menu'),
 				hasMainChatFocus: content.includes('main chat transcript or input'),
 				hasPeerChatFocus: content.includes('non-main chat') && content.includes('nested row'),
+				scopesChatRenameToAvailability: content.includes('When Rename is available for a non-main chat'),
 				hasSessionRenameKeybinding: content.includes(`<keybinding:${RENAME_SESSION_COMMAND_ID}>`),
 				hasChatRenameKeybinding: content.includes(`<keybinding:${RENAME_CHAT_COMMAND_ID}>`),
 				hasArchiveKeybinding: content.includes(`<keybinding:${ARCHIVE_SESSION_COMMAND_ID}>`),
@@ -520,6 +528,7 @@ suite('Sessions rename', () => {
 				hasContextMenu: true,
 				hasMainChatFocus: true,
 				hasPeerChatFocus: true,
+				scopesChatRenameToAvailability: true,
 				hasSessionRenameKeybinding: true,
 				hasChatRenameKeybinding: true,
 				hasArchiveKeybinding: true,

@@ -31,7 +31,6 @@ import {
 	SessionShouldShowChatTabsContext,
 	SessionHasMultipleOpenChatsContext,
 	SessionActiveChatIsClosableContext,
-	SessionActiveChatIsRenameTargetContext,
 	SessionActiveChatIsDeletableContext,
 	SessionHasSideChatsContext,
 	SessionHasGitRepositoryContext,
@@ -69,7 +68,6 @@ interface ISessionContextKeys {
 	readonly shouldShowChatTabs: IContextKey<boolean>;
 	readonly hasMultipleOpenChats: IContextKey<boolean>;
 	readonly activeChatIsClosable: IContextKey<boolean>;
-	readonly activeChatIsRenameTarget: IContextKey<boolean>;
 	readonly activeChatIsDeletable: IContextKey<boolean>;
 	readonly hasSideChats: IContextKey<boolean>;
 }
@@ -113,7 +111,6 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			shouldShowChatTabs: SessionShouldShowChatTabsContext.bindTo(contextKeyService),
 			hasMultipleOpenChats: SessionHasMultipleOpenChatsContext.bindTo(contextKeyService),
 			activeChatIsClosable: SessionActiveChatIsClosableContext.bindTo(contextKeyService),
-			activeChatIsRenameTarget: SessionActiveChatIsRenameTargetContext.bindTo(contextKeyService),
 			activeChatIsDeletable: SessionActiveChatIsDeletableContext.bindTo(contextKeyService),
 			hasSideChats: SessionHasSideChatsContext.bindTo(contextKeyService),
 		};
@@ -228,8 +225,6 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	const mainResource = session?.mainChat.read(reader).resource;
 	const isNonMainChat = !!activeChat && !!mainResource && !isEqual(activeChat.resource, mainResource);
 	keys.activeChatIsClosable.set(isNonMainChat);
-	// Identity keeps unsupported peer chats from falling through to session rename.
-	keys.activeChatIsRenameTarget.set(isNonMainChat);
 	// It can be permanently deleted only when its effective capabilities allow
 	// it: the main chat and worker (subagent) chats report `canDelete: false`,
 	// so they are closeable but not deletable.

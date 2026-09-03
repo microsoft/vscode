@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IChatSessionFileChange } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { SessionActiveChatIsRenameTargetContext, SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasSideChatsContext, SessionIsActiveContext, SessionSupportsSideChatContext } from '../../../../common/contextkeys.js';
+import { SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasSideChatsContext, SessionIsActiveContext, SessionSupportsSideChatContext } from '../../../../common/contextkeys.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, SessionStatus } from '../../common/session.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
 import { setActiveSessionContextKeys, setSessionContextKeys } from '../../common/sessionContextKeys.js';
@@ -248,49 +248,4 @@ suite('setSessionContextKeys - side chat', () => {
 		});
 	});
 
-	test('active non-main chats claim the chat rename command regardless of eligibility', () => {
-		const contextKeyService = disposables.add(new MockContextKeyService());
-		const mainChat = { ...stubChat, resource: URI.parse('test:///chat/main'), status: constObservable(SessionStatus.Completed) };
-		const renameablePeer = { ...stubChat, resource: URI.parse('test:///chat/peer'), status: constObservable(SessionStatus.Completed), capabilities: constObservable({ canRename: true, canDelete: false }) };
-		const unsupportedPeer = { ...stubChat, resource: URI.parse('test:///chat/unsupported'), status: constObservable(SessionStatus.Completed), capabilities: constObservable({ canRename: false, canDelete: false }) };
-		const untitledPeer = { ...stubChat, resource: URI.parse('test:///chat/untitled'), status: constObservable(SessionStatus.Untitled), capabilities: constObservable({ canRename: true, canDelete: true }) };
-		const activeChat = observableValue<IChat>('activeChat', mainChat);
-		const session = upcastPartial<IActiveSession>({
-			...stubSession({
-				sessionId: 'rename-target',
-				chats: constObservable([mainChat, renameablePeer, unsupportedPeer, untitledPeer]),
-				mainChat: constObservable(mainChat),
-			}),
-			isCreated: constObservable(true),
-			sticky: constObservable(false),
-			activeChat,
-			visibleChatTabs: constObservable([mainChat, renameablePeer, unsupportedPeer, untitledPeer]),
-			shouldShowChatTabs: constObservable(true),
-		});
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', session);
-		disposables.add(autorun(reader => setActiveSessionContextKeys(activeSession.read(reader), contextKeyService, reader)));
-
-		const main = SessionActiveChatIsRenameTargetContext.getValue(contextKeyService);
-		activeChat.set(renameablePeer, undefined);
-		const renameable = SessionActiveChatIsRenameTargetContext.getValue(contextKeyService);
-		activeChat.set(unsupportedPeer, undefined);
-		const unsupported = SessionActiveChatIsRenameTargetContext.getValue(contextKeyService);
-		activeChat.set(untitledPeer, undefined);
-		const untitled = SessionActiveChatIsRenameTargetContext.getValue(contextKeyService);
-		activeSession.set(undefined, undefined);
-
-		assert.deepStrictEqual({
-			main,
-			renameable,
-			unsupported,
-			untitled,
-			withoutSession: SessionActiveChatIsRenameTargetContext.getValue(contextKeyService),
-		}, {
-			main: false,
-			renameable: true,
-			unsupported: true,
-			untitled: true,
-			withoutSession: false,
-		});
-	});
 });
