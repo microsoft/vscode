@@ -400,10 +400,6 @@ for ($index = 0; $index -lt $cliArgs.Count; $index++) {
 	}
 }
 
-if ($agents -and -not [string]::IsNullOrWhiteSpace($sessionTitle)) {
-	Exit-Usage '--session-title is only supported for regular editor windows; window.title is read-only in the Agents window.'
-}
-
 try {
 	$launchStopwatch = [Diagnostics.Stopwatch]::StartNew()
 	if ([string]::IsNullOrWhiteSpace($repo)) {
@@ -491,19 +487,27 @@ try {
 	$settingsFile = Join-Path $destinationUdd 'User\settings.json'
 	$sourceSettingsFile = Join-Path $sourceUserDataDir 'User\settings.json'
 	$settingsScript = Join-Path $PSScriptRoot 'updateSettings.ts'
-	& $node $settingsScript $settingsFile $sessionTitle $sourceSettingsFile
+	$settingsSessionTitle = if ($agents) { '' } else { $sessionTitle }
+	& $node $settingsScript $settingsFile $settingsSessionTitle $sourceSettingsFile
 	if ($LASTEXITCODE -ne 0) {
 		throw "Failed to update launch settings in $settingsFile"
 	}
 	Write-LaunchError "[launch.ps1] ensured files.simpleDialog.enable=true in $settingsFile"
 	if (-not [string]::IsNullOrWhiteSpace($sessionTitle)) {
-		Write-LaunchError "[launch.ps1] set window.title for session: $sessionTitle"
+		if ($agents) {
+			Write-LaunchError "[launch.ps1] set Agents command center title for session: $sessionTitle"
+		} else {
+			Write-LaunchError "[launch.ps1] set window.title for session: $sessionTitle"
+		}
 	}
 	$profileReadyMs = $launchStopwatch.ElapsedMilliseconds
 
 	$launchArgs = [System.Collections.Generic.List[string]]::new()
 	if ($agents) {
 		$launchArgs.Add('--agents')
+		if (-not [string]::IsNullOrWhiteSpace($sessionTitle)) {
+			$launchArgs.Add("--session-title=$sessionTitle")
+		}
 	}
 	$launchArgs.Add("--user-data-dir=$destinationUdd")
 	$launchArgs.Add("--extensions-dir=$extensionsDir")
