@@ -4002,7 +4002,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.monaco-tree-sticky-row .interactive-item-container.interactive-request {
-		padding-block: var(--vscode-spacing-size80) 0;
+		padding-block: var(--vscode-spacing-size40) 0;
 	}
 
 	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value .rendered-markdown {
