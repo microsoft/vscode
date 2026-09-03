@@ -136,7 +136,7 @@ Before Agent Host authority is activated, the legacy store owns:
 - session-resource linkage;
 - terminal lifecycle updates.
 
-The browser runner passes the complete saved session template into provider draft creation. Provider-owned configuration is therefore applied before the first resolution and request, using the same template that host-owned execution consumes. Workspace isolation and branch remain target-owned and are configured separately.
+The browser runner passes the complete saved session template into provider draft creation. Providers explicitly advertise support for restoring and capturing this configuration; execution fails rather than silently using defaults when a canonical template reaches an unsupported provider. Deprecated flat aliases also flow through ordinary model, mode, and permission operations for older providers. Workspace isolation and branch remain target-owned and are configured separately.
 
 Renderer-window leader election prevents duplicate scheduled execution across windows.
 

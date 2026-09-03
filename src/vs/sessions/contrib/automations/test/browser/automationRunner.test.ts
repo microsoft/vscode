@@ -601,6 +601,8 @@ suite('AutomationRunner', () => {
 				mode: 'agent',
 				permissionLevel: 'autopilot',
 			},
+			modeId: 'agent',
+			permissionLevel: 'autopilot',
 			isolationMode: undefined,
 			branch: undefined,
 		});
@@ -638,6 +640,7 @@ suite('AutomationRunner', () => {
 			automationConfiguration: {
 				sessionTemplate,
 			},
+			modelId: 'model',
 			isolationMode: undefined,
 			branch: undefined,
 		});

@@ -17,7 +17,7 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AutomationInterval, AutomationTarget, AutomationWorkspaceIsolation, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { type AutomationMutationGuard, ConfigureAutomationToolReferenceName, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { type AutomationMutationGuard, AutomationSessionTemplateAuthorityError, ConfigureAutomationToolReferenceName, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IChatAutomationConfiguredData } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -595,6 +595,9 @@ The change uses the current tool-approval policy. When approval is required, the
 			if (error instanceof AutomationToolInputError) {
 				return automationToolError(error.message);
 			}
+			if (error instanceof AutomationSessionTemplateAuthorityError) {
+				return automationToolError(error.message);
+			}
 			throw error;
 		}
 	}
@@ -701,6 +704,9 @@ The change uses the current tool-approval policy. When approval is required, the
 		const sessionTemplate = parseSessionTemplate(input);
 		if (sessionTemplate !== undefined && (modelId !== undefined || mode !== undefined || permissionLevel !== undefined)) {
 			throw new AutomationToolInputError('"sessionTemplate" cannot be combined with legacy "modelId", "mode", or "permissionLevel" aliases.');
+		}
+		if (existing?.sessionTemplate && sessionTemplate === undefined && (modelId !== undefined || mode !== undefined || permissionLevel !== undefined)) {
+			throw new AutomationToolInputError('Legacy "modelId", "mode", and "permissionLevel" aliases cannot update an automation with a canonical session template. Pass the complete updated "sessionTemplate" returned by listAutomations.');
 		}
 		const enabled = readOptionalBoolean(input, 'enabled');
 

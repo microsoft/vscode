@@ -524,7 +524,7 @@ suite('AgentHostAutomationStore', () => {
 		);
 	});
 
-	test('preserves Agent Host config when a generic dialog mode has no representation', async () => {
+	test('preserves Agent Host config on an unrelated canonical update', async () => {
 		const connection = disposables.add(new TestAutomationConnection(true));
 		const storage = disposables.add(new InMemoryStorageService());
 		const store = disposables.add(new AgentHostAutomationStore(
@@ -546,10 +546,10 @@ suite('AgentHostAutomationStore', () => {
 			permissionLevel: 'assisted',
 		});
 
+		const current = store.getAutomation(automation.id);
 		await store.updateAutomation(automation.id, {
 			name: 'Review renamed changes',
-			mode: 'agent',
-			permissionLevel: 'assisted',
+			sessionTemplate: current?.sessionTemplate,
 		});
 
 		const update = connection.dispatched.at(-1)?.action;
@@ -595,7 +595,7 @@ suite('AgentHostAutomationStore', () => {
 		);
 	});
 
-	test('clears stale platform approval config for another session type', async () => {
+	test('clears stale platform approval config with an explicit template reset', async () => {
 		const connection = disposables.add(new TestAutomationConnection(true));
 		const storage = disposables.add(new InMemoryStorageService());
 		const store = disposables.add(new AgentHostAutomationStore(
@@ -616,7 +616,7 @@ suite('AgentHostAutomationStore', () => {
 		});
 		connection.setFirstAutomationSessionConfig({ [SessionConfigKey.AutoApprove]: 'autoApprove' });
 
-		await store.updateAutomation(automation.id, { permissionLevel: 'default' });
+		await store.updateAutomation(automation.id, { sessionTemplate: null });
 
 		const update = connection.dispatched.at(-1)?.action;
 		assert.deepStrictEqual(
@@ -695,11 +695,22 @@ suite('AgentHostAutomationStore', () => {
 			},
 			sessionTemplate,
 		});
+		await assert.rejects(
+			store.updateAutomation(automation.id, { permissionLevel: 'autoApprove' }),
+			/cannot be updated through legacy configuration aliases/,
+		);
+		const updatedTemplate = {
+			...sessionTemplate,
+			modelId: 'agent-host-copilotcli:gpt-5',
+			config: {
+				...sessionTemplate.config,
+				mode: 'interactive',
+				autoApprove: 'autoApprove',
+			},
+		};
 		await store.updateAutomation(automation.id, {
 			name: 'Review renamed changes',
-			modelId: 'agent-host-copilotcli:gpt-5',
-			mode: 'agent',
-			permissionLevel: 'autoApprove',
+			sessionTemplate: updatedTemplate,
 		});
 
 		const update = connection.dispatched.at(-1)?.action;
@@ -707,22 +718,14 @@ suite('AgentHostAutomationStore', () => {
 			projected: store.getAutomation(automation.id)?.sessionTemplate,
 			updatedSession: update?.type === ActionType.AutomationUpdateRequested ? update.changes.session : undefined,
 		}, {
-			projected: {
-				modelId: 'agent-host-copilotcli:gpt-5',
-				agent: { uri: 'file:///agents/reviewer.agent.md' },
-				config: {
-					mode: 'plan',
-					autoApprove: 'autoApprove',
-					providerOption: { enabled: true },
-				},
-			},
+			projected: updatedTemplate,
 			updatedSession: {
 				provider: 'copilotcli',
 				model: { id: 'gpt-5' },
 				agent: { uri: 'file:///agents/reviewer.agent.md' },
 				workingDirectories: ['file:///workspace'],
 				config: {
-					mode: 'plan',
+					mode: 'interactive',
 					autoApprove: 'autoApprove',
 					providerOption: { enabled: true },
 					isolation: 'folder',
@@ -983,7 +986,7 @@ suite('AgentHostAutomationStore', () => {
 		});
 	});
 
-	test('qualifies host-authored models without retargeting historical run sessions', () => {
+	test('qualifies host-authored models and preserves definition-owned configuration on update', async () => {
 		const connection = new TestAutomationConnection(true);
 		disposables.add(connection);
 		const storage = disposables.add(new InMemoryStorageService());
@@ -1000,7 +1003,18 @@ suite('AgentHostAutomationStore', () => {
 			definition: {
 				title: 'Host-authored',
 				message: { text: 'Say hi.', origin: { kind: MessageKind.Automation } },
-				session: { provider: 'codex', model: { id: 'auto' } },
+				session: {
+					provider: 'codex',
+					model: { id: 'auto' },
+					config: {
+						mode: 'plan',
+						[SessionConfigKey.Permissions]: { allow: ['Shell(echo *)'], deny: [] },
+						[SessionConfigKey.WorktreeBranchPrefix]: 'host-prefix/',
+						[SessionConfigKey.WorktreeIncludeFiles]: ['host.json'],
+						[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'source ~/.bashrc' }],
+						[SessionConfigKey.AgentMerge]: true,
+					},
+				},
 				enabled: true,
 				triggers: [],
 			},
@@ -1021,13 +1035,27 @@ suite('AgentHostAutomationStore', () => {
 			createdAt: timestamp,
 			modifiedAt: timestamp,
 		});
+		const projected = store.getAutomation('host-authored');
+		await store.updateAutomation('host-authored', { enabled: false });
+		const update = connection.dispatched.at(-1)?.action;
 
 		assert.deepStrictEqual({
-			modelId: store.getAutomation('host-authored')?.sessionTemplate?.modelId,
+			sessionTemplate: projected?.sessionTemplate,
 			sessionResource: store.runs.get()[0].sessionResource?.toString(),
+			updatedConfig: update?.type === ActionType.AutomationUpdateRequested ? update.changes.session?.config : undefined,
 		}, {
-			modelId: 'agent-host-codex:auto',
+			sessionTemplate: {
+				modelId: 'agent-host-codex:auto',
+				config: { mode: 'plan' },
+			},
 			sessionResource: 'agent-host-copilotcli:/host-authored-session',
+			updatedConfig: {
+				mode: 'plan',
+				[SessionConfigKey.Permissions]: { allow: ['Shell(echo *)'], deny: [] },
+				[SessionConfigKey.WorktreeBranchPrefix]: 'host-prefix/',
+				[SessionConfigKey.WorktreeIncludeFiles]: ['host.json'],
+				[SessionConfigKey.AgentMerge]: true,
+			},
 		});
 	});
 

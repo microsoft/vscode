@@ -31,6 +31,22 @@ export function isAutomationActiveRunError(error: unknown): boolean {
 		|| (error instanceof AggregateError && error.errors.length > 0 && error.errors.every(isAutomationActiveRunError));
 }
 
+/** Signals that deprecated configuration aliases cannot modify an explicit provider template. */
+export class AutomationSessionTemplateAuthorityError extends Error {
+	constructor() {
+		super('A canonical Automation session template cannot be updated through legacy configuration aliases.');
+	}
+}
+
+export function assertAutomationSessionTemplateAuthority(current: IAutomationDescriptor, patch: IUpdateAutomationOptions): void {
+	const targetAuthorityChanged = patch.target !== undefined
+		&& (patch.target.providerId !== current.target.providerId || patch.target.sessionTypeId !== current.target.sessionTypeId);
+	const legacyConfigurationPatched = patch.modelId !== undefined || patch.mode !== undefined || patch.permissionLevel !== undefined;
+	if (current.sessionTemplate && patch.sessionTemplate === undefined && !targetAuthorityChanged && legacyConfigurationPatched) {
+		throw new AutomationSessionTemplateAuthorityError();
+	}
+}
+
 /**
  * Input for `createAutomation`. The service fills in `id`, timestamps, and
  * `nextRunAt`.

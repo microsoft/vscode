@@ -29,7 +29,7 @@ import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/an
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/githubIssueReferences.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
-import { KNOWN_MODE_VALUES, omitTransientSessionConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { KNOWN_MODE_VALUES, omitAutomationSessionTemplateConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationMigration.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
@@ -2716,6 +2716,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	abstract readonly icon: ThemeIcon;
 	abstract readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly usesCombinedNewSessionConfigPicker = true;
+	readonly supportsAutomationSessionConfiguration = true;
 
 	get order(): number { return 0; }
 
@@ -3906,34 +3907,25 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (this._getNewSession(sessionId) !== newSession) {
 			return undefined;
 		}
-		const config = omitTransientSessionConfigValues({
-			...newSession.getConfigValues(),
-		});
+		const config = { ...newSession.getConfigValues() };
 		const initialConfig = newSession.getInitialSessionTemplate()?.config ?? {};
 		for (const [key, value] of Object.entries(initialConfig)) {
 			if (!newSession.wasConfigValueExplicitlySet(key)) {
 				config[key] = value;
 			}
 		}
-		delete config[SessionConfigKey.Isolation];
-		delete config[SessionConfigKey.Branch];
-		delete config[SessionConfigKey.WorktreeBranchPrefix];
-		delete config[SessionConfigKey.WorktreeIncludeFiles];
-		delete config[SessionConfigKey.WorktreeBranchTrack];
-		delete config[SessionConfigKey.WorktreeCreateNewBranch];
-		delete config[SessionConfigKey.AgentMerge];
-		delete config[SessionConfigKey.AgentMergeController];
+		const templateConfig = omitAutomationSessionTemplateConfigValues(config);
 		const modelId = newSession.getSelectedModelId();
 		const agent = newSession.getSelectedAgent();
-		const sessionTemplate = !modelId && !agent && Object.keys(config).length === 0
+		const sessionTemplate = !modelId && !agent && Object.keys(templateConfig).length === 0
 			? undefined
 			: {
 				...(modelId ? { modelId } : {}),
 				...(agent ? { agent: { uri: agent.uri } } : {}),
-				...(Object.keys(config).length > 0 ? { config } : {}),
+				...(Object.keys(templateConfig).length > 0 ? { config: templateConfig } : {}),
 			};
-		const mode = config[SessionConfigKey.Mode];
-		const permissionLevel = config[SessionConfigKey.AutoApprove];
+		const mode = templateConfig[SessionConfigKey.Mode];
+		const permissionLevel = templateConfig[SessionConfigKey.AutoApprove];
 		return {
 			sessionTemplate,
 			modelId,

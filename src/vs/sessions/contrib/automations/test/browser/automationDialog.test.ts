@@ -11,6 +11,7 @@ import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Action, IAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -172,6 +173,7 @@ function createAutomationDraftService(captureSupported = true, captureError?: Er
 		automationSession,
 		createAutomationSession: (folderUri, options) => createDraft('workspace', options?.providerId, options?.sessionTypeId ?? 'default', folderUri, options?.sessionTemplate),
 		createAutomationQuickChat: options => createDraft('quickChat', options?.providerId, options?.sessionTypeId ?? 'default', undefined, options?.sessionTemplate),
+		supportsAutomationSessionConfiguration: () => captureSupported,
 		getAutomationSessionConfiguration: async session => {
 			if (captureError) {
 				throw captureError;
@@ -310,7 +312,7 @@ suite('Automation session draft synchronization', () => {
 		});
 	});
 
-	test('preserves known configuration when capture fails', async () => {
+	test('reports capture failures instead of silently preserving configuration', async () => {
 		const sessionConfiguration: IAutomationSessionConfiguration = {
 			sessionTemplate: { config: { mode: 'plan' } },
 		};
@@ -325,16 +327,17 @@ suite('Automation session draft synchronization', () => {
 			sessionConfiguration,
 		});
 
+		const capture = await synchronizer.getSessionConfiguration();
 		assert.deepStrictEqual({
-			capture: await synchronizer.getSessionConfiguration(),
+			capture: capture.kind === 'failed' ? { kind: capture.kind, message: getErrorMessage(capture.error) } : capture,
 			errorCount,
 		}, {
-			capture: { kind: 'preserved', configuration: sessionConfiguration },
+			capture: { kind: 'failed', message: 'capture failed' },
 			errorCount: 1,
 		});
 	});
 
-	test('bounds configuration capture and preserves known configuration on timeout', async () => {
+	test('bounds complete configuration capture and reports timeouts', async () => {
 		const sessionConfiguration: IAutomationSessionConfiguration = {
 			sessionTemplate: { config: { mode: 'plan' } },
 		};
@@ -349,12 +352,70 @@ suite('Automation session draft synchronization', () => {
 			sessionConfiguration,
 		});
 
+		const capture = await synchronizer.getSessionConfiguration();
 		assert.deepStrictEqual({
-			capture: await synchronizer.getSessionConfiguration(),
+			capture: capture.kind === 'failed' ? { kind: capture.kind, timedOut: getErrorMessage(capture.error).includes('Timed out') } : capture,
 			errorCount,
 		}, {
-			capture: { kind: 'preserved', configuration: sessionConfiguration },
+			capture: { kind: 'failed', timedOut: true },
 			errorCount: 1,
+		});
+	});
+
+	test('coalesces an equal target while synchronization is pending', async () => {
+		const validation = new DeferredPromise<boolean>();
+		const { service, created } = createAutomationDraftService();
+		const synchronizer = disposables.add(new AutomationSessionDraftSynchronizer(service, () => validation.p, () => { }));
+		const target = {
+			kind: 'workspace',
+			folderUri: URI.parse('file:///workspace'),
+			providerId: 'provider',
+			sessionTypeId: 'type',
+		} as const;
+
+		synchronizer.update(target);
+		await Promise.resolve();
+		synchronizer.update(target);
+		validation.complete(true);
+		await synchronizer.waitForSync();
+
+		assert.deepStrictEqual(created, [{
+			kind: 'workspace',
+			providerId: 'provider',
+			sessionTypeId: 'type',
+			folderUri: 'file:///workspace',
+		}]);
+	});
+
+	test('serializes synchronization when the target changes during validation', async () => {
+		const firstValidation = new DeferredPromise<boolean>();
+		const validated: string[] = [];
+		const { service, created } = createAutomationDraftService();
+		const synchronizer = disposables.add(new AutomationSessionDraftSynchronizer(service, async folderUri => {
+			validated.push(folderUri.path);
+			return folderUri.path === '/first' ? firstValidation.p : true;
+		}, () => { }));
+
+		synchronizer.update({ kind: 'workspace', folderUri: URI.parse('file:///first'), providerId: 'provider', sessionTypeId: 'type' });
+		await Promise.resolve();
+		synchronizer.update({ kind: 'workspace', folderUri: URI.parse('file:///second'), providerId: 'provider', sessionTypeId: 'type' });
+		const beforeFirstSettled = [...validated];
+		firstValidation.complete(true);
+		await synchronizer.waitForSync();
+
+		assert.deepStrictEqual({
+			beforeFirstSettled,
+			validated,
+			created,
+		}, {
+			beforeFirstSettled: ['/first'],
+			validated: ['/first', '/second'],
+			created: [{
+				kind: 'workspace',
+				providerId: 'provider',
+				sessionTypeId: 'type',
+				folderUri: 'file:///second',
+			}],
 		});
 	});
 
@@ -410,9 +471,8 @@ suite('Automation session draft synchronization', () => {
 		synchronizer.update({ kind: 'workspace', folderUri: URI.parse('file:///first'), providerId: 'provider', sessionTypeId: 'type' });
 		await Promise.resolve();
 		synchronizer.update({ kind: 'workspace', folderUri: URI.parse('file:///second'), providerId: 'provider', sessionTypeId: 'type' });
-		await synchronizer.waitForSync();
 		firstWorkspaceValidation.complete(true);
-		await Promise.resolve();
+		await synchronizer.waitForSync();
 
 		assert.deepStrictEqual(created, [
 			{ kind: 'workspace', providerId: 'provider', sessionTypeId: 'type', folderUri: 'file:///second' },

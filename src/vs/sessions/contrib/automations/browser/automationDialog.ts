@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../base/browser/dom.js';
-import { raceTimeout } from '../../../../base/common/async.js';
+import { raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IButton } from '../../../../base/browser/ui/button/button.js';
@@ -12,7 +12,7 @@ import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { IAction } from '../../../../base/common/actions.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -213,9 +213,12 @@ export interface IValidationState {
 
 interface IRenderFormHandle {
 	readonly getPrompt: () => string;
-	readonly getSessionConfiguration: () => Promise<AutomationSessionConfigurationCapture>;
+	readonly getSessionConfiguration: (token: CancellationToken) => Promise<AutomationSessionConfigurationCapture>;
 	readonly getBranch: () => string | undefined;
-	readonly waitForAutomationSessionSync: () => Promise<void>;
+	readonly waitForAutomationSessionSync: (token: CancellationToken) => Promise<void>;
+	readonly setSaving: (saving: boolean) => void;
+	readonly showSessionConfigurationError: (message: string | undefined) => void;
+	readonly focusSessionConfigurationError: () => void;
 	readonly getFocusableElements: () => readonly HTMLElement[];
 	readonly acceptPromptSuggestion: () => boolean;
 }
@@ -226,12 +229,13 @@ export type AutomationSessionDraftTarget =
 
 type AutomationSessionDraftService = Pick<
 	ISessionsManagementService,
-	'automationSession' | 'createAutomationSession' | 'createAutomationQuickChat' | 'discardAutomationSession' | 'getAutomationSessionConfiguration'
+	'automationSession' | 'createAutomationSession' | 'createAutomationQuickChat' | 'discardAutomationSession' | 'getAutomationSessionConfiguration' | 'supportsAutomationSessionConfiguration'
 >;
 
 export type AutomationSessionConfigurationCapture =
 	| { readonly kind: 'captured'; readonly configuration: IAutomationSessionConfiguration }
-	| { readonly kind: 'preserved'; readonly configuration: IAutomationSessionConfiguration | undefined };
+	| { readonly kind: 'preserved'; readonly configuration: IAutomationSessionConfiguration | undefined }
+	| { readonly kind: 'failed'; readonly error: unknown };
 
 const AUTOMATION_CONFIGURATION_CAPTURE_TIMEOUT_MS = 5_000;
 const AUTOMATION_CONFIGURATION_RETARGET_CAPTURE_TIMEOUT_MS = 1_000;
@@ -245,8 +249,10 @@ export class AutomationSessionDraftSynchronizer extends Disposable {
 	private session: ISession | undefined;
 	private generation = 0;
 	private syncScheduled = false;
+	private syncInProgress = false;
 	private syncPromise = Promise.resolve();
 	private disposed = false;
+	private synchronizationError: unknown | undefined;
 
 	constructor(
 		private readonly sessionsManagementService: AutomationSessionDraftService,
@@ -260,7 +266,7 @@ export class AutomationSessionDraftSynchronizer extends Disposable {
 
 	update(target: AutomationSessionDraftTarget | undefined): void {
 		if (this.targetsEqual(this.requestedTarget, target)
-			&& (!target || !!this.session && this.sessionsManagementService.automationSession.get()?.sessionId === this.session.sessionId)) {
+			&& (!target || this.syncScheduled || this.syncInProgress || !!this.session && this.sessionsManagementService.automationSession.get()?.sessionId === this.session.sessionId)) {
 			return;
 		}
 		if (target?.sessionConfiguration) {
@@ -271,28 +277,40 @@ export class AutomationSessionDraftSynchronizer extends Disposable {
 		}
 		this.requestedTarget = target;
 		this.generation++;
+		this.synchronizationError = undefined;
 		this.availability.set(target ? 'pending' : 'idle', undefined);
 		this.scheduleSync();
 	}
 
-	async waitForSync(): Promise<void> {
+	async waitForSync(token: CancellationToken = CancellationToken.None): Promise<void> {
 		let pendingSync: Promise<void>;
 		do {
 			pendingSync = this.syncPromise;
-			await pendingSync;
+			await raceCancellationError(pendingSync, token);
 		} while (pendingSync !== this.syncPromise);
 	}
 
-	async getSessionConfiguration(): Promise<AutomationSessionConfigurationCapture> {
-		for (let attempt = 0; attempt < 2 && !this.disposed; attempt++) {
-			await this.waitForSync();
+	async getSessionConfiguration(token: CancellationToken = CancellationToken.None): Promise<AutomationSessionConfigurationCapture> {
+		const deadline = Date.now() + this.configurationCaptureTimeoutMs;
+		while (!this.disposed) {
+			const synchronized = await this.waitForResultBeforeDeadline(this.waitForSync(token), deadline, token);
+			if (!synchronized) {
+				return this.captureFailed(new Error(`Timed out after ${this.configurationCaptureTimeoutMs}ms while synchronizing the Automation session configuration.`));
+			}
 			const generation = this.generation;
 			const session = this.session;
 			const target = this.requestedTarget;
 			if (!session || !target) {
+				if (this.synchronizationError) {
+					return { kind: 'failed', error: this.synchronizationError };
+				}
 				return { kind: 'preserved', configuration: this.configurationForTarget(target) };
 			}
-			const captured = await this.captureSessionConfiguration(session, target, this.configurationCaptureTimeoutMs);
+			const remaining = deadline - Date.now();
+			if (remaining <= 0) {
+				return this.captureFailed(new Error(`Timed out after ${this.configurationCaptureTimeoutMs}ms while capturing the Automation session configuration.`));
+			}
+			const captured = await this.captureSessionConfiguration(session, target, remaining, token);
 			if (generation !== this.generation || session !== this.session) {
 				continue;
 			}
@@ -302,17 +320,21 @@ export class AutomationSessionDraftSynchronizer extends Disposable {
 	}
 
 	private scheduleSync(): void {
-		if (this.syncScheduled) {
+		this.syncScheduled = true;
+		if (this.syncInProgress) {
 			return;
 		}
-		this.syncScheduled = true;
-		this.syncPromise = Promise.resolve().then(() => {
-			this.syncScheduled = false;
-			if (!this.disposed) {
-				return this.sync(this.generation);
+		this.syncInProgress = true;
+		this.syncPromise = (async () => {
+			try {
+				while (this.syncScheduled && !this.disposed) {
+					this.syncScheduled = false;
+					await this.sync(this.generation);
+				}
+			} finally {
+				this.syncInProgress = false;
 			}
-			return undefined;
-		});
+		})();
 	}
 
 	private async sync(generation: number): Promise<void> {
@@ -359,9 +381,10 @@ export class AutomationSessionDraftSynchronizer extends Disposable {
 				});
 			this.appliedTarget = target;
 			this.appliedConfiguration = sessionConfiguration;
-			this.availability.set('available', undefined);
+			this.availability.set(this.sessionsManagementService.supportsAutomationSessionConfiguration(this.session) ? 'available' : 'unavailable', undefined);
 		} catch (error) {
 			if (!this.disposed && generation === this.generation) {
+				this.synchronizationError = error;
 				this.discardSession();
 				this.availability.set('unavailable', undefined);
 				this.onError(error);
@@ -392,24 +415,42 @@ export class AutomationSessionDraftSynchronizer extends Disposable {
 		this.appliedConfiguration = undefined;
 	}
 
-	private async captureSessionConfiguration(session: ISession, target: AutomationSessionDraftTarget, timeoutMs: number): Promise<AutomationSessionConfigurationCapture> {
+	private async captureSessionConfiguration(session: ISession, target: AutomationSessionDraftTarget, timeoutMs: number, token: CancellationToken = CancellationToken.None): Promise<AutomationSessionConfigurationCapture> {
 		try {
 			const result = await raceTimeout(
-				this.sessionsManagementService.getAutomationSessionConfiguration(session).then(configuration => ({ configuration })),
+				raceCancellationError(this.sessionsManagementService.getAutomationSessionConfiguration(session).then(configuration => ({ configuration })), token),
 				timeoutMs,
 			);
 			if (!result) {
 				throw new Error(`Timed out after ${timeoutMs}ms while capturing Automation session configuration.`);
 			}
-			if (result.configuration === null || result.configuration === undefined) {
+			if (result.configuration === null) {
 				return { kind: 'preserved', configuration: this.configurationForTarget(target) };
+			}
+			if (result.configuration === undefined) {
+				throw new Error('The Automation session draft was replaced before its configuration could be captured.');
 			}
 			this.configurationsByTarget.set(this.targetKey(target), result.configuration);
 			return { kind: 'captured', configuration: result.configuration };
 		} catch (error) {
-			this.onError(error);
-			return { kind: 'preserved', configuration: this.configurationForTarget(target) };
+			if (token.isCancellationRequested) {
+				throw error;
+			}
+			return this.captureFailed(error);
 		}
+	}
+
+	private captureFailed(error: unknown): AutomationSessionConfigurationCapture {
+		this.onError(error);
+		return { kind: 'failed', error };
+	}
+
+	private async waitForResultBeforeDeadline(promise: Promise<void>, deadline: number, token: CancellationToken): Promise<boolean> {
+		const remaining = deadline - Date.now();
+		if (remaining <= 0) {
+			return false;
+		}
+		return await raceTimeout(raceCancellationError(promise.then(() => true), token), remaining) ?? false;
 	}
 
 	private configurationForTarget(target: AutomationSessionDraftTarget | undefined): IAutomationSessionConfiguration | undefined {
@@ -940,7 +981,8 @@ export function renderForm(
 	initialTarget: AutomationTarget | undefined,
 	initialSessionConfiguration: IAutomationSessionConfiguration | undefined,
 ): IRenderFormHandle {
-	const nameRow = DOM.append(form, $('.automation-form-row'));
+	const formContent = DOM.append(form, $('.automation-form-content'));
+	const nameRow = DOM.append(formContent, $('.automation-form-row'));
 	DOM.append(nameRow, $('span.automation-form-label', undefined, localize('automation.form.name', "Name")));
 	const nameInputContainer = DOM.append(nameRow, $('.automation-form-input-host'));
 	const nameInput = disposables.add(new InputBox(nameInputContainer, contextViewService, {
@@ -954,7 +996,7 @@ export function renderForm(
 		revalidate();
 	}));
 
-	const scheduleRow = DOM.append(form, $('.automation-form-row.automation-form-schedule-row'));
+	const scheduleRow = DOM.append(formContent, $('.automation-form-row.automation-form-schedule-row'));
 	const useCustomDrawn = !hasNativeContextMenu(configurationService);
 
 	const intervalGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group'));
@@ -1141,7 +1183,7 @@ export function renderForm(
 		revalidate();
 	}));
 
-	const promptSection = DOM.append(form, $('.automation-prompt-section'));
+	const promptSection = DOM.append(formContent, $('.automation-prompt-section'));
 	const promptRow = DOM.append(promptSection, $('.automation-form-row'));
 	DOM.append(promptRow, $('span.automation-form-label', undefined, localize('automation.form.prompt', "Prompt")));
 	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));
@@ -1296,13 +1338,13 @@ export function renderForm(
 		sessionConfigContainer,
 		scopedInstantiationService,
 		compactModelPicker,
-		localize('automation.form.sessionModelAndAgent', "Session model and agent"),
+		localize('automation.form.sessionConfigurationOptions', "Session configuration options"),
 	));
 	const sessionControlsContainer = DOM.append(sessionConfiguration, $('.automation-session-controls'));
 	const sessionControlsToolbar = disposables.add(createNewSessionControlToolbar(
 		sessionControlsContainer,
 		scopedInstantiationService,
-		localize('automation.form.sessionModeAndApprovals', "Session mode and approvals"),
+		localize('automation.form.sessionControls', "Session controls"),
 	));
 	const sessionConfigLayout = disposables.add(new ChatInputPickerResponsiveLayout('AutomationDialog.sessionConfig', sessionConfigContainer, {
 		getItems: () => getAutomationSessionToolbarResponsiveItems(sessionConfigToolbar, compactModelPicker),
@@ -1320,15 +1362,20 @@ export function renderForm(
 		role: 'status',
 		'aria-atomic': 'true',
 	}));
+	const sessionConfigurationError = DOM.append(sessionConfiguration, $('span.automation-session-configuration-error', {
+		role: 'alert',
+		tabindex: '-1',
+	}));
+	DOM.hide(sessionConfigurationError);
 	disposables.add(autorun(reader => {
 		const availability = automationSessionDraftSynchronizer.availability.read(reader);
 		const pending = availability === 'pending';
 		const controlsUnavailable = availability !== 'available';
 		sessionConfiguration.classList.toggle('controls-unavailable', controlsUnavailable);
-		sessionConfiguration.setAttribute('aria-busy', String(pending));
 		for (const container of [sessionConfigContainer, sessionControlsContainer]) {
 			container.toggleAttribute('inert', controlsUnavailable);
 			container.setAttribute('aria-hidden', String(controlsUnavailable));
+			container.setAttribute('aria-busy', String(pending));
 		}
 		sessionConfigurationUnavailable.textContent = pending
 			? localize('automation.form.sessionConfigurationLoading', "Loading session configuration…")
@@ -1364,7 +1411,7 @@ export function renderForm(
 	}, DOM.getWindow(promptHost)));
 	disposables.add(resizeObserver.observe(promptHost));
 
-	const enabledRow = DOM.append(form, $('.automation-form-row.automation-form-checkbox-row'));
+	const enabledRow = DOM.append(formContent, $('.automation-form-row.automation-form-checkbox-row'));
 	const enabledLabelText = localize('automation.form.enabled', "Enabled (the scheduler runs this automation when due)");
 	const enabledCheckbox = disposables.add(new Checkbox(enabledLabelText, state.enabled, defaultCheckboxStyles));
 	DOM.append(enabledRow, enabledCheckbox.domNode);
@@ -1381,15 +1428,40 @@ export function renderForm(
 	disposables.add(DOM.addStandardDisposableListener(enabledLabel, 'click', () => {
 		setEnabled(!enabledCheckbox.checked);
 	}));
+	const saveStatus = DOM.append(form, $('span.automation-form-save-status', {
+		role: 'status',
+		'aria-atomic': 'true',
+	}));
+	DOM.hide(saveStatus);
 
 	return {
 		getPrompt: () => chatInput.inputEditor.getValue(),
-		getSessionConfiguration: () => automationSessionDraftSynchronizer.getSessionConfiguration(),
+		getSessionConfiguration: token => automationSessionDraftSynchronizer.getSessionConfiguration(token),
 		getBranch: () => isolationModel.persistedBranch,
-		waitForAutomationSessionSync: () => {
+		waitForAutomationSessionSync: token => {
 			updateAutomationSessionTarget();
-			return automationSessionDraftSynchronizer.waitForSync();
+			return automationSessionDraftSynchronizer.waitForSync(token);
 		},
+		setSaving: saving => {
+			formContent.toggleAttribute('inert', saving);
+			formContent.setAttribute('aria-busy', String(saving));
+			form.classList.toggle('saving', saving);
+			saveStatus.textContent = saving ? localize('automation.form.saving', "Saving automation…") : '';
+			if (saving) {
+				DOM.show(saveStatus);
+			} else {
+				DOM.hide(saveStatus);
+			}
+		},
+		showSessionConfigurationError: message => {
+			sessionConfigurationError.textContent = message ?? '';
+			if (message) {
+				DOM.show(sessionConfigurationError);
+			} else {
+				DOM.hide(sessionConfigurationError);
+			}
+		},
+		focusSessionConfigurationError: () => sessionConfigurationError.focus(),
 		getFocusableElements: () => {
 			// eslint-disable-next-line no-restricted-syntax -- the dialog owns this form subtree and supplies its dynamic focus order.
 			return Array.from(form.querySelectorAll<HTMLElement>('input, select, textarea, button, a[href], [tabindex]'));

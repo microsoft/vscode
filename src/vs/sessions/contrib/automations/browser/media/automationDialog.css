@@ -223,8 +223,14 @@
 .automation-form {
 	display: flex;
 	flex-direction: column;
-	gap: 10px;
+	gap: var(--vscode-spacing-size100);
 	padding: 2px 2px 4px;
+}
+
+.automation-form-content {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size100);
 }
 
 .automation-prompt-section {
@@ -328,6 +334,17 @@
 }
 
 .automation-session-configuration-unavailable {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.automation-session-configuration-error {
+	flex-basis: 100%;
+	color: var(--vscode-inputValidation-errorForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.automation-form-save-status {
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body2);
 }

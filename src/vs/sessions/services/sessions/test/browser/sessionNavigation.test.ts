@@ -217,6 +217,7 @@ class MockSessionStore implements ISessionsManagementService {
 	createAutomationSession(_folderUri: URI, _options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	createAutomationQuickChat(_options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	getAutomationSessionConfiguration(): Promise<undefined> { return Promise.resolve(undefined); }
+	supportsAutomationSessionConfiguration(): boolean { return false; }
 	usesCombinedNewSessionConfigPicker(): boolean { return false; }
 	createQuickChat(_options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	createNewChatInSession(_session: ISession): Promise<IChat | undefined> { throw new Error('not implemented'); }

@@ -95,7 +95,7 @@ create draft
 
 The first send waits for tracked draft configuration. Cancellation disposes the draft. Later configuration changes are scoped to the committed session and do not recreate the entire facade.
 
-Automation drafts use the same `NewSession` implementation but are tracked separately by the management service. They may receive an initial Automation configuration and can be captured asynchronously after pending configuration resolution. Capture rechecks draft identity, omits transient and target-owned values, preserves untouched opaque preferences, and rejects superseded drafts.
+Automation drafts use the same `NewSession` implementation but are tracked separately by the management service. Agent Host providers advertise Automation configuration support, restore the initial template before configuration resolution, and capture it asynchronously after pending resolution. Capture rechecks draft identity, omits transient, permission-grant, target-owned, and host-owned values, preserves untouched opaque preferences, and rejects superseded drafts.
 
 Existing-session requests route by the provider resource and chat resource. Host notifications update adapters and catalog membership reactively.
 

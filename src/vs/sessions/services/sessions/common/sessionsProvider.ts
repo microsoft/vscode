@@ -255,6 +255,8 @@ export interface ISessionsProvider {
 
 	/** Whether phone layouts replace separate Mode and Model controls with one picker. */
 	readonly usesCombinedNewSessionConfigPicker?: boolean;
+	/** Whether Automation configuration can be restored at draft creation and captured through `getAutomationSessionConfiguration`. */
+	readonly supportsAutomationSessionConfiguration?: boolean;
 
 	/**
 	 * Optional. Fires when a capability flag that consumers gate UI on (e.g.
@@ -322,7 +324,7 @@ export interface ISessionsProvider {
 	 */
 	deleteNewSession(sessionId: string): void;
 
-	/** Capture the provider-owned values currently selected on an Automation draft. */
+	/** Capture Automation draft values; implementing this also declares support for restoring `automationConfiguration` at draft creation. */
 	getAutomationSessionConfiguration?(sessionId: string): Promise<IAutomationSessionConfiguration | undefined>;
 
 	/**

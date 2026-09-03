@@ -4514,6 +4514,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 				autoApprove: 'assisted',
 				providerOption: { enabled: true },
 				clearedOption: true,
+				[SessionConfigKey.Permissions]: { allow: ['Shell(echo *)'], deny: [] },
+				[SessionConfigKey.WorktreeBranchPrefix]: 'template-prefix/',
+				[SessionConfigKey.WorktreeIncludeFiles]: ['template.json'],
+				[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'source ~/.bashrc' }],
+				[SessionConfigKey.AgentMerge]: true,
 			},
 		};
 		agentHost.resolveSessionConfigResult = {

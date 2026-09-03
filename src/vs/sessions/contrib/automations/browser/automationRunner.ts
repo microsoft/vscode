@@ -101,6 +101,9 @@ export class AutomationRunner implements IAutomationRunner {
 						sessionTemplate: automation.sessionTemplate,
 						automationConfiguration,
 					} : {}),
+					...((automation.sessionTemplate?.modelId ?? automation.modelId) ? { modelId: automation.sessionTemplate?.modelId ?? automation.modelId } : {}),
+					...(!automation.sessionTemplate && automation.mode ? { modeId: automation.mode } : {}),
+					...(!automation.sessionTemplate && automation.permissionLevel ? { permissionLevel: automation.permissionLevel } : {}),
 					isolationMode,
 					branch,
 				}

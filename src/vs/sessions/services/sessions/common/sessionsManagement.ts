@@ -403,6 +403,9 @@ export interface ISessionsManagementService {
 	 */
 	getAutomationSessionConfiguration(session: ISession): Promise<IAutomationSessionConfiguration | null | undefined>;
 
+	/** Whether the session's provider can restore and capture Automation configuration. */
+	supportsAutomationSessionConfiguration(session: ISession): boolean;
+
 	/** Whether the session's provider combines Mode and Model controls on phone layouts. */
 	usesCombinedNewSessionConfigPicker(session: ISession): boolean;
 

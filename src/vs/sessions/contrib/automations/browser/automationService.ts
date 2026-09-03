@@ -21,6 +21,7 @@ import {
 } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import {
 	type AutomationMutationGuard,
+	assertAutomationSessionTemplateAuthority,
 	IAutomationRunClaim,
 	IAutomationService,
 	ICreateAutomationOptions,
@@ -725,14 +726,12 @@ function updateAutomation(current: IAutomationDescriptor, patch: IUpdateAutomati
 }
 
 function mergeAutomation(current: IAutomationDescriptor, patch: IUpdateAutomationOptions): IAutomationDescriptor {
+	assertAutomationSessionTemplateAuthority(current, patch);
 	const target = patch.target ? normalizeAutomationTarget(patch.target) : current.target;
 	const targetAuthorityChanged = patch.target !== undefined
 		&& (target.providerId !== current.target.providerId || target.sessionTypeId !== current.target.sessionTypeId);
 	const templatePatched = patch.sessionTemplate !== undefined;
 	const legacyConfigurationPatched = patch.modelId !== undefined || patch.mode !== undefined || patch.permissionLevel !== undefined;
-	if (current.sessionTemplate && !templatePatched && !targetAuthorityChanged && legacyConfigurationPatched) {
-		throw new Error('A canonical Automation session template cannot be updated through legacy configuration aliases.');
-	}
 	const currentModelId = current.sessionTemplate ? undefined : current.modelId;
 	const currentMode = current.sessionTemplate ? undefined : current.mode;
 	const currentPermissionLevel = current.sessionTemplate ? undefined : current.permissionLevel;

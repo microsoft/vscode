@@ -1850,11 +1850,13 @@ suite('SessionsManagementService', () => {
 		});
 		let providerOptions: ISessionsProviderCreateSessionOptions | undefined;
 		const provider = new class extends TestSessionsProvider {
+			override readonly supportsAutomationSessionConfiguration = true;
 			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
 			override createNewSession(_folderUri?: URI, _sessionTypeId?: string, options?: ISessionsProviderCreateSessionOptions): ISession {
 				providerOptions = options;
 				return session;
 			}
+			override async getAutomationSessionConfiguration() { return automationConfiguration; }
 		}(session);
 		const { service } = createSessionsManagementService(session, disposables, provider);
 		const sessionTemplate = {
@@ -1878,6 +1880,35 @@ suite('SessionsManagementService', () => {
 			sessionTemplate,
 			automationConfiguration,
 		});
+	});
+
+	test('createAndSendNewChatRequest rejects canonical Automation templates for providers without restoration support', async () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+		});
+		let createCount = 0;
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+			override createNewSession(): ISession {
+				createCount++;
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		const sessionTemplate = { modelId: 'model', config: { mode: 'plan' } };
+
+		await Promise.all([
+			assert.rejects(
+				service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi' }, { sessionTemplate }),
+				/does not support Automation session templates/,
+			),
+			assert.rejects(
+				service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi' }, { automationConfiguration: { sessionTemplate } }),
+				/does not support Automation session templates/,
+			),
+		]);
+		assert.strictEqual(createCount, 0);
 	});
 
 	test('createAndSendNewChatRequest prepares request options while configuring the provisional session', async () => {
@@ -2980,6 +3011,7 @@ suite('SessionsManagementService', () => {
 		let createIndex = 0;
 		const provider = new class extends TestSessionsProvider {
 			override readonly supportsQuickChats = true;
+			override readonly supportsAutomationSessionConfiguration = true;
 			override resolveWorkspace(folderUri: URI): ISessionWorkspace {
 				return {
 					uri: folderUri,
