@@ -22,6 +22,18 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 	}
 }
 
+const profileSettings = [
+	{ settingId: TerminalChatAgentToolsSettingId.TerminalProfileLinux, profileType: 'chat', os: 'linux', value: { path: '/bin/bash' } },
+	{ settingId: TerminalChatAgentToolsSettingId.TerminalProfileMacOs, profileType: 'chat', os: 'osx', value: { path: '/bin/zsh' } },
+	{ settingId: TerminalChatAgentToolsSettingId.TerminalProfileWindows, profileType: 'chat', os: 'windows', value: { path: 'pwsh.exe' } },
+	{ settingId: TerminalSettingId.AutomationProfileLinux, profileType: 'automation', os: 'linux', value: { path: '/bin/bash' } },
+	{ settingId: TerminalSettingId.AutomationProfileMacOs, profileType: 'automation', os: 'osx', value: { path: '/bin/zsh' } },
+	{ settingId: TerminalSettingId.AutomationProfileWindows, profileType: 'automation', os: 'windows', value: { path: 'pwsh.exe' } },
+	{ settingId: TerminalSettingId.DefaultProfileLinux, profileType: 'default', os: 'linux', value: 'bash' },
+	{ settingId: TerminalSettingId.DefaultProfileMacOs, profileType: 'default', os: 'osx', value: 'zsh' },
+	{ settingId: TerminalSettingId.DefaultProfileWindows, profileType: 'default', os: 'windows', value: 'PowerShell' },
+] as const;
+
 suite('TerminalProfileConfigurationTelemetry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -45,29 +57,32 @@ suite('TerminalProfileConfigurationTelemetry', () => {
 	}
 
 	test('reports changes for each terminal profile setting without profile contents', async () => {
-		const settings = [
-			{ settingId: TerminalChatAgentToolsSettingId.TerminalProfileLinux, profileType: 'chat', os: 'linux', value: { path: '/bin/bash' } },
-			{ settingId: TerminalChatAgentToolsSettingId.TerminalProfileMacOs, profileType: 'chat', os: 'osx', value: { path: '/bin/zsh' } },
-			{ settingId: TerminalChatAgentToolsSettingId.TerminalProfileWindows, profileType: 'chat', os: 'windows', value: { path: 'pwsh.exe' } },
-			{ settingId: TerminalSettingId.AutomationProfileLinux, profileType: 'automation', os: 'linux', value: { path: '/bin/bash' } },
-			{ settingId: TerminalSettingId.AutomationProfileMacOs, profileType: 'automation', os: 'osx', value: { path: '/bin/zsh' } },
-			{ settingId: TerminalSettingId.AutomationProfileWindows, profileType: 'automation', os: 'windows', value: { path: 'pwsh.exe' } },
-			{ settingId: TerminalSettingId.DefaultProfileLinux, profileType: 'default', os: 'linux', value: 'bash' },
-			{ settingId: TerminalSettingId.DefaultProfileMacOs, profileType: 'default', os: 'osx', value: 'zsh' },
-			{ settingId: TerminalSettingId.DefaultProfileWindows, profileType: 'default', os: 'windows', value: 'PowerShell' },
-		] as const;
-
-		for (const setting of settings) {
+		for (const setting of profileSettings) {
 			await changeSetting(setting.settingId, setting.value);
 		}
 
-		assert.deepStrictEqual(telemetryService.events, settings.map(({ value, ...setting }) => ({
+		assert.deepStrictEqual(telemetryService.events, profileSettings.map(({ value, ...setting }) => ({
 			name: 'terminal/profileSettingChanged',
 			data: {
 				...setting,
 				configured: true,
 				changeType: 'added',
 				source: 'USER',
+			},
+		})));
+	});
+
+	test('reports settings that already have configured values', () => {
+		const configuredSettings = [profileSettings[0], profileSettings[7]];
+		const configurationService = new TestConfigurationService(Object.fromEntries(configuredSettings.map(setting => [setting.settingId, setting.value])));
+		const telemetryService = new TestTelemetryService();
+		store.add(new TerminalProfileConfigurationTelemetry(configurationService, telemetryService));
+
+		assert.deepStrictEqual(telemetryService.events, configuredSettings.map(({ value, ...setting }) => ({
+			name: 'terminal/profileSettingState',
+			data: {
+				...setting,
+				configured: true,
 			},
 		})));
 	});
