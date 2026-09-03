@@ -277,22 +277,23 @@ suite('URI Label', () => {
 		registration.dispose();
 	});
 
-	test('URI home template parents are matched literally', () => {
+	test('URI home templates resolve all parameters', () => {
 		const registration = labelService.registerFormatter({
-			home: URI.parse('test://current/sessions/${literal}/${sessionId}'),
+			home: URI.parse('test://current/orgs/${org}/sessions/${sessionId}'),
 			onDidChangeFormatting: Event.None,
-			formatting: () => ({ label: 'Session', separator: '/' }),
+			formatting: context => ({
+				label: `${context.parameters.get('org')}/${context.parameters.get('sessionId')}`,
+				separator: '/',
+			}),
 		});
-		const resource = URI.parse('test://current/sessions/${literal}/session-id/file.md');
+		const resource = URI.parse('test://current/orgs/acme/sessions/session-id/file.md');
 
 		assert.deepStrictEqual({
 			home: labelService.getUriHome(resource)?.path,
 			label: labelService.getUriLabel(resource),
-			unrelatedHome: labelService.getUriHome(URI.parse('test://current/sessions/other/session-id/file.md')),
 		}, {
-			home: '/sessions/${literal}/session-id',
-			label: 'Session/file.md',
-			unrelatedHome: undefined,
+			home: '/orgs/acme/sessions/session-id',
+			label: 'acme/session-id/file.md',
 		});
 
 		registration.dispose();

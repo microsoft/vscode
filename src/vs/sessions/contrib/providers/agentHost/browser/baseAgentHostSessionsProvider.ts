@@ -2592,6 +2592,10 @@ class NewSession extends Disposable {
 // BaseAgentHostSessionsProvider — shared base for local and remote providers
 // ============================================================================
 
+function escapeResourceLabelPathSeparators(label: string): string {
+	return label.replaceAll('/', '\u2215').replaceAll('\\', '\u29F5');
+}
+
 /**
  * Shared base class for the local and remote agent host sessions providers.
  *
@@ -2606,10 +2610,6 @@ class NewSession extends Disposable {
  * URI-scheme mapping for session metadata, the agent-provider lookup, and
  * the browse UI.
  */
-function escapeResourceLabelPathSeparators(label: string): string {
-	return label.replaceAll('/', '\u2215').replaceAll('\\', '\u29F5');
-}
-
 export abstract class BaseAgentHostSessionsProvider extends Disposable implements IAgentHostSessionsProvider {
 
 	abstract readonly id: string;
