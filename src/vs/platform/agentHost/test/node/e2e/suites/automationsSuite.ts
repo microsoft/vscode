@@ -4,16 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mkdtemp } from 'fs/promises';
+import { tmpdir } from 'os';
+import { retry } from '../../../../../../base/common/async.js';
 import { equals } from '../../../../../../base/common/objects.js';
+import { join } from '../../../../../../base/common/path.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../common/agent.js';
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY } from '../../../../common/automationMigration.js';
-import type { FetchAutomationRunsResult, InitializeResult, ListAutomationTriggerDefinitionsResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
+import type { FetchAutomationRunsResult, InitializeResult, ListAutomationTriggerDefinitionsResult, RunAutomationResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { AutomationOperation, type AutomationDefinition, type AutomationEntry } from '../../../../common/state/protocol/state.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { ActionType, type AutomationRemovedAction, type AutomationSetAction } from '../../../../common/state/sessionActions.js';
+import { ActionType, type AutomationRemovedAction, type AutomationRunPrimarySessionChangedAction, type AutomationSetAction } from '../../../../common/state/sessionActions.js';
 import type { AhpNotification } from '../../../../common/state/sessionProtocol.js';
-import { AUTOMATION_CATALOG_URI, MessageKind, ROOT_STATE_URI, type AutomationState, type RootState } from '../../../../common/state/sessionState.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { AUTOMATION_CATALOG_URI, MessageKind, ROOT_STATE_URI, type AutomationRunState, type AutomationState, type RootState } from '../../../../common/state/sessionState.js';
+import { resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 /** The migration gate's message, checked before the enablement gate's. */
@@ -382,4 +390,70 @@ export function defineAutomationsTests(context: IAgentHostE2ETestContext): void 
 			restored: { title: 'Survives restart', operations: GATED_OPERATIONS },
 		});
 	});
+
+	if (context.tier === 'parity' && config.provider === 'copilotcli') {
+		test('an automation run restores Mode and Approvals after host restart', async function () {
+			this.timeout(240_000);
+			const workspace = await mkdtemp(join(tmpdir(), 'ahp-automation-session-config-'));
+			context.tempDirs.push(workspace);
+			await initializeRoot('automations-session-config');
+			await openAutomationGates();
+			await subscribeCatalog();
+			const resource = automationResource('session-config');
+			const requestedConfig = {
+				[SessionConfigKey.Mode]: 'autopilot',
+				[SessionConfigKey.AutoApprove]: 'assisted',
+			};
+			await createAutomation(resource, {
+				...buildDefinition('Configured run'),
+				session: {
+					provider: config.provider,
+					workingDirectories: [URI.file(workspace).toString()],
+					config: requestedConfig,
+				},
+			});
+
+			await context.restartServer();
+			await initializeRoot('automations-session-config-verify');
+			await context.client.call('authenticate', {
+				channel: ROOT_STATE_URI,
+				resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
+				token: config.githubToken ?? resolveGitHubToken(),
+			}, 30_000);
+			await openAutomationGates();
+			const restored = entryFor(await subscribeCatalog(), resource);
+			const run = await context.client.call<RunAutomationResult>('runAutomation', {
+				channel: AUTOMATION_CATALOG_URI,
+				automation: resource,
+				requestId: `request-${generateUuid()}`,
+			}, 30_000);
+			const runSnapshot = await context.client.call<SubscribeResult>('subscribe', { channel: run.resource });
+			let primarySession = (runSnapshot.snapshot?.state as AutomationRunState | undefined)?.primarySession;
+			if (!primarySession) {
+				const notification = await context.client.waitForNotification(candidate =>
+					isActionNotification(candidate, ActionType.AutomationRunPrimarySessionChanged)
+					&& getActionEnvelope(candidate).channel === run.resource,
+				);
+				primarySession = (getActionEnvelope(notification).action as AutomationRunPrimarySessionChangedAction).primarySession;
+			}
+			assert.ok(primarySession);
+			context.createdSessions.push(primarySession);
+			const createdSession = await fetchSessionWithChat(context.client, primarySession);
+			await retry(async () => {
+				const current = await fetchSessionWithChat(context.client, primarySession);
+				assert.strictEqual(current.turns.at(-1)?.state, 'complete');
+			}, 100, 300);
+
+			assert.deepStrictEqual({
+				restoredConfig: restored?.definition.session.config,
+				sessionConfig: {
+					mode: createdSession.config?.values[SessionConfigKey.Mode],
+					autoApprove: createdSession.config?.values[SessionConfigKey.AutoApprove],
+				},
+			}, {
+				restoredConfig: requestedConfig,
+				sessionConfig: requestedConfig,
+			});
+		});
+	}
 }

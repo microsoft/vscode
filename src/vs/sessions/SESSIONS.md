@@ -139,6 +139,10 @@ A provider that supersedes sessions from another provider may implement `resolve
 
 `createNewSession` and `createQuickChat` return untitled drafts. A draft remains `Untitled` while its first request is prepared; `isNewSessionRequestInProgress` separately lets the UI present that activity without treating the session as committed. Draft preparation receives the first query so a provider can materialize query-dependent execution state before replacing the draft. A draft enters the committed catalog when its first request is sent. The management service owns the currently presented draft; the provider owns its backend resources. `deleteNewSession` disposes an abandoned draft.
 
+Automation editing uses an independent draft so it cannot replace the ordinary New Session composer. `ISessionsProviderCreateSessionOptions.automationConfiguration` restores the saved provider template and temporary compatibility projections before the draft's first configuration resolution. Providers that expose editable Automation configuration implement `getAutomationSessionConfiguration` to capture the current template. The management service distinguishes an unsupported capture hook from a valid empty template and a draft that was replaced while capture was pending.
+
+Provider-specific configuration remains opaque to shared Sessions code. Scoped Automation and New Session surfaces consume the same provider menu contributions and `ISessionContext`; providers may advertise presentation capabilities such as a combined phone Mode/Model picker without exposing provider identity checks to shared UI.
+
 ### Operations
 
 Providers implement only operations advertised by their contracts, including request sending, model selection, rename, archive, read state, deletion, and chat creation. Capability checks happen before invocation. Once invoked, an operation returns a defined result or rejects; unsupported behavior must not be reported as a success-shaped fallback.
