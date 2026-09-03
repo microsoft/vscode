@@ -11,6 +11,7 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -35,10 +36,15 @@ import { markOnboardingTarget } from '../../../../../workbench/contrib/onboardin
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { type IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IChatInputPickerResponsiveState } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
+import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { Menus } from '../../../../browser/menus.js';
+import { DevContainerWorktreeEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
 import { SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
+import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
+import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
@@ -134,8 +140,8 @@ export function getConfigIcon(property: string, value: unknown | undefined, hasU
 
 function formatUncommittedChanges(count: number): string {
 	return count === 1
-		? localize('agentHostSessionConfig.branchItemUncommittedSingular', "1 uncommitted change")
-		: localize('agentHostSessionConfig.branchItemUncommittedPlural', "{0} uncommitted changes", count);
+		? localize('agentHostSessionConfig.branchItemUncommittedSingular', "1 uncommitted file")
+		: localize('agentHostSessionConfig.branchItemUncommittedPlural', "{0} uncommitted files", count);
 }
 
 function getBranchUncommittedChanges(branchName: string, repositoryBranchName: string | undefined, repositoryUncommittedChanges: number | undefined): number | undefined {
@@ -144,7 +150,7 @@ function getBranchUncommittedChanges(branchName: string, repositoryBranchName: s
 		: undefined;
 }
 
-function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted?: boolean, repositoryBranchName?: string, repositoryUncommittedChanges?: number): IActionListItem<IConfigPickerItem>[] {
+function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted?: boolean, repositoryBranchName?: string, repositoryUncommittedChanges?: number, onShowChanges?: () => Promise<void>): IActionListItem<IConfigPickerItem>[] {
 	const actionItems: IActionListItem<IConfigPickerItem>[] = items.map(item => {
 		const disabled = property === SessionConfigKey.AutoApprove && isAutoApproveValuePolicyRestricted(item.value, policyRestricted === true);
 		const checked = isSelectedValue(currentValue, item.value);
@@ -162,6 +168,14 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 			ariaDescription: uncommittedChangesDescription,
 			disabled,
 			item: { ...item, checked },
+			toolbarActions: uncommittedChanges !== undefined && onShowChanges
+				? [toAction({
+					id: 'sessions.agentHost.showBranchChanges',
+					label: localize('agentHostSessionConfig.branchItemShowChanges', "Show Changes"),
+					class: ThemeIcon.asClassName(Codicon.diffMultiple),
+					run: onShowChanges,
+				})]
+				: undefined,
 		};
 	});
 
@@ -248,8 +262,8 @@ async function confirmAutoApproveLevel(value: string, label: string, dialogServi
 function triggerAriaLabel(title: string, label: string, isReadOnly: boolean, hasUncommittedChanges: boolean): string {
 	if (hasUncommittedChanges) {
 		return isReadOnly
-			? localize('agentHostSessionConfig.triggerAriaReadOnlyUncommitted', "{0}: {1}, Uncommitted Changes, Read-Only", title, label)
-			: localize('agentHostSessionConfig.triggerAriaUncommitted', "{0}: {1}, Uncommitted Changes", title, label);
+			? localize('agentHostSessionConfig.triggerAriaReadOnlyUncommitted', "{0}: {1}, Uncommitted Files, Read-Only", title, label)
+			: localize('agentHostSessionConfig.triggerAriaUncommitted', "{0}: {1}, Uncommitted Files", title, label);
 	}
 
 	return isReadOnly
@@ -364,8 +378,10 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		@IHoverService protected readonly _hoverService: IHoverService,
 		@ISessionsProvidersService protected readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ITelemetryService protected readonly _telemetryService: ITelemetryService,
-		@IWorkbenchLayoutService protected readonly _layoutService: IWorkbenchLayoutService,
+		@IAgentWorkbenchLayoutService protected readonly _layoutService: IAgentWorkbenchLayoutService,
 		@IStorageService protected readonly _storageService: IStorageService,
+		@ISessionChangesService private readonly _sessionChangesService: ISessionChangesService,
+		@IViewsService protected readonly _viewsService: IViewsService,
 	) {
 		super();
 
@@ -382,6 +398,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			this._renderConfigPickers();
 		}));
 		this._watchProviders(this._sessionsProvidersService.getProviders());
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(DevContainerWorktreeEnabledSettingId)) {
+				this._renderConfigPickers();
+			}
+		}));
 
 		// Re-render when the layout crosses the phone breakpoint so the
 		// isolation control swaps between the desktop checkbox and the
@@ -503,7 +524,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			const isReadOnly = this._isReadOnlyChip(property, schema, isNewSession);
 			// Isolation renders as a Worktree checkbox on desktop; the phone layout keeps the chip for the unified repo sheet.
 			if (property === SessionConfigKey.Isolation && this._shouldRenderIsolationAsCheckbox(schema)) {
-				this._renderIsolationCheckbox(session.sessionId, schema, value, isReadOnly, !isReadOnly && isLoading);
+				this._renderIsolationCheckbox(provider, session.sessionId, schema, value, isReadOnly, !isReadOnly && isLoading);
 				renderedIsolationCheckbox = true;
 				continue;
 			}
@@ -541,7 +562,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		if (isPhoneLayout(this._layoutService)) {
 			this._devContainerCheckbox.clear();
 		} else if (provider.isDevContainerAvailable?.(session.sessionId) && provider.isDevContainerEnabled && provider.setDevContainerEnabled) {
-			this._renderDevContainerCheckbox(provider, session.sessionId);
+			const isolationSchema = resolvedConfig.schema.properties[SessionConfigKey.Isolation];
+			const isolation = resolvedConfig.values[SessionConfigKey.Isolation] ?? isolationSchema?.default;
+			this._renderDevContainerCheckbox(provider, session.sessionId, isolation === 'worktree');
 		} else {
 			this._devContainerCheckbox.clear();
 		}
@@ -661,8 +684,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			const content = !hasUncommittedChanges
 				? branchName
 				: uncommittedChanges === 1
-					? localize('agentHostSessionConfig.branchHoverUncommittedChangeWithDescription', "{0}, {1} uncommitted change", branchName, uncommittedChanges)
-					: localize('agentHostSessionConfig.branchHoverUncommittedChangesWithDescription', "{0}, {1} uncommitted changes", branchName, uncommittedChanges);
+					? localize('agentHostSessionConfig.branchHoverUncommittedChangeWithDescription', "{0}, {1} uncommitted file", branchName, uncommittedChanges)
+					: localize('agentHostSessionConfig.branchHoverUncommittedChangesWithDescription', "{0}, {1} uncommitted files", branchName, uncommittedChanges);
 
 			// This autorun re-runs for any workspace change, not just an
 			// uncommitted-changes flip, so only touch the hover when the text
@@ -694,10 +717,16 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			&& schema.enum.includes('folder');
 	}
 
-	private _renderIsolationCheckbox(sessionId: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean, isLoading: boolean): void {
+	private _renderIsolationCheckbox(provider: IAgentHostSessionsProvider, sessionId: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean, isLoading: boolean): void {
 		const label = localize('agentHostSessionConfig.isolation.worktree', "New Worktree");
 		const worktreeIndex = schema.enum?.indexOf('worktree') ?? -1;
-		const tooltip = (worktreeIndex >= 0 ? schema.enumDescriptions?.[worktreeIndex] : undefined) ?? schema.description ?? schema.title;
+		const checked = value === 'worktree';
+		const combinationDisabled = !this._isDevContainerWorktreeEnabled()
+			&& provider.isDevContainerEnabled?.(sessionId) === true
+			&& !checked;
+		const tooltip = combinationDisabled
+			? localize('agentHostSessionConfig.isolation.devContainerDisabled', "New Worktree cannot be combined with Dev Container execution.")
+			: (worktreeIndex >= 0 ? schema.enumDescriptions?.[worktreeIndex] : undefined) ?? schema.description ?? schema.title;
 
 		let control = this._isolationCheckbox.value;
 		if (!control || control.sessionId !== sessionId) {
@@ -712,11 +741,13 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			this._isolationCheckbox.value = control;
 			this._container?.prepend(control.slot);
 		}
-		control.update(value === 'worktree', isReadOnly, isLoading, tooltip);
+		control.update(checked, isReadOnly || combinationDisabled, isLoading, tooltip);
 	}
 
-	private _renderDevContainerCheckbox(provider: IAgentHostSessionsProvider, sessionId: string): void {
+	private _renderDevContainerCheckbox(provider: IAgentHostSessionsProvider, sessionId: string, worktreeSelected: boolean): void {
 		const label = localize('agentHostSessionConfig.devContainer', "Dev Container");
+		const checked = provider.isDevContainerEnabled?.(sessionId) === true;
+		const combinationDisabled = !this._isDevContainerWorktreeEnabled() && worktreeSelected && !checked;
 		let control = this._devContainerCheckbox.value;
 		if (!control || control.sessionId !== sessionId) {
 			control = new ConfigCheckboxControl(
@@ -734,7 +765,18 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		} else {
 			this._container?.prepend(control.slot);
 		}
-		control.update(provider.isDevContainerEnabled?.(sessionId) === true, false, false, undefined);
+		control.update(
+			checked,
+			combinationDisabled,
+			false,
+			combinationDisabled
+				? localize('agentHostSessionConfig.devContainer.worktreeDisabled', "Dev Container execution cannot be combined with New Worktree.")
+				: undefined,
+		);
+	}
+
+	private _isDevContainerWorktreeEnabled(): boolean {
+		return this._configurationService.getValue<boolean>(DevContainerWorktreeEnabledSettingId) === true;
 	}
 
 	private _applyIsolationValue(sessionId: string, checked: boolean): void {
@@ -785,7 +827,10 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const repositoryState = property === SessionConfigKey.Branch
 			? this._getRepositoryBranchState(sessionId)
 			: undefined;
-		const actionItems = toActionItems(property, items, currentValue, policyRestricted, repositoryState?.branchName, repositoryState?.uncommittedChanges);
+		const onShowChanges = property === SessionConfigKey.Branch
+			? () => this._showChanges()
+			: undefined;
+		const actionItems = toActionItems(property, items, currentValue, policyRestricted, repositoryState?.branchName, repositoryState?.uncommittedChanges, onShowChanges);
 
 		const delegate: IActionListDelegate<IConfigPickerItem> = {
 			onSelect: async item => {
@@ -816,10 +861,12 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					const filteredRawItems = await this._getItems(provider, sessionId, property, schema, query);
 					const { items: filteredItems, policyRestricted: filteredPolicyRestricted } = applyAutoApproveFiltering(filteredRawItems, property, this._configurationService);
 					const filteredRepositoryState = this._getRepositoryBranchState(sessionId);
-					return toActionItems(property, filteredItems, provider.getSessionConfig(sessionId)?.values[property] ?? schema.default, filteredPolicyRestricted, filteredRepositoryState.branchName, filteredRepositoryState.uncommittedChanges);
+					return toActionItems(property, filteredItems, provider.getSessionConfig(sessionId)?.values[property] ?? schema.default, filteredPolicyRestricted, filteredRepositoryState.branchName, filteredRepositoryState.uncommittedChanges, onShowChanges);
 				})
 				: undefined,
-			onHide: () => trigger.focus(),
+			onHide: () => {
+				trigger.focus();
+			},
 		};
 
 		this._actionWidgetService.show<IConfigPickerItem>(
@@ -836,10 +883,24 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					: item.label ?? '',
 				getWidgetAriaLabel: () => localize('agentHostSessionConfig.ariaLabel', "{0} Picker", schema.title),
 			},
-			actionItems.length > 10
+			items.length > 10
 				? { showFilter: true, filterPlaceholder: localize('agentHostSessionConfig.filter', "Filter options..."), minWidth: 255 }
 				: { minWidth: 255 },
 		);
+	}
+
+	private async _showChanges(): Promise<void> {
+		this._actionWidgetService.hide();
+		const session = this._session.get();
+		if (this._layoutService.isSinglePaneLayoutEnabled && session) {
+			const suppression = this._layoutService.suppressEditorPartAutoVisibility();
+			try {
+				await this._sessionChangesService.openChangesEditor(session.resource);
+			} finally {
+				suppression.dispose();
+			}
+		}
+		await this._viewsService.openView(CHANGES_VIEW_ID, true);
 	}
 
 	protected _getRepositoryBranchState(sessionId: string): { branchName: string | undefined; uncommittedChanges: number | undefined } {

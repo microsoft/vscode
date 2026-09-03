@@ -210,6 +210,74 @@ suite('ChatListRenderer', () => {
 				});
 			});
 
+			test('deduplicates a created-session link echoed in the final response', () => {
+				const tool: IChatToolInvocationSerialized = {
+					kind: 'toolInvocationSerialized',
+					toolCallId: 'create-session',
+					toolId: 'create_session',
+					invocationMessage: 'Creating session...',
+					originMessage: undefined,
+					pastTenseMessage: 'Created session',
+					isComplete: true,
+					isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+					presentation: undefined,
+					source: ToolDataSource.Internal,
+					toolSpecificData: {
+						kind: 'sessionCreated',
+						openLink: 'agent-host-session://local/session',
+						label: 'Implement issue',
+					},
+				};
+				const finalResponse = {
+					kind: 'markdownContent',
+					content: new MarkdownString('Done: [Implement issue](agent-host-session://local/session)'),
+				} as const;
+
+				assert.deepStrictEqual(moveResponseOutcomeToolsAfterFinalResponse([tool, finalResponse]), [finalResponse]);
+			});
+
+			test('deduplicates repeated session outcomes by target', () => {
+				const tool: IChatToolInvocationSerialized = {
+					kind: 'toolInvocationSerialized',
+					toolCallId: 'create-session',
+					toolId: 'create_session',
+					invocationMessage: 'Creating session...',
+					originMessage: undefined,
+					pastTenseMessage: 'Created session',
+					isComplete: true,
+					isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+					presentation: undefined,
+					source: ToolDataSource.Internal,
+					toolSpecificData: {
+						kind: 'sessionCreated',
+						openLink: 'agent-host-session://local/session',
+						label: 'Implement issue',
+					},
+				};
+				const repeatedTarget: IChatToolInvocationSerialized = {
+					...tool,
+					toolCallId: 'send-message',
+					toolId: 'send_message',
+					invocationMessage: 'Sending message...',
+					pastTenseMessage: 'Sent message',
+				};
+				const otherTarget: IChatToolInvocationSerialized = {
+					...repeatedTarget,
+					toolCallId: 'send-other-message',
+					toolSpecificData: {
+						kind: 'sessionCreated',
+						openLink: 'agent-host-session://local/other-session',
+						label: 'Investigate other issue',
+					},
+				};
+				const finalResponse = { kind: 'markdownContent', content: new MarkdownString('Done') } as const;
+
+				assert.deepStrictEqual(
+					moveResponseOutcomeToolsAfterFinalResponse([tool, repeatedTarget, otherTarget, finalResponse]),
+					[finalResponse, tool, otherTarget],
+				);
+			});
+
 			test('leaves created-session tools in place when there is no final response', () => {
 				const tool: IChatToolInvocationSerialized = {
 					kind: 'toolInvocationSerialized',
