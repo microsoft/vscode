@@ -305,6 +305,26 @@ suite('AgentHostPullRequestStatusService', () => {
 		});
 	});
 
+	test('resolves a background lifecycle check for an archived session', async () => {
+		const { service, stateManager, resources, session } = createHarness();
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+
+		const status = await service.resolveForLifecycle(session);
+		await pump();
+
+		assert.deepStrictEqual({
+			status: status?.state,
+			subscribed: resources.subscribed.length,
+			refreshedFragments: resources.refreshedFragments,
+			live: resources.liveSubscriptions,
+		}, {
+			status: 'open',
+			subscribed: 1,
+			refreshedFragments: ['core'],
+			live: 0,
+		});
+	});
+
 	test('tracks review readiness in the host only while Agent Merge is enabled', async () => {
 		const { service, stateManager, subscriptions, resources, session } = createHarness();
 		stateManager.setSessionConfig(session, {

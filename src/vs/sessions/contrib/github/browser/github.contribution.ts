@@ -56,7 +56,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 0,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview'],
-			description: localize('autoArchiveMergedSessions.description', "Controls when inactive agent sessions with a merged pull request are automatically archived. Set to 0 to disable automatic archiving."),
+			description: localize('autoArchiveMergedSessions.description', "Controls when inactive agent sessions with a merged pull request are automatically archived. Archived sessions are permanently deleted after twice this period. Set to 0 to disable both operations."),
 			policy: {
 				name: 'ChatAgentSessionsAutoArchiveMergedSessionsAfterDays',
 				category: PolicyCategory.InteractiveSession,
@@ -64,7 +64,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				localization: {
 					description: {
 						key: 'autoArchiveMergedSessions.policy',
-						value: localize('autoArchiveMergedSessions.policy', "Configure when inactive agent sessions with a merged pull request are automatically archived."),
+						value: localize('autoArchiveMergedSessions.policy', "Configure when inactive agent sessions with a merged pull request are automatically archived and permanently deleted."),
 					},
 				},
 			},
@@ -387,15 +387,15 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 
 		this._notificationService.prompt(
 			Severity.Info,
-			localize('autoArchiveMergedSessions.prompt', "Free up space from finished agent sessions? Sessions with merged pull requests can be archived after 15 days of inactivity."),
+			localize('autoArchiveMergedSessions.prompt', "Free up space from finished agent sessions? Sessions with merged pull requests can be archived after 15 days of inactivity and permanently deleted after 30 days. Deletion cannot be undone."),
 			[
 				{
-					label: localize('autoArchiveMergedSessions.enable', "Turn On Auto-Archive"),
+					label: localize('autoArchiveMergedSessions.enable', "Turn On Session Cleanup"),
 					run: () => {
 						void this._configurationService.updateValue(AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, DEFAULT_AUTO_ARCHIVE_AFTER_DAYS, ConfigurationTarget.USER).catch(error => {
 							this._storageService.remove(AUTO_ARCHIVE_PROMPTED_STORAGE_KEY, StorageScope.APPLICATION);
-							this._notificationService.error(localize('autoArchiveMergedSessions.enableFailed', "Failed to turn on automatic session archiving."));
-							this._logService.warn('[SessionLifecycle] Failed to enable automatic session archiving', error);
+							this._notificationService.error(localize('autoArchiveMergedSessions.enableFailed', "Failed to turn on automatic session cleanup."));
+							this._logService.warn('[SessionLifecycle] Failed to enable automatic session cleanup', error);
 						});
 					},
 				},

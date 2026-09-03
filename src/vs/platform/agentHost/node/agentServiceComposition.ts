@@ -17,6 +17,7 @@ import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { AgentHostExternalSessionsMode } from '../common/agentHostSchema.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY } from '../common/state/sessionState.js';
 import type { IAgent } from '../common/agent.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -43,6 +44,7 @@ import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { ISessionWorkspaceConversionService, SessionWorkspaceConversionService } from './chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { AgentHostSessionLifecycle } from './agentHostSessionLifecycle.js';
+import { persistSessionMetadataValues } from './shared/persistSessionMetadata.js';
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
 
 export interface IAgentServiceComposition {
@@ -191,6 +193,24 @@ export function createAgentServiceComposition(
 			{
 				listSessions: () => agentService!.listSessions(AgentHostExternalSessionsMode.None),
 				restoreSession: session => agentService!.restoreSession(session),
+				getAutoArchivedAt: async session => {
+					const ref = await sessionDataService.tryOpenDatabase(session);
+					if (!ref) {
+						return undefined;
+					}
+					try {
+						const value = await ref.object.getMetadata(AH_META_AUTO_ARCHIVED_AT_DB_KEY);
+						const timestamp = value ? Number(value) : Number.NaN;
+						return Number.isFinite(timestamp) ? timestamp : undefined;
+					} finally {
+						ref.dispose();
+					}
+				},
+				setAutoArchivedAt: (session, timestamp) => persistSessionMetadataValues(sessionDataService, session.toString(), {
+					[AH_META_AUTO_ARCHIVED_AT_DB_KEY]: String(timestamp),
+				}),
+				canDeleteSession: session => agentService!.canAutomaticallyDeleteArchivedSession(session),
+				deleteSession: (session, validate) => agentService!.disposeSessionIf(session, validate),
 			},
 			configurationService,
 			stateManager,

@@ -33,8 +33,12 @@ suite('AgentHostSessionLifecycle', () => {
 		readonly modifiedTime?: number;
 		readonly external?: boolean;
 		readonly enabled?: boolean;
-		readonly onResolve?: (configurationService: AgentConfigurationService) => void;
+		readonly onResolve?: (configurationService: AgentConfigurationService, stateManager: AgentHostStateManager, session: URI) => void;
 		readonly pullRequestUrls?: readonly string[];
+		readonly deleteError?: Error;
+		readonly autoArchivedAt?: number;
+		readonly canDeleteSession?: boolean;
+		readonly onGetAutoArchivedAt?: (configurationService: AgentConfigurationService) => void;
 	}) {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
@@ -70,6 +74,8 @@ suite('AgentHostSessionLifecycle', () => {
 
 		const restored: string[] = [];
 		const resolved: string[] = [];
+		const deleted: string[] = [];
+		let autoArchivedAt = options?.autoArchivedAt;
 		const pullRequestStatusService = new class extends mock<IAgentHostPullRequestStatusService>() {
 			override readonly onDidChangePullRequestStatus = Event.None;
 			override getPullRequestStatus() { return options?.status; }
@@ -77,7 +83,7 @@ suite('AgentHostSessionLifecycle', () => {
 			override async refresh() { }
 			override async resolveForLifecycle(sessionKey: string) {
 				resolved.push(sessionKey);
-				options?.onResolve?.(configurationService);
+				options?.onResolve?.(configurationService, stateManager, session);
 				return options?.status;
 			}
 			override dispose() { }
@@ -89,6 +95,23 @@ suite('AgentHostSessionLifecycle', () => {
 			{
 				listSessions: async () => [metadata],
 				restoreSession: async resource => { restored.push(resource.toString()); },
+				getAutoArchivedAt: async () => {
+					options?.onGetAutoArchivedAt?.(configurationService);
+					return autoArchivedAt;
+				},
+				setAutoArchivedAt: async (_resource, timestamp) => { autoArchivedAt = timestamp; },
+				canDeleteSession: async () => options?.canDeleteSession !== false,
+				deleteSession: async (resource, validate) => {
+					if (!await validate()) {
+						return false;
+					}
+					deleted.push(resource.toString());
+					if (options?.deleteError) {
+						throw options.deleteError;
+					}
+					stateManager.deleteSession(resource.toString());
+					return true;
+				},
 			},
 			configurationService,
 			stateManager,
@@ -97,7 +120,7 @@ suite('AgentHostSessionLifecycle', () => {
 			logService,
 			{ now: () => NOW, start: false },
 		));
-		return { lifecycle, stateManager, session, restored, resolved };
+		return { lifecycle, stateManager, session, restored, resolved, deleted };
 	}
 
 	test('archives an inactive internal session after an authoritative merged result', async () => {
@@ -141,6 +164,183 @@ suite('AgentHostSessionLifecycle', () => {
 			restored: [session.toString()],
 			resolved: [session.toString()],
 			archived: false,
+		});
+	});
+
+	test('permanently deletes an archived merged-pull-request session after twice the configured period', async () => {
+		const { lifecycle, stateManager, session, restored, resolved, deleted } = createHarness({
+			sessionStatus: SessionStatus.Idle | SessionStatus.IsArchived,
+			modifiedTime: NOW - 3 * DAY_MS,
+			status: mergedPullRequestStatus(),
+			autoArchivedAt: NOW - 2 * DAY_MS,
+		});
+
+		await lifecycle.run();
+
+		assert.deepStrictEqual({
+			restored,
+			resolved,
+			deleted,
+			summary: stateManager.getSessionSummary(session.toString()),
+		}, {
+			restored: [session.toString()],
+			resolved: [session.toString()],
+			deleted: [session.toString()],
+			summary: undefined,
+		});
+	});
+
+	test('keeps archived sessions during the permanent deletion grace period', async () => {
+		const { lifecycle, stateManager, session, restored, resolved, deleted } = createHarness({
+			sessionStatus: SessionStatus.Idle | SessionStatus.IsArchived,
+			modifiedTime: NOW - 3 * DAY_MS,
+			status: mergedPullRequestStatus(),
+			autoArchivedAt: NOW - 0.5 * DAY_MS,
+		});
+
+		await lifecycle.run();
+
+		assert.deepStrictEqual({
+			restored,
+			resolved,
+			deleted,
+			archived: isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status),
+		}, {
+			restored: [session.toString()],
+			resolved: [],
+			deleted: [],
+			archived: true,
+		});
+	});
+
+	test('does not retroactively delete a manually archived session', async () => {
+		const { lifecycle, stateManager, session, restored, resolved, deleted } = createHarness({
+			sessionStatus: SessionStatus.Idle | SessionStatus.IsArchived,
+			modifiedTime: NOW - 30 * DAY_MS,
+			status: mergedPullRequestStatus(),
+		});
+
+		await lifecycle.run();
+
+		assert.deepStrictEqual({
+			restored,
+			resolved,
+			deleted,
+			archived: isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status),
+		}, {
+			restored: [session.toString()],
+			resolved: [],
+			deleted: [],
+			archived: true,
+		});
+	});
+
+	test('does not delete an archived session while its worktree remains', async () => {
+		const { lifecycle, stateManager, session, deleted } = createHarness({
+			sessionStatus: SessionStatus.Idle | SessionStatus.IsArchived,
+			modifiedTime: NOW - 3 * DAY_MS,
+			status: mergedPullRequestStatus(),
+			autoArchivedAt: NOW - 2 * DAY_MS,
+			canDeleteSession: false,
+		});
+
+		await lifecycle.run();
+
+		assert.deepStrictEqual({
+			deleted,
+			archived: isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status),
+		}, {
+			deleted: [],
+			archived: true,
+		});
+	});
+
+	test('does not delete an archived session when GitHub reports the pull request open', async () => {
+		const { lifecycle, stateManager, session, resolved, deleted } = createHarness({
+			sessionStatus: SessionStatus.Idle | SessionStatus.IsArchived,
+			modifiedTime: NOW - 3 * DAY_MS,
+			status: { ...mergedPullRequestStatus(), state: 'open' },
+			autoArchivedAt: NOW - 2 * DAY_MS,
+		});
+
+		await lifecycle.run();
+
+		assert.deepStrictEqual({
+			resolved,
+			deleted,
+			archived: isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status),
+		}, {
+			resolved: [session.toString()],
+			deleted: [],
+			archived: true,
+		});
+	});
+
+	test('does not delete an archived session that is unarchived during GitHub refresh', async () => {
+		const { lifecycle, stateManager, session, deleted } = createHarness({
+			sessionStatus: SessionStatus.Idle | SessionStatus.IsArchived,
+			modifiedTime: NOW - 3 * DAY_MS,
+			status: mergedPullRequestStatus(),
+			autoArchivedAt: NOW - 2 * DAY_MS,
+			onResolve: (_configurationService, manager, resource) => manager.dispatchServerAction(resource.toString(), {
+				type: ActionType.SessionIsArchivedChanged,
+				isArchived: false,
+			}),
+		});
+
+		await lifecycle.run();
+
+		assert.deepStrictEqual({
+			deleted,
+			archived: isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status),
+		}, {
+			deleted: [],
+			archived: false,
+		});
+	});
+
+	test('does not delete when cleanup is disabled during final validation', async () => {
+		let metadataReads = 0;
+		const { lifecycle, stateManager, session, deleted } = createHarness({
+			sessionStatus: SessionStatus.Idle | SessionStatus.IsArchived,
+			modifiedTime: NOW - 3 * DAY_MS,
+			status: mergedPullRequestStatus(),
+			autoArchivedAt: NOW - 2 * DAY_MS,
+			onGetAutoArchivedAt: configurationService => {
+				if (++metadataReads === 3) {
+					configurationService.updateRootConfig({ [AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey]: 0 });
+				}
+			},
+		});
+
+		await lifecycle.run();
+
+		assert.deepStrictEqual({
+			deleted,
+			archived: isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status),
+		}, {
+			deleted: [],
+			archived: true,
+		});
+	});
+
+	test('retains an archived session when permanent deletion fails', async () => {
+		const { lifecycle, stateManager, session, deleted } = createHarness({
+			sessionStatus: SessionStatus.Idle | SessionStatus.IsArchived,
+			modifiedTime: NOW - 3 * DAY_MS,
+			status: mergedPullRequestStatus(),
+			autoArchivedAt: NOW - 2 * DAY_MS,
+			deleteError: new Error('delete failed'),
+		});
+
+		await lifecycle.run();
+
+		assert.deepStrictEqual({
+			deleted,
+			archived: isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status),
+		}, {
+			deleted: [session.toString()],
+			archived: true,
 		});
 	});
 

@@ -22,6 +22,10 @@ const DEFAULT_INTERVAL_MS = 60 * 60 * 1000;
 export interface IAgentHostSessionLifecycleAccessor {
 	readonly listSessions: () => Promise<readonly IAgentSessionMetadata[]>;
 	readonly restoreSession: (session: URI) => Promise<void>;
+	readonly getAutoArchivedAt: (session: URI) => Promise<number | undefined>;
+	readonly setAutoArchivedAt: (session: URI, timestamp: number) => Promise<void>;
+	readonly canDeleteSession: (session: URI) => Promise<boolean>;
+	readonly deleteSession: (session: URI, validate: () => Promise<boolean>) => Promise<boolean>;
 }
 
 export interface IAgentHostSessionLifecycleOptions {
@@ -31,9 +35,9 @@ export interface IAgentHostSessionLifecycleOptions {
 }
 
 /**
- * Owns the Agent Host policy for archiving inactive sessions whose pull
+ * Owns the Agent Host policy for cleaning up inactive sessions whose pull
  * requests have merged. The client only configures the policy and presents
- * opt-in UI; candidate evaluation and archive side effects stay authoritative
+ * opt-in UI; candidate evaluation and cleanup side effects stay authoritative
  * in the host.
  */
 export class AgentHostSessionLifecycle extends Disposable {
@@ -92,13 +96,14 @@ export class AgentHostSessionLifecycle extends Disposable {
 			return;
 		}
 
-		const cutoff = this._now() - archiveAfterDays * DAY_MS;
+		const archiveCutoff = this._now() - archiveAfterDays * DAY_MS;
+		const deleteCutoff = this._now() - archiveAfterDays * 2 * DAY_MS;
 		const sessions = await this._accessor.listSessions();
 		for (const session of sessions) {
-			if (!this._isCandidate(session, cutoff)) {
+			if (!this._isCandidate(session, archiveCutoff, deleteCutoff)) {
 				continue;
 			}
-			await this._evaluateCandidate(session.session, cutoff);
+			await this._evaluateCandidate(session.session, archiveCutoff, deleteCutoff);
 		}
 	}
 
@@ -107,62 +112,104 @@ export class AgentHostSessionLifecycle extends Disposable {
 		return value === 1 || value === 7 || value === 15 || value === 30 ? value : 0;
 	}
 
-	private _isCandidate(session: IAgentSessionMetadata, cutoff: number): boolean {
+	private _isCandidate(session: IAgentSessionMetadata, archiveCutoff: number, deleteCutoff: number): boolean {
 		if (readSessionExternal(session._meta)
-			|| isSessionStatusArchived(session.status)
 			|| isSessionStatusActive(session.status)
 			|| !Number.isFinite(session.modifiedTime)
-			|| session.modifiedTime > cutoff) {
+			|| session.modifiedTime > (isSessionStatusArchived(session.status) ? deleteCutoff : archiveCutoff)) {
 			return false;
 		}
 		return getSessionRelatedPullRequestUrls(readSessionGitHubState(session._meta)).length > 0;
 	}
 
-	private async _evaluateCandidate(session: URI, cutoff: number): Promise<void> {
+	private async _evaluateCandidate(session: URI, archiveCutoff: number, deleteCutoff: number): Promise<void> {
 		try {
 			await this._accessor.restoreSession(session);
 		} catch (error) {
-			this._logService.warn(`[AgentHostSessionLifecycle] Failed to restore auto-archive candidate ${session.toString()}`, error);
+			this._logService.warn(`[AgentHostSessionLifecycle] Failed to restore merged-session cleanup candidate ${session.toString()}`, error);
 			return;
 		}
 
 		const sessionKey = session.toString();
 		const beforeRefresh = this._stateManager.getSessionSummary(sessionKey);
-		const pullRequestUrl = this._eligiblePullRequestUrl(beforeRefresh, cutoff);
-		if (!pullRequestUrl) {
+		const candidate = await this._getCleanupCandidate(session, beforeRefresh, archiveCutoff, deleteCutoff);
+		if (!candidate) {
 			return;
 		}
 
 		const pullRequest = await this._pullRequestStatusService.resolveForLifecycle(sessionKey);
 		const afterRefresh = this._stateManager.getSessionSummary(sessionKey);
 		const currentArchiveAfterDays = this._getArchiveAfterDays();
-		const currentCutoff = this._now() - currentArchiveAfterDays * DAY_MS;
-		const refreshedPullRequestUrl = currentArchiveAfterDays > 0
-			? this._eligiblePullRequestUrl(afterRefresh, currentCutoff)
+		const refreshedCandidate = currentArchiveAfterDays > 0
+			? await this._getCleanupCandidate(
+				session,
+				afterRefresh,
+				this._now() - currentArchiveAfterDays * DAY_MS,
+				this._now() - currentArchiveAfterDays * 2 * DAY_MS,
+			)
 			: undefined;
 		if (pullRequest?.state !== 'merged'
-			|| pullRequest.url.toLowerCase() !== pullRequestUrl.toLowerCase()
-			|| refreshedPullRequestUrl?.toLowerCase() !== pullRequest.url.toLowerCase()) {
+			|| pullRequest.url.toLowerCase() !== candidate.pullRequestUrl.toLowerCase()
+			|| refreshedCandidate?.action !== candidate.action
+			|| refreshedCandidate.pullRequestUrl.toLowerCase() !== pullRequest.url.toLowerCase()) {
 			return;
 		}
 
-		this._logService.info(`[AgentHostSessionLifecycle] Auto-archiving inactive merged-pull-request session: session=${sessionKey}, pr=${pullRequest.url}`);
-		this._stateManager.dispatchServerAction(sessionKey, {
-			type: ActionType.SessionIsArchivedChanged,
-			isArchived: true,
-		});
+		if (candidate.action === 'archive') {
+			this._logService.info(`[AgentHostSessionLifecycle] Auto-archiving inactive merged-pull-request session: session=${sessionKey}, pr=${pullRequest.url}`);
+			await this._accessor.setAutoArchivedAt(session, this._now());
+			this._stateManager.dispatchServerAction(sessionKey, {
+				type: ActionType.SessionIsArchivedChanged,
+				isArchived: true,
+			});
+		} else {
+			try {
+				const deleted = await this._accessor.deleteSession(session, async () => {
+					if (!await this._accessor.canDeleteSession(session)) {
+						this._logService.info(`[AgentHostSessionLifecycle] Skipping permanent deletion because the archived session still has a worktree: session=${sessionKey}`);
+						return false;
+					}
+					const finalArchiveAfterDays = this._getArchiveAfterDays();
+					const finalCandidate = finalArchiveAfterDays > 0
+						? await this._getCleanupCandidate(
+							session,
+							this._stateManager.getSessionSummary(sessionKey),
+							this._now() - finalArchiveAfterDays * DAY_MS,
+							this._now() - finalArchiveAfterDays * 2 * DAY_MS,
+						)
+						: undefined;
+					return this._getArchiveAfterDays() === finalArchiveAfterDays
+						&& finalCandidate?.action === 'delete'
+						&& finalCandidate.pullRequestUrl.toLowerCase() === pullRequest.url.toLowerCase();
+				});
+				if (deleted) {
+					this._logService.info(`[AgentHostSessionLifecycle] Permanently deleted inactive archived merged-pull-request session: session=${sessionKey}, pr=${pullRequest.url}`);
+				}
+			} catch (error) {
+				this._logService.warn(`[AgentHostSessionLifecycle] Failed to permanently delete merged-session cleanup candidate ${sessionKey}`, error);
+			}
+		}
 	}
 
-	private _eligiblePullRequestUrl(summary: SessionSummary | undefined, cutoff: number): string | undefined {
+	private async _getCleanupCandidate(session: URI, summary: SessionSummary | undefined, archiveCutoff: number, deleteCutoff: number): Promise<{ readonly pullRequestUrl: string; readonly action: 'archive' | 'delete' } | undefined> {
 		const modifiedTime = summary ? Date.parse(summary.modifiedAt) : Number.NaN;
 		if (!summary
-			|| isSessionStatusArchived(summary.status)
 			|| isSessionStatusActive(summary.status)
 			|| !Number.isFinite(modifiedTime)
-			|| modifiedTime > cutoff) {
+			|| modifiedTime > (isSessionStatusArchived(summary.status) ? deleteCutoff : archiveCutoff)) {
 			return undefined;
 		}
-		return getSessionRelatedPullRequestUrls(readSessionGitHubState(summary._meta))[0];
+		const pullRequestUrl = getSessionRelatedPullRequestUrls(readSessionGitHubState(summary._meta))[0];
+		if (!pullRequestUrl) {
+			return undefined;
+		}
+		if (!isSessionStatusArchived(summary.status)) {
+			return { pullRequestUrl, action: 'archive' };
+		}
+		const autoArchivedAt = await this._accessor.getAutoArchivedAt(session);
+		return autoArchivedAt !== undefined && autoArchivedAt <= archiveCutoff
+			? { pullRequestUrl, action: 'delete' }
+			: undefined;
 	}
 }
 

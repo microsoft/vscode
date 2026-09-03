@@ -429,7 +429,7 @@
             "localization": {
                 "description": {
                     "key": "autoArchiveMergedSessions.policy",
-                    "value": "Configure when inactive agent sessions with a merged pull request are automatically archived."
+                    "value": "Configure when inactive agent sessions with a merged pull request are automatically archived and permanently deleted."
                 }
             },
             "type": "integer",

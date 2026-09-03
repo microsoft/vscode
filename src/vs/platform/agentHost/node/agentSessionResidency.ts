@@ -45,7 +45,7 @@ export interface IAgentSessionResidencyOptions {
 
 export class AgentSessionResidency extends Disposable {
 	private readonly _releaseInFlight = new Map<string, Promise<boolean>>();
-	private readonly _sessionsBeingDisposed = new Set<string>();
+	private readonly _sessionsBeingDisposed = new Map<string, number>();
 	private readonly _recency = new LinkedMap<string, URI>();
 	private readonly _reconciler = new Sequencer();
 	private readonly _releaseRetries = this._register(new DisposableResourceMap<IDisposable>());
@@ -94,10 +94,14 @@ export class AgentSessionResidency extends Disposable {
 		return this._reconciler.queue(() => this._doReconcile());
 	}
 
+	isBeingDisposed(resource: URI | string): boolean {
+		return this._sessionsBeingDisposed.has(resolveAgentHostSession(typeof resource === 'string' ? URI.parse(resource) : resource).toString());
+	}
+
 	async runDisposal<T>(resource: URI, task: () => Promise<T>): Promise<T> {
 		const session = resolveAgentHostSession(resource);
 		const sessionKey = session.toString();
-		this._sessionsBeingDisposed.add(sessionKey);
+		this._sessionsBeingDisposed.set(sessionKey, (this._sessionsBeingDisposed.get(sessionKey) ?? 0) + 1);
 		this._recency.delete(sessionKey);
 		this._releaseRetries.deleteAndDispose(session);
 		try {
@@ -110,7 +114,12 @@ export class AgentSessionResidency extends Disposable {
 				throw error;
 			}
 		} finally {
-			this._sessionsBeingDisposed.delete(sessionKey);
+			const remainingDisposals = (this._sessionsBeingDisposed.get(sessionKey) ?? 1) - 1;
+			if (remainingDisposals > 0) {
+				this._sessionsBeingDisposed.set(sessionKey, remainingDisposals);
+			} else {
+				this._sessionsBeingDisposed.delete(sessionKey);
+			}
 			void this.reconcile();
 		}
 	}
