@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../../../base/common/event.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
@@ -43,6 +44,145 @@ suite('RunSubagentTool', () => {
 			isBYOK: vendor !== COPILOT_VENDOR_ID,
 		};
 	}
+
+	function createAutoMetadata(multiplierNumeric?: number, overrides: Partial<ILanguageModelChatMetadata> = {}): ILanguageModelChatMetadata {
+		return {
+			...createMetadata('Auto', multiplierNumeric, COPILOT_VENDOR_ID),
+			id: AUTO_RAW_MODEL_ID,
+			...overrides,
+		};
+	}
+
+	function createAgent(name: string, modelQualifiedNames?: string[]): ICustomAgent {
+		const id = `file:///test/${name}.md`;
+		return {
+			uri: URI.parse(id),
+			id,
+			name,
+			description: `Agent ${name}`,
+			tools: ['tool1'],
+			model: modelQualifiedNames,
+			agentInstructions: { content: 'test', toolReferences: [] },
+			source: { storage: PromptsStorage.local },
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true },
+			enabled: true
+		};
+	}
+
+	function createLanguageModelsServiceMock(models = new Map<string, ILanguageModelChatMetadata>(), opts: {
+		qualifiedNameMap?: Map<string, ILanguageModelChatMetadataAndIdentifier>;
+		selectedModels?: Map<string, ILanguageModelChatMetadata>;
+		copilotVendorResolved?: boolean;
+		onSelectLanguageModels?: () => void;
+	} = {}): ILanguageModelsService {
+		const service: Partial<ILanguageModelsService> = {
+			onDidChangeLanguageModels: Event.None,
+			getLanguageModelIds: () => Array.from(models.keys()),
+			lookupLanguageModel: modelId => models.get(modelId),
+			lookupLanguageModelByQualifiedName: qualifiedName => opts.qualifiedNameMap?.get(qualifiedName),
+			hasResolvedVendor: vendor => {
+				assert.strictEqual(vendor, COPILOT_VENDOR_ID);
+				return opts.copilotVendorResolved ?? false;
+			},
+			selectLanguageModels: async selector => {
+				opts.onSelectLanguageModels?.();
+				assert.deepStrictEqual(selector, { vendor: COPILOT_VENDOR_ID, id: AUTO_RAW_MODEL_ID });
+				for (const [modelId, metadata] of opts.selectedModels ?? []) {
+					models.set(modelId, metadata);
+				}
+				return Array.from(models)
+					.filter(([, metadata]) => metadata.vendor === selector.vendor && metadata.id === selector.id)
+					.map(([modelId]) => modelId);
+			},
+			getModelConfiguration: () => undefined,
+		};
+		return service as ILanguageModelsService;
+	}
+
+	let callIdCounter = 0;
+	function createInvokableTool(opts: {
+		allowInvocationsFromSubagents: boolean;
+		capturedRequests: IChatAgentRequest[];
+		currentModeInstructions?: IChatRequestModeInstructions;
+		customAgents?: ICustomAgent[];
+		defaultToAuto?: boolean;
+		models?: Map<string, ILanguageModelChatMetadata>;
+		selectedModels?: Map<string, ILanguageModelChatMetadata>;
+		copilotVendorResolved?: boolean;
+		onSelectLanguageModels?: () => void;
+	}) {
+		const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
+		const configService = new TestConfigurationService({
+			[ChatConfiguration.SubagentsAllowInvocationsFromSubagents]: opts.allowInvocationsFromSubagents,
+			[ChatConfiguration.SubagentsDefaultToAuto]: opts.defaultToAuto ?? false,
+		});
+		const promptsService = new MockPromptsService();
+		if (opts.customAgents) {
+			promptsService.setCustomModes(opts.customAgents);
+		}
+
+		const mockChatAgentService: Pick<IChatAgentService, 'getDefaultAgent' | 'invokeAgent'> = {
+			getDefaultAgent() {
+				return { id: 'default-agent' } as IChatAgentService extends { getDefaultAgent(...args: infer _A): infer R } ? NonNullable<R> : never;
+			},
+			async invokeAgent(_id: string, request: IChatAgentRequest, _progress: (parts: IChatProgress[]) => void, _history: IChatAgentHistoryEntry[], _token: CancellationToken): Promise<IChatAgentResult> {
+				opts.capturedRequests.push(request);
+				return {};
+			},
+		};
+
+		const mockChatService: Pick<IChatService, 'getSession'> = {
+			getSession() {
+				return {
+					getRequests: () => [{
+						id: 'req-1',
+						modeInfo: opts.currentModeInstructions ? {
+							kind: undefined,
+							isBuiltin: false,
+							modeInstructions: opts.currentModeInstructions,
+							telemetryModeId: 'custom',
+							applyCodeBlockSuggestionId: undefined,
+						} : undefined
+					}],
+					acceptResponseProgress: () => { },
+				} as unknown as IChatModel;
+			},
+		};
+
+		const mockInstantiationService: Pick<IInstantiationService, 'createInstance'> = {
+			createInstance(..._args: never[]): { collect: () => Promise<void> } {
+				return { collect: async () => { } };
+			},
+		};
+		const tool = testDisposables.add(new RunSubagentTool(
+			mockChatAgentService as IChatAgentService,
+			mockChatService as IChatService,
+			mockToolsService,
+			createLanguageModelsServiceMock(opts.models, opts),
+			new NullLogService(),
+			configService,
+			promptsService,
+			mockInstantiationService as IInstantiationService,
+			{} as IProductService,
+		));
+
+		return { tool, mockChatAgentService };
+	}
+
+	function createInvocation(sessionUri: URI, userSelectedTools?: UserSelectedTools, modelId?: string): IToolInvocation {
+		return {
+			callId: `call-${++callIdCounter}`,
+			toolId: 'runSubagent',
+			parameters: { prompt: 'do something', description: 'test' },
+			context: { sessionResource: sessionUri },
+			modelId,
+			userSelectedTools: userSelectedTools ?? { runSubagent: true },
+		} as IToolInvocation;
+	}
+
+	const countTokens = async () => 0;
+	const noProgress: ToolProgress = { report() { } };
 
 	suite('resultText trimming', () => {
 		test('trims leading empty codeblocks (```\\n```) from result', () => {
@@ -87,7 +227,7 @@ suite('RunSubagentTool', () => {
 				{} as IChatAgentService,
 				{} as IChatService,
 				mockToolsService,
-				{} as ILanguageModelsService,
+				createLanguageModelsServiceMock(),
 				new NullLogService(),
 				new TestConfigurationService(),
 				promptsService,
@@ -130,7 +270,7 @@ suite('RunSubagentTool', () => {
 				{} as IChatAgentService,
 				{} as IChatService,
 				mockToolsService,
-				{} as ILanguageModelsService,
+				createLanguageModelsServiceMock(),
 				new NullLogService(),
 				new TestConfigurationService(),
 				promptsService,
@@ -172,7 +312,7 @@ suite('RunSubagentTool', () => {
 				{} as IChatAgentService,
 				{} as IChatService,
 				mockToolsService,
-				{} as ILanguageModelsService,
+				createLanguageModelsServiceMock(),
 				new NullLogService(),
 				new TestConfigurationService(),
 				promptsService,
@@ -274,37 +414,11 @@ suite('RunSubagentTool', () => {
 				promptsService.setCustomModes(opts.customAgents);
 			}
 
-			const mockLanguageModelsService: Partial<ILanguageModelsService> = {
-				getLanguageModelIds() {
-					return Array.from(opts.models.keys());
-				},
-				lookupLanguageModel(modelId: string) {
-					return opts.models.get(modelId);
-				},
-				lookupLanguageModelByQualifiedName(qualifiedName: string) {
-					return opts.qualifiedNameMap?.get(qualifiedName);
-				},
-				hasResolvedVendor(vendor: string) {
-					assert.strictEqual(vendor, COPILOT_VENDOR_ID);
-					return opts.copilotVendorResolved ?? false;
-				},
-				async selectLanguageModels(selector) {
-					opts.onSelectLanguageModels?.();
-					assert.deepStrictEqual(selector, { vendor: COPILOT_VENDOR_ID, id: AUTO_RAW_MODEL_ID });
-					for (const [modelId, metadata] of opts.selectedModels ?? []) {
-						opts.models.set(modelId, metadata);
-					}
-					return Array.from(opts.models)
-						.filter(([, metadata]) => metadata.vendor === selector.vendor && metadata.id === selector.id)
-						.map(([modelId]) => modelId);
-				},
-			};
-
 			const tool = testDisposables.add(new RunSubagentTool(
 				{} as IChatAgentService,
 				{} as IChatService,
 				mockToolsService,
-				mockLanguageModelsService as ILanguageModelsService,
+				createLanguageModelsServiceMock(opts.models, opts),
 				new NullLogService(),
 				new TestConfigurationService({
 					[ChatConfiguration.SubagentsDefaultToAuto]: opts.defaultToAuto ?? false,
@@ -317,36 +431,11 @@ suite('RunSubagentTool', () => {
 			return tool;
 		}
 
-		function createAgent(name: string, modelQualifiedNames?: string[]): ICustomAgent {
-			const id = `file:///test/${name}.md`;
-			return {
-				uri: URI.parse(id),
-				id,
-				name,
-				description: `Agent ${name}`,
-				tools: ['tool1'],
-				model: modelQualifiedNames,
-				agentInstructions: { content: 'test', toolReferences: [] },
-				source: { storage: PromptsStorage.local },
-				target: Target.Undefined,
-				visibility: { userInvocable: true, agentInvocable: true },
-				enabled: true
-			};
-		}
-
 		// A built-in (extension-shipped) agent such as Explore, whose model list is a curated fallback list.
 		function createBuiltinAgent(name: string, modelQualifiedNames?: string[]): ICustomAgent {
 			return {
 				...createAgent(name, modelQualifiedNames),
 				source: { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(BUILTIN_CHAT_EXTENSION_ID) },
-			};
-		}
-
-		function createAutoMetadata(multiplierNumeric?: number, overrides: Partial<ILanguageModelChatMetadata> = {}): ILanguageModelChatMetadata {
-			return {
-				...createMetadata('Auto', multiplierNumeric, COPILOT_VENDOR_ID),
-				id: AUTO_RAW_MODEL_ID,
-				...overrides,
 			};
 		}
 
@@ -673,6 +762,57 @@ suite('RunSubagentTool', () => {
 			}
 		});
 
+		test('keeps main model and does not retry when Auto resolution fails', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1, COPILOT_VENDOR_ID);
+			let selectCalls = 0;
+			const tool = createTool({
+				models: new Map([['main-model-id', mainMeta]]),
+				defaultToAuto: true,
+				onSelectLanguageModels: () => {
+					selectCalls++;
+					throw new Error('activation failed');
+				},
+			});
+
+			const modelNames: (string | undefined)[] = [];
+			for (const toolCallId of ['failed-auto-1', 'failed-auto-2']) {
+				const result = await tool.prepareToolInvocation({
+					parameters: { prompt: 'test', description: 'test task' },
+					toolCallId,
+					modelId: 'main-model-id',
+					chatSessionResource: URI.parse('test://session'),
+				}, CancellationToken.None);
+				modelNames.push(result?.toolSpecificData?.kind === 'subagent' ? result.toolSpecificData.modelName : undefined);
+			}
+
+			assert.deepStrictEqual({ modelNames, selectCalls }, { modelNames: ['GPT-4o', 'GPT-4o'], selectCalls: 1 });
+		});
+
+		test('keeps main model when its metadata is unknown', async () => {
+			let selectCalls = 0;
+			const tool = createTool({
+				models: new Map([['copilot-auto-model-id', createAutoMetadata()]]),
+				defaultToAuto: true,
+				copilotVendorResolved: true,
+				onSelectLanguageModels: () => selectCalls++,
+			});
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task' },
+				toolCallId: 'unknown-main-model',
+				modelId: 'unknown-main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				modelName: result?.toolSpecificData?.kind === 'subagent' ? result.toolSpecificData.modelName : undefined,
+				selectCalls,
+			}, {
+				modelName: undefined,
+				selectCalls: 0,
+			});
+		});
+
 		test('keeps BYOK main model without resolving Copilot Auto', async () => {
 			const byokMain = createMetadata('Claude Sonnet BYOK', undefined, 'anthropic');
 			const autoMeta = createAutoMetadata();
@@ -917,22 +1057,6 @@ suite('RunSubagentTool', () => {
 	});
 
 	suite('explicit model parameter', () => {
-		function createMetadata(name: string, multiplierNumeric?: number, vendor: string = 'TestVendor'): ILanguageModelChatMetadata {
-			return {
-				extension: new ExtensionIdentifier('test.extension'),
-				name,
-				id: name.toLowerCase().replace(/\s+/g, '-'),
-				vendor,
-				version: '1.0',
-				family: 'test',
-				maxInputTokens: 128000,
-				maxOutputTokens: 8192,
-				isDefaultForLocation: {},
-				multiplierNumeric,
-				capabilities: { toolCalling: true },
-			};
-		}
-
 		function createTool(opts: {
 			models: Map<string, ILanguageModelChatMetadata>;
 			qualifiedNameMap?: Map<string, ILanguageModelChatMetadataAndIdentifier>;
@@ -945,23 +1069,11 @@ suite('RunSubagentTool', () => {
 				promptsService.setCustomModes(opts.customAgents);
 			}
 
-			const mockLanguageModelsService: Partial<ILanguageModelsService> = {
-				getLanguageModelIds() {
-					return Array.from(opts.models.keys());
-				},
-				lookupLanguageModel(modelId: string) {
-					return opts.models.get(modelId);
-				},
-				lookupLanguageModelByQualifiedName(qualifiedName: string) {
-					return opts.qualifiedNameMap?.get(qualifiedName);
-				},
-			};
-
 			const tool = testDisposables.add(new RunSubagentTool(
 				{} as IChatAgentService,
 				{} as IChatService,
 				mockToolsService,
-				mockLanguageModelsService as ILanguageModelsService,
+				createLanguageModelsServiceMock(opts.models, opts),
 				new NullLogService(),
 				new TestConfigurationService({
 					[ChatConfiguration.SubagentsDefaultToAuto]: opts.defaultToAuto ?? false,
@@ -972,23 +1084,6 @@ suite('RunSubagentTool', () => {
 			));
 
 			return tool;
-		}
-
-		function createAgent(name: string, modelQualifiedNames?: string[]): ICustomAgent {
-			const id = `file:///test/${name}.md`;
-			return {
-				id,
-				uri: URI.parse(id),
-				name,
-				description: `Agent ${name}`,
-				tools: ['tool1'],
-				model: modelQualifiedNames,
-				agentInstructions: { content: 'test', toolReferences: [] },
-				source: { storage: PromptsStorage.local },
-				target: Target.Undefined,
-				visibility: { userInvocable: true, agentInvocable: true },
-				enabled: true
-			};
 		}
 
 		test('model property is included in tool schema without enum', () => {
@@ -1214,7 +1309,7 @@ suite('RunSubagentTool', () => {
 				mockChatAgentService as IChatAgentService,
 				mockChatService as IChatService,
 				mockToolsService,
-				{} as ILanguageModelsService,
+				createLanguageModelsServiceMock(),
 				new NullLogService(),
 				new TestConfigurationService(),
 				promptsService,
@@ -1297,112 +1392,6 @@ suite('RunSubagentTool', () => {
 	});
 
 	suite('nested subagent depth tracking', () => {
-		/**
-		 * Creates a RunSubagentTool with mocked services suitable for invoke() testing.
-		 * The returned `capturedRequests` array collects every IChatAgentRequest passed to invokeAgent.
-		 */
-		let callIdCounter = 0;
-		function createInvokableTool(opts: {
-			allowInvocationsFromSubagents: boolean;
-			capturedRequests: IChatAgentRequest[];
-			currentModeInstructions?: IChatRequestModeInstructions;
-			defaultToAuto?: boolean;
-			models?: Map<string, ILanguageModelChatMetadata>;
-			selectedModels?: Map<string, ILanguageModelChatMetadata>;
-			copilotVendorResolved?: boolean;
-			onSelectLanguageModels?: () => void;
-		}) {
-			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
-			const configService = new TestConfigurationService({
-				[ChatConfiguration.SubagentsAllowInvocationsFromSubagents]: opts.allowInvocationsFromSubagents,
-				[ChatConfiguration.SubagentsDefaultToAuto]: opts.defaultToAuto ?? false,
-			});
-			const promptsService = new MockPromptsService();
-			const models = opts.models ?? new Map<string, ILanguageModelChatMetadata>();
-
-			const mockChatAgentService: Pick<IChatAgentService, 'getDefaultAgent' | 'invokeAgent'> = {
-				getDefaultAgent() {
-					return { id: 'default-agent' } as IChatAgentService extends { getDefaultAgent(...args: infer _A): infer R } ? NonNullable<R> : never;
-				},
-				async invokeAgent(_id: string, request: IChatAgentRequest, _progress: (parts: IChatProgress[]) => void, _history: IChatAgentHistoryEntry[], _token: CancellationToken): Promise<IChatAgentResult> {
-					opts.capturedRequests.push(request);
-					return {};
-				},
-			};
-
-			const mockChatService: Pick<IChatService, 'getSession'> = {
-				getSession() {
-					return {
-						getRequests: () => [{
-							id: 'req-1',
-							modeInfo: opts.currentModeInstructions ? {
-								kind: undefined,
-								isBuiltin: false,
-								modeInstructions: opts.currentModeInstructions,
-								telemetryModeId: 'custom',
-								applyCodeBlockSuggestionId: undefined,
-							} : undefined
-						}],
-						acceptResponseProgress: () => { },
-					} as unknown as IChatModel;
-				},
-			};
-
-			const mockInstantiationService: Pick<IInstantiationService, 'createInstance'> = {
-				createInstance(..._args: never[]): { collect: () => Promise<void> } {
-					return { collect: async () => { } };
-				},
-			};
-			const languageModelsService: Partial<ILanguageModelsService> = {
-				getLanguageModelIds: () => Array.from(models.keys()),
-				lookupLanguageModel: modelId => models.get(modelId),
-				lookupLanguageModelByQualifiedName: () => undefined,
-				hasResolvedVendor: vendor => {
-					assert.strictEqual(vendor, COPILOT_VENDOR_ID);
-					return opts.copilotVendorResolved ?? false;
-				},
-				selectLanguageModels: async selector => {
-					opts.onSelectLanguageModels?.();
-					assert.deepStrictEqual(selector, { vendor: COPILOT_VENDOR_ID, id: AUTO_RAW_MODEL_ID });
-					for (const [modelId, metadata] of opts.selectedModels ?? []) {
-						models.set(modelId, metadata);
-					}
-					return Array.from(models)
-						.filter(([, metadata]) => metadata.vendor === selector.vendor && metadata.id === selector.id)
-						.map(([modelId]) => modelId);
-				},
-				getModelConfiguration: () => undefined,
-			};
-
-			const tool = testDisposables.add(new RunSubagentTool(
-				mockChatAgentService as IChatAgentService,
-				mockChatService as IChatService,
-				mockToolsService,
-				languageModelsService as ILanguageModelsService,
-				new NullLogService(),
-				configService,
-				promptsService,
-				mockInstantiationService as IInstantiationService,
-				{} as IProductService,
-			));
-
-			return { tool, mockChatAgentService };
-		}
-
-		function createInvocation(sessionUri: URI, userSelectedTools?: UserSelectedTools, modelId?: string): IToolInvocation {
-			return {
-				callId: `call-${++callIdCounter}`,
-				toolId: 'runSubagent',
-				parameters: { prompt: 'do something', description: 'test' },
-				context: { sessionResource: sessionUri },
-				modelId,
-				userSelectedTools: userSelectedTools ?? { runSubagent: true },
-			} as IToolInvocation;
-		}
-
-		const countTokens = async () => 0;
-		const noProgress: ToolProgress = { report() { } };
-
 		test('disables runSubagent tool when nesting is disabled', async () => {
 			const capturedRequests: IChatAgentRequest[] = [];
 			const { tool } = createInvokableTool({ allowInvocationsFromSubagents: false, capturedRequests });
@@ -1484,11 +1473,13 @@ suite('RunSubagentTool', () => {
 			assert.strictEqual(capturedRequests[0].subAgentName, 'CurrentAgent');
 			assert.deepStrictEqual(capturedRequests[0].modeInstructions, currentModeInstructions);
 		});
+	});
 
+	suite('default to Auto model', () => {
 		test('passes prepared Auto model to participant without resolving it again', async () => {
 			const capturedRequests: IChatAgentRequest[] = [];
 			const mainMeta = createMetadata('GPT-4o', 1, COPILOT_VENDOR_ID);
-			const autoMeta = { ...createMetadata('Auto', undefined, COPILOT_VENDOR_ID), id: AUTO_RAW_MODEL_ID };
+			const autoMeta = createAutoMetadata();
 			let selectCalls = 0;
 			const { tool } = createInvokableTool({
 				allowInvocationsFromSubagents: false,
@@ -1521,7 +1512,7 @@ suite('RunSubagentTool', () => {
 		test('resolves and passes Auto to participant when preparation was skipped', async () => {
 			const capturedRequests: IChatAgentRequest[] = [];
 			const mainMeta = createMetadata('GPT-4o', 1, COPILOT_VENDOR_ID);
-			const autoMeta = { ...createMetadata('Auto', undefined, COPILOT_VENDOR_ID), id: AUTO_RAW_MODEL_ID };
+			const autoMeta = createAutoMetadata();
 			let selectCalls = 0;
 			const { tool } = createInvokableTool({
 				allowInvocationsFromSubagents: false,
@@ -1545,6 +1536,44 @@ suite('RunSubagentTool', () => {
 			}, {
 				userSelectedModelId: 'copilot-auto-model-id',
 				selectCalls: 1,
+			});
+		});
+
+		test('keeps main model when the inherited current agent configures a model', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const mainMeta = createMetadata('GPT-4o', 1, COPILOT_VENDOR_ID);
+			const autoMeta = createAutoMetadata();
+			const currentAgent = createAgent('CurrentAgent', ['Claude Sonnet (TestVendor)']);
+			let selectCalls = 0;
+			const { tool } = createInvokableTool({
+				allowInvocationsFromSubagents: false,
+				capturedRequests,
+				currentModeInstructions: { uri: currentAgent.uri, name: currentAgent.name, content: 'test', toolReferences: [] },
+				customAgents: [currentAgent],
+				defaultToAuto: true,
+				models: new Map([['main-model-id', mainMeta]]),
+				selectedModels: new Map([['copilot-auto-model-id', autoMeta]]),
+				onSelectLanguageModels: () => selectCalls++,
+			});
+			const sessionUri = URI.parse('test://session/inherited-agent-model');
+			const invocation = createInvocation(sessionUri, undefined, 'main-model-id');
+
+			await tool.prepareToolInvocation({
+				parameters: invocation.parameters,
+				toolCallId: invocation.callId,
+				modelId: invocation.modelId,
+				chatSessionResource: sessionUri,
+			}, CancellationToken.None);
+			await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				subAgentName: capturedRequests[0].subAgentName,
+				userSelectedModelId: capturedRequests[0].userSelectedModelId,
+				selectCalls,
+			}, {
+				subAgentName: 'CurrentAgent',
+				userSelectedModelId: 'main-model-id',
+				selectCalls: 0,
 			});
 		});
 	});
@@ -1597,7 +1626,7 @@ suite('RunSubagentTool', () => {
 				mockChatAgentService as IChatAgentService,
 				mockChatService as IChatService,
 				mockToolsService,
-				{} as ILanguageModelsService,
+				createLanguageModelsServiceMock(),
 				new NullLogService(),
 				configService,
 				promptsService,
