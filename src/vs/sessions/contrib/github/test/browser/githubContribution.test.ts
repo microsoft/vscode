@@ -403,7 +403,7 @@ suite('GitHubPullRequestPollingContribution', () => {
 			choiceLabels: notificationService.prompts[0]?.choices.map(choice => choice.label),
 		}, {
 			promptCount: 1,
-			choiceLabels: ['Turn On Auto-Archive', 'Open Settings'],
+			choiceLabels: ['Turn On Session Cleanup', 'Open Settings'],
 		});
 	});
 

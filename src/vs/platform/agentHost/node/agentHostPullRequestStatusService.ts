@@ -411,7 +411,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		if (!state) {
 			return { kind: 'skip', reason: 'session is unknown' };
 		}
-		if (isSessionStatusArchived(state.status)) {
+		if (isSessionStatusArchived(state.status) && !this._lifecycleWatchCounts.has(sessionKey)) {
 			return { kind: 'skip', reason: 'session is archived' };
 		}
 		if (this._changesetSubscriptions.getSessionSubscriptions(sessionKey).size === 0 && !this._lifecycleWatchCounts.has(sessionKey)) {

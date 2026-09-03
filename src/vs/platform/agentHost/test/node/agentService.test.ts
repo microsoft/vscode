@@ -41,7 +41,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification } from '../../common/state/sessionActions.js';
-import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -8742,6 +8742,45 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				persisted: '',
 				restored: false,
+			});
+		});
+
+		test('unarchiving is rejected after conditional session deletion begins', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const stateManager = getStateManager(localService);
+			const session = AgentSession.uri('copilot', 'conditional-delete');
+			const sessionStr = session.toString();
+			stateManager.createSession({
+				resource: sessionStr,
+				provider: 'copilot',
+				title: 'Archived',
+				status: SessionStatus.Idle | SessionStatus.IsArchived,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			});
+			const validationStarted = new DeferredPromise<void>();
+			const finishValidation = new DeferredPromise<void>();
+			const deletion = localService.disposeSessionIf(session, async () => {
+				validationStarted.complete();
+				await finishValidation.p;
+				return false;
+			});
+			await validationStarted.p;
+
+			const rejected = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope =>
+				envelope.action.type === ActionType.SessionIsArchivedChanged && envelope.rejectionReason !== undefined));
+			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: false }, 'test-client', 1, AgentHostClientType.EditorWindow);
+			finishValidation.complete();
+
+			assert.deepStrictEqual({
+				rejectionReason: (await rejected).rejectionReason,
+				deleted: await deletion,
+				archived: isSessionStatusArchived(stateManager.getSessionSummary(sessionStr)?.status),
+			}, {
+				rejectionReason: 'Cannot unarchive a session while it is being deleted.',
+				deleted: false,
+				archived: true,
 			});
 		});
 

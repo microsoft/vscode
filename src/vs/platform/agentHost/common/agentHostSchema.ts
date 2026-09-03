@@ -552,7 +552,7 @@ export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
 
 export { ChatExternalSessionsMode as AgentHostExternalSessionsMode };
 
-/** Root config key controlling when inactive sessions with merged pull requests are archived. */
+/** Root config key controlling cleanup of inactive sessions with merged pull requests. */
 export const AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey = 'autoArchiveMergedSessionsAfterDays';
 
 /**
@@ -873,8 +873,8 @@ export const platformRootSchema = createSchema({
 	}),
 	[AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey]: schemaProperty<number>({
 		type: 'number',
-		title: localize('agentHost.config.autoArchiveMergedSessionsAfterDays.title', "Auto-Archive Merged Sessions"),
-		description: localize('agentHost.config.autoArchiveMergedSessionsAfterDays.description', "Number of inactive days after which a session with a merged pull request is automatically archived. Zero disables automatic archiving."),
+		title: localize('agentHost.config.autoArchiveMergedSessionsAfterDays.title', "Merged Session Cleanup"),
+		description: localize('agentHost.config.autoArchiveMergedSessionsAfterDays.description', "Number of inactive days after which a session with a merged pull request is automatically archived. Archived sessions are permanently deleted after twice this period. Zero disables both operations."),
 		enum: [0, 1, 7, 15, 30],
 		default: 0,
 	}),

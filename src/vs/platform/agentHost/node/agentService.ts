@@ -4067,6 +4067,21 @@ export class AgentService extends Disposable implements IAgentService {
 		await this._sessionResidency.runDisposal(session, () => this._doDisposeSession(session));
 	}
 
+	async disposeSessionIf(session: URI, validate: () => Promise<boolean>): Promise<boolean> {
+		this._logService.trace(`[AgentService] disposeSessionIf: ${session.toString()}`);
+		return this._sessionResidency.runDisposal(session, async () => {
+			if (!await validate()) {
+				return false;
+			}
+			await this._doDisposeSession(session);
+			return true;
+		});
+	}
+
+	canAutomaticallyDeleteArchivedSession(session: URI): Promise<boolean> {
+		return this._worktree.canAutomaticallyDeleteArchivedSession(session);
+	}
+
 	private async _doDisposeSession(session: URI): Promise<void> {
 		const sessionKey = session.toString();
 		this._cancelPendingSessionGc(session);
@@ -4761,6 +4776,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext): void {
 		const origin = { clientId, clientSeq };
+		if (action.type === ActionType.SessionIsArchivedChanged && !action.isArchived && this._sessionResidency.isBeingDisposed(sessionChannel)) {
+			this._stateManager.rejectClientAction(channel, action, origin, 'Cannot unarchive a session while it is being deleted.');
+			return;
+		}
 		if (action.type === ActionType.ChatTurnCancelled) {
 			const resumedDuration = this._sideEffects.getResumedTurnDuration(channel, action.turnId);
 			if (resumedDuration !== undefined) {
