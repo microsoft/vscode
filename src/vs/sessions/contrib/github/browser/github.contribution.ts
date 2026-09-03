@@ -58,7 +58,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 0,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview'],
-			description: localize('autoArchiveMergedSessions.description', "Controls when inactive agent sessions with a merged pull request are automatically archived. Set to 0 to disable automatic archival."),
+			markdownDescription: localize('autoArchiveMergedSessions.description', "Controls when inactive agent sessions with a merged pull request are automatically archived. Permanent deletion is controlled separately by {0}. Set to 0 to disable automatic archival.", '`#chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays#`'),
 			policy: {
 				name: 'ChatAgentSessionsAutoArchiveMergedSessionsAfterDays',
 				category: PolicyCategory.InteractiveSession,
@@ -85,7 +85,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 0,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview'],
-			description: localize('autoDeleteArchivedMergedSessions.description', "Controls when automatically archived agent sessions with a merged pull request are permanently deleted. The period starts when the session is automatically archived. Set to 0 to disable permanent deletion."),
+			markdownDescription: localize('autoDeleteArchivedMergedSessions.description', "Controls when automatically archived agent sessions with a merged pull request are permanently deleted. The period starts when the session is automatically archived. Automatic archival is controlled separately by {0}. Set to 0 to disable permanent deletion.", '`#chat.agentSessions.autoArchiveMergedSessionsAfterDays#`'),
 			policy: {
 				name: 'ChatAgentSessionsAutoDeleteArchivedMergedSessionsAfterDays',
 				category: PolicyCategory.InteractiveSession,
