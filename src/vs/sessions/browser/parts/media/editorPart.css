@@ -27,15 +27,13 @@
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .browser-root > .browser-navbar {
 	box-sizing: border-box;
-	min-height: var(--vscode-spacing-size320);
-	padding: var(--vscode-spacing-size40);
+	height: var(--vscode-spacing-size320);
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40) 0 var(--vscode-spacing-size40);
 	gap: var(--vscode-spacing-size40);
-	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-editorGroupHeader-tabsBorder, var(--vscode-editorGroup-border));
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-tabs-compact-height .browser-root > .browser-navbar {
-	min-height: var(--vscode-spacing-size280);
-	padding-block: var(--vscode-spacing-size20);
+	height: var(--vscode-spacing-size280);
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .search-editor > .query-container {

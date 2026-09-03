@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { addDisposableListener, EventType } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
-import { Event } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { isLinux } from '../../../base/common/platform.js';
@@ -15,6 +15,9 @@ import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/editor/editor.js';
+import { IEditorPartOptions, IEditorPartOptionsChangeEvent } from '../../../workbench/common/editor.js';
+import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../browser/parts/chatCompositeBar.js';
 import { getSessionChatDragData, isSessionChatDrag } from '../../browser/dnd.js';
@@ -73,6 +76,26 @@ class TestSessionsService extends mock<ISessionsService>() {
 	}
 }
 
+class TestEditorGroupsService extends mock<IEditorGroupsService>() {
+	private readonly _onDidChangeEditorPartOptions = new Emitter<IEditorPartOptionsChangeEvent>();
+	override readonly onDidChangeEditorPartOptions = this._onDidChangeEditorPartOptions.event;
+	private _partOptions: IEditorPartOptions = { ...DEFAULT_EDITOR_PART_OPTIONS };
+
+	override get partOptions(): IEditorPartOptions {
+		return this._partOptions;
+	}
+
+	setTabHeight(tabHeight: IEditorPartOptions['tabHeight']): void {
+		const oldPartOptions = this._partOptions;
+		this._partOptions = { ...oldPartOptions, tabHeight };
+		this._onDidChangeEditorPartOptions.fire({ oldPartOptions, newPartOptions: this._partOptions });
+	}
+
+	dispose(): void {
+		this._onDidChangeEditorPartOptions.dispose();
+	}
+}
+
 function createChat(id: string, title: string, status: SessionStatus = SessionStatus.Completed): IChat {
 	const resource = URI.parse(`test-chat://${id}`);
 	return new class extends mock<IChat>() {
@@ -109,6 +132,7 @@ interface IChatCompositeBarHarness {
 	readonly instantiationService: TestInstantiationService;
 	readonly commandService: TestCommandService;
 	readonly sessionsService: TestSessionsService;
+	readonly editorGroupsService: TestEditorGroupsService;
 	readonly bar: ChatCompositeBar;
 	readonly container: HTMLElement;
 	readonly session: IActiveSession;
@@ -124,6 +148,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	const commandService = new TestCommandService();
 	const sessionsService = new TestSessionsService();
+	const editorGroupsService = store.add(new TestEditorGroupsService());
 	const mainChat = createChat('main', 'Main Chat');
 	const secondaryChat = createChat('secondary', 'Secondary Chat');
 	const session = createSession([mainChat, secondaryChat], mainChat, options?.isQuickChat);
@@ -135,6 +160,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(ISessionsService, sessionsService);
+	instantiationService.stub(IEditorGroupsService, editorGroupsService);
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 		override readonly onDidChangeSessions = Event.None;
 	}());
@@ -159,7 +185,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	container.appendChild(bar.element);
 	const tabs = Array.from(bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab'));
 
-	return { store, instantiationService, commandService, sessionsService, bar, container, session, tabs, chats, activeChatResource, visible, showSessionActions };
+	return { store, instantiationService, commandService, sessionsService, editorGroupsService, bar, container, session, tabs, chats, activeChatResource, visible, showSessionActions };
 }
 
 suite('Sessions - ChatCompositeBar', () => {
@@ -192,18 +218,39 @@ suite('Sessions - ChatCompositeBar', () => {
 		assert.strictEqual(bar.element.querySelector('.chat-composite-bar-new-chat'), null);
 	});
 
-	test('matches the editor tab strip height', () => {
-		const { bar, container } = createHarness(disposables);
+	test('matches the default and compact editor tab strip heights', () => {
+		const { bar, container, editorGroupsService } = createHarness(disposables);
 		mainWindow.document.body.appendChild(container);
 
 		try {
 			const tabsRow = bar.element.querySelector<HTMLElement>('.chat-composite-bar-tabs-row');
-			assert.deepStrictEqual({
+			const tabs = bar.element.querySelector<HTMLElement>('.chat-composite-bar-tabs');
+			const defaultHeight = {
 				barHeight: mainWindow.getComputedStyle(bar.element).height,
 				tabsRowHeight: tabsRow && mainWindow.getComputedStyle(tabsRow).height,
-			}, {
-				barHeight: '32px',
-				tabsRowHeight: '32px',
+				tabsHeight: tabs && mainWindow.getComputedStyle(tabs).height,
+			};
+
+			editorGroupsService.setTabHeight('compact');
+			const compactHeight = {
+				barHeight: mainWindow.getComputedStyle(bar.element).height,
+				tabsRowHeight: tabsRow && mainWindow.getComputedStyle(tabsRow).height,
+				tabsHeight: tabs && mainWindow.getComputedStyle(tabs).height,
+				hasCompactClass: bar.element.classList.contains('compact-height'),
+			};
+
+			assert.deepStrictEqual({ defaultHeight, compactHeight }, {
+				defaultHeight: {
+					barHeight: '32px',
+					tabsRowHeight: '32px',
+					tabsHeight: '32px',
+				},
+				compactHeight: {
+					barHeight: '28px',
+					tabsRowHeight: '28px',
+					tabsHeight: '28px',
+					hasCompactClass: true,
+				},
 			});
 		} finally {
 			container.remove();
