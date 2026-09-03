@@ -299,7 +299,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 			return request;
 		}
 		request = { ...request, model: baseLmModel };
-		if (!request.subAgentInvocationId) {
+		if (request.subAgentInvocationId === undefined) {
 			// A subagent runs inside the main request; changing the picker there would flip every widget mid-turn.
 			await vscode.commands.executeCommand('workbench.action.chat.changeModel', { vendor: baseLmModel.vendor, id: baseLmModel.id, family: baseLmModel.family });
 		}
