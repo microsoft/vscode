@@ -1257,7 +1257,14 @@ export class PickerActionViewItem extends BaseActionViewItem implements IChatInp
 		return !!this.element && dom.isAncestorOfActiveElement(this.element);
 	}
 
-	override setFocusable(): void {
+	override blur(): void {
+		const activeElement = dom.getActiveElement();
+		if (this.element && dom.isHTMLElement(activeElement) && dom.isAncestor(activeElement, this.element)) {
+			activeElement.blur();
+		}
+	}
+
+	override setFocusable(_focusable: boolean): void {
 		if (this.element) {
 			this.element.tabIndex = -1;
 		}

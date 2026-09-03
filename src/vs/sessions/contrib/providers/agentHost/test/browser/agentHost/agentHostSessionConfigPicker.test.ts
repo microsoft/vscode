@@ -356,9 +356,11 @@ suite('Agent Host Session Config Picker', () => {
 		let focusTarget: HTMLElement | undefined;
 		const item = store.add(new PickerActionViewItem({
 			render: container => {
+				const pickerContainer = document.createElement('div');
 				focusTarget = document.createElement('button');
 				focusTarget.tabIndex = 0;
-				container.appendChild(focusTarget);
+				pickerContainer.appendChild(focusTarget);
+				container.appendChild(pickerContainer);
 			},
 			showPicker: anchor => {
 				pickerAnchor = anchor;
@@ -379,6 +381,8 @@ suite('Agent Host Session Config Picker', () => {
 			outerTabIndex: container.tabIndex,
 			focusedInnerControl: document.activeElement === focusTarget,
 		};
+		item.blur();
+		const focusedAfterBlur = document.activeElement === focusTarget;
 
 		item.setCompact(true);
 		item.show(overflowAnchor);
@@ -388,8 +392,9 @@ suite('Agent Host Session Config Picker', () => {
 			usesOverflowAnchor: pickerAnchor === overflowAnchor,
 		};
 
-		assert.deepStrictEqual({ expanded, compact }, {
+		assert.deepStrictEqual({ expanded, focusedAfterBlur, compact }, {
 			expanded: { compact: false, className: false, outerTabIndex: -1, focusedInnerControl: true },
+			focusedAfterBlur: false,
 			compact: { compact: true, className: true, usesOverflowAnchor: true },
 		});
 	});
