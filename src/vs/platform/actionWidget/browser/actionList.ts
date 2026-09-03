@@ -249,6 +249,14 @@ class SeparatorRenderer<T> implements IListRenderer<IActionListItem<T>, ISeparat
 	}
 }
 
+/**
+ * Whether the item shows a chevron that opens its panel. Items whose panel only
+ * auto-shows on hover get no chevron.
+ */
+function hasSubmenuIndicator<T>(item: IActionListItem<T>): boolean {
+	return (!!item.submenuActions?.length && !item.hover?.content) || !!item.hover?.expandable;
+}
+
 class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IActionMenuTemplateData> {
 
 	get templateId(): string { return ActionListItemKind.Action; }
@@ -257,7 +265,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		private readonly _supportsPreview: boolean,
 		private readonly _onRemoveItem: ((item: IActionListItem<T>) => void) | undefined,
 		private readonly _onShowSubmenu: ((item: IActionListItem<T>) => void) | undefined,
-		private readonly _hasAnySubmenuActions: boolean,
+		private readonly _reservesSubmenuSpace: () => boolean,
 		private readonly _groupTitleByIndex: ReadonlyMap<number, string>,
 		private readonly _linkHandler: ((uri: URI, item: IActionListItem<T>) => void) | undefined,
 		private readonly _hideDefaultKeybindingTooltip: boolean,
@@ -493,9 +501,8 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		}
 
 		// Show submenu indicator for items with submenu actions, or for items that
-		// opt into an expandable hover panel. Items whose panel only auto-shows on
-		// hover get no chevron.
-		if ((element.submenuActions?.length && !element.hover?.content) || element.hover?.expandable) {
+		// opt into an expandable hover panel.
+		if (hasSubmenuIndicator(element)) {
 			data.submenuIndicator.className = 'action-list-submenu-indicator has-submenu ' + ThemeIcon.asClassName(Codicon.chevronRight);
 			data.submenuIndicator.style.display = '';
 			data.submenuIndicator.style.visibility = '';
@@ -503,7 +510,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 				e.stopPropagation();
 				this._onShowSubmenu?.(element);
 			}));
-		} else if (this._hasAnySubmenuActions) {
+		} else if (this._reservesSubmenuSpace()) {
 			// Reserve space for alignment when other items have submenus
 			data.submenuIndicator.className = 'action-list-submenu-indicator';
 			data.submenuIndicator.style.display = '';
@@ -631,10 +638,13 @@ export interface IActionListOptions {
 	readonly initialFocusItemId?: string;
 
 	/**
-	 * When false, non-submenu items do not reserve space for the submenu chevron.
-	 * Defaults to true for alignment consistency.
+	 * Controls the gutter kept for the submenu chevron on items that have none.
+	 * - `true` (default): kept while some item shows a chevron.
+	 * - `'always'`: kept regardless, for lists whose items gain and lose their chevron
+	 *   while the popup stays open, where a collapsing gutter would shift every row.
+	 * - `false`: never kept.
 	 */
-	readonly reserveSubmenuSpace?: boolean;
+	readonly reserveSubmenuSpace?: boolean | 'always';
 
 	/**
 	 * When true, items without an explicit `tooltip` or `hover` do not get a
@@ -821,11 +831,15 @@ export class ActionListWidget<T> extends Disposable {
 		};
 
 
-		const reserveSubmenuSpace = this._options?.reserveSubmenuSpace ?? true;
-		const hasAnySubmenuActions = reserveSubmenuSpace && items.some(item => (!!item.submenuActions?.length && !item.hover?.content) || !!item.hover?.expandable);
+		// Read on every render: whether any item opens a panel can change when the items
+		// are rebuilt in place, and a stale answer shifts every row by a chevron's width.
+		const reservesSubmenuSpace = () => {
+			const reserve = this._options?.reserveSubmenuSpace ?? true;
+			return reserve === 'always' || (reserve && this._allMenuItems.some(hasSubmenuIndicator));
+		};
 
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
-			new ActionItemRenderer<T>(this._supportsPreview, (item) => this._removeItem(item), (item) => this._showSubmenuForItem(item), hasAnySubmenuActions, this._groupTitleByIndex, this._options?.linkHandler, this._options?.hideDefaultKeybindingTooltip ?? false, (item, toggle) => {
+			new ActionItemRenderer<T>(this._supportsPreview, (item) => this._removeItem(item), (item) => this._showSubmenuForItem(item), reservesSubmenuSpace, this._groupTitleByIndex, this._options?.linkHandler, this._options?.hideDefaultKeybindingTooltip ?? false, (item, toggle) => {
 				this._standaloneToggles.set(item, toggle);
 				return toDisposable(() => {
 					if (this._standaloneToggles.get(item) === toggle) {

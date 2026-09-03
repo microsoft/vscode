@@ -741,8 +741,6 @@ export class ModelPickerWidget extends Disposable {
 			? getModelConfigSummary(this._selectedModel, this._delegate.modelConfiguration ?? this._languageModelsService)
 			: undefined;
 		const showModelLabel = !compact || !modelIcon || noModelsAvailable;
-		const nameMinimumWidth = compact && !showModelLabel ? MODEL_PICKER_COMPACT_NAME_WIDTH : MODEL_PICKER_MINIMUM_NAME_WIDTH;
-		this._nameButton.style.minWidth = `${nameMinimumWidth}px`;
 		if (showModelLabel) {
 			nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
 		}
@@ -753,6 +751,9 @@ export class ModelPickerWidget extends Disposable {
 			nameChildren.push(this._badgeIcon);
 		}
 		dom.reset(this._nameButton, ...nameChildren);
+		// Measured once the name is in place, so the floor can be compared against what
+		// the chip actually needs.
+		const nameMinimumWidth = this._applyNameMinimumWidth(this._nameButton, compact && !showModelLabel);
 
 		if (this._configButton) {
 			// The tabbed picker configures models inside its detail card, so the
@@ -778,6 +779,21 @@ export class ModelPickerWidget extends Disposable {
 		this._domNode.ariaLabel = ariaLabel;
 		this._nameButton.ariaLabel = ariaLabel;
 		this._updateMinimumWidth(nameMinimumWidth);
+	}
+
+	/**
+	 * Sets how far the name can be squeezed, and reports it so the toolbar knows what
+	 * the chip needs. A name longer than the floor keeps room for the start of it; a
+	 * shorter one asks only for its own width, rather than being padded out to the floor.
+	 */
+	private _applyNameMinimumWidth(nameButton: HTMLElement, iconOnly: boolean): number {
+		// Cleared first, so the measurement reads the name rather than the previous floor.
+		nameButton.style.minWidth = '0px';
+		const width = iconOnly
+			? MODEL_PICKER_COMPACT_NAME_WIDTH
+			: Math.min(MODEL_PICKER_MINIMUM_NAME_WIDTH, nameButton.scrollWidth);
+		nameButton.style.minWidth = `${width}px`;
+		return width;
 	}
 
 }

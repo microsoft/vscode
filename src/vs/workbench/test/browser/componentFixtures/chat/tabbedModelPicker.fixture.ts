@@ -158,6 +158,14 @@ const OPENAI_MODELS = [
 	createModel('gpt-4o', 'GPT-4o', { vendor: 'openai', isBYOK: true }),
 ];
 
+const ANTHROPIC_MODELS = [
+	createModel('claude-opus-4', 'Claude Opus 4', { vendor: 'anthropic', isBYOK: true }),
+];
+
+const GOOGLE_MODELS = [
+	createModel('gemini-2-flash', 'Gemini 2 Flash', { vendor: 'google', isBYOK: true }),
+];
+
 const COPILOT_ONLY_MODELS = [AUTO_MODEL, ...COPILOT_MODELS];
 
 /** How the Copilot agent host relays models: its own vendor, BYOK stamped on everything. */
@@ -399,13 +407,16 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 		render: context => renderPicker(context, { initialTabLabel: 'Ollama' }),
 	}),
 	PickerWithManyProviders: defineComponentFixture({
-		render: context => renderPicker(context, { models: [...ALL_MODELS, ...OPENAI_MODELS], initialTabLabel: 'My Models' }),
+		render: context => renderPicker(context, {
+			models: [...ALL_MODELS, ...OPENAI_MODELS, ...ANTHROPIC_MODELS, ...GOOGLE_MODELS],
+			initialTabLabel: 'Ollama',
+		}),
 	}),
 	PickerAddedModelsPinned: defineComponentFixture({
 		render: context => renderPicker(context, {
 			models: [...ALL_MODELS, ...OPENAI_MODELS],
 			pinnedModelIds: ['ollama/llama-3-70b', 'openai/gpt-4o'],
-			initialTabLabel: 'My Models',
+			initialTabLabel: 'Ollama',
 		}),
 	}),
 	PickerWithAutoSelected: defineComponentFixture({ render: context => renderPicker(context, { models: COPILOT_ONLY_MODELS, selectedModelId: 'copilot/auto' }) }),

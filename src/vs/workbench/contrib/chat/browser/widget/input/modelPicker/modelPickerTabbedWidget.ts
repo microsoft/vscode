@@ -133,7 +133,6 @@ export class TabbedModelPicker extends Disposable {
 		}
 
 		const autoModel = context.models.find(isAutoModel);
-		const autoEnabled = this._isAutoSelected(context);
 		this._widget.show<IActionWidgetDropdownAction>({
 			user: 'ChatTabbedModelPicker',
 			anchor,
@@ -141,17 +140,17 @@ export class TabbedModelPicker extends Disposable {
 			initialTab: this._activeDestination,
 			tabBarActions: this._buildTabBarActions(context),
 			tabBarClassName: 'chat-model-picker-tabbar',
-			widgetClassNames: [
+			// Read on every render, so switching tabs after Auto was toggled does not
+			// replay the state the picker opened with.
+			widgetClassNames: () => [
 				'chat-model-picker-widget',
 				// Auto is in charge of the choice, so the list it overrides steps back.
-				...(autoEnabled ? ['auto-enabled'] : []),
-				// The leftmost tab sits flush against the sheet's left edge, so the sheet's
-				// rounded corner would notch out from under it. In search mode the filter
-				// runs to the left edge instead, so the same applies.
-				...(this._searchVisible || destinations[0].id === this._activeDestination ? ['first-tab-active'] : []),
+				...(this._isAutoSelected(this._context ?? context) ? ['auto-enabled'] : []),
 				...(this._searchVisible ? ['search-mode'] : []),
 			],
-			iconOnlyTabs: true,
+			// Only the active tab is labelled, so the strip stays compact as the user
+			// adds providers.
+			tabLabels: 'active',
 			filterInTabBar: true,
 			width: PICKER_WIDTH,
 			createActionList: activeTab => {
@@ -183,6 +182,9 @@ export class TabbedModelPicker extends Disposable {
 						linkHandler: uri => current.onUnavailableLinkClick(uri),
 						maxWidth: PICKER_WIDTH,
 						hideDefaultKeybindingTooltip: true,
+						// Rows lose their chevron while Auto is choosing, so the gutter is
+						// held open to keep the list from shifting as Auto is toggled.
+						reserveSubmenuSpace: 'always',
 					}),
 				};
 			},
@@ -224,10 +226,9 @@ export class TabbedModelPicker extends Disposable {
 			recentModelIds: context.recentModelIds,
 			pinnedModelIds: context.pinnedModelIds,
 			controlModels: context.controlModels,
-			// Only the built-in provider curates a shortlist. Models the user added are
-			// organized by which provider they came from, which is their own shortlist.
+			// Only the built-in provider curates a shortlist. A provider the user added
+			// gets a tab of its own, which is already the whole of what it offers.
 			showSuggested: isBuiltIn,
-			getProviderLabel: isBuiltIn ? undefined : model => getModelProviderLabel(model, this._languageModelsService),
 			// Only the built-in provider has a curated catalogue to compare against.
 			showUnavailable: isBuiltIn && context.unavailableContext.show,
 			currentVSCodeVersion: context.unavailableContext.currentVSCodeVersion,
@@ -271,12 +272,6 @@ export class TabbedModelPicker extends Disposable {
 		if (!destination.models.length && !sections.unavailable.length) {
 			return [];
 		}
-		// Pinned models sit above the provider groups, so they name their provider
-		// themselves rather than losing it on the way up.
-		const namesProviders = destination.id !== MODEL_PICKER_BUILT_IN_DESTINATION;
-		const providerLabelFor = (model: ILanguageModelChatMetadataAndIdentifier) =>
-			namesProviders ? getModelProviderLabel(model, this._languageModelsService) : undefined;
-
 		const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 		const appendSection = (
 			label: string | undefined,
@@ -291,7 +286,7 @@ export class TabbedModelPicker extends Disposable {
 				items.push({ kind: ActionListItemKind.Separator, label });
 			}
 			for (const model of models) {
-				items.push(this._createModelItem(model, context, undefined, providerLabelFor(model)));
+				items.push(this._createModelItem(model, context, undefined));
 			}
 			// Listed after the models that can be picked, so the section leads with what works.
 			for (const { id, entry, needsUpdate } of unavailable) {
@@ -313,14 +308,14 @@ export class TabbedModelPicker extends Disposable {
 		// no other heading here does.
 		appendSection(undefined, sections.suggested, sections.unavailable);
 
-		if (sections.otherGroups.length) {
+		if (sections.other.length) {
 			// The toggle only earns its row when it folds away models that would
 			// otherwise crowd out the promoted ones above it.
 			const collapsible = hasPromotedModels(sections);
 			const section = collapsible ? OTHER_MODELS_SECTION : undefined;
 			if (collapsible) {
 				const label = localize('chat.modelPicker.otherModels', "Other Models");
-				const count = sections.otherGroups.reduce((total, group) => total + group.models.length, 0);
+				const count = sections.other.length;
 				items.push({
 					item: { id: 'otherModels', enabled: true, checked: false, class: undefined, tooltip: label, label, run: () => { } },
 					kind: ActionListItemKind.Action,
@@ -335,13 +330,8 @@ export class TabbedModelPicker extends Disposable {
 					className: 'chat-model-picker-section-toggle',
 				});
 			}
-			for (const group of sections.otherGroups) {
-				if (group.label) {
-					items.push({ kind: ActionListItemKind.Separator, label: group.label, section });
-				}
-				for (const model of group.models) {
-					items.push(this._createModelItem(model, context, section));
-				}
+			for (const model of sections.other) {
+				items.push(this._createModelItem(model, context, section));
 			}
 		}
 		return items;
@@ -437,7 +427,6 @@ export class TabbedModelPicker extends Disposable {
 		this._context = { ...context, selectedModelId: next.identifier };
 		// Updated in place rather than re-shown: rebuilding the popup would move focus
 		// off the switch the user just clicked, and can dismiss it outright.
-		this._widget.toggleClassName('auto-enabled', enabled);
 		this._widget.refreshActiveList();
 		this._autoRow.value?.render();
 	}

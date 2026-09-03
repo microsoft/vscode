@@ -14,8 +14,8 @@ import { isAutoModel } from './modelPickerPresentation.js';
 
 /** The built-in provider's models. */
 export const MODEL_PICKER_BUILT_IN_DESTINATION = 'builtIn';
-/** Models the user added themselves, from any number of providers. */
-export const MODEL_PICKER_USER_DESTINATION = 'user';
+/** Prefix for the destination each provider the user added gets. */
+const PROVIDER_DESTINATION_PREFIX = 'provider:';
 
 /** A provider the user can add models from but has none from yet, e.g. one that needs signing in. */
 export interface IModelPickerProviderPlaceholder {
@@ -28,9 +28,8 @@ export interface IModelPickerProviderPlaceholder {
 }
 
 /**
- * One half of the picker: either the built-in provider or everything the user
- * added. There are never more than two, so the tab bar cannot grow with the
- * number of providers a user configures.
+ * One tab of the picker: the built-in provider, or one the user added. Each names a
+ * single provider, so a tab's models never need to say where they came from.
  */
 export interface IModelPickerDestination {
 	readonly id: string;
@@ -53,21 +52,14 @@ export interface IModelPickerUnavailableEntry {
 	readonly needsUpdate: boolean;
 }
 
-/** A run of models under one provider heading. */
-export interface IModelPickerGroup {
-	/** The provider name, or `undefined` when the destination has only one provider. */
-	readonly label: string | undefined;
-	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
-}
-
 /** The rows of one destination, in the order they are shown. */
 export interface IModelPickerSections {
 	/** The models the user marked, shown under their own heading. */
 	readonly pinned: readonly ILanguageModelChatMetadataAndIdentifier[];
 	/** The shortlist the picker leads with, shown unlabelled as the body of the list. */
 	readonly suggested: readonly ILanguageModelChatMetadataAndIdentifier[];
-	/** Everything not promoted above, split by provider when the destination has more than one. */
-	readonly otherGroups: readonly IModelPickerGroup[];
+	/** Everything not promoted above, which folds away when there is a shortlist. */
+	readonly other: readonly ILanguageModelChatMetadataAndIdentifier[];
 	/** Curated models the user cannot select yet, shown alongside the recommended ones. */
 	readonly unavailable: readonly IModelPickerUnavailableEntry[];
 }
@@ -109,10 +101,10 @@ export function getModelProviderLabel(
 }
 
 /**
- * Splits models into at most two destinations: the built-in provider's models,
- * and the ones the user added. The Auto model is left out because it has its own
- * row. A destination with nothing to show is dropped, so the common case of no
- * added models yields a single destination and no tab bar.
+ * Splits models into one destination per provider: the built-in one first, then each
+ * provider the user added, by name. The Auto model is left out because it has its own
+ * row. A provider with nothing to show is dropped, so the common case of no added
+ * models yields a single destination and no tab bar.
  */
 export function buildModelPickerDestinations(
 	models: readonly ILanguageModelChatMetadataAndIdentifier[],
@@ -148,21 +140,31 @@ export function buildModelPickerDestinations(
 			placeholders: builtInPlaceholders,
 		});
 	}
-	if (userModels.length || userPlaceholders.length) {
-		const modelToGroup = buildModelToProviderGroupMap(languageModelsService);
-		const providers = new Set([
-			...userModels.map(model => getModelProviderLabel(model, languageModelsService, modelToGroup)),
-			...userPlaceholders.map(placeholder => placeholder.label),
-		]);
-		// One provider is by far the common case, so name the destination after it
-		// rather than hiding it behind a generic label.
-		const soleProvider = providers.size === 1 ? [...providers][0] : undefined;
+
+	const modelToGroup = buildModelToProviderGroupMap(languageModelsService);
+	const byProvider = new Map<string, { models: ILanguageModelChatMetadataAndIdentifier[]; placeholders: IModelPickerProviderPlaceholder[] }>();
+	const providerEntry = (label: string) => {
+		let entry = byProvider.get(label);
+		if (!entry) {
+			entry = { models: [], placeholders: [] };
+			byProvider.set(label, entry);
+		}
+		return entry;
+	};
+	for (const model of userModels) {
+		providerEntry(getModelProviderLabel(model, languageModelsService, modelToGroup)).models.push(model);
+	}
+	// A provider still signing in has no models yet, but it has earned its tab.
+	for (const placeholder of userPlaceholders) {
+		providerEntry(placeholder.label).placeholders.push(placeholder);
+	}
+	for (const [label, entry] of [...byProvider].sort(([left], [right]) => left.localeCompare(right))) {
 		destinations.push({
-			id: MODEL_PICKER_USER_DESTINATION,
-			label: soleProvider ?? localize('chat.modelPicker.myModels', "My Models"),
-			icon: getProviderIconForIdentity(soleProvider ?? ''),
-			models: userModels,
-			placeholders: userPlaceholders,
+			id: `${PROVIDER_DESTINATION_PREFIX}${label}`,
+			label,
+			icon: getProviderIconForIdentity(label),
+			models: entry.models,
+			placeholders: entry.placeholders,
 		});
 	}
 	return destinations;
@@ -179,8 +181,6 @@ export interface IModelPickerSectionsOptions {
 	 * provider curates one; elsewhere every model that is not a favourite is just the list.
 	 */
 	readonly showSuggested: boolean;
-	/** Names the provider a model came from, used to group the models left over. */
-	readonly getProviderLabel?: (model: ILanguageModelChatMetadataAndIdentifier) => string;
 	/**
 	 * Whether to name curated models the user cannot select yet. Off by default so a
 	 * surface that cannot act on them does not advertise models it will not offer.
@@ -255,7 +255,7 @@ export function buildModelPickerSections(options: IModelPickerSectionsOptions): 
 	return {
 		pinned: pinned.sort(byName),
 		suggested: suggested.sort(byPromoThenName),
-		otherGroups: groupByProvider(rest, options.getProviderLabel),
+		other: rest,
 		unavailable,
 	};
 }
@@ -293,36 +293,6 @@ function buildUnavailableEntries(options: IModelPickerSectionsOptions): IModelPi
 /** Whether the entry names a minimum VS Code version this build does not meet. */
 function isOutOfDate(entry: IModelControlEntry, currentVSCodeVersion: string | undefined): boolean {
 	return !!entry.minVSCodeVersion && !!currentVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion);
-}
-
-/**
- * Splits the leftover models by provider. Every group is named, since the provider
- * heading is what tells you whose models these are once the destination itself is
- * unnamed. Callers that pass no labeller get one unnamed group.
- */
-function groupByProvider(
-	models: readonly ILanguageModelChatMetadataAndIdentifier[],
-	getLabel: ((model: ILanguageModelChatMetadataAndIdentifier) => string) | undefined,
-): IModelPickerGroup[] {
-	if (!models.length) {
-		return [];
-	}
-	if (!getLabel) {
-		return [{ label: undefined, models }];
-	}
-	const groups = new Map<string, ILanguageModelChatMetadataAndIdentifier[]>();
-	for (const model of models) {
-		const label = getLabel(model);
-		const group = groups.get(label);
-		if (group) {
-			group.push(model);
-		} else {
-			groups.set(label, [model]);
-		}
-	}
-	return [...groups.entries()]
-		.sort(([left], [right]) => left.localeCompare(right))
-		.map(([label, groupModels]) => ({ label, models: groupModels }));
 }
 
 /**

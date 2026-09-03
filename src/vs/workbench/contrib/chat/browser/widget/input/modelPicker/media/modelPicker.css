@@ -60,8 +60,10 @@
 	color: var(--vscode-foreground);
 }
 
+/* Sized by its content: growing would pad the chip with empty space beside a short
+ * model name. It still shrinks, which is what ellipsises a long one. */
 .chat-input-picker-item .action-label.model-picker-split .model-picker-name {
-	flex: 1 1 auto;
+	flex: 0 1 auto;
 	min-width: 0;
 	overflow: hidden;
 }
@@ -71,7 +73,7 @@
 }
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-name .chat-input-picker-label {
-	flex: 1 1 auto;
+	flex: 0 1 auto;
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -428,12 +430,13 @@
 	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-menu-separatorBackground, var(--vscode-editorWidget-border));
 }
 
-/* Never scrolls: there are at most two destinations, and a scroll port would clip the
- * active tab's underline out of view. */
+/* Holds every provider's tab, so it gives way before the trailing actions do. Only the
+ * active tab carries a label, which truncates rather than pushing tabs out of reach. */
 .action-widget .chat-model-picker-tabbar .tabbed-action-list-tabstrip {
 	display: flex;
-	flex: 0 0 auto;
+	flex: 0 1 auto;
 	align-items: center;
+	min-width: 0;
 	gap: var(--vscode-spacing-size20);
 }
 
@@ -505,7 +508,25 @@
 }
 
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button > .codicon {
+	flex: 0 0 auto;
 	margin: var(--vscode-spacing-sizeNone);
+}
+
+/* Only the active tab is named, so it widens to fit its label and is the first thing
+ * to give way when the strip runs out of room. Clipping happens on the label rather
+ * than the tab, which would cut off the underline sitting below it. */
+.action-widget .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button.active {
+	flex: 0 1 auto;
+	width: auto;
+	gap: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size60);
+}
+
+.action-widget .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button.active > span:not(.codicon) {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button:hover:not(.active),

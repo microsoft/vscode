@@ -83,12 +83,21 @@ export interface ITabbedActionListShowOptions<T> {
 	readonly width?: number;
 	/** Optional class name to add to the tab bar element (in addition to `.tabbed-action-list-tabbar`). Must be a single class. */
 	readonly tabBarClassName?: string;
-	/** Optional class names to add to the popup's `.action-widget` element. */
-	readonly widgetClassNames?: readonly string[];
+	/**
+	 * Computes the class names on the popup's `.action-widget` element. Re-evaluated
+	 * whenever the popup re-renders or its list is refreshed, so state that changes
+	 * while the popup stays open is not replayed stale on a tab switch.
+	 */
+	readonly widgetClassNames?: (activeTab: string) => readonly string[];
 	/** Optional icon buttons rendered after the tabs. */
 	readonly tabBarActions?: readonly ITabBarAction[];
-	/** When true, tabs show only their icon and the label becomes the accessible name. */
-	readonly iconOnlyTabs?: boolean;
+	/**
+	 * When tabs show their label beside their icon. `active` labels only the active
+	 * tab, so the strip stays compact as tabs are added; the rest keep their label as
+	 * their accessible name and tooltip. A tab with no icon always shows its label.
+	 * Defaults to `always`.
+	 */
+	readonly tabLabels?: 'always' | 'active' | 'never';
 	/**
 	 * When true, the list's filter row is rendered inside the tab bar in place of the
 	 * tabs, rather than as its own row below them.
@@ -116,7 +125,6 @@ export class TabbedActionListWidget extends Disposable {
 
 	private readonly _activePopup = this._register(new MutableDisposable());
 	private _swappingTab = false;
-	private _activeWidget: HTMLElement | undefined;
 	private _refreshActiveList: (() => void) | undefined;
 
 	get isVisible(): boolean {
@@ -166,7 +174,20 @@ export class TabbedActionListWidget extends Disposable {
 				const renderDisposables = new DisposableStore();
 
 				const widget = dom.append(container, dom.$('.action-widget'));
-				widget.classList.add(...options.widgetClassNames ?? []);
+				let widgetClassNames: readonly string[] = [];
+				const applyWidgetClassNames = () => {
+					const next = options.widgetClassNames?.(activeTab) ?? [];
+					const removed = widgetClassNames.filter(name => !next.includes(name));
+					const added = next.filter(name => !widgetClassNames.includes(name));
+					if (removed.length) {
+						widget.classList.remove(...removed);
+					}
+					if (added.length) {
+						widget.classList.add(...added);
+					}
+					widgetClassNames = next;
+				};
+				applyWidgetClassNames();
 
 				// Invisible layers that swallow the mouse events which follow the one that
 				// opened the popup. Without them a trigger that opens on mouse down is
@@ -201,7 +222,9 @@ export class TabbedActionListWidget extends Disposable {
 					items: options.tabs.map(tab => {
 						const label = tab.label ?? tab.id;
 						const iconPrefix = tab.icon ? `$(${tab.icon.id})` : '';
-						const text = options.iconOnlyTabs ? iconPrefix : (iconPrefix ? `${iconPrefix} ${label}` : label);
+						const labelMode = options.tabLabels ?? 'always';
+						const showsLabel = !iconPrefix || labelMode === 'always' || (labelMode === 'active' && tab.id === activeTab);
+						const text = showsLabel ? (iconPrefix ? `${iconPrefix} ${label}` : label) : iconPrefix;
 						return { text, tooltip: tab.tooltip ?? label, ariaLabel: label, isActive: tab.id === activeTab };
 					}),
 				}));
@@ -242,12 +265,13 @@ export class TabbedActionListWidget extends Disposable {
 					options.anchor,
 				));
 				listRef = list;
-				this._activeWidget = widget;
-				// Rebuilding the items has to ask the consumer again, since what the list
-				// shows can depend on state that changed while the popup stayed open.
-				this._refreshActiveList = () => list.updateItems(options.createActionList(activeTab).items);
+				// Rebuilding has to ask the consumer again, since what the popup shows can
+				// depend on state that changed while it stayed open.
+				this._refreshActiveList = () => {
+					applyWidgetClassNames();
+					list.updateItems(options.createActionList(activeTab).items);
+				};
 				renderDisposables.add(toDisposable(() => {
-					this._activeWidget = undefined;
 					this._refreshActiveList = undefined;
 				}));
 
@@ -368,17 +392,12 @@ export class TabbedActionListWidget extends Disposable {
 	}
 
 	/**
-	 * Rebuilds the active tab's items in place, keeping the popup's position and
-	 * whatever currently has focus. Use when an action inside the popup changes what
-	 * the list shows but should not dismiss it.
+	 * Rebuilds the active tab's items and the popup's class names in place, keeping its
+	 * position and whatever currently has focus. Use when an action inside the popup
+	 * changes what it shows but should not dismiss it.
 	 */
 	refreshActiveList(): void {
 		this._refreshActiveList?.();
-	}
-
-	/** Toggles a class on the open popup, for state that changes while it stays open. */
-	toggleClassName(className: string, enabled: boolean): void {
-		this._activeWidget?.classList.toggle(className, enabled);
 	}
 
 	/** Renders the caller's empty body, or nothing when it declines to handle the empty tab. */

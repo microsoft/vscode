@@ -557,6 +557,32 @@ suite('ActionListWidget', () => {
 		);
 	});
 
+	test('the submenu gutter follows the items the list currently holds', () => {
+		const expandable = (id: string): IActionListItem<ITestActionItem> => ({ ...action(id), hover: { content: 'panel', expandable: true } });
+		const gutters = (widget: ActionListWidget<ITestActionItem>) =>
+			Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row .action-list-submenu-indicator'))
+				.map(el => el.style.display === 'none' ? 'none' : (el.style.visibility || 'shown'));
+
+		const widget = createActionListWidget(disposables, { items: [expandable('one'), action('two')] });
+		const always = createActionListWidget(disposables, {
+			items: [expandable('one'), action('two')],
+			listOptions: { reserveSubmenuSpace: 'always' },
+		});
+
+		const before = { byDefault: gutters(widget), always: gutters(always) };
+		// The chevrons go away, so by default the gutter goes with them.
+		widget.updateItems([action('one'), action('two')]);
+		always.updateItems([action('one'), action('two')]);
+
+		assert.deepStrictEqual(
+			{ before, afterLosingChevrons: { byDefault: gutters(widget), always: gutters(always) } },
+			{
+				before: { byDefault: ['shown', 'hidden'], always: ['shown', 'hidden'] },
+				afterLosingChevrons: { byDefault: ['none', 'none'], always: ['hidden', 'hidden'] },
+			},
+		);
+	});
+
 	test('rebuilding the items in place re-measures only when the row count changed', () => {
 		const widget = createActionListWidget(disposables, { items: [action('one'), action('two')] });
 		const layouts: string[] = [];

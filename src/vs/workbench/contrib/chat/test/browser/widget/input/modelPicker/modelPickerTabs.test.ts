@@ -126,7 +126,7 @@ suite('Model picker destinations', () => {
 			summarize([relayed, relayedNative, relayedByok]),
 			[
 				{ id: 'builtIn', label: 'GitHub Copilot', models: ['GPT-5.5', 'CLI Model'] },
-				{ id: 'user', label: 'Ollama', models: ['Llama 3'] },
+				{ id: 'provider:Ollama', label: 'Ollama', models: ['Llama 3'] },
 			],
 		);
 	});
@@ -147,27 +147,38 @@ suite('Model picker destinations', () => {
 		);
 	});
 
-	test('added models share one destination named after their sole provider', () => {
+	test('a provider the user added gets its own destination', () => {
 		assert.deepStrictEqual(
 			summarize([gpt, llama]),
 			[
 				{ id: 'builtIn', label: 'GitHub Copilot', models: ['GPT-5.5'] },
-				{ id: 'user', label: 'Ollama', models: ['Llama 3'] },
+				{ id: 'provider:Ollama', label: 'Ollama', models: ['Llama 3'] },
 			],
 		);
 	});
 
-	test('added models from several providers share one destination', () => {
+	test('every provider the user added gets a destination, in name order', () => {
 		assert.deepStrictEqual(
-			summarize([gpt, llama, mistral]),
+			summarize([gpt, mistral, llama]),
 			[
 				{ id: 'builtIn', label: 'GitHub Copilot', models: ['GPT-5.5'] },
-				{ id: 'user', label: 'My Models', models: ['Llama 3', 'Mistral Large'] },
+				{ id: 'provider:Ollama', label: 'Ollama', models: ['Llama 3'] },
+				{ id: 'provider:OpenAI', label: 'OpenAI', models: ['Mistral Large'] },
 			],
 		);
 	});
 
-	test('a provider waiting on sign-in gets a destination with no models', () => {
+	test('a provider waiting on sign-in gets its own destination with no models', () => {
+		assert.deepStrictEqual(
+			summarize([gpt], [{ vendor: 'ollama', label: 'Ollama', message: 'Sign in to see available models.' }]),
+			[
+				{ id: 'builtIn', label: 'GitHub Copilot', models: ['GPT-5.5'] },
+				{ id: 'provider:Ollama', label: 'Ollama', models: [] },
+			],
+		);
+	});
+
+	test('the built-in provider waiting on sign-in still gets its destination', () => {
 		assert.deepStrictEqual(
 			summarize([], [{ vendor: 'copilot', label: 'GitHub Copilot', message: 'Sign in to see available models.' }]),
 			[{ id: 'builtIn', label: 'GitHub Copilot', models: [] }],
@@ -190,18 +201,18 @@ suite('Model picker destinations', () => {
 			{
 				pinned: sections.pinned.map(model => model.metadata.name),
 				suggested: sections.suggested.map(model => model.metadata.name),
-				otherGroups: sections.otherGroups,
+				other: sections.other,
 			},
 			{
 				pinned: ['Claude Sonnet 5'],
 				// The selected model rides along with the curated ones, so it is never folded away.
 				suggested: ['Gemini 3.1 Pro', 'GPT-5.5'],
-				otherGroups: [],
+				other: [],
 			},
 		);
 	});
 
-	test('models that are neither favourited nor shortlisted fall into one unnamed group', () => {
+	test('models that are neither pinned nor shortlisted fall through to the rest', () => {
 		const sections = buildModelPickerSections({
 			models: [gpt, claude, gemini],
 			selectedModelId: undefined,
@@ -212,10 +223,10 @@ suite('Model picker destinations', () => {
 		});
 		assert.deepStrictEqual(
 			{
-				groups: sections.otherGroups.map(group => ({ label: group.label, models: group.models.map(model => model.metadata.name) })),
+				other: sections.other.map(model => model.metadata.name),
 				promoted: hasPromotedModels(sections),
 			},
-			{ groups: [{ label: undefined, models: ['Claude Sonnet 5', 'Gemini 3.1 Pro', 'GPT-5.5'] }], promoted: false },
+			{ other: ['Claude Sonnet 5', 'Gemini 3.1 Pro', 'GPT-5.5'], promoted: false },
 		);
 	});
 
@@ -232,28 +243,8 @@ suite('Model picker destinations', () => {
 			showSuggested: true,
 		});
 		assert.deepStrictEqual(
-			sections.otherGroups.map(group => group.models.map(model => model.metadata.name)),
-			[['Claude Sonnet 5', 'Gemini 3.1 Pro', 'Alpha']],
-		);
-	});
-
-	test('added models always name their provider, so a lone provider is still named', () => {
-		const build = (models: readonly ILanguageModelChatMetadataAndIdentifier[]) => buildModelPickerSections({
-			models,
-			selectedModelId: undefined,
-			recentModelIds: [],
-			pinnedModelIds: [],
-			controlModels: {},
-			showSuggested: false,
-			getProviderLabel: model => model.metadata.vendor,
-		}).otherGroups.map(group => ({ label: group.label, models: group.models.map(model => model.metadata.name) }));
-
-		assert.deepStrictEqual(
-			{ single: build([llama]), multiple: build([llama, mistral]) },
-			{
-				single: [{ label: 'ollama', models: ['Llama 3'] }],
-				multiple: [{ label: 'ollama', models: ['Llama 3'] }, { label: 'openai', models: ['Mistral Large'] }],
-			},
+			sections.other.map(model => model.metadata.name),
+			['Claude Sonnet 5', 'Gemini 3.1 Pro', 'Alpha'],
 		);
 	});
 
@@ -267,12 +258,12 @@ suite('Model picker destinations', () => {
 			showSuggested: false,
 		});
 		assert.deepStrictEqual(
-			{ suggested: sections.suggested.length, other: sections.otherGroups.flatMap(group => group.models.map(model => model.metadata.name)) },
+			{ suggested: sections.suggested.length, other: sections.other.map(model => model.metadata.name) },
 			{ suggested: 0, other: ['Llama 3'] },
 		);
 	});
 
-	test('a destination organized by provider leads with no shortlist', () => {
+	test('a destination with no shortlist puts every model in the list', () => {
 		const sections = buildModelPickerSections({
 			models: [llama, mistral],
 			selectedModelId: 'ollama/llama-3',
@@ -280,14 +271,13 @@ suite('Model picker destinations', () => {
 			pinnedModelIds: [],
 			controlModels: {},
 			showSuggested: false,
-			getProviderLabel: model => model.metadata.vendor,
 		});
 		assert.deepStrictEqual(
 			{
 				suggested: sections.suggested.length,
-				groups: sections.otherGroups.map(group => group.label),
+				other: sections.other.map(model => model.metadata.name),
 			},
-			{ suggested: 0, groups: ['ollama', 'openai'] },
+			{ suggested: 0, other: ['Llama 3', 'Mistral Large'] },
 		);
 	});
 
@@ -367,7 +357,7 @@ suite('Model picker destinations', () => {
 			{
 				pinned: sections.pinned.map(model => model.metadata.name),
 				suggested: sections.suggested.map(model => model.metadata.name),
-				other: sections.otherGroups.flatMap(group => group.models.map(model => model.metadata.name)),
+				other: sections.other.map(model => model.metadata.name),
 				unavailable: sections.unavailable.map(entry => ({ id: entry.id, needsUpdate: entry.needsUpdate })),
 			},
 			{
