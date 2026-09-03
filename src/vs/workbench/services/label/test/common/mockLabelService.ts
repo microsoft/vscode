@@ -7,6 +7,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { basename, normalize } from '../../../../../base/common/path.js';
 import { isEqualOrParent } from '../../../../../base/common/resources.js';
+import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, ResourceLabelTemplateFormatter, Verbosity } from '../../../../../platform/label/common/label.js';
 import { IWorkspace, IWorkspaceIdentifier } from '../../../../../platform/workspace/common/workspace.js';
@@ -53,12 +54,18 @@ export class MockLabelService implements ILabelService {
 		this.formatters.push(formatter);
 		const scheme = isTemplateFormatter(formatter) ? formatter.home.scheme : formatter.scheme;
 		this._onDidChangeFormatters.fire({ scheme });
+		const changeListener = isTemplateFormatter(formatter) ? formatter.onDidChangeFormatting(() => this._onDidChangeFormatters.fire({ scheme })) : undefined;
 		return {
 			dispose: () => {
+				changeListener?.dispose();
 				this.formatters = this.formatters.filter(candidate => candidate !== formatter);
 				this._onDidChangeFormatters.fire({ scheme });
 			}
 		};
+	}
+
+	get formatterCount(): number {
+		return this.formatters.length;
 	}
 
 	getUriHome(resource: URI): URI | undefined {
@@ -78,44 +85,32 @@ export class MockLabelService implements ILabelService {
 					(formatter.home.authority && formatter.home.authority.toLowerCase() !== resource.authority.toLowerCase())) {
 					continue;
 				}
-				const templateSegments = formatter.home.path.split('/');
-				const resourceSegments = resource.path.split('/');
-				if (!templateSegments.some(segment => homeTemplateParameterRegex.test(segment))) {
-					if (!isEqualOrParent(resource, resource.with({ path: formatter.home.path }))) {
-						continue;
-					}
-					const home = resource.with({ path: formatter.home.path, query: null, fragment: null });
-					const formatting = formatter.formatting({ resource, home, parameters: new Map() });
-					if (formatting) {
-						candidate = { home, formatting };
-					}
-				} else {
-					if (resourceSegments.length < templateSegments.length) {
-						continue;
-					}
-					const parameters = new Map<string, string>();
-					let matches = true;
-					for (let index = 0; index < templateSegments.length; index++) {
-						const parameter = homeTemplateParameterRegex.exec(templateSegments[index]);
-						if (parameter?.groups?.name) {
-							if (resourceSegments[index] === '.' || resourceSegments[index] === '..') {
-								matches = false;
-								break;
-							}
-							parameters.set(parameter.groups.name, resourceSegments[index]);
-						} else if (templateSegments[index] !== resourceSegments[index]) {
-							matches = false;
-							break;
+				const homePath = formatter.home.path.length > 1 ? formatter.home.path.replace(/\/+$/, '') : formatter.home.path;
+				const parameterNames = new Set<string>();
+				const matcherPattern = homePath.split('/').map(segment => {
+					const parameterMatch = homeTemplateParameterRegex.exec(segment);
+					if (parameterMatch?.groups?.name) {
+						const parameterName = parameterMatch.groups.name;
+						if (parameterNames.has(parameterName)) {
+							throw new Error(`Duplicate resource label home template parameter: ${parameterName}`);
 						}
+						parameterNames.add(parameterName);
+						return `(?<${parameterName}>(?!\\.{1,2}(?:/|$))[^/]+)`;
 					}
-					if (!matches) {
-						continue;
+					if (segment.includes('${')) {
+						throw new Error(`Resource label home template parameters must occupy an entire path segment: ${segment}`);
 					}
-					const home = formatter.home.with({ path: resourceSegments.slice(0, templateSegments.length).join('/'), query: null, fragment: null });
-					const formatting = formatter.formatting({ resource, home, parameters });
-					if (formatting) {
-						candidate = { home, formatting };
-					}
+					return escapeRegExpCharacters(segment);
+				}).join('/');
+				const isRootHome = homePath === '' || homePath === '/';
+				const templateMatch = new RegExp(`^${matcherPattern}${isRootHome ? '' : '(?=/|$)'}`).exec(resource.path);
+				if (!templateMatch) {
+					continue;
+				}
+				const home = resource.with({ path: templateMatch[0], query: null, fragment: null });
+				const formatting = formatter.formatting({ resource, home, parameters: new Map(Object.entries(templateMatch.groups ?? {})) });
+				if (formatting) {
+					candidate = { home, formatting };
 				}
 			} else if (formatter.scheme === resource.scheme && (!formatter.authority || formatter.authority === resource.authority) &&
 				isEqualOrParent(resource, resource.with({ path: formatter.home }))) {

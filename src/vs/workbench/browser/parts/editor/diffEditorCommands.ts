@@ -10,9 +10,13 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ActiveCompareEditorCanSwapContext, ActiveCustomEditorDiffCanToggleLayoutContext, TextCompareEditorActiveContext, TextCompareEditorVisibleContext } from '../../../common/contextkeys.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
-import { FocusTextDiffEditorMode, IDiffEditorCommandsService } from './diffEditorCommandsService.js';
+import { DiffEditorViewMode, FocusTextDiffEditorMode, IDiffEditorCommandsService } from './diffEditorCommandsService.js';
 
 export const TOGGLE_DIFF_SIDE_BY_SIDE = 'toggle.diff.renderSideBySide';
+export const SET_DIFF_VIEW_MODE_INLINE = 'diffEditor.setViewMode.inline';
+export const SET_DIFF_VIEW_MODE_SIDE_BY_SIDE = 'diffEditor.setViewMode.sideBySide';
+export const SET_DIFF_VIEW_MODE_AUTOMATIC = 'diffEditor.setViewMode.automatic';
+export const DIFF_VIEW_MODE_INLINE_TEMPORARY = 'diffEditor.viewMode.inlineTemporary';
 export const GOTO_NEXT_CHANGE = 'workbench.action.compareEditor.nextChange';
 export const GOTO_PREVIOUS_CHANGE = 'workbench.action.compareEditor.previousChange';
 export const DIFF_FOCUS_PRIMARY_SIDE = 'workbench.action.compareEditor.focusPrimarySide';
@@ -74,6 +78,28 @@ export function registerDiffEditorCommands(): void {
 		when: undefined,
 		primary: undefined,
 		handler: (accessor, ...args) => accessor.get(IDiffEditorCommandsService).toggleRenderSideBySide(args)
+	});
+
+	for (const [id, mode] of [
+		[SET_DIFF_VIEW_MODE_INLINE, 'inline'],
+		[SET_DIFF_VIEW_MODE_SIDE_BY_SIDE, 'sideBySide'],
+		[SET_DIFF_VIEW_MODE_AUTOMATIC, 'automatic'],
+	] as const satisfies readonly (readonly [string, DiffEditorViewMode])[]) {
+		KeybindingsRegistry.registerCommandAndKeybindingRule({
+			id,
+			weight: KeybindingWeight.WorkbenchContrib,
+			when: undefined,
+			primary: undefined,
+			handler: (accessor, ...args) => accessor.get(IDiffEditorCommandsService).setViewMode(args, mode)
+		});
+	}
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: DIFF_VIEW_MODE_INLINE_TEMPORARY,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: undefined,
+		handler: () => { }
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({

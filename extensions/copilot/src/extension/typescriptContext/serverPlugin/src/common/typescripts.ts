@@ -1882,6 +1882,8 @@ namespace tss {
 			[ts.SyntaxKind.CommaListExpression, 355],
 			[ts.SyntaxKind.SyntheticReferenceExpression, 356],
 			[ts.SyntaxKind.NotEmittedTypeElement, 357], // New in 5.8.x. Position in 5.8 is 354 and the rest shifts.
+			[ts.SyntaxKind.DeferKeyword, 358], // New in 6.0.3
+			[ts.SyntaxKind.Count, 359]
 		]);
 		const UnknownStableSyntaxKind: number = 9999;
 		export function getPath(node: tt.Node): number[] {

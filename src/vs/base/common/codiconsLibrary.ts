@@ -767,4 +767,6 @@ export const codiconsLibrary = {
 	micOffCompact: register('mic-off-compact', 0xecf1),
 	copilotDot: register('copilot-dot', 0xecf2),
 	copilotDotCompact: register('copilot-dot-compact', 0xecf3),
+	layoutDensityCompact: register('layout-density-compact', 0xecf4),
+	layoutDensityDefault: register('layout-density-default', 0xecf5),
 } as const;

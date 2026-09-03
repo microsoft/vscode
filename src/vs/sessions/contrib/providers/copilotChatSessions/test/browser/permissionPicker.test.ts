@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
@@ -12,8 +13,9 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { AgentSandboxEnabledValue } from '../../../../../../platform/sandbox/common/settings.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { DEFAULT_PERMISSION_LEVELS, getPermissionLevelMeta, IPermissionPickerDelegate, PermissionPicker } from '../../browser/permissionPicker.js';
 
@@ -92,5 +94,47 @@ suite('Copilot PermissionPicker', () => {
 				detail: 'Works autonomously within permissions',
 			},
 		]);
+	});
+
+	test('uses a shield icon for the visible sandboxed state', () => {
+		const sandboxSettingId = 'test.sandbox.enabled';
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, true);
+		configurationService.setUserConfiguration(sandboxSettingId, AgentSandboxEnabledValue.On);
+		const delegate: IPermissionPickerDelegate = {
+			getPermissionLevelMeta: (_level, meta) => ({ ...meta, label: 'Manual permissions', icon: Codicon.key }),
+			setPermissionLevel: () => { },
+			sandboxTogglePresentation: 'standalone',
+			isSandboxToggleApplicable: () => true,
+			getSandboxToggleSettingId: () => sandboxSettingId,
+		};
+		const picker = store.add(new PermissionPicker(
+			delegate,
+			new class extends mock<IActionWidgetService>() {
+				override readonly isVisible = false;
+			}(),
+			configurationService,
+			new class extends mock<IDialogService>() { }(),
+			new class extends mock<IOpenerService>() { }(),
+			store.add(new TestStorageService()),
+			NullTelemetryService,
+			new class extends mock<IHoverService>() { }(),
+		));
+		const container = document.createElement('div');
+		picker.render(container);
+		const trigger = container.querySelector<HTMLElement>('a.action-label');
+		assert.ok(trigger);
+
+		assert.deepStrictEqual({
+			visibleLabel: trigger.querySelector('.sessions-chat-dropdown-label')?.textContent,
+			permissionIcon: trigger.querySelector('.codicon-key')?.className,
+			sandboxIcon: trigger.querySelector('.sessions-chat-sandbox-icon')?.className,
+			triggerAriaLabel: trigger.ariaLabel,
+		}, {
+			visibleLabel: 'Manual permissions',
+			permissionIcon: 'codicon codicon-key',
+			sandboxIcon: 'codicon codicon-shield sessions-chat-sandbox-icon',
+			triggerAriaLabel: 'Pick Permission Level, Manual permissions (sandboxed)',
+		});
 	});
 });

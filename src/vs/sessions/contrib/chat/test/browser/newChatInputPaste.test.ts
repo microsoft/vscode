@@ -16,7 +16,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { DocumentPasteTriggerKind, ICustomEdit } from '../../../../../editor/common/languages.js';
-import { TrackedRangeStickiness } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { createTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
 import { TestCodeEditorService } from '../../../../../editor/test/browser/editorTestServices.js';
@@ -26,8 +25,9 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
-import { ChatDynamicVariableModel, dynamicVariableDecorationType } from '../../../../../workbench/contrib/chat/browser/attachments/chatDynamicVariables.js';
+import { ChatDynamicVariableModel } from '../../../../../workbench/contrib/chat/browser/attachments/chatDynamicVariables.js';
 import { IChatPasteTarget, IChatPasteTargetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { registerChatInputReferenceDecorationType } from '../../../../../workbench/contrib/chat/browser/widget/input/editor/chatInputReferenceDecorations.js';
 import { PasteTextProvider, pastedTextArtifactDefaultMinLength } from '../../../../../workbench/contrib/chat/browser/widget/input/editor/chatPasteProviders.js';
 import { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -65,9 +65,7 @@ suite('NewChatInputPasteTarget', () => {
 		const uri = URI.from({ scheme: Schemas.sessionsChatInput, path: 'paste-test' });
 		const textModel = store.add(createTextModel('', null, undefined, uri));
 		const codeEditorService = store.add(new TestCodeEditorService(new TestThemeService()));
-		store.add(codeEditorService.registerDecorationType('test', dynamicVariableDecorationType, {
-			rangeBehavior: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		}));
+		store.add(registerChatInputReferenceDecorationType(codeEditorService));
 		const editor = store.add(createTestCodeEditor(textModel, {
 			serviceCollection: new ServiceCollection([ICodeEditorService, codeEditorService]),
 		}));

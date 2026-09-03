@@ -58,7 +58,9 @@ both Code OSS and the mock server with the same isolated `COPILOT_CACHE_HOME`.
 The managed-settings schema is auto-detected from a sibling
 `copilot-agent-runtime` checkout, including when VS Code runs from a Git
 worktree. Use `--schema` or `MANAGED_SETTINGS_SCHEMA` at server startup to
-override it; the GUI does not reload schema sources.
+override it. The GUI's **Schema source** field can load a different path, file
+URI, or HTTP(S) URL for the current server process; restart the server to return
+to its startup source.
 
 See the [mock policy server README](../../../scripts/mock-policy-server/README.md)
 for proxy setup, cache locations, schema loading, and server options.
