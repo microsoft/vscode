@@ -742,21 +742,15 @@ suite('ChatSpeechToTextService', () => {
 		};
 
 		await createService()._cleanupWithLanguageModel('control transcript', CancellationToken.None);
-		await createService('auto', 'gpt-5.4-nano')._cleanupWithLanguageModel('Nano experiment transcript', CancellationToken.None);
 		await createService('auto', 'gpt-5.6-luna')._cleanupWithLanguageModel('Luna experiment transcript', CancellationToken.None);
 		await createService('auto', 'unexpected-model')._cleanupWithLanguageModel('unknown experiment transcript', CancellationToken.None);
-		await createService('gpt-5.4-nano')._cleanupWithLanguageModel('configured Nano transcript', CancellationToken.None);
 		await createService('gpt-5.6-luna')._cleanupWithLanguageModel('configured Luna transcript', CancellationToken.None);
 		await createService('copilot-utility-small', 'gpt-5.6-luna')._cleanupWithLanguageModel('configured utility transcript', CancellationToken.None);
 
 		assert.deepStrictEqual(selectors, [
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
-			{ vendor: 'copilot', id: 'gpt-5.4-nano' },
-			{ vendor: 'copilot', id: 'copilot-utility-small' },
 			{ vendor: 'copilot', id: 'gpt-5.6-luna' },
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
-			{ vendor: 'copilot', id: 'copilot-utility-small' },
-			{ vendor: 'copilot', id: 'gpt-5.4-nano' },
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
 			{ vendor: 'copilot', id: 'gpt-5.6-luna' },
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
@@ -795,7 +789,6 @@ suite('ChatSpeechToTextService', () => {
 			return service;
 		};
 
-		await createService('gpt-5.4-nano')._cleanupWithLanguageModel('Nano transcript', CancellationToken.None);
 		await createService('gpt-5.6-luna')._cleanupWithLanguageModel('Luna transcript', CancellationToken.None);
 		const fallbackService = createService('gpt-5.6-luna');
 		let selectionCall = 0;
@@ -803,7 +796,6 @@ suite('ChatSpeechToTextService', () => {
 		await fallbackService._cleanupWithLanguageModel('utility fallback transcript', CancellationToken.None);
 
 		assert.deepStrictEqual(requestConfigurations, [
-			{ reasoningEffort: 'none' },
 			{ reasoningEffort: 'none' },
 			undefined,
 		]);
