@@ -14,7 +14,7 @@ export interface IDevContainerAgentHostConfig {
 	readonly connectionId: string;
 	readonly workspaceFolder: string;
 	readonly name: string;
-	/** Whether this user-initiated connection may resume a deliberately stopped container. */
+	/** Whether this explicit connection may restart a container stopped after its sessions became idle. */
 	readonly resume?: boolean;
 }
 
