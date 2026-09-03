@@ -12,15 +12,15 @@ import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contr
 
 import '../../browser/automations.contribution.js';
 
+const automationEnabledProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[CHAT_AUTOMATIONS_ENABLED_SETTING];
+
 suite('Automations Contribution', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('defaults Automations to enabled in non-Stable builds', () => {
-		const property = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[CHAT_AUTOMATIONS_ENABLED_SETTING];
-
 		assert.deepStrictEqual({
-			default: property.default,
-			included: property.included,
+			default: automationEnabledProperty.default,
+			included: automationEnabledProperty.included,
 		}, {
 			default: product.quality !== 'stable',
 			included: product.quality !== 'stable',
