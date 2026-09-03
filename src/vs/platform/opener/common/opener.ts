@@ -71,6 +71,12 @@ export interface IExternalUriResolver {
 	resolveExternalUri(resource: URI, options?: OpenOptions): Promise<{ resolved: URI; dispose(): void } | undefined>;
 }
 
+export class NoExternalUriResolverError extends Error {
+	constructor(resource: URI) {
+		super('Could not resolve external URI: ' + resource.toString());
+	}
+}
+
 export interface IOpenerService {
 
 	readonly _serviceBrand: undefined;
