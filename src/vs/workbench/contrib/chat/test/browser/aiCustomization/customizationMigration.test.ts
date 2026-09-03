@@ -103,12 +103,10 @@ suite('customizationMigration', () => {
 		assert.deepStrictEqual({
 			agent: {
 				card: category.getCardDescription([agent], harnessLabel),
-				page: category.getPageDescription([agent], harnessLabel),
 				confirmation: category.getConfirmation([agent], harnessLabel, '~/.copilot/agents'),
 			},
 			instruction: {
 				card: category.getCardDescription([instruction], harnessLabel),
-				page: category.getPageDescription([instruction], harnessLabel),
 				confirmation: category.getConfirmation([instruction], harnessLabel).detail,
 			},
 			mixed: {
@@ -119,27 +117,46 @@ suite('customizationMigration', () => {
 			failed: category.getFailedMessage(['reviewer.agent.md'], 0),
 		}, {
 			agent: {
-				card: 'Agent Host harnesses do not discover customizations stored in your VS Code profile. Found 1 agent that Copilot will ignore. Move it to a portable Copilot folder to keep it available.',
-				page: 'Found 1 agent in your active VS Code profile that local VS Code can still use, but Copilot does not discover. Move it to the harness agents folder to keep it available.',
+				card: 'Copilot will ignore this agent. Move it to a portable Copilot folder to keep it available.',
 				confirmation: {
-					message: 'Migrate VS Code profile customizations to \'~/.copilot/agents\'?',
-					detail: 'This moves 1 agent out of your active VS Code profile.',
+					message: 'Migrate VS Code-only customizations to \'~/.copilot/agents\'?',
+					detail: 'This moves 1 agent out of its VS Code-only folder.',
 					primaryButton: 'Migrate',
-					deleteOriginalsLabel: 'Delete the original files from the VS Code profile after migration',
+					deleteOriginalsLabel: 'Delete the original files from the VS Code-only folder after migration',
 				},
 			},
 			instruction: {
-				card: 'Agent Host harnesses do not discover customizations stored in your VS Code profile. Found 1 instruction file that Copilot will ignore. Move it to a portable Copilot folder to keep it available.',
-				page: 'Found 1 instruction file in your active VS Code profile that local VS Code can still use, but Copilot does not discover. Move it to the harness instructions folder to keep it available.',
-				confirmation: 'This moves 1 instruction file out of your active VS Code profile.',
+				card: 'Copilot will ignore this instruction file. Move it to a portable Copilot folder to keep it available.',
+				confirmation: 'This moves 1 instruction file out of its VS Code-only folder.',
 			},
 			mixed: {
-				card: 'Agent Host harnesses do not discover customizations stored in your VS Code profile. Found 2 agents and instruction files that Copilot will ignore. Move them to portable Copilot folders to keep them available.',
-				confirmation: 'This moves 2 customizations out of your active VS Code profile.',
+				card: 'Copilot will ignore these agents and instruction files. Move them to portable Copilot folders to keep them available.',
+				confirmation: 'This moves 2 customizations out of their VS Code-only folder.',
 			},
-			migrated: 'Migrated 1 VS Code profile customization.',
-			failed: 'Failed to migrate 1 VS Code profile customization: reviewer.agent.md.',
+			migrated: 'Migrated 1 VS Code-only customization.',
+			failed: 'Failed to migrate 1 VS Code-only customization: reviewer.agent.md.',
 		});
+	});
+
+	test('uses concise dashboard copy for prompt files', () => {
+		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles);
+		const workspacePrompt: IPromptPath = {
+			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		const userPrompt: IPromptPath = {
+			uri: URI.file('/user-data/prompts/release.prompt.md'),
+			storage: PromptsStorage.user,
+			type: PromptsType.prompt,
+			source: PromptFileSource.UserData,
+		};
+
+		assert.strictEqual(
+			category.getCardDescription([workspacePrompt, userPrompt], 'Copilot'),
+			'Copilot will ignore these prompt files. Convert them to skills to keep them available.',
+		);
 	});
 
 	test('migrates prompt headers into a skill file', () => {

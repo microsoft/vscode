@@ -809,8 +809,6 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-list-widget .section-title-header .section-title-link,
-.ai-customization-management-editor .prompt-migration-content-container > .section-title-link,
-.ai-customization-management-editor .customization-migration-banner .section-title-link,
 .mcp-list-widget .section-title-header .section-title-link,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link {
 	font-size: var(--vscode-fontSize-body1);
@@ -826,8 +824,6 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-list-widget .section-title-header .section-title-link:hover,
-.ai-customization-management-editor .prompt-migration-content-container > .section-title-link:hover,
-.ai-customization-management-editor .customization-migration-banner .section-title-link:hover,
 .mcp-list-widget .section-title-header .section-title-link:hover,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link:hover {
 	text-decoration: underline;
@@ -835,8 +831,6 @@ per-word capitalization does not survive translation. */
 
 /* Inset the focus ring so it isn't clipped by the widget's overflow:hidden at the header's edge. */
 .ai-customization-list-widget .section-title-header .section-title-link:focus-visible,
-.ai-customization-management-editor .prompt-migration-content-container > .section-title-link:focus-visible,
-.ai-customization-management-editor .customization-migration-banner .section-title-link:focus-visible,
 .mcp-list-widget .section-title-header .section-title-link:focus-visible,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link:focus-visible {
 	outline-offset: -1px;
@@ -1016,58 +1010,16 @@ per-word capitalization does not survive translation. */
 	width: auto;
 }
 
-/* Migration copy is dynamic; don't reserve the two-line section-header height. */
-.ai-customization-management-editor .prompt-migration-content-container .section-title-description {
-	min-height: 0;
+.ai-customization-management-editor .prompt-migration-content-container .section-title-header {
+	margin-bottom: var(--vscode-spacing-size160);
+}
+
+.ai-customization-management-editor .prompt-migration-content-container .section-title-header .section-title-row {
 	margin-bottom: 0;
 }
 
-/* Migration banner — an Inner-tier callout for customizations needing attention. */
-.ai-customization-management-editor .customization-migration-banner {
-	flex-shrink: 0;
-	margin: var(--vscode-spacing-size200) 0 var(--vscode-spacing-size120);
-	padding: var(--vscode-spacing-size120);
-	background: color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 35%, var(--vscode-agentsPanel-background));
-	border: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-inputValidation-warningBorder) 70%, var(--vscode-widget-border));
-	border-radius: var(--vscode-cornerRadius-medium);
-	box-sizing: border-box;
-}
-
-.vscode-high-contrast .ai-customization-management-editor .customization-migration-banner {
-	border-color: var(--vscode-contrastBorder);
-}
-
-.ai-customization-management-editor .customization-migration-banner-content {
-	display: flex;
-	flex-direction: column;
-	gap: var(--vscode-spacing-size80);
-	min-width: 0;
-}
-
-.ai-customization-management-editor .customization-migration-banner-title {
-	margin: 0;
-	font-size: var(--vscode-fontSize-body1);
-	font-weight: var(--vscode-fontWeight-semiBold);
-	color: var(--vscode-foreground);
-}
-
-.ai-customization-management-editor .customization-migration-banner-message {
-	margin: 0;
-	font-size: var(--vscode-fontSize-body1);
-	line-height: 1.45;
-	color: var(--vscode-foreground);
-}
-
-.ai-customization-management-editor .customization-migration-banner-consequence {
-	margin: 0;
-	font-size: var(--vscode-fontSize-body2);
-	line-height: 1.45;
-	color: var(--vscode-descriptionForeground);
-}
-
-.ai-customization-management-editor .migration-learn-more-link {
-	align-self: flex-start;
-	margin-top: 0;
+.ai-customization-management-editor .customization-migration-page-destinations {
+	margin-top: var(--vscode-spacing-size120);
 }
 
 .ai-customization-management-editor .prompt-migration-list {
@@ -1088,18 +1040,7 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .customization-migration-dashboard-summary {
-	display: flex;
-	flex-direction: column;
-	gap: var(--vscode-spacing-size60);
-	margin-top: var(--vscode-spacing-size200);
-	padding: var(--vscode-spacing-size160);
-	border: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-inputValidation-warningBorder) 70%, var(--vscode-widget-border));
-	border-radius: var(--vscode-cornerRadius-medium);
-	background: color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 24%, transparent);
-}
-
-.vscode-high-contrast .ai-customization-management-editor .customization-migration-dashboard-summary {
-	border-color: var(--vscode-contrastBorder);
+	flex-shrink: 0;
 }
 
 .ai-customization-management-editor .customization-migration-dashboard-summary-description {
@@ -1188,46 +1129,53 @@ per-word capitalization does not survive translation. */
 	line-height: 1.45;
 }
 
-.ai-customization-management-editor .customization-migration-dashboard-route {
-	display: grid;
-	grid-template-columns: minmax(0, max-content) minmax(var(--vscode-spacing-size240), 1fr) minmax(0, max-content);
-	align-items: center;
-	gap: var(--vscode-spacing-size80);
-	padding: var(--vscode-spacing-size100);
-	border-radius: var(--vscode-cornerRadius-small);
-	background: var(--vscode-textCodeBlock-background);
-}
-
-.ai-customization-management-editor .customization-migration-dashboard-route-endpoint {
+.ai-customization-management-editor .customization-migration-dashboard-plan {
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size20);
+	gap: var(--vscode-spacing-size80);
 	min-width: 0;
 }
 
-.ai-customization-management-editor .customization-migration-dashboard-route-eyebrow {
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label3);
-	text-transform: uppercase;
+.ai-customization-management-editor .customization-migration-dashboard-plan-heading {
+	margin: 0;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-body2);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
-.ai-customization-management-editor .customization-migration-dashboard-route-label {
-	color: var(--vscode-foreground);
+.ai-customization-management-editor .customization-migration-dashboard-plan-list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-plan-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, max-content);
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	min-width: 0;
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-plan-label {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-plan-control.monaco-button {
+	justify-self: end;
+	width: auto;
+	max-width: 100%;
+	min-width: 120px;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
 	font-family: var(--monaco-monospace-font);
 	font-size: var(--vscode-fontSize-body2);
-	overflow-wrap: anywhere;
-}
-
-.ai-customization-management-editor .customization-migration-dashboard-route-operation {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: var(--vscode-spacing-size20);
-	color: var(--vscode-descriptionForeground);
-}
-
-.ai-customization-management-editor .customization-migration-dashboard-route-arrow {
-	font-size: var(--vscode-codiconFontSize-compact);
+	font-weight: var(--vscode-fontWeight-regular);
 }
 
 .ai-customization-management-editor .customization-migration-dashboard-card-footer {
@@ -1286,17 +1234,13 @@ per-word capitalization does not survive translation. */
 	flex-direction: column;
 }
 
-.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-migration-dashboard-route {
+.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-migration-dashboard-plan-row {
 	grid-template-columns: minmax(0, 1fr);
+	gap: var(--vscode-spacing-size40);
 }
 
-.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-migration-dashboard-route-operation {
-	flex-direction: row;
-	justify-content: center;
-}
-
-.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-migration-dashboard-route-arrow {
-	transform: rotate(90deg);
+.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-migration-dashboard-plan-control.monaco-button {
+	justify-self: start;
 }
 
 .ai-customization-management-editor .prompt-migration-group {
