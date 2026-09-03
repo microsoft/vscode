@@ -37,9 +37,9 @@ import product from '../../product/common/product.js';
 import { IProtocolMainService } from '../../protocol/electron-main/protocol.js';
 import { getRemoteAuthority } from '../../remote/common/remoteHosts.js';
 import { IStateService } from '../../state/node/state.js';
-import { AgentsWindowOpenSource, IAddRemoveFoldersRequest, IAgentsWindowOpenRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, IWindowSettings } from '../../window/common/window.js';
+import { AgentsWindowOpenSource, IAddRemoveFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, IWindowSettings } from '../../window/common/window.js';
 import { CodeWindow } from './windowImpl.js';
-import { IOpenAgentsWindowMainOptions, IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from './windows.js';
+import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from './windows.js';
 import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnWorkspaceOrFolder } from './windowsFinder.js';
 import { IWindowState, WindowsStateHandler } from './windowsStateHandler.js';
 import { IRecent } from '../../workspaces/common/workspaces.js';
@@ -292,7 +292,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		this.handleChatRequest(openConfig, [window]);
 	}
 
-	async openAgentsWindow(openConfig: IOpenConfiguration, options?: IOpenAgentsWindowMainOptions): Promise<ICodeWindow[]> {
+	async openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, sessionResource?: URI, source?: AgentsWindowOpenSource): Promise<ICodeWindow[]> {
 		this.logService.trace('windowsManager#openAgentsWindow');
 
 		// Open in a new browser window with the agent sessions workspace
@@ -303,13 +303,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// them (folder → open session) so the session-open doesn't race the
 		// folder-resolve.
 		if (windows.length > 0) {
-			const openSource = options?.source ?? (openConfig.cli.agents ? AgentsWindowOpenSource.CommandLine : AgentsWindowOpenSource.Unknown);
-			const request: IAgentsWindowOpenRequest = {
-				folderUri: options?.folderUri?.toJSON(),
-				sessionResource: options?.sessionResource?.toJSON(),
-				source: openSource,
-			};
-			windows[0].sendWhenReady('vscode:selectAgentsFolder', CancellationToken.None, request);
+			const openSource = source ?? (openConfig.cli.agents ? AgentsWindowOpenSource.CommandLine : AgentsWindowOpenSource.Unknown);
+			windows[0].sendWhenReady('vscode:selectAgentsFolder', CancellationToken.None, folderUri?.toJSON(), sessionResource?.toJSON(), openSource);
 		}
 
 		return windows;

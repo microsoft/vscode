@@ -131,12 +131,6 @@ export function isAgentsWindowOpenSource(value: unknown): value is AgentsWindowO
 	}
 }
 
-export interface IAgentsWindowOpenRequest {
-	readonly folderUri?: UriComponents;
-	readonly sessionResource?: UriComponents;
-	readonly source: AgentsWindowOpenSource;
-}
-
 export type IWindowOpenable = IWorkspaceToOpen | IFolderToOpen | IFileToOpen;
 
 export interface IBaseWindowOpenable {
