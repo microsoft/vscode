@@ -8,6 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, dispose, isDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
@@ -21,10 +22,12 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IChatRequestVariableEntry, isImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatRequestVariableValue, IDynamicVariable, toAttachedContextDynamicVariable } from '../../common/attachments/chatVariables.js';
+import { chatSlashCommandForeground } from '../../common/widget/chatColors.js';
 import { IChatWidget } from '../chat.js';
 import { IChatWidgetContrib } from '../widget/chatWidget.js';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
+export const dynamicVariableIconDecorationType = 'chat-dynamic-variable-icon';
 
 const issueIconCharacter = '\ueb0c';
 const pullRequestIconCharacter = '\uea64';
@@ -292,6 +295,9 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		const decorationIds = this.host.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, validVariables.map((r): IDecorationOptions => ({
 			range: r.range,
 			hoverMessage: this.getHoverForReference(r),
+		})));
+		this.host.inputEditor.setDecorationsByType('chat', dynamicVariableIconDecorationType, validVariables.map((r): IDecorationOptions => ({
+			range: Range.fromPositions(Range.getStartPosition(r.range)),
 			renderOptions: getReferenceIconRenderOptions(r),
 		})));
 
@@ -360,6 +366,7 @@ function getReferenceIconRenderOptions(reference: IDynamicVariable): IDecoration
 			: undefined;
 	return contentText ? {
 		before: {
+			color: themeColorFromId(chatSlashCommandForeground),
 			contentText,
 			fontFamily: 'codicon',
 			margin: '0 2px 0 0',

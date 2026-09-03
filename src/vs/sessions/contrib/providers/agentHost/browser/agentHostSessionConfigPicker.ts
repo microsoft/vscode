@@ -1227,12 +1227,13 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 }
 
 interface IConfigPickerWidget extends IDisposable {
-	render(container: HTMLElement): void;
+	render(container: HTMLElement): HTMLElement | void;
 	showPicker?(anchor: HTMLElement, onHide?: () => void): boolean | void;
 }
 
 export class PickerActionViewItem extends BaseActionViewItem implements IChatInputPickerResponsiveState {
 	private _compact = false;
+	private _focusableElement: HTMLElement | undefined;
 
 	constructor(private readonly _picker: IConfigPickerWidget, disposable?: IDisposable) {
 		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
@@ -1243,30 +1244,40 @@ export class PickerActionViewItem extends BaseActionViewItem implements IChatInp
 
 	override render(container: HTMLElement): void {
 		this.element = container;
-		this._picker.render(container);
+		this._focusableElement = this._picker.render(container) ?? undefined;
 		container.classList.toggle('compact-picker', this._compact);
 	}
 
 	override focus(): void {
-		if (this.element) {
+		if (this._focusableElement) {
+			this._focusableElement.focus();
+		} else if (this.element) {
 			this._focusFirstTabStop(this.element);
+		} else {
+			super.focus();
 		}
 	}
 
 	override isFocused(): boolean {
-		return !!this.element && dom.isAncestorOfActiveElement(this.element);
+		return this.element
+			? dom.isAncestorOfActiveElement(this.element)
+			: super.isFocused();
 	}
 
 	override blur(): void {
 		const activeElement = dom.getActiveElement();
 		if (this.element && dom.isHTMLElement(activeElement) && dom.isAncestor(activeElement, this.element)) {
 			activeElement.blur();
+		} else {
+			super.blur();
 		}
 	}
 
-	override setFocusable(_focusable: boolean): void {
-		if (this.element) {
-			this.element.tabIndex = -1;
+	override setFocusable(focusable: boolean): void {
+		if (this._focusableElement || (this.element && this._hasTabStop(this.element))) {
+			this.element?.removeAttribute('tabindex');
+		} else {
+			super.setFocusable(focusable);
 		}
 	}
 
@@ -1282,6 +1293,15 @@ export class PickerActionViewItem extends BaseActionViewItem implements IChatInp
 				}
 			}
 			if (this._focusFirstTabStop(child)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private _hasTabStop(container: HTMLElement): boolean {
+		for (const child of container.children) {
+			if (dom.isHTMLElement(child) && (child.tabIndex >= 0 || this._hasTabStop(child))) {
 				return true;
 			}
 		}

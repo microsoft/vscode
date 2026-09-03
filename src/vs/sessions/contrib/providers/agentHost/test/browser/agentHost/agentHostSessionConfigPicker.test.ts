@@ -353,14 +353,13 @@ suite('Agent Host Session Config Picker', () => {
 
 	test('picker action view items expose responsive compact state', () => {
 		let pickerAnchor: HTMLElement | undefined;
-		let focusTarget: HTMLElement | undefined;
 		const item = store.add(new PickerActionViewItem({
 			render: container => {
-				const pickerContainer = document.createElement('div');
-				focusTarget = document.createElement('button');
-				focusTarget.tabIndex = 0;
-				pickerContainer.appendChild(focusTarget);
-				container.appendChild(pickerContainer);
+				const trigger = document.createElement('a');
+				trigger.classList.add('action-label');
+				trigger.tabIndex = 0;
+				container.appendChild(trigger);
+				return trigger;
 			},
 			showPicker: anchor => {
 				pickerAnchor = anchor;
@@ -378,24 +377,67 @@ suite('Agent Host Session Config Picker', () => {
 		const expanded = {
 			compact: item.isCompact(),
 			className: container.classList.contains('compact-picker'),
-			outerTabIndex: container.tabIndex,
-			focusedInnerControl: document.activeElement === focusTarget,
 		};
-		item.blur();
-		const focusedAfterBlur = document.activeElement === focusTarget;
 
 		item.setCompact(true);
+		item.setFocusable(true);
+		item.focus();
 		item.show(overflowAnchor);
 		const compact = {
 			compact: item.isCompact(),
 			className: container.classList.contains('compact-picker'),
 			usesOverflowAnchor: pickerAnchor === overflowAnchor,
+			wrapperTabIndex: container.tabIndex,
+			tabbableDescendants: container.querySelectorAll('[tabindex="0"]').length,
+			triggerFocused: item.isFocused(),
 		};
 
-		assert.deepStrictEqual({ expanded, focusedAfterBlur, compact }, {
-			expanded: { compact: false, className: false, outerTabIndex: -1, focusedInnerControl: true },
+		assert.deepStrictEqual({ expanded, compact }, {
+			expanded: { compact: false, className: false },
+			compact: {
+				compact: true,
+				className: true,
+				usesOverflowAnchor: true,
+				wrapperTabIndex: -1,
+				tabbableDescendants: 1,
+				triggerFocused: true,
+			},
+		});
+	});
+
+	test('picker action view items delegate focus to nested controls', () => {
+		let focusTarget: HTMLElement | undefined;
+		const item = store.add(new PickerActionViewItem({
+			render: container => {
+				const pickerContainer = document.createElement('div');
+				focusTarget = document.createElement('button');
+				focusTarget.tabIndex = 0;
+				pickerContainer.appendChild(focusTarget);
+				container.appendChild(pickerContainer);
+			},
+			dispose: () => { },
+		}));
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		item.render(container);
+
+		item.setFocusable(true);
+		item.focus();
+		const focused = {
+			wrapperTabIndex: container.tabIndex,
+			focusedInnerControl: document.activeElement === focusTarget,
+			itemFocused: item.isFocused(),
+		};
+		item.blur();
+
+		assert.deepStrictEqual({ focused, focusedAfterBlur: document.activeElement === focusTarget }, {
+			focused: {
+				wrapperTabIndex: -1,
+				focusedInnerControl: true,
+				itemFocused: true,
+			},
 			focusedAfterBlur: false,
-			compact: { compact: true, className: true, usesOverflowAnchor: true },
 		});
 	});
 
