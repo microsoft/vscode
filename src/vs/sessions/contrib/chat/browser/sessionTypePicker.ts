@@ -538,7 +538,7 @@ export class SessionTypePicker extends Disposable {
 				getAriaLabel: (element) => element.item?.groupLabel ? localize('sessionTypePicker.itemAriaLabel', "{0}, {1}", element.label ?? '', element.item.groupLabel) : (element.label ?? ''),
 				getWidgetAriaLabel: () => localize('sessionTypePicker.ariaLabel', "Session Type"),
 			},
-			{ minWidth: 200 },
+			{ className: 'sessions-new-chat-picker-list', minWidth: 200 },
 		);
 	}
 
