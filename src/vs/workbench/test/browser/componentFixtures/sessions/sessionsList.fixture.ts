@@ -7,8 +7,10 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { OS } from '../../../../../base/common/platform.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -17,8 +19,11 @@ import { IActionViewItemFactory, IActionViewItemService } from '../../../../../p
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
+import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -52,7 +57,7 @@ import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, type AutomationsNewBadgeStyle } fr
 // eslint-disable-next-line local/code-import-patterns
 import { renderSessionsHeader } from '../../../../../sessions/contrib/sessions/browser/views/sessionsView.js';
 // eslint-disable-next-line local/code-import-patterns
-import { NewSessionActionViewItemContribution } from '../../../../../sessions/contrib/sessions/browser/sessionsActions.js';
+import { NEW_SESSION_BUTTON_STYLE_SETTING, NewSessionActionViewItemContribution, type NewSessionButtonStyle } from '../../../../../sessions/contrib/sessions/browser/sessionsActions.js';
 // eslint-disable-next-line local/code-import-patterns
 import { NEW_SESSION_ACTION_ID } from '../../../../../sessions/contrib/chat/common/constants.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -219,17 +224,25 @@ interface IRenderOptions {
 	readonly showAutomations?: boolean;
 	readonly automationRunStatus?: IAutomationRun['status'];
 	readonly automationBadgeStyle?: AutomationsNewBadgeStyle;
+	readonly newSessionButtonStyle?: NewSessionButtonStyle;
 	readonly showFocusedToolbar?: boolean;
 }
 
 async function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOptions): Promise<void> {
 	const { container, disposableStore } = ctx;
+	const showHeader = options.showAutomations || options.newSessionButtonStyle !== undefined;
 	const approvals = new Map<string, IAgentSessionApprovalInfo>();
 	const sessions = options.sessions.map(spec => createSession(spec, approvals));
 	const approvalModel = createApprovalModel(approvals);
 	const groups = options.groups ?? [];
 	const automationRuns = observableValue<readonly IAutomationRun[]>(disposableStore, []);
 	const actionViewItemService = disposableStore.add(new FixtureActionViewItemService());
+	const newSessionKeybinding = options.newSessionButtonStyle
+		? createUSLayoutResolvedKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN, OS)
+		: undefined;
+	if (options.newSessionButtonStyle && !newSessionKeybinding) {
+		throw new Error('Expected the New Session keybinding to resolve.');
+	}
 	const membership = new Map<string, string>();
 	for (const spec of options.sessions) {
 		if (spec.group) {
@@ -262,6 +275,17 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 				}());
 			}
 			reg.define(IListService, ListService);
+			if (newSessionKeybinding) {
+				reg.defineInstance(IKeybindingService, new class extends MockKeybindingService {
+					override lookupKeybinding(commandId: string) {
+						return commandId === NEW_SESSION_ACTION_ID ? newSessionKeybinding : undefined;
+					}
+
+					override lookupKeybindings(commandId: string) {
+						return commandId === NEW_SESSION_ACTION_ID ? [newSessionKeybinding] : [];
+					}
+				}());
+			}
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.defineInstance(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() { }());
 			reg.defineInstance(IChatService, new class extends mock<IChatService>() {
@@ -344,7 +368,7 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			}());
 		},
 	});
-	if (options.showAutomations) {
+	if (showHeader) {
 		const contextKeyService = instantiationService.get(IContextKeyService);
 		const newSessionAction = new MenuItemAction(
 			{ id: NEW_SESSION_ACTION_ID, title: 'New Session' },
@@ -394,21 +418,21 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	}
 
 	let listParent = container;
-	if (options.showAutomations) {
+	if (showHeader) {
 		container.classList.add('agent-sessions-viewpane', 'agent-sessions-section');
 		const content = DOM.append(container, DOM.$('.agent-sessions-content'));
 		disposableStore.add(instantiationService.createInstance(NewSessionActionViewItemContribution));
 		renderSessionsHeader(content, false, instantiationService, instantiationService.get(IContextKeyService), disposableStore).toolbar?.refresh();
 		listParent = content;
 	}
-	const listHost = DOM.append(listParent, DOM.$(options.showAutomations ? '.agent-sessions-control-container' : 'div'));
+	const listHost = DOM.append(listParent, DOM.$(showHeader ? '.agent-sessions-control-container' : 'div'));
 	const list = disposableStore.add(instantiationService.createInstance(SessionsList, listHost, {
 		grouping: () => options.grouping ?? SessionsGrouping.Workspace,
 		sorting: () => SessionsSorting.Created,
 		onSessionOpen: () => { },
 		approvalModel,
 	}));
-	list.layout(options.phone ? 260 : options.showAutomations ? 180 : 220, width);
+	list.layout(options.phone ? 260 : showHeader ? 180 : 220, width);
 
 	if (options.automationRunStatus) {
 		automationRuns.set([{
@@ -421,12 +445,28 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		}], undefined);
 	}
 	await Promise.resolve();
-	if (options.showAutomations && !container.querySelector('.agent-sessions-compact-new-button')) {
+	if (options.newSessionButtonStyle) {
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configurationService.setUserConfiguration(NEW_SESSION_BUTTON_STYLE_SETTING, options.newSessionButtonStyle);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([NEW_SESSION_BUTTON_STYLE_SETTING]),
+			change: { keys: [NEW_SESSION_BUTTON_STYLE_SETTING], overrides: [] },
+			affectsConfiguration: configuration => configuration === NEW_SESSION_BUTTON_STYLE_SETTING,
+		});
+	}
+	if (showHeader && !container.querySelector('.agent-sessions-compact-new-button')) {
 		const menu = instantiationService.get(IMenuService).createMenu(Menus.SidebarSessionsHeader, instantiationService.get(IContextKeyService));
 		const actionCount = menu.getActions().flatMap(([, actions]) => actions).length;
 		menu.dispose();
 		const hasProvider = !!instantiationService.get(IActionViewItemService).lookUp(Menus.SidebarSessionsHeader, NEW_SESSION_ACTION_ID);
 		throw new Error(`Expected the production New Session action; found ${actionCount} menu action(s), provider=${hasProvider}.`);
+	}
+	if (options.newSessionButtonStyle === 'lightweight' && !container.querySelector('.agent-sessions-compact-new-button.lightweight:not(.lightweight-keybinding-background)')) {
+		throw new Error('Expected the rendered New Session action to react to the lightweight style setting.');
+	}
+	if (options.newSessionButtonStyle === 'lightweightWithKeybindingBackground' && !container.querySelector('.agent-sessions-compact-new-button.lightweight.lightweight-keybinding-background')) {
+		throw new Error('Expected the rendered New Session action to react to the lightweight keybinding-background style setting.');
 	}
 
 	if (options.showFocusedToolbar) {
@@ -527,6 +567,24 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		render: ctx => renderSessionsList(ctx, {
 			sessions: [],
 			showAutomations: true,
+		}),
+	}),
+	SessionsList_LightweightNewButton: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The Sessions header has an outlined New button whose keyboard shortcut is plain inline text without a nested keycap or chip background. The shortcut shares the New label typography and uses compact platform-native chord notation.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [],
+			newSessionButtonStyle: 'lightweight',
+		}),
+	}),
+	SessionsList_LightweightNewButtonWithKeybindingBackground: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The Sessions header has an outlined New button whose keyboard shortcut uses the same typography as the label and sits on a subtle grouped keybinding background.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [],
+			newSessionButtonStyle: 'lightweightWithKeybindingBackground',
 		}),
 	}),
 	SessionsList_AutomationsNewBadge_Accent: defineComponentFixture({

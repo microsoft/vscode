@@ -59,6 +59,37 @@ unscoped so the widget renders identically wherever it is mounted. */
 	box-shadow: none;
 }
 
+.agent-sessions-compact-new-button.lightweight .new-session-keybinding-hint {
+	display: inline-flex;
+	align-items: center;
+	font-family: inherit;
+	font-size: inherit;
+	line-height: inherit;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	background-color: transparent;
+	color: inherit;
+}
+
+.agent-sessions-compact-new-button.lightweight .new-session-keybinding-hint .monaco-keybinding {
+	gap: 0;
+	line-height: inherit;
+}
+
+.agent-sessions-compact-new-button.lightweight .new-session-keybinding-hint .monaco-keybinding > .monaco-keybinding-key {
+	margin: 0;
+	font-family: inherit;
+	font-size: inherit;
+}
+
+.agent-sessions-compact-new-button.lightweight-keybinding-background .new-session-keybinding-hint {
+	padding: 0 var(--vscode-spacing-size20);
+	border-radius: var(--vscode-cornerRadius-xSmall);
+	background-color: var(--vscode-keybindingLabel-background);
+	color: var(--vscode-keybindingLabel-foreground);
+}
+
 .agent-sessions-compact-new-button .new-session-keybinding-hint .monaco-keybinding {
 	line-height: 1;
 }
