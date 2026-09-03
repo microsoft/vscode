@@ -22,6 +22,7 @@ import { NullLogService } from '../../../log/common/log.js';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const NOW = Date.UTC(2026, 8, 3);
 const PULL_REQUEST_URL = 'https://github.com/microsoft/vscode/pull/1';
+const SECOND_PULL_REQUEST_URL = 'https://github.com/microsoft/vscode/pull/2';
 
 suite('AgentHostSessionLifecycle', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -33,6 +34,7 @@ suite('AgentHostSessionLifecycle', () => {
 		readonly external?: boolean;
 		readonly enabled?: boolean;
 		readonly onResolve?: (configurationService: AgentConfigurationService) => void;
+		readonly pullRequestUrls?: readonly string[];
 	}) {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
@@ -46,7 +48,7 @@ suite('AgentHostSessionLifecycle', () => {
 		const status = options?.sessionStatus ?? SessionStatus.Idle;
 		const meta = withSessionExternal(withSessionGitHubState(
 			withSessionGitState(undefined, { branchName: 'feature' }),
-			{ pullRequestUrls: [PULL_REQUEST_URL], pullRequestBranchName: 'feature' },
+			{ pullRequestUrls: options?.pullRequestUrls ?? [PULL_REQUEST_URL], pullRequestBranchName: 'feature' },
 		), options?.external ?? false);
 		const summary: SessionSummary = {
 			resource: session.toString(),
@@ -148,6 +150,17 @@ suite('AgentHostSessionLifecycle', () => {
 			onResolve: configurationService => {
 				configurationService.updateRootConfig({ [AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey]: 30 });
 			},
+		});
+
+		await lifecycle.run();
+
+		assert.strictEqual(isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status), false);
+	});
+
+	test('does not archive from a merged non-designated pull request', async () => {
+		const { lifecycle, stateManager, session } = createHarness({
+			pullRequestUrls: [PULL_REQUEST_URL, SECOND_PULL_REQUEST_URL],
+			status: { ...mergedPullRequestStatus(), number: 2, url: SECOND_PULL_REQUEST_URL },
 		});
 
 		await lifecycle.run();

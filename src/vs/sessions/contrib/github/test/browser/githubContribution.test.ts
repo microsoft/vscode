@@ -407,6 +407,26 @@ suite('GitHubPullRequestPollingContribution', () => {
 		});
 	});
 
+	test('does not prompt when only a non-designated pull request has merged', () => {
+		const gitHubInfo = makeGitHubInfo(1);
+		const session = sessionsManagementService.addSession('session', {
+			...gitHubInfo,
+			pullRequests: [1, 2].map(number => ({
+				owner: 'owner',
+				repo: 'repo',
+				number,
+				uri: URI.parse(`https://github.com/owner/repo/pull/${number}`),
+			})),
+		});
+		session.updatedAt.set(new Date(Date.now() - 16 * 24 * 60 * 60 * 1000), undefined);
+		store.add(createContribution());
+
+		gitHubService.setPullRequestDetails('owner', 'repo', 1, { state: GitHubPullRequestState.Open, isDraft: false, headSha: 'sha1' });
+		gitHubService.setPullRequestDetails('owner', 'repo', 2, { state: GitHubPullRequestState.Merged, isDraft: false, headSha: 'sha2' });
+
+		assert.strictEqual(notificationService.prompts.length, 0);
+	});
+
 	function createContribution(): GitHubPullRequestPollingContribution {
 		return new GitHubPullRequestPollingContribution(
 			gitHubService,

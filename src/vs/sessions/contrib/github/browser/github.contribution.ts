@@ -284,13 +284,13 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 			}
 
 			this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} resolved ${identity.pullRequests.length} PR identities; acquiring models and refreshing`);
-			for (const pullRequest of identity.pullRequests) {
-				this._pollPullRequest(session, pullRequest, reader);
+			for (let index = 0; index < identity.pullRequests.length; index++) {
+				this._pollPullRequest(session, identity.pullRequests[index], index === 0, reader);
 			}
 		});
 	}
 
-	private _pollPullRequest(session: ISession, identity: IPullRequestIdentity, reader: IReaderWithStore): void {
+	private _pollPullRequest(session: ISession, identity: IPullRequestIdentity, isDesignatedPullRequest: boolean, reader: IReaderWithStore): void {
 		const { owner, repo, prNumber } = identity;
 		this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} polling ${owner}/${repo}#${prNumber}`);
 
@@ -338,22 +338,24 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 			statusReader.store.add(reviewThreadsModelRef.object.startPolling());
 		}));
 
-		reader.store.add(autorun(promptReader => {
-			const pullRequest = model.pullRequest.read(promptReader);
-			if (pullRequest?.state !== GitHubPullRequestState.Merged || session.isArchived.read(promptReader)) {
-				return;
-			}
+		if (isDesignatedPullRequest) {
+			reader.store.add(autorun(promptReader => {
+				const pullRequest = model.pullRequest.read(promptReader);
+				if (pullRequest?.state !== GitHubPullRequestState.Merged || session.isArchived.read(promptReader)) {
+					return;
+				}
 
-			const status = session.status.read(promptReader);
-			if (isActiveSessionStatus(status)) {
-				return;
-			}
+				const status = session.status.read(promptReader);
+				if (isActiveSessionStatus(status)) {
+					return;
+				}
 
-			const updatedAt = session.updatedAt.read(promptReader);
-			if (this._archiveAfterDays.read(promptReader) === 0 && this._isInactiveForDays(updatedAt, DEFAULT_AUTO_ARCHIVE_AFTER_DAYS)) {
-				this._promptToEnableAutoArchive();
-			}
-		}));
+				const updatedAt = session.updatedAt.read(promptReader);
+				if (this._archiveAfterDays.read(promptReader) === 0 && this._isInactiveForDays(updatedAt, DEFAULT_AUTO_ARCHIVE_AFTER_DAYS)) {
+					this._promptToEnableAutoArchive();
+				}
+			}));
+		}
 	}
 
 	private _getArchiveAfterDays(): number {
