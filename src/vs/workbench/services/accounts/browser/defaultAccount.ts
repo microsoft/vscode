@@ -34,7 +34,7 @@ import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationExt
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IHostService } from '../../host/browser/host.js';
-import { adaptManagedSettings, appendManagedSettingsClientIdentity, IManagedSettingsResponse, parseManagedSettingsCompatibilityError } from './managedSettings.js';
+import { adaptManagedSettings, appendManagedSettingsClientIdentity, IManagedSettingsResponse, parseManagedSettingsCompatibilityError, restoreOriginalStatus } from './managedSettings.js';
 
 interface IDefaultAccountConfig {
 	readonly preferredExtensions: string[];
@@ -1461,7 +1461,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			}
 
 			try {
-				const response = await this.requestService.request({
+				const response = restoreOriginalStatus(await this.requestService.request({
 					type,
 					url,
 					data: type === 'POST' ? JSON.stringify(body) : undefined,
@@ -1471,7 +1471,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 						'Authorization': `Bearer ${session.accessToken}`
 					},
 					callSite
-				}, token);
+				}, token));
 
 				const status = response.res.statusCode;
 				if (this.isRateLimited(response)) {

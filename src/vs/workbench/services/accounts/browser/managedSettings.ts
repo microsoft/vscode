@@ -6,8 +6,10 @@
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { IProductConfiguration } from '../../../../base/common/product.js';
 import { isString } from '../../../../base/common/types.js';
+import { IRequestContext } from '../../../../base/parts/request/common/request.js';
 import { IManagedSettingsCompatibilityError, MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { normalizeManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { MANAGED_SETTINGS_ORIGINAL_STATUS_HEADER, normalizeManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { readHeader } from '../../../../platform/request/common/request.js';
 
 /**
  * Client identity VS Code reports to the managed settings service. It names this codebase's own
@@ -77,6 +79,26 @@ export interface IManagedSettingsResponse {
 	};
 	/** Any unknown keys in the response are accepted for forward compatibility. */
 	readonly [key: string]: unknown;
+}
+
+/**
+ * Restore the HTTP status a response really carried, for responses whose status was rewritten so
+ * that an expected failure status would not be logged to the Developer Tools console. The main
+ * process performs that rewrite (see `MANAGED_SETTINGS_ORIGINAL_STATUS_HEADER`), so on every other
+ * platform — and for every other endpoint — the response is returned untouched.
+ */
+export function restoreOriginalStatus(context: IRequestContext): IRequestContext {
+	const originalStatus = readHeader(context.res.headers, MANAGED_SETTINGS_ORIGINAL_STATUS_HEADER);
+	if (!originalStatus) {
+		return context;
+	}
+
+	const statusCode = Number(originalStatus);
+	if (!Number.isInteger(statusCode)) {
+		return context;
+	}
+
+	return { ...context, res: { ...context.res, statusCode } };
 }
 
 /**

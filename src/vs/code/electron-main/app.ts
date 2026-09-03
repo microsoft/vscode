@@ -107,7 +107,7 @@ import { IWorkspacesHistoryMainService, WorkspacesHistoryMainService } from '../
 import { WorkspacesMainService } from '../../platform/workspaces/electron-main/workspacesMainService.js';
 import { IWorkspacesManagementMainService, WorkspacesManagementMainService } from '../../platform/workspaces/electron-main/workspacesManagementMainService.js';
 import { IPolicyService } from '../../platform/policy/common/policy.js';
-import { INativeManagedSettingsService, IFileManagedSettingsService } from '../../platform/policy/common/copilotManagedSettings.js';
+import { INativeManagedSettingsService, IFileManagedSettingsService, isManagedSettingsUrl, MANAGED_SETTINGS_ORIGINAL_STATUS_HEADER } from '../../platform/policy/common/copilotManagedSettings.js';
 import { NativeManagedSettingsChannel } from '../../platform/policy/common/nativeManagedSettingsIpc.js';
 import { FileManagedSettingsChannel } from '../../platform/policy/common/fileManagedSettingsIpc.js';
 import { PolicyChannel } from '../../platform/policy/common/policyIpc.js';
@@ -493,6 +493,34 @@ export class CodeApplication extends Disposable {
 					responseHeaders['Access-Control-Allow-Origin'] = ['*'];
 					return callback({ cancel: false, responseHeaders });
 				}
+			}
+
+			return callback({ cancel: false });
+		});
+
+		//#endregion
+
+		//#region Keep expected managed settings 404s out of the DevTools console
+
+		// The Copilot managed settings endpoint answers `404` when an account simply has no
+		// managed settings, which is a normal outcome that the workbench handles. Chromium
+		// unconditionally logs `Failed to load resource: the server responded with a status of
+		// 404` to the Developer Tools console of the window that issued the request, and that
+		// cannot be suppressed from the renderer. Report the response as a success and carry the
+		// real status in a header, which the workbench restores before acting on the response.
+		session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+			if (details.statusCode === 404 && isManagedSettingsUrl(details.url)) {
+				const responseHeaders = details.responseHeaders ?? Object.create(null);
+				responseHeaders[MANAGED_SETTINGS_ORIGINAL_STATUS_HEADER] = [String(details.statusCode)];
+
+				// The request is cross-origin, so the header is only readable by the window once
+				// exposed. Extend what the service already exposes instead of replacing it, which
+				// would hide the rate-limit headers the workbench reads off this same response.
+				const exposeKey = Object.keys(responseHeaders).find(key => key.toLowerCase() === 'access-control-expose-headers') ?? 'Access-Control-Expose-Headers';
+				const exposed = responseHeaders[exposeKey];
+				responseHeaders[exposeKey] = [...(Array.isArray(exposed) ? exposed : exposed ? [exposed] : []), MANAGED_SETTINGS_ORIGINAL_STATUS_HEADER];
+
+				return callback({ cancel: false, responseHeaders, statusLine: 'HTTP/1.1 200 OK' });
 			}
 
 			return callback({ cancel: false });
