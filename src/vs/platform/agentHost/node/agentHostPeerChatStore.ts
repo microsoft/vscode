@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { Limiter } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ChatOrigin } from '../common/state/protocol/state.js';
 import { isDefaultChatUri, parseRequiredSessionUriFromChatUri } from '../common/state/sessionState.js';
-import { fromCatalogChatOrigin, toCatalogJsonValue } from './agentHostCatalogSourceResolver.js';
+import { fromCatalogChatOrigin, toSerializableJsonValue } from './agentHostCatalogSourceResolver.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 
 export const PEER_CHATS_METADATA_KEY = 'peerChats';
@@ -27,6 +28,7 @@ export interface IPersistedPeerChat {
 export class AgentHostPeerChatStore {
 
 	private readonly _writes = new Map<string, Promise<void>>();
+	private readonly _deletingSessions = new Map<string, number>();
 
 	constructor(
 		private readonly _database: IAgentHostDatabase,
@@ -49,15 +51,20 @@ export class AgentHostPeerChatStore {
 					if (legacy === undefined) {
 						return;
 					}
-					if (!await this._replaceCentral(session, legacy, undefined)) {
+					const replaceResult = await this._replaceCentral(session, legacy, undefined);
+					if (replaceResult === 'conflict') {
 						continue;
+					}
+					if (replaceResult === 'sessionUnavailable') {
+						return;
 					}
 					result = legacy;
 					return;
 				}
 				const central = this._entriesFromCatalog(catalog.chats);
 				if (catalog.legacyMirroredRevision !== catalog.revision) {
-					result = (await this._reconcileUnmirroredCatalog(session))?.entries;
+					const reconciled = await this._reconcileUnmirroredCatalog(session);
+					result = reconciled.status === 'available' ? reconciled.entries : undefined;
 					return;
 				}
 				if (legacy !== undefined && catalog.legacyMirroredPayload === undefined) {
@@ -66,15 +73,25 @@ export class AgentHostPeerChatStore {
 					}
 				}
 				if (legacy !== undefined && JSON.stringify(legacy) !== JSON.stringify(central)) {
-					if (!await this._replaceCentral(session, legacy, catalog.revision)) {
+					const replaceResult = await this._replaceCentral(session, legacy, catalog.revision);
+					if (replaceResult === 'conflict') {
 						continue;
+					}
+					if (replaceResult === 'sessionUnavailable') {
+						return;
 					}
 					result = legacy;
 					return;
 				}
-				const local = await Promise.all(central.map(entry => this._readChatMetadata(entry)));
-				if (JSON.stringify(local) !== JSON.stringify(central) && !await this._replaceCentral(session, local, catalog.revision)) {
-					continue;
+				const local = await this.readLocalChatMetadata(central);
+				if (JSON.stringify(local) !== JSON.stringify(central)) {
+					const replaceResult = await this._replaceCentral(session, local, catalog.revision);
+					if (replaceResult === 'conflict') {
+						continue;
+					}
+					if (replaceResult === 'sessionUnavailable') {
+						return;
+					}
 				}
 				result = local;
 				return;
@@ -152,12 +169,43 @@ export class AgentHostPeerChatStore {
 		return this._enqueueWrite(session, entries => entries.filter(entry => entry.uri !== chatUri));
 	}
 
+	async beginSessionDeletion(session: URI): Promise<void> {
+		const key = session.toString();
+		this._deletingSessions.set(key, (this._deletingSessions.get(key) ?? 0) + 1);
+		await this._writes.get(key)?.catch(() => { });
+	}
+
+	endSessionDeletion(session: URI): void {
+		const key = session.toString();
+		const count = this._deletingSessions.get(key);
+		if (count === undefined || count <= 1) {
+			this._deletingSessions.delete(key);
+		} else {
+			this._deletingSessions.set(key, count - 1);
+		}
+	}
+
+	async readLocalChatMetadata(entries: readonly IPersistedPeerChat[]): Promise<IPersistedPeerChat[]> {
+		const limiter = new Limiter<IPersistedPeerChat>(4);
+		return Promise.all(entries.map(entry => limiter.queue(async () => {
+			try {
+				return await this._readChatMetadata(entry);
+			} catch (error) {
+				this._logService.warn(`[AgentHostPeerChatStore] Failed to read chat-local metadata for ${entry.uri}: ${toErrorMessage(error)}`);
+				return entry;
+			}
+		})));
+	}
+
 	private _enqueueWrite(session: URI, mutate: (entries: IPersistedPeerChat[]) => IPersistedPeerChat[]): Promise<void> {
 		return this._enqueue(session, () => this._applyWrite(session, mutate));
 	}
 
 	private _enqueue(session: URI, operation: () => Promise<void>): Promise<void> {
 		const key = session.toString();
+		if (this._deletingSessions.has(key)) {
+			return Promise.resolve();
+		}
 		const previous = this._writes.get(key) ?? Promise.resolve();
 		const next = previous
 			.catch(() => { /* a failed prior write must not block later ones */ })
@@ -181,8 +229,14 @@ export class AgentHostPeerChatStore {
 			let reconciledEntries: IPersistedPeerChat[] | undefined;
 			if (catalog && catalog.legacyMirroredRevision !== catalog.revision) {
 				const reconciled = await this._reconcileUnmirroredCatalog(session);
+				if (reconciled.status === 'sessionUnavailable') {
+					return;
+				}
+				if (reconciled.status === 'missingCatalog') {
+					continue;
+				}
 				catalog = await this._database.getSessionChatCatalog(session.toString());
-				if (!reconciled || !catalog || catalog.revision !== reconciled.revision) {
+				if (!catalog || catalog.revision !== reconciled.revision) {
 					continue;
 				}
 				reconciledEntries = reconciled.entries;
@@ -196,29 +250,33 @@ export class AgentHostPeerChatStore {
 			}
 			const current = reconciledEntries ?? legacy ?? central ?? [];
 			const updated = this._parse(session, JSON.stringify(mutate(current)));
-			if (await this._replaceCentral(session, updated, catalog?.revision)) {
+			const result = await this._replaceCentral(session, updated, catalog?.revision);
+			if (result !== 'conflict') {
 				return;
 			}
 		}
 	}
 
-	private async _replaceCentral(session: URI, updated: readonly IPersistedPeerChat[], expectedRevision: number | undefined): Promise<boolean> {
-		const revision = await this._database.replaceSessionChatCatalog(session.toString(), updated.map((entry, order) => ({
+	private async _replaceCentral(session: URI, updated: readonly IPersistedPeerChat[], expectedRevision: number | undefined): Promise<'applied' | 'conflict' | 'sessionUnavailable'> {
+		const result = await this._database.replaceSessionChatCatalog(session.toString(), updated.map((entry, order) => ({
 			chat: entry.uri,
 			order,
 			...(entry.providerData !== undefined ? { providerData: entry.providerData } : {}),
 			...(entry.origin !== undefined ? { origin: this._stringifyOrigin(entry.origin) } : {}),
 			...(entry.inheritedTurnId !== undefined ? { inheritedTurnId: entry.inheritedTurnId } : {}),
 		})), expectedRevision);
-		if (revision === undefined) {
-			return false;
+		if (result.status !== 'applied') {
+			if (result.status !== 'conflict') {
+				this._logService.trace(`[AgentHostPeerChatStore] Ignoring chat catalog write for unavailable session ${session.toString()}: ${result.status}`);
+			}
+			return result.status === 'conflict' ? 'conflict' : 'sessionUnavailable';
 		}
 		try {
-			await this._publishCompatibilityState(session, updated, revision);
+			await this._publishCompatibilityState(session, updated, result.revision);
 		} catch (error) {
 			this._logService.error(error, `[AgentHostPeerChatStore] Failed to publish peer-chat compatibility state for ${session.toString()}`);
 		}
-		return true;
+		return 'applied';
 	}
 
 	private async _publishCompatibilityState(session: URI, initialEntries: readonly IPersistedPeerChat[], initialRevision: number): Promise<void> {
@@ -253,35 +311,43 @@ export class AgentHostPeerChatStore {
 		});
 	}
 
-	private async _reconcileUnmirroredCatalog(session: URI): Promise<{ readonly entries: IPersistedPeerChat[]; readonly revision: number } | undefined> {
+	private async _reconcileUnmirroredCatalog(session: URI): Promise<
+		| { readonly status: 'available'; readonly entries: IPersistedPeerChat[]; readonly revision: number }
+		| { readonly status: 'missingCatalog' }
+		| { readonly status: 'sessionUnavailable' }
+	> {
 		while (true) {
 			const catalog = await this._database.getSessionChatCatalog(session.toString());
 			if (!catalog) {
-				return undefined;
+				return { status: 'missingCatalog' };
 			}
 			const central = this._entriesFromCatalog(catalog.chats);
 			if (catalog.legacyMirroredRevision === catalog.revision) {
-				return { entries: central, revision: catalog.revision };
+				return { status: 'available', entries: central, revision: catalog.revision };
 			}
 			const legacy = await this.tryReadLegacy(session);
 			const base = this._parseLegacyMirrorBase(session, catalog.legacyMirroredPayload);
 			if (legacy !== undefined && base !== undefined && JSON.stringify(legacy) !== JSON.stringify(base)) {
 				const merged = this._mergeLegacyChanges(base, central, legacy);
-				if (!await this._replaceCentral(session, merged, catalog.revision)) {
+				const replaceResult = await this._replaceCentral(session, merged, catalog.revision);
+				if (replaceResult === 'conflict') {
 					continue;
+				}
+				if (replaceResult === 'sessionUnavailable') {
+					return { status: 'sessionUnavailable' };
 				}
 				const revision = catalog.revision + 1;
 				if (!await this._database.recordSessionChatCatalogLegacyMirrorPayload(session.toString(), revision, JSON.stringify(legacy))) {
 					continue;
 				}
-				return { entries: merged, revision };
+				return { status: 'available', entries: merged, revision };
 			}
 			try {
 				await this._publishCompatibilityState(session, central, catalog.revision);
 			} catch (error) {
 				this._logService.error(error, `[AgentHostPeerChatStore] Failed to publish peer-chat compatibility state for ${session.toString()}`);
 			}
-			return { entries: central, revision: catalog.revision };
+			return { status: 'available', entries: central, revision: catalog.revision };
 		}
 	}
 
@@ -374,11 +440,11 @@ export class AgentHostPeerChatStore {
 
 	private _parseOrigin(raw: string): ChatOrigin | undefined {
 		const parsed: unknown = JSON.parse(raw);
-		return fromCatalogChatOrigin(toCatalogJsonValue(parsed));
+		return fromCatalogChatOrigin(toSerializableJsonValue(parsed));
 	}
 
 	private _stringifyOrigin(origin: ChatOrigin): string {
-		const value = toCatalogJsonValue(origin);
+		const value = toSerializableJsonValue(origin);
 		if (value === undefined) {
 			throw new Error('Chat origin is not JSON-serializable');
 		}
@@ -436,7 +502,7 @@ export class AgentHostPeerChatStore {
 				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} with invalid inherited turn id`);
 				continue;
 			}
-			const originValue = toCatalogJsonValue(value.origin);
+			const originValue = toSerializableJsonValue(value.origin);
 			const origin = fromCatalogChatOrigin(originValue);
 			if (value.origin !== undefined && !origin) {
 				this._logService.warn(`[AgentService] Dropping invalid origin from peer-chat catalog entry ${index}`);

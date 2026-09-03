@@ -47,9 +47,9 @@ import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../co
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
-import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
-import { CHAT_PROVIDER_DATA_METADATA_KEY } from '../../node/agentHostPeerChatStore.js';
-import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
+import { AgentHostDatabase, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
+import { CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY } from '../../node/agentHostPeerChatStore.js';
+import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
@@ -318,6 +318,8 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	private _remainingRegistryWriteFailures = 0;
 	modifiedTimeBatchAttempts = 0;
 	private _remainingModifiedTimeBatchFailures = 0;
+	sessionChatCatalogReplaceAttempts = 0;
+	private _blockedSessionChatCatalogWrite: { readonly started: DeferredPromise<void>; readonly release: DeferredPromise<void> } | undefined;
 	readonly externalUpdates: { session: string; external: boolean }[] = [];
 	undefinedExternalListCalls = 0;
 	sessionV2UpsertAttempts = 0;
@@ -347,6 +349,15 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	failModifiedTimeBatches(count: number): void {
 		this.modifiedTimeBatchAttempts = 0;
 		this._remainingModifiedTimeBatchFailures = count;
+	}
+
+	blockNextSessionChatCatalogWrite(): { readonly started: DeferredPromise<void>; readonly release: DeferredPromise<void> } {
+		const blocked = {
+			started: new DeferredPromise<void>(),
+			release: new DeferredPromise<void>(),
+		};
+		this._blockedSessionChatCatalogWrite = blocked;
+		return blocked;
 	}
 
 	async registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
@@ -677,14 +688,27 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	async getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined> {
 		return this._sessionChats.get(session);
 	}
-	async replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<number | undefined> {
+	async replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
+		this.sessionChatCatalogReplaceAttempts++;
+		const blocked = this._blockedSessionChatCatalogWrite;
+		if (blocked) {
+			this._blockedSessionChatCatalogWrite = undefined;
+			blocked.started.complete();
+			await blocked.release.p;
+		}
+		if (this._tombstones.has(session)) {
+			return { status: 'tombstoned' };
+		}
+		if (!this._sessionV2Registrations.has(session) && !this._sessions.has(session)) {
+			return { status: 'missingSession' };
+		}
 		const current = this._sessionChats.get(session);
 		if (current?.revision !== expectedRevision) {
-			return undefined;
+			return { status: 'conflict' };
 		}
 		const revision = (current?.revision ?? 0) + 1;
 		this._sessionChats.set(session, { revision, legacyMirroredRevision: current?.legacyMirroredRevision ?? 0, chats: [...chats] });
-		return revision;
+		return { status: 'applied', revision };
 	}
 	async markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number, payload?: string): Promise<boolean> {
 		const current = this._sessionChats.get(session);
@@ -1000,14 +1024,20 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 	async getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined> {
 		return this._sessionChats.get(session);
 	}
-	async replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<number | undefined> {
+	async replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
+		if (this._tombstones.has(session)) {
+			return { status: 'tombstoned' };
+		}
+		if (!this._sessionV2Registrations.has(session) && !this._sessions.has(session)) {
+			return { status: 'missingSession' };
+		}
 		const current = this._sessionChats.get(session);
 		if (current?.revision !== expectedRevision) {
-			return undefined;
+			return { status: 'conflict' };
 		}
 		const revision = (current?.revision ?? 0) + 1;
 		this._sessionChats.set(session, { revision, legacyMirroredRevision: current?.legacyMirroredRevision ?? 0, chats: [...chats] });
-		return revision;
+		return { status: 'applied', revision };
 	}
 	async markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number, payload?: string): Promise<boolean> {
 		const current = this._sessionChats.get(session);
@@ -3594,6 +3624,75 @@ suite('AgentService (node dispatcher)', () => {
 			await service.disposeSession(session);
 
 			assert.strictEqual(copilotAgent.disposeSessionCalls.length, 1);
+		});
+
+		test('drains and fences peer-chat writes before deleting session data', async () => {
+			const orchestratorDatabase = new TransientRegistryWriteDatabase();
+			const metadataDatabase = new TestSessionDatabase();
+			const baseSessionDataService = createSessionDataService(metadataDatabase);
+			const deleted = new Set<string>();
+			const recreated: string[] = [];
+			const sessionDataService: ISessionDataService = {
+				...baseSessionDataService,
+				openDatabase: resource => {
+					if (deleted.has(resource.toString())) {
+						recreated.push(resource.toString());
+					}
+					return baseSessionDataService.openDatabase(resource);
+				},
+				deleteSessionData: async resource => {
+					deleted.add(resource.toString());
+				},
+			};
+			class ChatDataDuringDisposalAgent extends MockAgent {
+				private readonly _chatData = new Emitter<IAgentChatDataChange>();
+				override readonly onDidChangeChatData = this._chatData.event;
+				peerChat: URI | undefined;
+
+				override async createChat(): Promise<void> { }
+
+				fireChatData(chat: URI, providerData: string): void {
+					this._chatData.fire({ chat, providerData });
+				}
+
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					disposeChat: async (chat, context) => {
+						if (chat.toString() === this.peerChat?.toString()) {
+							this.fireChatData(chat, 'queued-during-disposal');
+						}
+						await base.disposeChat(chat, context);
+					},
+				}));
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestratorDatabase));
+			const agent = disposables.add(new ChatDataDuringDisposalAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const peer = URI.parse(buildChatUri(session, 'peer'));
+			agent.peerChat = peer;
+			await svc.createChat(session, peer);
+			const blocked = orchestratorDatabase.blockNextSessionChatCatalogWrite();
+			agent.fireChatData(peer, 'in-flight');
+			await blocked.started.p;
+
+			let deletionComplete = false;
+			const deletion = svc.disposeSession(session).then(() => { deletionComplete = true; });
+			await timeout(0);
+			assert.strictEqual(deletionComplete, false);
+			blocked.release.complete();
+			await deletion;
+
+			assert.deepStrictEqual({
+				replaceAttempts: orchestratorDatabase.sessionChatCatalogReplaceAttempts,
+				catalog: await orchestratorDatabase.getSessionChatCatalog(session.toString()),
+				deleted: [...deleted].sort(),
+				recreated,
+			}, {
+				replaceAttempts: 2,
+				catalog: undefined,
+				deleted: [peer.toString(), buildDefaultChatUri(session), session.toString()].sort(),
+				recreated: [],
+			});
 		});
 
 		test('is a no-op for unknown sessions', async () => {
@@ -12589,6 +12688,64 @@ suite('AgentService (node dispatcher)', () => {
 				origin: { kind: ChatOriginKind.SideChat, chat: defaultChatUri, turnId: 't1', selection },
 				copiedTurns: 0,
 				forkForwarded: { source: defaultChatUri, turnId: 't1', independentQueue: true },
+			});
+		});
+
+		test('creates a side chat with a selection larger than the catalog JSON string bound', async () => {
+			const sessionData = createPerSessionDataService();
+			const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+			const localService = disposables.add(createTestAgentService(
+				new NullLogService(),
+				fileService,
+				sessionData.service,
+				{ _serviceBrand: undefined } as IProductService,
+				createNoopGitService(),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				[],
+				undefined,
+				undefined,
+				catalogDatabase,
+			));
+			const agent = disposables.add(new SideChatAgent('copilot'));
+			registerTestAgentProvider(localService, agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			getStateManager(localService).seedDefaultChatTurns(session.toString(), [completedTurn('t1')]);
+			const chatUri = URI.parse(buildChatUri(session, 'large-selection'));
+			const defaultChatUri = buildDefaultChatUri(session);
+			const selectionText = 'selected text '.repeat(400);
+			assert.ok(selectionText.length > AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT);
+
+			await localService.createChat(session, chatUri, {
+				sideChat: {
+					source: session,
+					turnId: 't1',
+					selection: { text: selectionText, responsePartId: 'response-part-1' },
+				},
+			});
+
+			const legacyPeers = JSON.parse((await sessionData.database(session).getMetadata('peerChats')) ?? '[]') as { uri: string; origin?: { selection?: { text?: string } } }[];
+			const peerCatalog = await catalogDatabase.getSessionChatCatalog(session.toString());
+			const peerCatalogOrigin = JSON.parse(peerCatalog?.chats.find(chat => chat.chat === chatUri.toString())?.origin ?? '{}') as { selection?: { text?: string } };
+			const chatOrigin = JSON.parse((await sessionData.database(chatUri).getMetadata(CHAT_ORIGIN_METADATA_KEY)) ?? '{}') as { selection?: { text?: string } };
+			const central = catalogDataOf(await catalogDatabase.getSessionV2(session.toString()));
+			const liveOrigin = getStateManager(localService).getChatState(chatUri.toString())?.origin;
+
+			assert.deepStrictEqual({
+				liveSelectionMatches: liveOrigin?.kind === ChatOriginKind.SideChat && liveOrigin.selection?.text === selectionText,
+				legacySelectionMatches: legacyPeers.find(peer => peer.uri === chatUri.toString())?.origin?.selection?.text === selectionText,
+				peerCatalogSelectionMatches: peerCatalogOrigin.selection?.text === selectionText,
+				chatMetadataSelectionMatches: chatOrigin.selection?.text === selectionText,
+				centralOrigin: central?.chats.find(chat => chat.uri === chatUri.toString())?.origin,
+			}, {
+				liveSelectionMatches: true,
+				legacySelectionMatches: true,
+				peerCatalogSelectionMatches: true,
+				chatMetadataSelectionMatches: true,
+				centralOrigin: { kind: ChatOriginKind.SideChat, chat: defaultChatUri, turnId: 't1' },
 			});
 		});
 

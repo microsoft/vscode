@@ -98,6 +98,10 @@ export interface IAgentHostDatabaseSessionChatCatalog {
 	readonly chats: readonly IAgentHostDatabaseSessionChat[];
 }
 
+export type AgentHostDatabaseSessionChatCatalogReplaceResult =
+	| { readonly status: 'applied'; readonly revision: number }
+	| { readonly status: 'conflict' | 'missingSession' | 'tombstoned' };
+
 export type AgentHostDatabaseSessionV2UpsertResult = 'applied' | 'replayed' | 'stale' | 'conflict' | 'generationMismatch' | 'missingSession' | 'tombstoned';
 
 export interface IAgentHostDatabase extends IDisposable {
@@ -199,8 +203,8 @@ export interface IAgentHostDatabase extends IDisposable {
 	upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult>;
 	/** Reads authoritative peer-chat membership. `undefined` means legacy import has not completed. */
 	getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined>;
-	/** Replaces authoritative peer-chat membership when its revision still matches. */
-	replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<number | undefined>;
+	/** Replaces authoritative peer-chat membership when the session exists and its revision still matches. */
+	replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult>;
 	/** Acknowledges the exact central revision written to the downgrade-compatibility mirror. */
 	markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number, payload?: string): Promise<boolean>;
 	/** Records the legacy payload used as the next three-way merge base without acknowledging a central revision. */
@@ -1131,7 +1135,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		};
 	}
 
-	async replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<number | undefined> {
+	async replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
 		this._validateSessionChats(chats);
 		if (expectedRevision !== undefined && (!Number.isSafeInteger(expectedRevision) || expectedRevision <= 0)) {
 			throw new Error('Expected session chat catalog revision must be a positive safe integer');
@@ -1140,11 +1144,24 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			const database = await this._ensureDatabase();
 			await exec(database, 'BEGIN IMMEDIATE');
 			try {
+				const tombstone = await get(database, `SELECT 1 AS present FROM metadata
+					WHERE key = ? AND value = 'true'`, [tombstoneKey(session)]);
+				if (tombstone) {
+					await exec(database, 'COMMIT');
+					return { status: 'tombstoned' };
+				}
+				const registered = await get(database, `SELECT 1 AS present FROM sessions WHERE session_uri = ?
+					UNION SELECT 1 AS present FROM sessions_v2 WHERE session_uri = ?
+					LIMIT 1`, [session, session]);
+				if (!registered) {
+					await exec(database, 'COMMIT');
+					return { status: 'missingSession' };
+				}
 				const current = await get(database, 'SELECT revision FROM session_chat_catalogs WHERE session_uri = ?', [session]);
 				const currentRevision = current?.revision as number | undefined;
 				if (currentRevision !== expectedRevision) {
 					await exec(database, 'COMMIT');
-					return undefined;
+					return { status: 'conflict' };
 				}
 				const revision = (currentRevision ?? 0) + 1;
 				if (!Number.isSafeInteger(revision)) {
@@ -1167,7 +1184,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					]);
 				}
 				await exec(database, 'COMMIT');
-				return revision;
+				return { status: 'applied', revision };
 			} catch (error) {
 				return this._rollback(database, error, `Failed to replace the chat catalog for ${session}`);
 			}

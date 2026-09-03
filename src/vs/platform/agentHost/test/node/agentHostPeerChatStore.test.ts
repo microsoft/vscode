@@ -10,7 +10,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { ChatOriginKind } from '../../common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
-import { AgentHostPeerChatStore, PEER_CHATS_METADATA_KEY } from '../../node/agentHostPeerChatStore.js';
+import { AgentHostPeerChatStore, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, PEER_CHATS_METADATA_KEY } from '../../node/agentHostPeerChatStore.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 const session = URI.parse('agenthost:peer-store');
@@ -133,6 +133,72 @@ suite('AgentHostPeerChatStore', () => {
 			{ uri: third.toString(), providerData: 'third', origin: { kind: ChatOriginKind.User } },
 			{ uri: first.toString(), providerData: 'refreshed', origin },
 		]);
+	});
+
+	test('does not recreate membership or compatibility data after tombstoning', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await orchestrator.tombstoneAndUnregisterSession(session.toString());
+
+		await store.upsert(session, first, 'late-provider-data');
+
+		assert.deepStrictEqual({
+			central: await store.tryRead(session),
+			legacy: await database.getMetadata(PEER_CHATS_METADATA_KEY),
+			chatProviderData: await database.getMetadata(CHAT_PROVIDER_DATA_METADATA_KEY),
+		}, {
+			central: undefined,
+			legacy: undefined,
+			chatProviderData: undefined,
+		});
+	});
+
+	test('keeps overlapping deletion fences active until every disposer exits', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await store.beginSessionDeletion(session);
+		await store.beginSessionDeletion(session);
+		store.endSessionDeletion(session);
+
+		await store.upsert(session, first, 'provider-data');
+
+		assert.strictEqual(await store.tryRead(session), undefined);
+		store.endSessionDeletion(session);
+	});
+
+	test('does not create membership for a missing registered session', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await orchestrator.unregisterRuntimeSession(session.toString());
+
+		await store.upsert(session, first, 'provider-data');
+
+		assert.deepStrictEqual({
+			central: await store.tryRead(session),
+			legacy: await store.tryReadLegacy(session),
+		}, {
+			central: undefined,
+			legacy: undefined,
+		});
+	});
+
+	test('restores authoritative side-chat selection from chat-local metadata', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		const selectionText = 'selected text '.repeat(400);
+		await database.setMetadata(CHAT_ORIGIN_METADATA_KEY, JSON.stringify({
+			kind: ChatOriginKind.SideChat,
+			chat: buildDefaultChatUri(session),
+			turnId: 'turn-1',
+			selection: { text: selectionText, responsePartId: 'response-1' },
+		}));
+
+		const restored = await store.readLocalChatMetadata([{
+			uri: first.toString(),
+			origin: { kind: ChatOriginKind.SideChat, chat: buildDefaultChatUri(session), turnId: 'turn-1' },
+		}]);
+
+		assert.strictEqual(restored[0].origin?.kind === ChatOriginKind.SideChat && restored[0].origin.selection?.text, selectionText);
 	});
 
 	test('retries concurrent mutations from separate store instances', async () => {

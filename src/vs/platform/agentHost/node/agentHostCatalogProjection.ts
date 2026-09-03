@@ -18,8 +18,8 @@ export const AGENT_HOST_CATALOG_ARTIFACT_LIMIT = 100;
 export const AGENT_HOST_CATALOG_CHILD_LIMIT = 1000;
 export const AGENT_HOST_CATALOG_PAYLOAD_BYTE_LIMIT = 4 * 1024 * 1024;
 export const AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT = 1024;
+export const AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT = 4096;
 
-const MAX_STRING_LENGTH = 4096;
 const MAX_JSON_DEPTH = 20;
 const MAX_JSON_ENTRIES = 2000;
 
@@ -108,9 +108,9 @@ class JsonValueValidator extends ValidatorBase<JsonValue> {
 				return { value };
 			}
 			if (typeof value === 'string') {
-				return value.length <= MAX_STRING_LENGTH
+				return value.length <= AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT
 					? { value }
-					: { error: { message: `String exceeds ${MAX_STRING_LENGTH} characters.` } };
+					: { error: { message: `String exceeds ${AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT} characters.` } };
 			}
 			if (typeof value === 'number') {
 				return Number.isFinite(value)
@@ -147,8 +147,8 @@ class JsonValueValidator extends ValidatorBase<JsonValue> {
 			}
 			const result: { [key: string]: JsonValue } = {};
 			for (const key of keys) {
-				if (key.length > MAX_STRING_LENGTH) {
-					return { error: { message: `JSON key exceeds ${MAX_STRING_LENGTH} characters.` } };
+				if (key.length > AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT) {
+					return { error: { message: `JSON key exceeds ${AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT} characters.` } };
 				}
 				const parsed = visit((value as Record<string, unknown>)[key], depth + 1);
 				if (parsed.error) {
@@ -170,8 +170,8 @@ class JsonValueValidator extends ValidatorBase<JsonValue> {
 	}
 }
 
-const boundedString = (maximumLength = MAX_STRING_LENGTH) => new StringValidator(maximumLength, false);
-const uriString = () => new StringValidator(MAX_STRING_LENGTH, true);
+const boundedString = (maximumLength = AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT) => new StringValidator(maximumLength, false);
+const uriString = () => new StringValidator(AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, true);
 const safeInteger = () => new SafeIntegerValidator();
 const jsonValue = () => new JsonValueValidator();
 

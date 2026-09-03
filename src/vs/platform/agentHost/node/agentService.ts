@@ -101,7 +101,7 @@ import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsCon
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
-import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, fromCatalogChatOrigin, toCatalogJsonValue } from './agentHostCatalogSourceResolver.js';
+import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, fromCatalogChatOrigin } from './agentHostCatalogSourceResolver.js';
 import { AgentHostPeerChatStore, CHAT_PROVIDER_DATA_METADATA_KEY, IPersistedPeerChat } from './agentHostPeerChatStore.js';
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 
@@ -1761,10 +1761,7 @@ export class AgentService extends Disposable implements IAgentService {
 			workingDirectories: summary.workingDirectories ?? [],
 			changes: summary.changes,
 			meta: summary._meta,
-			chats: (chatsOverride ?? this._catalogChatsFromState(state)).map(chat => ({
-				...chat,
-				origin: toCatalogJsonValue(chat.origin),
-			})),
+			chats: chatsOverride ?? this._catalogChatsFromState(state),
 		}, metadataOverrides, false));
 		if (result.status === 'pending') {
 			this._logService.warn(`[AgentService] Catalog synchronization for ${sessionKey} remains pending: ${result.reason}`);
@@ -1801,7 +1798,7 @@ export class AgentService extends Disposable implements IAgentService {
 					...peers.map(peer => ({
 						uri: peer.uri,
 						kind: 'peer' as const,
-						origin: toCatalogJsonValue(peer.origin),
+						origin: peer.origin,
 					})),
 				],
 			}, {}, true),
@@ -2400,7 +2397,7 @@ export class AgentService extends Disposable implements IAgentService {
 				...peers.map(peer => ({
 					uri: peer.uri,
 					kind: 'peer' as const,
-					origin: toCatalogJsonValue(peer.origin),
+					origin: peer.origin,
 				})),
 			],
 		}, external && seedExternalRead ? { [AH_META_IS_READ_DB_KEY]: 'true' } : {}, true);
@@ -4599,53 +4596,58 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionId = AgentSession.id(session);
 		const persistedPeerChats = sessionChats.length === 0 ? await this._peerChatStore.tryRead(session) : undefined;
 		const worktree = await this._worktree.prepareSessionDeletion(session, sessionId);
-		const provider = this._providerService.getProviderForSession(session);
-		let chatsToDelete = this._orderSessionChatsForTeardown(session, [
-			...sessionChats.map(chat => chat.resource),
-			...(persistedPeerChats?.map(chat => chat.uri) ?? []),
-		]);
-		if (provider) {
-			chatsToDelete = [...await this._disposeSession(provider, session)];
-		}
-		if (!isEphemeral) {
-			await this._retryRegistryMutation(
-				() => this._sessionRegistry.tombstone(session),
-				`unregistration for ${session.toString()}`,
-			);
-		}
-		if (!isIdleProvisional) {
-			this._invalidateSessionList();
-		}
-		if (provider) {
-			this._providerService.releaseSession(session.toString());
-			this._clearDownloadProgressInterest(session.toString());
-		}
-		this._sideEffects.clearSessionTitleState(session.toString(), sessionChats.map(chat => chat.resource));
-		this._chatContributions.disposeSessionState(session.toString());
-		await this._whenSessionDataIdle(session);
-		for (const chat of chatsToDelete) {
-			await this._sessionDataService.deleteSessionData(chat);
-		}
-		// Remove the VS Code per-session data directory (metadata DB + checkpoints) to mirror the SDK-side cleanup
-		// performed by the provider above. No-op when the directory does not exist.
-		//
-		// Runs before the worktree is removed: subscribers of the will-delete
-		// event drop this session's git refs, and for a worktree-isolated
-		// session the working directory *is* the worktree, so once it is gone
-		// the repository can no longer be resolved and the refs would leak
-		// into the main repository (`refs/agents/*` is shared, not per-worktree).
-		await this._sessionDataService.deleteSessionData(session, workingDirectories);
-		await this._worktree.removeSessionWorktree(sessionId, worktree);
-		this._changesetCoordinator.onSessionDisposed(session.toString());
-		this._sideEffects.clearInputRequestsForSession(session.toString());
-		// Remove all subagent sessions for this parent
-		this._sideEffects.removeSubagentSessions(session.toString());
-		this._stateManager.deleteSession(session.toString());
-		if (isEphemeral) {
-			await this._retryRegistryMutation(
-				() => this._sessionRegistry.clearTombstone(session),
-				`clearing ephemeral session tombstone for ${session.toString()}`,
-			);
+		await this._peerChatStore.beginSessionDeletion(session);
+		try {
+			const provider = this._providerService.getProviderForSession(session);
+			let chatsToDelete = this._orderSessionChatsForTeardown(session, [
+				...sessionChats.map(chat => chat.resource),
+				...(persistedPeerChats?.map(chat => chat.uri) ?? []),
+			]);
+			if (provider) {
+				chatsToDelete = [...await this._disposeSession(provider, session)];
+			}
+			if (!isEphemeral) {
+				await this._retryRegistryMutation(
+					() => this._sessionRegistry.tombstone(session),
+					`unregistration for ${session.toString()}`,
+				);
+			}
+			if (!isIdleProvisional) {
+				this._invalidateSessionList();
+			}
+			if (provider) {
+				this._providerService.releaseSession(session.toString());
+				this._clearDownloadProgressInterest(session.toString());
+			}
+			this._sideEffects.clearSessionTitleState(session.toString(), sessionChats.map(chat => chat.resource));
+			this._chatContributions.disposeSessionState(session.toString());
+			await this._whenSessionDataIdle(session);
+			for (const chat of chatsToDelete) {
+				await this._sessionDataService.deleteSessionData(chat);
+			}
+			// Remove the VS Code per-session data directory (metadata DB + checkpoints) to mirror the SDK-side cleanup
+			// performed by the provider above. No-op when the directory does not exist.
+			//
+			// Runs before the worktree is removed: subscribers of the will-delete
+			// event drop this session's git refs, and for a worktree-isolated
+			// session the working directory *is* the worktree, so once it is gone
+			// the repository can no longer be resolved and the refs would leak
+			// into the main repository (`refs/agents/*` is shared, not per-worktree).
+			await this._sessionDataService.deleteSessionData(session, workingDirectories);
+			await this._worktree.removeSessionWorktree(sessionId, worktree);
+			this._changesetCoordinator.onSessionDisposed(session.toString());
+			this._sideEffects.clearInputRequestsForSession(session.toString());
+			// Remove all subagent sessions for this parent
+			this._sideEffects.removeSubagentSessions(session.toString());
+			this._stateManager.deleteSession(session.toString());
+			if (isEphemeral) {
+				await this._retryRegistryMutation(
+					() => this._sessionRegistry.clearTombstone(session),
+					`clearing ephemeral session tombstone for ${session.toString()}`,
+				);
+			}
+		} finally {
+			this._peerChatStore.endSessionDeletion(session);
 		}
 	}
 
@@ -6424,11 +6426,12 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const cached = await this._readCentralChatCatalog(session);
 		if (cached?.some(chat => chat.kind === 'peer')) {
-			const peers = cached.filter(chat => chat.kind === 'peer').map(chat => ({
+			const projectedPeers = cached.filter(chat => chat.kind === 'peer').map(chat => ({
 				uri: chat.uri,
 				...(chat.origin !== undefined ? { origin: chat.origin } : {}),
 				...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
 			}));
+			const peers = await this._peerChatStore.readLocalChatMetadata(projectedPeers);
 			await this._peerChatStore.replace(session, peers);
 			return peers;
 		}

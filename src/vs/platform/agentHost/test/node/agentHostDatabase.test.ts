@@ -257,21 +257,23 @@ suite('AgentHostDatabase sessions_v2', () => {
 		}, { checkTombstone: false });
 
 		const before = await database.getSessionChatCatalog(session);
-		const firstRevision = await database.replaceSessionChatCatalog(session, [
+		const firstResult = await database.replaceSessionChatCatalog(session, [
 			{ chat: 'ahp-chat://first', order: 0, providerData: 'first', origin: '{"kind":"user"}' },
 			{ chat: 'ahp-chat://second', order: 1, inheritedTurnId: 'turn-1' },
 		], undefined);
-		if (firstRevision === undefined) {
+		if (firstResult.status !== 'applied') {
 			throw new Error('Expected the initial chat catalog write to succeed');
 		}
+		const firstRevision = firstResult.revision;
 		const first = await database.getSessionChatCatalog(session);
 		const firstAcknowledged = await database.markSessionChatCatalogLegacyMirrored(session, firstRevision, '[{"uri":"ahp-chat://first"}]');
-		const secondRevision = await database.replaceSessionChatCatalog(session, [
+		const secondResult = await database.replaceSessionChatCatalog(session, [
 			{ chat: 'ahp-chat://second', order: 0, inheritedTurnId: 'turn-1' },
 		], firstRevision);
-		if (secondRevision === undefined) {
+		if (secondResult.status !== 'applied') {
 			throw new Error('Expected the second chat catalog write to succeed');
 		}
+		const secondRevision = secondResult.revision;
 		const conflictingRevision = await database.replaceSessionChatCatalog(session, [], firstRevision);
 		const staleAcknowledgement = await database.markSessionChatCatalogLegacyMirrored(session, firstRevision, 'stale-mirror-payload');
 		const afterStaleAcknowledgement = await database.getSessionChatCatalog(session);
@@ -302,7 +304,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			},
 			firstAcknowledged: true,
 			secondRevision: 2,
-			conflictingRevision: undefined,
+			conflictingRevision: { status: 'conflict' },
 			staleAcknowledgement: false,
 			afterStaleAcknowledgement: {
 				revision: 2,
@@ -321,6 +323,37 @@ suite('AgentHostDatabase sessions_v2', () => {
 					{ chat: 'ahp-chat://second', order: 0, inheritedTurnId: 'turn-1' },
 				],
 			},
+		});
+	});
+
+	test('rejects chat catalog replacement after session tombstoning', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const session = 'session://deleted-chat-catalog';
+		await database.registerRuntimeSession(session, {
+			provider: 'copilot',
+			startTime: 1,
+			source: 'explicit',
+		}, { checkTombstone: false });
+		const initial = await database.replaceSessionChatCatalog(session, [
+			{ chat: 'ahp-chat://peer', order: 0 },
+		], undefined);
+		await database.tombstoneAndUnregisterSession(session);
+
+		const afterTombstone = await database.replaceSessionChatCatalog(session, [
+			{ chat: 'ahp-chat://late-peer', order: 0 },
+		], undefined);
+		const missing = await database.replaceSessionChatCatalog('session://missing-chat-catalog', [], undefined);
+
+		assert.deepStrictEqual({
+			initial,
+			afterTombstone,
+			missing,
+			catalog: await database.getSessionChatCatalog(session),
+		}, {
+			initial: { status: 'applied', revision: 1 },
+			afterTombstone: { status: 'tombstoned' },
+			missing: { status: 'missingSession' },
+			catalog: undefined,
 		});
 	});
 

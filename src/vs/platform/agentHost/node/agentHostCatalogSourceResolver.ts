@@ -10,7 +10,7 @@ import { META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { ChangesSummary, ChatOrigin, ChatOriginKind } from '../common/state/protocol/state.js';
 import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ISessionGitHubState, ISessionGitState, ISessionSourceControlState, parseSessionCreationReference, parseSessionFolderPickerDecision, parseSessionMultiRootMetadata, readSessionCreationReference, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionFolderPickerDecision, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionStatus, SessionSummary } from '../common/state/sessionState.js';
-import { AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, AgentHostCatalogData, AgentHostCatalogJsonValue, AgentHostCatalogMetadata, agentHostCatalogGitValidator } from './agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, AgentHostCatalogData, AgentHostCatalogJsonValue, AgentHostCatalogMetadata, agentHostCatalogGitValidator } from './agentHostCatalogProjection.js';
 import { IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, AgentHostTitleSource, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import { WORKTREE_META_REPOSITORY_ROOT } from './shared/worktreeIsolation.js';
@@ -29,7 +29,7 @@ export interface ICatalogSourceState {
 		readonly uri: string;
 		readonly kind: 'default' | 'peer';
 		readonly title?: string;
-		readonly origin?: AgentHostCatalogJsonValue;
+		readonly origin?: ChatOrigin;
 	}[];
 }
 
@@ -246,7 +246,7 @@ export class AgentHostCatalogSourceResolver {
 					kind: chat.kind,
 					summary: toCatalogSummary(summary),
 					titleSource: normalizeCatalogTitleSource(titleSource),
-					origin: chat.origin,
+					origin: toCatalogChatOrigin(chat.origin),
 				};
 			}),
 		};
@@ -309,7 +309,7 @@ function toCatalogSummary(value: string | undefined): string | undefined {
 	return `${value.slice(0, end)}…`;
 }
 
-export function toCatalogJsonValue(value: unknown): AgentHostCatalogJsonValue | undefined {
+export function toSerializableJsonValue(value: unknown): AgentHostCatalogJsonValue | undefined {
 	if (value === undefined) {
 		return undefined;
 	}
@@ -322,7 +322,7 @@ export function toCatalogJsonValue(value: unknown): AgentHostCatalogJsonValue | 
 	if (Array.isArray(value)) {
 		const result: AgentHostCatalogJsonValue[] = [];
 		for (const entry of value) {
-			const converted = toCatalogJsonValue(entry);
+			const converted = toSerializableJsonValue(entry);
 			if (converted !== undefined) {
 				result.push(converted);
 			}
@@ -332,7 +332,7 @@ export function toCatalogJsonValue(value: unknown): AgentHostCatalogJsonValue | 
 	if (typeof value === 'object') {
 		const result: { [key: string]: AgentHostCatalogJsonValue } = {};
 		for (const [key, entry] of Object.entries(value)) {
-			const converted = toCatalogJsonValue(entry);
+			const converted = toSerializableJsonValue(entry);
 			if (converted !== undefined) {
 				result[key] = converted;
 			}
@@ -340,6 +340,32 @@ export function toCatalogJsonValue(value: unknown): AgentHostCatalogJsonValue | 
 		return result;
 	}
 	return undefined;
+}
+
+/** Projects bounded navigation provenance while authoritative selection snapshots remain in peer-chat metadata. */
+function toCatalogChatOrigin(origin: ChatOrigin | undefined): AgentHostCatalogJsonValue | undefined {
+	if (!origin) {
+		return undefined;
+	}
+	const projected = origin.kind === ChatOriginKind.SideChat
+		? { kind: origin.kind, chat: origin.chat, turnId: origin.turnId }
+		: origin;
+	const value = toSerializableJsonValue(projected);
+	return value !== undefined && hasOnlyBoundedStrings(value) ? value : undefined;
+}
+
+function hasOnlyBoundedStrings(value: AgentHostCatalogJsonValue): boolean {
+	if (typeof value === 'string') {
+		return value.length <= AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT;
+	}
+	if (Array.isArray(value)) {
+		return value.every(hasOnlyBoundedStrings);
+	}
+	if (value && typeof value === 'object') {
+		return Object.entries(value).every(([key, entry]) =>
+			key.length <= AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT && hasOnlyBoundedStrings(entry));
+	}
+	return true;
 }
 
 export function fromCatalogChatOrigin(value: AgentHostCatalogJsonValue | undefined): ChatOrigin | undefined {
