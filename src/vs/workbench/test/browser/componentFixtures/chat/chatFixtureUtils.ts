@@ -167,7 +167,13 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	// `getContainer` stands in for the workbench container that widgets use to host
 	// overflow nodes (suggest widget, post-paste selector); the fixture document body
 	// is the closest equivalent.
-	reg.defineInstance(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() { override onDidChangePartVisibility = Event.None; override onDidChangeWindowMaximized = Event.None; override isVisible() { return true; } override getContainer(targetWindow: Window): HTMLElement { return targetWindow.document.body; } }());
+	reg.defineInstance(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+		override readonly mainContainer = document.body;
+		override onDidChangePartVisibility = Event.None;
+		override onDidChangeWindowMaximized = Event.None;
+		override isVisible() { return true; }
+		override getContainer(targetWindow: Window): HTMLElement { return targetWindow.document.body; }
+	}());
 	reg.defineInstance(IHostService, new class extends mock<IHostService>() {
 		override readonly hasFocus = true;
 		override readonly onDidChangeFocus = Event.None;
