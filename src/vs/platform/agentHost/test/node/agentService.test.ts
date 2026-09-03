@@ -4501,28 +4501,38 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({ externalCalls: agent.externalCalls, legacyCalls: agent.legacyCalls }, { externalCalls: 1, legacyCalls: 1 });
 		});
 
-		test('one invalid discovered chat does not block sibling registration', async () => {
-			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+		test('a failed discovered-chat database lookup is skipped and can be retried', async () => {
+			const invalid = AgentSession.uri('copilot', 'invalid-discovered');
+			const valid = AgentSession.uri('copilot', 'valid-discovered');
+			const sessionData = createPerSessionDataService();
+			let failInvalid = true;
+			const sessionDataService: ISessionDataService = {
+				...sessionData.service,
+				tryOpenDatabase: async session => {
+					if (failInvalid && session.toString() === invalid.toString()) {
+						throw new Error('database stat failed');
+					}
+					return sessionData.service.tryOpenDatabase(session);
+				},
+			};
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
 			registerTestAgentProvider(svc, agent);
 			await svc.listSessions();
-			const invalid = AgentSession.uri('copilot', 'invalid-discovered');
-			const valid = AgentSession.uri('copilot', 'valid-discovered');
-			const internals = svc as unknown as { _readSessionRegistrationFacts(session: URI): Promise<{ readonly chatBacking: boolean; readonly hostCreated: boolean }> };
-			const originalReadSessionRegistrationFacts = internals._readSessionRegistrationFacts.bind(svc);
-			internals._readSessionRegistrationFacts = async session => {
-				if (session.toString() === invalid.toString()) {
-					throw new Error('invalid backing');
-				}
-				return originalReadSessionRegistrationFacts(session);
-			};
+			const register = (chats: readonly IAgentDiscoveredChat[]) => (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, chats);
 
-			agent.fireDiscoveredChats([discoveredChat(invalid), discoveredChat(valid)]);
-			for (let i = 0; i < 50 && (await svc.getRegisteredSessions()).length === 0; i++) {
-				await timeout(0);
-			}
+			await register([discoveredChat(invalid), discoveredChat(valid)]);
+			const afterFailure = (await svc.getRegisteredSessions()).map(session => session.toString());
+			failInvalid = false;
+			await register([discoveredChat(invalid)]);
 
-			assert.deepStrictEqual((await svc.getRegisteredSessions()).map(session => session.toString()), [valid.toString()]);
+			assert.deepStrictEqual({
+				afterFailure,
+				afterRetry: (await svc.getRegisteredSessions()).map(session => session.toString()).sort(),
+			}, {
+				afterFailure: [valid.toString()],
+				afterRetry: [invalid.toString(), valid.toString()].sort(),
+			});
 		});
 
 		test('failed discovery announcement releases its deduplication reservation', async () => {
