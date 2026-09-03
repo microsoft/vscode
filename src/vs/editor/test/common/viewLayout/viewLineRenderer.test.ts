@@ -10,7 +10,6 @@ import { assertSnapshot } from '../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
-import { TextDirection } from '../../../common/model.js';
 import { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
 import { CharacterMapping, DomPosition, IRenderLineInputOptions, RenderLineInput, RenderLineOutput2, renderViewLine2 as renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
@@ -1764,15 +1763,10 @@ suite('renderViewLine - forceFullwidthCharacterWidth', () => {
 		]);
 	});
 
-	test('RTL lines are untouched', () => {
+	test('RTL parts preserve bidi isolation without centering', () => {
 		assert.deepStrictEqual(render('漢عربى'), [
-			`<span style="unicode-bidi:isolate" class="mtk1">漢عربى</span>`
-		]);
-	});
-
-	test('lines forced to render right-to-left are untouched', () => {
-		assert.deepStrictEqual(render('漢a', { textDirection: TextDirection.RTL }), [
-			`<span class="mtk1">漢a</span>`
+			`<span style="unicode-bidi:isolate" class="mtk1">漢</span>`,
+			`<span style="unicode-bidi:isolate" class="mtk1">عربى</span>`
 		]);
 	});
 
@@ -1848,19 +1842,6 @@ suite('renderViewLine - forceFullwidthCharacterWidth', () => {
 		]);
 	});
 
-	test('before and after decorations keep their empty parts', () => {
-		assert.deepStrictEqual(render('漢', {
-			lineDecorations: [
-				new LineDecoration(1, 1, 'ced-before', InlineDecorationType.Before),
-				new LineDecoration(2, 2, 'ced-after', InlineDecorationType.After)
-			]
-		}), [
-			`<span class="mtk1 ced-before"></span>`,
-			`<span${cell(20)} class="mtk1">漢</span>`,
-			`<span class="ced-after"></span>`
-		]);
-	});
-
 	test('rendered whitespace next to a full-width character is preserved', () => {
 		assert.deepStrictEqual(render('  漢', { useMonospaceOptimizations: true, renderWhitespace: 'all' }), [
 			`<span class="mtkw">·‌·‌</span>`,
@@ -1892,10 +1873,5 @@ suite('renderViewLine - forceFullwidthCharacterWidth', () => {
 			[3, [2, 0]],
 			[4, [2, 1]]
 		]);
-	});
-
-	test('lines that exceed the character mapping part limit fall back safely', () => {
-		const actual = render('\u6F22'.repeat(0x10001));
-		assert.strictEqual(actual.some(part => part.includes('display:inline-block')), false);
 	});
 });

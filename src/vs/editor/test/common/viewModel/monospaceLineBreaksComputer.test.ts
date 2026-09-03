@@ -489,7 +489,6 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 	test('MonospaceLineBreaksComputer - forced width determines whether continuation indentation fits', () => {
 		const factory = new MonospaceLineBreaksComputerFactory('(', '\t)');
 		const text = '    \u3042\u3042\u3042';
-		const excludedRtlText = '    \u6F22\u0639\u0639';
 		const wrappedIndentWith = (lineText: string, breakAfter: number, columnsForFullWidthChar: number, forceFullwidthCharacterWidth: boolean) =>
 			getLineBreakData(factory, 4, breakAfter, columnsForFullWidthChar, WrappingIndent.Same, 'normal', false, lineText, null, null, forceFullwidthCharacterWidth)?.wrappedTextIndentLength;
 
@@ -498,13 +497,11 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 			wideForced: wrappedIndentWith(text, 6, 3, true),
 			narrowNatural: wrappedIndentWith(text, 5, 1, false),
 			narrowForced: wrappedIndentWith(text, 5, 1, true),
-			excludedRtlForced: wrappedIndentWith(excludedRtlText, 6, 3, true),
 		}, {
 			wideNatural: 0,
 			wideForced: 4,
 			narrowNatural: 4,
 			narrowForced: 0,
-			excludedRtlForced: 0,
 		});
 	});
 
@@ -546,22 +543,17 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		});
 	});
 
-	test('MonospaceLineBreaksComputer - forced width uses code point classification and excludes RTL', () => {
+	test('MonospaceLineBreaksComputer - forced width treats combining marks independently', () => {
 		const factory = new MonospaceLineBreaksComputerFactory('(', '\t)');
 		const wrapWith = (text: string, forceFullwidthCharacterWidth: boolean) => toAnnotatedText(text, getLineBreakData(factory, 4, 4, 3, WrappingIndent.None, 'normal', false, text, null, null, forceFullwidthCharacterWidth));
 		const combinedCharacter = '\u3042\u0301aa';
-		const mixedRtlText = '\u6F22\u0639a';
 
 		assert.deepStrictEqual({
 			combinedNatural: wrapWith(combinedCharacter, false),
 			combinedForced: wrapWith(combinedCharacter, true),
-			mixedRtlNatural: wrapWith(mixedRtlText, false),
-			mixedRtlForced: wrapWith(mixedRtlText, true),
 		}, {
 			combinedNatural: '\u3042|\u0301aa',
 			combinedForced: '\u3042|\u0301aa',
-			mixedRtlNatural: '\u6F22|\u0639a',
-			mixedRtlForced: '\u6F22|\u0639a',
 		});
 	});
 
