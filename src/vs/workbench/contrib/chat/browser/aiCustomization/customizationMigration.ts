@@ -147,6 +147,10 @@ export async function migrateCustomizations(
 					}
 					targetUri = createSkillFileUri(targetFolder.uri, skillName);
 					migratedContent = migratedSkill.content;
+				} else if (customization.type === PromptsType.skill) {
+					const reservedNamesForFolder = getOrCreateReservedNames(targetFolder.uri, reservedSkillNames);
+					const skillName = await getAvailableMigratedSkillName(targetFolder.uri, basename(dirname(customization.uri)), reservedNamesForFolder, fileService);
+					targetUri = createSkillFileUri(targetFolder.uri, skillName);
 				} else {
 					const reservedNamesForFolder = getOrCreateReservedNames(targetFolder.uri, reservedFileNames);
 					targetUri = await getAvailableMigratedFileUri(targetFolder.uri, customization, reservedNamesForFolder, fileService);

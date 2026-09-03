@@ -86,6 +86,11 @@ suite('CustomizationMigrationService', () => {
 			{ uri: URI.file('/user-data/prompts/style.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, source: PromptFileSource.UserData },
 			{ uri: URI.file('/home/test/.copilot/agents/planner.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.CopilotPersonal },
 			{ uri: URI.file('/workspace/.github/skills/deploy/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, source: PromptFileSource.GitHubWorkspace },
+			{ uri: URI.file('/home/test/custom-agents/architect.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.ConfigPersonal },
+			{ uri: URI.file('/copilot/agents/already-supported.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.ConfigPersonal },
+			{ uri: URI.file('/workspace/custom-skills/release/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, source: PromptFileSource.ConfigWorkspace },
+			{ uri: URI.file('/workspace/.github/skills/already-supported/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, source: PromptFileSource.ConfigWorkspace },
+			{ uri: URI.file('/home/test/custom-instructions/style.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, source: PromptFileSource.ConfigPersonal },
 		]));
 		const harnessService = new TestCustomizationHarnessService();
 		const snapshot: IAgentHostMcpServerSupportSnapshot = {
@@ -222,6 +227,17 @@ suite('CustomizationMigrationService', () => {
 					],
 				},
 				{
+					type: 'configuredLocations',
+					files: [
+						'/home/test/custom-agents/architect.agent.md',
+						'/workspace/custom-skills/release/SKILL.md',
+					],
+					candidates: [
+						'/home/test/custom-agents/architect.agent.md',
+						'/workspace/custom-skills/release/SKILL.md',
+					],
+				},
+				{
 					type: 'mcpServers',
 					servers: [
 						{ id: 'supported', name: 'Supported server', supported: true },
@@ -237,6 +253,7 @@ suite('CustomizationMigrationService', () => {
 			localMigrations: [
 				{ type: 'userData', files: [], candidates: [] },
 				{ type: 'promptFiles', files: [], candidates: [] },
+				{ type: 'configuredLocations', files: [], candidates: [] },
 				{
 					type: 'mcpServers',
 					servers: [],
@@ -247,15 +264,16 @@ suite('CustomizationMigrationService', () => {
 					},
 				},
 			],
-			hint: 'Found 3 customization files that are present but not used by Copilot and could be migrated. Found 1 MCP server that is not fully supported by Copilot.',
+			hint: 'Found 5 customization files that are present but not used by Copilot and could be migrated. Found 1 MCP server that is not fully supported by Copilot.',
 			localHint: undefined,
 			requestedTypes: [
-				PromptsType.agent, PromptsType.instructions, PromptsType.prompt,
-				PromptsType.agent, PromptsType.instructions, PromptsType.prompt,
+				PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.agent, PromptsType.instructions, PromptsType.skill,
+				PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.agent, PromptsType.instructions, PromptsType.skill,
 			],
 			requestedSourceFolderTypes: [
-				PromptsType.agent, PromptsType.agent, PromptsType.instructions,
-				PromptsType.instructions, PromptsType.skill, PromptsType.skill,
+				PromptsType.agent, PromptsType.agent, PromptsType.agent, PromptsType.agent,
+				PromptsType.instructions, PromptsType.instructions, PromptsType.instructions, PromptsType.instructions,
+				PromptsType.skill, PromptsType.skill, PromptsType.skill, PromptsType.skill,
 			],
 			requestedSessionType: SessionType.AgentHostCopilot,
 			requestedRoots: ['/workspace'],

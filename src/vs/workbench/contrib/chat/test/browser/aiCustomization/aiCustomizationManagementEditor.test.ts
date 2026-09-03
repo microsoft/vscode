@@ -293,6 +293,7 @@ suite('aiCustomizationManagementEditor', () => {
 		const configurationService = createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: false,
 			[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: false,
+			[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: false,
 		}) as IConfigurationService & { setValue(key: string, value: unknown): void };
 		const editor = createTestEditor(undefined, configurationService);
 		editor.customizationsByMigrationCategory = new Map([
@@ -308,6 +309,12 @@ suite('aiCustomizationManagementEditor', () => {
 				type: PromptsType.agent,
 				source: PromptFileSource.UserData,
 			} as MigratableConfiguration]],
+			[CustomizationMigrationCategoryId.ConfiguredLocations, [{
+				uri: URI.file('/workspace/custom-skills/release/SKILL.md'),
+				storage: PromptsStorage.local,
+				type: PromptsType.skill,
+				source: PromptFileSource.ConfigWorkspace,
+			} as MigratableConfiguration]],
 		]);
 		editor.welcomePage = {
 			setMigrationCategories: categories => welcomePageCalls.push([...categories as readonly ICustomizationMigrationCategorySummary[]]),
@@ -318,11 +325,14 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.refreshCustomizationMigrationUi();
 		configurationService.setValue(ChatConfiguration.ChatCustomizationsPromptMigrationEnabled, true);
 		editor.refreshCustomizationMigrationUi();
+		configurationService.setValue(ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled, true);
+		editor.refreshCustomizationMigrationUi();
 
 		assert.deepStrictEqual(welcomePageCalls.map(categories => categories.map(category => category.id)), [
 			[],
 			[CustomizationMigrationCategoryId.UserData],
 			[CustomizationMigrationCategoryId.PromptFiles, CustomizationMigrationCategoryId.UserData],
+			[CustomizationMigrationCategoryId.PromptFiles, CustomizationMigrationCategoryId.UserData, CustomizationMigrationCategoryId.ConfiguredLocations],
 		]);
 		editor.editorPreviewDisposables.dispose();
 	});

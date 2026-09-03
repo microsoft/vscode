@@ -59,6 +59,9 @@ suite('customizationMigration', () => {
 			{ uri: URI.file('/user-data/prompts/style.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, source: PromptFileSource.UserData },
 			{ uri: URI.file('/home/test/.copilot/agents/planner.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.CopilotPersonal },
 			{ uri: URI.file('/workspace/.github/skills/deploy/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, source: PromptFileSource.GitHubWorkspace },
+			{ uri: URI.file('/workspace/custom-agents/reviewer.agent.md'), storage: PromptsStorage.local, type: PromptsType.agent, source: PromptFileSource.ConfigWorkspace },
+			{ uri: URI.file('/home/test/custom-instructions/style.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, source: PromptFileSource.ConfigPersonal },
+			{ uri: URI.file('/workspace/custom-skills/deploy/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, source: PromptFileSource.ConfigWorkspace },
 		];
 		const candidatesFor = (id: CustomizationMigrationCategoryId) => customizations
 			.filter(customization => getCustomizationMigrationCategory(id).isCandidate(customization))
@@ -67,6 +70,7 @@ suite('customizationMigration', () => {
 		assert.deepStrictEqual({
 			promptFiles: candidatesFor(CustomizationMigrationCategoryId.PromptFiles),
 			userData: candidatesFor(CustomizationMigrationCategoryId.UserData),
+			configuredLocations: candidatesFor(CustomizationMigrationCategoryId.ConfiguredLocations),
 			sourceTypes: CUSTOMIZATION_MIGRATION_CATEGORIES.map(category => [category.id, [...category.sourceTypes]]),
 		}, {
 			promptFiles: [
@@ -77,9 +81,15 @@ suite('customizationMigration', () => {
 				'/user-data/prompts/reviewer.agent.md',
 				'/user-data/prompts/style.instructions.md',
 			],
+			configuredLocations: [
+				'/workspace/custom-agents/reviewer.agent.md',
+				'/home/test/custom-instructions/style.instructions.md',
+				'/workspace/custom-skills/deploy/SKILL.md',
+			],
 			sourceTypes: [
 				[CustomizationMigrationCategoryId.PromptFiles, [PromptsType.prompt]],
 				[CustomizationMigrationCategoryId.UserData, [PromptsType.agent, PromptsType.instructions]],
+				[CustomizationMigrationCategoryId.ConfiguredLocations, [PromptsType.agent, PromptsType.instructions, PromptsType.skill]],
 			],
 		});
 	});
@@ -282,6 +292,45 @@ suite('customizationMigration', () => {
 			migratedInstructionsContent: '---\ndescription: Use tabs\n---\nUse tabs.',
 			originalsExist: [false, false, false],
 			migrationErrorCount: 1,
+		});
+	});
+
+	test('preserves the containing folder when migrating a skill', async () => {
+		const skill: IPromptPath = {
+			uri: URI.file('/workspace/custom-skills/release/SKILL.md'),
+			name: 'Release',
+			storage: PromptsStorage.local,
+			type: PromptsType.skill,
+			source: PromptFileSource.ConfigWorkspace,
+		};
+		const targetRoot: ICustomizationSourceFolder = { uri: URI.file('/workspace/.github/skills'), label: '.github/skills', source: PromptsStorage.local };
+		const targetFolders: CustomizationMigrationTargetFolders = new Map([
+			[PromptsType.skill, new Map([[PromptsStorage.local, targetRoot]])],
+		]);
+		const fileService = store.add(new FileService(new NullLogService()));
+		const fileSystemProvider = store.add(new InMemoryFileSystemProvider());
+		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		await fileService.writeFile(skill.uri, VSBuffer.fromString('---\nname: release\n---\nRelease safely.'));
+
+		const result = await migrateCustomizations([skill], targetFolders, fileService);
+		const migratedUri = URI.joinPath(targetRoot.uri, 'release', 'SKILL.md');
+
+		assert.deepStrictEqual({
+			result: {
+				...result,
+				migratedCustomizations: result.migratedCustomizations.map(customization => ({ uri: customization.uri.path, type: customization.type })),
+			},
+			content: (await fileService.readFile(migratedUri)).value.toString(),
+			sourceExists: await fileService.exists(skill.uri),
+		}, {
+			result: {
+				migratedCount: 1,
+				failedCustomizationFileNames: [],
+				unsupportedHeaderKeys: [],
+				migratedCustomizations: [{ uri: migratedUri.path, type: PromptsType.skill }],
+			},
+			content: '---\nname: release\n---\nRelease safely.',
+			sourceExists: false,
 		});
 	});
 
