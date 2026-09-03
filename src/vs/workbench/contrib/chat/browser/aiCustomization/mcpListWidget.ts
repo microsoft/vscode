@@ -1454,8 +1454,17 @@ export class McpListWidget extends Disposable {
 		}
 		this.visible = visible;
 		if (visible) {
+			if (this.mcpAccessEnabled) {
+				this.activateMcpCollections();
+			}
 			void this.refresh();
 		}
+	}
+
+	private activateMcpCollections(): void {
+		void this.mcpService.activateCollections().catch(error => {
+			this.notificationService.error(localize('mcpCollectionActivationFailed', "Unable to load MCP servers: {0}", getErrorMessage(error)));
+		});
 	}
 
 	private updateAccessState(): void {
@@ -1494,6 +1503,7 @@ export class McpListWidget extends Disposable {
 				});
 			}
 		} else if (accessChanged && this.visible) {
+			this.activateMcpCollections();
 			if (this.searchQuery.trim()) {
 				void this.queryMcpSearch();
 			} else {
