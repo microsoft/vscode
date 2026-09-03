@@ -143,6 +143,7 @@ class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 	defaultDirectory: string | undefined;
 	status = RemoteAgentHostConnectionStatus.disconnected;
 	disposed = false;
+	clearConnectionCalls = 0;
 
 	constructor(readonly config: IRemoteAgentHostSessionsProviderConfig) {
 		super();
@@ -156,6 +157,11 @@ class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 
 	override setConnectionStatus(status: RemoteAgentHostConnectionStatus): void {
 		this.status = status;
+	}
+
+	override clearConnection(): void {
+		this.clearConnectionCalls++;
+		this.wiredConnection = undefined;
 	}
 
 	override dispose(): void {
@@ -326,6 +332,85 @@ suite('Dev Container Agent Host Service', () => {
 			registeredProviders: [],
 			connectionDisposed: true,
 			transportDisposed: true,
+		});
+	});
+
+	test('stops an idle container, reconnects it on demand, and removes it without disposing the provider', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const remoteAgentHostService = store.add(new TestRemoteAgentHostService());
+		const sessionsProvidersService = store.add(new TestSessionsProvidersService());
+		const service = store.add(new TestDevContainerAgentHostService(
+			instantiationService,
+			remoteAgentHostService,
+			sessionsProvidersService,
+		));
+
+		const sourceWorkspace = URI.file('/source');
+		const address = devContainerAddress(sourceWorkspace);
+		const connection = new TestAgentConnection();
+		let connectorCalls = 0;
+		let failReconnect = false;
+		const containerOperations: string[] = [];
+		store.add(service.registerConnector({
+			isAvailable: async () => true,
+			createConnection: async (_workspaceUri, stagedAddress) => {
+				connectorCalls++;
+				if (failReconnect) {
+					throw new CancellationError();
+				}
+				return {
+					address: stagedAddress,
+					name: 'Source Dev Container',
+					transportFactory: () => undefined as never,
+					workspaceUri: URI.from({
+						scheme: AGENT_HOST_SCHEME,
+						authority: agentHostAuthority(address),
+						path: '/workspaces/source',
+					}),
+				};
+			},
+			stopContainer: async workspaceUri => { containerOperations.push(`stop:${workspaceUri.toString()}`); return true; },
+			removeContainer: async workspaceUri => { containerOperations.push(`remove:${workspaceUri.toString()}`); return true; },
+		}));
+		instantiationService.stubInstance(AgentHostProtocolClient, connection);
+
+		await service.connect(sourceWorkspace, CancellationToken.None);
+		const provider = service.provider!;
+		await provider.config.devContainerLifecycle!.stop();
+		const afterStop = {
+			providerDisposed: provider.disposed,
+			registeredProviders: sessionsProvidersService.getProviders().length,
+			status: provider.status,
+			clearConnectionCalls: provider.clearConnectionCalls,
+		};
+		failReconnect = true;
+		await assert.rejects(provider.config.devContainerLifecycle!.connect(), CancellationError);
+		failReconnect = false;
+		await provider.config.devContainerLifecycle!.connect();
+		await provider.config.devContainerLifecycle!.remove();
+
+		assert.deepStrictEqual({
+			afterStop,
+			connectorCalls,
+			containerOperations,
+			providerDisposed: provider.disposed,
+			registeredProviders: sessionsProvidersService.getProviders().length,
+			status: provider.status,
+		}, {
+			afterStop: {
+				providerDisposed: false,
+				status: RemoteAgentHostConnectionStatus.disconnected,
+				registeredProviders: 1,
+				clearConnectionCalls: 1,
+			},
+			connectorCalls: 3,
+			containerOperations: [
+				`stop:${sourceWorkspace.toString()}`,
+				`remove:${sourceWorkspace.toString()}`,
+			],
+			providerDisposed: false,
+			registeredProviders: 1,
+			status: RemoteAgentHostConnectionStatus.disconnected,
 		});
 	});
 

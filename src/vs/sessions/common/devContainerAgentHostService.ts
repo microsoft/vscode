@@ -33,7 +33,9 @@ export interface IDevContainerAgentHostConnection {
 export interface IDevContainerAgentHostConnector {
 	/** Whether the workspace has a supported configuration and Docker is available. */
 	isAvailable(workspaceUri: URI): Promise<boolean>;
-	createConnection(workspaceUri: URI, address: string, token: CancellationToken): Promise<IDevContainerAgentHostConnection>;
+	createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: { readonly resume: boolean }): Promise<IDevContainerAgentHostConnection>;
+	stopContainer?(workspaceUri: URI): Promise<boolean>;
+	removeContainer?(workspaceUri: URI): Promise<boolean>;
 }
 
 /** Sessions provider and workspace selected after connecting a Dev Container. */

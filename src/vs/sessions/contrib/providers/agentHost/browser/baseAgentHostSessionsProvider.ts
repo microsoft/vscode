@@ -2750,7 +2750,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._newSessions.get(sessionId);
 	}
 
-	private _getBackendSessionUri(sessionId: string): URI | undefined {
+	protected _getBackendSessionUri(sessionId: string): URI | undefined {
 		const rawId = this._rawIdFromChatId(sessionId);
 		if (!rawId) {
 			return undefined;
@@ -4449,9 +4449,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!cached || !rawId || !connection) {
 			return false;
 		}
+		this._setSessionArchivedLocally(sessionId, isArchived);
+		connection.dispatch(cached.backendUri.toString(), { type: ActionType.SessionIsArchivedChanged as const, isArchived });
+		return true;
+	}
+
+	protected _setSessionArchivedLocally(sessionId: string, isArchived: boolean): boolean {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!cached) {
+			return false;
+		}
 		cached.isArchived.set(isArchived, undefined);
 		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
-		connection.dispatch(cached.backendUri.toString(), { type: ActionType.SessionIsArchivedChanged as const, isArchived });
 		return true;
 	}
 
