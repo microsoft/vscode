@@ -13,6 +13,7 @@ import { ChatRequestQueueKind, ChatSendResult, IChatDetail, IChatModelReference,
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { IChatModel, IChatRequestModel, IExportableChatData, ISerializableChatData } from '../../../common/model/chatModel.js';
 import type { IChatModelReferenceDebugSnapshot } from '../../../common/model/chatModelStore.js';
+import { ICustomizationMigrationHint } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 
 export class MockChatService implements IChatService {
 	private readonly _chatModels: ISettableObservable<Iterable<IChatModel>> = observableValue('chatModels', []);
@@ -27,7 +28,7 @@ export class MockChatService implements IChatService {
 	private readonly _onDidCreateModel = new Emitter<IChatModel>();
 	readonly onDidCreateModel = this._onDidCreateModel.event;
 
-	registerCustomizationMigrationHintProvider(_provider: (sessionResource: URI, includeCustomizationSummary: boolean) => Promise<string | undefined>): IDisposable {
+	registerCustomizationMigrationHintProvider(_provider: (sessionResource: URI, includeCustomizationSummary: boolean) => Promise<ICustomizationMigrationHint | undefined>): IDisposable {
 		return Disposable.None;
 	}
 

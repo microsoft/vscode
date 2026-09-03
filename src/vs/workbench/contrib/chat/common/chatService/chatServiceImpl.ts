@@ -62,9 +62,10 @@ import { IPromptsService } from '../promptSyntax/service/promptsService.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_COMMAND_NAME, TROUBLESHOOT_SKILL_PATH, COPILOT_SKILL_URI_SCHEME } from '../promptSyntax/promptTypes.js';
 import { ChatRequestHooks, mergeHooks } from '../promptSyntax/hookSchema.js';
 import { ComputeAutomaticInstructions } from '../promptSyntax/computeAutomaticInstructions.js';
+import { CustomizationMigrationHintTarget, ICustomizationMigrationHint } from '../promptSyntax/service/customizationMigrationService.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { ChatMode } from '../chatModes.js';
-import { AICustomizationManagementCommands, getCustomizationMigrationHintDismissedStorageKey } from '../aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection, getCustomizationMigrationHintDismissedStorageKey } from '../aiCustomizationWorkspaceService.js';
 
 const serializedChatKey = 'interactive.sessions';
 const customizationMigrationHintShownStateKey = 'customizationMigrationHintShown';
@@ -222,7 +223,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableResourceMap<CancellationTokenSource>());
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 	private readonly _chatSessionStore: ChatSessionStore;
-	private _customizationMigrationHintProvider: ((sessionResource: URI, includeCustomizationSummary: boolean) => Promise<string | undefined>) | undefined;
+	private _customizationMigrationHintProvider: ((sessionResource: URI, includeCustomizationSummary: boolean) => Promise<ICustomizationMigrationHint | undefined>) | undefined;
 
 	readonly requestInProgressObs: IObservable<boolean>;
 
@@ -242,7 +243,7 @@ export class ChatService extends Disposable implements IChatService {
 		return this._sessionModels.waitForModelDisposals();
 	}
 
-	registerCustomizationMigrationHintProvider(provider: (sessionResource: URI, includeCustomizationSummary: boolean) => Promise<string | undefined>): IDisposable {
+	registerCustomizationMigrationHintProvider(provider: (sessionResource: URI, includeCustomizationSummary: boolean) => Promise<ICustomizationMigrationHint | undefined>): IDisposable {
 		if (this._customizationMigrationHintProvider) {
 			throw new BugIndicatingError('A customization migration hint provider is already registered');
 		}
@@ -1593,7 +1594,7 @@ export class ChatService extends Disposable implements IChatService {
 				return { hooks: collectedHooks, hasDisabledClaudeHooks };
 			};
 
-			const collectCustomizationMigrationHint = async (): Promise<string | undefined> => {
+			const collectCustomizationMigrationHint = async (): Promise<ICustomizationMigrationHint | undefined> => {
 				const sessionType = getChatSessionType(sessionResource);
 				const hintMode = this.configurationService.getValue<CustomizationMigrationHintMode>(ChatConfiguration.ChatCustomizationsMigrationHint);
 				const hintAlreadyShown = model.inputModel.state.get()?.contrib[customizationMigrationHintShownStateKey] === true;
@@ -1607,9 +1608,9 @@ export class ChatService extends Disposable implements IChatService {
 				}
 
 				try {
-					const message = await this._customizationMigrationHintProvider(sessionResource, hintMode === CustomizationMigrationHintMode.Summary);
-					if (message && !token.isCancellationRequested) {
-						return message;
+					const hint = await this._customizationMigrationHintProvider(sessionResource, hintMode === CustomizationMigrationHintMode.Summary);
+					if (hint && !token.isCancellationRequested) {
+						return hint;
 					}
 					return undefined;
 				} catch (error) {
@@ -1830,16 +1831,23 @@ export class ChatService extends Disposable implements IChatService {
 							});
 						}
 
-						const displayedHint = hintMode === CustomizationMigrationHintMode.Summary
+						const includeInstructionCount = hintMode === CustomizationMigrationHintMode.Summary
+							&& this.configurationService.getValue<boolean>(ChatConfiguration.CollectInstructionsInExtension) !== true;
+						const displayedHint = includeInstructionCount
 							? instructionEntries.length === 1
-								? localize('customizationSummaryIncludedInstructionSingle', "Included 1 instruction in context. {0}", customizationMigrationHint)
-								: localize('customizationSummaryIncludedInstructionMultiple', "Included {0} instructions in context. {1}", instructionEntries.length, customizationMigrationHint)
-							: customizationMigrationHint;
+								? localize('customizationSummaryIncludedInstructionSingle', "Included 1 instruction in context. {0}", customizationMigrationHint.message)
+								: localize('customizationSummaryIncludedInstructionMultiple', "Included {0} instructions in context. {1}", instructionEntries.length, customizationMigrationHint.message)
+							: customizationMigrationHint.message;
+						const reviewArguments = customizationMigrationHint.target === CustomizationMigrationHintTarget.FileMigrations
+							? [{ migration: true }]
+							: customizationMigrationHint.target === CustomizationMigrationHintTarget.McpServers
+								? [{ section: AICustomizationManagementSection.McpServers }]
+								: undefined;
 						const reviewLink = createMarkdownCommandLink({
 							id: AICustomizationManagementCommands.OpenEditor,
 							text: localize('customizationMigrationHint.review', "Review customizations"),
 							tooltip: localize('customizationMigrationHint.review.tooltip', "Open Chat Customizations"),
-							arguments: [{ migration: true }],
+							arguments: reviewArguments,
 						});
 						const dismissLink = createMarkdownCommandLink({
 							id: AICustomizationManagementCommands.DismissMigrationHint,

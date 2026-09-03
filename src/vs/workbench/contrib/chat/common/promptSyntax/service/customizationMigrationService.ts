@@ -78,11 +78,22 @@ export interface McpServerCustomizationMigration {
 
 export type CustomizationMigration = FileCustomizationMigration | McpServerCustomizationMigration;
 
+export const enum CustomizationMigrationHintTarget {
+	Customizations = 'customizations',
+	FileMigrations = 'fileMigrations',
+	McpServers = 'mcpServers',
+}
+
+export interface ICustomizationMigrationHint {
+	readonly message: string;
+	readonly target: CustomizationMigrationHintTarget;
+}
+
 export interface ICustomizationMigrationService {
 	readonly _serviceBrand: undefined;
 
 	computeMigration(sessionResource: URI, type: FileCustomizationMigrationType): Promise<FileCustomizationMigration>;
 	computeMigration(sessionResource: URI, type: CustomizationMigrationType.McpServers): Promise<McpServerCustomizationMigration>;
 	computeMigrations(sessionResource: URI): Promise<CustomizationMigration[]>;
-	computeMigrationHint(sessionResource: URI, includeCustomizationSummary?: boolean): Promise<string | undefined>;
+	computeMigrationHint(sessionResource: URI, includeCustomizationSummary?: boolean): Promise<ICustomizationMigrationHint | undefined>;
 }

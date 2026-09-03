@@ -61,7 +61,7 @@ import { ChatViewModel, isPendingDividerVM, isResponseVM } from '../../../common
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationHintTarget, ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
@@ -2122,7 +2122,10 @@ suite('ChatService', () => {
 		const sessionType = SessionType.AgentHostCopilot;
 		const sessionResource = URI.from({ scheme: sessionType, path: '/session' });
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
-		migrationService.computeMigrationHint.resolves('Found 3 customization files that could be migrated.');
+		migrationService.computeMigrationHint.resolves({
+			message: 'Found 3 customization files that could be migrated.',
+			target: CustomizationMigrationHintTarget.FileMigrations,
+		});
 
 		const mockSessionsService = new MockChatSessionsService();
 		mockSessionsService.setContributions([{
@@ -2176,6 +2179,16 @@ suite('ChatService', () => {
 		ChatSendResult.assertSent(summarySecond);
 		await summarySecond.data.responseCompletePromise;
 
+		await configurationService.setUserConfiguration(ChatConfiguration.CollectInstructionsInExtension, true);
+		const extensionSummarySessionResource = URI.from({ scheme: sessionType, path: '/extension-summary-session' });
+		const extensionSummaryRef = await testService.acquireOrLoadSession(extensionSummarySessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(extensionSummaryRef);
+		testDisposables.add(extensionSummaryRef);
+		const extensionSummary = await testService.sendRequest(extensionSummarySessionResource, 'extension-summary', { agentId: sessionType });
+		ChatSendResult.assertSent(extensionSummary);
+		await extensionSummary.data.responseCompletePromise;
+		await configurationService.setUserConfiguration(ChatConfiguration.CollectInstructionsInExtension, false);
+
 		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationHint, CustomizationMigrationHintMode.Always);
 		const otherSessionResource = URI.from({ scheme: sessionType, path: '/other-session' });
 		const otherRef = await testService.acquireOrLoadSession(otherSessionResource, ChatAgentLocation.Chat, CancellationToken.None);
@@ -2210,6 +2223,10 @@ suite('ChatService', () => {
 			.map(request => (request.response?.response.value ?? [])
 				.filter(part => part.kind === 'systemNotification')
 				.map(part => part.content.value));
+		const extensionSummarySessionHints = (testService.getSession(extensionSummarySessionResource) as ChatModel).getRequests()
+			.map(request => (request.response?.response.value ?? [])
+				.filter(part => part.kind === 'systemNotification')
+				.map(part => part.content.value));
 		const dismissedSessionHint = ((testService.getSession(dismissedSessionResource) as ChatModel).getRequests()[0].response?.response.value ?? [])
 			.filter(part => part.kind === 'systemNotification')
 			.map(part => part.content.value);
@@ -2224,18 +2241,20 @@ suite('ChatService', () => {
 			firstHint: getHintContent(1),
 			secondHint: getHintContent(2),
 			summarySessionHints,
+			extensionSummarySessionHints,
 			otherSessionHints,
 			dismissedSessionHint,
 			dismissedForSessionType: storageService.getBoolean(getCustomizationMigrationHintDismissedStorageKey(sessionType), StorageScope.WORKSPACE),
 			dismissedForOtherSessionType: storageService.getBoolean(getCustomizationMigrationHintDismissedStorageKey(SessionType.AgentHostClaude), StorageScope.WORKSPACE),
 		}, {
-			computeCalls: 4,
+			computeCalls: 5,
 			computedFor: sessionResource.toString(),
-			includeSummaryArguments: [false, true, false, false],
+			includeSummaryArguments: [false, true, true, false, false],
 			neverHint: [],
 			firstHint: [expectedHint],
 			secondHint: [],
 			summarySessionHints: [[expectedSummaryHint], []],
+			extensionSummarySessionHints: [[expectedHint]],
 			otherSessionHints: [[expectedHint], [expectedHint]],
 			dismissedSessionHint: [],
 			dismissedForSessionType: true,
@@ -2247,7 +2266,10 @@ suite('ChatService', () => {
 		const sessionType = SessionType.AgentHostCopilot;
 		const sessionResource = URI.from({ scheme: sessionType, path: '/restored-session' });
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
-		migrationService.computeMigrationHint.resolves('Found customization files that could be migrated.');
+		migrationService.computeMigrationHint.resolves({
+			message: 'Found customization files that could be migrated.',
+			target: CustomizationMigrationHintTarget.FileMigrations,
+		});
 
 		const mockSessionsService = new MockChatSessionsService();
 		mockSessionsService.setContributions([{

@@ -11,7 +11,7 @@ import { isAgentHostSessionResource } from '../../common/chatSessionsService.js'
 import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationTargetType, ICustomizationMigrationService, isConfiguredLocationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigration, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigration, CustomizationMigrationHintTarget, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationTargetType, ICustomizationMigrationHint, ICustomizationMigrationService, isConfiguredLocationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigration, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
@@ -70,7 +70,7 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 		]);
 	}
 
-	async computeMigrationHint(sessionResource: URI, includeCustomizationSummary = false): Promise<string | undefined> {
+	async computeMigrationHint(sessionResource: URI, includeCustomizationSummary = false): Promise<ICustomizationMigrationHint | undefined> {
 		const harness = this.customizationHarnessService.findHarnessById(getChatSessionType(sessionResource));
 		if (!harness) {
 			return undefined;
@@ -99,7 +99,10 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 			? localize('customizationMigrationHintCombined', "{0} {1}", fileHint, mcpHint)
 			: fileHint ?? mcpHint;
 		if (!includeCustomizationSummary) {
-			return migrationHint;
+			return migrationHint ? {
+				message: migrationHint,
+				target: fileHint ? CustomizationMigrationHintTarget.FileMigrations : CustomizationMigrationHintTarget.McpServers,
+			} : undefined;
 		}
 
 		const enabledCustomizations = customizations?.filter(customization => customization.enabled !== false) ?? [];
@@ -113,9 +116,16 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 			this.formatCustomizationCount(skillCount, localize('skillSingle', "skill"), localize('skillPlural', "skills")),
 			this.formatCustomizationCount(agentCount, localize('agentSingle', "agent"), localize('agentPlural', "agents")),
 		);
-		return migrationHint
-			? localize('customizationSummaryWithMigrationHint', "{0} {1}", summary, migrationHint)
-			: summary;
+		return {
+			message: migrationHint
+				? localize('customizationSummaryWithMigrationHint', "{0} {1}", summary, migrationHint)
+				: summary,
+			target: fileHint
+				? CustomizationMigrationHintTarget.FileMigrations
+				: mcpHint
+					? CustomizationMigrationHintTarget.McpServers
+					: CustomizationMigrationHintTarget.Customizations,
+		};
 	}
 
 	private formatFileMigrationHint(workspaceCount: number, userCount: number, harnessLabel: string): string | undefined {
