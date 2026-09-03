@@ -16,7 +16,7 @@ import { AgentSession, AgentWorkingDirectoryChangedError, type IAgent, type IAge
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildDefaultChatUri, isDefaultChatUri, MessageKind, parseChatUri, readSessionWorkspaceless, SessionStatus, withMessageSystemInitiatedLabel, withSessionWorkspaceless, type ISessionWithDefaultChat, type SessionConfigState, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildDefaultChatUri, isDefaultChatUri, MessageKind, parseChatUri, readSessionWorkspaceless, ResponsePartKind, SessionStatus, withMessageSystemInitiatedLabel, withSessionWorkspaceless, type ISessionWithDefaultChat, type SessionConfigState, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostClientConnectionService } from '../../agentHostClientConnectionService.js';
 import { IAgentHostProviderService } from '../../agentHostProviderService.js';
@@ -460,13 +460,10 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 	}
 
 	private _beginContinuation(pending: IPendingSessionWorkspaceConversion): IDeferredAgentHostTurn {
-		const target = pending.isolation
-			? localize('agentHost.settingUpIsolatedWorkspaceMessage', "The host is creating an isolated workspace from {0}. The agent will continue the user's original task when setup completes.", pending.workspaceFolder.fsPath)
-			: localize('agentHost.settingUpWorkspaceMessage', "The host is setting up {0} as this session's workspace. The agent will continue the user's original task when setup completes.", pending.workspaceFolder.fsPath);
 		const continuation = this._turnService.beginDeferredTurnMessage(pending.chat, withMessageSystemInitiatedLabel({
-			text: target,
+			text: localize('agentHost.continueInWorkspaceMessage', "Continue in the requested workspace."),
 			origin: { kind: MessageKind.SystemNotification },
-		}, localize('agentHost.settingUpWorkspaceLabel', "Setting Up Workspace")));
+		}, localize('agentHost.continueInWorkspaceLabel', "Continue in Requested Workspace")));
 		return continuation;
 	}
 
@@ -482,6 +479,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		const label = converted
 			? localize('agentHost.workspaceSetLabel', "Workspace Set")
 			: localize('agentHost.workspaceSetupFailedLabel', "Workspace Setup Failed");
+		this._publishConversionOutcome(pending.chat, continuation, label);
 		try {
 			if (!this._turnService.continueDeferredTurnMessage(pending.chat, continuation, withMessageSystemInitiatedLabel({
 				text,
@@ -491,14 +489,17 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			}
 		} catch (continuationError) {
 			this._logService.error(`[SessionWorkspaceConversionService] Failed to start the conversion continuation for ${pending.chat.toString()}: ${toErrorMessage(continuationError)}`);
-			this._failConversion(continuation, pending, continuationError instanceof Error ? continuationError : new Error(toErrorMessage(continuationError)));
+			this._failConversion(continuation, pending, continuationError instanceof Error ? continuationError : new Error(toErrorMessage(continuationError)), false);
 		}
 	}
 
-	private _failConversion(continuation: IDeferredAgentHostTurn | undefined, pending: IPendingSessionWorkspaceConversion, error: Error): void {
+	private _failConversion(continuation: IDeferredAgentHostTurn | undefined, pending: IPendingSessionWorkspaceConversion, error: Error, publishOutcome = true): void {
 		if (!continuation) {
 			this._logService.error(`[SessionWorkspaceConversionService] Cannot report workspace conversion failure for ${pending.chat.toString()} because its deferred turn did not start.`);
 			return;
+		}
+		if (publishOutcome) {
+			this._publishConversionOutcome(pending.chat, continuation, localize('agentHost.workspaceSetupFailedLabel', "Workspace Setup Failed"));
 		}
 		if (!this._turnService.failDeferredTurnMessage(pending.chat, continuation, {
 			errorType: 'workspaceConversionFailed',
@@ -506,6 +507,20 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		})) {
 			this._logService.info(`[SessionWorkspaceConversionService] The deferred workspace conversion turn for ${pending.chat.toString()} ended before its failure could be reported.`);
 		}
+	}
+
+	private _publishConversionOutcome(chat: URI, continuation: IDeferredAgentHostTurn, label: string): void {
+		if (this._stateManager.getActiveTurnId(chat.toString()) !== continuation.turnId) {
+			return;
+		}
+		this._stateManager.dispatchServerAction(chat.toString(), {
+			type: ActionType.ChatResponsePart,
+			turnId: continuation.turnId,
+			part: {
+				kind: ResponsePartKind.SystemNotification,
+				content: label,
+			},
+		});
 	}
 
 	override dispose(): void {

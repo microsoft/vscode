@@ -13,7 +13,7 @@ import { AgentWorkingDirectoryChangedError, type IAgent } from '../../common/age
 import { schemaProperty } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildDefaultChatUri, createErrorResponsePart, customizationId, CustomizationLoadStatus, CustomizationType, isMessageHiddenFromTranscript, MessageKind, readMessageSystemInitiatedLabel, readSessionWorkspaceless, SessionStatus, withSessionWorkspaceless, type ErrorInfo, type Message } from '../../common/state/sessionState.js';
+import { AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildDefaultChatUri, createErrorResponsePart, customizationId, CustomizationLoadStatus, CustomizationType, isMessageHiddenFromTranscript, MessageKind, readMessageSystemInitiatedLabel, readSessionWorkspaceless, ResponsePartKind, SessionStatus, withSessionWorkspaceless, type ErrorInfo, type Message } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import type { IAgentHostTurnService, IDeferredAgentHostTurn } from '../../node/agentHostTurnService.js';
@@ -252,6 +252,7 @@ suite('SessionWorkspaceConversionService', () => {
 			chatStatus: chatDuringSetup?.status,
 			activity: chatDuringSetup?.activity,
 			activeTurnId: chatDuringSetup?.activeTurn?.id,
+			responseParts: chatDuringSetup?.activeTurn?.responseParts,
 			deferredContinuations: harness.deferredContinuations.map(entry => ({
 				chat: entry.chat,
 				hidden: isMessageHiddenFromTranscript(entry.message),
@@ -268,12 +269,13 @@ suite('SessionWorkspaceConversionService', () => {
 			chatStatus: SessionStatus.InProgress,
 			activity: undefined,
 			activeTurnId: 'continuation-1',
+			responseParts: [],
 			deferredContinuations: [{
 				chat: harness.chat.toString(),
 				hidden: false,
-				label: 'Setting Up Workspace',
+				label: 'Continue in Requested Workspace',
 				origin: MessageKind.SystemNotification,
-				text: 'The host is setting up /workspace/project as this session\'s workspace. The agent will continue the user\'s original task when setup completes.',
+				text: 'Continue in the requested workspace.',
 				turnId: 'continuation-1',
 			}],
 			continuations: [],
@@ -284,6 +286,7 @@ suite('SessionWorkspaceConversionService', () => {
 		await conversion;
 
 		const state = harness.stateManager.getSessionState(harness.session.toString());
+		const activeTurn = harness.stateManager.getChatState(harness.chat.toString())?.activeTurn;
 		assert.deepStrictEqual({
 			providerCalls,
 			trustRequests: harness.trustRequests,
@@ -296,6 +299,7 @@ suite('SessionWorkspaceConversionService', () => {
 			customizations: state?.customizations,
 			activity: harness.stateManager.getChatState(harness.chat.toString())?.activity,
 			activeTurnId: harness.stateManager.getActiveTurnId(harness.chat.toString()),
+			outcomeNotifications: activeTurn?.responseParts.flatMap(part => part.kind === ResponsePartKind.SystemNotification ? [part.content] : []),
 			continuations: harness.continuations.map(entry => ({
 				chat: entry.chat,
 				hidden: isMessageHiddenFromTranscript(entry.message),
@@ -325,6 +329,7 @@ suite('SessionWorkspaceConversionService', () => {
 			customizations: [customization],
 			activity: undefined,
 			activeTurnId: 'continuation-1',
+			outcomeNotifications: ['Workspace Set'],
 			continuations: [{
 				chat: harness.chat.toString(),
 				hidden: false,
@@ -573,6 +578,7 @@ suite('SessionWorkspaceConversionService', () => {
 		await updateSessionWorkspace(harness);
 
 		const state = harness.stateManager.getSessionState(harness.session.toString());
+		const activeTurn = harness.stateManager.getChatState(harness.chat.toString())?.activeTurn;
 		assert.deepStrictEqual({
 			pending: harness.service.isPending(harness.chat.toString()),
 			workingDirectories: state?.workingDirectories,
@@ -581,6 +587,7 @@ suite('SessionWorkspaceConversionService', () => {
 			continuationLabel: harness.continuations[0] ? readMessageSystemInitiatedLabel(harness.continuations[0].message) : undefined,
 			continuationOrigin: harness.continuations[0]?.message.origin.kind,
 			continuationText: harness.continuations[0]?.message.text,
+			outcomeNotifications: activeTurn?.responseParts.flatMap(part => part.kind === ResponsePartKind.SystemNotification ? [part.content] : []),
 		}, {
 			pending: false,
 			workingDirectories: [harness.scratch.toString()],
@@ -589,6 +596,7 @@ suite('SessionWorkspaceConversionService', () => {
 			continuationLabel: 'Workspace Setup Failed',
 			continuationOrigin: MessageKind.SystemNotification,
 			continuationText: 'The requested workspace setup did not complete successfully: provider failed. Do not run the user\'s task. Tell the user that workspace setup failed and include this error.',
+			outcomeNotifications: ['Workspace Setup Failed'],
 		});
 	});
 
@@ -638,6 +646,7 @@ suite('SessionWorkspaceConversionService', () => {
 		await updateSessionWorkspace(harness);
 
 		const state = harness.stateManager.getSessionState(harness.session.toString());
+		const endedTurn = harness.stateManager.getChatState(harness.chat.toString())?.turns.at(-1);
 		assert.deepStrictEqual({
 			trustRequests: harness.trustRequests,
 			disposedChats,
@@ -649,6 +658,7 @@ suite('SessionWorkspaceConversionService', () => {
 			failedContinuations: harness.failedContinuations,
 			activity: harness.stateManager.getChatState(harness.chat.toString())?.activity,
 			activeTurnId: harness.stateManager.getActiveTurnId(harness.chat.toString()),
+			outcomeNotifications: endedTurn?.responseParts.flatMap(part => part.kind === ResponsePartKind.SystemNotification ? [part.content] : []),
 		}, {
 			trustRequests: [{
 				clientId: 'client-1',
@@ -676,6 +686,7 @@ suite('SessionWorkspaceConversionService', () => {
 			}],
 			activity: undefined,
 			activeTurnId: undefined,
+			outcomeNotifications: ['Workspace Setup Failed'],
 		});
 	});
 
