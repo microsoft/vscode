@@ -359,6 +359,7 @@ suite('Agent Host Session Config Picker', () => {
 				trigger.classList.add('action-label');
 				trigger.tabIndex = 0;
 				container.appendChild(trigger);
+				return trigger;
 			},
 			showPicker: anchor => {
 				pickerAnchor = anchor;

@@ -1227,7 +1227,7 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 }
 
 interface IConfigPickerWidget extends IDisposable {
-	render(container: HTMLElement): void;
+	render(container: HTMLElement): HTMLElement | void;
 	showPicker?(anchor: HTMLElement, onHide?: () => void): boolean | void;
 }
 
@@ -1244,25 +1244,38 @@ export class PickerActionViewItem extends BaseActionViewItem implements IChatInp
 
 	override render(container: HTMLElement): void {
 		this.element = container;
-		this._picker.render(container);
-		this._focusableElement = container.querySelector<HTMLElement>('.action-label') ?? undefined;
+		this._focusableElement = this._picker.render(container) ?? undefined;
 		container.classList.toggle('compact-picker', this._compact);
 	}
 
 	override focus(): void {
-		this._focusableElement?.focus();
+		if (this._focusableElement) {
+			this._focusableElement.focus();
+		} else {
+			super.focus();
+		}
 	}
 
 	override isFocused(): boolean {
-		return this._focusableElement === dom.getActiveElement();
+		return this._focusableElement
+			? this._focusableElement === dom.getActiveElement()
+			: super.isFocused();
 	}
 
 	override blur(): void {
-		this._focusableElement?.blur();
+		if (this._focusableElement) {
+			this._focusableElement.blur();
+		} else {
+			super.blur();
+		}
 	}
 
-	override setFocusable(_focusable: boolean): void {
-		this.element?.removeAttribute('tabindex');
+	override setFocusable(focusable: boolean): void {
+		if (this._focusableElement) {
+			this.element?.removeAttribute('tabindex');
+		} else {
+			super.setFocusable(focusable);
+		}
 	}
 
 	isCompact(): boolean {
