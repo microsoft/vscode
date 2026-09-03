@@ -26,6 +26,8 @@ export interface IRadioStyles {
 export interface IRadioOptionItem {
 	readonly text: string;
 	readonly tooltip?: string;
+	/** Accessible name. Defaults to {@link tooltip} ?? {@link text}. Set it when {@link text} is icon-only. */
+	readonly ariaLabel?: string;
 	readonly isActive?: boolean;
 	readonly disabled?: boolean;
 }
@@ -71,6 +73,7 @@ export class Radio extends Widget {
 			const button = disposables.add(new Button(this.domNode, {
 				hoverDelegate: this.hoverDelegate,
 				title: item.tooltip,
+				ariaLabel: item.ariaLabel,
 				supportIcons: true,
 			}));
 			button.enabled = !item.disabled;

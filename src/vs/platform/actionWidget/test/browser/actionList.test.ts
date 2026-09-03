@@ -187,7 +187,7 @@ suite('ActionListWidget', () => {
 			standaloneClass: row?.classList.contains('has-standalone-toggle'),
 			label: row?.querySelector('.title')?.textContent,
 			toggleLabelCount: row?.querySelectorAll('.action-list-item-inline-toggle-label').length,
-			switchChecked: row?.querySelector('.action-list-inline-switch')?.classList.contains('checked'),
+			switchChecked: row?.querySelector('.monaco-switch')?.classList.contains('checked'),
 			title: row?.title,
 		}, {
 			checked: true,
@@ -216,17 +216,17 @@ suite('ActionListWidget', () => {
 
 		widget.focus();
 		widget.acceptSelected();
-		const toggle = widget.domNode.querySelector<HTMLElement>('.action-list-inline-switch');
+		const toggle = widget.domNode.querySelector<HTMLElement>('.monaco-switch');
 
 		assert.deepStrictEqual({
 			changeCount,
 			checked: toggle?.classList.contains('checked'),
-			disabled: toggle?.getAttribute('aria-disabled'),
+			disabled: (toggle as HTMLButtonElement | null)?.disabled,
 			title: toggle?.getAttribute('aria-label'),
 		}, {
 			changeCount: 0,
 			checked: true,
-			disabled: 'true',
+			disabled: true,
 			title: 'Managed by your organization',
 		});
 	});
@@ -554,6 +554,36 @@ suite('ActionListWidget', () => {
 		assert.deepStrictEqual(
 			{ dismissed, layoutRequested, headerCleared: widget.headerContainer === undefined, headerStillInDom: header!.isConnected },
 			{ dismissed: true, layoutRequested: true, headerCleared: true, headerStillInDom: false },
+		);
+	});
+
+	test('rebuilding the items in place re-measures only when the row count changed', () => {
+		const widget = createActionListWidget(disposables, { items: [action('one'), action('two')] });
+		const layouts: string[] = [];
+		disposables.add(widget.onDidRequestLayout(() => { layouts.push(getVisibleRowText(widget).join(',')); }));
+
+		widget.updateItems([action('one'), action('two-renamed')]);
+		const afterSameCount = layouts.length;
+		widget.updateItems([action('one'), action('two-renamed'), action('three')]);
+
+		assert.deepStrictEqual(
+			{ afterSameCount, afterGrowing: layouts, rows: getVisibleRowText(widget) },
+			{ afterSameCount: 0, afterGrowing: ['one,two-renamed,three'], rows: ['one', 'two-renamed', 'three'] },
+		);
+	});
+
+	test('rebuilding the items in place leaves focus alone when the list does not have it', () => {
+		const widget = createActionListWidget(disposables, { items: [action('one'), action('two')] });
+		const outside = document.createElement('button');
+		document.body.appendChild(outside);
+		disposables.add({ dispose: () => outside.remove() });
+		outside.focus();
+
+		widget.updateItems([action('one'), action('two'), action('three')]);
+
+		assert.deepStrictEqual(
+			{ focusStayedOutside: document.activeElement === outside, rows: getVisibleRowText(widget) },
+			{ focusStayedOutside: true, rows: ['one', 'two', 'three'] },
 		);
 	});
 

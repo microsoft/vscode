@@ -5,6 +5,7 @@
 
 import { Schemas } from '../common/network.js';
 import { reset } from './dom.js';
+import { createTrustedTypesPolicy } from './trustedTypes.js';
 // eslint-disable-next-line no-restricted-imports
 import dompurify, * as DomPurifyTypes from './dompurify/dompurify.js';
 
@@ -322,19 +323,49 @@ function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefine
 		}
 
 		if (outputType === 'dom') {
-			return dompurify.sanitize(untrusted, {
-				...resolvedConfig,
-				RETURN_DOM_FRAGMENT: true
-			});
+			return sanitizeSurvivingStalePolicy(untrusted, { ...resolvedConfig, RETURN_DOM_FRAGMENT: true }) as DocumentFragment;
 		} else {
-			return dompurify.sanitize(untrusted, {
-				...resolvedConfig,
-				RETURN_TRUSTED_TYPE: true
-			}) as unknown as TrustedHTML; // Cast from lib TrustedHTML to global TrustedHTML
+			return sanitizeSurvivingStalePolicy(untrusted, { ...resolvedConfig, RETURN_TRUSTED_TYPE: true }) as unknown as TrustedHTML; // Cast from lib TrustedHTML to global TrustedHTML
 		}
 	} finally {
 		dompurify.removeAllHooks();
 	}
+}
+
+/** Names a replacement policy; Trusted Types rejects a name that is already taken. */
+let stalePolicyReplacementCount = 0;
+
+/**
+ * Sanitizes, replacing the sanitizer's Trusted Types policy first if that policy has
+ * stopped working.
+ *
+ * The sanitizer creates one policy and keeps it for the lifetime of the module. The
+ * policy's callback belongs to the realm that created it, so once that realm goes away
+ * every later call throws and nothing renders. Handing it a policy made in the current
+ * realm replaces the dead one for good, so this recovers once rather than on every call,
+ * and the result stays a genuinely signed value.
+ */
+function sanitizeSurvivingStalePolicy(untrusted: string, config: DomPurifyTypes.Config): string | DocumentFragment | TrustedHTML {
+	try {
+		return dompurify.sanitize(untrusted, config);
+	} catch (error) {
+		if (!isStaleTrustedTypesPolicy(error)) {
+			throw error;
+		}
+		const replacement = createTrustedTypesPolicy(`domSanitize${stalePolicyReplacementCount++}`, {
+			createHTML: (value: string) => value,
+			createScriptURL: (value: string) => value,
+		});
+		if (!replacement) {
+			throw error;
+		}
+		return dompurify.sanitize(untrusted, { ...config, TRUSTED_TYPES_POLICY: replacement as TrustedTypePolicy });
+	}
+}
+
+/** Whether the failure is a Trusted Types policy whose realm is gone, rather than bad markup. */
+function isStaleTrustedTypesPolicy(error: unknown): boolean {
+	return error instanceof Error && /no longer runnable/i.test(error.message);
 }
 
 const selfClosingTags = ['area', 'base', 'br', 'col', 'command', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'];

@@ -257,4 +257,48 @@ suite('DomSanitize', () => {
 			assert.strictEqual(result.toString(), '<div><custom>allowed</custom>&lt;forbidden&gt;not allowed&lt;/forbidden&gt;</div>');
 		});
 	});
+
+	suite('stale trusted types policy', () => {
+
+		/**
+		 * The sanitizer keeps one Trusted Types policy for the lifetime of the module, and
+		 * its callback dies with the realm that created it. Standing in a policy that throws
+		 * the way a dead one does reproduces that without needing a destroyed realm.
+		 */
+		function withStalePolicy(body: () => void): void {
+			const trustedTypes = (globalThis as { trustedTypes?: { createPolicy(name: string, options: object): unknown } }).trustedTypes;
+			if (!trustedTypes) {
+				return;
+			}
+			const originalCreatePolicy = trustedTypes.createPolicy;
+			let firstPolicy = true;
+			trustedTypes.createPolicy = function (name: string, options: object) {
+				if (firstPolicy) {
+					firstPolicy = false;
+					return {
+						name,
+						createHTML: () => { throw new Error(`Failed to execute 'createHTML' on 'TrustedTypePolicy': The provided callback is no longer runnable.`); },
+						createScriptURL: (value: string) => value,
+					};
+				}
+				return originalCreatePolicy.call(trustedTypes, name, options);
+			};
+			try {
+				body();
+			} finally {
+				trustedTypes.createPolicy = originalCreatePolicy;
+			}
+		}
+
+		test('recovers when the sanitizer policy stops working', () => {
+			withStalePolicy(() => {
+				const result = sanitizeHtml('<div>safe<script>alert(1)</script>content</div>');
+				const str = result.toString();
+				assert.deepStrictEqual(
+					{ keptSafeMarkup: str.includes('<div>'), strippedScript: !str.includes('<script>') },
+					{ keptSafeMarkup: true, strippedScript: true },
+				);
+			});
+		});
+	});
 });

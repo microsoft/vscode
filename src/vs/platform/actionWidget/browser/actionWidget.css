@@ -151,6 +151,25 @@
 	padding-left: 10px;
 }
 
+/* Icon plus label share one row, so the label sits beside the icon. */
+.action-widget .monaco-list-row.separator.has-icon {
+	display: flex;
+	align-items: center;
+}
+
+.action-widget .monaco-list-row.separator.has-icon > .separator-icon {
+	padding-left: 10px;
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.action-widget .monaco-list-row.separator.has-icon > span:not(:empty) {
+	padding-left: var(--vscode-spacing-size60);
+}
+
+.action-widget .monaco-list-row.separator:not(.has-icon) > .separator-icon {
+	display: none;
+}
+
 .action-widget .monaco-list .group-header,
 .action-widget .monaco-list .option-disabled,
 .action-widget .monaco-list .option-disabled:before,
@@ -370,58 +389,6 @@
 	line-height: 16px;
 	color: var(--vscode-foreground);
 }
-
-/* Inline pill switch (restyles the base Toggle as an iOS-style switch) */
-.action-widget .action-list-item-inline-toggle .monaco-custom-toggle.action-list-inline-switch {
-	position: relative;
-	flex-shrink: 0;
-	float: none;
-	margin: 0;
-	padding: 0;
-	width: 26px;
-	height: 16px;
-	border-radius: var(--vscode-cornerRadius-circle);
-	border: var(--vscode-strokeThickness) solid var(--vscode-checkbox-border);
-	background-color: var(--vscode-checkbox-background);
-	overflow: visible;
-	transition: background-color 0.1s ease, border-color 0.1s ease;
-}
-
-.action-widget .action-list-item-inline-toggle .monaco-custom-toggle.action-list-inline-switch:hover {
-	background-color: var(--vscode-checkbox-background);
-}
-
-.action-widget .action-list-item-inline-toggle .monaco-custom-toggle.action-list-inline-switch::before {
-	content: "";
-	position: absolute;
-	top: 1px;
-	left: 1px;
-	width: 12px;
-	height: 12px;
-	border-radius: 50%;
-	background-color: var(--vscode-checkbox-foreground);
-	transition: left 0.1s ease, background-color 0.1s ease;
-}
-
-.action-widget .action-list-item-inline-toggle .monaco-custom-toggle.action-list-inline-switch.checked {
-	background-color: var(--vscode-button-background);
-	border-color: var(--vscode-button-background);
-}
-
-.action-widget .action-list-item-inline-toggle .monaco-custom-toggle.action-list-inline-switch.checked:hover {
-	background-color: var(--vscode-button-hoverBackground, var(--vscode-button-background));
-}
-
-.action-widget .action-list-item-inline-toggle .monaco-custom-toggle.action-list-inline-switch.checked::before {
-	left: 11px;
-	background-color: var(--vscode-button-foreground);
-}
-
-.hc-black .action-widget .action-list-item-inline-toggle .monaco-custom-toggle.action-list-inline-switch,
-.hc-light .action-widget .action-list-item-inline-toggle .monaco-custom-toggle.action-list-inline-switch {
-	border-color: var(--vscode-contrastBorder);
-}
-
 
 /* Inline description mode — description rendered right after the label */
 .action-widget .inline-description .monaco-list-row.action {

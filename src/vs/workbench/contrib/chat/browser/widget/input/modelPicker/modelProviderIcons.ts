@@ -20,9 +20,41 @@ const xAIModelProviderIcon = registerIcon('chat-model-provider-xai', Codicon.xai
 const genericModelProviderIcon = registerIcon('chat-model-provider-generic', Codicon.sparkle, localize('chatModelProviderGenericIcon', "Icon for other model providers."));
 const genericModelProviderCompactIcon = registerIcon('chat-model-provider-generic-compact', Codicon.sparkleCompact, localize('chatModelProviderGenericCompactIcon', "Compact icon for other model providers."));
 
+/**
+ * The provider icon matching a free-form identity string (vendor, family, model
+ * or provider name). Falls back to a generic icon when nothing matches.
+ */
+export function getProviderIconForIdentity(identity: string): ThemeIcon {
+	const normalized = identity.toLowerCase();
+	if (normalized.includes('grok') || normalized.includes('xai')) {
+		return xAIModelProviderIcon;
+	}
+	if (normalized.includes('claude') || normalized.includes('anthropic')) {
+		return claudeModelProviderIcon;
+	}
+	if (normalized.includes('gemini') || normalized.includes('google')) {
+		return geminiModelProviderIcon;
+	}
+	if (normalized.includes('kimi') || normalized.includes('moonshot')) {
+		return kimiModelProviderIcon;
+	}
+	if (normalized.includes('microsoft') || /\bmai\b/.test(normalized)) {
+		return microsoftModelProviderIcon;
+	}
+	if (normalized.includes('openai') || normalized.includes('chatgpt') || normalized.includes('gpt') || normalized.includes('codex') || /\bo[134]\b/.test(normalized)) {
+		return openAIModelProviderIcon;
+	}
+	// Checked last: every first-party model carries the Copilot vendor, so a more
+	// specific match must win before falling back to the Copilot icon.
+	if (normalized.includes('copilot')) {
+		return copilotModelProviderIcon;
+	}
+	return genericModelProviderIcon;
+}
+
 export function getModelProviderIcon(model: ILanguageModelChatMetadataAndIdentifier): ThemeIcon {
-	const identity = `${model.metadata.vendor} ${model.metadata.family} ${model.metadata.id} ${model.metadata.name}`.toLowerCase();
-	if (identity.includes('grok') || identity.includes('xai')) {
+	const identity = `${model.metadata.vendor} ${model.metadata.family} ${model.metadata.id} ${model.metadata.name}`;
+	if (/grok|xai/i.test(identity)) {
 		return xAIModelProviderIcon;
 	}
 	if (model.metadata.isBYOK) {
@@ -31,26 +63,7 @@ export function getModelProviderIcon(model: ILanguageModelChatMetadataAndIdentif
 	if (isAutoLanguageModel(model)) {
 		return copilotModelProviderIcon;
 	}
-	if (identity.includes('claude') || identity.includes('anthropic')) {
-		return claudeModelProviderIcon;
-	}
-	if (identity.includes('gemini') || identity.includes('google')) {
-		return geminiModelProviderIcon;
-	}
-	if (identity.includes('kimi') || identity.includes('moonshot')) {
-		return kimiModelProviderIcon;
-	}
-	if (identity.includes('microsoft') || /\bmai\b/.test(identity)) {
-		return microsoftModelProviderIcon;
-	}
-	if (identity.includes('openai') || identity.includes('gpt') || identity.includes('codex') || /\bo[134]\b/.test(identity)) {
-		return openAIModelProviderIcon;
-	}
-	const modelIdentity = `${model.metadata.id} ${model.metadata.name}`.toLowerCase();
-	if (modelIdentity.includes('copilot')) {
-		return copilotModelProviderIcon;
-	}
-	return genericModelProviderIcon;
+	return getProviderIconForIdentity(identity);
 }
 
 export function getModelPickerIcon(model: ILanguageModelChatMetadataAndIdentifier): ThemeIcon {

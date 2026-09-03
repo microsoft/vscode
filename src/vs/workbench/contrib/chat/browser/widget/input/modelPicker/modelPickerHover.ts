@@ -18,9 +18,10 @@ import { localize } from '../../../../../../../nls.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
-import { getPriceCategoryLabel, isAutoModel, isMultiplierPricing } from './modelPickerPresentation.js';
+import { MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
+import { getCategoryLabel, getPriceCategoryLabel, isAutoModel, isHighCostCategory, isMultiplierPricing } from './modelPickerPresentation.js';
 
-const SUPPORTED_CONFIG_GROUPS: readonly string[] = ['navigation', 'tokens'];
+const SUPPORTED_CONFIG_GROUPS: readonly string[] = [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT];
 
 export interface IModelPickerHoverContent {
 	readonly element: HTMLElement;
@@ -169,7 +170,7 @@ export function getModelHoverContent(
 		for (const propSchema of Object.values(model.metadata.configurationSchema.properties)) {
 			if (propSchema.enum && propSchema.enum.length >= 2 && propSchema.group && SUPPORTED_CONFIG_GROUPS.includes(propSchema.group) && !seenGroups.has(propSchema.group)) {
 				// Auto's navigation option is its routing tier; the menu keeps the producer's "Optimize for…" title.
-				const label = isAuto && propSchema.group === 'navigation' ? localize('models.routingProfile', "Routing Profile") : propSchema.title ?? propSchema.description;
+				const label = isAuto && propSchema.group === MODEL_CONFIG_GROUP_EFFORT ? localize('models.routingProfile', "Routing Profile") : propSchema.title ?? propSchema.description;
 				if (label) {
 					seenGroups.add(propSchema.group);
 					configButtons.push({ group: propSchema.group, label });
@@ -201,7 +202,7 @@ export function getModelHoverContent(
  * Builds one bordered message banner (an icon plus a rendered markdown message)
  * for the warning, info and promo notices shown at the top of the hover.
  */
-function createMessageBanner(message: string, className: string, icon: ThemeIcon, disposables: DisposableStore, openerService: IOpenerService): HTMLElement {
+export function createMessageBanner(message: string, className: string, icon: ThemeIcon, disposables: DisposableStore, openerService: IOpenerService): HTMLElement {
 	const banner = dom.$(`.${className}`);
 	banner.appendChild(renderIcon(icon));
 	const markdown = new MarkdownString(message, { isTrusted: false, supportThemeIcons: true });
@@ -216,26 +217,4 @@ function appendCostSection(container: HTMLElement, pricing: string): void {
 	const costSection = dom.$('.chat-model-hover-cost');
 	costSection.appendChild(dom.$('span', undefined, localize('models.cost', "Cost: {0}", pricing)));
 	container.appendChild(costSection);
-}
-
-function isHighCostCategory(priceCategory: string | undefined): boolean {
-	return priceCategory === 'high' || priceCategory === 'very_high';
-}
-
-function getCategoryLabel(category: string | undefined): string | undefined {
-	switch (category) {
-		case undefined:
-		case '':
-			return undefined;
-		case 'lightweight':
-			return localize('chat.category.lightweight', "Lightweight");
-		case 'versatile':
-			return localize('chat.category.versatile', "Versatile");
-		case 'powerful':
-			return localize('chat.category.powerful', "Powerful");
-		default:
-			return typeof category === 'string'
-				? category.charAt(0).toUpperCase() + category.slice(1)
-				: undefined;
-	}
 }

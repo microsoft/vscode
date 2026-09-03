@@ -8,7 +8,7 @@ import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWi
 import { Radio } from '../../../base/browser/ui/radio/radio.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { Emitter } from '../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -43,6 +43,22 @@ export interface ITabDescriptor {
 }
 
 /**
+ * An icon button rendered at the trailing edge of the tab bar. Unlike a tab,
+ * running it does not change the active tab.
+ */
+export interface ITabBarAction {
+	/** Stable identifier, used as the button's `data-id` for tests. */
+	readonly id: string;
+	readonly icon: ThemeIcon;
+	readonly tooltip: string;
+	/** When true, the button is pushed to the far end of the tab bar. */
+	readonly alignEnd?: boolean;
+	/** When true, the button renders in its pressed state. */
+	readonly checked?: boolean;
+	run(): void;
+}
+
+/**
  * Options for {@link TabbedActionListWidget.show}. The widget renders a
  * tab bar above an `ActionList` inside a single popup. Consumers describe
  * how to compute items for each tab; the widget handles tab switching and
@@ -67,6 +83,24 @@ export interface ITabbedActionListShowOptions<T> {
 	readonly width?: number;
 	/** Optional class name to add to the tab bar element (in addition to `.tabbed-action-list-tabbar`). Must be a single class. */
 	readonly tabBarClassName?: string;
+	/** Optional class names to add to the popup's `.action-widget` element. */
+	readonly widgetClassNames?: readonly string[];
+	/** Optional icon buttons rendered after the tabs. */
+	readonly tabBarActions?: readonly ITabBarAction[];
+	/** When true, tabs show only their icon and the label becomes the accessible name. */
+	readonly iconOnlyTabs?: boolean;
+	/**
+	 * When true, the list's filter row is rendered inside the tab bar in place of the
+	 * tabs, rather than as its own row below them.
+	 */
+	readonly filterInTabBar?: boolean;
+	/** Renders content pinned below the list, e.g. a persistent option row. */
+	renderFooter?(container: HTMLElement, activeTab: string): IDisposable;
+	/**
+	 * Renders the body when the active tab has no items, e.g. a sign-in prompt.
+	 * When it returns `undefined` the empty list is shown instead.
+	 */
+	renderEmpty?(container: HTMLElement, activeTab: string): IDisposable | undefined;
 }
 
 /**
@@ -82,6 +116,8 @@ export class TabbedActionListWidget extends Disposable {
 
 	private readonly _activePopup = this._register(new MutableDisposable());
 	private _swappingTab = false;
+	private _activeWidget: HTMLElement | undefined;
+	private _refreshActiveList: (() => void) | undefined;
 
 	get isVisible(): boolean {
 		return !!this._activePopup.value;
@@ -130,19 +166,27 @@ export class TabbedActionListWidget extends Disposable {
 				const renderDisposables = new DisposableStore();
 
 				const widget = dom.append(container, dom.$('.action-widget'));
+				widget.classList.add(...options.widgetClassNames ?? []);
+
+				// Invisible layers that swallow the mouse events which follow the one that
+				// opened the popup. Without them a trigger that opens on mouse down is
+				// dismissed by its own mouse up.
+				const block = dom.append(container, dom.$('.context-view-block'));
+				renderDisposables.add(dom.addDisposableGenericMouseDownListener(block, e => e.stopPropagation()));
+				const pointerBlock = dom.append(container, dom.$('.context-view-pointerBlock'));
+				renderDisposables.add(dom.addDisposableListener(pointerBlock, dom.EventType.POINTER_MOVE, () => pointerBlock.remove()));
+				renderDisposables.add(dom.addDisposableGenericMouseDownListener(pointerBlock, () => pointerBlock.remove()));
 
 				const tabBar = dom.append(widget, dom.$('.tabbed-action-list-tabbar'));
 				if (options.tabBarClassName) {
 					tabBar.classList.add(options.tabBarClassName);
 				}
-				const radio = renderDisposables.add(new Radio({
-					items: options.tabs.map(tab => {
-						const label = tab.label ?? tab.id;
-						const text = tab.icon ? `$(${tab.icon.id}) ${label}` : label;
-						return { text, tooltip: tab.tooltip ?? label, isActive: tab.id === activeTab };
-					}),
-				}));
-				tabBar.appendChild(radio.domNode);
+				// The strip holds the tabs; a consumer showing a filter can hide it and
+				// take its place, so the trailing actions never move.
+				const tabStrip = dom.append(tabBar, dom.$('.tabbed-action-list-tabstrip'));
+				// Sits between the strip and the trailing actions, so a filter mounted here
+				// replaces the tabs without displacing the buttons after them.
+				const filterSlot = dom.append(tabBar, dom.$('.tabbed-action-list-filter-slot'));
 
 				const activateTab = (next: string) => {
 					if (next === activeTab) {
@@ -153,6 +197,15 @@ export class TabbedActionListWidget extends Disposable {
 					this.show({ ...options, initialTab: next });
 				};
 
+				const radio = renderDisposables.add(new Radio({
+					items: options.tabs.map(tab => {
+						const label = tab.label ?? tab.id;
+						const iconPrefix = tab.icon ? `$(${tab.icon.id})` : '';
+						const text = options.iconOnlyTabs ? iconPrefix : (iconPrefix ? `${iconPrefix} ${label}` : label);
+						return { text, tooltip: tab.tooltip ?? label, ariaLabel: label, isActive: tab.id === activeTab };
+					}),
+				}));
+				tabStrip.appendChild(radio.domNode);
 				renderDisposables.add(radio.onDidSelect(index => {
 					const next = options.tabs[index];
 					if (next) {
@@ -160,7 +213,24 @@ export class TabbedActionListWidget extends Disposable {
 					}
 				}));
 
+				for (const tabAction of options.tabBarActions ?? []) {
+					const container = tabAction.alignEnd ? tabBar : tabStrip;
+					const button = dom.append(container, dom.$('button.tabbed-action-list-tabbar-action'));
+					button.classList.toggle('align-end', !!tabAction.alignEnd);
+					button.classList.toggle('checked', !!tabAction.checked);
+					button.dataset.id = tabAction.id;
+					button.title = tabAction.tooltip;
+					button.ariaLabel = tabAction.tooltip;
+					button.setAttribute('aria-pressed', String(!!tabAction.checked));
+					dom.append(button, dom.$(`span${ThemeIcon.asCSSSelector(tabAction.icon)}`));
+					renderDisposables.add(dom.addDisposableListener(button, dom.EventType.CLICK, e => {
+						dom.EventHelper.stop(e, true);
+						tabAction.run();
+					}));
+				}
+
 				const { items, listOptions } = options.createActionList(activeTab);
+				const emptyBody = items.length === 0 ? this._renderEmptyBody(widget, options, activeTab, renderDisposables) : undefined;
 				const list = renderDisposables.add(this._instantiationService.createInstance(
 					ActionList<T>,
 					options.user,
@@ -172,11 +242,34 @@ export class TabbedActionListWidget extends Disposable {
 					options.anchor,
 				));
 				listRef = list;
+				this._activeWidget = widget;
+				// Rebuilding the items has to ask the consumer again, since what the list
+				// shows can depend on state that changed while the popup stayed open.
+				this._refreshActiveList = () => list.updateItems(options.createActionList(activeTab).items);
+				renderDisposables.add(toDisposable(() => {
+					this._activeWidget = undefined;
+					this._refreshActiveList = undefined;
+				}));
 
-				if (list.filterContainer) {
-					widget.appendChild(list.filterContainer);
+				if (!emptyBody) {
+					if (list.headerContainer) {
+						widget.appendChild(list.headerContainer);
+					}
+					if (list.filterContainer) {
+						// The filter takes the tabs' place inside the bar, so the trailing
+						// actions stay put and no extra row appears.
+						(options.filterInTabBar ? filterSlot : widget).appendChild(list.filterContainer);
+					}
+					widget.appendChild(list.domNode);
+					if (list.footerContainer) {
+						widget.appendChild(list.footerContainer);
+					}
 				}
-				widget.appendChild(list.domNode);
+
+				if (options.renderFooter) {
+					const footer = dom.append(widget, dom.$('.tabbed-action-list-footer'));
+					renderDisposables.add(options.renderFooter(footer, activeTab));
+				}
 
 				const width = list.layout(0);
 				widget.style.width = `${options.width ?? width}px`;
@@ -187,24 +280,26 @@ export class TabbedActionListWidget extends Disposable {
 				renderDisposables.add(dom.addStandardDisposableListener(widget, 'keydown', e => {
 					const target = e.target as HTMLElement | null;
 					const onTabBar = !!target?.closest('.tabbed-action-list-tabbar');
+					const onFooter = !!target?.closest('.tabbed-action-list-footer');
 					const onEditable = !!target?.closest('input, textarea, [contenteditable="true"]');
+					const listNavigation = !onTabBar && !onFooter;
 
 					if (e.keyCode === KeyCode.Escape) {
 						dom.EventHelper.stop(e, true);
 						hide();
 						return;
 					}
-					if (e.keyCode === KeyCode.Enter && !onTabBar) {
+					if (e.keyCode === KeyCode.Enter && listNavigation) {
 						dom.EventHelper.stop(e, true);
 						list.acceptSelected();
 						return;
 					}
-					if (e.keyCode === KeyCode.UpArrow && !onTabBar) {
+					if (e.keyCode === KeyCode.UpArrow && listNavigation) {
 						dom.EventHelper.stop(e, true);
 						list.focusPrevious();
 						return;
 					}
-					if (e.keyCode === KeyCode.DownArrow && !onTabBar) {
+					if (e.keyCode === KeyCode.DownArrow && listNavigation) {
 						dom.EventHelper.stop(e, true);
 						list.focusNext();
 						return;
@@ -212,7 +307,7 @@ export class TabbedActionListWidget extends Disposable {
 					if (e.keyCode !== KeyCode.LeftArrow && e.keyCode !== KeyCode.RightArrow) {
 						return;
 					}
-					if (onEditable && !onTabBar) {
+					if (onFooter || (onEditable && !onTabBar)) {
 						return;
 					}
 					const currentIndex = options.tabs.findIndex(t => t.id === activeTab);
@@ -270,6 +365,35 @@ export class TabbedActionListWidget extends Disposable {
 
 	hide(): void {
 		this._activePopup.value = undefined;
+	}
+
+	/**
+	 * Rebuilds the active tab's items in place, keeping the popup's position and
+	 * whatever currently has focus. Use when an action inside the popup changes what
+	 * the list shows but should not dismiss it.
+	 */
+	refreshActiveList(): void {
+		this._refreshActiveList?.();
+	}
+
+	/** Toggles a class on the open popup, for state that changes while it stays open. */
+	toggleClassName(className: string, enabled: boolean): void {
+		this._activeWidget?.classList.toggle(className, enabled);
+	}
+
+	/** Renders the caller's empty body, or nothing when it declines to handle the empty tab. */
+	private _renderEmptyBody<T>(widget: HTMLElement, options: ITabbedActionListShowOptions<T>, activeTab: string, disposables: DisposableStore): HTMLElement | undefined {
+		if (!options.renderEmpty) {
+			return undefined;
+		}
+		const body = dom.append(widget, dom.$('.tabbed-action-list-empty'));
+		const rendered = options.renderEmpty(body, activeTab);
+		if (!rendered) {
+			body.remove();
+			return undefined;
+		}
+		disposables.add(rendered);
+		return body;
 	}
 
 	override dispose(): void {
