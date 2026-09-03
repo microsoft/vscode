@@ -11,7 +11,7 @@ import { RangeUtil } from './rangeUtil.js';
 import { StringBuilder } from '../../../common/core/stringBuilder.js';
 import { FloatHorizontalRange, VisibleRanges } from '../../view/renderingContext.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
-import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, DomPosition, RenderWhitespace, isFullWidthCharacterToCenter } from '../../../common/viewLayout/viewLineRenderer.js';
+import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, DomPosition, RenderWhitespace, isFullWidthCharacterToCenter, getFullwidthCharacterWidth } from '../../../common/viewLayout/viewLineRenderer.js';
 import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { EditorFontLigatures } from '../../../common/config/editorOptions.js';
@@ -644,12 +644,26 @@ class RenderedViewLine implements IRenderedViewLine {
 
 		const domPosition = this._characterMapping.getDomPosition(column);
 
-		// So column here is a code-unit column into this.input.lineContent
-		if (this.input.forceFullwidthCharacterWidth && column <= this.input.lineContent.length && isFullWidthCharacterToCenter(this.input.lineContent, column - 1)) {
-			// The glyph is centered inside a box that is exactly two character cells wide, so a
-			// collapsed text range would report the edge of the glyph instead of the edge of the cell.
-			const r = RangeUtil.readHorizontalRangeForElement(this._getReadingTarget(domNode), domPosition.partIndex, context);
-			return r ? r.left : -1;
+		if (getFullwidthCharacterWidth(this.input) > 0) {
+			// A centered full-width character sits in a box that is exactly two character cells wide,
+			// so a collapsed text range would report an edge of the glyph instead of an edge of the
+			// box. Only characters that were actually rendered have a box: the line content beyond
+			// `stopRenderingLineAfter` is dropped, and the character mapping spans the rendered part.
+			const renderedLength = this._characterMapping.length - 1;
+			const target = this._getReadingTarget(domNode);
+			if (column <= renderedLength && isFullWidthCharacterToCenter(this.input.lineContent, column - 1)) {
+				const r = RangeUtil.readHorizontalRangeForElement(target, domPosition.partIndex, context);
+				if (r) {
+					return r.left;
+				}
+			} else if (column >= 2 && column - 1 <= renderedLength && isFullWidthCharacterToCenter(this.input.lineContent, column - 2) && domPosition.charIndex > 0) {
+				// The position sits at the end of the preceding box rather than at the start of a
+				// following one, which only happens when the box is the last thing on the line.
+				const r = RangeUtil.readHorizontalRangeForElement(target, domPosition.partIndex, context);
+				if (r) {
+					return r.left + r.width;
+				}
+			}
 		}
 
 		const r = RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), domPosition.partIndex, domPosition.charIndex, domPosition.partIndex, domPosition.charIndex, context);

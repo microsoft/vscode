@@ -640,6 +640,7 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: readonly Line
 	const fontLigatures = opts.get(EditorOption.fontLigatures);
 	const fontInfo = opts.get(EditorOption.fontInfo);
 	const lineHeight = opts.get(EditorOption.lineHeight);
+	const forceFullwidthCharacterWidth = opts.get(EditorOption.effectiveForceFullwidthCharacterWidth);
 
 	let classNames = 'suggest-preview-text';
 	if (isClickable) {
@@ -682,7 +683,9 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: readonly Line
 			fontLigatures !== EditorFontLigatures.OFF,
 			null,
 			null,
-			0
+			0,
+			false,
+			forceFullwidthCharacterWidth
 		), sb);
 
 		sb.appendString('</div>');

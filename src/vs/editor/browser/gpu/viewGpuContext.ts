@@ -169,6 +169,13 @@ export class ViewGpuContext extends Disposable {
 			return false;
 		}
 
+		// Centering a full-width character in two cells is a DOM only feature, so a line that may
+		// contain one has to be handed back to the DOM renderer. Rendering it here would place it
+		// on a different grid than the rest of the editor.
+		if (options.forceFullwidthCharacterWidth && !data.isBasicASCII) {
+			return false;
+		}
+
 		// Check if all inline decorations are supported
 		if (data.inlineDecorations.length > 0) {
 			let supported = true;

@@ -533,7 +533,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 
 	// A full-width character can only be centered in its own part, so it has to be isolated
 	// from its neighbours. Basic ASCII lines can never contain one, so they are skipped.
-	const fullwidthCharacterWidth = (input.forceFullwidthCharacterWidth && input.isLTR && !input.isBasicASCII) ? 2 * input.spaceWidth : 0;
+	const fullwidthCharacterWidth = getFullwidthCharacterWidth(input);
 	if (fullwidthCharacterWidth > 0) {
 		tokens = splitFullWidthCharacters(lineContent, tokens);
 	}
@@ -556,6 +556,18 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		input.renderControlCharacters,
 		fullwidthCharacterWidth
 	);
+}
+
+/**
+ * The pixel width each full-width character is rendered with, or `0` when full-width characters
+ * are rendered as-is. Centering only makes sense when the line runs left to right, and a basic
+ * ASCII line can never contain a full-width character.
+ *
+ * Both the renderer and the code measuring the rendered line have to agree on this, so neither
+ * may restate the condition.
+ */
+export function getFullwidthCharacterWidth(input: RenderLineInput): number {
+	return (input.forceFullwidthCharacterWidth && input.isLTR && !input.isBasicASCII) ? 2 * input.spaceWidth : 0;
 }
 
 /**
@@ -1076,7 +1088,10 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 		const partRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && part.isWhitespace());
 		const partRendersWhitespaceWithWidth = partRendersWhitespace && !fontIsMonospace && (partType === 'mtkw'/*only whitespace*/ || !containsForeignElements);
 		const partIsEmptyAndHasPseudoAfter = (charIndex === partEndIndex && part.isPseudoAfter());
-		const partIsFullWidth = (fullwidthCharacterWidth > 0 && isFullWidthCharacterToCenter(lineContent, charIndex));
+		// `splitFullWidthCharacters` gives every centered character a part of its own, so only a part
+		// holding exactly that one character may become a box. Parts of any other length -- in
+		// particular the empty ones standing in for `before`/`after` decorations -- must be left alone.
+		const partIsFullWidth = (fullwidthCharacterWidth > 0 && charIndex + 1 === partEndIndex && isFullWidthCharacterToCenter(lineContent, charIndex));
 		charOffsetInPart = 0;
 
 		sb.appendString('<span ');

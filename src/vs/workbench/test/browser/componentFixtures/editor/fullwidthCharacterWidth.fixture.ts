@@ -24,8 +24,10 @@ const GRID = [
 ].join('\n');
 
 /**
- * Narrow characters that must be left alone: half-width katakana, accented Latin, and the
- * combining marks and astral plane characters that the centering deliberately skips.
+ * Characters the centering has to leave alone, for three different reasons: half-width katakana
+ * and accented Latin are not full-width to begin with, a full-width character carrying a
+ * combining mark would be torn away from its accent, and astral plane CJK is genuinely wide but
+ * escapes detection because `isFullWidthCharacter` only ever inspects a single UTF-16 code unit.
  */
 const MIXED = [
 	'|ｱｲｳｴｵｶｷｸ|halfwidth|',
@@ -112,9 +114,9 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 		expectedVisualDescriptions: ['An ASCII box drawing contains five rows. Every pipe forms one straight unbroken vertical line down the whole box, and the closing pipes line up with the plus signs of the dashed borders above and below. Each CJK character is horizontally centered over the two narrow cells it occupies, with even spacing on both sides.'],
 		render: context => renderGrid(context, true),
 	}),
-	FullwidthCharacterWidthNarrowCharacters: defineComponentFixture({
+	FullwidthCharacterWidthNotCentered: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['Four rows of text each start and end with a pipe. Half-width katakana, accented Latin letters, combining marks and astral plane characters are rendered at their natural width with no extra space inserted around them, and none of them appear stretched or torn apart.'],
+		expectedVisualDescriptions: ['Four rows of text each start and end with a pipe. Half-width katakana and accented Latin letters render narrow, while the hiragana carrying combining accents and the astral plane CJK characters render at their natural width. None of them is centered inside a two-cell box: no extra space is inserted around any of them, and no accent is separated from the character it belongs to.'],
 		render: context => renderMixed(context, true),
 	}),
 	FullwidthCharacterWidthCode: defineComponentFixture({

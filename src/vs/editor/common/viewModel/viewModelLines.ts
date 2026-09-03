@@ -22,7 +22,7 @@ import { LineInjectedText } from '../textModelEvents.js';
 export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
 
-	setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): boolean;
+	setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', forceFullwidthCharacterWidth: boolean): boolean;
 	setTabSize(newTabSize: number): boolean;
 	getHiddenAreas(): Range[];
 	setHiddenAreas(_ranges: readonly Range[]): boolean;
@@ -72,6 +72,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private wordBreak: 'normal' | 'keepAll';
 	private wrappingStrategy: 'simple' | 'advanced';
 	private wrapOnEscapedLineFeeds: boolean;
+	private forceFullwidthCharacterWidth: boolean;
 
 	private modelLineProjections!: IModelLineProjection[];
 
@@ -93,7 +94,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		wrappingColumn: number,
 		wrappingIndent: WrappingIndent,
 		wordBreak: 'normal' | 'keepAll',
-		wrapOnEscapedLineFeeds: boolean
+		wrapOnEscapedLineFeeds: boolean,
+		forceFullwidthCharacterWidth: boolean
 	) {
 		this._editorId = editorId;
 		this.model = model;
@@ -107,6 +109,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this.wrappingIndent = wrappingIndent;
 		this.wordBreak = wordBreak;
 		this.wrapOnEscapedLineFeeds = wrapOnEscapedLineFeeds;
+		this.forceFullwidthCharacterWidth = forceFullwidthCharacterWidth;
 
 		this._constructLines(/*resetHiddenAreas*/true, null);
 	}
@@ -274,23 +277,25 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		return true;
 	}
 
-	public setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): boolean {
+	public setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', forceFullwidthCharacterWidth: boolean): boolean {
 		const equalFontInfo = this.fontInfo.equals(fontInfo);
 		const equalWrappingStrategy = (this.wrappingStrategy === wrappingStrategy);
 		const equalWrappingColumn = (this.wrappingColumn === wrappingColumn);
 		const equalWrappingIndent = (this.wrappingIndent === wrappingIndent);
 		const equalWordBreak = (this.wordBreak === wordBreak);
-		if (equalFontInfo && equalWrappingStrategy && equalWrappingColumn && equalWrappingIndent && equalWordBreak) {
+		const equalForceFullwidthCharacterWidth = (this.forceFullwidthCharacterWidth === forceFullwidthCharacterWidth);
+		if (equalFontInfo && equalWrappingStrategy && equalWrappingColumn && equalWrappingIndent && equalWordBreak && equalForceFullwidthCharacterWidth) {
 			return false;
 		}
 
-		const onlyWrappingColumnChanged = (equalFontInfo && equalWrappingStrategy && !equalWrappingColumn && equalWrappingIndent && equalWordBreak);
+		const onlyWrappingColumnChanged = (equalFontInfo && equalWrappingStrategy && !equalWrappingColumn && equalWrappingIndent && equalWordBreak && equalForceFullwidthCharacterWidth);
 
 		this.fontInfo = fontInfo;
 		this.wrappingStrategy = wrappingStrategy;
 		this.wrappingColumn = wrappingColumn;
 		this.wrappingIndent = wrappingIndent;
 		this.wordBreak = wordBreak;
+		this.forceFullwidthCharacterWidth = forceFullwidthCharacterWidth;
 
 		let previousLineBreaks: ((ModelLineProjectionData | null)[]) | null = null;
 		if (onlyWrappingColumnChanged) {
@@ -306,8 +311,12 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	public createLineBreaksComputer(_context?: ILineBreaksComputerContext): ILineBreaksComputer {
+		// Forcing full-width characters into two cells makes the editor an exact character grid,
+		// which is what the monospace computer already models. The DOM computer cannot honour that
+		// width: it would have to hand the browser boxes to measure, and a box is an atomic inline,
+		// which loses the line breaking rules for CJK punctuation.
 		const lineBreaksComputerFactory = (
-			this.wrappingStrategy === 'advanced'
+			this.wrappingStrategy === 'advanced' && !this.forceFullwidthCharacterWidth
 				? this._domLineBreaksComputerFactory
 				: this._monospaceLineBreaksComputerFactory
 		);
@@ -319,7 +328,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 				return this.model.getLineInjectedText(lineNumber, this._editorId);
 			}
 		};
-		return lineBreaksComputerFactory.createLineBreaksComputer(context, this.fontInfo, this.tabSize, this.wrappingColumn, this.wrappingIndent, this.wordBreak, this.wrapOnEscapedLineFeeds);
+		return lineBreaksComputerFactory.createLineBreaksComputer(context, this.fontInfo, this.tabSize, this.wrappingColumn, this.wrappingIndent, this.wordBreak, this.wrapOnEscapedLineFeeds, this.forceFullwidthCharacterWidth);
 	}
 
 	public onModelFlushed(): void {

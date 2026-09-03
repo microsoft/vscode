@@ -45,7 +45,7 @@ function toAnnotatedText(text: string, lineBreakData: ModelLineProjectionData | 
 	return actualAnnotatedText;
 }
 
-function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, text: string, previousLineBreakData: ModelLineProjectionData | null, injectedText: LineInjectedText[] | null = null): ModelLineProjectionData | null {
+function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, text: string, previousLineBreakData: ModelLineProjectionData | null, injectedText: LineInjectedText[] | null = null, forceFullwidthCharacterWidth: boolean = false): ModelLineProjectionData | null {
 	const fontInfo = new FontInfo({
 		pixelRatio: 1,
 		fontFamily: 'testFontFamily',
@@ -72,7 +72,7 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 			return injectedText;
 		}
 	};
-	const lineBreaksComputer = factory.createLineBreaksComputer(context, fontInfo, tabSize, breakAfter, wrappingIndent, wordBreak, wrapOnEscapedLineFeeds);
+	const lineBreaksComputer = factory.createLineBreaksComputer(context, fontInfo, tabSize, breakAfter, wrappingIndent, wordBreak, wrapOnEscapedLineFeeds, forceFullwidthCharacterWidth);
 	const previousLineBreakDataClone = previousLineBreakData ? new ModelLineProjectionData(null, null, previousLineBreakData.breakOffsets.slice(0), previousLineBreakData.breakOffsetsVisibleColumn.slice(0), previousLineBreakData.wrappedTextIndentLength) : null;
 	lineBreaksComputer.addRequest(1, previousLineBreakDataClone);
 	return lineBreaksComputer.finalize()[0];
@@ -468,6 +468,24 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		assertLineBreaks(factory, 4, 5, 'aa |\u5b89)\u5b89|\u5b89');
 		assertLineBreaks(factory, 4, 5, 'aa \u3042|\u5b89\u3042)|\u5b89');
 		assertLineBreaks(factory, 4, 5, 'aa |(\u5b89aa|\u5b89');
+	});
+
+	test('MonospaceLineBreaksComputer - forced full-width character width', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('(', '\t)');
+		const text = '\u3042\u3042\u3042\u3042';
+		// The renderer draws every full-width character in exactly two cells, so wrapping has to
+		// measure it that way as well instead of believing a font that reports something else.
+		const wrapWith = (columnsForFullWidthChar: number, forceFullwidthCharacterWidth: boolean) => toAnnotatedText(text, getLineBreakData(factory, 4, 5, columnsForFullWidthChar, WrappingIndent.None, 'normal', false, text, null, null, forceFullwidthCharacterWidth));
+
+		assert.deepStrictEqual({
+			lyingFont: wrapWith(3, false),
+			lyingFontForced: wrapWith(3, true),
+			gridAlignedFont: wrapWith(2, false)
+		}, {
+			lyingFont: '\u3042|\u3042|\u3042|\u3042',
+			lyingFontForced: '\u3042\u3042|\u3042\u3042',
+			gridAlignedFont: '\u3042\u3042|\u3042\u3042'
+		});
 	});
 
 	test('MonospaceLineBreaksComputer - WrappingIndent.Same', () => {

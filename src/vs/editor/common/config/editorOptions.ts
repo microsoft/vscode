@@ -6407,7 +6407,7 @@ export const EditorOptions = {
 	)),
 	forceFullwidthCharacterWidth: register(new EditorBooleanOption(
 		EditorOption.forceFullwidthCharacterWidth, 'forceFullwidthCharacterWidth', false,
-		{ description: nls.localize('forceFullwidthCharacterWidth', "Controls whether full-width characters are rendered centered in exactly two character cells. Only applies when a monospace font is used.") }
+		{ markdownDescription: nls.localize('forceFullwidthCharacterWidth', "Controls whether full-width characters are rendered centered in exactly two character cells. Only applies when a monospace font is used with `#editor.fontLigatures#` disabled.") }
 	)),
 	glyphMargin: register(new EditorBooleanOption(
 		EditorOption.glyphMargin, 'glyphMargin', true,
