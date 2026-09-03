@@ -130,6 +130,42 @@ interface IPendingMcpAuthRequest {
 	readonly toolCalls: IMcpAuthToolCall[];
 }
 
+/**
+ * Whether a protected-resource identifier actually identifies the MCP server
+ * that advertised it, per RFC 9728 section 3.3.
+ *
+ * A pending authentication request is matched to an arriving token by its
+ * `resource` value, so `resource` is what decides where that token goes. The
+ * value is supplied by the MCP server, which means an unchecked one lets a
+ * server claim a resource belonging to somewhere else and be handed the token
+ * approved for it. Binding the claim to the server's own URL is what makes the
+ * identifier safe to route on.
+ *
+ * The resource must share the server's origin and name it or a prefix of it.
+ * Requiring the two to be equal would be wrong here: a server at
+ * `https://example.com/mcp` legitimately advertises `https://example.com` as
+ * its resource. The prefix is compared by path segment, so `https://example.com/mcp`
+ * does not cover `https://example.com/mcpx`.
+ */
+export function isProtectedResourceBoundToServer(resource: string, serverUrl: string): boolean {
+	let resourceUrl: URL;
+	let serverUrlParsed: URL;
+	try {
+		resourceUrl = new URL(resource);
+		serverUrlParsed = new URL(serverUrl);
+	} catch {
+		return false;
+	}
+
+	if (resourceUrl.origin !== serverUrlParsed.origin || resourceUrl.origin === 'null') {
+		return false;
+	}
+
+	const resourcePath = resourceUrl.pathname.replace(/\/+$/, '');
+	const serverPath = serverUrlParsed.pathname.replace(/\/+$/, '');
+	return serverPath === resourcePath || serverPath.startsWith(`${resourcePath}/`);
+}
+
 interface IMcpAuthToolCall {
 	readonly turnId: string;
 	readonly toolCallId: string;
@@ -2337,9 +2373,13 @@ export class CopilotAgentSession extends Disposable {
 			try {
 				const parsed = JSON.parse(request.resourceMetadata);
 				if (isAuthorizationProtectedResourceMetadata(parsed)) {
-					return parsed;
+					if (isProtectedResourceBoundToServer(parsed.resource, request.serverUrl)) {
+						return parsed;
+					}
+					this._logService.warn(`[Copilot:${this.sessionId}] Ignoring MCP protected-resource metadata for '${request.serverName}': resource '${parsed.resource}' does not identify '${request.serverUrl}'`);
+				} else {
+					this._logService.warn(`[Copilot:${this.sessionId}] Ignoring invalid MCP protected-resource metadata for '${request.serverName}'`);
 				}
-				this._logService.warn(`[Copilot:${this.sessionId}] Ignoring invalid MCP protected-resource metadata for '${request.serverName}'`);
 			} catch (err) {
 				this._logService.warn(`[Copilot:${this.sessionId}] Failed to parse MCP protected-resource metadata for '${request.serverName}'`, err);
 			}
