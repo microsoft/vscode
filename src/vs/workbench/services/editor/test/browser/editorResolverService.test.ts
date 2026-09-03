@@ -918,7 +918,12 @@ suite('EditorResolverService', () => {
 		const [, service] = await createEditorResolverService();
 		const factory: EditorInputFactoryObject = {
 			createEditorInput: ({ resource }) => ({ editor: new TestFileEditorInput(resource, TEST_EDITOR_INPUT_ID) }),
-			createDiffEditorInput: ({ modified }) => ({ editor: new TestFileEditorInput(modified.resource, TEST_EDITOR_INPUT_ID) })
+			createDiffEditorInput: ({ modified }) => {
+				if (!modified.resource) {
+					throw new Error('Expected modified resource.');
+				}
+				return { editor: new TestFileEditorInput(modified.resource, TEST_EDITOR_INPUT_ID) };
+			}
 		};
 		disposables.add(service.registerEditor('*', {
 			id: DEFAULT_EDITOR_ASSOCIATION.id,
