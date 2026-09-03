@@ -1634,12 +1634,13 @@ class CachedPromise<T> extends Disposable {
 				throw err;
 			});
 			// The pool is only meaningful while the computation is in flight.
-			promise.finally(() => {
+			const disposePool = () => {
 				if (this.cachedPool === pool) {
 					this.cachedPool = undefined;
 				}
 				pool!.dispose();
-			});
+			};
+			promise.then(disposePool, disposePool);
 			this.cachedPromise = promise;
 			this.cachedPool = pool;
 		}
