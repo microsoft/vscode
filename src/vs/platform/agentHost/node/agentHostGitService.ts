@@ -32,6 +32,9 @@ const WORKTREE_REMOVAL_MAX_ATTEMPTS = 5;
 const WORKTREE_REMOVAL_RETRY_BASE_DELAY_MS = 100;
 const WORKTREE_REMOVAL_RETRY_MAX_DELAY_MS = 500;
 
+/** Budget for reading one blob; a timeout here drops a diff's original side. */
+const SHOW_BLOB_TIMEOUT_MS = 15_000;
+
 export class AgentHostGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
 
@@ -707,12 +710,16 @@ export class AgentHostGitService implements IAgentHostGitService {
 			return undefined;
 		}
 
-		// `git show` exits non-zero when the path didn't exist at that
-		// ref; `_runGit` swallows that into `undefined` which is exactly
-		// the contract callers want.
+		const args = ['show', `${ref}:${repoRelativePath}`];
+		this._logService.trace(`[agentHostGitService] > git ${args.join(' ')}`);
+
+		// Callers only get `undefined`, which surfaces as "git blob not found"
+		// whatever actually went wrong, so log the real reason.
 		return new Promise((resolve) => {
-			cp.execFile('git', ['show', `${ref}:${repoRelativePath}`], { cwd: workingDirectory.fsPath, timeout: 5000, encoding: 'buffer', maxBuffer: 32 * 1024 * 1024 }, (error, stdout) => {
+			cp.execFile('git', args, { cwd: workingDirectory.fsPath, timeout: SHOW_BLOB_TIMEOUT_MS, encoding: 'buffer', maxBuffer: 32 * 1024 * 1024 }, (error, stdout, stderr) => {
 				if (error) {
+					// The timeout above is the only thing that kills this process.
+					this._logService.warn(`[agentHostGitService] > git ${args.join(' ')} failed: ${formatGitError(args, SHOW_BLOB_TIMEOUT_MS, error.killed === true, error, (stderr as Buffer).toString())}`);
 					resolve(undefined);
 					return;
 				}
