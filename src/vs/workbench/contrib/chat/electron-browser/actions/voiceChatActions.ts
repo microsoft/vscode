@@ -42,7 +42,8 @@ import { CTX_INLINE_CHAT_FOCUSED, MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../.
 import { NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
 import { CONTEXT_SETTINGS_EDITOR } from '../../../preferences/common/preferences.js';
 import { SearchContext } from '../../../search/common/constants.js';
-import { TextToSpeechInProgress as GlobalTextToSpeechInProgress, HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextInProgress, SpeechToTextStatus, TextToSpeechStatus } from '../../../speech/common/speechService.js';
+import { TextToSpeechInProgress as GlobalTextToSpeechInProgress, HasSpeechProvider, HasTextToSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextInProgress, SpeechToTextStatus, TextToSpeechStatus } from '../../../speech/common/speechService.js';
+import { punctuateLines, stripEmoji } from '../../../speech/common/speechText.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatExecuteActionContext } from '../../browser/actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService } from '../../browser/chat.js';
@@ -63,6 +64,12 @@ const VoiceChatSessionContexts: VoiceChatSessionContext[] = ['view', 'inline', '
 
 // Global Context Keys (set on global context key service)
 const CanVoiceChat = ContextKeyExpr.and(ChatContextKeys.enabled, HasSpeechProvider);
+/**
+ * Reading responses aloud only needs speech synthesis, which the built-in
+ * engine also provides. Gating it on {@link CanVoiceChat} would hide it
+ * whenever no extension registered a full speech provider.
+ */
+const CanReadAloud = ContextKeyExpr.and(ChatContextKeys.enabled, HasTextToSpeechProvider);
 const FocusInChatInput = ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, ChatContextKeys.inChatInput);
 
 // Scoped Context Keys (set on per-chat-context scoped context key service)
@@ -692,7 +699,39 @@ class ChatSynthesizerSessionController {
 
 interface IChatSynthesizerContext {
 	readonly ignoreCodeBlocks: boolean;
+	/**
+	 * Whether to read only the final answer, leaving out the narration of the
+	 * individual steps that led to it. Decided once when reading starts: a
+	 * response that already finished is read as its answer, while one that is
+	 * still being written is followed as it comes in.
+	 */
+	readonly finalResponseOnly: boolean;
 	insideCodeBlock: boolean;
+}
+
+/**
+ * How much of a response its final answer must cover before only that answer is
+ * read aloud. Below this the response is read whole, because the answer is then
+ * a sign-off such as "Done." rather than the substance.
+ */
+const MIN_FINAL_RESPONSE_RATIO = 0.2;
+
+/**
+ * Picks the text to speak for a response. Agent responses interleave the
+ * narration of each step with the answer, and only the answer is worth listening
+ * to once the work is done.
+ *
+ * The answer is only used when it actually holds most of the response:
+ * `getFinalResponse()` returns just the trailing run of markdown, which is empty
+ * when a response ends on a tool invocation and would otherwise leave nothing to
+ * read at all.
+ */
+export function selectTextToRead(markdown: string, finalResponse: string, finalResponseOnly: boolean): string {
+	if (!finalResponseOnly) {
+		return markdown;
+	}
+
+	return finalResponse.length >= markdown.length * MIN_FINAL_RESPONSE_RATIO ? finalResponse : markdown;
 }
 
 class ChatSynthesizerSessions {
@@ -711,7 +750,8 @@ class ChatSynthesizerSessions {
 	constructor(
 		@ISpeechService private readonly speechService: ISpeechService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) { }
 
 	async start(controller: IChatSynthesizerSessionController): Promise<void> {
@@ -736,13 +776,20 @@ class ChatSynthesizerSessions {
 		const scopedChatToSpeechInProgress = ScopedChatSynthesisInProgress.bindTo(controller.contextKeyService);
 		disposables.add(toDisposable(() => scopedChatToSpeechInProgress.reset()));
 
+		// Published globally so that only the response being read aloud shows a
+		// stop button, instead of every response in the chat.
+		const synthesisInProgressItemId = ChatContextKeys.synthesisInProgressItemId.bindTo(this.contextKeyService);
+		disposables.add(toDisposable(() => synthesisInProgressItemId.reset()));
+
 		disposables.add(session.onDidChange(e => {
 			switch (e.status) {
 				case TextToSpeechStatus.Started:
 					scopedChatToSpeechInProgress.set(true);
+					synthesisInProgressItemId.set(controller.response.id);
 					break;
 				case TextToSpeechStatus.Stopped:
 					scopedChatToSpeechInProgress.reset();
+					synthesisInProgressItemId.reset();
 					break;
 			}
 		}));
@@ -754,18 +801,25 @@ class ChatSynthesizerSessions {
 
 			await raceCancellation(session.synthesize(chunk), activeSession.token);
 		}
+
+		// The response was read to the end: end the session so that its state
+		// (and with it the stop button) does not stay around indefinitely.
+		if (this.activeSession === activeSession) {
+			this.stop();
+		}
 	}
 
 	private async *nextChatResponseChunk(response: IChatResponseModel, token: CancellationToken): AsyncIterable<string> {
 		const context: IChatSynthesizerContext = {
 			ignoreCodeBlocks: this.configurationService.getValue<boolean>(AccessibilityVoiceSettingId.IgnoreCodeBlocks),
+			finalResponseOnly: response.isComplete,
 			insideCodeBlock: false
 		};
 
 		let totalOffset = 0;
 		let complete = false;
 		do {
-			const responseLength = response.response.toString().length;
+			const responseLength = this.getTextToRead(response, context).length;
 			const { chunk, offset } = this.parseNextChatResponseChunk(response, totalOffset, context);
 			totalOffset = offset;
 			complete = response.isComplete;
@@ -778,19 +832,31 @@ class ChatSynthesizerSessions {
 				return;
 			}
 
-			if (!complete && responseLength === response.response.toString().length) {
+			if (!complete && responseLength === this.getTextToRead(response, context).length) {
 				await raceCancellation(Event.toPromise(response.onDidChange), token); // wait for the response to change
 			}
 		} while (!token.isCancellationRequested && !complete);
 	}
 
+	/**
+	 * The text of `response` that should be spoken.
+	 */
+	private getTextToRead(response: IChatResponseModel, context: IChatSynthesizerContext): string {
+		// `toString()` would also include tool invocation labels and command
+		// titles, which read as noise in the middle of a response.
+		return selectTextToRead(response.response.getMarkdown(), response.response.getFinalResponse(), context.finalResponseOnly);
+	}
+
 	private parseNextChatResponseChunk(response: IChatResponseModel, offset: number, context: IChatSynthesizerContext): { readonly chunk: string | undefined; readonly offset: number } {
 		let chunk: string | undefined = undefined;
 
-		const text = response.response.toString();
+		const text = this.getTextToRead(response, context);
 
 		if (response.isComplete) {
-			chunk = text.substring(offset);
+			// Guard the offset: the text read from is fixed for the whole session,
+			// but a response can still shrink (e.g. a tool invocation clearing
+			// earlier content) while it is being read.
+			chunk = text.substring(Math.min(offset, text.length));
 			offset = text.length + 1;
 		} else {
 			const res = parseNextChatResponseChunk(text, offset);
@@ -803,7 +869,12 @@ class ChatSynthesizerSessions {
 		}
 
 		return {
-			chunk: chunk ? renderAsPlaintext({ value: chunk }) : chunk, // convert markdown to plain text
+			// Emoji are removed first, while the text is still markdown, so that
+			// the period added for the pause does not end up after their gap.
+			// `omitMarkdownSyntax` because a reader should hear the words, not the
+			// syntax around them: without it a list item keeps its `**` and a link
+			// keeps its target.
+			chunk: chunk ? punctuateLines(renderAsPlaintext({ value: stripEmoji(chunk) }, { omitMarkdownSyntax: true })) : chunk,
 			offset
 		};
 	}
@@ -855,24 +926,24 @@ export class ReadChatResponseAloud extends Action2 {
 			id: 'workbench.action.chat.readChatResponseAloud',
 			title: localize2('workbench.action.chat.readChatResponseAloud', "Read Aloud"),
 			icon: Codicon.unmute,
-			precondition: CanVoiceChat,
+			precondition: CanReadAloud,
 			menu: [{
 				id: MenuId.ChatMessageFooter,
 				when: ContextKeyExpr.and(
-					CanVoiceChat,
-					ChatContextKeys.isResponse,						// only for responses
-					ScopedChatSynthesisInProgress.negate(),			// but not when already in progress
-					ChatContextKeys.responseIsFiltered.negate(),	// and not when response is filtered
+					CanReadAloud,
+					ChatContextKeys.isResponse,							// only for responses
+					ChatContextKeys.itemSynthesisInProgress.negate(),	// but not when this response is being read
+					ChatContextKeys.responseIsFiltered.negate(),		// and not when response is filtered
 				),
 				group: 'navigation',
 				order: -10 // first
 			}, {
 				id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 				when: ContextKeyExpr.and(
-					CanVoiceChat,
-					ChatContextKeys.isResponse,						// only for responses
-					ScopedChatSynthesisInProgress.negate(),			// but not when already in progress
-					ChatContextKeys.responseIsFiltered.negate()		// and not when response is filtered
+					CanReadAloud,
+					ChatContextKeys.isResponse,							// only for responses
+					ScopedChatSynthesisInProgress.negate(),				// but not when already in progress
+					ChatContextKeys.responseIsFiltered.negate()			// and not when response is filtered
 				),
 				group: 'navigation',
 				order: -10 // first
@@ -942,8 +1013,10 @@ export class StopReadAloud extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib + 100,
 				primary: KeyCode.Escape,
 				when: ScopedChatSynthesisInProgress
-			},
-			menu: primaryVoiceActionMenu(ScopedChatSynthesisInProgress)
+			}
+			// No chat input menu: reading a response aloud is stopped from the
+			// response itself (see `StopReadChatItemAloud`) or with `Escape`. A
+			// spinner in the input toolbar reads as "the chat is busy" instead.
 		});
 	}
 
@@ -970,7 +1043,7 @@ export class StopReadChatItemAloud extends Action2 {
 				{
 					id: MenuId.ChatMessageFooter,
 					when: ContextKeyExpr.and(
-						ScopedChatSynthesisInProgress,				// only when in progress
+						ChatContextKeys.itemSynthesisInProgress,	// only on the response being read
 						ChatContextKeys.isResponse,					// only for responses
 						ChatContextKeys.responseIsFiltered.negate()	// but not when response is filtered
 					),

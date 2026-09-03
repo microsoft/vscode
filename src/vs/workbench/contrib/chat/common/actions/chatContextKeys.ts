@@ -38,6 +38,8 @@ export namespace ChatContextKeys {
 	export const isPendingRequest = new RawContextKey<boolean>('chatRequestIsPending', false, { type: 'boolean', description: localize('chatRequestIsPending', "True when the chat request item is pending in the queue.") });
 	export const itemId = new RawContextKey<string>('chatItemId', '', { type: 'string', description: localize('chatItemId', "The id of the chat item.") });
 	export const lastItemId = new RawContextKey<string[]>('chatLastItemId', [], { type: 'string', description: localize('chatLastItemId', "The id of the last chat item.") });
+	export const itemSynthesisInProgress = new RawContextKey<boolean>('chatItemSynthesisInProgress', false, { type: 'boolean', description: localize('chatItemSynthesisInProgress', "True when this specific chat response is being read aloud.") });
+	export const synthesisInProgressItemId = new RawContextKey<string>('chatSynthesisInProgressItemId', '', { type: 'string', description: localize('chatSynthesisInProgressItemId', "The id of the chat response that is currently being read aloud.") });
 
 	export const editApplied = new RawContextKey<boolean>('chatEditApplied', false, { type: 'boolean', description: localize('chatEditApplied', "True when the chat text edits have been applied.") });
 

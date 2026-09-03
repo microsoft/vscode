@@ -47,7 +47,8 @@ import { registerChatExportZipAction } from './actions/chatExportZip.js';
 import { registerExportAgentTracesDbAction } from './actions/exportAgentTracesDb.js';
 import { registerInstallDictationModelAction } from './actions/installDictationModelAction.js';
 import { confirmSessionShutdown, getEffectiveSessionShutdownReason, shouldWarnForInFlightSessionShutdown, shouldWarnForSessionShutdown } from './chatLifecycle.js';
-import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
+import { registerReadAloudActions } from './actions/readAloudActions.contribution.js';
+import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
 import { OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, AgentsHandoffInputTipContribution, ToggleOpenInAgentsWindowTitleBarAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction } from './agentSessions/agentSessionsActions.js';
 import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
 import { NativePluginGitCommandService } from './pluginGitCommandService.js';
@@ -227,9 +228,7 @@ registerAction2(InlineVoiceChatAction);
 registerAction2(StopListeningAction);
 registerAction2(StopListeningAndSubmitAction);
 
-registerAction2(ReadChatResponseAloud);
-registerAction2(StopReadChatItemAloud);
-registerAction2(StopReadAloud);
+registerReadAloudActions();
 
 registerChatDeveloperActions();
 registerChatExportZipAction();

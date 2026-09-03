@@ -480,6 +480,19 @@ suite('MarkdownRenderer', () => {
 			const markdown = { value: '- outer\n    - inner [link](/target)' };
 			assert.strictEqual(renderAsPlaintext(markdown, { omitMarkdownSyntax: true }), 'outer\ninner link');
 		});
+
+		test('separates a code block from the text that follows it', () => {
+			// Every other block renderer ends with a line break; without one the
+			// last line of a code block runs into the next sentence.
+			assert.deepStrictEqual({
+				followedByText: renderAsPlaintext({ value: '```ts\nconst x = 1;\n```\n\nAll tests passed.' }),
+				alone: renderAsPlaintext({ value: '```ts\nconst x = 1;\n```' })
+			}, {
+				followedByText: 'const x = 1;\nAll tests passed.',
+				alone: 'const x = 1;'
+			});
+		});
+
 	});
 
 	suite('supportHtml', () => {
