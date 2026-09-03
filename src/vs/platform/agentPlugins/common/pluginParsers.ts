@@ -500,6 +500,10 @@ export function normalizeMcpServerConfiguration(rawConfig: unknown): IMcpServerC
 			.filter(([, value]) => typeof value === 'string')
 			.map(([key, value]) => [key, value as string]))
 		: undefined;
+	const rawOAuth = candidate['oauth'] && typeof candidate['oauth'] === 'object' ? candidate['oauth'] as Record<string, unknown> : undefined;
+	const oauthClientId = (typeof rawOAuth?.['clientId'] === 'string' ? rawOAuth['clientId'] : undefined)
+		?? (typeof candidate['oauthClientId'] === 'string' ? candidate['oauthClientId'] : undefined);
+	const oauth = oauthClientId ? { clientId: oauthClientId } : undefined;
 	const dev = candidate['dev'] && typeof candidate['dev'] === 'object' ? candidate['dev'] as IMcpStdioServerConfiguration['dev'] : undefined;
 
 	if (type === 'ws') {
@@ -517,7 +521,7 @@ export function normalizeMcpServerConfiguration(rawConfig: unknown): IMcpServerC
 		if (!url) {
 			return undefined;
 		}
-		return { type: McpServerType.REMOTE, ...(type === 'sse' || transport === 'sse' ? { transport: 'sse' as const } : {}), url, headers, dev };
+		return { type: McpServerType.REMOTE, ...(type === 'sse' || transport === 'sse' ? { transport: 'sse' as const } : {}), url, headers, ...(oauth ? { oauth } : {}), dev };
 	}
 
 	return undefined;

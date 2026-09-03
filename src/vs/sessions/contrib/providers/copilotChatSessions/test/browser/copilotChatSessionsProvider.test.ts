@@ -36,7 +36,7 @@ import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/com
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { IGitRepository, IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { CloudSandboxEnabledSettingId, type ICloudSandboxCreateSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
@@ -44,6 +44,7 @@ import { CloudSandboxSessionsProvider } from '../../../remoteAgentHost/browser/c
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { CopilotChatSessionsProvider, COPILOT_PROVIDER_ID, CopilotCloudSessionType, ICopilotChatSession } from '../../browser/copilotChatSessionsProvider.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IPathService } from '../../../../../../workbench/services/path/common/pathService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
@@ -62,6 +63,7 @@ import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest } fr
 
 interface IGitHubContextBrowseHarness {
 	readonly commandService: Pick<ICommandService, 'executeCommand'>;
+	readonly gitService: Pick<IGitService, 'openRepository'>;
 }
 
 const browseForGitHubContext = Reflect.get(CopilotChatSessionsProvider.prototype, '_browseForGitHubContext') as (
@@ -314,6 +316,9 @@ function createProviderWithConfig(
 		onDidChangeFocusedSession: Event.None,
 	});
 	instantiationService.stub(ILanguageModelsService, opts?.languageModelsService ?? { lookupLanguageModel: () => undefined });
+	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+		override warn(): void { }
+	}());
 	instantiationService.stub(ILanguageModelToolsService, {
 		toToolReferences: () => [],
 	});
@@ -348,11 +353,18 @@ function createProviderWithConfig(
 class TestSandboxCopilotProvider extends CopilotChatSessionsProvider {
 	sandboxContribution: Pick<CloudSandboxAgentHostContribution, 'provisionSession'> | undefined;
 
+	/** Only the timeout test lowers this; the rest keep the real budget so they cannot race it. */
+	sandboxModelWaitMs: number | undefined;
+
 	protected override _getCloudSandboxContribution(): Pick<CloudSandboxAgentHostContribution, 'provisionSession'> {
 		if (!this.sandboxContribution) {
 			throw new Error('No cloud sandbox contribution was registered');
 		}
 		return this.sandboxContribution;
+	}
+
+	protected override get _sandboxModelWaitMs(): number {
+		return this.sandboxModelWaitMs ?? super._sandboxModelWaitMs;
 	}
 }
 
@@ -360,7 +372,7 @@ function createProviderForSendTests(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
 	sendRequest: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>,
-	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; configurationService?: TestConfigurationService; agentHostEnabled?: boolean; getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined },
+	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; configurationService?: TestConfigurationService; agentHostEnabled?: boolean; getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined; notifications?: string[] },
 ): TestSandboxCopilotProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
@@ -406,6 +418,9 @@ function createProviderForSendTests(
 		onDidChangeFocusedSession: Event.None,
 	});
 	instantiationService.stub(ILanguageModelsService, { lookupLanguageModel: () => undefined });
+	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+		override warn(message: unknown): void { opts?.notifications?.push(String(message)); }
+	}());
 	instantiationService.stub(ILanguageModelToolsService, { toToolReferences: () => [] });
 	instantiationService.stub(IGitService, { openRepository: async () => undefined });
 	instantiationService.stub(IInstantiationService, instantiationService);
@@ -456,6 +471,7 @@ suite('CopilotChatSessionsProvider', () => {
 					} as T;
 				}
 			}(),
+			gitService: upcastPartial<IGitService>({ openRepository: async () => undefined }),
 		};
 		const repositoryRoot = URI.from({
 			scheme: GITHUB_REMOTE_FILE_SCHEME,
@@ -493,6 +509,170 @@ suite('CopilotChatSessionsProvider', () => {
 			issue: { uri: 'https://github.com/cutelyaware/MC4D/issues/1', label: 'cutelyaware/MC4D#1', icon: Codicon.issues.id },
 			pullRequest: { uri: 'https://github.com/cutelyaware/MC4D/pull/2', label: 'cutelyaware/MC4D#2', icon: Codicon.gitPullRequest.id },
 		});
+	});
+
+	test('selects a repository before browsing GitHub context when the repository is ambiguous', async () => {
+		const calls: { commandId: string; repoId: unknown }[] = [];
+		const harness: IGitHubContextBrowseHarness = {
+			commandService: new class extends mock<ICommandService>() {
+				override async executeCommand<T>(commandId: string, repoId?: unknown): Promise<T | undefined> {
+					calls.push({ commandId, repoId });
+					if (commandId === 'github.copilot.chat.cloudSessions.openRepository') {
+						return 'microsoft/vscode' as T;
+					}
+					return {
+						repoId: 'microsoft/vscode',
+						url: `https://github.com/microsoft/vscode/${commandId === 'openIssue' ? 'issues/1' : 'pull/2'}`,
+						label: `microsoft/vscode#${commandId === 'openIssue' ? '1' : '2'}`,
+					} as T;
+				}
+			}(),
+			gitService: upcastPartial<IGitService>({ openRepository: async () => undefined }),
+		};
+		const repositoryRoot = (repositoryId: string) => URI.from({
+			scheme: GITHUB_REMOTE_FILE_SCHEME,
+			authority: 'github',
+			path: `/${repositoryId}/HEAD`,
+		});
+		const multiRootWorkspace: ISessionWorkspace = {
+			uri: URI.parse('https://github.com'),
+			label: 'Multiple repositories',
+			icon: Codicon.repo,
+			group: SESSION_WORKSPACE_GROUP_GITHUB,
+			folders: ['microsoft/vscode', 'microsoft/typescript'].map(repositoryId => {
+				const root = repositoryRoot(repositoryId);
+				return {
+					root,
+					workingDirectory: root,
+					name: repositoryId,
+					description: undefined,
+					gitRepository: undefined,
+				};
+			}),
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: true,
+		};
+
+		const issue = await browseForGitHubContext.call(harness, 'openIssue', Codicon.issues, undefined);
+		const pullRequest = await browseForGitHubContext.call(harness, 'openPullRequest', Codicon.gitPullRequest, multiRootWorkspace);
+
+		assert.deepStrictEqual({
+			calls,
+			issue: { uri: issue?.uri.toString(), label: issue?.label },
+			pullRequest: { uri: pullRequest?.uri.toString(), label: pullRequest?.label },
+		}, {
+			calls: [
+				{ commandId: 'github.copilot.chat.cloudSessions.openRepository', repoId: undefined },
+				{ commandId: 'openIssue', repoId: 'microsoft/vscode' },
+				{ commandId: 'github.copilot.chat.cloudSessions.openRepository', repoId: undefined },
+				{ commandId: 'openPullRequest', repoId: 'microsoft/vscode' },
+			],
+			issue: { uri: 'https://github.com/microsoft/vscode/issues/1', label: 'microsoft/vscode#1' },
+			pullRequest: { uri: 'https://github.com/microsoft/vscode/pull/2', label: 'microsoft/vscode#2' },
+		});
+	});
+
+	test('resolves an initially unknown GitHub remote before browsing context', async () => {
+		const calls: { commandId: string; repoId: unknown }[] = [];
+		const repositoryState = observableValue('repositoryState', {
+			HEAD: undefined,
+			remotes: [{ name: 'origin', fetchUrl: 'https://github.com/microsoft/vscode.git', pushUrl: undefined, isReadOnly: false }],
+			mergeChanges: [],
+			indexChanges: [],
+			workingTreeChanges: [],
+			untrackedChanges: [],
+		});
+		const harness: IGitHubContextBrowseHarness = {
+			commandService: new class extends mock<ICommandService>() {
+				override async executeCommand<T>(commandId: string, repoId?: unknown): Promise<T | undefined> {
+					calls.push({ commandId, repoId });
+					return {
+						repoId: 'microsoft/vscode',
+						url: 'https://github.com/microsoft/vscode/issues/1',
+						label: 'microsoft/vscode#1',
+					} as T;
+				}
+			}(),
+			gitService: upcastPartial<IGitService>({
+				openRepository: async () => upcastPartial<IGitRepository>({ rootUri: root, state: repositoryState }),
+			}),
+		};
+		const root = URI.file('/test/vscode');
+		const workspace: ISessionWorkspace = {
+			uri: root,
+			label: 'vscode',
+			icon: Codicon.folder,
+			group: SESSION_WORKSPACE_GROUP_LOCAL,
+			folders: [{
+				root,
+				workingDirectory: root,
+				name: 'vscode',
+				description: undefined,
+				gitRepository: undefined,
+			}],
+			requiresWorkspaceTrust: true,
+			isVirtualWorkspace: false,
+		};
+
+		const issue = await browseForGitHubContext.call(harness, 'openIssue', Codicon.issues, workspace);
+
+		assert.deepStrictEqual({
+			calls,
+			issue: { uri: issue?.uri.toString(), label: issue?.label },
+		}, {
+			calls: [{ commandId: 'openIssue', repoId: 'microsoft/vscode' }],
+			issue: { uri: 'https://github.com/microsoft/vscode/issues/1', label: 'microsoft/vscode#1' },
+		});
+	});
+
+	test('selects a repository when the selected folder has no matching Git root', async () => {
+		const calls: { commandId: string; repoId: unknown }[] = [];
+		const staleRepositoryState = observableValue('staleRepositoryState', {
+			HEAD: undefined,
+			remotes: [{ name: 'origin', fetchUrl: 'https://github.com/microsoft/old.git', pushUrl: undefined, isReadOnly: false }],
+			mergeChanges: [],
+			indexChanges: [],
+			workingTreeChanges: [],
+			untrackedChanges: [],
+		});
+		const harness: IGitHubContextBrowseHarness = {
+			commandService: new class extends mock<ICommandService>() {
+				override async executeCommand<T>(commandId: string, repoId?: unknown): Promise<T | undefined> {
+					calls.push({ commandId, repoId });
+					if (commandId === 'github.copilot.chat.cloudSessions.openRepository') {
+						return 'microsoft/vscode' as T;
+					}
+					return {
+						repoId: 'microsoft/vscode',
+						url: 'https://github.com/microsoft/vscode/issues/1',
+						label: 'microsoft/vscode#1',
+					} as T;
+				}
+			}(),
+			gitService: upcastPartial<IGitService>({
+				openRepository: async () => upcastPartial<IGitRepository>({
+					rootUri: URI.file('/test/old-repository'),
+					state: staleRepositoryState,
+				}),
+			}),
+		};
+		const root = URI.file('/test/new-folder');
+		const workspace: ISessionWorkspace = {
+			uri: root,
+			label: 'new-folder',
+			icon: Codicon.folder,
+			group: SESSION_WORKSPACE_GROUP_LOCAL,
+			folders: [{ root, workingDirectory: root, name: 'new-folder', description: undefined, gitRepository: undefined }],
+			requiresWorkspaceTrust: true,
+			isVirtualWorkspace: false,
+		};
+
+		await browseForGitHubContext.call(harness, 'openIssue', Codicon.issues, workspace);
+
+		assert.deepStrictEqual(calls, [
+			{ commandId: 'github.copilot.chat.cloudSessions.openRepository', repoId: undefined },
+			{ commandId: 'openIssue', repoId: 'microsoft/vscode' },
+		]);
 	});
 
 	test('sessionTypes excludes Local', () => {
@@ -558,18 +738,6 @@ suite('CopilotChatSessionsProvider', () => {
 		const sessions = provider.getSessions();
 
 		assert.strictEqual(sessions.length, 2);
-	});
-
-	test('registers Copilot CLI session state directories as resource label homes', () => {
-		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/session-1' });
-		model.addSession(createMockAgentSession(resource));
-
-		const { labelService } = createProviderWithConfig(disposables, model);
-
-		assert.strictEqual(
-			labelService.getUriHome(URI.file('/home/test/.copilot/session-state/session-1/artifact.md'))?.toString(),
-			URI.file('/home/test/.copilot/session-state/session-1').toString()
-		);
 	});
 
 	test('getSessions does not emit session changes while reading the initial cache', () => {
@@ -1964,11 +2132,12 @@ suite('CopilotChatSessionsProvider', () => {
 			configurationService.setUserConfiguration(RemoteAgentHostsEnabledSettingId, true);
 
 			const cloudSends: string[] = [];
+			const notifications: string[] = [];
 			const provider = createProviderForSendTests(disposables, model, async (_resource, message) => {
 				cloudSends.push(message);
 				// Never settles: these tests only assert which path the send took.
 				return new Promise<ChatSendResult>(() => { });
-			}, { configurationService, getOptionGroups: opts.getOptionGroups });
+			}, { configurationService, getOptionGroups: opts.getOptionGroups, notifications });
 
 			const provisionRequests: ICloudSandboxCreateSessionRequest[] = [];
 			provider.sandboxContribution = {
@@ -1980,7 +2149,7 @@ suite('CopilotChatSessionsProvider', () => {
 					throw new Error('provisioning failed');
 				},
 			};
-			return { provider, provisionRequests, cloudSends };
+			return { provider, provisionRequests, cloudSends, notifications };
 		}
 
 		/**
@@ -2058,7 +2227,7 @@ suite('CopilotChatSessionsProvider', () => {
 			// Mission Control starts no run, so a session that has never run has no model to
 			// restore: without this the first turn would silently take the agent host default.
 			const provisioned = provisionedSession(undefined, () => [sandboxModel('claude-sonnet-4.6')]);
-			const { provider } = createSandboxProvider({
+			const { provider, notifications } = createSandboxProvider({
 				provision: async () => provisioned,
 				getOptionGroups: () => cloudModelOptionGroup('synthetic-cloud-model', 'claude-sonnet-4.6'),
 			});
@@ -2070,8 +2239,12 @@ suite('CopilotChatSessionsProvider', () => {
 			await provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' });
 
 			// The id crosses id spaces by backend model id, and arrives as carried over: the user
-			// picked it for the composer, not for the session that replaced it.
-			assert.deepStrictEqual(provisioned.modelSelections, [{ modelId: 'agent-host-copilot:claude-sonnet-4.6', source: ChatModelSource.CarriedOver }]);
+			// picked it for the composer, not for the session that replaced it. Applying the pick
+			// is the silent case — nothing to tell the user about.
+			assert.deepStrictEqual(
+				{ selections: provisioned.modelSelections, notifications },
+				{ selections: [{ modelId: 'agent-host-copilot:claude-sonnet-4.6', source: ChatModelSource.CarriedOver }], notifications: [] }
+			);
 		});
 
 		test('waits for a sandbox catalog that is still arriving rather than sending without the model', async () => {
@@ -2102,11 +2275,12 @@ suite('CopilotChatSessionsProvider', () => {
 			);
 		});
 
-		test('leaves the model to the agent host when the sandbox does not advertise it', async () => {
-			// Sending an unroutable id would fail the turn outright, so an unmatched pick keeps
-			// the previous behavior of letting the host choose.
+		test('tells the user when the sandbox does not advertise the model they picked', async () => {
+			// Sending an unroutable id would fail the turn outright, so an unmatched pick still
+			// lets the host choose — but an absent `Message.model` means "host decides", so
+			// nothing else would report the substitution.
 			const provisioned = provisionedSession(undefined, () => [sandboxModel('gpt-5')]);
-			const { provider } = createSandboxProvider({
+			const { provider, notifications } = createSandboxProvider({
 				provision: async () => provisioned,
 				getOptionGroups: () => cloudModelOptionGroup('synthetic-cloud-model', 'claude-sonnet-4.6'),
 			});
@@ -2117,7 +2291,32 @@ suite('CopilotChatSessionsProvider', () => {
 
 			await provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' });
 
-			assert.deepStrictEqual(provisioned.modelSelections, []);
+			assert.deepStrictEqual(
+				{ selections: provisioned.modelSelections, notified: notifications.length, namesModel: notifications[0]?.includes('claude-sonnet-4.6') },
+				{ selections: [], notified: 1, namesModel: true }
+			);
+		});
+
+		test('tells the user when the catalog never arrives before the turn is dispatched', async () => {
+			// The likeliest fallback in practice is a slow sandbox rather than a missing model, so
+			// the timeout has to be as visible as a conclusive miss.
+			const provisioned = provisionedSession(undefined, () => []);
+			const { provider, notifications } = createSandboxProvider({
+				provision: async () => provisioned,
+				getOptionGroups: () => cloudModelOptionGroup('synthetic-cloud-model', 'claude-sonnet-4.6'),
+			});
+			provider.sandboxModelWaitMs = 1;
+			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			session.setUseSandbox(true);
+			provider.setModel(sessionInfo.sessionId, session.mainChat.get().resource, 'synthetic-cloud-model', ChatModelSource.Chosen);
+
+			await provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' });
+
+			assert.deepStrictEqual(
+				{ selections: provisioned.modelSelections, notified: notifications.length, namesModel: notifications[0]?.includes('claude-sonnet-4.6') },
+				{ selections: [], notified: 1, namesModel: true }
+			);
 		});
 
 		test('provisions a sandbox and replaces the draft with the committed session', async () => {

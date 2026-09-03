@@ -31,9 +31,10 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/servic
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
-import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorOptions, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { MultiDiffEditorLogger } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorLogging.js';
 import { IDiffEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEditor.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { Menus } from '../../../browser/menus.js';
@@ -83,6 +84,7 @@ class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 		@ICommandService private readonly commandService: ICommandService,
 		@IChangesViewService private readonly changesViewService: IChangesViewService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEditorService private readonly editorService: IEditorService,
 	) { }
 
 	createResourceLabel(element: HTMLElement, kind: MultiDiffEditorItemLabelKind): IResourceLabel {
@@ -110,6 +112,14 @@ class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 			return this.instantiationService.createInstance(ChangesetReviewActionViewItem, action, options);
 		}
 		return undefined;
+	}
+
+	openDiffEditor(original: URI, modified: URI): void {
+		void this.editorService.openEditor({
+			original: { resource: original },
+			modified: { resource: modified },
+			options: { pinned: true },
+		});
 	}
 }
 
@@ -436,9 +446,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			return;
 		}
 
-		const control = widget.getActiveControl();
-		if (control) {
-			control.focus();
+		if (widget.focus()) {
 			return;
 		}
 
@@ -446,10 +454,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		// part was just revealed from a hidden state), so getActiveControl() is
 		// undefined. Focus it as soon as it becomes available.
 		this._pendingFocus.value = widget.onDidChangeActiveControl(() => {
-			const activeControl = widget.getActiveControl();
-			if (activeControl) {
+			if (widget.focus()) {
 				this._pendingFocus.clear();
-				activeControl.focus();
 			}
 		});
 	}

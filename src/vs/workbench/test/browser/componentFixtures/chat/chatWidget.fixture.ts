@@ -22,7 +22,7 @@ import { chatFloatingPersistentContentClass, chatPersistentContentHeightVariable
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../contrib/chat/browser/widget/input/chatInputPart.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
-import { ElicitationState, IChatQuestion, IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { ElicitationState, IChatQuestion, IChatService, IChatSystemNotificationPart } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ChatElicitationRequestPart } from '../../../../contrib/chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../../contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
@@ -55,15 +55,21 @@ export interface IFixtureFileChange {
 
 export interface IFixtureMessage {
 	readonly user: string; // user prompt text
+	readonly timestamp?: number;
 	readonly assistant?: ReadonlyArray<
 		| { kind: 'markdown'; text: string }
 		| { kind: 'progress'; text: string }
+		| { kind: 'systemNotification'; notification: IChatSystemNotificationPart }
 		| { kind: 'questionCarousel'; questions: IChatQuestion[]; message?: string; allowSkip?: boolean }
 		| { kind: 'terminalConfirmation'; command: string; title?: string; disclaimer?: string; requestUnsandboxedExecution?: boolean; requestUnsandboxedExecutionReason?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string } }
 		| { kind: 'elicitation'; title: string; message: string; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string }; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean }
 	>;
 	readonly details?: string;
 	readonly responseComplete?: boolean;
+	/** Whether the request is a host-initiated turn rendered with its specialized presentation. */
+	readonly isSystemInitiated?: boolean;
+	/** Whether the request half of the turn stays out of the transcript. */
+	readonly requestHidden?: boolean;
 	/**
 	 * Per-turn file changes surfaced via {@link IChatResponseFileChangesService},
 	 * used by the turn changes summary. Requires `turnStatusPills` on the fixture
@@ -254,7 +260,29 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	chatService.addSession(model);
 
 	for (const message of options.messages) {
-		const request = model.addRequest(makeUserMessage(message.user), { variables: [] }, 0);
+		const request = model.addRequest(
+			makeUserMessage(message.user),
+			{ variables: [] },
+			0,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			message.isSystemInitiated,
+			undefined,
+			undefined,
+			undefined,
+			message.timestamp,
+			undefined,
+			undefined,
+			message.requestHidden,
+		);
 		const response = request.response!;
 		if (message.fileChanges) {
 			const fileEdits = message.fileChanges.map(makeFileDiff);
@@ -266,6 +294,8 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(part.text) });
 			} else if (part.kind === 'progress') {
 				model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString(part.text) });
+			} else if (part.kind === 'systemNotification') {
+				model.acceptResponseProgress(request, part.notification);
 			} else if (part.kind === 'questionCarousel') {
 				model.acceptResponseProgress(request, {
 					kind: 'questionCarousel',

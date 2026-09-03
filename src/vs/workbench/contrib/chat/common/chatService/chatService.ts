@@ -323,6 +323,8 @@ export interface IChatSystemNotificationPart {
 	icon?: ThemeIcon;
 	/** Render the first line as an always-visible summary and the remaining Markdown as collapsible details. */
 	collapsible?: boolean;
+	/** Render response timing beside the notification instead of using the response footer. */
+	renderInlineTiming?: boolean;
 }
 
 export interface IChatTask extends IChatTaskDto {
@@ -658,6 +660,17 @@ export interface IChatTerminalToolInvocationData {
 		isSandboxWrapped?: boolean;
 	};
 	/**
+	 * Whether the user may edit the command before confirming.
+	 *
+	 * Omitted means editable, the historical behavior for the built-in terminal
+	 * tool, which runs `commandLine.userEdited` when it is set. A producer whose
+	 * confirmation does not return the edit — an agent-host session, whose edit
+	 * would have to travel back as `chat/toolCallConfirmed.editedToolInput` —
+	 * MUST set `false`. Letting someone edit a command they are approving and
+	 * then running the original is worse than showing it read-only.
+	 */
+	editable?: boolean;
+	/**
 	 * LM-generated intention describing why the command is being run, shown
 	 * above the command in the terminal tool card. Set by the Agent Host; the
 	 * built-in terminal tool leaves this unset.
@@ -800,6 +813,21 @@ export interface IChatToolInputInvocationData {
 	rawInput: any;
 	/** Optional MCP App UI metadata for rendering during and after tool execution */
 	mcpAppData?: ChatMcpAppData;
+	/**
+	 * Whether the user may edit {@link rawInput} before confirming.
+	 *
+	 * Omitted means editable, the historical behavior: the confirmation editor
+	 * writes back into `rawInput`, and for an extension-contributed tool
+	 * `ILanguageModelToolsService` then invokes it with that value as its
+	 * parameters. That path always honours an edit, which is why no opt-out
+	 * existed before.
+	 *
+	 * A producer whose confirmation does not run through it — an agent-host
+	 * session, whose edit would have to travel back as
+	 * `chat/toolCallConfirmed.editedToolInput` — MUST set `false`. Inviting an
+	 * edit and then running the original is worse than showing none.
+	 */
+	editable?: boolean;
 }
 
 export const enum ToolConfirmKind {

@@ -10,7 +10,6 @@ import { IObservable, IReader, ITransaction, autorun, autorunWithStore, constObs
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyValue, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -19,11 +18,12 @@ import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { IRange } from '../../../common/core/range.js';
 import { ISelection, Selection } from '../../../common/core/selection.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
+import { IMultiDiffResourceId } from '../../../common/multiDiffEditor.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { ICodeEditor } from '../../editorBrowser.js';
 import { CompressedVirtualizedScrollView, ICompressedVirtualizedScrollItem, ICompressedVirtualizedScrollItemContext } from './compressedVirtualizedScrollView.js';
 import { ICompressedVirtualizedScrollLayout } from './compressedVirtualizedScrollLayout.js';
-import { DiffEditorItemBinding, DiffEditorItemTemplate } from './diffEditorItemTemplate.js';
+import { binaryFilePlaceholderContentHeight, DiffEditorItemBinding, DiffEditorItemTemplate } from './diffEditorItemTemplate.js';
 import { IDocumentDiffItem } from './model.js';
 import { formatDiffItemKey, formatUri, ILoggedDiffItem, MultiDiffEditorLogger } from './multiDiffEditorLogging.js';
 import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from './multiDiffEditorViewModel.js';
@@ -100,9 +100,18 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				const manager = this._register(new VirtualizedItemManager<DocumentDiffItemViewModel, DiffEditorItemBinding, DiffEditorItemTemplate>(sourceItems, context, {
 					getId: item => item,
 					getTemplateId: () => 'diffEditor',
-					getUnboundSize: item => derived(item, reader => item.collapsed.read(reader)
-						? this._workbenchUIElementFactory.diffEditorItemHeaderHeight ?? 40
-						: item.lastTemplateData.read(reader).expandedContentHeight),
+					getUnboundSize: item => derived(item, reader => {
+						const headerHeight = this._workbenchUIElementFactory.diffEditorItemHeaderHeight ?? 40;
+						if (item.collapsed.read(reader)) {
+							return headerHeight;
+						}
+						if (item.isBinary) {
+							return headerHeight
+								+ (this._workbenchUIElementFactory.diffEditorItemContentBottomPadding ?? 0)
+								+ binaryFilePlaceholderContentHeight;
+						}
+						return item.lastTemplateData.read(reader).expandedContentHeight;
+					}),
 					createTemplate: () => this._instantiationService.createInstance(
 						DiffEditorItemTemplate,
 						context.contentDomNode,
@@ -516,30 +525,40 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		viewModel.activeDiffItem.setCache(target, undefined);
 
 		if (!this._preserveFocusOnLoad) {
-			this._viewItemsInfo.get().getItem(target).template.get()?.editor.focus();
+			this._viewItemsInfo.get().getItem(target).binding.get()?.focus();
 		}
 		return true;
 	}
 
 	public findDocumentDiffItem(resource: URI): IDocumentDiffItem | undefined {
 		const item = this._viewItems.get().find(v =>
-			v.viewModel.diffEditorViewModel.model.modified.uri.toString() === resource.toString()
-			|| v.viewModel.diffEditorViewModel.model.original.uri.toString() === resource.toString()
+			v.viewModel.modifiedUri?.toString() === resource.toString()
+			|| v.viewModel.originalUri?.toString() === resource.toString()
 		);
 		return item?.viewModel.documentDiffItem;
 	}
 
+	public focus(): boolean {
+		const activeDiffItem = this._viewModel.get()?.activeDiffItem.get();
+		if (!activeDiffItem) {
+			return false;
+		}
+		const binding = this._viewItemsInfo.get().getItem(activeDiffItem).binding.get();
+		binding?.focus();
+		return binding !== undefined;
+	}
+
 	public tryGetCodeEditor(resource: URI): { diffEditor: IDiffEditor; editor: ICodeEditor } | undefined {
 		const item = this._viewItems.get().find(v =>
-			v.viewModel.diffEditorViewModel.model.modified.uri.toString() === resource.toString()
-			|| v.viewModel.diffEditorViewModel.model.original.uri.toString() === resource.toString()
+			v.viewModel.modifiedUri?.toString() === resource.toString()
+			|| v.viewModel.originalUri?.toString() === resource.toString()
 		);
 		const editor = item?.template.get()?.editor;
-		if (!editor) {
+		if (!editor || item.viewModel.isBinary) {
 			return undefined;
 		}
 
-		if (item.viewModel.diffEditorViewModel.model.modified.uri.toString() === resource.toString()) {
+		if (item.viewModel.modifiedUri?.toString() === resource.toString()) {
 			return { diffEditor: editor, editor: editor.getModifiedEditor() };
 		} else {
 			return { diffEditor: editor, editor: editor.getOriginalEditor() };
@@ -617,7 +636,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			}
 		}
 		if (focusEditor) {
-			editor?.focus();
+			item.binding.get()?.focus();
 		}
 	}
 
@@ -644,19 +663,6 @@ interface IMultiDiffDocState {
 	collapsed: boolean;
 	selections?: ISelection[];
 }
-
-export interface IMultiDiffEditorOptions extends ITextEditorOptions {
-	viewState?: IMultiDiffEditorOptionsViewState;
-}
-
-export interface IMultiDiffEditorOptionsViewState {
-	revealData?: {
-		resource: IMultiDiffResourceId;
-		range?: IRange;
-	};
-}
-
-export type IMultiDiffResourceId = { original: URI | undefined; modified: URI | undefined };
 
 export interface IMultiDiffEditorLayoutDebugState {
 	readonly scrollLeft: number;
@@ -786,7 +792,7 @@ class VirtualizedViewItem extends Disposable implements ILoggedDiffItem, ICompre
 	}
 
 	public override toString(): string {
-		return `VirtualViewItem(${this.viewModel.documentDiffItem.modified?.uri.toString()})`;
+		return `VirtualViewItem(${this.viewModel.modifiedUri?.toString() ?? this.viewModel.originalUri?.toString()})`;
 	}
 
 	public getKey(): string {

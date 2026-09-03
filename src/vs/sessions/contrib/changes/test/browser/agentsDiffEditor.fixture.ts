@@ -17,7 +17,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { MultiDiffEditorWidget } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
 import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
-import { IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
+import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { IResourceLabel, IWorkbenchUIElementFactory } from '../../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { TestDiffProviderFactoryService } from '../../../../../editor/test/browser/diff/testDiffProviderFactoryService.js';
 import { IMenu, IMenuActionOptions, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -260,8 +260,14 @@ async function renderAgentsDiffEditor({ container, disposableStore, disposableSt
 	const secondOriginal = textModels.add(createTextModel(instantiationService, 'export function count() {\n\treturn 1;\n}', URI.file('/workspace/src/second.original.ts'), 'typescript'));
 	const secondModified = textModels.add(createTextModel(instantiationService, 'export function count() {\n\treturn 2;\n}', URI.file('/workspace/src/second.ts'), 'typescript'));
 
-	const first = RefCounted.createOfNonDisposable<IDocumentDiffItem>({ original: firstOriginal, modified: firstModified }, { dispose() { } });
-	const second = RefCounted.createOfNonDisposable<IDocumentDiffItem>({ original: secondOriginal, modified: secondModified }, { dispose() { } });
+	const first = RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+		original: new DiffItemSource(firstOriginal.uri, firstOriginal),
+		modified: new DiffItemSource(firstModified.uri, firstModified),
+	}, { dispose() { } });
+	const second = RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+		original: new DiffItemSource(secondOriginal.uri, secondOriginal),
+		modified: new DiffItemSource(secondModified.uri, secondModified),
+	}, { dispose() { } });
 	const widget = disposableStackStore.add(instantiationService.createInstance(
 		MultiDiffEditorWidget,
 		editorInstance,

@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
+import { DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { AgentHostAuthenticationRecovery, AgentHostAuthTokenCache } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -12,8 +14,10 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { type IRemoteAgentHostEntry, getEntryAddress, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AuthRequiredReason, NotificationType, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { type IChatSessionsExtensionPoint } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
 import { RemoteAgentHostContribution } from '../../browser/remoteAgentHost.contribution.js';
 import { SSHAgentHostContribution } from '../../browser/sshAgentHost.contribution.js';
@@ -169,6 +173,17 @@ interface IProviderOwnerHarness {
 	_reconcileProviders(): void;
 }
 
+interface IRemoteAgentRegistrationHarness {
+	_connections: Map<string, {
+		readonly agents: DisposableMap<string, DisposableStore>;
+		readonly store: DisposableStore;
+	}>;
+	_chatSessionsService: {
+		registerChatSessionContribution(contribution: IChatSessionsExtensionPoint): never;
+	};
+	_registerAgent(address: string, connection: IAgentConnection, agent: AgentInfo, configuredName: string | undefined): void;
+}
+
 suite('Remote agent host provider ownership', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -213,6 +228,47 @@ suite('Remote agent host provider ownership', () => {
 			sharedProviderMethods: [],
 			sshCreated: ['localhost:4321'],
 			webSocketCreated: ['ws://host:8080'],
+		});
+	});
+});
+
+suite('Remote Agent Host chat session contribution', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('advertises target-only delegation', () => {
+		const address = 'test-host';
+		const agent: AgentInfo = {
+			provider: 'copilot',
+			displayName: 'Copilot',
+			description: 'test',
+			models: [],
+		};
+		const connection = new class extends mock<IAgentConnection>() { }();
+		const connectionStore = store.add(new DisposableStore());
+		const agents = store.add(new DisposableMap<string, DisposableStore>());
+		const harness = Object.create(RemoteAgentHostContribution.prototype) as IRemoteAgentRegistrationHarness;
+		harness._connections = new Map([[address, { agents, store: connectionStore }]]);
+
+		let registeredContribution: IChatSessionsExtensionPoint | undefined;
+		harness._chatSessionsService = {
+			registerChatSessionContribution: contribution => {
+				registeredContribution = contribution;
+				throw new Error('Stop after registering the chat session contribution');
+			},
+		};
+
+		assert.throws(
+			() => harness._registerAgent(address, connection, agent, 'Test Host'),
+			/Stop after registering the chat session contribution/
+		);
+		assert.deepStrictEqual(registeredContribution && {
+			type: registeredContribution.type,
+			canDelegate: registeredContribution.canDelegate,
+			supportsDelegation: registeredContribution.supportsDelegation,
+		}, {
+			type: 'remote-test-host-copilot',
+			canDelegate: true,
+			supportsDelegation: false,
 		});
 	});
 });

@@ -84,6 +84,7 @@
 		"--vscode-chat-requestCodeBorder",
 		"--vscode-chat-slashCommandBackground",
 		"--vscode-chat-slashCommandForeground",
+		"--vscode-chat-statusBackground",
 		"--vscode-chat-thinkingShimmer",
 		"--vscode-agentsChatInput-background",
 		"--vscode-agentsChatInput-border",
