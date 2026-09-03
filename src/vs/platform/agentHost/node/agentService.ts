@@ -98,7 +98,6 @@ import { IAgentHostChangesetOperationService } from '../common/agentHostChangese
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import { IAgentHostTurnService } from './agentHostTurnService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
-import { IQuickChatWorkspaceConversionService } from './chatContributions/quickChatWorkspaceConversion/quickChatWorkspaceConversionService.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -625,7 +624,6 @@ export class AgentService extends Disposable implements IAgentService {
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 		@IAgentHostTurnService private readonly _turnService: IAgentHostTurnService,
 		@IAgentHostStorageService private readonly _storageService: IAgentHostStorageService,
-		@IQuickChatWorkspaceConversionService private readonly _quickChatWorkspaceConversionService: IQuickChatWorkspaceConversionService,
 	) {
 		super();
 		this._authService = core.authenticationService;
