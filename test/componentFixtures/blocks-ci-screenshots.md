@@ -145,10 +145,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/89b2d50f5bd33feaa20b3c8f83f3d83548fda48b6f85cd7d784460aafaeeb596)
 
 #### editor/fullwidthCharacterWidth/FullwidthCharacterWidthClassification/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/a0633586beb0ac8cc8f0645667aa923b6c61287fd4932ec5f364951246735bf1)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/5e9fd5db76103ac883390a2f6be4b6884d38466fd725d4091b7e46adb8349726)
 
 #### editor/fullwidthCharacterWidth/FullwidthCharacterWidthClassification/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/88de8b5b9123a37e8da8246c1ee100a5e9d8f7e174912ca2be1aed1eb0587a53)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/55d5ee041108b8fd525642374564c62fb96f0c5a098412876615262a87e5f5c6)
 
 #### editor/fullwidthCharacterWidth/FullwidthCharacterWidthCode/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/d8120ea9b281f54a8a9aa86409b5959bf11f4b4432cf31c54e80bbd03df3ce11)
@@ -175,10 +175,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/467e6c59b70fbd0153e463f8a5bbdb778f9b96aa27117fa8c276e126004fe2ac)
 
 #### editor/fullwidthCharacterWidth/FullwidthCharacterWidthSelection/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/f71aa78cedae1857eadb78ee37600dea0d21934b9e55e90c5611657910e0f606)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/af71f253cba2881e336da3eebd2ff3df7f1b20b9de7c407bb18bb944e59e5125)
 
 #### editor/fullwidthCharacterWidth/FullwidthCharacterWidthSelection/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/f84b059992c18e3291fe2b4e37b1c03bda55a4e79b18c8abc7d08ecf2e042604)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/d2f28d080bfa99f2f93566c860e11ca891eb8e38ef27a4b20286b7227d235d89)
 
 #### editor/injectedTextDecorations/ColorDecorators/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/33584d1dce7a32853b0c3c269ea341c1346364d42f3acede0f39d055ec54ff03)
