@@ -909,6 +909,8 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly parentToolCallId?: string;
 }
 
+export type AgentSubagentTaskModelSource = 'task_argument' | 'subagent_configuration' | 'custom_agent_definition' | 'unset';
+
 /**
  * A subagent was spawned by a tool call. The host creates a child session
  * silently and routes subsequent inner-tool events to it.
@@ -923,6 +925,7 @@ export interface IAgentSubagentStartedSignal {
 	readonly agentName: string;
 	readonly agentDisplayName: string;
 	readonly agentDescription?: string;
+	readonly taskModelSource?: AgentSubagentTaskModelSource;
 	/**
 	 * The spawning Task tool's short (typically 3-5 word) `description`
 	 * input, e.g. "Review package.json structure". Distinct from
