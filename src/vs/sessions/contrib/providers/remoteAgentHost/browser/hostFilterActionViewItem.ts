@@ -85,36 +85,6 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		this._update();
 	}
 
-	override focus(): void {
-		if (this._sidebarButton) {
-			this._sidebarButton.element.tabIndex = 0;
-			this._sidebarButton.focus();
-		} else {
-			super.focus();
-		}
-	}
-
-	override isFocused(): boolean {
-		return this._sidebarButton?.hasFocus() ?? super.isFocused();
-	}
-
-	override blur(): void {
-		if (this._sidebarButton) {
-			this._sidebarButton.element.tabIndex = -1;
-			this._sidebarButton.element.blur();
-		} else {
-			super.blur();
-		}
-	}
-
-	override setFocusable(focusable: boolean): void {
-		if (this._sidebarButton) {
-			this._sidebarButton.element.tabIndex = focusable ? 0 : -1;
-		} else {
-			super.setFocusable(focusable);
-		}
-	}
-
 	/**
 	 * Original compact pill rendered in the desktop titlebar's left toolbar.
 	 * Custom DOM driven directly by click handlers + context menu service.

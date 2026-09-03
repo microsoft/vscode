@@ -354,7 +354,12 @@ suite('Agent Host Session Config Picker', () => {
 	test('picker action view items expose responsive compact state', () => {
 		let pickerAnchor: HTMLElement | undefined;
 		const item = store.add(new PickerActionViewItem({
-			render: () => { },
+			render: container => {
+				const trigger = document.createElement('a');
+				trigger.classList.add('action-label');
+				trigger.tabIndex = 0;
+				container.appendChild(trigger);
+			},
 			showPicker: anchor => {
 				pickerAnchor = anchor;
 				return true;
@@ -362,6 +367,8 @@ suite('Agent Host Session Config Picker', () => {
 			dispose: () => { },
 		}));
 		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
 		const overflowAnchor = document.createElement('button');
 		item.render(container);
 		const expanded = {
@@ -370,16 +377,28 @@ suite('Agent Host Session Config Picker', () => {
 		};
 
 		item.setCompact(true);
+		item.setFocusable(true);
+		item.focus();
 		item.show(overflowAnchor);
 		const compact = {
 			compact: item.isCompact(),
 			className: container.classList.contains('compact-picker'),
 			usesOverflowAnchor: pickerAnchor === overflowAnchor,
+			wrapperTabIndex: container.tabIndex,
+			tabbableDescendants: container.querySelectorAll('[tabindex="0"]').length,
+			triggerFocused: item.isFocused(),
 		};
 
 		assert.deepStrictEqual({ expanded, compact }, {
 			expanded: { compact: false, className: false },
-			compact: { compact: true, className: true, usesOverflowAnchor: true },
+			compact: {
+				compact: true,
+				className: true,
+				usesOverflowAnchor: true,
+				wrapperTabIndex: -1,
+				tabbableDescendants: 1,
+				triggerFocused: true,
+			},
 		});
 	});
 

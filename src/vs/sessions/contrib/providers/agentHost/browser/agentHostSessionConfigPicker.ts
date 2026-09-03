@@ -1233,6 +1233,7 @@ interface IConfigPickerWidget extends IDisposable {
 
 export class PickerActionViewItem extends BaseActionViewItem implements IChatInputPickerResponsiveState {
 	private _compact = false;
+	private _focusableElement: HTMLElement | undefined;
 
 	constructor(private readonly _picker: IConfigPickerWidget, disposable?: IDisposable) {
 		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
@@ -1244,7 +1245,24 @@ export class PickerActionViewItem extends BaseActionViewItem implements IChatInp
 	override render(container: HTMLElement): void {
 		this.element = container;
 		this._picker.render(container);
+		this._focusableElement = container.querySelector<HTMLElement>('.action-label') ?? undefined;
 		container.classList.toggle('compact-picker', this._compact);
+	}
+
+	override focus(): void {
+		this._focusableElement?.focus();
+	}
+
+	override isFocused(): boolean {
+		return this._focusableElement === dom.getActiveElement();
+	}
+
+	override blur(): void {
+		this._focusableElement?.blur();
+	}
+
+	override setFocusable(_focusable: boolean): void {
+		this.element?.removeAttribute('tabindex');
 	}
 
 	isCompact(): boolean {
