@@ -14,6 +14,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getTargetedCreateActionLabel, usesCustomizationCardLayout } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
+import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -25,7 +26,7 @@ import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/se
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController } from '../../../browser/aiCustomization/customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, setupCollapsibleSection } from '../../../browser/aiCustomization/customizationCardList.js';
 
 suite('aiCustomizationListWidget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -72,6 +73,72 @@ suite('aiCustomizationListWidget', () => {
 			'Nuevo agente',
 			'Create from provider',
 		]);
+	});
+
+	test('collapsible sections are expanded by default and only the disclosure toggles them', () => {
+		const disposables = new DisposableStore();
+		const heading = document.createElement('div');
+		const content = document.createElement('div');
+		const headerAction = document.createElement('button');
+		heading.appendChild(headerAction);
+		const changes: boolean[] = [];
+		const toggle = setupCollapsibleSection(heading, content, 'Workspace', disposables, false, collapsed => changes.push(collapsed));
+
+		try {
+			headerAction.click();
+			const initiallyExpanded = {
+				expanded: toggle.getAttribute('aria-expanded'),
+				controlsContent: toggle.getAttribute('aria-controls') === content.id,
+				hidden: content.hidden,
+				display: content.style.display,
+				changes: [...changes],
+			};
+			toggle.click();
+			const collapsed = {
+				expanded: toggle.getAttribute('aria-expanded'),
+				label: toggle.getAttribute('aria-label'),
+				hidden: content.hidden,
+				display: content.style.display,
+				changes: [...changes],
+			};
+			toggle.click();
+
+			assert.deepStrictEqual({
+				initiallyExpanded,
+				collapsed,
+				expandedAgain: {
+					expanded: toggle.getAttribute('aria-expanded'),
+					label: toggle.getAttribute('aria-label'),
+					hidden: content.hidden,
+					display: content.style.display,
+					changes,
+				},
+			}, {
+				initiallyExpanded: {
+					expanded: 'true',
+					controlsContent: true,
+					hidden: false,
+					display: '',
+					changes: [],
+				},
+				collapsed: {
+					expanded: 'false',
+					label: 'Expand Workspace',
+					hidden: true,
+					display: 'none',
+					changes: [true],
+				},
+				expandedAgain: {
+					expanded: 'true',
+					label: 'Collapse Workspace',
+					hidden: false,
+					display: '',
+					changes: [true, false],
+				},
+			});
+		} finally {
+			disposables.dispose();
+		}
 	});
 
 	test('card lists use roving focus and expose focused-row actions', async () => {
@@ -401,6 +468,48 @@ suite('aiCustomizationListWidget', () => {
 			widget.layout(900, 320);
 
 			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '830px');
+		});
+
+		test('instruction rows use an overflow menu without loaded status or targeting badges', async () => {
+			const items = observableValue<readonly IAICustomizationListItem[]>('test', [{
+				id: 'instruction',
+				uri: URI.file('Q:\\workspace\\.github\\instructions\\typescript.instructions.md'),
+				name: 'TypeScript',
+				filename: 'typescript.instructions.md',
+				description: 'TypeScript instructions',
+				source: PromptsStorage.local,
+				promptType: PromptsType.instructions,
+				disabled: false,
+				badge: '*.ts',
+				status: 'loaded',
+			}]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', 1),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+
+			await widget.setSection(AICustomizationManagementSection.Instructions);
+			widget.layout(800, 500);
+
+			const row = widget.element.querySelector('.ai-customization-list-item');
+			assert.deepStrictEqual({
+				badgeDisplay: row?.querySelector<HTMLElement>('.item-badge')?.style.display,
+				statusDisplay: row?.querySelector<HTMLElement>('.item-status-icon')?.style.display,
+				hasOverflowAction: !!row?.querySelector('.item-right .codicon-ellipsis'),
+				sectionExpanded: widget.element.querySelector('.customization-section-toggle')?.getAttribute('aria-expanded'),
+			}, {
+				badgeDisplay: 'none',
+				statusDisplay: 'none',
+				hasOverflowAction: true,
+				sectionExpanded: 'true',
+			});
 		});
 	});
 });

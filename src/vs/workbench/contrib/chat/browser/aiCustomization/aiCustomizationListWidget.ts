@@ -49,7 +49,7 @@ import { ICustomizationHarnessService } from '../../common/customizationHarnessS
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from './aiCustomizationItemsModel.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController } from './customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, setupCollapsibleSection } from './customizationCardList.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 
@@ -74,6 +74,7 @@ type CustomizationEditorSearchClassification = {
 //#endregion
 
 const ITEM_HEIGHT = 44;
+const MAX_VISIBLE_SECTION_ITEMS = 6;
 const GROUP_HEADER_HEIGHT = 36;
 const GROUP_HEADER_HEIGHT_WITH_SEPARATOR = 40;
 
@@ -101,6 +102,12 @@ interface IFileItemEntry {
 }
 
 type IListEntry = IGroupHeaderEntry | IFileItemEntry;
+
+interface ICustomizationSectionList {
+	readonly list: WorkbenchList<IFileItemEntry>;
+	readonly items: readonly IAICustomizationListItem[];
+	readonly container: HTMLElement;
+}
 
 /**
  * Delegate for the AI Customization list.
@@ -245,6 +252,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 	private focusedIndex = -1;
 
 	constructor(
+		private readonly showItemActions: (item: IAICustomizationListItem, anchor: HTMLElement) => void,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IMenuService private readonly menuService: IMenuService,
@@ -357,7 +365,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		templateData.nameLabel.set(displayName, element.nameMatches);
 
 		// Optional inline badge (e.g. "always added", "*.ts")
-		if (element.badge) {
+		if (element.badge && element.promptType !== PromptsType.instructions) {
 			templateData.badge.textContent = element.badge;
 			templateData.badge.style.display = '';
 			if (element.badgeTooltip) {
@@ -373,7 +381,9 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		}
 
 		// Status icon for external items with sync/loading status
-		if (element.status) {
+		const hideLoadedStatus = element.status === 'loaded'
+			&& (element.promptType === PromptsType.agent || element.promptType === PromptsType.skill || element.promptType === PromptsType.instructions);
+		if (element.status && !hideLoadedStatus) {
 			templateData.statusIcon.style.display = '';
 			templateData.statusIcon.className = 'item-status-icon';
 			switch (element.status) {
@@ -463,10 +473,21 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		);
 
 		const updateActions = () => {
-			const actions = menu.getActions({ arg: context, shouldForwardArgs: true });
-			const { primary } = getContextMenuActions(actions, 'inline');
 			templateData.actionBar.clear();
-			templateData.actionBar.push(primary, { icon: true, label: false });
+			if (element.promptType === PromptsType.agent || element.promptType === PromptsType.skill || element.promptType === PromptsType.instructions) {
+				const moreAction = templateData.elementDisposables.add(new Action(
+					'aiCustomization.moreActions',
+					localize('customizationMoreActionsAria', "More actions for {0}", displayName),
+					ThemeIcon.asClassName(Codicon.ellipsis),
+					true,
+					() => this.showItemActions(element, templateData.actionsContainer),
+				));
+				templateData.actionBar.push(moreAction, { icon: true, label: false });
+			} else {
+				const actions = menu.getActions({ arg: context, shouldForwardArgs: true });
+				const { primary } = getContextMenuActions(actions, 'inline');
+				templateData.actionBar.push(primary, { icon: true, label: false });
+			}
 		};
 		updateActions();
 		templateData.elementDisposables.add(menu.onDidChange(updateActions));
@@ -620,6 +641,7 @@ export class AICustomizationListWidget extends Disposable {
 	private cardContainer!: HTMLElement;
 	private cardScrollable!: DomScrollableElement;
 	private cardScrollableNode!: HTMLElement;
+	private cardSectionLists: ICustomizationSectionList[] = [];
 	private firstCardFocusElement: HTMLElement | undefined;
 	private readonly cardRowsByUri = new Map<string, HTMLElement>();
 	private readonly cardRowsById = new Map<string, HTMLElement>();
@@ -636,6 +658,7 @@ export class AICustomizationListWidget extends Disposable {
 	private searchQuery: string = '';
 	private readonly collapsedGroups = new Set<string>();
 	private _layoutDeferred = false;
+	private readonly revealLastItemScheduler = this._register(new MutableDisposable());
 	private lastLayoutWidth = 0;
 	private lastLayoutHeight = 0;
 	private lastHeaderHeight = 0;
@@ -814,7 +837,10 @@ export class AICustomizationListWidget extends Disposable {
 		this.emptyStateContainer.style.display = 'none';
 
 		// Create list
-		const itemRenderer = this.instantiationService.createInstance(AICustomizationItemRenderer);
+		const itemRenderer = this.instantiationService.createInstance(
+			AICustomizationItemRenderer,
+			(item: IAICustomizationListItem, anchor: HTMLElement) => this.showCardItemActions(item, anchor),
+		);
 		this.list = this._register(this.instantiationService.createInstance(
 			WorkbenchList<IListEntry>,
 			'AICustomizationManagementList',
@@ -1029,7 +1055,9 @@ export class AICustomizationListWidget extends Disposable {
 			getActions: () => actions,
 			onHide: () => {
 				this.cardMenuOpen = false;
-				(this.cardMenuButtonsById.get(item.id) ?? this.cardRowsById.get(item.id) ?? this.firstCardFocusElement)?.focus();
+				if (!this.focusCardSectionItem(item.id)) {
+					(this.cardMenuButtonsById.get(item.id) ?? this.cardRowsById.get(item.id) ?? this.firstCardFocusElement)?.focus();
+				}
 				disposables.dispose();
 			},
 		});
@@ -1614,6 +1642,7 @@ export class AICustomizationListWidget extends Disposable {
 			this.cardRowsByUri.clear();
 			this.cardRowsById.clear();
 			this.cardMenuButtonsById.clear();
+			this.cardSectionLists = [];
 			this.firstCardFocusElement = undefined;
 			DOM.clearNode(this.cardContainer);
 			this.cardScrollableNode.style.display = 'none';
@@ -1657,24 +1686,113 @@ export class AICustomizationListWidget extends Disposable {
 				this.renderCardCreateActions(header);
 			}
 
-			const inventory = DOM.append(section, $('.plugin-card-grid.plugin-inventory-list.customization-inventory-list'));
-			const cardList = this.cardDisposables.add(new CustomizationCardListController(inventory, group.label));
+			const inventory = DOM.append(section, $('.plugin-card-grid.plugin-inventory-list.customization-inventory-list.virtualized-section-list'));
+			setupCollapsibleSection(
+				headingRow,
+				inventory,
+				group.label,
+				this.cardDisposables,
+				this.collapsedGroups.has(group.groupKey),
+				collapsed => {
+					if (collapsed) {
+						this.collapsedGroups.add(group.groupKey);
+					} else {
+						this.collapsedGroups.delete(group.groupKey);
+						this.layoutCardSectionLists();
+					}
+					this.cardScrollable.scanDomNode();
+				},
+			);
 			if (group.items.length === 0) {
 				const empty = DOM.append(inventory, $('.plugin-inventory-empty'));
 				empty.textContent = this.getEmptyGroupMessage(group.groupKey);
 				continue;
 			}
-			for (const item of group.items) {
-				this.appendCustomizationCardRow(inventory, item, group.label, cardList);
-			}
-			cardList.finalize();
+			this.createCustomizationSectionList(inventory, group.label, group.items);
 		}
+		this.layoutCardSectionLists();
 		this.cardScrollable.scanDomNode();
 		if (shouldRestoreFocus) {
 			DOM.getWindow(this.element).requestAnimationFrame(() => {
-				(this.cardMenuButtonsById.get(focusItemId ?? '') ?? this.cardRowsById.get(focusItemId ?? '') ?? this.firstCardFocusElement)?.focus();
+				if (!focusItemId || !this.focusCardSectionItem(focusItemId)) {
+					this.firstCardFocusElement?.focus();
+				}
 			});
 		}
+	}
+
+	private createCustomizationSectionList(container: HTMLElement, label: string, items: readonly IAICustomizationListItem[]): void {
+		const itemRenderer = this.instantiationService.createInstance(
+			AICustomizationItemRenderer,
+			(item: IAICustomizationListItem, anchor: HTMLElement) => this.showCardItemActions(item, anchor),
+		);
+		const list = this.cardDisposables.add(this.instantiationService.createInstance(
+			WorkbenchList<IFileItemEntry>,
+			`AICustomizationManagementList.${label}`,
+			container,
+			new AICustomizationListDelegate(),
+			[itemRenderer],
+			{
+				identityProvider: { getId: entry => entry.item.id },
+				accessibilityProvider: {
+					getAriaLabel: entry => {
+						const displayName = entry.item.displayName ?? formatDisplayName(entry.item.name);
+						const secondaryText = getCustomizationSecondaryText(entry.item.description, entry.item.filename, entry.item.promptType);
+						const nameAndDescription = secondaryText ? localize('itemAriaLabel', "{0}. {1}", displayName, secondaryText) : displayName;
+						return entry.item.disabled ? localize('itemAriaLabelDisabled', "{0}, disabled", nameAndDescription) : nameAndDescription;
+					},
+					getWidgetAriaLabel: () => label,
+					getSetSize: (_entry, _index, listLength) => listLength,
+					getPosInSet: (_entry, index) => index + 1,
+				},
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: entry => entry.item.name,
+				},
+				multipleSelectionSupport: false,
+				openOnSingleClick: true,
+			},
+		));
+		list.splice(0, 0, items.map(item => ({ type: 'file-item', item })));
+		this.cardDisposables.add(list.onDidOpen(event => {
+			if (event.element) {
+				this._onDidSelectItem.fire(event.element.item);
+			}
+		}));
+		this.cardDisposables.add(list.onDidChangeFocus(event => {
+			itemRenderer.setFocusedIndex(event.indexes.length ? event.indexes[0] : -1);
+			if (event.elements.length > 0) {
+				this.lastCardFocusItemId = event.elements[0].item.id;
+			}
+		}));
+		this.cardDisposables.add(list.onDidFocus(() => {
+			if (list.getFocus().length === 0 && items.length > 0) {
+				list.setFocus([0]);
+			}
+		}));
+		this.cardDisposables.add(list.onContextMenu(event => this.onContextMenu(event as IListContextMenuEvent<IListEntry>)));
+		this.cardSectionLists.push({ list, items, container });
+	}
+
+	private layoutCardSectionLists(): void {
+		const width = Math.max(0, this.cardContainer.clientWidth - 16);
+		for (const section of this.cardSectionLists) {
+			const height = Math.min(section.items.length, MAX_VISIBLE_SECTION_ITEMS) * ITEM_HEIGHT;
+			section.container.style.height = `${height}px`;
+			section.list.layout(height, width);
+		}
+	}
+
+	private focusCardSectionItem(itemId: string): boolean {
+		for (const section of this.cardSectionLists) {
+			const index = section.items.findIndex(item => item.id === itemId);
+			if (index >= 0) {
+				section.list.reveal(index);
+				section.list.setFocus([index]);
+				section.list.domFocus();
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private usesTargetedCreateActions(): boolean {
@@ -1825,7 +1943,7 @@ export class AICustomizationListWidget extends Disposable {
 		this.cardDisposables.add(button.onDidClick(() => this.executePrimaryCreateAction()));
 	}
 
-	private appendCustomizationCardRow(parent: HTMLElement, item: IAICustomizationListItem, groupLabel: string, cardList: CustomizationCardListController): void {
+	protected appendCustomizationCardRow(parent: HTMLElement, item: IAICustomizationListItem, groupLabel: string, cardList: CustomizationCardListController): void {
 		const row = DOM.append(parent, $('.plugin-list-item.plugin-home-row.customization-home-row'));
 		row.classList.toggle('disabled', item.disabled);
 		const displayName = item.displayName ?? formatDisplayName(item.name);
@@ -2017,7 +2135,15 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	focusList(): void {
 		if (this.usesCardLayout()) {
-			this.firstCardFocusElement?.focus();
+			if (!this.firstCardFocusElement) {
+				const firstSection = this.cardSectionLists[0];
+				if (firstSection?.items.length) {
+					firstSection.list.setFocus([0]);
+					firstSection.list.domFocus();
+				}
+			} else {
+				this.firstCardFocusElement.focus();
+			}
 			return;
 		}
 		this.list.domFocus();
@@ -2031,7 +2157,16 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	revealLastItem(): void {
 		if (this.usesCardLayout()) {
-			this.cardScrollable.setScrollPosition({ scrollTop: this.cardContainer.scrollHeight });
+			const reveal = () => {
+				const section = this.cardSectionLists.at(-1);
+				if (section?.items.length) {
+					section.list.reveal(section.items.length - 1);
+				}
+				this.cardScrollable.scanDomNode();
+				this.cardScrollable.setScrollPosition({ scrollTop: this.cardContainer.scrollHeight });
+			};
+			reveal();
+			this.revealLastItemScheduler.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.element), reveal);
 			return;
 		}
 		if (this.displayEntries.length > 0) {
@@ -2044,11 +2179,13 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	revealAndSelectFirstItemByUri(uris: readonly URI[]): boolean {
 		if (this.usesCardLayout()) {
-			for (const uri of uris) {
-				const row = this.cardRowsByUri.get(uri.toString());
-				if (row) {
-					row.scrollIntoView({ block: 'nearest' });
-					row.focus();
+			for (const section of this.cardSectionLists) {
+				const index = section.items.findIndex(item => uris.some(uri => isEqual(item.uri, uri)));
+				if (index >= 0) {
+					section.list.reveal(index);
+					section.list.setFocus([index]);
+					section.list.setSelection([index]);
+					section.list.domFocus();
 					return true;
 				}
 			}
@@ -2105,6 +2242,7 @@ export class AICustomizationListWidget extends Disposable {
 		this.cardScrollableNode.style.height = `${listHeight}px`;
 		this.listContainer.style.height = `${listHeight}px`;
 		if (this.usesCardLayout()) {
+			this.layoutCardSectionLists();
 			this.cardScrollable.scanDomNode();
 		} else {
 			this.list.layout(listHeight, width);

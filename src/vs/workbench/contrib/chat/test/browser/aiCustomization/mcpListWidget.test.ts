@@ -893,6 +893,7 @@ suite('mcpListWidget', () => {
 			} as unknown as ICustomizationHarnessService;
 			const renderer = new McpServerItemRenderer(
 				async () => { },
+				() => { },
 				{ isSessionsWindow: true } as IAICustomizationWorkspaceService,
 				{ plugins: observableValue<readonly never[]>('plugins', []) } as unknown as IAgentPluginService,
 				{ setupManagedHover: () => Disposable.None } as unknown as IHoverService,

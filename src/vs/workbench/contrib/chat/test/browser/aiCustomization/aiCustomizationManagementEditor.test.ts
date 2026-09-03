@@ -14,6 +14,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AICustomizationManagementEditor, isCurrentPluginContributionNavigation } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { ChatConfiguration } from '../../../common/constants.js';
@@ -26,6 +27,7 @@ import { CustomizationMigrationCategoryId } from '../../../browser/aiCustomizati
 import type { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
 import type { ICustomizationMigrationCategorySummary } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
 import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
 suite('aiCustomizationManagementEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -72,10 +74,12 @@ suite('aiCustomizationManagementEditor', () => {
 		viewMode: 'list' | 'migration' | 'editor' | 'mcpDetail' | 'pluginDetail' | 'toolsDetail';
 		dimension: undefined;
 		hoverService: IHoverService;
+		instantiationService: IInstantiationService;
 		configurationService: IConfigurationService;
 		editorDisposables: DisposableStore;
 		harnessService: { activeSessionResource: ISettableObservable<URI> };
 		migrationListContainer: HTMLElement | undefined;
+		migrationSectionLists: readonly unknown[];
 		migrationMigrateButton: { enabled: boolean; label: string } | undefined;
 		migrationTitleElement: HTMLElement | undefined;
 		migrationDescriptionElement: HTMLElement | undefined;
@@ -152,8 +156,10 @@ suite('aiCustomizationManagementEditor', () => {
 				update() { },
 			}),
 		} as unknown as IHoverService;
+		editor.instantiationService = workbenchInstantiationService({}, editor.editorPreviewDisposables);
 		editor.configurationService = configurationService ?? createConfigurationServiceStub();
 		editor.migrationListContainer = undefined;
+		editor.migrationSectionLists = [];
 		editor.migrationMigrateButton = undefined;
 		editor.migrationTitleElement = undefined;
 		editor.migrationDescriptionElement = undefined;
@@ -597,6 +603,52 @@ suite('aiCustomizationManagementEditor', () => {
 					[promptFile.uri, 'Review', PromptsType.prompt, PromptsStorage.local, true],
 					[promptFile.uri, 'Review', PromptsType.prompt, PromptsStorage.local, true],
 				],
+			});
+		} finally {
+			editor.migrationListContainer.remove();
+			editor.migrationPageDisposables.dispose();
+			editor.editorPreviewDisposables.dispose();
+		}
+	});
+
+	test('virtualized migration rows keep checkbox selection and keyboard traversal aligned', () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+		}));
+		const promptFiles = Array.from({ length: 6 }, (_, index): MigratableConfiguration => ({
+			uri: URI.file(`/workspace/.github/prompts/workspace-${index}.prompt.md`),
+			name: `workspace-${index}.prompt.md`,
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		}));
+		editor.customizationsByMigrationCategory = new Map([[CustomizationMigrationCategoryId.PromptFiles, promptFiles]]);
+		editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.PromptFiles;
+		editor.migrationListContainer = document.createElement('div');
+		editor.migrationMigrateButton = { enabled: false, label: '' };
+		document.body.appendChild(editor.migrationListContainer);
+
+		try {
+			editor.renderCustomizationMigrationPage();
+			const firstRow = editor.migrationListContainer.querySelector<HTMLElement>('.monaco-list-row[data-index="0"]');
+			firstRow?.click();
+			const lastVisibleMoreButton = editor.migrationListContainer.querySelector<HTMLElement>('.monaco-list-row[data-index="4"] .prompt-migration-more-action');
+			const tabEvent = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+			Object.defineProperty(tabEvent, 'keyCode', { get: () => 9 });
+			lastVisibleMoreButton?.dispatchEvent(tabEvent);
+
+			assert.deepStrictEqual({
+				renderedRows: editor.migrationListContainer.querySelectorAll('.monaco-list-row').length,
+				firstRowSelected: firstRow?.classList.contains('selected'),
+				firstRowAriaSelected: firstRow?.getAttribute('aria-selected'),
+				focusedRowIndex: document.activeElement?.closest('.monaco-list-row')?.getAttribute('data-index'),
+				focusedControlIsCheckbox: document.activeElement?.classList.contains('monaco-checkbox'),
+			}, {
+				renderedRows: 5,
+				firstRowSelected: false,
+				firstRowAriaSelected: null,
+				focusedRowIndex: '5',
+				focusedControlIsCheckbox: true,
 			});
 		} finally {
 			editor.migrationListContainer.remove();

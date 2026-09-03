@@ -5,9 +5,13 @@
 
 import * as DOM from '../../../../../base/browser/dom.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { localize } from '../../../../../nls.js';
 
 const $ = DOM.$;
+let collapsibleSectionIdPool = 0;
 
 export interface ICustomizationCardListItem {
 	readonly row: HTMLElement;
@@ -28,6 +32,44 @@ export function createCustomizationCardPrimaryAction(parent: HTMLElement, ariaLa
 	button.setAttribute('aria-label', ariaLabel);
 	button.classList.add(...classNames);
 	return button;
+}
+
+export function setupCollapsibleSection(
+	headingRow: HTMLElement,
+	content: HTMLElement,
+	label: string,
+	disposables: DisposableStore,
+	initiallyCollapsed: boolean,
+	onDidChange: (collapsed: boolean) => void,
+): HTMLButtonElement {
+	const toggle = headingRow.ownerDocument.createElement('button');
+	toggle.type = 'button';
+	toggle.classList.add('customization-section-toggle');
+	headingRow.prepend(toggle);
+	content.id ||= `customization-section-content-${++collapsibleSectionIdPool}`;
+	toggle.setAttribute('aria-controls', content.id);
+
+	let collapsed = initiallyCollapsed;
+	const expandedDisplay = content.style.display;
+	const update = () => {
+		toggle.className = 'customization-section-toggle';
+		toggle.classList.add(...ThemeIcon.asClassName(collapsed ? Codicon.chevronRight : Codicon.chevronDown).split(' '));
+		toggle.setAttribute('aria-expanded', String(!collapsed));
+		toggle.setAttribute('aria-label', collapsed
+			? localize('expandCustomizationSection', "Expand {0}", label)
+			: localize('collapseCustomizationSection', "Collapse {0}", label));
+		content.hidden = collapsed;
+		content.style.display = collapsed ? 'none' : expandedDisplay;
+	};
+	update();
+
+	disposables.add(DOM.addDisposableListener(toggle, DOM.EventType.CLICK, event => {
+		DOM.EventHelper.stop(event, true);
+		collapsed = !collapsed;
+		update();
+		onDidChange(collapsed);
+	}));
+	return toggle;
 }
 
 export class CustomizationCardListController extends Disposable {
