@@ -559,13 +559,23 @@ export class LabelService extends Disposable implements ILabelService {
 	private createTemplateFormatterRegistration(formatter: ResourceLabelTemplateFormatter): IHomeFormatterRegistration {
 		const { home } = formatter;
 		const homePath = home.path.length > 1 ? home.path.replace(/\/+$/, '') : home.path;
-		const lastSeparator = homePath.lastIndexOf('/');
-		const parameterMatch = homeTemplateParameterRegex.exec(homePath.slice(lastSeparator + 1));
-		const pathSegmentParameter = parameterMatch?.groups?.name;
-		const matcherPattern = pathSegmentParameter
-			? `${escapeRegExpCharacters(homePath.slice(0, lastSeparator + 1))}(?<${pathSegmentParameter}>(?!\\.{1,2}(?:/|$))[^/]+)`
-			: escapeRegExpCharacters(homePath);
-		const isRootHome = pathSegmentParameter === undefined && (homePath === '' || homePath === '/');
+		const parameterNames = new Set<string>();
+		const matcherPattern = homePath.split('/').map(segment => {
+			const parameterMatch = homeTemplateParameterRegex.exec(segment);
+			if (parameterMatch?.groups?.name) {
+				const parameterName = parameterMatch.groups.name;
+				if (parameterNames.has(parameterName)) {
+					throw new Error(`Duplicate resource label home template parameter: ${parameterName}`);
+				}
+				parameterNames.add(parameterName);
+				return `(?<${parameterName}>(?!\\.{1,2}(?:/|$))[^/]+)`;
+			}
+			if (segment.includes('${')) {
+				throw new Error(`Resource label home template parameters must occupy an entire path segment: ${segment}`);
+			}
+			return escapeRegExpCharacters(segment);
+		}).join('/');
+		const isRootHome = homePath === '' || homePath === '/';
 		return {
 			formatter,
 			templateMatcher: new RegExp(`^${matcherPattern}${isRootHome ? '' : '(?=/|$)'}`),
