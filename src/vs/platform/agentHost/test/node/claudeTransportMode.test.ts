@@ -55,14 +55,9 @@ suite('claudeTransportMode', () => {
 			// `claude setup-token` / `CLAUDE_CODE_OAUTH_TOKEN` — an OAuth token
 			// handed in through the environment names its source.
 			['oauth token', { tokenSource: 'ANTHROPIC_AUTH_TOKEN', apiProvider: 'firstParty' }, true],
-			// `claude login` (claude.ai subscription) — the keychain case no
-			// filesystem check could ever see. Measured on macOS with the
-			// credential in the login keychain and nothing in the environment:
-			// neither `tokenSource` nor `apiKeySource` is reported at all, only
-			// the account itself. Testing the source fields alone locks this
-			// user out (#333738).
-			['claude.ai subscription login (keychain)', { email: 'user@example.com', organization: 'Example', subscriptionType: 'max', apiProvider: 'firstParty' }, true],
-			['claude.ai subscription login, tier only', { subscriptionType: 'max', apiProvider: 'firstParty' }, true],
+			// `claude login` (keychain): measured `accountInfo()` reports neither `tokenSource` nor `apiKeySource`, only the account itself (#333738).
+			['claude.ai subscription login (keychain)', { email: 'user@example.com', organization: 'Example', subscriptionType: 'Claude Max', apiProvider: 'firstParty' }, true],
+			['claude.ai subscription login, tier only', { subscriptionType: 'Claude Max', apiProvider: 'firstParty' }, true],
 			// An API key reports through `apiKeySource` and leaves `tokenSource`
 			// at its `'none'` sentinel, so testing `tokenSource` alone misses it.
 			['api key', { tokenSource: 'none', apiKeySource: 'ANTHROPIC_API_KEY', apiProvider: 'firstParty' }, true],

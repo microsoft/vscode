@@ -108,8 +108,7 @@ export function isClaudeAccountSetUp(account: AccountInfo | undefined): boolean 
 		|| account.apiKeySource !== undefined) {
 		return true;
 	}
-	// A claude.ai subscription login (`claude login`) sets neither of the
-	// above: the SDK reports it as `subscriptionType` / `email` alone.
+	// A claude.ai subscription login (`claude login`) sets neither; the SDK reports it as `subscriptionType` / `email` alone.
 	return account.subscriptionType !== undefined
 		|| account.email !== undefined;
 }
