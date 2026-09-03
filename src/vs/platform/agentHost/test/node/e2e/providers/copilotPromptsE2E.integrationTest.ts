@@ -353,10 +353,15 @@ function extractText(content: unknown): string {
  * inlines into the `Task` schema, either of which would otherwise rewrite every
  * baseline here on an unrelated edit. Each keeps its label or wrapper, so a
  * change to the shape of these lines, or their disappearance, still fails.
+ *
+ * Also strips trailing horizontal whitespace before a newline: the CLI/SDK
+ * varies whether it leaves a space where it joins system-prompt sections, which
+ * is semantically inert but would otherwise rewrite every baseline on a bump.
  */
 function normalizeVolatile(text: string): string {
 	return text
 		.replaceAll('\r\n', '\n')
+		.replace(/[ \t]+\n/g, '\n')
 		.replace(/(session-state\/)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '$1${session_id}')
 		.replace(/<current_datetime>[^<]*<\/current_datetime>/g, '<current_datetime>${datetime}</current_datetime>')
 		.replace(/^\* Operating System: .*$/gm, '* Operating System: ${os}')
