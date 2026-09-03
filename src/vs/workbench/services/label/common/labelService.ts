@@ -133,7 +133,6 @@ interface IStoredFormatters {
 interface IHomeFormatterRegistration {
 	readonly formatter: ResourceLabelTemplateFormatter;
 	readonly templateMatcher: RegExp;
-	readonly pathSegmentParameter: string | undefined;
 }
 
 interface IResolvedHomeFormatter {
@@ -218,10 +217,7 @@ export class LabelService extends Disposable implements ILabelService {
 			if (!templateMatch) {
 				continue;
 			}
-			const parameters = new Map<string, string>();
-			if (registration.pathSegmentParameter) {
-				parameters.set(registration.pathSegmentParameter, templateMatch.groups?.[registration.pathSegmentParameter] ?? '');
-			}
+			const parameters = new Map(Object.entries(templateMatch.groups ?? {}));
 			const home = resource.with({ path: templateMatch[0], query: null, fragment: null });
 			const formatting = formatter.formatting({ resource, home, parameters });
 			if (!formatting) {
@@ -573,7 +569,6 @@ export class LabelService extends Disposable implements ILabelService {
 		return {
 			formatter,
 			templateMatcher: new RegExp(`^${matcherPattern}${isRootHome ? '' : '(?=/|$)'}`),
-			pathSegmentParameter,
 		};
 	}
 
