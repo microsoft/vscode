@@ -144,7 +144,7 @@ interface IResolvedHomeFormatter {
 	readonly authorityLength: number;
 }
 
-const homeTemplateParameterNameRegex = /^[a-zA-Z_][\w]*$/;
+const homeTemplateParameterRegex = /^\$\{(?<name>[a-zA-Z_][\w]*)\}$/;
 
 function isTemplateFormatter(formatter: ResourceLabelFormatter | ResourceLabelTemplateFormatter): formatter is ResourceLabelTemplateFormatter {
 	return URI.isUri(formatter.home);
@@ -563,14 +563,12 @@ export class LabelService extends Disposable implements ILabelService {
 	private createTemplateFormatterRegistration(formatter: ResourceLabelTemplateFormatter): IHomeFormatterRegistration {
 		const { home } = formatter;
 		const homePath = home.path.length > 1 ? home.path.replace(/\/+$/, '') : home.path;
-		let matcherPattern = escapeRegExpCharacters(homePath);
-		const pathSegmentParameter = formatter.pathSegmentParameter;
-		if (pathSegmentParameter !== undefined) {
-			if (!homeTemplateParameterNameRegex.test(pathSegmentParameter)) {
-				throw new Error(`Invalid resource label home template parameter: ${pathSegmentParameter}`);
-			}
-			matcherPattern += `${homePath.endsWith('/') ? '' : '/'}(?<${pathSegmentParameter}>(?!\\.{1,2}(?:/|$))[^/]+)`;
-		}
+		const lastSeparator = homePath.lastIndexOf('/');
+		const parameterMatch = homeTemplateParameterRegex.exec(homePath.slice(lastSeparator + 1));
+		const pathSegmentParameter = parameterMatch?.groups?.name;
+		const matcherPattern = pathSegmentParameter
+			? `${escapeRegExpCharacters(homePath.slice(0, lastSeparator + 1))}(?<${pathSegmentParameter}>(?!\\.{1,2}(?:/|$))[^/]+)`
+			: escapeRegExpCharacters(homePath);
 		const isRootHome = pathSegmentParameter === undefined && (homePath === '' || homePath === '/');
 		return {
 			formatter,

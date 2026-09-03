@@ -13,7 +13,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, Mu
 import { mapsStrictEqualIgnoreOrder } from '../../../../../base/common/map.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
-import { basename, dirname, getComparisonKey, isEqual, isEqualOrParent, relativePath } from '../../../../../base/common/resources.js';
+import { basename, dirname, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { themeColorFromId, ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -3327,8 +3327,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				registrationKeys.add(templateKey);
 				if (!this._resourceLabelHomeRegistrations.has(templateKey)) {
 					this._resourceLabelHomeRegistrations.set(templateKey, labelService.registerFormatter({
-						home: group.parent,
-						pathSegmentParameter: 'sessionId',
+						home: joinPath(group.parent, '${sessionId}'),
 						onDidChangeFormatting: formattingEvent.event,
 						formatting: context => {
 							const label = this._resourceLabelHomeLabels.get(key)?.get(context.parameters.get('sessionId') ?? '');

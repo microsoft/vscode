@@ -15,6 +15,8 @@ function isTemplateFormatter(formatter: ResourceLabelFormatter | ResourceLabelTe
 	return URI.isUri(formatter.home);
 }
 
+const homeTemplateParameterRegex = /^\$\{(?<name>[a-zA-Z_][\w]*)\}$/;
+
 export class MockLabelService implements ILabelService {
 	_serviceBrand: undefined;
 	private formatters: (ResourceLabelFormatter | ResourceLabelTemplateFormatter)[] = [];
@@ -83,7 +85,10 @@ export class MockLabelService implements ILabelService {
 					continue;
 				}
 				const homePath = formatter.home.path.length > 1 ? formatter.home.path.replace(/\/+$/, '') : formatter.home.path;
-				if (!formatter.pathSegmentParameter) {
+				const lastSeparator = homePath.lastIndexOf('/');
+				const parameter = homeTemplateParameterRegex.exec(homePath.slice(lastSeparator + 1));
+				const pathSegmentParameter = parameter?.groups?.name;
+				if (!pathSegmentParameter) {
 					if (!isEqualOrParent(resource, resource.with({ path: homePath }))) {
 						continue;
 					}
@@ -93,7 +98,7 @@ export class MockLabelService implements ILabelService {
 						candidate = { home, formatting };
 					}
 				} else {
-					const prefix = homePath.endsWith('/') ? homePath : `${homePath}/`;
+					const prefix = homePath.slice(0, lastSeparator + 1);
 					if (!resource.path.startsWith(prefix)) {
 						continue;
 					}
@@ -102,7 +107,7 @@ export class MockLabelService implements ILabelService {
 						continue;
 					}
 					const parameters = new Map<string, string>();
-					parameters.set(formatter.pathSegmentParameter, pathSegment);
+					parameters.set(pathSegmentParameter, pathSegment);
 					const home = formatter.home.with({ path: `${prefix}${pathSegment}`, query: null, fragment: null });
 					const formatting = formatter.formatting({ resource, home, parameters });
 					if (formatting) {

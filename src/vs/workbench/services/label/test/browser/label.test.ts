@@ -188,8 +188,7 @@ suite('URI Label', () => {
 			formatting: { label: 'Static Session', separator: '/' },
 		});
 		const registration = labelService.registerFormatter({
-			home: URI.from({ scheme: 'test', authority: 'current', path: '/sessions' }),
-			pathSegmentParameter: 'sessionId',
+			home: URI.from({ scheme: 'test', authority: 'current', path: '/sessions/${sessionId}' }),
 			onDidChangeFormatting: Event.None,
 			formatting: context => {
 				resolverCalls++;
@@ -217,8 +216,7 @@ suite('URI Label', () => {
 
 	test('URI home templates without an authority match any authority', () => {
 		const registration = labelService.registerFormatter({
-			home: URI.from({ scheme: 'test', path: '/sessions' }),
-			pathSegmentParameter: 'sessionId',
+			home: URI.from({ scheme: 'test', path: '/sessions/${sessionId}' }),
 			onDidChangeFormatting: Event.None,
 			formatting: context => ({ label: context.parameters.get('sessionId') ?? '', separator: '/' }),
 		});
@@ -250,8 +248,7 @@ suite('URI Label', () => {
 	test('URI home templates do not capture dot path segments', () => {
 		let resolverCalls = 0;
 		const registration = labelService.registerFormatter({
-			home: URI.parse('test://current/sessions'),
-			pathSegmentParameter: 'sessionId',
+			home: URI.parse('test://current/sessions/${sessionId}'),
 			onDidChangeFormatting: Event.None,
 			formatting: () => {
 				resolverCalls++;
@@ -282,8 +279,7 @@ suite('URI Label', () => {
 
 	test('URI home template parents are matched literally', () => {
 		const registration = labelService.registerFormatter({
-			home: URI.parse('test://current/sessions/${literal}'),
-			pathSegmentParameter: 'sessionId',
+			home: URI.parse('test://current/sessions/${literal}/${sessionId}'),
 			onDidChangeFormatting: Event.None,
 			formatting: () => ({ label: 'Session', separator: '/' }),
 		});
@@ -304,8 +300,7 @@ suite('URI Label', () => {
 
 	test('URI home templates support trailing separators', () => {
 		const registration = labelService.registerFormatter({
-			home: URI.parse('test://current/sessions/'),
-			pathSegmentParameter: 'sessionId',
+			home: URI.parse('test://current/sessions/${sessionId}/'),
 			onDidChangeFormatting: Event.None,
 			formatting: () => ({ label: 'Session', separator: '/' }),
 		});
@@ -323,8 +318,7 @@ suite('URI Label', () => {
 
 	test('equally specific URI home templates use registration order', () => {
 		const formatter = {
-			home: URI.parse('test://current/sessions'),
-			pathSegmentParameter: 'sessionId',
+			home: URI.parse('test://current/sessions/${sessionId}'),
 			onDidChangeFormatting: Event.None,
 			formatting: () => ({ label: 'First', separator: '/' as const }),
 		};
@@ -349,8 +343,7 @@ suite('URI Label', () => {
 		const onDidChange = new Emitter<void>();
 		const labels = new Map(Array.from({ length: 100 }, (_, index) => [`session-${index}`, `Session ${index}`]));
 		const registration = labelService.registerFormatter({
-			home: URI.parse('test://current/sessions'),
-			pathSegmentParameter: 'sessionId',
+			home: URI.parse('test://current/sessions/${sessionId}'),
 			onDidChangeFormatting: onDidChange.event,
 			formatting: context => {
 				resolverCalls++;
@@ -397,8 +390,7 @@ suite('URI Label', () => {
 			formatting: { label: 'FIRST${path}', separator: '/' },
 		});
 		const home = labelService.registerFormatter({
-			home: URI.file('/home/test/.agent/sessions'),
-			pathSegmentParameter: 'sessionId',
+			home: URI.file('/home/test/.agent/sessions/${sessionId}'),
 			onDidChangeFormatting: Event.None,
 			formatting: () => ({ label: 'Session', separator: '/' }),
 		});
@@ -419,8 +411,7 @@ suite('URI Label', () => {
 	test('noPrefix skips resource label homes', () => {
 		const resource = URI.file('/home/test/.agent/sessions/session-id/file.md');
 		const home = labelService.registerFormatter({
-			home: URI.file('/home/test/.agent/sessions'),
-			pathSegmentParameter: 'sessionId',
+			home: URI.file('/home/test/.agent/sessions/${sessionId}'),
 			onDidChangeFormatting: Event.None,
 			formatting: () => ({ label: 'Agent/Session', separator: '/' }),
 		});
