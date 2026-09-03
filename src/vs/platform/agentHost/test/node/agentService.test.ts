@@ -5883,7 +5883,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const sessions = await svc.listSessions();
 			assert.strictEqual(sessions.length, 1);
-			assert.deepStrictEqual(sessions[0]._meta, { 'vscode.external': true, workspaceless: true });
+			assert.deepStrictEqual(sessions[0]._meta, { workspaceless: true });
 		});
 
 		test('listSessions overlays the adopted-legacy marker so a migrated session keeps its legacy listing', async () => {
