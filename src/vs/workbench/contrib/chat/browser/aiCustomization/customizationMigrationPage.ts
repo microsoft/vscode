@@ -477,7 +477,7 @@ export class SelectableCustomizationMigrationPage<T> extends Disposable {
 			return;
 		}
 		const selectedCount = this.selectedCandidates.length;
-		this.migrateButton.enabled = selectedCount > 0 && !this.migrationInProgress.get();
+		this.migrateButton.enabled = !this.state.loading && !this.state.loadError && selectedCount > 0 && !this.migrationInProgress.get();
 		if (this.selectedCountElement) {
 			this.selectedCountElement.textContent = selectedCount === 1
 				? localize('customizationMigrationOneSelected', "1 selected")
