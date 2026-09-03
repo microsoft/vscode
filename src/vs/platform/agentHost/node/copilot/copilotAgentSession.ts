@@ -763,6 +763,7 @@ export class CopilotAgentSession extends Disposable {
 	readonly resourceUri: URI;
 	private readonly _ownerSessionUri: URI;
 	private readonly _controlPlaneRpcTimeoutMs: number;
+	private _controlPlaneDesynchronized = false;
 	get ownerSessionUri(): URI { return this._ownerSessionUri; }
 	/** @deprecated Compatibility alias for SDK callbacks; this is the exact persistence resource. */
 	get sessionUri(): URI { return this.resourceUri; }
@@ -1862,6 +1863,17 @@ export class CopilotAgentSession extends Disposable {
 	get requiresMcpLaunchConfigurationRefresh(): boolean {
 		this._markMcpLaunchConfigurationDirty();
 		return this._mcpLaunchConfigurationDirty;
+	}
+
+	/**
+	 * Set when a control-plane RPC timed out. Timing out abandons the await but
+	 * cannot cancel the in-flight SDK request, so the model/agent/history state
+	 * this session believes it applied may not match the SDK's. The next send
+	 * discards and resumes the SDK session so a late-settling request lands on a
+	 * session nothing is using rather than mutating live state.
+	 */
+	get requiresControlPlaneResync(): boolean {
+		return this._controlPlaneDesynchronized;
 	}
 
 	get appliedDisabledRootMcpServers(): readonly string[] {
@@ -3425,6 +3437,9 @@ export class CopilotAgentSession extends Disposable {
 	private async _awaitControlPlaneRpc<T>(operation: string, rpc: Promise<T>): Promise<T> {
 		const result = await raceTimeout(rpc.then(value => ({ value })), this._controlPlaneRpcTimeoutMs);
 		if (!result) {
+			// The request is still in flight and may still mutate SDK state, so
+			// mark the session for resync rather than continuing to use it.
+			this._controlPlaneDesynchronized = true;
 			const error = new Error(`[Copilot:${this.sessionId}] ${operation} timed out after ${this._controlPlaneRpcTimeoutMs}ms`);
 			this._logService.error(error, `[Copilot:${this.sessionId}] Control-plane RPC timed out: ${operation}`);
 			throw error;
