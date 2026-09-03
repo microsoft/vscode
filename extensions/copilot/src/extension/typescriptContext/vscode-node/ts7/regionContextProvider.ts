@@ -71,7 +71,7 @@ export class TS7RegionContextProvider implements Omit<IRegionContextProviderServ
 					paths: { smallest: scope.path }
 				};
 			} else {
-				let smallest: { path: number[]; region: Region }	 | undefined;
+				let smallest: { path: number[]; region: Region } | undefined;
 				let largest: { path: number[]; region: Region } | undefined;
 				const containersList: Region[][] = [];
 				for (const range of ranges) {

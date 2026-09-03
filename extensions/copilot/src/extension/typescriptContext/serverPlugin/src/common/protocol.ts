@@ -50,11 +50,11 @@ export type LineRange = {
 	end: number;
 };
 
-export type Region = {
+export interface Region {
 	kind: string;
 	name?: string;
 	range: LineRange;
-};
+}
 
 export namespace Region {
 	export function getSpan(region: Region): number {
