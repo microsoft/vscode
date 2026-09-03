@@ -1843,6 +1843,43 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(view.activeSession.get(), undefined);
 	});
 
+	test('createAndSendNewChatRequest restores Automation configuration during draft creation', async () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+		});
+		let providerOptions: ISessionsProviderCreateSessionOptions | undefined;
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+			override createNewSession(_folderUri?: URI, _sessionTypeId?: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				providerOptions = options;
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		const sessionTemplate = {
+			modelId: 'model',
+			config: { mode: 'plan', autoApprove: 'assisted' },
+		};
+		const automationConfiguration = {
+			sessionTemplate,
+			modelId: 'model',
+			mode: 'plan',
+			permissionLevel: 'assisted',
+		};
+
+		await service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi' }, {
+			sessionTemplate,
+			automationConfiguration,
+		});
+
+		assert.deepStrictEqual(providerOptions, {
+			metadata: undefined,
+			sessionTemplate,
+			automationConfiguration,
+		});
+	});
+
 	test('createAndSendNewChatRequest prepares request options while configuring the provisional session', async () => {
 		const session = stubSession({
 			sessionId: 's1',

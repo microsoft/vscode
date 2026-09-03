@@ -367,9 +367,6 @@ suite('AutomationRunner', () => {
 			createOptions: {
 				providerId: 'local-agent-host',
 				sessionTypeId: 'copilotcli',
-				modelId: undefined,
-				modeId: undefined,
-				permissionLevel: undefined,
 				isolationMode: undefined,
 				branch: undefined,
 			},
@@ -575,9 +572,6 @@ suite('AutomationRunner', () => {
 		assert.deepStrictEqual(sessionsMgmt.calls[0].createOptions, {
 			providerId: 'local-agent-host',
 			sessionTypeId: 'agent-host-copilotcli',
-			modelId: undefined,
-			modeId: undefined,
-			permissionLevel: undefined,
 			isolationMode: undefined,
 			branch: undefined,
 		});
@@ -601,9 +595,50 @@ suite('AutomationRunner', () => {
 		assert.deepStrictEqual(sessionsMgmt.calls[0].createOptions, {
 			providerId: undefined,
 			sessionTypeId: undefined,
-			modelId: undefined,
-			modeId: 'agent',
-			permissionLevel: 'autopilot',
+			sessionTemplate: undefined,
+			automationConfiguration: {
+				sessionTemplate: undefined,
+				modelId: undefined,
+				mode: 'agent',
+				permissionLevel: 'autopilot',
+			},
+			isolationMode: undefined,
+			branch: undefined,
+		});
+	});
+
+	test('passes the complete session template at draft creation', async () => {
+		const { service, sessionsMgmt, runner } = setup();
+		sessionsMgmt.nextSession = fakeSession('s1');
+		const sessionTemplate = {
+			modelId: 'model',
+			agent: { uri: 'file:///agents/reviewer.agent.md' },
+			config: {
+				mode: 'plan',
+				autoApprove: 'assisted',
+				providerOption: true,
+			},
+		};
+		const automation = await service.createAutomation({
+			name: 'A',
+			prompt: 'p',
+			schedule: hourly(),
+			target: workspaceTarget(FOLDER_A, { providerId: 'local-agent-host', sessionTypeId: 'copilotcli' }),
+			sessionTemplate,
+		});
+
+		await runner.runOnce(automation, 'schedule', 1).whenCompleted;
+
+		assert.deepStrictEqual(sessionsMgmt.calls[0].createOptions, {
+			providerId: 'local-agent-host',
+			sessionTypeId: 'copilotcli',
+			sessionTemplate,
+			automationConfiguration: {
+				sessionTemplate,
+				modelId: undefined,
+				mode: undefined,
+				permissionLevel: undefined,
+			},
 			isolationMode: undefined,
 			branch: undefined,
 		});
@@ -633,18 +668,12 @@ suite('AutomationRunner', () => {
 			{
 				providerId: undefined,
 				sessionTypeId: undefined,
-				modelId: undefined,
-				modeId: undefined,
-				permissionLevel: undefined,
 				isolationMode: 'worktree',
 				branch: 'feature/worktree',
 			},
 			{
 				providerId: undefined,
 				sessionTypeId: undefined,
-				modelId: undefined,
-				modeId: undefined,
-				permissionLevel: undefined,
 				isolationMode: 'workspace',
 				branch: undefined,
 			},

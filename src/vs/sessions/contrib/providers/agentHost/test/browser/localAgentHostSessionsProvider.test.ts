@@ -4526,6 +4526,46 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('createNewSession restores legacy Automation fields at the provider boundary', async () => {
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(
+			URI.parse('file:///home/user/project'),
+			provider.sessionTypes[0].id,
+			{
+				automationConfiguration: {
+					modelId: 'agent-host-copilotcli:auto',
+					mode: 'autopilot',
+					permissionLevel: 'assisted',
+				},
+			},
+		);
+		const captured = await provider.getAutomationSessionConfiguration(session.sessionId);
+
+		assert.deepStrictEqual({
+			initialConfig: agentHost.resolveSessionConfigRequests.at(-1)?.config,
+			modelId: session.modelId.get(),
+			captured,
+		}, {
+			initialConfig: {
+				mode: 'autopilot',
+				autoApprove: 'assisted',
+			},
+			modelId: 'agent-host-copilotcli:auto',
+			captured: {
+				sessionTemplate: {
+					modelId: 'agent-host-copilotcli:auto',
+					config: {
+						mode: 'autopilot',
+						autoApprove: 'assisted',
+					},
+				},
+				modelId: 'agent-host-copilotcli:auto',
+				mode: 'autopilot',
+				permissionLevel: 'assisted',
+			},
+		});
+	});
+
 	test('Automation drafts display policy-clamped approvals without overwriting the saved preference', async () => {
 		const sessionTemplate = {
 			config: {

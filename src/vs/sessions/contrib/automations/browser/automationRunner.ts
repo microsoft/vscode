@@ -16,6 +16,7 @@ import { IAutomationService } from '../../../../workbench/contrib/chat/common/au
 import { publishAutomationRun, publishAutomationRunError } from '../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IAutomationSessionConfiguration } from '../../../services/sessions/common/sessionsProvider.js';
 
 /** Sessions-layer runner. Never throws; failures are recorded on the run row. */
 export class AutomationRunner implements IAutomationRunner {
@@ -82,14 +83,26 @@ export class AutomationRunner implements IAutomationRunner {
 				? target.isolation.kind === 'folder' ? 'workspace' : target.isolation.kind === 'worktree' ? 'worktree' : undefined
 				: undefined;
 			const branch = target.kind === 'workspace' && target.isolation.kind === 'worktree' ? target.isolation.branch : undefined;
+			const automationConfiguration: IAutomationSessionConfiguration | undefined = automation.sessionTemplate !== undefined
+				|| automation.modelId !== undefined
+				|| automation.mode !== undefined
+				|| automation.permissionLevel !== undefined
+				? {
+					sessionTemplate: automation.sessionTemplate,
+					modelId: automation.modelId,
+					mode: automation.mode,
+					permissionLevel: automation.permissionLevel,
+				}
+				: undefined;
 
-			const createOptions: ICreateNewSessionOptions | undefined = target.providerId !== undefined || target.sessionTypeId !== undefined || automation.modelId !== undefined || automation.mode !== undefined || automation.permissionLevel !== undefined || isolationMode !== undefined || branch !== undefined
+			const createOptions: ICreateNewSessionOptions | undefined = target.providerId !== undefined || target.sessionTypeId !== undefined || automationConfiguration !== undefined || isolationMode !== undefined || branch !== undefined
 				? {
 					providerId: target.providerId,
 					sessionTypeId: target.sessionTypeId,
-					modelId: automation.modelId,
-					modeId: automation.mode,
-					permissionLevel: automation.permissionLevel,
+					...(automationConfiguration ? {
+						sessionTemplate: automation.sessionTemplate,
+						automationConfiguration,
+					} : {}),
 					isolationMode,
 					branch,
 				}
@@ -162,7 +175,7 @@ export class AutomationRunner implements IAutomationRunner {
 				title: automation.name?.substring(0, 100),
 			};
 
-			this.logService.trace(`[AutomationRunner] running ${automation.id}: target=${target.kind}, provider=${createOptions?.providerId ?? '(default)'}, sessionType=${createOptions?.sessionTypeId ?? '(default)'}, model=${createOptions?.modelId ?? '(default)'}, mode=${createOptions?.modeId ?? '(default)'}, permissionLevel=${createOptions?.permissionLevel ?? '(default)'}`);
+			this.logService.trace(`[AutomationRunner] running ${automation.id}: target=${target.kind}, provider=${createOptions?.providerId ?? '(default)'}, sessionType=${createOptions?.sessionTypeId ?? '(default)'}, model=${automationConfiguration?.modelId ?? '(default)'}, mode=${automationConfiguration?.mode ?? '(default)'}, permissionLevel=${automationConfiguration?.permissionLevel ?? '(default)'}`);
 			this.logService.info(`[AutomationRunner] creating a session for run ${runId} (automation ${automation.id}).`);
 
 			let session: ISession | undefined;
