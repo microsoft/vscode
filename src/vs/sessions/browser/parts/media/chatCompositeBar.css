@@ -42,6 +42,10 @@
 	box-sizing: border-box;
 }
 
+:is(.hc-black, .hc-light) .chat-composite-bar.session-header-bar .chat-composite-bar-header {
+	border-bottom-color: var(--vscode-contrastBorder);
+}
+
 .agent-sessions-workbench.editor-tabs-compact-height .chat-composite-bar.session-header-bar .chat-composite-bar-header {
 	height: var(--vscode-spacing-size280, 28px);
 }

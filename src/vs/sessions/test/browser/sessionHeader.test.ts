@@ -122,12 +122,14 @@ suite('Sessions - SessionHeader', () => {
 		});
 	});
 
-	test('matches the default and compact editor tab strip geometry', () => {
+	test('matches the editor tab strip geometry and high contrast separator', () => {
 		const { header } = createHarness(disposables);
 		const container = header.element.parentElement!;
 		container.classList.add('agent-sessions-workbench');
+		container.style.setProperty('--vscode-spacing-size20', '2px');
 		container.style.setProperty('--vscode-spacing-size80', '8px');
 		container.style.setProperty('--vscode-spacing-size100', '10px');
+		container.style.setProperty('--vscode-contrastBorder', 'rgb(1, 2, 3)');
 		container.style.width = '420px';
 		mainWindow.document.body.appendChild(container);
 
@@ -151,14 +153,16 @@ suite('Sessions - SessionHeader', () => {
 			const compactGeometry = getGeometry();
 			container.classList.remove('editor-tabs-compact-height');
 			const restoredGeometry = getGeometry();
+			container.classList.add('hc-black');
+			const highContrastSeparatorColor = mainWindow.getComputedStyle(headerRow).borderBottomColor;
 
-			assert.deepStrictEqual({ defaultGeometry, compactGeometry, restoredGeometry }, {
+			assert.deepStrictEqual({ defaultGeometry, compactGeometry, restoredGeometry, highContrastSeparatorColor }, {
 				defaultGeometry: {
 					barHeight: '32px',
 					headerHeight: '32px',
 					headerInset: 2,
 					barPaddingInline: '10px',
-					headerPaddingInline: '8px',
+					headerPaddingInline: '2px',
 					hasCompactClass: false,
 				},
 				compactGeometry: {
@@ -166,7 +170,7 @@ suite('Sessions - SessionHeader', () => {
 					headerHeight: '28px',
 					headerInset: 2,
 					barPaddingInline: '10px',
-					headerPaddingInline: '8px',
+					headerPaddingInline: '2px',
 					hasCompactClass: true,
 				},
 				restoredGeometry: {
@@ -174,9 +178,10 @@ suite('Sessions - SessionHeader', () => {
 					headerHeight: '32px',
 					headerInset: 2,
 					barPaddingInline: '10px',
-					headerPaddingInline: '8px',
+					headerPaddingInline: '2px',
 					hasCompactClass: false,
 				},
+				highContrastSeparatorColor: 'rgb(1, 2, 3)',
 			});
 		} finally {
 			container.remove();
