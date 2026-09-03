@@ -2145,7 +2145,7 @@ suite('ChatService', () => {
 
 		const testService = createChatService();
 		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
-			sessionResource => migrationService.computeMigrationHint(sessionResource)
+			(sessionResource, includeCustomizationSummary) => migrationService.computeMigrationHint(sessionResource, includeCustomizationSummary)
 		));
 		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 		assert.ok(ref);
@@ -2163,6 +2163,18 @@ suite('ChatService', () => {
 		const second = await testService.sendRequest(sessionResource, 'second', { agentId: sessionType });
 		ChatSendResult.assertSent(second);
 		await second.data.responseCompletePromise;
+
+		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationHint, CustomizationMigrationHintMode.Summary);
+		const summarySessionResource = URI.from({ scheme: sessionType, path: '/summary-session' });
+		const summaryRef = await testService.acquireOrLoadSession(summarySessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(summaryRef);
+		testDisposables.add(summaryRef);
+		const summaryFirst = await testService.sendRequest(summarySessionResource, 'summary-first', { agentId: sessionType });
+		ChatSendResult.assertSent(summaryFirst);
+		await summaryFirst.data.responseCompletePromise;
+		const summarySecond = await testService.sendRequest(summarySessionResource, 'summary-second', { agentId: sessionType });
+		ChatSendResult.assertSent(summarySecond);
+		await summarySecond.data.responseCompletePromise;
 
 		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationHint, CustomizationMigrationHintMode.Always);
 		const otherSessionResource = URI.from({ scheme: sessionType, path: '/other-session' });
@@ -2194,26 +2206,36 @@ suite('ChatService', () => {
 			.map(request => (request.response?.response.value ?? [])
 				.filter(part => part.kind === 'systemNotification')
 				.map(part => part.content.value));
+		const summarySessionHints = (testService.getSession(summarySessionResource) as ChatModel).getRequests()
+			.map(request => (request.response?.response.value ?? [])
+				.filter(part => part.kind === 'systemNotification')
+				.map(part => part.content.value));
 		const dismissedSessionHint = ((testService.getSession(dismissedSessionResource) as ChatModel).getRequests()[0].response?.response.value ?? [])
 			.filter(part => part.kind === 'systemNotification')
 			.map(part => part.content.value);
-		const expectedHint = `*Found 3 customization files that could be migrated. [Review customizations](command:aiCustomization.openManagementEditor "Open Chat Customizations") | [Hide for this workspace](command:aiCustomization.dismissMigrationHint "Stop Showing Migration Hints for This Harness")*`;
+		const expectedReviewLink = `[Review customizations](command:aiCustomization.openManagementEditor?%255B%257B%2522migration%2522%253Atrue%257D%255D "Open Chat Customizations")`;
+		const expectedHint = `*Found 3 customization files that could be migrated. ${expectedReviewLink} | [Hide for this workspace](command:aiCustomization.dismissMigrationHint "Stop Showing Migration Hints for This Harness")*`;
+		const expectedSummaryHint = `*Included 0 instructions in context. Found 3 customization files that could be migrated. ${expectedReviewLink} | [Hide for this workspace](command:aiCustomization.dismissMigrationHint "Stop Showing Migration Hints for This Harness")*`;
 		assert.deepStrictEqual({
 			computeCalls: migrationService.computeMigrationHint.callCount,
 			computedFor: migrationService.computeMigrationHint.firstCall.args[0].toString(),
+			includeSummaryArguments: migrationService.computeMigrationHint.getCalls().map(call => call.args[1]),
 			neverHint: getHintContent(0),
 			firstHint: getHintContent(1),
 			secondHint: getHintContent(2),
+			summarySessionHints,
 			otherSessionHints,
 			dismissedSessionHint,
 			dismissedForSessionType: storageService.getBoolean(getCustomizationMigrationHintDismissedStorageKey(sessionType), StorageScope.WORKSPACE),
 			dismissedForOtherSessionType: storageService.getBoolean(getCustomizationMigrationHintDismissedStorageKey(SessionType.AgentHostClaude), StorageScope.WORKSPACE),
 		}, {
-			computeCalls: 3,
+			computeCalls: 4,
 			computedFor: sessionResource.toString(),
+			includeSummaryArguments: [false, true, false, false],
 			neverHint: [],
 			firstHint: [expectedHint],
 			secondHint: [],
+			summarySessionHints: [[expectedSummaryHint], []],
 			otherSessionHints: [[expectedHint], [expectedHint]],
 			dismissedSessionHint: [],
 			dismissedForSessionType: true,
@@ -2250,7 +2272,7 @@ suite('ChatService', () => {
 		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationHint, CustomizationMigrationHintMode.Once);
 		const testService = createChatService();
 		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
-			sessionResource => migrationService.computeMigrationHint(sessionResource)
+			(sessionResource, includeCustomizationSummary) => migrationService.computeMigrationHint(sessionResource, includeCustomizationSummary)
 		));
 		const firstRef = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 		assert.ok(firstRef);
@@ -2281,7 +2303,7 @@ suite('ChatService', () => {
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
 		const testService = createChatService();
 		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
-			sessionResource => migrationService.computeMigrationHint(sessionResource)
+			(sessionResource, includeCustomizationSummary) => migrationService.computeMigrationHint(sessionResource, includeCustomizationSummary)
 		));
 		const model = startSessionModel(testService).object;
 		const response = await testService.sendRequest(model.sessionResource, 'test');
@@ -2321,7 +2343,7 @@ suite('ChatService', () => {
 
 		const testService = createChatService();
 		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
-			sessionResource => migrationService.computeMigrationHint(sessionResource)
+			(sessionResource, includeCustomizationSummary) => migrationService.computeMigrationHint(sessionResource, includeCustomizationSummary)
 		));
 		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 		assert.ok(ref);

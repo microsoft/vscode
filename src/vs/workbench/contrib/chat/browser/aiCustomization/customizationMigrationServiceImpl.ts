@@ -12,7 +12,7 @@ import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationTargetType, ICustomizationMigrationService, isConfiguredLocationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigration, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
-import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { AgentHostMcpServerApplicability } from '../agentSessions/agentHost/agentHostMcpServerSupport.js';
@@ -70,34 +70,72 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 		]);
 	}
 
-	async computeMigrationHint(sessionResource: URI): Promise<string | undefined> {
+	async computeMigrationHint(sessionResource: URI, includeCustomizationSummary = false): Promise<string | undefined> {
 		const harness = this.customizationHarnessService.findHarnessById(getChatSessionType(sessionResource));
 		if (!harness) {
 			return undefined;
 		}
 
-		const [userDataMigration, promptFilesMigration, configuredLocationsMigration, mcpServerMigration] = await Promise.all([
+		const [userDataMigration, promptFilesMigration, configuredLocationsMigration, mcpServerMigration, customizations] = await Promise.all([
 			this.computeMigration(sessionResource, CustomizationMigrationType.UserData),
 			this.computeMigration(sessionResource, CustomizationMigrationType.PromptFiles),
 			this.computeMigration(sessionResource, CustomizationMigrationType.ConfiguredLocations),
 			this.computeMigration(sessionResource, CustomizationMigrationType.McpServers),
+			includeCustomizationSummary
+				? harness.itemProvider?.provideChatSessionCustomizations(sessionResource, CancellationToken.None)
+				: undefined,
 		]);
-		const fileCount = userDataMigration.files.length + promptFilesMigration.files.length + configuredLocationsMigration.files.length;
+		const fileCandidates = [...userDataMigration.candidates, ...promptFilesMigration.candidates, ...configuredLocationsMigration.candidates];
+		const workspaceFileCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.local).length;
+		const userFileCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.user).length;
 		const unsupportedMcpServerCount = mcpServerMigration.servers.filter(server => !server.supported).length;
-		const fileHint = fileCount === 0
-			? undefined
-			: fileCount === 1
-				? localize('customizationMigrationHintSingle', "Found 1 customization file that is present but not used by {0} and could be migrated.", harness.label)
-				: localize('customizationMigrationHintMultiple', "Found {0} customization files that are present but not used by {1} and could be migrated.", fileCount, harness.label);
+		const fileHint = this.formatFileMigrationHint(workspaceFileCount, userFileCount, harness.label);
 		const mcpHint = unsupportedMcpServerCount === 0
 			? undefined
 			: unsupportedMcpServerCount === 1
 				? localize('customizationMigrationHintMcpSingle', "Found 1 MCP server that is not fully supported by {0}.", harness.label)
 				: localize('customizationMigrationHintMcpMultiple', "Found {0} MCP servers that are not fully supported by {1}.", unsupportedMcpServerCount, harness.label);
-		if (fileHint && mcpHint) {
-			return localize('customizationMigrationHintCombined', "{0} {1}", fileHint, mcpHint);
+		const migrationHint = fileHint && mcpHint
+			? localize('customizationMigrationHintCombined', "{0} {1}", fileHint, mcpHint)
+			: fileHint ?? mcpHint;
+		if (!includeCustomizationSummary) {
+			return migrationHint;
 		}
-		return fileHint ?? mcpHint;
+
+		const enabledCustomizations = customizations?.filter(customization => customization.enabled !== false) ?? [];
+		const instructionCount = enabledCustomizations.filter(customization => customization.type === PromptsType.instructions).length;
+		const skillCount = enabledCustomizations.filter(customization => customization.type === PromptsType.skill).length;
+		const agentCount = enabledCustomizations.filter(customization => customization.type === PromptsType.agent).length;
+		const summary = localize(
+			'customizationAvailabilitySummary',
+			"{0}, {1}, and {2} available to the agent.",
+			this.formatCustomizationCount(instructionCount, localize('instructionSingle', "instruction"), localize('instructionPlural', "instructions")),
+			this.formatCustomizationCount(skillCount, localize('skillSingle', "skill"), localize('skillPlural', "skills")),
+			this.formatCustomizationCount(agentCount, localize('agentSingle', "agent"), localize('agentPlural', "agents")),
+		);
+		return migrationHint
+			? localize('customizationSummaryWithMigrationHint', "{0} {1}", summary, migrationHint)
+			: summary;
+	}
+
+	private formatFileMigrationHint(workspaceCount: number, userCount: number, harnessLabel: string): string | undefined {
+		const fileCount = workspaceCount + userCount;
+		if (fileCount === 0) {
+			return undefined;
+		}
+
+		const sourceCounts = workspaceCount > 0 && userCount > 0
+			? localize('customizationMigrationHintWorkspaceAndUser', "{0} workspace and {1} user", workspaceCount, userCount)
+			: workspaceCount > 0
+				? localize('customizationMigrationHintWorkspace', "{0} workspace", workspaceCount)
+				: localize('customizationMigrationHintUser', "{0} user", userCount);
+		return fileCount === 1
+			? localize('customizationMigrationHintSingle', "Found {0} customization file that is present but not used by {1} and could be migrated.", sourceCounts, harnessLabel)
+			: localize('customizationMigrationHintMultiple', "Found {0} customizations that are present but not used by {1} and could be migrated.", sourceCounts, harnessLabel);
+	}
+
+	private formatCustomizationCount(count: number, singular: string, plural: string): string {
+		return localize('customizationCount', "{0} {1}", count, count === 1 ? singular : plural);
 	}
 
 	private async createFileMigration(sessionResource: URI, type: FileCustomizationMigrationType, candidates: readonly MigratableConfiguration[], excludeSupportedLocations = false): Promise<FileCustomizationMigration> {

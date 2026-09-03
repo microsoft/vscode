@@ -23,6 +23,7 @@ export type AICustomizationManagementOpenEditorTarget =
 		readonly section?: AICustomizationManagementSection;
 		readonly sessionType?: string;
 		readonly revealUri?: URI;
+		readonly migration?: boolean;
 	}
 	| IChatViewTitleActionContext;
 
@@ -31,7 +32,7 @@ export function resolveAICustomizationManagementOpenEditorTarget(
 	pendingSessionType: string | undefined,
 	chatSessionResource: URI | undefined,
 	getSessionResourceForHarness: (sessionType: string) => URI,
-): { readonly section?: AICustomizationManagementSection; readonly revealUri?: URI; readonly sessionResource?: URI } {
+): { readonly section?: AICustomizationManagementSection; readonly revealUri?: URI; readonly sessionResource?: URI; readonly migration?: boolean } {
 	if (isChatViewTitleActionContext(target)) {
 		return { sessionResource: target.sessionResource };
 	}
@@ -41,6 +42,7 @@ export function resolveAICustomizationManagementOpenEditorTarget(
 	return {
 		section: options?.section,
 		revealUri: options?.revealUri,
+		migration: options?.migration,
 		sessionResource: sessionType ? getSessionResourceForHarness(sessionType) : chatSessionResource,
 	};
 }

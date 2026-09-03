@@ -222,7 +222,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableResourceMap<CancellationTokenSource>());
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 	private readonly _chatSessionStore: ChatSessionStore;
-	private _customizationMigrationHintProvider: ((sessionResource: URI) => Promise<string | undefined>) | undefined;
+	private _customizationMigrationHintProvider: ((sessionResource: URI, includeCustomizationSummary: boolean) => Promise<string | undefined>) | undefined;
 
 	readonly requestInProgressObs: IObservable<boolean>;
 
@@ -242,7 +242,7 @@ export class ChatService extends Disposable implements IChatService {
 		return this._sessionModels.waitForModelDisposals();
 	}
 
-	registerCustomizationMigrationHintProvider(provider: (sessionResource: URI) => Promise<string | undefined>): IDisposable {
+	registerCustomizationMigrationHintProvider(provider: (sessionResource: URI, includeCustomizationSummary: boolean) => Promise<string | undefined>): IDisposable {
 		if (this._customizationMigrationHintProvider) {
 			throw new BugIndicatingError('A customization migration hint provider is already registered');
 		}
@@ -1597,16 +1597,17 @@ export class ChatService extends Disposable implements IChatService {
 				const sessionType = getChatSessionType(sessionResource);
 				const hintMode = this.configurationService.getValue<CustomizationMigrationHintMode>(ChatConfiguration.ChatCustomizationsMigrationHint);
 				const hintAlreadyShown = model.inputModel.state.get()?.contrib[customizationMigrationHintShownStateKey] === true;
+				const showOnce = hintMode === CustomizationMigrationHintMode.Once || hintMode === CustomizationMigrationHintMode.Summary;
 				if (!isAgentHostTarget(sessionType)
-					|| (hintMode !== CustomizationMigrationHintMode.Once && hintMode !== CustomizationMigrationHintMode.Always)
+					|| (!showOnce && hintMode !== CustomizationMigrationHintMode.Always)
 					|| this.storageService.getBoolean(getCustomizationMigrationHintDismissedStorageKey(sessionType), StorageScope.WORKSPACE)
-					|| (hintMode === CustomizationMigrationHintMode.Once && hintAlreadyShown)
+					|| (showOnce && hintAlreadyShown)
 					|| !this._customizationMigrationHintProvider) {
 					return undefined;
 				}
 
 				try {
-					const message = await this._customizationMigrationHintProvider(sessionResource);
+					const message = await this._customizationMigrationHintProvider(sessionResource, hintMode === CustomizationMigrationHintMode.Summary);
 					if (message && !token.isCancellationRequested) {
 						return message;
 					}
@@ -1819,19 +1820,26 @@ export class ChatService extends Disposable implements IChatService {
 
 					const hintMode = this.configurationService.getValue<CustomizationMigrationHintMode>(ChatConfiguration.ChatCustomizationsMigrationHint);
 					const hintAlreadyShown = model.inputModel.state.get()?.contrib[customizationMigrationHintShownStateKey] === true;
+					const showOnce = hintMode === CustomizationMigrationHintMode.Once || hintMode === CustomizationMigrationHintMode.Summary;
 					if (customizationMigrationHint
 						&& !token.isCancellationRequested
-						&& (hintMode !== CustomizationMigrationHintMode.Once || !hintAlreadyShown)) {
-						if (hintMode === CustomizationMigrationHintMode.Once) {
+						&& (!showOnce || !hintAlreadyShown)) {
+						if (showOnce) {
 							model.inputModel.setState({
 								contrib: { ...model.inputModel.state.get()?.contrib, [customizationMigrationHintShownStateKey]: true }
 							});
 						}
 
+						const displayedHint = hintMode === CustomizationMigrationHintMode.Summary
+							? instructionEntries.length === 1
+								? localize('customizationSummaryIncludedInstructionSingle', "Included 1 instruction in context. {0}", customizationMigrationHint)
+								: localize('customizationSummaryIncludedInstructionMultiple', "Included {0} instructions in context. {1}", instructionEntries.length, customizationMigrationHint)
+							: customizationMigrationHint;
 						const reviewLink = createMarkdownCommandLink({
 							id: AICustomizationManagementCommands.OpenEditor,
 							text: localize('customizationMigrationHint.review', "Review customizations"),
 							tooltip: localize('customizationMigrationHint.review.tooltip', "Open Chat Customizations"),
+							arguments: [{ migration: true }],
 						});
 						const dismissLink = createMarkdownCommandLink({
 							id: AICustomizationManagementCommands.DismissMigrationHint,
@@ -1841,7 +1849,7 @@ export class ChatService extends Disposable implements IChatService {
 						progressCallback([{
 							kind: 'systemNotification',
 							content: new MarkdownString(
-								localize('customizationMigrationHint', "*{0} {1} | {2}*", customizationMigrationHint, reviewLink, dismissLink),
+								localize('customizationMigrationHint', "*{0} {1} | {2}*", displayedHint, reviewLink, dismissLink),
 								{ isTrusted: { enabledCommands: [AICustomizationManagementCommands.OpenEditor, AICustomizationManagementCommands.DismissMigrationHint] } }
 							),
 							icon: Codicon.info,

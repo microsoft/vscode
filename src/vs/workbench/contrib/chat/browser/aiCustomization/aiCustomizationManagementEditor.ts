@@ -971,7 +971,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const count = DOM.append(button, $('span.sidebar-migration-count'));
 
 			this.editorDisposables.add(DOM.addDisposableListener(button, 'click', () => {
-				this.showCustomizationMigrationPage(category.id);
+				void this.showCustomizationMigrationPage(category.id);
 			}));
 
 			this.migrationShortcuts.set(category.id, { button, count });
@@ -991,7 +991,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 					}
 				},
 				migrateCustomizations: (categoryId) => {
-					this.showCustomizationMigrationPage(categoryId);
+					void this.showCustomizationMigrationPage(categoryId);
 				},
 				prefillChat: async (query, options) => {
 					try {
@@ -2857,8 +2857,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	public showCustomizationMigrationPage(categoryId: CustomizationMigrationCategoryId): void {
-		if (!this.isMigrationCategoryEnabled(getCustomizationMigrationCategory(categoryId))) {
+	public async showCustomizationMigrationPage(categoryId?: CustomizationMigrationCategoryId): Promise<void> {
+		if (!categoryId) {
+			await this.refreshCustomizationMigrationInfo();
+		}
+		const category = categoryId
+			? getCustomizationMigrationCategory(categoryId)
+			: CUSTOMIZATION_MIGRATION_CATEGORIES.find(candidate => this.getMigrationCandidates(candidate).length > 0);
+		if (!category || !this.isMigrationCategoryEnabled(category)) {
 			return;
 		}
 
@@ -2875,7 +2881,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.goBackFromToolDetail();
 		}
 
-		this.activeMigrationCategoryId = categoryId;
+		this.activeMigrationCategoryId = category.id;
 		if (this.migrationClearSettingsCheckbox) {
 			this.migrationClearSettingsCheckbox.checked = true;
 		}

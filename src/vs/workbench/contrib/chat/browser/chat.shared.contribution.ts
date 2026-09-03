@@ -2505,13 +2505,14 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ChatCustomizationsMigrationHint]: {
 			type: 'string',
-			enum: [CustomizationMigrationHintMode.Never, CustomizationMigrationHintMode.Once, CustomizationMigrationHintMode.Always],
+			enum: [CustomizationMigrationHintMode.Never, CustomizationMigrationHintMode.Once, CustomizationMigrationHintMode.Summary, CustomizationMigrationHintMode.Always],
 			enumDescriptions: [
 				nls.localize('chat.customizations.migrationHint.never', "Never show customization migration hints in chat."),
 				nls.localize('chat.customizations.migrationHint.once', "Show a customization migration hint once per chat session."),
+				nls.localize('chat.customizations.migrationHint.summary', "Show a summary of available customizations and migration suggestions once per chat session."),
 				nls.localize('chat.customizations.migrationHint.always', "Show a customization migration hint for every chat request."),
 			],
-			description: nls.localize('chat.customizations.migrationHint', "Controls whether chat shows information about customizations that are not used by the active Agent Host harness and how often it shows them."),
+			description: nls.localize('chat.customizations.migrationHint', "Controls whether chat shows information about available customizations and customizations that are not used by the active Agent Host harness."),
 			default: CustomizationMigrationHintMode.Never,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
@@ -3197,7 +3198,7 @@ class CustomizationMigrationHintContribution extends Disposable implements IWork
 	) {
 		super();
 		this._register(chatService.registerCustomizationMigrationHintProvider(
-			sessionResource => customizationMigrationService.computeMigrationHint(sessionResource)
+			(sessionResource, includeCustomizationSummary) => customizationMigrationService.computeMigrationHint(sessionResource, includeCustomizationSummary)
 		));
 	}
 }

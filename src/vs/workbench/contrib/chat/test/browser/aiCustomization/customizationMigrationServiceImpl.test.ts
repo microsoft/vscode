@@ -15,7 +15,7 @@ import { IAgentHostActiveClientService } from '../../../browser/agentSessions/ag
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, IAgentHostMcpServerSupportSnapshot } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
-import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationItem, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigrationType } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptPath, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
@@ -40,6 +40,7 @@ class TestCustomizationHarnessService extends mock<ICustomizationHarnessService>
 	constructor(
 		private readonly sessionType = SessionType.AgentHostCopilot,
 		private readonly harnessLabel = 'Copilot',
+		private readonly customizations: readonly ICustomizationItem[] = [],
 	) {
 		super();
 	}
@@ -54,7 +55,7 @@ class TestCustomizationHarnessService extends mock<ICustomizationHarnessService>
 			icon: Codicon.copilot,
 			itemProvider: {
 				onDidChange: Event.None,
-				provideChatSessionCustomizations: async () => [],
+				provideChatSessionCustomizations: async () => [...this.customizations],
 				provideSourceFolders: async (_sessionResource, type) => {
 					this.requestedSourceFolderTypes.push(type);
 					switch (type) {
@@ -264,7 +265,7 @@ suite('CustomizationMigrationService', () => {
 					},
 				},
 			],
-			hint: 'Found 5 customization files that are present but not used by Copilot and could be migrated. Found 1 MCP server that is not fully supported by Copilot.',
+			hint: 'Found 2 workspace and 3 user customizations that are present but not used by Copilot and could be migrated. Found 1 MCP server that is not fully supported by Copilot.',
 			localHint: undefined,
 			requestedTypes: [
 				PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.agent, PromptsType.instructions, PromptsType.skill,
@@ -296,7 +297,42 @@ suite('CustomizationMigrationService', () => {
 
 		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }));
 
-		assert.strictEqual(hint, 'Found 1 customization file that is present but not used by Claude and could be migrated.');
+		assert.strictEqual(hint, 'Found 1 workspace customization file that is present but not used by Claude and could be migrated.');
+	});
+
+	test('summarizes available customizations and migration candidates by storage', async () => {
+		const promptsService = store.add(new TestPromptsService([
+			{ uri: URI.file('/workspace/.github/prompts/one.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.GitHubWorkspace },
+			{ uri: URI.file('/workspace/.github/prompts/two.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.GitHubWorkspace },
+			{ uri: URI.file('/user-data/prompts/three.prompt.md'), storage: PromptsStorage.user, type: PromptsType.prompt, source: PromptFileSource.UserData },
+			{ uri: URI.file('/user-data/prompts/four.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.UserData },
+		]));
+		const createCustomization = (type: PromptsType, index: number): ICustomizationItem => ({
+			uri: URI.file(`/customizations/${type}/${index}`),
+			type,
+			name: `${type}-${index}`,
+			source: PromptsStorage.local,
+			extensionId: undefined,
+			pluginUri: undefined,
+			enabled: true,
+		});
+		const customizations = [
+			...Array.from({ length: 4 }, (_, index) => createCustomization(PromptsType.instructions, index)),
+			...Array.from({ length: 10 }, (_, index) => createCustomization(PromptsType.skill, index)),
+			...Array.from({ length: 4 }, (_, index) => createCustomization(PromptsType.agent, index)),
+		];
+		const harnessService = new TestCustomizationHarnessService(SessionType.AgentHostClaude, 'Claude', customizations);
+		const activeClientService = new class extends mock<IAgentHostActiveClientService>() {
+			override acquireMcpServerSupportScope() { return undefined; }
+		}();
+		const agentHostCustomizationService = new class extends mock<IAgentHostCustomizationService>() {
+			override getWorkingDirectories() { return []; }
+		}();
+		const service = new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService);
+
+		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }), true);
+
+		assert.strictEqual(hint, '4 instructions, 10 skills, and 4 agents available to the agent. Found 2 workspace and 2 user customizations that are present but not used by Claude and could be migrated.');
 	});
 
 	test('reports unsupported MCP servers when there are no file migrations', async () => {
