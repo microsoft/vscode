@@ -358,8 +358,10 @@ suite('ChatPlanReviewPart', () => {
 	});
 
 	suite('Feedback mode', () => {
-		test('clicking Review button opens the plan editor and shows Submit Feedback button', async () => {
-			createWidget(createMockReviewWithPlan());
+		test('clicking Review button opens the plan editor and preserves the approval action', async () => {
+			createWidget(createMockReviewWithPlan({
+				actions: [{ label: 'Implement Plan', default: true }],
+			}));
 			const openEditorSpy = sinon.spy(lastEditorService!, 'openEditor');
 
 			const reviewButton = getReviewButton(widget)!;
@@ -375,11 +377,16 @@ suite('ChatPlanReviewPart', () => {
 			const feedbackSection = getFeedbackSection(widget);
 			assert.notStrictEqual(feedbackSection.style.display, 'none', 'feedback section should be visible');
 
-			// Footer should have Submit Feedback + Reject (no approve, no Provide Feedback).
+			// Footer should keep approval available when no feedback has been entered.
 			const buttons = getFooterButtons(widget);
 			assert.ok(buttons.some(b => b.textContent?.includes('Submit Feedback')), 'should have Submit Feedback button');
 			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'should still have Reject button');
-			assert.ok(!buttons.some(b => b.textContent?.includes('Autopilot')), 'approve button should be hidden');
+			const approveButton = buttons.find(b => b.textContent?.includes('Implement Plan'));
+			assert.ok(approveButton, 'approve button should remain visible');
+			assert.ok(!approveButton.classList.contains('disabled'), 'approve button should remain enabled without feedback');
+			approveButton.click();
+			await tick();
+			assert.deepStrictEqual(lastSubmitResult, { action: 'Implement Plan', rejected: false });
 		});
 
 		test('reject button remains visible in feedback mode', async () => {
@@ -403,11 +410,11 @@ suite('ChatPlanReviewPart', () => {
 			const feedbackSection = getFeedbackSection(widget);
 			assert.notStrictEqual(feedbackSection.style.display, 'none', 'feedback section should be visible');
 
-			// Footer should have Submit Feedback + Reject (no approve, no Provide Feedback).
+			// Footer should have Submit Feedback + Approve + Reject.
 			const buttons = getFooterButtons(widget);
 			assert.ok(buttons.some(b => b.textContent?.includes('Submit Feedback')), 'should have Submit Feedback button');
 			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'should still have Reject button');
-			assert.ok(!buttons.some(b => b.textContent?.includes('Autopilot')), 'approve button should be hidden');
+			assert.ok(buttons.some(b => b.textContent?.includes('Autopilot')), 'approve button should remain visible');
 		});
 
 		test('reject button remains visible in feedback mode', async () => {
@@ -431,11 +438,11 @@ suite('ChatPlanReviewPart', () => {
 			const feedbackSection = getFeedbackSection(widget);
 			assert.notStrictEqual(feedbackSection.style.display, 'none', 'feedback section should be visible');
 
-			// Footer should have Submit Feedback + Reject (no approve, no Provide Feedback).
+			// Footer should have Submit Feedback + Approve + Reject.
 			const buttons = getFooterButtons(widget);
 			assert.ok(buttons.some(b => b.textContent?.includes('Submit Feedback')), 'should have Submit Feedback button');
 			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'should still have Reject button');
-			assert.ok(!buttons.some(b => b.textContent?.includes('Autopilot')), 'approve button should be hidden');
+			assert.ok(buttons.some(b => b.textContent?.includes('Autopilot')), 'approve button should remain visible');
 		});
 
 		test('reject button remains visible in feedback mode', async () => {
@@ -514,6 +521,39 @@ suite('ChatPlanReviewPart', () => {
 			const submitButton = getFooterButtons(widget).find(b => b.textContent?.includes('Submit Feedback'));
 			assert.ok(submitButton);
 			assert.ok(submitButton!.classList.contains('disabled'), 'Submit Feedback should be disabled when nothing to submit');
+		});
+
+		test('approval is disabled while feedback is pending and restored when feedback is cleared', async () => {
+			createWidget(createMockReviewWithPlan());
+
+			getReviewButton(widget)!.click();
+			await tick();
+
+			const textarea = widget.domNode.querySelector('.chat-plan-review-feedback-textarea') as HTMLTextAreaElement;
+			const approveButton = getFooterButtons(widget).find(b => b.textContent?.includes('Autopilot'))!;
+			const submitButton = getFooterButtons(widget).find(b => b.textContent?.includes('Submit Feedback'))!;
+
+			textarea.value = 'Please change the plan';
+			textarea.dispatchEvent(new Event('input'));
+
+			assert.deepStrictEqual({
+				approveDisabled: approveButton.classList.contains('disabled'),
+				submitDisabled: submitButton.classList.contains('disabled'),
+			}, {
+				approveDisabled: true,
+				submitDisabled: false,
+			});
+
+			textarea.value = '';
+			textarea.dispatchEvent(new Event('input'));
+
+			assert.deepStrictEqual({
+				approveDisabled: approveButton.classList.contains('disabled'),
+				submitDisabled: submitButton.classList.contains('disabled'),
+			}, {
+				approveDisabled: false,
+				submitDisabled: true,
+			});
 		});
 	});
 
@@ -888,7 +928,7 @@ suite('ChatPlanReviewPart', () => {
 			collapseButton.click();
 			const footerButtons = getFooterButtons(widget);
 			assert.ok(footerButtons.some(b => b.textContent?.includes('Submit Feedback')), 'submit feedback button should remain after expand');
-			assert.ok(!footerButtons.some(b => b.textContent?.includes('Autopilot')), 'approve should still be hidden in feedback mode');
+			assert.ok(footerButtons.some(b => b.textContent?.includes('Autopilot')), 'approve should remain available in feedback mode');
 		});
 
 		test('a comment added while collapsed is reflected in the inline action', async () => {
