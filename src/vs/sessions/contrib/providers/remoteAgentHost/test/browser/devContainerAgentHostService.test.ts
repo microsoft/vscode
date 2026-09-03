@@ -369,8 +369,8 @@ suite('Dev Container Agent Host Service', () => {
 					}),
 				};
 			},
-			stopContainer: async workspaceUri => { containerOperations.push(`stop:${workspaceUri.toString()}`); },
-			removeContainer: async workspaceUri => { containerOperations.push(`remove:${workspaceUri.toString()}`); },
+			stopContainer: async workspaceUri => { containerOperations.push(`stop:${workspaceUri.toString()}`); return true; },
+			removeContainer: async workspaceUri => { containerOperations.push(`remove:${workspaceUri.toString()}`); return true; },
 		}));
 		instantiationService.stubInstance(AgentHostProtocolClient, connection);
 

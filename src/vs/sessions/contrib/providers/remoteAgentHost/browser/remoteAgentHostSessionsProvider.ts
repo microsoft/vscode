@@ -103,8 +103,8 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	/** Controls the stopped/removed container while this runtime provider remains registered. */
 	readonly devContainerLifecycle?: {
 		connect(): Promise<void>;
-		stop(): Promise<void>;
-		remove(): Promise<void>;
+		stop(): Promise<boolean>;
+		remove(): Promise<boolean>;
 	};
 }
 
@@ -309,8 +309,9 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 				await this._stopDevContainerIfIdle();
 				return;
 			}
-			await this._devContainerLifecycle.remove();
-			await this._setDetachedWorktreeArchived(sessionId, true);
+			if (await this._devContainerLifecycle.remove()) {
+				await this._setDetachedWorktreeArchived(sessionId, true);
+			}
 			return;
 		}
 		if (!this.connection) {
@@ -334,8 +335,9 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			} catch (error) {
 				const hasOtherUnarchivedSession = this.getKnownSessions().some(session => session.sessionId !== sessionId && !session.isArchived.get());
 				if (!hasOtherUnarchivedSession) {
-					await this._devContainerLifecycle.remove();
-					await this._setDetachedWorktreeArchived(sessionId, true);
+					if (await this._devContainerLifecycle.remove()) {
+						await this._setDetachedWorktreeArchived(sessionId, true);
+					}
 				}
 				throw error;
 			}
@@ -458,14 +460,15 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			deleteError = error;
 		}
 		let worktreeError: unknown;
+		let canDeleteDetachedWorktrees = true;
 		if (!deleteError && this._devContainerLifecycle && hadSessions && this.getKnownSessions().length === 0) {
 			try {
-				await this._devContainerLifecycle.remove();
+				canDeleteDetachedWorktrees = await this._devContainerLifecycle.remove();
 			} catch (error) {
 				worktreeError = error;
 			}
 		}
-		if (!worktreeError) {
+		if (!worktreeError && canDeleteDetachedWorktrees) {
 			for (const { sessionId, handle } of detachedWorktrees) {
 				if (this._hasSession(sessionId)) {
 					continue;

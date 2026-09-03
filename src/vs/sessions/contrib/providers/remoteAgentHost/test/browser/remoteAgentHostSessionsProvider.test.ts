@@ -858,8 +858,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 					delegated.push('connect-container');
 					archiveState.provider!.setConnection(archiveConnection);
 				},
-				stop: async () => { },
-				remove: async () => { delegated.push('remove-container'); },
+				stop: async () => true,
+				remove: async () => { delegated.push('remove-container'); return true; },
 			},
 		});
 		archiveState.provider = archiveProvider;
@@ -885,8 +885,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				connect: async () => { lifecycleCalls.push('connect'); },
 				stop: async () => {
 					lifecycleCalls.push('stop');
+					return true;
 				},
-				remove: async () => { lifecycleCalls.push('remove'); },
+				remove: async () => { lifecycleCalls.push('remove'); return true; },
 			},
 		});
 		await timeout(0);
@@ -921,8 +922,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, connection, {
 			devContainerLifecycle: {
 				connect: async () => { lifecycleCalls.push('connect'); },
-				stop: async () => { lifecycleCalls.push('stop'); },
-				remove: async () => { lifecycleCalls.push('remove'); },
+				stop: async () => { lifecycleCalls.push('stop'); return true; },
+				remove: async () => { lifecycleCalls.push('remove'); return true; },
 			},
 		});
 		await timeout(0);
@@ -956,8 +957,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			}(),
 			devContainerLifecycle: {
 				connect: async () => { operations.push('connect'); },
-				stop: async () => { operations.push('stop'); },
-				remove: async () => { operations.push('remove-container'); },
+				stop: async () => { operations.push('stop'); return true; },
+				remove: async () => { operations.push('remove-container'); return true; },
 			},
 		});
 		fireSessionAdded(connection, 'rejected-archive', { title: 'Rejected Archive', metadata });
@@ -975,6 +976,39 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('does not remove a mounted worktree when another VS Code session uses the Dev Container', async () => {
+		const handle = '00000000-0000-4000-8000-000000000001';
+		const metadata = { 'vscode.devContainerWorktree': { version: 1, handle } };
+		connection.echoDispatchedActions = true;
+		connection.addSession(createSession('foreign-container-owner', { summary: 'Foreign Container Owner', _meta: metadata }));
+		const operations: string[] = [];
+		const provider = createProvider(disposables, connection, {
+			localAgentHostService: new class extends mock<IAgentHostService>() {
+				override async setDetachedWorktreeArchived(): Promise<void> {
+					operations.push('archive-worktree');
+				}
+			}(),
+			devContainerLifecycle: {
+				connect: async () => { operations.push('connect'); },
+				stop: async () => { operations.push('stop'); return true; },
+				remove: async () => { operations.push('remove-container'); return false; },
+			},
+		});
+		fireSessionAdded(connection, 'foreign-container-owner', { title: 'Foreign Container Owner', metadata });
+		const session = provider.getSessions().find(candidate => candidate.title.get() === 'Foreign Container Owner');
+		assert.ok(session);
+
+		await provider.archiveSession(session.sessionId);
+
+		assert.deepStrictEqual({
+			operations,
+			archived: session.isArchived.get(),
+		}, {
+			operations: ['remove-container'],
+			archived: true,
+		});
+	});
+
 	test('does not remove a shared Dev Container when another session remains unarchived', async () => {
 		connection.echoDispatchedActions = true;
 		connection.addSession(createSession('shared-archive', { summary: 'Shared Archive' }));
@@ -983,8 +1017,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, connection, {
 			devContainerLifecycle: {
 				connect: async () => { operations.push('connect'); },
-				stop: async () => { operations.push('stop'); },
-				remove: async () => { operations.push('remove-container'); },
+				stop: async () => { operations.push('stop'); return true; },
+				remove: async () => { operations.push('remove-container'); return true; },
 			},
 		});
 		fireSessionAdded(connection, 'shared-archive', { title: 'Shared Archive' });

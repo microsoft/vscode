@@ -344,17 +344,18 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		return active ? this._ensureActiveConnection(key, active) : Promise.reject(new Error(`Unknown Dev Container connection '${key}'.`));
 	}
 
-	private _stopContainer(key: string): Promise<void> {
+	private _stopContainer(key: string): Promise<boolean> {
 		return this._lifecycleOperations.queue(key, async () => {
 			const active = this._activeConnections.get(key);
 			if (!active || active.state === 'stopped' || active.state === 'removed') {
-				return;
+				return true;
 			}
 			active.state = 'stopping';
 			await this._disconnectActiveTransport(active);
 			try {
-				await active.connector.stopContainer!(active.workspaceUri);
+				const stopped = await active.connector.stopContainer!(active.workspaceUri);
 				active.state = 'stopped';
+				return stopped;
 			} catch (error) {
 				await this._connectActive(active);
 				throw error;
@@ -362,17 +363,18 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		});
 	}
 
-	private _removeContainer(key: string): Promise<void> {
+	private _removeContainer(key: string): Promise<boolean> {
 		return this._lifecycleOperations.queue(key, async () => {
 			const active = this._activeConnections.get(key);
 			if (!active || active.state === 'removed') {
-				return;
+				return true;
 			}
 			active.state = 'removing';
 			await this._disconnectActiveTransport(active);
 			try {
-				await active.connector.removeContainer!(active.workspaceUri);
-				active.state = 'removed';
+				const removed = await active.connector.removeContainer!(active.workspaceUri);
+				active.state = removed ? 'removed' : 'stopped';
+				return removed;
 			} catch (error) {
 				await this._connectActive(active);
 				throw error;

@@ -132,11 +132,11 @@ class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector 
 		return isDevContainerWorkspaceAvailable(workspaceUri, this._fileService, this._mainService, this._configurationService);
 	}
 
-	stopContainer(workspaceUri: URI): Promise<void> {
+	stopContainer(workspaceUri: URI): Promise<boolean> {
 		return this._mainService.stopContainer(workspaceUri.fsPath);
 	}
 
-	removeContainer(workspaceUri: URI): Promise<void> {
+	removeContainer(workspaceUri: URI): Promise<boolean> {
 		return this._mainService.removeContainer(workspaceUri.fsPath);
 	}
 

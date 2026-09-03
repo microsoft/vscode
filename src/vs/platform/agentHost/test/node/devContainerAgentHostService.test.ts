@@ -14,8 +14,9 @@ import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
+import { VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../../common/devContainerAgentHost.js';
 import { DevContainerAgentHostMainService, getDevContainerCliPath, IDevContainerRelay, parseDevContainerUpResult } from '../../node/devContainerAgentHostService.js';
-import { ISshExec } from '../../node/sshRemoteAgentHostHelpers.js';
+import { ISshExec, shellEscape } from '../../node/sshRemoteAgentHostHelpers.js';
 
 class TestRelay implements IDevContainerRelay {
 	readonly sent: string[] = [];
@@ -36,6 +37,9 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	readonly dockerCommands: string[][] = [];
 	relayCommand: string | undefined;
 	failDevContainerUp = false;
+	endpointSessionId: string | undefined = NullTelemetryService.sessionId;
+	containerSessionIds: string[] = [NullTelemetryService.sessionId];
+	private _spawnedAgentHost = false;
 
 	constructor(
 		private readonly _libc = '',
@@ -70,6 +74,9 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 
 	protected override _runDocker(args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
 		this.dockerCommands.push([...args]);
+		if (args[0] === 'exec') {
+			return Promise.resolve({ stdout: `${this.containerSessionIds.join('\n')}\n`, stderr: '', code: 0 });
+		}
 		return Promise.resolve({ stdout: `${args.at(-1)}\n`, stderr: '', code: 0 });
 	}
 
@@ -102,22 +109,40 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 				return { stdout: '', stderr: '', code: 1 };
 			}
 			if (command.includes('agent endpoints')) {
+				const endpoints = [{
+					schemaVersion: 2,
+					type: 'standalone',
+					pid: 42,
+					instanceId: 'instance',
+					protocolVersion: '1',
+					connectionToken: 'token',
+					endpoint: { type: 'tcp', host: '127.0.0.1', port: 1234 },
+				}];
+				if (this._spawnedAgentHost) {
+					endpoints.push({
+						...endpoints[0],
+						pid: 43,
+						instanceId: 'spawned-instance',
+						endpoint: { type: 'tcp', host: '127.0.0.1', port: 1235 },
+					});
+				}
 				return {
 					stdout: JSON.stringify({
 						userDataPath: '/home/vscode/.config/Code',
-						endpoints: [{
-							schemaVersion: 2,
-							type: 'standalone',
-							pid: 42,
-							instanceId: 'instance',
-							protocolVersion: '1',
-							connectionToken: 'token',
-							endpoint: { type: 'tcp', host: '127.0.0.1', port: 1234 },
-						}],
+						endpoints,
 					}),
 					stderr: '',
 					code: 0,
 				};
+			}
+			if (command.includes(`/proc/42/environ`)) {
+				return { stdout: this.endpointSessionId ? `${this.endpointSessionId}\n` : '', stderr: '', code: 0 };
+			}
+			if (command.includes(`/proc/43/environ`)) {
+				return { stdout: `${NullTelemetryService.sessionId}\n`, stderr: '', code: 0 };
+			}
+			if (command.startsWith(`${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=`)) {
+				this._spawnedAgentHost = true;
 			}
 			return { stdout: '', stderr: '', code: 0 };
 		};
@@ -204,6 +229,22 @@ suite('Dev Container Agent Host Main Service', () => {
 		});
 	});
 
+	test('marks a newly spawned Agent Host with the VS Code session ID', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		service.endpointSessionId = undefined;
+
+		await service.connect({
+			connectionId: 'connection',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		});
+
+		assert.ok(service.execCommands.some(command =>
+			command.startsWith(`${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=${shellEscape(NullTelemetryService.sessionId)} `)
+		));
+		assert.ok(service.relayCommand?.includes(`agent relay ${shellEscape('spawned-instance')}`));
+	});
+
 	test('stops and removes the container after disconnecting its relay', async () => {
 		const service = store.add(new TestDevContainerAgentHostMainService());
 		await service.connect({
@@ -228,13 +269,37 @@ suite('Dev Container Agent Host Main Service', () => {
 
 		assert.deepStrictEqual({
 			relayDisposed: service.relay.disposed,
-			dockerCommands: service.dockerCommands,
+			dockerOperations: service.dockerCommands.map(command => command[0]),
+			sessionChecksUseMarker: service.dockerCommands
+				.filter(command => command[0] === 'exec')
+				.every(command => command.at(-1)?.includes(VSCODE_REMOTE_CONTAINERS_SESSION_ENV)),
 		}, {
 			relayDisposed: true,
-			dockerCommands: [
-				['stop', 'container-id'],
-				['rm', '--force', 'container-id'],
-			],
+			dockerOperations: ['exec', 'stop', 'exec', 'rm'],
+			sessionChecksUseMarker: true,
+		});
+	});
+
+	test('does not stop or remove a container used by another VS Code session', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		service.containerSessionIds.push('other-session');
+		await service.connect({
+			connectionId: 'connection',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		});
+
+		const stopped = await service.stopContainer('/workspace');
+		const removed = await service.removeContainer('/workspace');
+
+		assert.deepStrictEqual({
+			stopped,
+			removed,
+			dockerCommands: service.dockerCommands.map(command => command[0]),
+		}, {
+			stopped: false,
+			removed: false,
+			dockerCommands: ['exec', 'exec'],
 		});
 	});
 

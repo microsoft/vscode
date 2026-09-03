@@ -8,6 +8,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IRelayChannel } from './relayTransport.js';
 
 export const DEV_CONTAINER_AGENT_HOST_CHANNEL = 'devContainerAgentHost';
+export const VSCODE_REMOTE_CONTAINERS_SESSION_ENV = 'VSCODE_REMOTE_CONTAINERS_SESSION';
 
 /** Inputs required to start or reuse a workspace's Dev Container Agent Host. */
 export interface IDevContainerAgentHostConfig {
@@ -46,6 +47,6 @@ export interface IDevContainerAgentHostMainService extends IRelayChannel {
 	isDockerAvailable(): Promise<boolean>;
 	connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult>;
 	disconnect(connectionId: string): Promise<void>;
-	stopContainer(workspaceFolder: string): Promise<void>;
-	removeContainer(workspaceFolder: string): Promise<void>;
+	stopContainer(workspaceFolder: string): Promise<boolean>;
+	removeContainer(workspaceFolder: string): Promise<boolean>;
 }

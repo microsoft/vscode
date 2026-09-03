@@ -22,7 +22,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
-import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
+import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
 import { IRelayMessage } from '../common/relayTransport.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import type { AgentHostEndpointAddress } from '../common/agentHostEndpointRegistry.js';
@@ -36,6 +36,7 @@ import {
 	ISshExec,
 	resolveRemotePlatform,
 	runAgentEndpoints,
+	shellEscape,
 	waitForNewStandaloneEndpoint,
 } from './sshRemoteAgentHostHelpers.js';
 import { ensureRemoteAgentHostCliInstalled } from './remoteAgentHostCliInstaller.js';
@@ -173,16 +174,24 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 			const cliDataDir = getRemoteCLIDataDir(serverDataFolderName);
 			const initial = await runAgentEndpoints(exec, cliBin, cliDataDir);
 			const live = await filterLiveAgentHostEndpoints(exec, initial.endpoints);
-			let endpoint = live
+			const sessionId = this._telemetryService.sessionId;
+			const ownedStandalones = await Promise.all(live
 				.filter(candidate => candidate.type === 'standalone')
+				.map(async candidate => ({
+					candidate,
+					sessionId: await this._readProcessSessionId(exec, candidate.pid),
+				})));
+			let endpoint = ownedStandalones
+				.filter(candidate => candidate.sessionId === sessionId)
+				.map(candidate => candidate.candidate)
 				.sort((a, b) => a.instanceId.localeCompare(b.instanceId))[0];
 			if (!endpoint) {
-				const spawnCommand = buildAgentHostSpawnCommand(
+				const spawnCommand = `${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=${shellEscape(sessionId)} ${buildAgentHostSpawnCommand(
 					cliBin,
 					cliDataDir,
 					initial.userDataPath,
 					telemetryLevelToAgentHostValue(this._telemetryService.telemetryLevel),
-				);
+				)}`;
 				void exec(spawnCommand, { ignoreExitCode: true }).catch(error => {
 					this._logService.warn(`${LOG_PREFIX} Agent Host spawn command failed`, error);
 				});
@@ -416,20 +425,26 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		return this._dockerAvailable;
 	}
 
-	async stopContainer(workspaceFolder: string): Promise<void> {
-		await this._containerOperations.queue(workspaceFolder, () => this._changeContainerState(workspaceFolder, 'stop'));
+	async stopContainer(workspaceFolder: string): Promise<boolean> {
+		return this._containerOperations.queue(workspaceFolder, () => this._changeContainerState(workspaceFolder, 'stop'));
 	}
 
-	async removeContainer(workspaceFolder: string): Promise<void> {
-		await this._containerOperations.queue(workspaceFolder, () => this._changeContainerState(workspaceFolder, 'rm'));
+	async removeContainer(workspaceFolder: string): Promise<boolean> {
+		return this._containerOperations.queue(workspaceFolder, () => this._changeContainerState(workspaceFolder, 'rm'));
 	}
 
-	private async _changeContainerState(workspaceFolder: string, operation: 'stop' | 'rm'): Promise<void> {
+	private async _changeContainerState(workspaceFolder: string, operation: 'stop' | 'rm'): Promise<boolean> {
 		const containerId = this._containerIds.get(workspaceFolder);
 		if (!containerId) {
-			return;
+			return true;
 		}
 		this._suspendedWorkspaces.add(workspaceFolder);
+		const sessionIds = await this._findContainerSessionIds(containerId);
+		const foreignSessionIds = sessionIds.filter(sessionId => sessionId !== this._telemetryService.sessionId);
+		if (foreignSessionIds.length > 0) {
+			this._logService.info(`${LOG_PREFIX} Skipping container ${operation === 'rm' ? 'removal' : 'stop'} for ${workspaceFolder}: ${foreignSessionIds.length} other VS Code session(s) are active.`);
+			return false;
+		}
 		const connectionIds = [...this._connectionWorkspaces]
 			.filter(([, workspace]) => workspace === workspaceFolder)
 			.map(([connectionId]) => connectionId);
@@ -442,6 +457,24 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		if (operation === 'rm' || /No such container/i.test(result.stderr)) {
 			this._containerIds.delete(workspaceFolder);
 		}
+		return true;
+	}
+
+	private async _findContainerSessionIds(containerId: string): Promise<readonly string[]> {
+		const script = `for env in /proc/[0-9]*/environ; do [ -r "$env" ] || continue; tr '\\0' '\\n' < "$env" 2>/dev/null | sed -n 's/^${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=//p'; done`;
+		const result = await this._runDocker(['exec', containerId, '/bin/sh', '-c', script]);
+		if (result.code !== 0) {
+			if (/is not running|No such container/i.test(result.stderr)) {
+				return [];
+			}
+			throw new Error(localize('devContainerAgentHost.containerSessionCheckFailed', "Unable to check active VS Code sessions in Dev Container '{0}' (exit {1}): {2}", containerId, result.code, result.stderr.trim()));
+		}
+		return [...new Set(result.stdout.split('\n').map(value => value.trim()).filter(value => value.length > 0))];
+	}
+
+	private async _readProcessSessionId(exec: ISshExec, pid: number): Promise<string | undefined> {
+		const result = await exec(`tr '\\0' '\\n' < /proc/${pid}/environ 2>/dev/null | sed -n 's/^${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=//p' | head -n 1`, { ignoreExitCode: true });
+		return result.code === 0 ? result.stdout.trim() || undefined : undefined;
 	}
 
 	protected async _runDocker(args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
