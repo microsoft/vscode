@@ -1985,15 +1985,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 					? matchingFolders.filter(folder => folder.destinationGroupId === selectedDestinationGroupId)
 					: [];
 				let targetFolder = selectedFolder;
-				if (!targetFolder && foldersAtSelectedDestination.length === 1) {
+				if (targetFolder?.destinationGroupId) {
+					selectedDestinationGroupIds.set(storage, targetFolder.destinationGroupId);
+				} else if (foldersAtSelectedDestination.length === 1) {
 					targetFolder = foldersAtSelectedDestination[0];
 				} else if (!targetFolder && matchingFolders.length === 1) {
 					targetFolder = matchingFolders[0];
 				} else if (!targetFolder) {
 					targetFolder = await this.pickCustomizationMigrationTargetFolder(matchingFolders, targetType, requiredStorageByTargetType.size > 1);
-				}
-				if (targetFolder?.destinationGroupId) {
-					selectedDestinationGroupIds.set(storage, targetFolder.destinationGroupId);
+					if (targetFolder?.destinationGroupId) {
+						selectedDestinationGroupIds.set(storage, targetFolder.destinationGroupId);
+					}
 				}
 				if (!targetFolder || !this.isCustomizationMigrationSessionActive(sessionResource)) {
 					return undefined;
