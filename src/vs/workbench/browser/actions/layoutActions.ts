@@ -54,6 +54,9 @@ const panelAlignmentJustifyIcon = registerIcon('panel-align-justify', Codicon.la
 const quickInputAlignmentTopIcon = registerIcon('quickInputAlignmentTop', Codicon.arrowUp, localize('quickInputAlignmentTop', "Represents quick input alignment set to the top"));
 const quickInputAlignmentCenterIcon = registerIcon('quickInputAlignmentCenter', Codicon.circle, localize('quickInputAlignmentCenter', "Represents quick input alignment set to the center"));
 
+const layoutDensityDefaultIcon = registerIcon('layout-density-default-icon', Codicon.layoutDensityDefault, localize('layoutDensityDefaultIcon', "Represents the default layout density"));
+const layoutDensityCompactIcon = registerIcon('layout-density-compact-icon', Codicon.layoutDensityCompact, localize('layoutDensityCompactIcon', "Represents the compact layout density"));
+
 const fullscreenIcon = registerIcon('fullscreen', Codicon.screenFull, localize('fullScreenIcon', "Represents full screen"));
 const centerLayoutIcon = registerIcon('centerLayoutIcon', Codicon.layoutCentered, localize('centerLayoutIcon', "Represents centered layout mode"));
 const zenModeIcon = registerIcon('zenMode', Codicon.target, localize('zenModeIcon', "Represents zen mode"));
@@ -1388,8 +1391,8 @@ const QuickInputActions: CustomizeLayoutItem[] = [
 const ModernUIEnabledContext = ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI}`, true);
 
 const LayoutDensityActions: CustomizeLayoutItem[] = [
-	CreateOptionLayoutItem(`workbench.action.setLayoutDensity.${ModernUIDensity.Default}`, ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI_DENSITY}`, ModernUIDensity.Default), localize('layoutDensityDefault', "Default")),
-	CreateOptionLayoutItem(`workbench.action.setLayoutDensity.${ModernUIDensity.Compact}`, ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI_DENSITY}`, ModernUIDensity.Compact), localize('layoutDensityCompact', "Compact")),
+	CreateOptionLayoutItem(`workbench.action.setLayoutDensity.${ModernUIDensity.Default}`, ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI_DENSITY}`, ModernUIDensity.Default), localize('layoutDensityDefault', "Default"), layoutDensityDefaultIcon),
+	CreateOptionLayoutItem(`workbench.action.setLayoutDensity.${ModernUIDensity.Compact}`, ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI_DENSITY}`, ModernUIDensity.Compact), localize('layoutDensityCompact', "Compact"), layoutDensityCompactIcon),
 ];
 
 const MiscLayoutOptions: CustomizeLayoutItem[] = [
