@@ -187,7 +187,7 @@ export class PermissionPicker extends Disposable {
 		if (this._delegate.getPermissionLevelHover) {
 			this._renderDisposables.add(this.hoverService.setupDelayedHover(trigger, () => {
 				const meta = this._getPermissionLevelMeta(this._currentLevel);
-				return { content: this._getPermissionLevelHover(this._currentLevel, meta) ?? '' };
+				return { content: this._getTriggerHover(this._currentLevel, meta) };
 			}));
 		}
 
@@ -410,18 +410,24 @@ export class PermissionPicker extends Disposable {
 
 		dom.clearNode(trigger);
 		const meta = this._getPermissionLevelMeta(this._currentLevel);
-		const label = this._isSandboxToggleAvailable() && this._isSandboxingEnabled()
+		const sandboxed = this._isSandboxToggleAvailable() && this._isSandboxingEnabled();
+		const accessibleLabel = sandboxed
 			? localize('permissionPicker.sandboxedLabel', "{0} (sandboxed)", meta.label)
 			: meta.label;
 
 		dom.append(trigger, renderIcon(meta.icon));
 		const labelSpan = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
-		labelSpan.textContent = label;
+		labelSpan.textContent = meta.label;
+		if (sandboxed) {
+			const sandboxIcon = dom.append(trigger, renderIcon(Codicon.shield));
+			sandboxIcon.classList.add('sessions-chat-sandbox-icon');
+			sandboxIcon.ariaHidden = 'true';
+		}
 
 		const hover = this._getPermissionLevelHover(this._currentLevel, meta);
 		trigger.ariaLabel = hover
-			? localize('permissionPicker.triggerAriaLabelWithDescription', "Pick Permission Level, {0}, {1}", label, hover)
-			: localize('permissionPicker.triggerAriaLabel', "Pick Permission Level, {0}", label);
+			? localize('permissionPicker.triggerAriaLabelWithDescription', "Pick Permission Level, {0}, {1}", accessibleLabel, hover)
+			: localize('permissionPicker.triggerAriaLabel', "Pick Permission Level, {0}", accessibleLabel);
 
 		trigger.classList.toggle('warning', this._currentLevel === ChatPermissionLevel.Autopilot || this._currentLevel === ChatPermissionLevel.Assisted);
 		trigger.classList.toggle('info', this._currentLevel === ChatPermissionLevel.AutoApprove);
@@ -481,6 +487,13 @@ export class PermissionPicker extends Disposable {
 
 	private _getPermissionLevelHover(level: ChatPermissionLevel, meta: IPermissionLevelMeta): string | undefined {
 		return this._delegate.getPermissionLevelHover?.(level, meta) ?? meta.hover;
+	}
+
+	private _getTriggerHover(level: ChatPermissionLevel, meta: IPermissionLevelMeta): string {
+		const hover = this._getPermissionLevelHover(level, meta) ?? '';
+		return this._isSandboxToggleAvailable() && this._isSandboxingEnabled()
+			? localize('permissionPicker.sandboxedHover', "{0} Terminal commands are sandboxed.", hover)
+			: hover;
 	}
 
 	protected _getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionLevelMeta {
