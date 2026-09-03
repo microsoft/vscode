@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from '../../../../../base/common/collections.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { localize } from '../../../../../nls.js';
 import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel } from '../../../../../platform/agentHost/common/autoModeTiers.js';
@@ -17,7 +19,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../services/c
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelControlEntry } from '../../../../contrib/chat/common/languageModels.js';
 import { IModelConfigurationAccess } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
 import { ModelPickerAutoRow } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerAutoRow.js';
-import { ModelCard } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerCard.js';
+import { IPricingDisclosure, ModelCard } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerCard.js';
 import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
 import { IModelPickerProviderPlaceholder } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerTabs.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
@@ -159,11 +161,17 @@ const OPENAI_MODELS = [
 ];
 
 const ANTHROPIC_MODELS = [
-	createModel('claude-opus-4', 'Claude Opus 4', { vendor: 'anthropic', isBYOK: true }),
+	createModel('example-opus-4', 'Example Opus 4', { vendor: 'anthropic', isBYOK: true }),
 ];
 
 const GOOGLE_MODELS = [
 	createModel('gemini-2-flash', 'Gemini 2 Flash', { vendor: 'google', isBYOK: true }),
+];
+
+/** A model the provider also offers at a second speed, named by an id suffix. */
+const SPEED_VARIANT_MODELS = [
+	createModel('example-2.5', 'Example 2.5', { category: 'powerful', priceCategory: 'high', costs: true }),
+	createModel('example-2.5-fast', 'Example 2.5 (fast mode)', { category: 'powerful', priceCategory: 'very_high', costs: true }),
 ];
 
 const COPILOT_ONLY_MODELS = [AUTO_MODEL, ...COPILOT_MODELS];
@@ -185,7 +193,7 @@ const CONTROL_MODELS: IStringDictionary<IModelControlEntry> = {
 /** Adds curated models the account cannot reach, plus one gated behind a newer build. */
 const CONTROL_MODELS_WITH_LOCKED: IStringDictionary<IModelControlEntry> = {
 	...CONTROL_MODELS,
-	'claude-opus-5': { label: 'Claude Opus 5', featured: true, exists: false },
+	'example-locked-5': { label: 'Example Locked 5', featured: true, exists: false },
 	'gpt-6': { label: 'GPT-6', featured: true, exists: false, minVSCodeVersion: '99.0.0' },
 };
 
@@ -196,6 +204,17 @@ function createConfigurationAccess(): IModelConfigurationAccess {
 		getModelConfiguration: modelId => values.get(modelId),
 		setModelConfiguration: async (modelId, next) => { values.set(modelId, { ...values.get(modelId), ...next }); },
 		getModelConfigurationActions: () => [],
+	};
+}
+
+/** A disclosure backed by a plain flag, so a fixture can render either state. */
+function createPricingDisclosure(disposableStore: DisposableStore, expanded: boolean): IPricingDisclosure {
+	const emitter = disposableStore.add(new Emitter<void>());
+	let current = expanded;
+	return {
+		isExpanded: () => current,
+		setExpanded: next => { current = next; emitter.fire(); },
+		onDidChange: emitter.event,
 	};
 }
 
@@ -291,6 +310,8 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 			}));
 			registration.defineInstance(IContextViewService, createInlineContextViewService(container, disposableStore));
 			registration.defineInstance(ILanguageModelsService, createLanguageModelsService());
+			// The shared harness discards writes, so the picker cannot remember anything.
+			registration.defineInstance(IStorageService, disposableStore.add(new InMemoryStorageService()));
 		},
 	});
 
@@ -361,7 +382,7 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 	}
 }
 
-function renderCard(context: ComponentFixtureContext, model: ILanguageModelChatMetadataAndIdentifier, extendedContext: boolean): void {
+function renderCard(context: ComponentFixtureContext, model: ILanguageModelChatMetadataAndIdentifier, extendedContext: boolean, pricingExpanded = false): void {
 	const { container, disposableStore } = context;
 	setupContainer(container, 320);
 
@@ -375,6 +396,7 @@ function renderCard(context: ComponentFixtureContext, model: ILanguageModelChatM
 		configurationAccess,
 		isUBB: true,
 		openerService: NullOpenerService,
+		pricingDisclosure: createPricingDisclosure(disposableStore, pricingExpanded),
 	}));
 
 	const wrapper = document.createElement('div');
@@ -457,6 +479,22 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 		}),
 	}),
 	CardStandardContext: defineComponentFixture({ render: context => renderCard(context, COPILOT_MODELS[0], false) }),
+	CardPricingExpanded: defineComponentFixture({ render: context => renderCard(context, COPILOT_MODELS[0], false, true) }),
+	PickerSpeedVariants: defineComponentFixture({
+		render: context => renderPicker(context, {
+			models: [...COPILOT_ONLY_MODELS, ...SPEED_VARIANT_MODELS],
+			expandOther: true,
+			openCardFor: 'Example 2.5',
+		}),
+	}),
+	/** The faster twin selected outright, as `chat.defaultModel` set to its id does. */
+	PickerSpeedVariantsFastSelected: defineComponentFixture({
+		render: context => renderPicker(context, {
+			models: [...COPILOT_ONLY_MODELS, ...SPEED_VARIANT_MODELS],
+			selectedModelId: 'copilot/example-2.5-fast',
+			openCardFor: 'Example 2.5 (fast mode)',
+		}),
+	}),
 	CardExtendedContext: defineComponentFixture({ render: context => renderCard(context, COPILOT_MODELS[0], true) }),
 	CardManyEffortValues: defineComponentFixture({ render: context => renderCard(context, MANY_EFFORT_MODEL, false) }),
 	CardWithoutConfiguration: defineComponentFixture({ render: context => renderCard(context, COPILOT_MODELS[2], false) }),

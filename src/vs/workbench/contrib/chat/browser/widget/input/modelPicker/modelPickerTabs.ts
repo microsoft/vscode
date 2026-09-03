@@ -9,6 +9,7 @@ import { localize } from '../../../../../../../nls.js';
 import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry } from '../../../../common/languageModels.js';
 import { buildModelToProviderGroupMap, getProviderGroupForModel, isVersionAtLeast } from './modelPickerItemPrimitives.js';
 import { isDeprecated } from './modelPickerBadges.js';
+import { isEarlyAccessModel, latestOfEachLine } from './modelPickerLineage.js';
 import { getProviderIconForIdentity } from './modelProviderIcons.js';
 import { isAutoModel } from './modelPickerPresentation.js';
 
@@ -224,12 +225,17 @@ export function buildModelPickerSections(options: IModelPickerSectionsOptions): 
 				suggested.push(take(model.identifier)!);
 			}
 		}
-		for (const [id, entry] of Object.entries(options.controlModels)) {
-			if (entry.featured) {
-				const model = take(id);
-				if (model) {
-					suggested.push(model);
-				}
+		// The newest model of each line leads, so a launch surfaces itself and the model
+		// it replaces steps back without anyone maintaining a list. A line replaced by a
+		// different line rather than by a newer version of itself is the one case a rule
+		// cannot work out, and is named as demoted instead.
+		for (const model of latestOfEachLine(selectable)) {
+			if (isEarlyAccessModel(model.metadata.id) || options.controlModels[model.metadata.id]?.demoted) {
+				continue;
+			}
+			const latest = take(model.identifier);
+			if (latest) {
+				suggested.push(latest);
 			}
 		}
 		// The model in use is never folded away, however the catalogue rates it: a picker

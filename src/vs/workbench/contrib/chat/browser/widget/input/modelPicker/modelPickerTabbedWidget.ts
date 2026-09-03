@@ -14,6 +14,7 @@ import { IActionWidgetDropdownAction } from '../../../../../../../platform/actio
 import { ITabBarAction, ITabDescriptor, TabbedActionListWidget } from '../../../../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
@@ -21,7 +22,8 @@ import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModel
 import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
 import { IModelConfigurationAccess } from './modelPickerActionItem.js';
 import { ModelPickerAutoRow } from './modelPickerAutoRow.js';
-import { ModelCard } from './modelPickerCard.js';
+import { IPricingDisclosure, ModelCard } from './modelPickerCard.js';
+import { buildSpeedVariants, collapseSpeedVariants, IModelSpeedVariants } from './modelPickerVariants.js';
 import { getModelBadge } from './modelPickerBadges.js';
 import { createModelAction, createUnavailableModelItem, getUnavailableReason } from './modelPickerItemPrimitives.js';
 import { getModelPickerAccessibilityProvider } from './modelPickerItems.js';
@@ -32,6 +34,7 @@ import { ModelPickerWelcome } from './modelPickerWelcome.js';
 /** The collapsible section holding models that are neither pinned, recommended nor recent. */
 const OTHER_MODELS_SECTION = 'other';
 const PICKER_WIDTH = 320;
+const PRICING_EXPANDED_STORAGE_KEY = 'chat.modelPicker.pricingExpanded';
 
 /** Everything the picker needs for one showing, gathered by the owning widget. */
 export interface ITabbedModelPickerContext {
@@ -81,11 +84,22 @@ export class TabbedModelPicker extends Disposable {
 	private readonly _widget: TabbedActionListWidget;
 	private readonly _cards = this._register(new DisposableStore());
 	private readonly _autoRow = this._register(new MutableDisposable<ModelPickerAutoRow>());
+	private readonly _onDidChangePricingDisclosure = this._register(new Emitter<void>());
+	/** Shared by every card, and remembered, so the breakdown is opened once rather than per model. */
+	private readonly _pricingDisclosure: IPricingDisclosure = {
+		isExpanded: () => this._storageService.getBoolean(PRICING_EXPANDED_STORAGE_KEY, StorageScope.APPLICATION, false),
+		setExpanded: expanded => {
+			this._storageService.store(PRICING_EXPANDED_STORAGE_KEY, expanded, StorageScope.APPLICATION, StorageTarget.USER);
+			this._onDidChangePricingDisclosure.fire();
+		},
+		onDidChange: this._onDidChangePricingDisclosure.event,
+	};
 
 	private _context: ITabbedModelPickerContext | undefined;
 	private _anchor: HTMLElement | undefined;
 	private _activeDestination: string | undefined;
 	private _searchVisible = false;
+	private _speedVariants: ReadonlyMap<string, IModelSpeedVariants> = new Map();
 	/** The model to fall back to when Auto is switched off. */
 	private _lastExplicitModelId: string | undefined;
 
@@ -97,6 +111,7 @@ export class TabbedModelPicker extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 		this._widget = this._register(instantiationService.createInstance(TabbedActionListWidget));
@@ -124,7 +139,9 @@ export class TabbedModelPicker extends Disposable {
 			return;
 		}
 
-		const destinations = buildModelPickerDestinations(context.models, this._languageModelsService, context.providerPlaceholders);
+		this._speedVariants = buildSpeedVariants(context.models);
+		const listModels = collapseSpeedVariants(context.models, this._speedVariants, context.selectedModelId);
+		const destinations = buildModelPickerDestinations(listModels, this._languageModelsService, context.providerPlaceholders);
 		if (!destinations.length) {
 			return;
 		}
@@ -365,6 +382,12 @@ export class TabbedModelPicker extends Disposable {
 			isUBB: context.isUBB,
 			openerService: this._openerService,
 			isPinned: context.pinnedModelIds.includes(model.identifier),
+			pricingDisclosure: this._pricingDisclosure,
+			speedVariants: this._speedVariants.get(model.identifier),
+			onSelectVariant: next => {
+				context.onSelect(next);
+				this._widget.hide();
+			},
 			onTogglePin: context.onTogglePin
 				? pinned => {
 					context.onTogglePin?.(model.identifier, pinned);

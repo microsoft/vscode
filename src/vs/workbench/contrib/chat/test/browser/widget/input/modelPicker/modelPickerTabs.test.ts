@@ -9,6 +9,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../..
 import { IModelConfigurationAccess } from '../../../../../browser/widget/input/modelPicker/modelPickerActionItem.js';
 import { getModelConfigProperty, getModelConfigSummary, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { getModelBadge } from '../../../../../browser/widget/input/modelPicker/modelPickerBadges.js';
+import { latestOfEachLine, parseModelLine } from '../../../../../browser/widget/input/modelPicker/modelPickerLineage.js';
+import { buildSpeedVariants, collapseSpeedVariants } from '../../../../../browser/widget/input/modelPicker/modelPickerVariants.js';
 import { buildModelPickerDestinations, buildModelPickerSections, hasPromotedModels, IModelPickerProviderPlaceholder } from '../../../../../browser/widget/input/modelPicker/modelPickerTabs.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry } from '../../../../../common/languageModels.js';
 
@@ -212,9 +214,9 @@ suite('Model picker destinations', () => {
 		);
 	});
 
-	test('models that are neither pinned nor shortlisted fall through to the rest', () => {
+	test('a model superseded within its line falls through to the rest', () => {
 		const sections = buildModelPickerSections({
-			models: [gpt, claude, gemini],
+			models: [createModel('example-5.5', 'Example 5.5'), createModel('example-5.6', 'Example 5.6'), claude],
 			selectedModelId: undefined,
 			recentModelIds: [],
 			pinnedModelIds: [],
@@ -223,10 +225,11 @@ suite('Model picker destinations', () => {
 		});
 		assert.deepStrictEqual(
 			{
+				suggested: sections.suggested.map(model => model.metadata.name),
 				other: sections.other.map(model => model.metadata.name),
 				promoted: hasPromotedModels(sections),
 			},
-			{ other: ['Claude Sonnet 5', 'Gemini 3.1 Pro', 'GPT-5.5'], promoted: false },
+			{ suggested: ['Claude Sonnet 5', 'Example 5.6'], other: ['Example 5.5'], promoted: true },
 		);
 	});
 
@@ -239,7 +242,11 @@ suite('Model picker destinations', () => {
 			selectedModelId: undefined,
 			recentModelIds: [],
 			pinnedModelIds: [],
-			controlModels: {},
+			controlModels: {
+				'alpha': { label: 'Alpha', exists: true, demoted: true },
+				'claude-sonnet-5': { label: 'Claude Sonnet 5', exists: true, demoted: true },
+				'gemini-3-1-pro': { label: 'Gemini 3.1 Pro', exists: true, demoted: true },
+			},
 			showSuggested: true,
 		});
 		assert.deepStrictEqual(
@@ -281,6 +288,197 @@ suite('Model picker destinations', () => {
 		);
 	});
 
+	test('a model id splits into the line it belongs to and its version', () => {
+		// The id shapes a provider can use: version last, version in the middle, a
+		// multi-word line, and no version at all.
+		assert.deepStrictEqual(
+			['example-5.5', 'example-5.6-sol', 'example-1.1-lite', 'example-opus-5', 'example-prime']
+				.map(id => ({ id, ...parseModelLine(id) })),
+			[
+				{ id: 'example-5.5', line: 'example', version: [5, 5] },
+				{ id: 'example-5.6-sol', line: 'example-sol', version: [5, 6] },
+				{ id: 'example-1.1-lite', line: 'example-lite', version: [1, 1] },
+				{ id: 'example-opus-5', line: 'example-opus', version: [5] },
+				// No version token, so it stands as its own line rather than being buried.
+				{ id: 'example-prime', line: 'example-prime', version: [] },
+			],
+		);
+	});
+
+	test('the shortlist is the newest of each line, so a launch needs no list edit', () => {
+		const line = (id: string, vendor = 'copilot') => createModel(id, id, { vendor });
+		const shortlist = (models: readonly ILanguageModelChatMetadataAndIdentifier[]) =>
+			latestOfEachLine(models).map(model => model.metadata.id).sort();
+
+		const catalogue = [line('example-5.6-sol'), line('example-opus-4.8'), line('example-opus-5')];
+		assert.deepStrictEqual(
+			{
+				today: shortlist(catalogue),
+				// A newer version of a line replaces it; a line of its own joins the shortlist.
+				afterLaunch: shortlist([...catalogue, line('example-5.7-sol'), line('example-6-vega')]),
+				// `example-5.5` is the `example` line and `example-5.6-sol` is the
+				// `example-sol` line, so neither supersedes the other. Replacing a line
+				// takes a name, not a rule.
+				acrossLines: shortlist([line('example-5.5'), line('example-5.6-sol')]),
+				// Two providers can ship the same line name without displacing each other.
+				perVendor: shortlist([line('example-5.4-mini'), line('example-5-mini', 'azure')]),
+			},
+			{
+				today: ['example-5.6-sol', 'example-opus-5'],
+				afterLaunch: ['example-5.7-sol', 'example-6-vega', 'example-opus-5'],
+				acrossLines: ['example-5.5', 'example-5.6-sol'],
+				perVendor: ['example-5-mini', 'example-5.4-mini'],
+			},
+		);
+	});
+
+	test('a line replaced by a different line is demoted by name, and promos still lead', () => {
+		const sol = createModel('example-5.6-sol', 'Example 5.6 Sol');
+		const codex = createModel('example-5.3-codex', 'Example 5.3 Codex');
+		const promoCodex = { ...codex, metadata: { ...codex.metadata, promo: { id: 'p', discountPercent: 25, message: 'Save now.' } } };
+		const sections = (codexModel: ILanguageModelChatMetadataAndIdentifier) => buildModelPickerSections({
+			models: [sol, codexModel],
+			selectedModelId: undefined,
+			recentModelIds: [],
+			pinnedModelIds: [],
+			// Codex is the newest of its own line, so only a name can move it down.
+			controlModels: { 'example-5.3-codex': { label: 'Example 5.3 Codex', exists: true, demoted: true } },
+			showSuggested: true,
+		});
+		assert.deepStrictEqual(
+			{
+				demoted: {
+					suggested: sections(codex).suggested.map(model => model.metadata.id),
+					other: sections(codex).other.map(model => model.metadata.id),
+				},
+				// An offer outranks the demotion: it is time-limited and worth seeing.
+				withPromo: sections(promoCodex).suggested.map(model => model.metadata.id),
+			},
+			{
+				demoted: { suggested: ['example-5.6-sol'], other: ['example-5.3-codex'] },
+				withPromo: ['example-5.3-codex', 'example-5.6-sol'],
+			},
+		);
+	});
+
+	test('demoting every model leaves the list open rather than empty', () => {
+		// A demotion is honoured whether or not anything replaced the model, so a config
+		// that names them all is possible. The fold has nothing to hide behind then, and
+		// the rest is shown instead of the picker opening on nothing.
+		const sections = buildModelPickerSections({
+			models: [gpt, claude],
+			selectedModelId: undefined,
+			recentModelIds: [],
+			pinnedModelIds: [],
+			controlModels: {
+				'gpt-5-5': { label: 'GPT-5.5', exists: true, demoted: true },
+				'claude-sonnet-5': { label: 'Claude Sonnet 5', exists: true, demoted: true },
+			},
+			showSuggested: true,
+		});
+		assert.deepStrictEqual(
+			{
+				suggested: sections.suggested.length,
+				other: sections.other.map(model => model.metadata.name),
+				// False, so the caller leaves the rest expanded instead of folding it away.
+				folds: hasPromotedModels(sections),
+			},
+			{ suggested: 0, other: ['Claude Sonnet 5', 'GPT-5.5'], folds: false },
+		);
+	});
+
+	test('an early-access build stays out of the shortlist without being named', () => {
+		const sections = buildModelPickerSections({
+			models: [gpt, createModel('example-3-eap', 'Example 3 EAP'), createModel('example-4-experimental', 'Example 4')],
+			selectedModelId: undefined,
+			recentModelIds: [],
+			pinnedModelIds: [],
+			// No entry for either: the id says enough, so a new one needs no config.
+			controlModels: {},
+			showSuggested: true,
+		});
+		assert.deepStrictEqual(
+			{
+				suggested: sections.suggested.map(model => model.metadata.id),
+				// Held back from the shortlist, not hidden: still selectable further down.
+				other: sections.other.map(model => model.metadata.id),
+			},
+			{
+				suggested: ['gpt-5-5'],
+				other: ['example-3-eap', 'example-4-experimental'],
+			},
+		);
+	});
+
+	test('a demotion names one model, so a newer one in that line surfaces again', () => {
+		// Deliberate: a demotion says "not this model", not "not this line". A line that
+		// comes back is worth seeing, which is the whole point of failing upward. The
+		// cost is that suppressing a variant has to be repeated when it is re-released.
+		const shortlist = (models: readonly ILanguageModelChatMetadataAndIdentifier[]) => buildModelPickerSections({
+			models,
+			selectedModelId: undefined,
+			recentModelIds: [],
+			pinnedModelIds: [],
+			controlModels: {
+				'example-5.5': { label: 'Example 5.5', exists: true, demoted: true },
+				'example-1-lite-picker': { label: 'Example 1 Lite', exists: true, demoted: true },
+			},
+			showSuggested: true,
+		}).suggested.map(model => model.metadata.id).sort();
+
+		const retired = createModel('example-5.5', 'Example 5.5');
+		const variant = createModel('example-1-lite-picker', 'Example 1 Lite');
+		assert.deepStrictEqual(
+			{
+				demoted: shortlist([retired, variant]),
+				// A flagship on the line that was retired, and a re-release of the variant.
+				succeeded: shortlist([retired, variant, createModel('example-6', 'Example 6'), createModel('example-2-lite-picker', 'Example 2 Lite')]),
+			},
+			{ demoted: [], succeeded: ['example-2-lite-picker', 'example-6'] },
+		);
+	});
+
+	test('a model is paired with the faster twin the provider names by id', () => {
+		// The ids and names the provider actually uses for the pair.
+		const standard = createModel('example-2.5', 'Example 2.5');
+		const fast = createModel('example-2.5-fast', 'Example 2.5 (fast mode)');
+		// Ends in the suffix but has no twin, so it is a model in its own right.
+		const orphan = createModel('some-model-fast', 'Some Model (fast mode)');
+		const variants = buildSpeedVariants([gpt, standard, fast, orphan]);
+
+		assert.deepStrictEqual(
+			{
+				fromStandard: variants.get(standard.identifier)?.fast.metadata.id,
+				fromFast: variants.get(fast.identifier)?.standard.metadata.id,
+				unpaired: [gpt, orphan].map(model => variants.has(model.identifier)),
+			},
+			{ fromStandard: 'example-2.5-fast', fromFast: 'example-2.5', unpaired: [false, false] },
+		);
+	});
+
+	test('a pair takes one row, showing whichever twin is in use', () => {
+		const standard = createModel('example-2.5', 'Example 2.5');
+		const fast = createModel('example-2.5-fast', 'Example 2.5 (fast mode)');
+		const models = [gpt, standard, fast];
+		const variants = buildSpeedVariants(models);
+		const names = (selected: string | undefined) =>
+			collapseSpeedVariants(models, variants, selected).map(model => model.metadata.name);
+
+		assert.deepStrictEqual(
+			{
+				neither: names(undefined),
+				standardSelected: names(standard.identifier),
+				fastSelected: names(fast.identifier),
+			},
+			{
+				neither: ['GPT-5.5', 'Example 2.5'],
+				standardSelected: ['GPT-5.5', 'Example 2.5'],
+				// The twin in use is never hidden, however the pair is collapsed.
+				fastSelected: ['GPT-5.5', 'Example 2.5 (fast mode)'],
+			},
+		);
+	});
+
 	test('badges rank a retiring model over an offer over the settings a model was tuned to', () => {
 		const retiring = { ...gpt, metadata: { ...gpt.metadata, warningText: { model_pending_deprecation: 'Retiring soon.' } } };
 		const promo = { ...claude, metadata: { ...claude.metadata, promo: { id: 'p', discountPercent: 25, message: 'Save now.' } } };
@@ -312,7 +510,7 @@ suite('Model picker destinations', () => {
 	test('curated models the account cannot reach are named so their unlock path shows', () => {
 		const controlModels: IStringDictionary<IModelControlEntry> = {
 			'gpt-5-5': { label: 'GPT-5.5', featured: true, exists: true },
-			'claude-opus-5': { label: 'Claude Opus 5', featured: true, exists: false },
+			'example-opus-5': { label: 'Claude Opus 5', featured: true, exists: false },
 			'gpt-6': { label: 'GPT-6', featured: true, exists: false, minVSCodeVersion: '99.0.0' },
 			'hidden': { label: 'Not Featured', featured: false, exists: false },
 		};
@@ -333,7 +531,7 @@ suite('Model picker destinations', () => {
 			},
 			{
 				suggested: ['GPT-5.5'],
-				unavailable: [{ id: 'claude-opus-5', needsUpdate: false }, { id: 'gpt-6', needsUpdate: true }],
+				unavailable: [{ id: 'example-opus-5', needsUpdate: false }, { id: 'gpt-6', needsUpdate: true }],
 			},
 		);
 	});
@@ -348,7 +546,7 @@ suite('Model picker destinations', () => {
 			selectedModelId: 'copilot/gpt-5-5',
 			recentModelIds: ['copilot/gpt-5-5'],
 			pinnedModelIds: ['copilot/gpt-5-5'],
-			controlModels,
+			controlModels: { ...controlModels, 'claude-sonnet-5': { label: 'Claude Sonnet 5', exists: true, demoted: true } },
 			showSuggested: true,
 			showUnavailable: true,
 			currentVSCodeVersion: '1.100.0',
@@ -375,7 +573,7 @@ suite('Model picker destinations', () => {
 			selectedModelId: undefined,
 			recentModelIds: [],
 			pinnedModelIds: [],
-			controlModels: { 'claude-opus-5': { label: 'Claude Opus 5', featured: true, exists: false } },
+			controlModels: { 'example-opus-5': { label: 'Claude Opus 5', featured: true, exists: false } },
 			showSuggested: true,
 		});
 		assert.deepStrictEqual(sections.unavailable, []);

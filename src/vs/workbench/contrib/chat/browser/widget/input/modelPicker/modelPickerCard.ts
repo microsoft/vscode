@@ -6,6 +6,7 @@
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
+import { Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { formatTokenCount } from '../../../../../../../base/common/numbers.js';
@@ -18,6 +19,18 @@ import { createMessageBanner } from './modelPickerHover.js';
 import { getModelConfigProperty, getModelConfigValueLabel, IModelConfigProperty, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
 import { getCategoryLabel, getPriceCategoryLabel, isAutoModel, isHighCostCategory, isMultiplierPricing } from './modelPickerPresentation.js';
 import { SegmentedControl } from './modelPickerSegmentedControl.js';
+import { IModelSpeedVariants } from './modelPickerVariants.js';
+
+/**
+ * Whether the pricing breakdown is open, shared by every card. Most people never need
+ * the numbers, and the ones who do should not have to open them on each model.
+ */
+export interface IPricingDisclosure {
+	isExpanded(): boolean;
+	setExpanded(expanded: boolean): void;
+	/** Fires when the state changes, so cards already built stay in step. */
+	readonly onDidChange: Event<void>;
+}
 
 export interface IModelCardOptions {
 	readonly model: ILanguageModelChatMetadataAndIdentifier;
@@ -30,12 +43,16 @@ export interface IModelCardOptions {
 	/** Whether the model is pinned, when pinning is offered here. */
 	readonly isPinned?: boolean;
 	readonly onTogglePin?: (pinned: boolean) => void;
+	readonly pricingDisclosure?: IPricingDisclosure;
+	/** The faster twin of this model, when the provider offers one. */
+	readonly speedVariants?: IModelSpeedVariants;
+	/** Called with the twin the user picked, which becomes the selected model. */
+	readonly onSelectVariant?: (model: ILanguageModelChatMetadataAndIdentifier) => void;
 }
 
 /** One cost metric, with the value for each context tier. */
 interface ICostMetric {
 	readonly label: string;
-	readonly icon: ThemeIcon;
 	readonly standard: number | null | undefined;
 	readonly extended: number | null | undefined;
 }
@@ -50,9 +67,16 @@ export class ModelCard extends DisposableStore {
 	readonly element = dom.$('.chat-model-card');
 
 	private readonly _contentDisposables = this.add(new DisposableStore());
+	/** The pricing disclosure's button, rebuilt with the rest of the card on each render. */
+	private _pricingToggle: HTMLElement | undefined;
 
 	constructor(private readonly _options: IModelCardOptions) {
 		super();
+		if (_options.pricingDisclosure) {
+			// Opening the breakdown on one model opens it on the rest, so cards built
+			// earlier are re-rendered rather than left showing the old state.
+			this.add(_options.pricingDisclosure.onDidChange(() => this._render()));
+		}
 		this._render();
 	}
 
@@ -70,6 +94,7 @@ export class ModelCard extends DisposableStore {
 	private _render(): void {
 		this._contentDisposables.clear();
 		dom.clearNode(this.element);
+		this._pricingToggle = undefined;
 
 		const { model, isUBB, openerService } = this._options;
 		const metadata = model.metadata;
@@ -102,6 +127,11 @@ export class ModelCard extends DisposableStore {
 			this._renderContextSection(context);
 		} else if (!isAuto) {
 			this._renderContextWindow(metadata);
+		}
+		// After the settings every model has, so those keep one position whether or not
+		// this model happens to have a faster twin.
+		if (!isAuto) {
+			this._renderSpeedSection();
 		}
 		if (!isAuto && isUBB) {
 			this._renderCost(context);
@@ -156,13 +186,10 @@ export class ModelCard extends DisposableStore {
 		this.element.appendChild(rendered.element);
 	}
 
-	private _renderSection(title: string, description?: string): HTMLElement {
+	private _renderSection(title: string): HTMLElement {
 		const section = dom.append(this.element, dom.$('.chat-model-card-section'));
 		const heading = dom.append(section, dom.$('.chat-model-card-section-heading'));
 		dom.append(heading, dom.$('.chat-model-card-section-title', undefined, title));
-		if (description) {
-			dom.append(section, dom.$('.chat-model-card-section-description', undefined, description));
-		}
 		return section;
 	}
 
@@ -178,21 +205,21 @@ export class ModelCard extends DisposableStore {
 	 * neither window is "off", and it would hide the one being chosen between.
 	 */
 	private _renderContextSection(context: IModelConfigProperty): void {
-		// No description: a context window is fully described by its own size, which the
-		// segment already states, so anything above it only repeats or pads it.
-		this._renderChoiceSection(context, MODEL_CONFIG_GROUP_CONTEXT, context.schema.title ?? localize('chat.context.header', "Context"), false);
+		this._renderChoiceSection(context, MODEL_CONFIG_GROUP_CONTEXT, context.schema.title ?? localize('chat.context.header', "Context"));
 	}
 
 	/**
-	 * One setting: its name, what the producer says about the value in effect, and the
-	 * choices. Every setting is built this way, so they stack without each inventing a
-	 * shape of its own.
+	 * One setting: its name and the choices. Every setting is built this way, so they
+	 * stack without each inventing a shape of its own.
+	 *
+	 * The value is not described above the control: these are ordered scales whose
+	 * labels already say what they mean, so a line restating "Max" as "absolute maximum
+	 * capability" only pads the card. The producer's wording stays on each segment's
+	 * own tooltip for anyone who wants it.
 	 */
-	private _renderChoiceSection(property: IModelConfigProperty, group: string, title: string, describeValue = true): void {
+	private _renderChoiceSection(property: IModelConfigProperty, group: string, title: string): void {
 		const values = property.schema.enum ?? [];
-		const selected = values.indexOf(property.value);
-		const description = describeValue && selected >= 0 ? property.schema.enumDescriptions?.[selected] : undefined;
-		const section = this._renderSection(title, description);
+		const section = this._renderSection(title);
 		const control = this._contentDisposables.add(new SegmentedControl({
 			ariaLabel: title,
 			options: values.map((value, index) => ({
@@ -201,6 +228,39 @@ export class ModelCard extends DisposableStore {
 				checked: value === property.value,
 			})),
 			onSelect: index => void this._setValue(group, property.key, values[index]),
+		}));
+		section.appendChild(control.domNode);
+	}
+
+	/**
+	 * The two speeds the provider offers the same model at. Picking one selects that
+	 * model, the same way changing any other setting here does, since the twins are
+	 * separate models with their own prices. Placed last so the settings every model
+	 * has keep one position whether or not this one has a twin.
+	 */
+	private _renderSpeedSection(): void {
+		const variants = this._options.speedVariants;
+		if (!variants) {
+			return;
+		}
+		const choices = [
+			{ label: localize('models.speed.standard', "Standard"), model: variants.standard },
+			{ label: localize('models.speed.fast', "Fast"), model: variants.fast },
+		];
+		const title = localize('models.speed', "Speed");
+		const section = this._renderSection(title);
+		const control = this._contentDisposables.add(new SegmentedControl({
+			ariaLabel: title,
+			options: choices.map(choice => ({
+				label: choice.label,
+				checked: choice.model.identifier === this._options.model.identifier,
+			})),
+			onSelect: index => {
+				const next = choices[index].model;
+				if (next.identifier !== this._options.model.identifier) {
+					this._options.onSelectVariant?.(next);
+				}
+			},
 		}));
 		section.appendChild(control.domNode);
 	}
@@ -219,10 +279,10 @@ export class ModelCard extends DisposableStore {
 	private _renderCost(context: IModelConfigProperty | undefined): void {
 		const metadata = this._options.model.metadata;
 		const metrics: ICostMetric[] = [
-			{ label: localize('models.inputCostLabel', "Input"), icon: Codicon.arrowDown, standard: metadata.inputCost, extended: metadata.longContextInputCost },
-			{ label: localize('models.outputCostLabel', "Output"), icon: Codicon.arrowUp, standard: metadata.outputCost, extended: metadata.longContextOutputCost },
-			{ label: localize('models.cacheCostLabel', "Cache Read"), icon: Codicon.arrowCircleDown, standard: metadata.cacheCost, extended: metadata.longContextCacheCost },
-			{ label: localize('models.cacheWriteCostLabel', "Cache Write"), icon: Codicon.arrowCircleUp, standard: metadata.cacheWriteCost, extended: metadata.longContextCacheWriteCost },
+			{ label: localize('models.inputCostLabel', "Input"), standard: metadata.inputCost, extended: metadata.longContextInputCost },
+			{ label: localize('models.outputCostLabel', "Output"), standard: metadata.outputCost, extended: metadata.longContextOutputCost },
+			{ label: localize('models.cacheCostLabel', "Cache Read"), standard: metadata.cacheCost, extended: metadata.longContextCacheCost },
+			{ label: localize('models.cacheWriteCostLabel', "Cache Write"), standard: metadata.cacheWriteCost, extended: metadata.longContextCacheWriteCost },
 		].filter(metric => metric.standard !== undefined || metric.extended !== undefined);
 		if (!metrics.length) {
 			if (metadata.pricing) {
@@ -232,18 +292,46 @@ export class ModelCard extends DisposableStore {
 		}
 
 		const useExtended = !!context && isExtendedContext(context);
-		const section = dom.append(this.element, dom.$('.chat-model-card-section.chat-model-card-cost'));
-		const heading = dom.append(section, dom.$('.chat-model-card-section-heading'));
-		dom.append(heading, dom.$('.chat-model-card-section-title', undefined, localize('models.creditsPerMillionTokens', "Credits Per 1M Tokens")));
+		const disclosure = this._options.pricingDisclosure;
+		const expanded = disclosure ? disclosure.isExpanded() : true;
+		const section = dom.append(this.element, dom.$('.chat-model-card-section.chat-model-card-pricing'));
+		const bodyId = `chat-model-card-pricing-${this._options.model.identifier.replace(/[^\w-]/g, '-')}`;
 
-		const row = dom.append(section, dom.$('.chat-model-card-cost-row'));
+		// Folded away by default: the numbers only matter to the people who go looking
+		// for them, and they are the last thing most people need to read.
+		if (disclosure) {
+			const title = localize('models.pricingDetails', "Pricing details");
+			const toggle = dom.append(section, dom.$<HTMLButtonElement>('button.chat-model-card-pricing-toggle'));
+			toggle.type = 'button';
+			toggle.setAttribute('aria-expanded', String(expanded));
+			toggle.setAttribute('aria-controls', bodyId);
+			dom.append(toggle, dom.$('span.chat-model-card-section-title', undefined, title));
+			dom.append(toggle, dom.$(`span.chat-model-card-pricing-chevron${ThemeIcon.asCSSSelector(expanded ? Codicon.chevronDown : Codicon.chevronRight)}`));
+			this._pricingToggle = toggle;
+			this._contentDisposables.add(dom.addDisposableListener(toggle, dom.EventType.CLICK, e => {
+				dom.EventHelper.stop(e, true);
+				const hadFocus = dom.isActiveElement(toggle);
+				disclosure.setExpanded(!expanded);
+				// The click rebuilt this card, so focus has to land on the button that
+				// replaced the one that was pressed.
+				if (hadFocus) {
+					this._pricingToggle?.focus();
+				}
+			}));
+		}
+		if (!expanded) {
+			return;
+		}
+
+		const body = dom.append(section, dom.$('.chat-model-card-pricing-body'));
+		body.id = bodyId;
+		// The unit is stated once, so each row can be read as a plain name and number.
+		dom.append(body, dom.$('.chat-model-card-pricing-caption', undefined, localize('models.creditsPerMillionTokens', "Credits per 1M tokens")));
 		for (const metric of metrics) {
 			const cost = useExtended ? metric.extended ?? metric.standard : metric.standard;
-			const cell = dom.append(row, dom.$('.chat-model-card-cost-metric'));
-			cell.title = metric.label;
-			cell.ariaLabel = localize('models.costMetricAria', "{0}: {1}", metric.label, formatCost(cost));
-			dom.append(cell, dom.$(`span.chat-model-card-cost-icon${ThemeIcon.asCSSSelector(metric.icon)}`));
-			dom.append(cell, dom.$('span.chat-model-card-cost-value', undefined, formatCost(cost)));
+			const row = dom.append(body, dom.$('.chat-model-card-pricing-row'));
+			dom.append(row, dom.$('span.chat-model-card-pricing-label', undefined, metric.label));
+			dom.append(row, dom.$('span.chat-model-card-pricing-value', undefined, formatCost(cost)));
 		}
 	}
 
