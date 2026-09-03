@@ -19,6 +19,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
+import { IAgentHostMcpConnectorsService } from '../../../node/agentHostMcpConnectorsService.js';
 import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
@@ -36,6 +37,7 @@ import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
+import { createTestMcpConnectorsService } from '../testMcpConnectorsService.js';
 import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { AgentHostConfigKey } from '../../../common/agentHostCustomizationConfig.js';
@@ -72,6 +74,7 @@ function createAgentContext(disposables: Pick<DisposableStore, 'add'>, models: (
 	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
 	instantiationService.stub(IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
+	instantiationService.stub(IAgentHostMcpConnectorsService, createTestMcpConnectorsService());
 	instantiationService.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
 	instantiationService.stub(IAgentSdkDownloader, sdkDownloader);
 	instantiationService.stub(IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE);
