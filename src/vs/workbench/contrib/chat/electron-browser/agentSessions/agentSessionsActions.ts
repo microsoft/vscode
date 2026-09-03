@@ -66,11 +66,13 @@ function getLocalAgentsFolderUri(folderUri: URI | undefined): URI | undefined {
 async function openCurrentWorkspaceInAgentsWindow(accessor: ServicesAccessor, source: AgentsWindowOpenSource): Promise<void> {
 	const nativeHostService = accessor.get(INativeHostService);
 	const workspaceContextService = accessor.get(IWorkspaceContextService);
-	const folderUri = getLocalAgentsFolderUri(workspaceContextService.getWorkspace().folders[0]?.uri);
+	const workspaceFolderUri = workspaceContextService.getWorkspace().folders[0]?.uri;
+	const folderUri = getLocalAgentsFolderUri(workspaceFolderUri);
 	await nativeHostService.openAgentsWindow({
 		folderUri,
 		source,
-		preferDevContainer: true,
+		preferDevContainer: workspaceFolderUri?.scheme === Schemas.vscodeRemote
+			&& workspaceFolderUri.authority.startsWith(DEV_CONTAINER_REMOTE_AUTHORITY_PREFIX),
 	});
 }
 

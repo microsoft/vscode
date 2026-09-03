@@ -792,8 +792,8 @@ export class ChatGroupsView extends Themable {
 		return this._activeGroup?.view.submitInput() ?? Promise.resolve(false);
 	}
 
-	selectWorkspace(folderUri: URI, providerId?: string): void {
-		this._activeGroup?.view.selectWorkspace(folderUri, providerId);
+	selectWorkspace(folderUri: URI, providerId?: string, options?: { readonly preferDevContainer?: boolean }): void {
+		this._activeGroup?.view.selectWorkspace(folderUri, providerId, options);
 	}
 
 	prefillInput(text: string): void {

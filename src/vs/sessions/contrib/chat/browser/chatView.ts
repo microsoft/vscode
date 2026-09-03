@@ -104,9 +104,9 @@ export class NewChatView extends AbstractChatView {
 		this._widget.focusInput();
 	}
 
-	override selectWorkspace(folderUri: URI, providerId?: string): void {
+	override selectWorkspace(folderUri: URI, providerId?: string, options?: { readonly preferDevContainer?: boolean }): void {
 		if (this._widget instanceof NewChatWidget) {
-			this._widget.selectWorkspace(folderUri, providerId);
+			this._widget.selectWorkspace(folderUri, providerId, options);
 		}
 	}
 

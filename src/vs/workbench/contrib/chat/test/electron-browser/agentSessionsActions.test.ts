@@ -59,7 +59,7 @@ suite('OpenWorkspaceInAgentsWindowAction', () => {
 		})), [{
 			folderUri: URI.file('/workspace').toString(),
 			source: AgentsWindowOpenSource.TitleBar,
-			preferDevContainer: true,
+			preferDevContainer: false,
 		}, {
 			folderUri: hostFolderUri.toString(),
 			source: AgentsWindowOpenSource.ChatTitleBar,

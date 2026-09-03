@@ -333,8 +333,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		return this._currentView.value?.submitInput() ?? Promise.resolve(false);
 	}
 
-	selectWorkspace(folderUri: URI, providerId?: string): void {
-		this._currentView.value?.selectWorkspace(folderUri, providerId);
+	selectWorkspace(folderUri: URI, providerId?: string, options?: { readonly preferDevContainer?: boolean }): void {
+		this._currentView.value?.selectWorkspace(folderUri, providerId, options);
 	}
 
 	prefillInput(text: string): void {

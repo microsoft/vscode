@@ -81,7 +81,7 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 * implementation is a no-op; subclasses that host a workspace picker
 	 * (e.g. `NewChatView`) override this to forward the selection.
 	 */
-	selectWorkspace(_folderUri: URI, _providerId?: string): void {
+	selectWorkspace(_folderUri: URI, _providerId?: string, _options?: { readonly preferDevContainer?: boolean }): void {
 		// no-op by default
 	}
 

@@ -28,7 +28,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
 import { ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry, SessionsWindowSessionStartTelemetry } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from '../browser/newSessionComposerService.js';
-import { openNewSessionWithDevContainerPreference, shouldPreferDevContainer } from '../browser/agentsWindowOpenIntent.js';
+import { shouldPreferDevContainer } from '../browser/agentsWindowOpenIntent.js';
 
 class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 
@@ -220,23 +220,11 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		if (!resolved) {
 			return false;
 		}
-		if (preferDevContainer) {
-			void this.openNewDevContainerSession(folderUri, resolved.providerId);
-			return true;
-		}
 		const activeSession = this.sessionsService.activeSession.get();
 		if (activeSession === undefined || activeSession.status.get() === SessionStatus.Untitled) {
-			this.sessionsPartService.getSessionView(activeSession?.sessionId)?.selectWorkspace(folderUri, resolved.providerId);
+			this.sessionsPartService.getSessionView(activeSession?.sessionId)?.selectWorkspace(folderUri, resolved.providerId, { preferDevContainer });
 		}
 		return true;
-	}
-
-	private async openNewDevContainerSession(folderUri: URI, providerId: string): Promise<void> {
-		try {
-			await openNewSessionWithDevContainerPreference(folderUri, providerId, this.sessionsService, this.sessionsProvidersService);
-		} catch (error) {
-			this.logService.error('[AgentsHandoff] Failed to select Dev Container workspace', error);
-		}
 	}
 }
 

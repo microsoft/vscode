@@ -345,8 +345,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 * Cancellation for the in-flight {@link restoreVisibleSessions}. Kept
 	 * separate from {@link _openSessionCts} so that additive new-session
 	 * operations (the new-chat composer eagerly creating a draft on startup)
-	 * do not abort restoring the previously visible grid. Only an explicit
-	 * navigation to a specific session cancels a restore.
+	 * do not abort restoring the previously visible grid. Explicit navigation
+	 * to a session, or a new-session handoff with `cancelRestore`, cancels it.
 	 */
 	private readonly _restoreCts = this._register(new MutableDisposable<CancellationTokenSource>());
 
@@ -720,8 +720,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	/**
 	 * Cancel an in-flight {@link restoreVisibleSessions}. Called when the user
-	 * explicitly navigates to a specific session, so restore stops fighting
-	 * the user's choice. Additive new-session operations do NOT call this.
+	 * explicitly navigates to a session, including a new-session handoff that
+	 * sets `cancelRestore`, so restore stops fighting the user's choice.
 	 */
 	private _cancelRestore(): void {
 		// `cancel()` (not just `clear()`/dispose) so the in-flight restore's

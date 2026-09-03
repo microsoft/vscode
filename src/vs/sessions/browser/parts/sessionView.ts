@@ -284,9 +284,9 @@ export class SessionView extends Disposable implements ISerializableView {
 		return this._isVisible && this._header.startTitleEditing();
 	}
 
-	selectWorkspace(folderUri: URI, providerId?: string): void {
+	selectWorkspace(folderUri: URI, providerId?: string, options?: { readonly preferDevContainer?: boolean }): void {
 		const standaloneView = this._standaloneView.value;
-		standaloneView ? standaloneView.selectWorkspace(folderUri, providerId) : this._groupsView.selectWorkspace(folderUri, providerId);
+		standaloneView ? standaloneView.selectWorkspace(folderUri, providerId, options) : this._groupsView.selectWorkspace(folderUri, providerId, options);
 	}
 
 	/** Opens the given chat in a group beside the active one ("open to the side"). */

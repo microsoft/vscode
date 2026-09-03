@@ -25,8 +25,10 @@ import { localize } from '../../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISession, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
 import { IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
@@ -70,6 +72,7 @@ export class NewChatWidget extends Disposable {
 	/** Recreates the draft once a better/late-registering provider can serve the folder (see {@link _createNewSession}). */
 	private readonly _pendingPreferredUpgrade = new MutableDisposable<IDisposable>();
 	private readonly _newSessionCreation = new MutableDisposable<IDisposable>();
+	private _preferredDevContainerFolderUri: URI | undefined;
 
 	/**
 	 * The currently mounted no-agent-host empty state, if any. Set by
@@ -111,6 +114,7 @@ export class NewChatWidget extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IAquariumService private readonly aquariumService: IAquariumService,
 		@IAgentHostFilterService private readonly agentHostFilterService: IAgentHostFilterService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
@@ -602,13 +606,16 @@ export class NewChatWidget extends Disposable {
 		} else {
 			return result;
 		}
+		this._applyPreferredDevContainer(result.session, folderUri);
 		if (result.trustDeclined) {
+			this._preferredDevContainerFolderUri = undefined;
 			// The user explicitly declined trust: don't schedule a retry, which
 			// would silently recreate (and possibly re-prompt) the draft once a
 			// provider registers/changes without any further user action.
 			this._pendingPreferredUpgrade.clear();
 			return result;
 		}
+
 		// Keep the draft in sync with late-registering providers. Agent hosts
 		// connect lazily, so there is no timeout — the listener lives until the
 		// draft is sent or replaced. We watch when:
@@ -622,6 +629,18 @@ export class NewChatWidget extends Disposable {
 			this._scheduleRecreateOnProviderChange(folderUri, userPick, result.session, changedWhilePending);
 		}
 		return result;
+	}
+
+	private _applyPreferredDevContainer(session: ISession | undefined, folderUri: URI): void {
+		if (!session || !this._preferredDevContainerFolderUri || !this.uriIdentityService.extUri.isEqual(this._preferredDevContainerFolderUri, folderUri)) {
+			return;
+		}
+		const provider = this.sessionsProvidersService.getProvider(session.providerId);
+		if (!provider || !isAgentHostProvider(provider) || !provider.preferDevContainer) {
+			return;
+		}
+		provider.preferDevContainer(session.sessionId);
+		this._preferredDevContainerFolderUri = undefined;
 	}
 
 	private async _createSessionNow(folderUri: URI, userPick: IPreferredSessionType | undefined, token: CancellationToken): Promise<IOpenNewSessionResult> {
@@ -947,6 +966,9 @@ export class NewChatWidget extends Disposable {
 	private async _onWorkspaceSelected(folderUri: URI | undefined): Promise<void> {
 		// Cancel any in-flight upgrade for a previous selection.
 		this._pendingPreferredUpgrade.clear();
+		if (!folderUri || !this._preferredDevContainerFolderUri || !this.uriIdentityService.extUri.isEqual(this._preferredDevContainerFolderUri, folderUri)) {
+			this._preferredDevContainerFolderUri = undefined;
+		}
 		const currentFolderUri = this._session.get()?.workspace.get()?.folders[0]?.root;
 		const refreshingPromptOptions = !!currentFolderUri
 			&& (!folderUri || !this.uriIdentityService.extUri.isEqual(currentFolderUri, folderUri))
@@ -1004,7 +1026,8 @@ export class NewChatWidget extends Disposable {
 		this._newChatInput.attach(uris);
 	}
 
-	selectWorkspace(folderUri: URI, providerId?: string): void {
+	selectWorkspace(folderUri: URI, providerId?: string, options?: { readonly preferDevContainer?: boolean }): void {
+		this._preferredDevContainerFolderUri = options?.preferDevContainer ? folderUri : undefined;
 		this._workspacePicker.setSelectedWorkspace(folderUri, { providerId });
 	}
 }
