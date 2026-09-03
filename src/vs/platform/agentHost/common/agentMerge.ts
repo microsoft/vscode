@@ -366,7 +366,7 @@ export function agentMergeConfigurationChangedNotice(previous: AgentMergeConfigu
 		&& (previous.mergeMethod !== current.mergeMethod || previous.mergePullRequest === 'never')) {
 		changes.push(agentMergeMergeMethodChangedNotice(current.mergeMethod));
 	}
-	if (previous.replyAttribution !== current.replyAttribution && current.addressReviews) {
+	if ((previous.replyAttribution !== current.replyAttribution || !previous.addressReviews) && current.addressReviews) {
 		changes.push(current.replyAttribution
 			? localize('agentMerge.notice.configuration.replyAttribution.enabled', "Replies it posts will now identify Agent Merge as the source.")
 			: localize('agentMerge.notice.configuration.replyAttribution.disabled', "Replies it posts will no longer identify Agent Merge as the source."));

@@ -337,12 +337,22 @@ suite('Agent Merge gate', () => {
 	test('announces reply-attribution changes only while review replies are enabled', () => {
 		assert.deepStrictEqual({
 			enabled: agentMergeConfigurationChangedNotice(configuration, { ...configuration, replyAttribution: false }),
+			reviewsEnabledWithAttribution: agentMergeConfigurationChangedNotice(
+				{ ...configuration, addressReviews: false, replyAttribution: true },
+				{ ...configuration, addressReviews: true, replyAttribution: true },
+			),
+			reviewsEnabledWithoutAttribution: agentMergeConfigurationChangedNotice(
+				{ ...configuration, addressReviews: false, replyAttribution: false },
+				{ ...configuration, addressReviews: true, replyAttribution: false },
+			),
 			reviewsDisabled: agentMergeConfigurationChangedNotice(
 				{ ...configuration, addressReviews: false },
 				{ ...configuration, addressReviews: false, replyAttribution: false },
 			),
 		}, {
 			enabled: 'Agent Merge settings changed.\n\n- Replies it posts will no longer identify Agent Merge as the source.',
+			reviewsEnabledWithAttribution: 'Agent Merge settings changed.\n\n- It will now address new pull request review comments.\n- Replies it posts will now identify Agent Merge as the source.',
+			reviewsEnabledWithoutAttribution: 'Agent Merge settings changed.\n\n- It will now address new pull request review comments.\n- Replies it posts will no longer identify Agent Merge as the source.',
 			reviewsDisabled: undefined,
 		});
 	});

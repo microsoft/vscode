@@ -322,6 +322,7 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 			x.number === y.number &&
 			isEqual(x.uri, y.uri) &&
 			x.icon?.id === y.icon?.id &&
+			pullRequestStatusEquals(x.status, y.status) &&
 			x.state === y.state &&
 			x.liveState === y.liveState &&
 			x.title === y.title) &&
@@ -330,6 +331,7 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 		a.pullRequest?.state === b.pullRequest?.state &&
 		a.pullRequest?.liveState === b.pullRequest?.liveState &&
 		a.pullRequest?.title === b.pullRequest?.title &&
+		pullRequestStatusEquals(a.pullRequest?.status, b.pullRequest?.status) &&
 		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
 		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid &&
 		arrayEquals(a.issues ?? [], b.issues ?? [], (x, y) => x.owner === y.owner && x.repo === y.repo && x.number === y.number);
@@ -341,6 +343,12 @@ function dateEquals(a: Date | undefined, b: Date | undefined): boolean {
 
 function markdownStringEquals(a: IMarkdownString | undefined, b: IMarkdownString | undefined): boolean {
 	return a === b || !!a && !!b && markdownStringEqual(a, b);
+}
+
+function pullRequestStatusEquals(a: IGitHubPullRequestRef['status'], b: IGitHubPullRequestRef['status']): boolean {
+	return a?.hasFailingChecks === b?.hasFailingChecks
+		&& a?.hasMergeConflicts === b?.hasMergeConflicts
+		&& a?.hasUnresolvedComments === b?.hasUnresolvedComments;
 }
 
 /** Maps the GitHub issue URLs recorded on the session's metadata to issue references. */
@@ -1077,6 +1085,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 					icon,
 					liveState,
 					title,
+					status: pullRequests[0].status,
 				}
 			};
 		});
@@ -2825,8 +2834,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected readonly _sessionStateSubscriptions = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly _agentMergeSessionStateSubscriptions = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly _agentMergeSessionStateIdleTimers = this._register(new DisposableMap<string, IDisposable>());
+	private readonly _agentMergeSessionStateRetryTimers = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _agentMergeSessionStateObservables = new Map<string, IObservable<IAgentMergeClientState | undefined>>();
 	private readonly _observedAgentMergeSessionStates = new Set<string>();
+	private readonly _agentMergeSessionStateRetryDelays = new Map<string, number>();
 
 	/**
 	 * Idle-release timers paired with {@link _sessionStateSubscriptions}. Each
@@ -2855,6 +2866,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	private static readonly SESSION_REFRESH_RETRY_MIN_MS = 1_000;
 	private static readonly SESSION_REFRESH_RETRY_MAX_MS = 30_000;
+	private static readonly AGENT_MERGE_SESSION_STATE_RETRY_MIN_MS = 1_000;
+	private static readonly AGENT_MERGE_SESSION_STATE_RETRY_MAX_MS = 30_000;
 
 	/**
 	 * Backoff timer that retries {@link _refreshSessions} after a failed
@@ -5118,6 +5131,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const ref = connection.getSubscription(StateComponents.Session, cached.backendUri, 'BaseAgentHostSessionsProvider.agentMergeState');
 		if (ref.object.value instanceof Error) {
 			ref.dispose();
+			this._scheduleAgentMergeSessionStateRetry(sessionId);
 			return;
 		}
 		const store = new DisposableStore();
@@ -5129,13 +5143,43 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				if (this._agentMergeSessionStateSubscriptions.get(sessionId) === store) {
 					this._agentMergeSessionStateIdleTimers.deleteAndDispose(sessionId);
 					this._agentMergeSessionStateSubscriptions.deleteAndDispose(sessionId);
+					this._scheduleAgentMergeSessionStateRetry(sessionId);
 				}
 			}));
 		}
 		this._agentMergeSessionStateSubscriptions.set(sessionId, store);
+		this._agentMergeSessionStateRetryTimers.deleteAndDispose(sessionId);
+		this._agentMergeSessionStateRetryDelays.delete(sessionId);
 		const value = ref.object.value;
 		if (value && !(value instanceof Error)) {
 			this._applySessionStateUpdate(sessionId, value);
+		}
+	}
+
+	private _scheduleAgentMergeSessionStateRetry(sessionId: string): void {
+		if (!this._observedAgentMergeSessionStates.has(sessionId) || this._agentMergeSessionStateRetryTimers.has(sessionId)) {
+			return;
+		}
+		const delay = this._agentMergeSessionStateRetryDelays.get(sessionId) ?? BaseAgentHostSessionsProvider.AGENT_MERGE_SESSION_STATE_RETRY_MIN_MS;
+		this._agentMergeSessionStateRetryDelays.set(sessionId, Math.min(delay * 2, BaseAgentHostSessionsProvider.AGENT_MERGE_SESSION_STATE_RETRY_MAX_MS));
+		this._agentMergeSessionStateRetryTimers.set(sessionId, disposableTimeout(() => {
+			this._agentMergeSessionStateRetryTimers.deleteAndDispose(sessionId);
+			if (this._observedAgentMergeSessionStates.has(sessionId)) {
+				this._keepAgentMergeSessionStateAlive(sessionId);
+			}
+		}, delay));
+	}
+
+	protected _resetAgentMergeSessionStateSubscriptions(): void {
+		this._agentMergeSessionStateIdleTimers.clearAndDisposeAll();
+		this._agentMergeSessionStateRetryTimers.clearAndDisposeAll();
+		this._agentMergeSessionStateRetryDelays.clear();
+		this._agentMergeSessionStateSubscriptions.clearAndDisposeAll();
+	}
+
+	protected _reacquireObservedAgentMergeSessionStates(): void {
+		for (const sessionId of this._observedAgentMergeSessionStates) {
+			this._keepAgentMergeSessionStateAlive(sessionId);
 		}
 	}
 
@@ -5760,10 +5804,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					if (!evictUnlistedAgents && !listedAgentProviders.has(cached.agentProvider)) {
 						continue;
 					}
-					this._sessionCache.delete(key);
-					this._runningSessionConfigs.delete(cached.sessionId);
-					this._runningSessionConfigResolveSeq.delete(cached.sessionId);
-					removed.push(cached);
+					const removedSession = this._removeCachedSession(key, cached);
+					if (removedSession) {
+						removed.push(removedSession);
+					}
 				}
 			}
 			this._onHostReconciledSessions(new Set(this._sessionCache.keys()));

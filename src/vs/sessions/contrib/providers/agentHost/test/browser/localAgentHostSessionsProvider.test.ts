@@ -267,7 +267,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	// ---- Session-state subscriptions ---------------------------------------
 
 	private readonly _sessionStateEmitters = new Map<string, Emitter<SubscriptionState>>();
-	private readonly _sessionStateValues = new Map<string, SubscriptionState>();
+	private readonly _sessionStateValues = new Map<string, SubscriptionState | Error>();
+	private readonly _sessionStateErrorEmitters = new Map<string, Emitter<Error>>();
 	public sessionSubscribeCounts = new Map<string, number>();
 	public sessionUnsubscribeCounts = new Map<string, number>();
 
@@ -287,11 +288,20 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			emitter = new Emitter<SubscriptionState>();
 			this._sessionStateEmitters.set(key, emitter);
 		}
+		let errorEmitter = this._sessionStateErrorEmitters.get(key);
+		if (!errorEmitter) {
+			errorEmitter = new Emitter<Error>();
+			this._sessionStateErrorEmitters.set(key, errorEmitter);
+		}
 		const self = this;
 		const sub: IAgentSubscription<T> = {
 			get value() { return self._sessionStateValues.get(key) as unknown as T | undefined; },
-			get verifiedValue() { return self._sessionStateValues.get(key) as unknown as T | undefined; },
+			get verifiedValue() {
+				const value = self._sessionStateValues.get(key);
+				return value instanceof Error ? undefined : value as unknown as T | undefined;
+			},
 			onDidChange: emitter.event as unknown as Event<T>,
+			onDidError: errorEmitter.event,
 			onWillApplyAction: Event.None,
 			onDidApplyAction: Event.None,
 		};
@@ -313,6 +323,13 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		const key = resource.toString();
 		this._sessionStateValues.set(key, state);
 		this._sessionStateEmitters.get(key)?.fire(state);
+	}
+
+	fireSessionStateError(resource: URI): void {
+		const error = new Error('subscription failed');
+		const key = resource.toString();
+		this._sessionStateValues.set(key, error);
+		this._sessionStateErrorEmitters.get(key)?.fire(error);
 	}
 
 	setChangesetState(changesetUri: string, state: ChangesetState): void {
@@ -403,7 +420,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		for (const emitter of this._sessionStateEmitters.values()) {
 			emitter.dispose();
 		}
+		for (const emitter of this._sessionStateErrorEmitters.values()) {
+			emitter.dispose();
+		}
 		this._sessionStateEmitters.clear();
+		this._sessionStateErrorEmitters.clear();
 	}
 }
 
@@ -462,6 +483,20 @@ function createSchemaDefaultConfigurationService(): TestConfigurationService {
 class BackendSchemeTestProvider extends LocalAgentHostSessionsProvider {
 	protected override _backendSessionScheme(agentProvider: string): string {
 		return agentProvider === 'copilotcli' ? 'ahp-session' : agentProvider;
+	}
+}
+
+class AgentMergeStateTestProvider extends LocalAgentHostSessionsProvider {
+	resetAgentMergeStateSubscriptionsForTest(): void {
+		this._resetAgentMergeSessionStateSubscriptions();
+	}
+
+	reacquireAgentMergeStateSubscriptionsForTest(): void {
+		this._reacquireObservedAgentMergeSessionStates();
+	}
+
+	refreshSessionsForTest(): Promise<void> {
+		return this._refreshSessions();
 	}
 }
 
@@ -7341,6 +7376,129 @@ suite('LocalAgentHostSessionsProvider', () => {
 			observed: [false, true, false, false],
 			current: false,
 			unsubscriptionsAfterIdle: { session: 1, defaultChat: 0 },
+		});
+	}));
+
+	test('reacquires observed Agent Merge session state after subscription reset', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('agent-merge-reset', { summary: 'Agent Merge Reset' }));
+		const provider = createProvider(disposables, agentHost, undefined, { providerCtor: AgentMergeStateTestProvider }) as AgentMergeStateTestProvider;
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(session => session.title.get() === 'Agent Merge Reset');
+		assert.ok(session);
+		const sessionUri = AgentSession.uri('copilotcli', 'agent-merge-reset');
+		agentHost.setSessionStateResource(sessionUri, {
+			provider: 'copilotcli',
+			title: 'Agent Merge Reset',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			config: { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.AgentMerge]: { enabled: true } } },
+		});
+
+		const observed: (boolean | undefined)[] = [];
+		const agentMergeState = provider.getAgentMergeClientStateObservable(session.sessionId);
+		const observer = disposables.add(autorun(reader => observed.push(agentMergeState.read(reader)?.enabled)));
+		provider.resetAgentMergeStateSubscriptionsForTest();
+		agentHost.setSessionStateResource(sessionUri, {
+			provider: 'copilotcli',
+			title: 'Agent Merge Reset',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			config: { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.AgentMerge]: { enabled: false } } },
+		});
+		provider.reacquireAgentMergeStateSubscriptionsForTest();
+		observer.dispose();
+
+		assert.deepStrictEqual({
+			observed,
+			subscribeCount: agentHost.sessionSubscribeCounts.get(sessionUri.toString()),
+			unsubscribeCount: agentHost.sessionUnsubscribeCounts.get(sessionUri.toString()),
+		}, {
+			observed: [true, false],
+			subscribeCount: 2,
+			unsubscribeCount: 1,
+		});
+	}));
+
+	test('retries an observed Agent Merge session state subscription after an error', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('agent-merge-retry', { summary: 'Agent Merge Retry' }));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(session => session.title.get() === 'Agent Merge Retry');
+		assert.ok(session);
+		const sessionUri = AgentSession.uri('copilotcli', 'agent-merge-retry');
+		const state = (enabled: boolean): SessionState => ({
+			provider: 'copilotcli',
+			title: 'Agent Merge Retry',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			config: { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.AgentMerge]: { enabled } } },
+		});
+		agentHost.setSessionStateResource(sessionUri, state(true));
+
+		const observed: (boolean | undefined)[] = [];
+		const agentMergeState = provider.getAgentMergeClientStateObservable(session.sessionId);
+		const observer = disposables.add(autorun(reader => observed.push(agentMergeState.read(reader)?.enabled)));
+		agentHost.fireSessionStateError(sessionUri);
+		agentHost.setSessionStateResource(sessionUri, state(false));
+		await timeout(999);
+		const subscriptionsBeforeRetry = agentHost.sessionSubscribeCounts.get(sessionUri.toString());
+		await timeout(1);
+		observer.dispose();
+
+		assert.deepStrictEqual({
+			observed,
+			subscriptionsBeforeRetry,
+			subscriptionsAfterRetry: agentHost.sessionSubscribeCounts.get(sessionUri.toString()),
+			unsubscribeCount: agentHost.sessionUnsubscribeCounts.get(sessionUri.toString()),
+		}, {
+			observed: [true, false],
+			subscriptionsBeforeRetry: 1,
+			subscriptionsAfterRetry: 2,
+			unsubscribeCount: 1,
+		});
+	}));
+
+	test('refresh removal evicts Agent Merge observables and subscriptions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('agent-merge-removed', { summary: 'Agent Merge Removed' }));
+		const provider = createProvider(disposables, agentHost, undefined, { providerCtor: AgentMergeStateTestProvider }) as AgentMergeStateTestProvider;
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(session => session.title.get() === 'Agent Merge Removed');
+		assert.ok(session);
+		const sessionUri = AgentSession.uri('copilotcli', 'agent-merge-removed');
+		agentHost.setSessionStateResource(sessionUri, {
+			provider: 'copilotcli',
+			title: 'Agent Merge Removed',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			config: { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.AgentMerge]: { enabled: true } } },
+		});
+
+		const agentMergeState = provider.getAgentMergeClientStateObservable(session.sessionId);
+		const observer = disposables.add(autorun(reader => agentMergeState.read(reader)));
+		agentHost.stopListingSessions('agent-merge-removed');
+		await provider.refreshSessionsForTest();
+		const sameObservableAfterRemoval = agentMergeState === provider.getAgentMergeClientStateObservable(session.sessionId);
+		observer.dispose();
+
+		assert.deepStrictEqual({
+			sessions: provider.getSessions().map(session => session.sessionId),
+			sameObservableAfterRemoval,
+			unsubscribeCount: agentHost.sessionUnsubscribeCounts.get(sessionUri.toString()),
+		}, {
+			sessions: [],
+			sameObservableAfterRemoval: false,
+			unsubscribeCount: 1,
 		});
 	}));
 
