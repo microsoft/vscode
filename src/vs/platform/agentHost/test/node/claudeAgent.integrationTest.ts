@@ -523,7 +523,7 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 				if (!startup?.onElicitation) {
 					throw new Error('integration test: elicitation marker but Options.onElicitation not wired');
 				}
-				const result = await startup.onElicitation(item.request, { signal: new AbortController().signal });
+				const result = await startup.onElicitation(item.request, { signal: new AbortController().signal, requestId: 'integration-elicitation' });
 				this._sdk.elicitationResults.push(result);
 				continue;
 			}
@@ -548,6 +548,7 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 	setModel(): never { throw new Error('not modeled'); }
 	setMaxThinkingTokens(): never { throw new Error('not modeled'); }
 	applyFlagSettings(): never { throw new Error('not modeled'); }
+	updateSettings(): never { throw new Error('not modeled'); }
 	initializationResult(): never { throw new Error('not modeled'); }
 	reinitialize(): never { throw new Error('not modeled'); }
 	supportedCommands(): never { throw new Error('not modeled'); }

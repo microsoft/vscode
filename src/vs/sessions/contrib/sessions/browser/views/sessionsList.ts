@@ -48,7 +48,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { ChatInteractivity, ChatOriginKind, getChatCapabilities, getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -96,8 +96,10 @@ import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
+import { AutomationsNewBadgeState, type AutomationsNewBadgeStyle } from '../automationsNewBadge.js';
 import { Menus } from '../../../../browser/menus.js';
 import { getSessionConversationStatusAriaLabel } from '../../../../browser/sessionConversationGroups.js';
+import { getAgentMergeAwarePullRequestIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../../../../browser/sessionAgentMerge.js';
 
 const $ = DOM.$;
 
@@ -213,9 +215,16 @@ function getSessionListChats(session: ISession, reader?: IReader): readonly ICha
 	);
 }
 
-/** Returns the main-chat status for trees with chat rows, otherwise the aggregate session status. */
+/** Returns in-progress when any chat is active, then the main-chat status for trees with chat rows. */
 function getSessionRowStatus(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean): SessionStatus {
-	return deriveFromMainChat ? session.mainChat.read(reader).status.read(reader) : session.status.read(reader);
+	const sessionStatus = session.status.read(reader);
+	if (!deriveFromMainChat) {
+		return sessionStatus;
+	}
+	if (session.chats.read(reader).some(chat => chat.status.read(reader) === SessionStatus.InProgress)) {
+		return SessionStatus.InProgress;
+	}
+	return session.mainChat.read(reader).status.read(reader);
 }
 
 function isSessionGroupItem(item: SessionListItem): item is ISessionGroupItem {
@@ -752,6 +761,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		private readonly ciFixModel: ISessionCIFixModel | undefined,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
+		private readonly configurationService: IConfigurationService,
 		private readonly markdownRendererService: IMarkdownRendererService,
 		private readonly hoverService: IHoverService,
 		private readonly sessionsProvidersService: ISessionsProvidersService,
@@ -959,6 +969,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// recreates the autorun. Without template-level tracking, the selector
 		// resets to undefined and the DOM is rebuilt every time, restarting the
 		// CSS spin animation.
+		let agentMergeConfiguration: IObservable<ISessionAgentMergeConfiguration | undefined> | undefined;
 		template.elementDisposables.add(autorun(reader => {
 			const sessionStatus = getSessionRowStatus(element, reader, !!this.options.deriveStatusFromMainChat);
 			template.statusContext.set(sessionStatus);
@@ -970,7 +981,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.supportsDeleteContext.set(capabilities.supportsDelete === true);
 			const gitHubInfo = element.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			const isQuickChat = element.isQuickChat?.read(reader) ?? false;
-			const completedStateIcon = element.completedStateIcon?.read(reader) ?? gitHubInfo?.pullRequest?.icon;
+			let completedStateIcon = element.completedStateIcon?.read(reader)
+				?? getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
+			if (completedStateIcon && isAgentMergePullRequestIcon(completedStateIcon)) {
+				agentMergeConfiguration ??= getSessionAgentMergeConfigurationObservable(element, this.sessionsProvidersService, this.configurationService);
+				completedStateIcon = getAgentMergeAwarePullRequestIcon(completedStateIcon, agentMergeConfiguration.read(reader));
+			}
 
 			// The status icon widget snaps on row recycling and cross-fades real state changes.
 			template.statusIcon.setStatus(sessionStatus, isRead, isArchived, completedStateIcon, element.resource);
@@ -1251,6 +1267,7 @@ interface ISessionSectionTemplate extends ISessionHeaderTemplate {
 	readonly icon: HTMLElement;
 	readonly label: HTMLElement;
 	readonly count: HTMLElement;
+	readonly newBadge: HTMLElement;
 	readonly chevron: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
 	readonly disposables: DisposableStore;
@@ -1288,7 +1305,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			}
 			const sessionResource = run.sessionResource;
 			const session = automationSessions.find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, sessionResource));
-			return !!session && !session.isRead.read(reader);
+			return !!session && !session.isRead.read(reader) && !session.isArchived.read(reader);
 		});
 		if (hasUnreadRun) {
 			return SessionStatus.Completed;
@@ -1303,6 +1320,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly contextKeyService: IContextKeyService,
 		private readonly automationService: IAutomationService,
 		private readonly automationSessions: IObservable<readonly ISession[]>,
+		private readonly automationNewBadgePresentation: IObservable<AutomationsNewBadgeStyle | undefined>,
 		private readonly uriIdentityService: IUriIdentityService,
 		private readonly customViewService: ICustomViewService,
 		private readonly menuService: IMenuService,
@@ -1324,6 +1342,9 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		icon.setAttribute('aria-hidden', 'true');
 		const label = DOM.append(container, $('span.session-section-label'));
 		const count = DOM.append(container, $('span.session-section-count'));
+		const newBadge = DOM.append(container, $('span.session-section-new-badge'));
+		newBadge.setAttribute('aria-hidden', 'true');
+		newBadge.textContent = localize('automationsNewBadge', "New");
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
@@ -1368,7 +1389,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			},
 		}));
 
-		return { container, icon, label, count, toolbarContainer, toolbar, chevron, contextKeyService, elementDisposables, disposables };
+		return { container, icon, label, count, newBadge, toolbarContainer, toolbar, chevron, contextKeyService, elementDisposables, disposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
@@ -1382,6 +1403,12 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		this.templatesById.set(element.id, template);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 		template.container.classList.remove('session-section-shortcut');
+		template.newBadge.style.display = 'none';
+		template.newBadge.classList.remove(
+			'session-section-new-badge-accent',
+			'session-section-new-badge-soft',
+			'session-section-new-badge-outline',
+		);
 		if (element.id === AUTOMATIONS_SECTION_ID) {
 			template.container.classList.add('session-section-shortcut');
 		}
@@ -1397,6 +1424,11 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			template.elementDisposables.add(autorun(reader => {
 				const activeCustomView = this.customViewService.activeCustomView.read(reader);
 				template.container.classList.toggle('active', activeCustomView?.id === AUTOMATIONS_CUSTOM_VIEW_ID);
+				const badgeStyle = this.automationNewBadgePresentation.read(reader);
+				template.newBadge.style.display = badgeStyle ? 'inline-flex' : 'none';
+				template.newBadge.classList.toggle('session-section-new-badge-accent', badgeStyle === 'accent');
+				template.newBadge.classList.toggle('session-section-new-badge-soft', badgeStyle === 'soft');
+				template.newBadge.classList.toggle('session-section-new-badge-outline', badgeStyle === 'outline');
 			}));
 			const statusIcon = template.elementDisposables.add(this.instantiationService.createInstance(SessionStatusIcon, template.icon));
 			template.elementDisposables.add(autorun(reader => {
@@ -1732,6 +1764,7 @@ interface ISessionsAccessibilityProviderOptions {
 	readonly isPinned: (session: ISession) => boolean;
 	readonly isRenderedInCustomGroup?: (session: ISession) => boolean;
 	readonly includeQuickChatInAriaLabel?: boolean;
+	readonly automationNewBadgeVisible?: IObservable<boolean>;
 	/** Mirrors {@link SessionItemRenderer}'s option of the same name — see there for rationale. */
 	readonly deriveStatusFromMainChat?: boolean;
 }
@@ -1761,20 +1794,23 @@ class SessionsAccessibilityProvider {
 		}
 		if (isSessionSection(element)) {
 			if (element.id === AUTOMATIONS_SECTION_ID) {
-				return this.automationStatus
-					? derived(this, reader => {
-						switch (this.automationStatus?.read(reader)) {
-							case SessionStatus.NeedsInput:
-								return localize('automationsNeedsInputAria', "{0}, run needs input", element.label);
-							case SessionStatus.InProgress:
-								return localize('automationsActiveAria', "{0}, run in progress", element.label);
-							case SessionStatus.Completed:
-								return localize('automationsUnreadRunAria', "{0}, unread run", element.label);
-							default:
-								return element.label;
-						}
-					})
-					: element.label;
+				return derived(this, reader => {
+					let label = element.label;
+					switch (this.automationStatus?.read(reader)) {
+						case SessionStatus.NeedsInput:
+							label = localize('automationsNeedsInputAria', "{0}, run needs input", element.label);
+							break;
+						case SessionStatus.InProgress:
+							label = localize('automationsActiveAria', "{0}, run in progress", element.label);
+							break;
+						case SessionStatus.Completed:
+							label = localize('automationsUnreadRunAria', "{0}, unread run", element.label);
+							break;
+					}
+					return this.options?.automationNewBadgeVisible?.read(reader)
+						? localize('automationsNewFeatureAria', "{0}, new feature", label)
+						: label;
+				});
 			}
 			return `${element.label}, ${element.sessions.length}`;
 		}
@@ -2308,6 +2344,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 */
 	private readonly chatApprovalHeightReconcile = this._register(new MutableDisposable());
 	private readonly automationSessions = observableValue<readonly ISession[]>(this, []);
+	private readonly automationsNewBadgeState: AutomationsNewBadgeState;
 	/**
 	 * Session IDs whose hierarchy indent/connector guides should be visible:
 	 * the union of the currently-hovered session (if any) and every session
@@ -2381,6 +2418,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	get element(): HTMLElement { return this.listContainer; }
 
+	async resetAutomationsNewBadge(): Promise<void> {
+		if (this.customViewService.activeCustomView.get()?.id === AUTOMATIONS_CUSTOM_VIEW_ID) {
+			this.customViewService.hideCustomView();
+		}
+		await this.automationsNewBadgeState.reset();
+	}
+
 	constructor(
 		container: HTMLElement,
 		private readonly options: ISessionsListControlOptions,
@@ -2409,6 +2453,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super();
+		this.automationsNewBadgeState = this._register(instantiationService.createInstance(AutomationsNewBadgeState));
 
 		// Load excluded session types from storage
 		this.excludedSessionTypes = this.loadExcludedSessionTypes();
@@ -2483,6 +2528,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			undefined,
 			instantiationService,
 			contextKeyService,
+			this.configurationService,
 			markdownRendererService,
 			hoverService,
 			sessionsProvidersService,
@@ -2502,7 +2548,18 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.tree.setFocus([element], event);
 			this.tree.setSelection([element], event);
 		};
-		const sectionRenderer = new SessionSectionRenderer(true /* hideSectionCount */, selectHeader, instantiationService, contextKeyService, this.automationService, this.automationSessions, this.uriIdentityService, this.customViewService, this.menuService);
+		const sectionRenderer = new SessionSectionRenderer(
+			true /* hideSectionCount */,
+			selectHeader,
+			instantiationService,
+			contextKeyService,
+			this.automationService,
+			this.automationSessions,
+			this.automationsNewBadgeState.presentation,
+			this.uriIdentityService,
+			this.customViewService,
+			this.menuService,
+		);
 		this._sectionRenderer = sectionRenderer;
 		const groupRenderer = new SessionGroupRenderer({
 			commitEdit: (group, name) => this.commitGroupEdit(group, name),
@@ -2545,6 +2602,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					isPinned: session => this.isSessionPinned(session),
 					isRenderedInCustomGroup: session => this.isRenderedInCustomGroup(session),
 					deriveStatusFromMainChat: true,
+					automationNewBadgeVisible: this.automationsNewBadgeState.showNewBadge,
 				}),
 				dnd: this._register(new SessionsListDragAndDrop({
 					isReorderable: session => this.isReorderable(session),
@@ -3184,6 +3242,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		};
 
 		if (this.contextKeyService.getContextKeyValue<boolean>(ChatAutomationsEnabledContext.key)) {
+			void this.automationsNewBadgeState.initialize().catch(onUnexpectedError);
 			children.push(renderSection({ id: AUTOMATIONS_SECTION_ID, label: localize('automations', "Automations"), sessions: [] }));
 		}
 
@@ -4379,23 +4438,26 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 
 /** Maximum number of sessions shown in the "Recent" date section. */
 const RECENT_SESSIONS_LIMIT = 10;
+const RECENT_SESSIONS_LIMIT_WITH_UPDATES = 15;
+const RECENTLY_UPDATED_SESSION_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 
 export function groupByDate(sessions: ISession[], sorting: SessionsSorting, getSortKey?: (session: ISession, sorting: SessionsSorting) => number): ISessionSection[] {
 	const key = getSortKey ?? defaultSortKey;
 	const now = new Date();
 	const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 	const startOfWeek = startOfToday - 7 * 86_400_000;
+	const recentlyUpdatedThreshold = now.getTime() - RECENTLY_UPDATED_SESSION_THRESHOLD_MS;
 
 	const recent: ISession[] = [];
 	const older: ISession[] = [];
 
-	// `sessions` arrive sorted most-recent-first, so the first sessions within
-	// the last 7 days (capped at RECENT_SESSIONS_LIMIT) form the "Recent"
-	// section; everything else falls into "Older".
 	for (const session of sessions) {
 		const time = key(session, sorting);
+		const wasRecentlyUpdated = sorting === SessionsSorting.Created && session.updatedAt.get().getTime() >= recentlyUpdatedThreshold;
+		const isWithinRecentLimit = recent.length < RECENT_SESSIONS_LIMIT && time >= startOfWeek;
+		const isWithinUpdatedRecentLimit = recent.length < RECENT_SESSIONS_LIMIT_WITH_UPDATES && wasRecentlyUpdated;
 
-		if (time >= startOfWeek && recent.length < RECENT_SESSIONS_LIMIT) {
+		if (isWithinRecentLimit || isWithinUpdatedRecentLimit) {
 			recent.push(session);
 		} else {
 			older.push(session);
@@ -4500,6 +4562,7 @@ export class SessionsFlatList extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IVoicePlaybackService voicePlaybackService: IVoicePlaybackService,
 		@IAgentHostConnectionsService agentHostConnectionsService: IAgentHostConnectionsService,
@@ -4540,6 +4603,7 @@ export class SessionsFlatList extends Disposable {
 			this.options.ciFixModel,
 			instantiationService,
 			contextKeyService,
+			configurationService,
 			markdownRendererService,
 			hoverService,
 			sessionsProvidersService,

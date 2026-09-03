@@ -42,6 +42,14 @@ export function getMessageOriginTelemetryKind(message: Message): AgentHostMessag
 	return message.origin.kind;
 }
 
+export interface IAgentHostCopilotSkuTelemetry {
+	copilotSku?: string;
+}
+
+export type IAgentHostCopilotSkuClassification = {
+	copilotSku?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The raw Copilot entitlement SKU for the authenticated GitHub account.' };
+};
+
 export interface IAgentHostInitiatorTelemetry {
 	initiatorClientType?: AgentHostClientType;
 	initiatorConnectionKind?: AgentHostClientConnectionKind;
@@ -60,7 +68,11 @@ export type IAgentHostInitiatorClassification = {
 	initiatorDevDeviceId?: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight'; endpoint: 'SqmMachineId'; comment: 'The development device identifier of the VS Code client that initiated the event.' };
 };
 
-export interface IAgentHostExecutionModeChangedEvent extends IAgentHostInitiatorTelemetry {
+export interface IAgentHostEventTelemetry extends IAgentHostInitiatorTelemetry, IAgentHostCopilotSkuTelemetry { }
+
+export type IAgentHostEventClassification = IAgentHostInitiatorClassification & IAgentHostCopilotSkuClassification;
+
+export interface IAgentHostExecutionModeChangedEvent extends IAgentHostEventTelemetry {
 	provider: string;
 	agentSessionId: string;
 	isSubagentSession: boolean;
@@ -69,7 +81,7 @@ export interface IAgentHostExecutionModeChangedEvent extends IAgentHostInitiator
 	turnCount: number;
 }
 
-export type IAgentHostExecutionModeChangedClassification = IAgentHostInitiatorClassification & {
+export type IAgentHostExecutionModeChangedClassification = IAgentHostEventClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the mode change belongs to a subagent session.' };
@@ -80,7 +92,7 @@ export type IAgentHostExecutionModeChangedClassification = IAgentHostInitiatorCl
 	comment: 'Reports agent host execution mode changes.';
 };
 
-export interface IAgentHostUserMessageSentEvent {
+export interface IAgentHostUserMessageSentEvent extends IAgentHostCopilotSkuTelemetry {
 	provider: string;
 	hostLaunchKind: AgentHostLaunchKind;
 	initiatorClientId: string | undefined;
@@ -100,7 +112,7 @@ export interface IAgentHostUserMessageSentEvent {
 	attachmentCount: number;
 }
 
-export type IAgentHostUserMessageSentClassification = {
+export type IAgentHostUserMessageSentClassification = IAgentHostCopilotSkuClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	hostLaunchKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the agent host process was launched by the VS Code main process or VS Code CLI.' };
 	initiatorClientId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The opaque AHP client identifier that initiated the message.' };
@@ -124,7 +136,7 @@ export type IAgentHostUserMessageSentClassification = {
 
 export type AgentHostClientConnectionAction = 'connected' | 'disconnected';
 
-export interface IAgentHostClientConnectionEvent {
+export interface IAgentHostClientConnectionEvent extends IAgentHostCopilotSkuTelemetry {
 	action: AgentHostClientConnectionAction;
 	hostLaunchKind: AgentHostLaunchKind;
 	clientId: string;
@@ -144,7 +156,7 @@ export interface IAgentHostClientConnectionEvent {
 	subscriptionCount: number | undefined;
 }
 
-export type IAgentHostClientConnectionClassification = {
+export type IAgentHostClientConnectionClassification = IAgentHostCopilotSkuClassification & {
 	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether an initialized AHP client transport connected or disconnected.' };
 	hostLaunchKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the agent host process was launched by the VS Code main process or VS Code CLI.' };
 	clientId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The opaque AHP client identifier.' };
@@ -192,7 +204,7 @@ interface IAgentHostTurnAttributedReport {
 	clientContext?: IAgentHostClientTelemetryContext;
 }
 
-export interface IAgentHostTurnCompletedEvent extends IAgentHostInitiatorTelemetry {
+export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry {
 	provider: string;
 	agentSessionId: string;
 	chatSessionId: string;
@@ -221,7 +233,7 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostInitiatorTelemet
 	modelCallCount: number;
 }
 
-export type IAgentHostTurnCompletedClassification = IAgentHostInitiatorClassification & {
+export type IAgentHostTurnCompletedClassification = IAgentHostEventClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the agent host session.' };
@@ -252,7 +264,7 @@ export type IAgentHostTurnCompletedClassification = IAgentHostInitiatorClassific
 	comment: 'Tracks agent host turn completion, including performance, configuration context, completed model responses, and billed AI credit usage when reported by the provider.';
 };
 
-export interface IAgentHostTurnFailedEvent extends IAgentHostInitiatorTelemetry {
+export interface IAgentHostTurnFailedEvent extends IAgentHostEventTelemetry {
 	provider: string;
 	agentSessionId: string;
 	chatSessionId: string;
@@ -268,7 +280,7 @@ export interface IAgentHostTurnFailedEvent extends IAgentHostInitiatorTelemetry 
 	callstack: string | undefined;
 }
 
-export type IAgentHostTurnFailedClassification = IAgentHostInitiatorClassification & {
+export type IAgentHostTurnFailedClassification = IAgentHostEventClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider handling the failed agent host turn.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The agent host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The chat identifier within the agent host session.' };
@@ -388,7 +400,7 @@ function normalizeTurnActivityKind(activityKind: string): AgentHostTurnActivityT
 	return turnActivityKindsByActionType[activityKind as keyof typeof turnActivityKindsByActionType] ?? 'other';
 }
 
-export interface IAgentHostTurnHungEvent extends IAgentHostInitiatorTelemetry {
+export interface IAgentHostTurnHungEvent extends IAgentHostEventTelemetry {
 	provider: string;
 	agentSessionId: string;
 	chatSessionId: string;
@@ -415,7 +427,7 @@ export interface IAgentHostTurnHungEvent extends IAgentHostInitiatorTelemetry {
 	permissionLevel: string | undefined;
 }
 
-export type IAgentHostTurnHungClassification = IAgentHostInitiatorClassification & {
+export type IAgentHostTurnHungClassification = IAgentHostEventClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider handling the hung agent host turn.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The agent host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The chat identifier within the agent host session.' };
@@ -467,7 +479,7 @@ export interface IAgentHostTurnHungReport extends IAgentHostTurnAttributedReport
 	permissionLevel: string | undefined;
 }
 
-export interface IAgentHostHungTurnCompletedEvent extends IAgentHostInitiatorTelemetry {
+export interface IAgentHostHungTurnCompletedEvent extends IAgentHostEventTelemetry {
 	provider: string;
 	agentSessionId: string;
 	chatSessionId: string;
@@ -480,7 +492,7 @@ export interface IAgentHostHungTurnCompletedEvent extends IAgentHostInitiatorTel
 	timeAfterHangMs: number;
 }
 
-export type IAgentHostHungTurnCompletedClassification = IAgentHostInitiatorClassification & {
+export type IAgentHostHungTurnCompletedClassification = IAgentHostEventClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider handling the recovered agent host turn.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The agent host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The chat identifier within the agent host session.' };
@@ -506,6 +518,10 @@ export interface IAgentHostHungTurnCompletedReport extends IAgentHostTurnAttribu
 	timeAfterHangMs: number;
 }
 
+type IAgentHostLanguageModelToolInvokedEvent = LanguageModelToolInvokedEvent & IAgentHostEventTelemetry;
+
+type IAgentHostLanguageModelToolInvokedClassification = LanguageModelToolInvokedClassification & IAgentHostEventClassification;
+
 export interface IAgentHostToolInvokedReport extends IAgentHostTurnAttributedReport {
 	provider: string;
 	session: string;
@@ -522,7 +538,7 @@ export interface IAgentHostToolInvokedReport extends IAgentHostTurnAttributedRep
 	errorMessage: string | undefined;
 }
 
-export type IAgentHostToolInvokedEvent = LanguageModelToolInvokedEvent & IAgentHostInitiatorTelemetry & {
+export type IAgentHostToolInvokedEvent = LanguageModelToolInvokedEvent & IAgentHostEventTelemetry & {
 	provider: string;
 	agentSessionId: string;
 	chatSessionId: string;
@@ -531,7 +547,7 @@ export type IAgentHostToolInvokedEvent = LanguageModelToolInvokedEvent & IAgentH
 	msg: string | undefined;
 };
 
-export type IAgentHostToolInvokedClassification = Omit<LanguageModelToolInvokedClassification, 'provider' | 'chatSessionId' | 'owner' | 'comment'> & IAgentHostInitiatorClassification & {
+export type IAgentHostToolInvokedClassification = Omit<LanguageModelToolInvokedClassification, 'provider' | 'chatSessionId' | 'owner' | 'comment'> & IAgentHostEventClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider that invoked the tool.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the Agent Host session.' };
@@ -542,7 +558,7 @@ export type IAgentHostToolInvokedClassification = Omit<LanguageModelToolInvokedC
 	comment: 'Tracks Agent Host tool invocations with Agent Host correlation and optional failure diagnostics.';
 };
 
-export interface IAgentHostAskQuestionsToolInvokedEvent extends IAgentHostInitiatorTelemetry {
+export interface IAgentHostAskQuestionsToolInvokedEvent extends IAgentHostEventTelemetry {
 	requestId: string;
 	questionCount: number;
 	answeredCount: number;
@@ -556,7 +572,7 @@ export interface IAgentHostAskQuestionsToolInvokedEvent extends IAgentHostInitia
 	isSubagentSession: boolean;
 }
 
-export type IAgentHostAskQuestionsToolInvokedClassification = IAgentHostInitiatorClassification & {
+export type IAgentHostAskQuestionsToolInvokedClassification = IAgentHostEventClassification & {
 	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the current request turn.' };
 	questionCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The total number of questions asked' };
 	answeredCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of questions that were answered' };
@@ -587,7 +603,7 @@ export interface IAgentHostAskQuestionsToolInvokedReport extends IAgentHostTurnA
 
 type AgentHostToolCallResponseType = 'success' | 'cancelled' | 'failed';
 
-export interface IAgentHostToolCallDetailsEvent extends IAgentHostInitiatorTelemetry {
+export interface IAgentHostToolCallDetailsEvent extends IAgentHostEventTelemetry {
 	provider: string;
 	agentSessionId: string;
 	isSubagentSession: boolean;
@@ -606,7 +622,7 @@ export interface IAgentHostToolCallDetailsEvent extends IAgentHostInitiatorTelem
 	parallelToolCallsTotal: number;
 }
 
-export type IAgentHostToolCallDetailsClassification = IAgentHostInitiatorClassification & {
+export type IAgentHostToolCallDetailsClassification = IAgentHostEventClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the tool-call aggregate belongs to a subagent session.' };
@@ -661,7 +677,7 @@ export interface IAgentHostToolApprovalReport extends IAgentHostTurnAttributedRe
 
 type AgentHostToolApprovalConfirmKind = 'userAction' | 'setting' | 'confirmationNotNeeded' | 'denied';
 
-export interface IAgentHostToolApprovalEvent extends IAgentHostInitiatorTelemetry {
+export interface IAgentHostToolApprovalEvent extends IAgentHostEventTelemetry {
 	provider: string;
 	agentSessionId: string;
 	isSubagentSession: boolean;
@@ -679,7 +695,7 @@ export interface IAgentHostToolApprovalEvent extends IAgentHostInitiatorTelemetr
 	requestUnsandboxedExecution: boolean | undefined;
 }
 
-export type IAgentHostToolApprovalClassification = IAgentHostInitiatorClassification & {
+export type IAgentHostToolApprovalClassification = IAgentHostEventClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the tool approval belongs to a subagent session.' };
@@ -755,7 +771,7 @@ export interface IAgentHostRepoInfoReport {
 	diffSizeBytes: number;
 }
 
-export interface IAgentHostToolCallStalledEvent extends IAgentHostInitiatorTelemetry {
+export interface IAgentHostToolCallStalledEvent extends IAgentHostEventTelemetry {
 	provider: string;
 	agentSessionId: string;
 	isSubagentSession: boolean;
@@ -765,7 +781,7 @@ export interface IAgentHostToolCallStalledEvent extends IAgentHostInitiatorTelem
 	stalledTimeMs: number;
 }
 
-export type IAgentHostToolCallStalledClassification = IAgentHostInitiatorClassification & {
+export type IAgentHostToolCallStalledClassification = IAgentHostEventClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider handling the stalled agent host tool call.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The agent host session identifier.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the stalled tool call belongs to a subagent session.' };
@@ -786,7 +802,7 @@ export interface IAgentHostToolCallStalledReport extends IAgentHostTurnAttribute
 	stalledTimeMs: number;
 }
 
-export interface IAgentHostStalledToolCallCompletedEvent extends IAgentHostInitiatorTelemetry {
+export interface IAgentHostStalledToolCallCompletedEvent extends IAgentHostEventTelemetry {
 	provider: string;
 	agentSessionId: string;
 	isSubagentSession: boolean;
@@ -798,7 +814,7 @@ export interface IAgentHostStalledToolCallCompletedEvent extends IAgentHostIniti
 	timeAfterStallMs: number;
 }
 
-export type IAgentHostStalledToolCallCompletedClassification = IAgentHostInitiatorClassification & {
+export type IAgentHostStalledToolCallCompletedClassification = IAgentHostEventClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider handling the completed agent host tool call.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The agent host session identifier.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the completed tool call belongs to a subagent session.' };
@@ -1327,7 +1343,7 @@ export class AgentHostTelemetryReporter {
 		// previously emitted by `CopilotAgentSession`). Action signals are keyed
 		// by their chat-channel URI, so normalize it back to the session URI.
 		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
-		this._telemetryService.publicLog2<LanguageModelToolInvokedEvent & IAgentHostInitiatorTelemetry, LanguageModelToolInvokedClassification & IAgentHostInitiatorClassification>('languageModelToolInvoked', {
+		this._telemetryService.publicLog2<IAgentHostLanguageModelToolInvokedEvent, IAgentHostLanguageModelToolInvokedClassification>('languageModelToolInvoked', {
 			...toInitiatorTelemetry(report.clientContext),
 			result: report.result,
 			chatSessionId: session,

@@ -401,6 +401,7 @@ export interface ISessionDataService {
 	 * Equivalent to {@link getSessionDataDir} but without requiring a full URI.
 	 */
 	getSessionDataDirById(sessionId: string): URI;
+	listSessionDataIds?(prefix: string): Promise<readonly string[]>;
 
 	/**
 	 * Opens (or creates) a per-session SQLite database. The database file is
@@ -418,6 +419,7 @@ export interface ISessionDataService {
 	 * already exists on disk**. Returns `undefined` when no database has
 	 * been created yet, avoiding the side effect of materializing empty
 	 * database files during read-only operations like listing sessions.
+	 * Errors other than file-not-found are propagated.
 	 */
 	tryOpenDatabase(session: URI): Promise<IReference<ISessionDatabase> | undefined>;
 

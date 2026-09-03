@@ -146,10 +146,20 @@
 }
 
 /* File rows render a themed file icon in the same slot codicon rows use, so
-	every label in the dropdown starts on the same vertical line. */
-.action-widget .action-list-item .icon.file-icon {
+	every label in the dropdown starts on the same vertical line. The icon paints
+	through `::before`, which would otherwise sit on the row's text baseline and
+	ride high, so the slot takes the row's height and centres the icon in it. */
+.action-widget .monaco-list-row.action .icon.file-icon {
 	display: flex;
 	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-spacing-size240);
+}
+
+.action-widget .monaco-list-row.action .icon.file-icon::before {
+	width: var(--vscode-codiconFontSize);
 	background-size: var(--vscode-codiconFontSize);
 	background-repeat: no-repeat;
 	background-position: center center;

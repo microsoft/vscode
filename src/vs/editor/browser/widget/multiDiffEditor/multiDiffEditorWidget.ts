@@ -7,26 +7,28 @@ import { Dimension } from '../../../../base/browser/dom.js';
 import { Event } from '../../../../base/common/event.js';
 import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, observableValue, recomputeInitiallyAndOnChange, transaction } from '../../../../base/common/observable.js';
+import { derived, IObservable, observableValue, recomputeInitiallyAndOnChange, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Range } from '../../../common/core/range.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
+import { IMultiDiffResourceId } from '../../../common/multiDiffEditor.js';
 import { ICodeEditor } from '../../editorBrowser.js';
 import { DiffEditorWidget } from '../diffEditor/diffEditorWidget.js';
 import './colors.js';
 import { DiffEditorItemTemplate } from './diffEditorItemTemplate.js';
 import { IDocumentDiffItem, IMultiDiffEditorModel } from './model.js';
 import { MultiDiffEditorViewModel } from './multiDiffEditorViewModel.js';
-import { IMultiDiffEditorViewState, IMultiDiffResourceId, MultiDiffEditorWidgetImpl } from './multiDiffEditorWidgetImpl.js';
+import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorViewState, MultiDiffEditorWidgetImpl } from './multiDiffEditorWidgetImpl.js';
 import { IWorkbenchUIElementFactory } from './workbenchUIElementFactory.js';
 
 export class MultiDiffEditorWidget extends Disposable {
 	private readonly _dimension = observableValue<Dimension | undefined>(this, undefined);
 	private readonly _viewModel = observableValue<MultiDiffEditorViewModel | undefined>(this, undefined);
 	private readonly _diffLayoutOptions = observableValue<IDiffEditorOptions | undefined>(this, undefined);
+	private readonly _paddingBottomPx = observableValue<number>(this, 0);
 
 	private readonly _widgetImpl = derived(this, (reader) => {
 		readHotReloadableExport(DiffEditorItemTemplate, reader);
@@ -38,6 +40,7 @@ export class MultiDiffEditorWidget extends Disposable {
 			this._workbenchUIElementFactory,
 			this._diffLayoutOptions,
 			this._diffEditorOptions,
+			this._paddingBottomPx,
 		));
 	});
 
@@ -112,6 +115,11 @@ export class MultiDiffEditorWidget extends Disposable {
 		this.setRenderSideBySide(!(this._diffLayoutOptions.get()?.renderSideBySide ?? true));
 	}
 
+	/** Reserves empty space below the last diff entry. */
+	public setPaddingBottom(px: number): void {
+		this._paddingBottomPx.set(px, undefined);
+	}
+
 	private readonly _activeControl = derived(this, (reader) => this._widgetImpl.read(reader).activeControl.read(reader));
 
 	public getActiveControl(): DiffEditorWidget | undefined {
@@ -120,8 +128,16 @@ export class MultiDiffEditorWidget extends Disposable {
 
 	public readonly onDidChangeActiveControl = Event.fromObservableLight(this._activeControl);
 
+	public focus(): boolean {
+		return this._widgetImpl.get().focus();
+	}
+
 	public getViewState(): IMultiDiffEditorViewState {
 		return this._widgetImpl.get().getViewState();
+	}
+
+	public getLayoutDebugState(): IObservable<IMultiDiffEditorLayoutDebugState> {
+		return this._widgetImpl.get().layoutDebugState;
 	}
 
 	public setViewState(viewState: IMultiDiffEditorViewState): void {

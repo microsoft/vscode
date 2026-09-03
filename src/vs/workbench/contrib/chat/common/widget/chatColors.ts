@@ -33,6 +33,12 @@ export const chatRequestBackground = registerColor(
 	localize('chat.requestBackground', 'The background color of a chat request.')
 );
 
+export const chatStatusBackground = registerColor(
+	'chat.statusBackground',
+	{ dark: transparent(foreground, 0.08), light: transparent(foreground, 0.08), hcDark: Color.black, hcLight: Color.white },
+	localize('chat.statusBackground', 'The background color of status elements in chat.')
+);
+
 export const chatSlashCommandBackground = registerColor(
 	'chat.slashCommandBackground',
 	{ dark: '#26477866', light: '#adceff7a', hcDark: Color.white, hcLight: badgeBackground },

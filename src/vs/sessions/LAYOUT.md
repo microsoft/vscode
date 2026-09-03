@@ -76,13 +76,15 @@ The durable state and transition catalog lives in [SINGLE_PANE_SCENARIOS.md](SIN
 
 Editors must be opened through `IEditorService`. Sessions-specific presentation must not bypass editor service behavior by opening directly on an editor group.
 
+Session providers register internal per-session directories as resource label homes. URI labels render as `<home label>/<relative path>`, and breadcrumbs render the same home label as their root segment. Without a matching home formatter, existing URI-label and breadcrumb behavior is unchanged.
+
 ## Custom views
 
 `ICustomViewService` owns the active contributed full-surface view.
 
 A custom view is mutually exclusive with the Sessions Part, grid Editor, Auxiliary Bar, and Panel. The title bar and Sidebar remain available. Covered parts retain desired visibility separately from effective grid visibility so their state can be restored when the custom view closes.
 
-Opening a session dismisses the active custom view. On phone layouts, custom views participate in mobile navigation so platform back navigation dismisses them.
+Explicit session and chat open actions dismiss the active custom view. Reactive fallback opens driven by session or chat lifecycle changes preserve the custom view while reconciling the hidden Sessions grid. On phone layouts, custom views participate in mobile navigation so platform back navigation dismisses them.
 
 ## Part lifecycle
 

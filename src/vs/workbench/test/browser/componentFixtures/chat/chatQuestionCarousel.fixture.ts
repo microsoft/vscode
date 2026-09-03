@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatQuestion, IChatQuestionCarousel } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../../../../contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.js';
@@ -123,6 +124,19 @@ const multiSelectQuestion: IChatQuestion = {
 	defaultValue: ['lint', 'fmt'],
 };
 
+const markdownLinksQuestion: IChatQuestion = {
+	id: 'review-results',
+	type: 'text',
+	title: 'Review results',
+	message: new MarkdownString('Review the [VS Code documentation](https://code.visualstudio.com/docs) before continuing.'),
+	detailedMessage: new MarkdownString([
+		'Related resources:',
+		'',
+		'- [VS Code repository](https://github.com/microsoft/vscode)',
+		'- [Extension API](https://code.visualstudio.com/api)',
+	].join('\n')),
+};
+
 // ============================================================================
 // Fixtures
 // ============================================================================
@@ -155,6 +169,15 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	NoSkip: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (context) => renderCarousel(context, createCarousel([singleSelectQuestion], false)),
+	}),
+
+	MarkdownLinks: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (context) => {
+			const carousel = createCarousel([markdownLinksQuestion]);
+			carousel.message = new MarkdownString('See the [question guidance](https://code.visualstudio.com/docs/copilot/chat/chat-agent-mode) for more information.');
+			renderCarousel(context, carousel);
+		},
 	}),
 
 	SubmittedSummary: defineComponentFixture({

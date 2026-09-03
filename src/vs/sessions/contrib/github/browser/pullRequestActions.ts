@@ -20,21 +20,22 @@ import { IActionViewItemService } from '../../../../platform/actions/browser/act
 import { Action2, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
-import { IURLService } from '../../../../platform/url/common/url.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { Menus } from '../../../browser/menus.js';
 import { ChatPillActionViewItem } from '../../../../workbench/browser/chatPills.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { SessionHasPullRequestContext } from '../../../common/contextkeys.js';
+import { getAgentMergeAwarePullRequestIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration } from '../../../browser/sessionAgentMerge.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { IGitHubPullRequestRef, ISession } from '../../../services/sessions/common/session.js';
+import { getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IGitHubPullRequestRef, ISession } from '../../../services/sessions/common/session.js';
 import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest, IPullRequestIconStatus, OPEN_PULL_REQUEST_ACTION_ID } from '../common/types.js';
 import { IGitHubService } from './githubService.js';
 import { GitHubReferenceList, IGitHubReferenceListEntry } from './githubReferenceList.js';
@@ -45,7 +46,7 @@ import { computePullRequestIconStatus } from './pullRequestIconStatus.js';
 interface IResolvedSessionPullRequest {
 	readonly ref: IGitHubPullRequestRef;
 	readonly pullRequest: IGitHubPullRequest | undefined;
-	readonly icon: ThemeIcon;
+	readonly icon: ThemeIcon | undefined;
 	readonly status: IPullRequestIconStatus;
 }
 
@@ -62,9 +63,6 @@ interface IPullRequestListEntry extends IGitHubReferenceListEntry {
 }
 
 // --- Open Pull Request action
-
-const githubPullRequestsExtensionId = 'github.vscode-pull-request-github';
-const openPullRequestWebviewPath = '/open-pull-request-webview';
 
 class PullRequestActionContext {
 	constructor(readonly pullRequest: IGitHubPullRequestRef) { }
@@ -116,25 +114,8 @@ class OpenPullRequestAction extends Action2 {
 			return;
 		}
 
-		const extensionService = accessor.get(IExtensionService);
-		const urlService = accessor.get(IURLService);
 		const openerService = accessor.get(IOpenerService);
-		if (await extensionService.getExtension(githubPullRequestsExtensionId)) {
-			const uri = urlService.create({
-				authority: githubPullRequestsExtensionId,
-				path: openPullRequestWebviewPath,
-				query: JSON.stringify({
-					owner: pullRequest.owner,
-					repo: pullRequest.repo,
-					pullRequestNumber: pullRequest.number,
-				}),
-			});
-			if (await urlService.open(uri, { trusted: true })) {
-				return;
-			}
-		}
-
-		await openerService.open(pullRequest.uri, { openExternal: true });
+		await openerService.open(pullRequest.uri, { openExternal: true, allowContributedOpeners: true });
 	}
 }
 registerAction2(OpenPullRequestAction);
@@ -143,21 +124,7 @@ registerAction2(OpenPullRequestAction);
 
 function getSessionPullRequest(session: ISession | undefined): IGitHubPullRequestRef | undefined {
 	const gitHubInfo = session?.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
-	const pullRequestRef = gitHubInfo?.pullRequests?.[0];
-	if (pullRequestRef) {
-		return pullRequestRef;
-	}
-	if (!gitHubInfo?.pullRequest) {
-		return undefined;
-	}
-
-	return {
-		owner: gitHubInfo.owner,
-		repo: gitHubInfo.repo,
-		number: gitHubInfo.pullRequest.number,
-		uri: gitHubInfo.pullRequest.uri,
-		icon: gitHubInfo.pullRequest.icon,
-	};
+	return getGitHubPullRequestRefs(gitHubInfo)[0];
 }
 
 class CopyPullRequestUrlAction extends Action2 {
@@ -202,12 +169,16 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 	private readonly _pullRequestRefsObs: IObservable<readonly IGitHubPullRequestRef[]>;
 	private readonly _pullRequestIdentitiesObs: IObservable<readonly IPullRequestIdentity[]>;
 	private readonly _pullRequestsObs: IObservable<readonly IResolvedSessionPullRequest[]>;
+	private readonly _agentMergeConfiguration: IObservable<ISessionAgentMergeConfiguration | undefined>;
+	private readonly _icon: IObservable<ThemeIcon>;
 	private readonly _pullRequestList = this._register(new MutableDisposable<GitHubReferenceList<IPullRequestListEntry>>());
 
 	constructor(
 		action: MenuItemAction,
 		options: IActionViewItemOptions,
 		@ISessionContext sessionContext: ISessionContext,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@IPullRequestIconCache private readonly _pullRequestIconCache: IPullRequestIconCache,
@@ -216,6 +187,10 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 	) {
 		super(undefined, action, options);
 
+		this._agentMergeConfiguration = derived(this, reader => {
+			const session = sessionContext.session.read(reader);
+			return session ? getSessionAgentMergeConfigurationObservable(session, sessionsProvidersService, configurationService).read(reader) : undefined;
+		});
 		this._pullRequestRefsObs = derivedOpts<readonly IGitHubPullRequestRef[]>({
 			owner: this,
 			equalsFn: (a, b) => arrayEquals(a, b, (x, y) =>
@@ -228,19 +203,7 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 			const session = sessionContext.session.read(reader);
 			const workspace = session?.workspace.read(reader);
 			const gitHubInfo = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
-			if (!gitHubInfo) {
-				return [];
-			}
-			if (gitHubInfo.pullRequests?.length) {
-				return gitHubInfo.pullRequests;
-			}
-			return gitHubInfo.pullRequest ? [{
-				owner: gitHubInfo.owner,
-				repo: gitHubInfo.repo,
-				number: gitHubInfo.pullRequest.number,
-				uri: gitHubInfo.pullRequest.uri,
-				icon: gitHubInfo.pullRequest.icon,
-			}] : [];
+			return getGitHubPullRequestRefs(gitHubInfo);
 		});
 
 		this._pullRequestIdentitiesObs = derivedOpts<readonly IPullRequestIdentity[]>({
@@ -248,14 +211,14 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 			equalsFn: (a, b) => arrayEquals(a, b, (x, y) => x.owner === y.owner && x.repo === y.repo && x.number === y.number)
 		}, reader => this._pullRequestRefsObs.read(reader).map(({ owner, repo, number }) => ({ owner, repo, number })));
 
-		this._pullRequestsObs = derived(reader => this._pullRequestRefsObs.read(reader).map(ref => {
+		this._pullRequestsObs = derived(reader => this._pullRequestRefsObs.read(reader).map((ref, index) => {
 			const reference = reader.store.add(this._gitHubService.createPullRequestModelReference(ref.owner, ref.repo, ref.number));
 			const pullRequest = reference.object.pullRequest.read(reader);
 			const status = pullRequest ? computePullRequestIconStatus(reader, this._gitHubService, ref.owner, ref.repo, pullRequest) : {};
 			const icon = pullRequest
 				? computePullRequestIcon(pullRequest.isDraft ? 'draft' : pullRequest.state, status)
-				: this._pullRequestIconCache.get(ref.uri.toString()) ?? ref.icon ?? computePullRequestIcon(GitHubPullRequestState.Open);
-			if (pullRequest) {
+				: this._pullRequestIconCache.get(ref.uri.toString()) ?? ref.icon ?? (index === 0 ? computePullRequestIcon(GitHubPullRequestState.Open) : undefined);
+			if (pullRequest && icon) {
 				this._pullRequestIconCache.set(ref.uri.toString(), icon);
 			}
 			return {
@@ -265,6 +228,12 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 				status,
 			};
 		}));
+		this._icon = derived(this, reader => {
+			const agentMerge = this._agentMergeConfiguration.read(reader);
+			const icons = this._pullRequestsObs.read(reader).map(pullRequest =>
+				pullRequest.icon ? getAgentMergeAwarePullRequestIcon(pullRequest.icon, agentMerge, pullRequest.status) : undefined);
+			return getHighestPriorityPullRequestIcon(icons) ?? Codicon.gitPullRequest;
+		});
 
 		this._register(autorun(reader => {
 			for (const identity of this._pullRequestIdentitiesObs.read(reader)) {
@@ -301,6 +270,7 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 
 		this._register(autorun(reader => {
 			const pullRequests = this._pullRequestsObs.read(reader);
+			this._icon.read(reader);
 			this._pullRequestList.value?.update(this._getPullRequestListEntries(pullRequests));
 			this.updateLabel();
 			this.updateTooltip();
@@ -327,7 +297,7 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 	}
 
 	protected override getIconElement(): HTMLElement | undefined {
-		const icon = this._pullRequestsObs.get()[0]?.icon ?? Codicon.gitPullRequest;
+		const icon = this._icon.get();
 		const iconElement = $(`span.chat-pill-icon${ThemeIcon.asCSSSelector(icon)}`, { 'aria-hidden': 'true' });
 		if (icon.color) {
 			// Inline `!important` wins over `button.css`'s `.monaco-text-button .codicon
@@ -444,7 +414,7 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 			repo: ref.repo,
 			number: ref.number,
 			title: pullRequest?.title,
-			icon,
+			icon: icon ?? Codicon.gitPullRequest,
 			uri: ref.uri,
 			ariaLabel: getPullRequestAriaLabel(ref, pullRequest, status),
 			toolbarActions: [toAction({

@@ -4,15 +4,46 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IChatViewTitleActionContext, isChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 
 // Re-export for convenience — consumers import from this file
 export { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 export type { AICustomizationSource } from '../../common/aiCustomizationWorkspaceService.js';
 export { BUILTIN_STORAGE } from '../../common/aiCustomizationWorkspaceService.js';
+
+export type AICustomizationManagementOpenEditorTarget =
+	| AICustomizationManagementSection
+	| {
+		readonly section?: AICustomizationManagementSection;
+		readonly sessionType?: string;
+		readonly revealUri?: URI;
+	}
+	| IChatViewTitleActionContext;
+
+export function resolveAICustomizationManagementOpenEditorTarget(
+	target: AICustomizationManagementOpenEditorTarget | undefined,
+	pendingSessionType: string | undefined,
+	chatSessionResource: URI | undefined,
+	getSessionResourceForHarness: (sessionType: string) => URI,
+): { readonly section?: AICustomizationManagementSection; readonly revealUri?: URI; readonly sessionResource?: URI } {
+	if (isChatViewTitleActionContext(target)) {
+		return { sessionResource: target.sessionResource };
+	}
+
+	const options = typeof target === 'string' ? { section: target } : target;
+	const sessionType = options?.sessionType ?? pendingSessionType;
+	return {
+		section: options?.section,
+		revealUri: options?.revealUri,
+		sessionResource: sessionType ? getSessionResourceForHarness(sessionType) : chatSessionResource,
+	};
+}
 
 export function sectionToPromptType(section: AICustomizationManagementSection): PromptsType {
 	switch (section) {
@@ -79,6 +110,18 @@ export const AICustomizationManagementTitleMenuId = MenuId.for('AICustomizationM
 export const AICustomizationManagementItemMenuId = MenuId.for('AICustomizationManagementEditorItem');
 
 /**
+ * Internal-only menu for synthetic items that do not have source content.
+ * This is intentionally separate from the extension-contributable item menu.
+ */
+export const AICustomizationManagementSyntheticItemMenuId = MenuId.for('AICustomizationManagementEditorSyntheticItem');
+
+export function getAICustomizationManagementItemMenuId(uri: URI): MenuId {
+	return hasReadableCustomizationContent(uri)
+		? AICustomizationManagementItemMenuId
+		: AICustomizationManagementSyntheticItemMenuId;
+}
+
+/**
  * Menu ID for the AI Customization Management Editor create/add button.
  * Extensions can contribute commands here to add create actions to the section's add button dropdown.
  * Use the `chatCustomizationSection` context key to target a specific section.
@@ -109,7 +152,6 @@ export const AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY = 'aiCustomizationManagementIt
  * Context key indicating whether the item is disabled.
  */
 export const AI_CUSTOMIZATION_ITEM_DISABLED_KEY = 'aiCustomizationManagementItemDisabled';
-
 
 /**
  * Storage key for persisting the selected section.

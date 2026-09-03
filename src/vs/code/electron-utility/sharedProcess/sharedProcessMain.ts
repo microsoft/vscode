@@ -93,9 +93,8 @@ import { DEV_CONTAINER_AGENT_HOST_CHANNEL, IDevContainerAgentHostMainService } f
 import { DevContainerAgentHostMainService } from '../../../platform/agentHost/node/devContainerAgentHostService.js';
 import { IWSLRemoteAgentHostMainService, WSL_REMOTE_AGENT_HOST_CHANNEL } from '../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { WSLRemoteAgentHostMainService } from '../../../platform/agentHost/node/wslRemoteAgentHostService.js';
-import { ITunnelAgentHostMainService, ITunnelAgentHostHostingService, TUNNEL_AGENT_HOST_CHANNEL, TUNNEL_HOST_CHANNEL } from '../../../platform/agentHost/common/tunnelAgentHost.js';
+import { ITunnelAgentHostMainService, TUNNEL_AGENT_HOST_CHANNEL } from '../../../platform/agentHost/common/tunnelAgentHost.js';
 import { TunnelAgentHostMainService } from '../../../platform/agentHost/node/tunnelAgentHostService.js';
-import { TunnelHostMainService } from '../../../platform/agentHost/node/tunnelHostMainService.js';
 import { IUserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfile.js';
 import { IExtensionsProfileScannerService } from '../../../platform/extensionManagement/common/extensionsProfileScannerService.js';
 import { PolicyChannelClient } from '../../../platform/policy/common/policyIpc.js';
@@ -434,9 +433,6 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// Tunnel Agent Host
 		services.set(ITunnelAgentHostMainService, new SyncDescriptor(TunnelAgentHostMainService, undefined, true));
 
-		// Tunnel Host (hosting local agent host for remote connections)
-		services.set(ITunnelAgentHostHostingService, new SyncDescriptor(TunnelHostMainService, undefined, true));
-
 		return new InstantiationService(services);
 	}
 
@@ -529,9 +525,6 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		const tunnelAgentHostChannel = ProxyChannel.fromService(accessor.get(ITunnelAgentHostMainService), this._store);
 		this.server.registerChannel(TUNNEL_AGENT_HOST_CHANNEL, tunnelAgentHostChannel);
 
-		// Tunnel Host
-		const tunnelHostChannel = ProxyChannel.fromService(accessor.get(ITunnelAgentHostHostingService), this._store);
-		this.server.registerChannel(TUNNEL_HOST_CHANNEL, tunnelHostChannel);
 	}
 
 	private registerErrorHandler(logService: ILogService): void {

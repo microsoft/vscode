@@ -130,6 +130,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 					enableImplicitContext: true,
 					enableWorkingSet: 'explicit',
 					supportsChangingModes: true,
+					enableSessionStateIndicator: true,
 				},
 				{
 					listForeground: editorForeground,

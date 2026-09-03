@@ -28,6 +28,7 @@ import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.j
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
+import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
@@ -38,6 +39,7 @@ import { IAgentHostGitStateService } from '../../common/agentHostGitStateService
 import type { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker, TURN_ACTIVITY_NONE, TURN_HANG_THRESHOLD_MS } from '../../node/agentHostTurnTracker.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
@@ -223,15 +225,21 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			[IAgentHostClientConnectionService, clientConnections],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
-		services.set(IAgentHostChatContributions, disposables.add(new AgentHostChatContributions(logService, instantiationService)));
+		const chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
+		services.set(IAgentHostChatContributions, chatContributions);
 		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService)));
 		services.set(IAgentHostProviderService, createTestAgentHostProviderService(() => agent));
 		const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 		services.set(IAgentHostTelemetryReporter, telemetryReporter);
 		const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
 		services.set(IAgentHostTurnTracker, turnTracker);
+		services.set(IAgentHostToolCallTracker, disposables.add(instantiationService.createInstance(AgentHostToolCallTracker)));
 		const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 		services.set(IAgentHostLocalCommands, localCommands);
+		// Blocked-turn hang telemetry is reported by `SessionInputNeededContribution`,
+		// so the built-in contributions must be registered for this graph to mirror
+		// production wiring.
+		disposables.add(registerBuiltInChatContributions(chatContributions));
 		sideEffects = disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, customizationEnablementService, {
 			getAgent: () => agent,
 			agents: agentList,

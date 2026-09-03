@@ -572,6 +572,7 @@ export class ChatListWidget extends Disposable {
 				expandOnlyOnTwistieClick: true,
 				allowNonCollapsibleParents: true,
 				renderIndentGuides: RenderIndentGuides.None,
+				findWidgetEnabled: false,
 				accessibilityProvider: this.instantiationService.createInstance(ChatAccessibilityProvider),
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: (e: ChatTreeItem) =>

@@ -57,7 +57,7 @@ import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IMod
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
-import { ChatViewModel, isPendingDividerVM } from '../../../common/model/chatViewModel.js';
+import { ChatViewModel, isPendingDividerVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
@@ -2123,7 +2123,6 @@ suite('ChatService', () => {
 		const sessionResource = URI.from({ scheme: sessionType, path: '/session' });
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
 		migrationService.computeMigrationHint.resolves('Found 3 customization files that could be migrated.');
-		instantiationService.stub(ICustomizationMigrationService, migrationService);
 
 		const mockSessionsService = new MockChatSessionsService();
 		mockSessionsService.setContributions([{
@@ -2145,6 +2144,9 @@ suite('ChatService', () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
 
 		const testService = createChatService();
+		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
+			sessionResource => migrationService.computeMigrationHint(sessionResource)
+		));
 		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 		assert.ok(ref);
 		testDisposables.add(ref);
@@ -2224,7 +2226,6 @@ suite('ChatService', () => {
 		const sessionResource = URI.from({ scheme: sessionType, path: '/restored-session' });
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
 		migrationService.computeMigrationHint.resolves('Found customization files that could be migrated.');
-		instantiationService.stub(ICustomizationMigrationService, migrationService);
 
 		const mockSessionsService = new MockChatSessionsService();
 		mockSessionsService.setContributions([{
@@ -2248,6 +2249,9 @@ suite('ChatService', () => {
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationHint, CustomizationMigrationHintMode.Once);
 		const testService = createChatService();
+		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
+			sessionResource => migrationService.computeMigrationHint(sessionResource)
+		));
 		const firstRef = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 		assert.ok(firstRef);
 		const firstResponse = await testService.sendRequest(sessionResource, 'first', { agentId: sessionType });
@@ -2275,8 +2279,10 @@ suite('ChatService', () => {
 
 	test('customization migration hint is not computed for local sessions', async () => {
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
-		instantiationService.stub(ICustomizationMigrationService, migrationService);
 		const testService = createChatService();
+		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
+			sessionResource => migrationService.computeMigrationHint(sessionResource)
+		));
 		const model = startSessionModel(testService).object;
 		const response = await testService.sendRequest(model.sessionResource, 'test');
 		ChatSendResult.assertSent(response);
@@ -2293,7 +2299,6 @@ suite('ChatService', () => {
 		const sessionType = 'extension-host-harness';
 		const sessionResource = URI.from({ scheme: sessionType, path: '/session' });
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
-		instantiationService.stub(ICustomizationMigrationService, migrationService);
 
 		const mockSessionsService = new MockChatSessionsService();
 		mockSessionsService.setContributions([{
@@ -2315,6 +2320,9 @@ suite('ChatService', () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
 
 		const testService = createChatService();
+		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
+			sessionResource => migrationService.computeMigrationHint(sessionResource)
+		));
 		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 		assert.ok(ref);
 		testDisposables.add(ref);
@@ -2912,6 +2920,62 @@ suite('ChatService', () => {
 			return { resource, provided };
 		}
 
+		test('request-only hidden session history keeps its response visible and persists', async () => {
+			const { resource } = setupRemoteProvider({
+				history: [{
+					id: 'request-only-hidden',
+					type: 'request',
+					prompt: 'carrier',
+					participant: remoteScheme,
+					isRequestHidden: true,
+				}, {
+					type: 'response',
+					participant: remoteScheme,
+					parts: [{ kind: 'systemNotification', content: new MarkdownString('Visible notice') }],
+				}],
+			});
+			const testService = createChatService();
+			const modelReference = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(modelReference);
+			const model = testDisposables.add(modelReference);
+			const request = model.object.getRequests()[0];
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model.object, undefined));
+			const before = {
+				requestHidden: request.isRequestHiddenFromTranscript,
+				turnHidden: request.isHiddenFromTranscript,
+				responseHidden: request.response?.isHiddenFromTranscript,
+				visibleItems: viewModel.getItems().map(item => isResponseVM(item) ? 'response' : 'request'),
+			};
+
+			const restoredService = createChatService();
+			const restored = testDisposables.add(restoredService.loadSessionFromData(JSON.parse(JSON.stringify(model.object)))!);
+			const restoredRequest = restored.object.getRequests()[0];
+			const restoredViewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, restored.object, undefined));
+
+			assert.deepStrictEqual({
+				before,
+				restored: {
+					requestHidden: restoredRequest.isRequestHiddenFromTranscript,
+					turnHidden: restoredRequest.isHiddenFromTranscript,
+					responseHidden: restoredRequest.response?.isHiddenFromTranscript,
+					visibleItems: restoredViewModel.getItems().map(item => isResponseVM(item) ? 'response' : 'request'),
+				},
+			}, {
+				before: {
+					requestHidden: true,
+					turnHidden: false,
+					responseHidden: false,
+					visibleItems: ['response'],
+				},
+				restored: {
+					requestHidden: true,
+					turnHidden: false,
+					responseHidden: false,
+					visibleItems: ['response'],
+				},
+			});
+		});
+
 		let idCounter = 0;
 		function generateId(): string {
 			return `${Date.now()}-${idCounter++}`;
@@ -2964,6 +3028,57 @@ suite('ChatService', () => {
 				elapsedMs: 2_500,
 				completedAt,
 				completionTimestamp: completedAt,
+			});
+		});
+
+		test('stamps the display time when a streamed remote turn finishes while watched', async () => {
+			const before = Date.now();
+			const isCompleteObs = observableValue<boolean>('isComplete', false);
+			const { resource } = setupRemoteProvider({
+				history: [{ type: 'request', prompt: 'hello', participant: remoteScheme }],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				isCompleteObs,
+				interruptActiveResponseCallback: async () => true,
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			const whileStreaming = ref.object.getRequests()[0].response?.completionTimestamp;
+			isCompleteObs.set(true, undefined);
+			const afterCompleting = ref.object.getRequests()[0].response?.completionTimestamp;
+
+			assert.deepStrictEqual({
+				whileStreaming,
+				stampedOnCompletion: afterCompleting !== undefined && afterCompleting >= before && afterCompleting <= Date.now(),
+			}, {
+				whileStreaming: undefined,
+				stampedOnCompletion: true,
+			});
+		});
+
+		test('keeps display time unknown when a streamed remote session loads already complete', async () => {
+			const { resource } = setupRemoteProvider({
+				history: [{ type: 'request', prompt: 'hello', participant: remoteScheme }],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				isCompleteObs: observableValue<boolean>('isComplete', true),
+				interruptActiveResponseCallback: async () => true,
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			const response = ref.object.getRequests()[0].response;
+			assert.deepStrictEqual({
+				isComplete: response?.isComplete,
+				completionTimestamp: response?.completionTimestamp,
+			}, {
+				isComplete: true,
+				completionTimestamp: undefined,
 			});
 		});
 
