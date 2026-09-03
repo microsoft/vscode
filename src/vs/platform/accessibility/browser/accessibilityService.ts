@@ -3,52 +3,49 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
-import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
-import { TestLayoutService } from '../../../../platform/layout/browser/test/testLayoutService.js';
-import { AccessibilityService } from '../accessibilityService.js';
-import { IAccessibilityService } from '../../common/accessibility.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { MockContextKeyService } from '../../../../platform/contextkey/test/common/mockContextKeyService.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IAccessibilityService } from '../common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 
-suite('AccessibilityService', () => {
-	let disposables: DisposableStore;
-	let instantiationService: TestInstantiationService;
-	let configurationService: TestConfigurationService;
-	let layoutService: TestLayoutService;
+export class AccessibilityService extends Disposable implements IAccessibilityService {
+	declare readonly _serviceBrand: undefined;
 
-	setup(() => {
-		disposables = new DisposableStore();
-		instantiationService = new TestInstantiationService();
-		configurationService = new TestConfigurationService();
-		layoutService = new TestLayoutService();
+	private readonly _onDidChangeEnhancedFocus = this._register(new Emitter<boolean>());
+	readonly onDidChangeEnhancedFocus: Event<boolean> = this._onDidChangeEnhancedFocus.event;
 
-		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(ILayoutService, layoutService);
-		instantiationService.stub(IContextKeyService, MockContextKeyService);
-	});
+	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILayoutService private readonly layoutService: ILayoutService
+	) {
+		super();
 
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	test('enhanced focus configuration and class toggle', () => {
-		configurationService.setUserConfiguration('accessibility.enhancedFocus', true);
-		const service = disposables.add(instantiationService.createInstance(AccessibilityService));
-		
-		assert.strictEqual(layoutService.mainContainer.classList.contains('enhanced-focus'), true);
-
-		let eventFired = false;
-		disposables.add(service.onDidChangeEnhancedFocus(() => {
-			eventFired = true;
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('accessibility.enhancedFocus')) {
+				this._updateEnhancedFocus();
+			}
 		}));
 
-		configurationService.setUserConfiguration('accessibility.enhancedFocus', false);
-		assert.strictEqual(layoutService.mainContainer.classList.contains('enhanced-focus'), false);
-		assert.strictEqual(eventFired, true);
-	});
-});
+		this._updateEnhancedFocus();
+	}
+
+	private _updateEnhancedFocus(): void {
+		const enhancedFocus = this.configurationService.getValue<boolean>('accessibility.enhancedFocus');
+		if (enhancedFocus) {
+			this.layoutService.mainContainer.classList.add('enhanced-focus');
+		} else {
+			this.layoutService.mainContainer.classList.remove('enhanced-focus');
+		}
+		this._onDidChangeEnhancedFocus.fire(!!enhancedFocus);
+	}
+
+	isScreenReaderOptimized(): boolean {
+		 
+		return false; 
+	}
+
+	alert(message: string): void {
+		
+	}
+}
