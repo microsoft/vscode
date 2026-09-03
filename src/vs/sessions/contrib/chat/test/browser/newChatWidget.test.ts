@@ -9,6 +9,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -318,7 +319,7 @@ suite('NewChatWidget', () => {
 			{ enabled: true, available: false, isQuickChat: true },
 		];
 
-		assert.deepStrictEqual(cases.map(testCase => {
+		const options = cases.map(testCase => {
 			const option = getNoWorkspaceOption.call({
 				_useConsolidatedRemoteWorkspaces: constObservable(testCase.enabled),
 				_isQuickChatComposer: constObservable(testCase.isQuickChat),
@@ -326,12 +327,16 @@ suite('NewChatWidget', () => {
 				_selectNoWorkspace: () => { },
 			});
 			return option && { description: option.description, isSelected: option.isSelected };
-		}), [
-			undefined,
-			undefined,
-			{ description: 'Start without a backing workspace', isSelected: false },
-			{ description: 'Start without a backing workspace', isSelected: true },
-		]);
+		});
+
+		assert.deepStrictEqual(options, isWeb
+			? [undefined, undefined, undefined, undefined]
+			: [
+				undefined,
+				undefined,
+				{ description: 'Start without a backing workspace', isSelected: false },
+				{ description: 'Start without a backing workspace', isSelected: true },
+			]);
 	});
 
 	test('workspace-less chats do not inherit the previous picker workspace', () => {
