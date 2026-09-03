@@ -23,6 +23,8 @@ The Agents Window contributes:
 
 Shared workbench code owns reusable discovery and management behavior. Sessions code adapts active-session context and provider-backed harnesses without adding Sessions dependencies to `vs/workbench`.
 
+`CustomizationMigrationWidget` owns the shared migration model and category flows. The model owns active-session context, ordered roots, category discovery state, and invalidation; the management editor only hosts navigation, focus, visibility, layout, and file-editor delegation.
+
 ## Service boundary
 
 ### `IAICustomizationWorkspaceService`
@@ -52,7 +54,7 @@ Core workbench registrations may expose Local, Copilot CLI, and Claude harnesses
 
 ### `ICustomizationMigrationService`
 
-This shared workbench service computes customization migrations for an explicit chat session. File migrations include source URIs and migratable-configuration metadata for flows that need source type and storage; MCP migrations report known servers' binary harness compatibility together with discovery and policy-coverage state. The service also produces a localized, harness-specific hint with navigation metadata so UI consumers can open the relevant file migration or MCP server surface.
+This shared workbench service computes customization migrations for an explicit chat session. File migrations include source URIs and migratable-configuration metadata for flows that need source type and storage. MCP migrations report known servers' binary harness compatibility, discovery and policy-coverage state, and eligible source-to-target candidates using the current Agent Host delivery projection. MCP execution revalidates candidates and ordered server-confirmed roots before guarded writes and returns structured per-server results. The service also produces a localized, harness-specific hint with navigation metadata so UI consumers can open the relevant file migration or MCP server surface.
 
 ### `IHarnessDescriptor`
 
