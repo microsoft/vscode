@@ -495,7 +495,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const { provider, sessionTypeId } = this._resolveProviderForNewSession(folderUri, options);
 
 		const previousNewSession = this._newSession.get();
-		const session = provider.createNewSession(folderUri, sessionTypeId, { metadata: options?.metadata, sessionTemplate: options?.sessionTemplate });
+		const session = provider.createNewSession(folderUri, sessionTypeId, {
+			metadata: options?.metadata,
+			sessionTemplate: options?.sessionTemplate,
+			...(options?.automationConfiguration ? { automationConfiguration: options.automationConfiguration } : {}),
+		});
 
 		// Providers no longer dispose the previous new session implicitly, so
 		// dispose the one this composer just replaced. Use its own provider
@@ -514,7 +518,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	createAutomationSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession {
 		const { provider, sessionTypeId } = this._resolveProviderForNewSession(folderUri, options);
 		const previousAutomationSession = this._automationSession.get();
-		const session = provider.createNewSession(folderUri, sessionTypeId, { metadata: options?.metadata, sessionTemplate: options?.sessionTemplate });
+		const session = provider.createNewSession(folderUri, sessionTypeId, {
+			metadata: options?.metadata,
+			sessionTemplate: options?.sessionTemplate,
+			...(options?.automationConfiguration ? { automationConfiguration: options.automationConfiguration } : {}),
+		});
 		if (previousAutomationSession && previousAutomationSession.sessionId !== session.sessionId) {
 			this._getProvider(previousAutomationSession)?.deleteNewSession(previousAutomationSession.sessionId);
 		}
@@ -582,7 +590,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const { provider, sessionTypeId } = this._resolveProviderForQuickChat(options);
 
 		const previousNewSession = this._newSession.get();
-		const session = provider.createQuickChat(sessionTypeId, { metadata: options?.metadata, sessionTemplate: options?.sessionTemplate });
+		const session = provider.createQuickChat(sessionTypeId, {
+			metadata: options?.metadata,
+			sessionTemplate: options?.sessionTemplate,
+			...(options?.automationConfiguration ? { automationConfiguration: options.automationConfiguration } : {}),
+		});
 		this._newSession.set(session, undefined);
 		this.storageService.store(LAST_USED_QUICK_CHAT_SESSION_TYPE_STORAGE_KEY, sessionTypeId, StorageScope.PROFILE, StorageTarget.USER);
 
@@ -598,7 +610,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	createAutomationQuickChat(options?: ICreateNewSessionOptions): ISession {
 		const { provider, sessionTypeId } = this._resolveProviderForQuickChat(options);
 		const previousAutomationSession = this._automationSession.get();
-		const session = provider.createQuickChat(sessionTypeId, { metadata: options?.metadata, sessionTemplate: options?.sessionTemplate });
+		const session = provider.createQuickChat(sessionTypeId, {
+			metadata: options?.metadata,
+			sessionTemplate: options?.sessionTemplate,
+			...(options?.automationConfiguration ? { automationConfiguration: options.automationConfiguration } : {}),
+		});
 		if (previousAutomationSession && previousAutomationSession.sessionId !== session.sessionId) {
 			this._getProvider(previousAutomationSession)?.deleteNewSession(previousAutomationSession.sessionId);
 		}
@@ -606,8 +622,15 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return session;
 	}
 
-	async getAutomationSessionTemplate(session: ISession) {
-		return this._getProvider(session)?.getAutomationSessionTemplate?.(session.sessionId);
+	async getAutomationSessionConfiguration(session: ISession) {
+		const provider = this._getProvider(session);
+		return provider?.getAutomationSessionConfiguration
+			? provider.getAutomationSessionConfiguration(session.sessionId)
+			: null;
+	}
+
+	usesCombinedNewSessionConfigPicker(session: ISession): boolean {
+		return this._getProvider(session)?.usesCombinedNewSessionConfigPicker === true;
 	}
 
 	async createNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<IChat | undefined> {

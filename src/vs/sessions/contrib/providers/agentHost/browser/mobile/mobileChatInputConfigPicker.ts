@@ -25,7 +25,7 @@ import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../..
 import { IChatPetService } from '../../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { Menus } from '../../../../../browser/menus.js';
 import { SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '../../../../../common/contextkeys.js';
-import { type IAgentHostSessionsProvider, isAgentHostProvider, isAgentHostProviderId } from '../../../../../common/agentHostSessionsProvider.js';
+import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -372,6 +372,7 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ISessionsService sessionsService: ISessionsService,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -383,7 +384,7 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 		const usesCombinedPicker = SessionUsesCombinedConfigPickerContext.bindTo(contextKeyService);
 		this._register(autorun(reader => {
 			const session = sessionsService.activeSession.read(reader);
-			usesCombinedPicker.set(!!session && isAgentHostProviderId(session.providerId));
+			usesCombinedPicker.set(!!session && sessionsProvidersService.getProvider(session.providerId)?.usesCombinedNewSessionConfigPicker === true);
 		}));
 
 		this._register(actionViewItemService.register(

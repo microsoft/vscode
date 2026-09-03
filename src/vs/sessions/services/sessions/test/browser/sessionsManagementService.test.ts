@@ -2961,14 +2961,14 @@ suite('SessionsManagementService', () => {
 				createOptions.push(options);
 				return drafts[createIndex++];
 			}
-			override async getAutomationSessionTemplate(): Promise<IAutomationSessionTemplate> { return sessionTemplate; }
+			override async getAutomationSessionConfiguration() { return { sessionTemplate }; }
 			override deleteNewSession(sessionId: string): void { deleted.push(sessionId); }
 		}(drafts[0]);
 		const { service } = createSessionsManagementService(drafts[0], disposables, provider);
 		const folderUri = URI.parse('test:///folder');
 
 		const firstAutomationSession = service.createAutomationSession(folderUri, { sessionTemplate });
-		const capturedTemplate = await service.getAutomationSessionTemplate(firstAutomationSession);
+		const capturedConfiguration = await service.getAutomationSessionConfiguration(firstAutomationSession);
 		service.createNewSession(folderUri);
 		service.createAutomationQuickChat({ sessionTemplate });
 		service.discardAutomationSession(firstAutomationSession);
@@ -2978,13 +2978,13 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual({
 			newSession: service.newSession.get()?.sessionId,
 			automationSession: service.automationSession.get()?.sessionId,
-			capturedTemplate,
+			capturedConfiguration,
 			createOptions,
 			deleted,
 		}, {
 			newSession: 'new-session',
 			automationSession: undefined,
-			capturedTemplate: sessionTemplate,
+			capturedConfiguration: { sessionTemplate },
 			createOptions: [
 				{ metadata: undefined, sessionTemplate },
 				{ metadata: undefined, sessionTemplate: undefined },

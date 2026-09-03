@@ -88,7 +88,6 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@ISessionsService sessionsService: ISessionsService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IChatService private readonly chatService: IChatService,
@@ -97,7 +96,6 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
-		const modePickerModel = this._register(instantiationService.createInstance(ModePickerModel));
 		let settingAgentInternally = false;
 
 		const initAgentFromActiveSession = () => {
@@ -112,10 +110,7 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 
 		this._register(autorun(reader => {
 			const session = sessionsService.activeSession.read(reader);
-			const provider = this._getProvider(session, sessionsProvidersService);
 			const selectedAgentUri = session?.mode.read(reader)?.id;
-
-			modePickerModel.setSession(provider ? session : undefined, selectedAgentUri);
 
 			const isUntitled = session?.status.read(reader) === SessionStatus.Untitled;
 			this._syncChatInputMode(session, selectedAgentUri, sessionsProvidersService);
@@ -141,8 +136,15 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 
 		const factory = (_action: IAction, _options: IActionViewItemOptions, scopedInstantiationService: IInstantiationService) => {
 			const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
+			const modePickerModel = scopedInstantiationService.createInstance(ModePickerModel);
 			const picker = scopedInstantiationService.createInstance(ModePicker, modePickerModel, session);
 			const disposableStore = new DisposableStore();
+			disposableStore.add(modePickerModel);
+			disposableStore.add(autorun(reader => {
+				const scopedSession = session.read(reader);
+				const provider = this._getProvider(scopedSession, sessionsProvidersService);
+				modePickerModel.setSession(provider ? scopedSession : undefined, scopedSession?.mode.read(reader)?.id);
+			}));
 
 			disposableStore.add(picker.onDidSelect(mode => {
 				this._selectMode(mode, session.get(), sessionsProvidersService);

@@ -32,12 +32,12 @@ import { IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../.
 import { createWorkbenchDialogOptions } from '../../../../../workbench/browser/parts/dialogs/dialog.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { GitRefType, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
+import { IAutomationSessionConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, resolveAutomationModelIdentifier, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
+import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
 
 const FOLDER = URI.file('/workspace');
@@ -147,11 +147,11 @@ function createWorkspace(requiresWorkspaceTrust: boolean): ISessionWorkspace {
 	};
 }
 
-function createAutomationDraftService() {
+function createAutomationDraftService(captureSupported = true) {
 	const automationSession = observableValue<ISession | undefined>('automationSession', undefined);
 	const created: Array<{ kind: 'workspace' | 'quickChat'; providerId: string | undefined; sessionTypeId: string; folderUri?: string; sessionTemplate?: IAutomationSessionTemplate }> = [];
 	const discarded: string[] = [];
-	const sessionTemplates = new Map<string, IAutomationSessionTemplate | undefined>();
+	const sessionConfigurations = new Map<string, IAutomationSessionConfiguration>();
 	let nextId = 1;
 	const createDraft = (kind: 'workspace' | 'quickChat', providerId: string | undefined, sessionTypeId: string, folderUri?: URI, sessionTemplate?: IAutomationSessionTemplate): ISession => {
 		const previous = automationSession.get();
@@ -164,7 +164,7 @@ function createAutomationDraftService() {
 			sessionType: sessionTypeId,
 		});
 		created.push({ kind, providerId, sessionTypeId, folderUri: folderUri?.toString(), ...(sessionTemplate ? { sessionTemplate } : {}) });
-		sessionTemplates.set(session.sessionId, sessionTemplate);
+		sessionConfigurations.set(session.sessionId, { sessionTemplate });
 		automationSession.set(session, undefined);
 		return session;
 	};
@@ -172,7 +172,7 @@ function createAutomationDraftService() {
 		automationSession,
 		createAutomationSession: (folderUri, options) => createDraft('workspace', options?.providerId, options?.sessionTypeId ?? 'default', folderUri, options?.sessionTemplate),
 		createAutomationQuickChat: options => createDraft('quickChat', options?.providerId, options?.sessionTypeId ?? 'default', undefined, options?.sessionTemplate),
-		getAutomationSessionTemplate: async session => sessionTemplates.get(session.sessionId),
+		getAutomationSessionConfiguration: async session => captureSupported ? sessionConfigurations.get(session.sessionId) : null,
 		discardAutomationSession: session => {
 			const current = automationSession.get();
 			if (!current || (session && session.sessionId !== current.sessionId)) {
@@ -182,7 +182,7 @@ function createAutomationDraftService() {
 			automationSession.set(undefined, undefined);
 		},
 	});
-	return { service, created, discarded };
+	return { service, created, discarded, sessionConfigurations };
 }
 
 suite('Automation session draft synchronization', () => {
@@ -212,6 +212,7 @@ suite('Automation session draft synchronization', () => {
 			discarded,
 			currentSession: service.automationSession.get()?.sessionId,
 			errorCount,
+			availability: synchronizer.availability.get(),
 		}, {
 			created: [
 				{ kind: 'workspace', providerId: 'provider-a', sessionTypeId: 'type-a', folderUri: 'file:///workspace' },
@@ -222,6 +223,7 @@ suite('Automation session draft synchronization', () => {
 			discarded: ['automation-1', 'automation-2', 'automation-3', 'automation-4'],
 			currentSession: undefined,
 			errorCount: 0,
+			availability: 'idle',
 		});
 	});
 
@@ -239,9 +241,50 @@ suite('Automation session draft synchronization', () => {
 			folderUri: URI.parse('file:///workspace'),
 			providerId: 'provider',
 			sessionTypeId: 'type',
-			sessionTemplate,
+			sessionConfiguration: { sessionTemplate },
 		});
-		const captured = await synchronizer.getSessionTemplate();
+
+		test('distinguishes a valid empty capture from unsupported capture', async () => {
+			const sessionConfiguration: IAutomationSessionConfiguration = {
+				sessionTemplate: {
+					modelId: 'model',
+					config: { mode: 'plan' },
+				},
+				modelId: 'model',
+				mode: 'plan',
+			};
+			const supported = createAutomationDraftService();
+			const supportedSynchronizer = disposables.add(new AutomationSessionDraftSynchronizer(supported.service, async () => true, () => { }));
+			supportedSynchronizer.update({
+				kind: 'workspace',
+				folderUri: URI.parse('file:///workspace'),
+				providerId: 'provider',
+				sessionTypeId: 'type',
+				sessionConfiguration,
+			});
+			await supportedSynchronizer.waitForSync();
+			const supportedSessionId = supported.service.automationSession.get()!.sessionId;
+			supported.sessionConfigurations.set(supportedSessionId, {});
+
+			const unsupported = createAutomationDraftService(false);
+			const unsupportedSynchronizer = disposables.add(new AutomationSessionDraftSynchronizer(unsupported.service, async () => true, () => { }));
+			unsupportedSynchronizer.update({
+				kind: 'workspace',
+				folderUri: URI.parse('file:///workspace'),
+				providerId: 'provider',
+				sessionTypeId: 'type',
+				sessionConfiguration,
+			});
+
+			assert.deepStrictEqual({
+				supported: await supportedSynchronizer.getSessionConfiguration(),
+				unsupported: await unsupportedSynchronizer.getSessionConfiguration(),
+			}, {
+				supported: {},
+				unsupported: sessionConfiguration,
+			});
+		});
+		const captured = await synchronizer.getSessionConfiguration();
 
 		assert.deepStrictEqual({
 			created,
@@ -254,7 +297,7 @@ suite('Automation session draft synchronization', () => {
 				folderUri: 'file:///workspace',
 				sessionTemplate,
 			}],
-			captured: sessionTemplate,
+			captured: { sessionTemplate },
 		});
 	});
 
@@ -295,10 +338,12 @@ suite('Automation session draft synchronization', () => {
 			created,
 			currentSession: service.automationSession.get()?.sessionId,
 			errorCount,
+			availability: synchronizer.availability.get(),
 		}, {
 			created: [],
 			currentSession: undefined,
 			errorCount: 1,
+			availability: 'unavailable',
 		});
 	});
 
@@ -334,10 +379,12 @@ suite('Automation session draft synchronization', () => {
 			createCount,
 			errorCount,
 			sessionId: automationSession.get()?.sessionId,
+			availability: synchronizer.availability.get(),
 		}, {
 			createCount: 2,
 			errorCount: 1,
 			sessionId: 'automation-retry',
+			availability: 'available',
 		});
 	});
 });
@@ -944,36 +991,6 @@ suite('Automation branch picker', () => {
 		});
 	});
 
-	test('resolves a legacy model identifier to the selected concrete target', () => {
-		const legacyIdentifier = 'copilotcli/gpt-5.6-sol';
-		const concreteIdentifier = 'agent-host-copilotcli:gpt-5.6-sol';
-		const unrelatedIdentifier = 'other/gpt-5.6-sol';
-		const modelIds = [legacyIdentifier, unrelatedIdentifier];
-		const models = new Map<string, ILanguageModelChatMetadata>([
-			[legacyIdentifier, upcastPartial<ILanguageModelChatMetadata>({ id: 'gpt-5.6-sol', targetChatSessionType: 'copilotcli' })],
-			[concreteIdentifier, upcastPartial<ILanguageModelChatMetadata>({ id: 'gpt-5.6-sol', targetChatSessionType: 'agent-host-copilotcli' })],
-			[unrelatedIdentifier, upcastPartial<ILanguageModelChatMetadata>({ id: 'gpt-5.6-sol', targetChatSessionType: 'other' })],
-		]);
-		const languageModelsService = upcastPartial<ILanguageModelsService>({
-			getLanguageModelIds: () => modelIds,
-			lookupLanguageModel: identifier => models.get(identifier),
-		});
-
-		const beforeConcreteTargetArrives = resolveAutomationModelIdentifier(languageModelsService, legacyIdentifier, 'copilotcli', 'agent-host-copilotcli');
-		modelIds.push(concreteIdentifier);
-
-		assert.deepStrictEqual({
-			beforeConcreteTargetArrives,
-			afterConcreteTargetArrives: resolveAutomationModelIdentifier(languageModelsService, legacyIdentifier, 'copilotcli', 'agent-host-copilotcli'),
-			alreadyConcrete: resolveAutomationModelIdentifier(languageModelsService, concreteIdentifier, 'copilotcli', 'agent-host-copilotcli'),
-			unrelated: resolveAutomationModelIdentifier(languageModelsService, unrelatedIdentifier, 'copilotcli', 'agent-host-copilotcli'),
-		}, {
-			beforeConcreteTargetArrives: legacyIdentifier,
-			afterConcreteTargetArrives: concreteIdentifier,
-			alreadyConcrete: concreteIdentifier,
-			unrelated: unrelatedIdentifier,
-		});
-	});
 });
 
 suite('Automation dialog keyboard navigation', () => {

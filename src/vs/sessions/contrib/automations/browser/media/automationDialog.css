@@ -298,36 +298,58 @@
 	min-width: 0;
 }
 
-/*
- * Hide chips from the embedded chat input's primary toolbar that don't fit
- * the automation dialog's reduced surface:
- *  - "Configure Tools" (`workbench.action.chat.configureTools`,
- *    `.codicon-settings-compact`) — tool selection is not relevant for a
- *    scheduled prompt.
- *  - "Add Context" (`workbench.action.chat.attachContext`,
- *    `.codicon-add-compact`, the `+`) — the dialog doesn't support
- *    attachments; the prompt is the only payload sent at run time.
- *  - "List MCP Servers" (`workbench.mcp.listServer`, `.codicon-server`) —
- *    MCP server management belongs in the live chat surface, not a one-off
- *    prompt definition.
- *
- * We hide the `.action-label` (which carries the codicon class) rather than
- * the parent `.action-item`. Targeting the `.action-item` would require a
- * `:has()` selector, whose invalidation bookkeeping is paid across every
- * `.action-item` in the workbench (see microsoft/vscode#324985). Since
- * `.action-item` has no intrinsic padding/margin (actionbar.css), hiding the
- * label collapses the slot to zero width, so there is no visual gap.
- *
- * Known limitation: the hidden chips remain in the toolbar's arrow-key focus
- * rotation (the action bar skips only disabled/separator items, not
- * `display:none` ones). This is an accepted temporary trade-off — the dialog
- * will migrate to `newChatInput.ts`, which builds its own toolbars and never
- * renders these `MenuId.ChatInput` chips at all.
- */
-.automation-form-prompt-host .chat-input-toolbar .action-label.codicon-settings-compact,
-.automation-form-prompt-host .chat-input-toolbar .action-label.codicon-add-compact,
-.automation-form-prompt-host .chat-input-toolbar .action-item.chat-mcp {
+.automation-session-configuration {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	min-height: 22px;
+	padding-top: var(--vscode-spacing-size40);
+}
+
+.automation-session-config,
+.automation-session-controls {
+	min-width: 0;
+	max-width: 100%;
+	overflow: hidden;
+}
+
+.automation-session-configuration-unavailable {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.automation-session-config .monaco-toolbar,
+.automation-session-controls .monaco-toolbar,
+.automation-session-config .monaco-action-bar,
+.automation-session-controls .monaco-action-bar,
+.automation-session-config .actions-container,
+.automation-session-controls .actions-container {
+	min-width: 0;
+	overflow: hidden;
+}
+
+.automation-session-configuration .compact-picker .sessions-chat-dropdown-label,
+.automation-session-configuration .compact-picker .chat-input-picker-label,
+.automation-session-configuration .compact-picker .chat-session-option-label {
 	display: none;
+}
+
+.automation-session-controls .action-item.compact-picker,
+.automation-session-controls .action-item.compact-picker .action-label {
+	box-sizing: border-box;
+	width: 22px;
+	min-width: 22px;
+}
+
+.automation-session-controls .action-item.compact-picker {
+	padding: 0;
+}
+
+.automation-session-controls .action-item.compact-picker .action-label {
+	justify-content: flex-start;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size20) var(--vscode-spacing-size20) var(--vscode-spacing-size80);
 }
 
 /*

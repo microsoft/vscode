@@ -53,6 +53,16 @@ export interface ISessionsProviderCreateSessionOptions {
 	readonly metadata?: Record<string, unknown>;
 	/** Provider-owned values restored into the draft before its first configuration resolution. */
 	readonly sessionTemplate?: IAutomationSessionTemplate;
+	/** Complete Automation state for providers that also own compatibility projections. */
+	readonly automationConfiguration?: IAutomationSessionConfiguration;
+}
+
+/** Provider-owned Automation draft state plus temporary compatibility projections. */
+export interface IAutomationSessionConfiguration {
+	readonly sessionTemplate?: IAutomationSessionTemplate;
+	readonly modelId?: string;
+	readonly mode?: string;
+	readonly permissionLevel?: string;
 }
 
 /** Programmatic worktree settings applied together before a new session starts. */
@@ -243,6 +253,9 @@ export interface ISessionsProvider {
 	 */
 	readonly supportsQuickChats?: boolean;
 
+	/** Whether phone layouts replace separate Mode and Model controls with one picker. */
+	readonly usesCombinedNewSessionConfigPicker?: boolean;
+
 	/**
 	 * Optional. Fires when a capability flag that consumers gate UI on (e.g.
 	 * {@link supportsQuickChats}) changes at runtime, so they can re-evaluate.
@@ -310,7 +323,7 @@ export interface ISessionsProvider {
 	deleteNewSession(sessionId: string): void;
 
 	/** Capture the provider-owned values currently selected on an Automation draft. */
-	getAutomationSessionTemplate?(sessionId: string): Promise<IAutomationSessionTemplate | undefined>;
+	getAutomationSessionConfiguration?(sessionId: string): Promise<IAutomationSessionConfiguration | undefined>;
 
 	/**
 	 * Get the session types supported for a given workspace URI.
