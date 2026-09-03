@@ -64,6 +64,9 @@ export const COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY = 'forceRemoteSettingsRef
  */
 export const COPILOT_SANDBOX_ENABLED_KEY = 'sandbox.enabled';
 
+/** Managed-settings key that permits explicitly bypassing the sandbox. */
+export const COPILOT_SANDBOX_ALLOW_BYPASS_KEY = 'sandbox.allowBypass';
+
 /**
  * Managed-settings controls consumed by the delivery pipeline itself rather than by a
  * configuration policy. Native MDM must watch these even though no setting declares them.
@@ -71,6 +74,7 @@ export const COPILOT_SANDBOX_ENABLED_KEY = 'sandbox.enabled';
 export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinitions = {
 	[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
+	[COPILOT_SANDBOX_ALLOW_BYPASS_KEY]: { type: 'boolean' },
 };
 
 /** Policy-only configuration delivery slot for {@link COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY}. */

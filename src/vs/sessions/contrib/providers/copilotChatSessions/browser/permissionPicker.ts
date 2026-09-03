@@ -19,6 +19,7 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, IManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { AgentSandboxEnabledSettingValue, AgentSandboxEnabledValue, isAgentSandboxEnabledValue } from '../../../../../platform/sandbox/common/settings.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
@@ -159,6 +160,7 @@ export class PermissionPicker extends Disposable {
 		@IStorageService protected readonly storageService: IStorageService,
 		@ITelemetryService protected readonly telemetryService: ITelemetryService,
 		@IHoverService protected readonly hoverService: IHoverService,
+		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
 	) {
 		super();
 	}
@@ -438,15 +440,18 @@ export class PermissionPicker extends Disposable {
 			return undefined;
 		}
 		const managed = this._isSandboxManaged();
+		const disabled = this._isSandboxToggleDisabled();
 		return {
 			label: localize('permissionPicker.sandboxToggle', "Sandboxing for terminal"),
 			title: managed
-				? localize('permissionPicker.managedSandboxToggleTitle', "Sandboxing is managed by your organization")
+				? disabled
+					? localize('permissionPicker.requiredSandboxToggleTitle', "Sandboxing is required by your organization")
+					: localize('permissionPicker.editableManagedSandboxToggleTitle', "Sandboxing is enabled by your organization, but you may disable it")
 				: localize('permissionPicker.sandboxToggleTitle', "Run terminal commands inside a sandbox that restricts file system and network access"),
 			checked: this._isSandboxingEnabled(),
-			disabled: managed,
+			disabled,
 			onChange: (checked: boolean) => {
-				if (this._isSandboxManaged()) {
+				if (this._isSandboxToggleDisabled()) {
 					return;
 				}
 				const settingId = this._delegate.getSandboxToggleSettingId?.();
@@ -476,6 +481,11 @@ export class PermissionPicker extends Disposable {
 
 	private _isSandboxManaged(): boolean {
 		return this._delegate.managedSandboxEnforced?.get() === true;
+	}
+
+	private _isSandboxToggleDisabled(): boolean {
+		return this._isSandboxManaged()
+			&& this.managedSettingsService.getManagedSettingValue(COPILOT_SANDBOX_ALLOW_BYPASS_KEY) !== true;
 	}
 
 	private _affectsSandboxToggle(event: IConfigurationChangeEvent): boolean {

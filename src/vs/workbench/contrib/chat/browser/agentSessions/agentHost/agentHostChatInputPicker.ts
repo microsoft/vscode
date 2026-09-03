@@ -34,6 +34,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSandboxEnabledSettingValue, AgentSandboxEnabledValue, isAgentSandboxEnabledValue } from '../../../../../../platform/sandbox/common/settings.js';
 import type { IAction } from '../../../../../../base/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -383,6 +384,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
+		@IManagedSettingsService private readonly _managedSettingsService: IManagedSettingsService,
 	) {
 		super();
 
@@ -743,21 +745,29 @@ export class AgentHostChatInputPicker extends Disposable {
 		return settingId !== undefined && isAgentSandboxEnabledValue(this._configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId));
 	}
 
+	private _isSandboxToggleDisabled(): boolean {
+		return this._agentHostEnablementService.managedSandboxEnforced.get()
+			&& this._managedSettingsService.getManagedSettingValue(COPILOT_SANDBOX_ALLOW_BYPASS_KEY) !== true;
+	}
+
 	private _getSandboxStandaloneToggle(): IActionListItemInlineToggle | undefined {
 		const settingId = this._getSandboxSettingId();
 		if (this._property !== SessionConfigKey.AutoApprove || !this._isSandboxToggleSettingEnabled() || !settingId) {
 			return undefined;
 		}
 		const managed = this._agentHostEnablementService.managedSandboxEnforced.get();
+		const disabled = this._isSandboxToggleDisabled();
 		return {
 			label: localize('agentHostChatInputPicker.defaultSandboxToggle', "Sandboxing for terminal"),
 			title: managed
-				? localize('agentHostChatInputPicker.managedSandboxToggleTitle', "Sandboxing is managed by your organization")
+				? disabled
+					? localize('agentHostChatInputPicker.requiredSandboxToggleTitle', "Sandboxing is required by your organization")
+					: localize('agentHostChatInputPicker.editableManagedSandboxToggleTitle', "Sandboxing is enabled by your organization, but you may disable it")
 				: localize('agentHostChatInputPicker.defaultSandboxToggleTitle', "Run terminal commands inside a sandbox that restricts file system and network access"),
 			checked: this._isSandboxingEnabled(),
-			disabled: managed,
+			disabled,
 			onChange: checked => {
-				if (this._agentHostEnablementService.managedSandboxEnforced.get()) {
+				if (this._isSandboxToggleDisabled()) {
 					return;
 				}
 				const target = checked ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;

@@ -11,6 +11,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -42,8 +43,9 @@ export class MobilePermissionPicker extends PermissionPicker {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@IManagedSettingsService managedSettingsService: IManagedSettingsService,
 	) {
-		super(_delegate, actionWidgetService, configurationService, dialogService, openerService, storageService, telemetryService, hoverService);
+		super(_delegate, actionWidgetService, configurationService, dialogService, openerService, storageService, telemetryService, hoverService, managedSettingsService);
 	}
 
 	override showPicker(): void {
