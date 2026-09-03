@@ -39,7 +39,7 @@ import { buildServerToolGroups } from './shared/serverToolGroups.js';
 import type { ISessionServerToolAccessor } from './shared/sessionServerTools.js';
 import { type IAgentServiceFoundation } from './agentServiceFoundation.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
-import { ISessionWorkspaceConversionService } from './chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { ISessionWorkspaceConversionService, SessionWorkspaceConversionService } from './chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 
 export interface IAgentServiceComposition {
@@ -144,6 +144,7 @@ export function createAgentServiceComposition(
 			session => agentMergeController.getTurnContext(session),
 		);
 		const turnTracker = accessor.get(IAgentHostTurnTracker);
+		const workspaceConversionService: { value: ISessionWorkspaceConversionService | undefined } = { value: undefined };
 		const sessionServerToolAccessor: ISessionServerToolAccessor = {
 			...callbackAdapter.sessionServerToolAccessor,
 			requestSessionWorkspaceUpdate: (chat, turnId, workspaceFolder, isolation) => {
@@ -151,8 +152,10 @@ export function createAgentServiceComposition(
 				if (!initiatingClientId) {
 					throw new Error('Session workspace conversion requires a turn initiated by a connected VS Code client.');
 				}
-				instantiationService.invokeFunction(accessor => accessor.get(ISessionWorkspaceConversionService))
-					.requestSessionWorkspaceUpdate(chat, turnId, workspaceFolder, isolation, initiatingClientId);
+				if (!workspaceConversionService.value) {
+					throw new Error('Session workspace conversion is unavailable.');
+				}
+				workspaceConversionService.value.requestSessionWorkspaceUpdate(chat, turnId, workspaceFolder, isolation, initiatingClientId);
 			},
 		};
 		const serverToolHost = new AgentServerToolHost(
@@ -160,6 +163,8 @@ export function createAgentServiceComposition(
 			buildServerToolGroups(sessionServerToolAccessor, agentMergeTools, callbackAdapter.artifactServerToolAccessor),
 		);
 		services.set(IAgentHostServerToolService, serverToolHost);
+		workspaceConversionService.value = owned.add(instantiationService.createInstance(SessionWorkspaceConversionService));
+		services.set(ISessionWorkspaceConversionService, workspaceConversionService.value);
 
 		const automationService = owned.add(instantiationService.createInstance(AgentHostAutomationService, callbackAdapter.automationExecution));
 		const collaborators: IAgentServiceCollaborators = {

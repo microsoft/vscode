@@ -20,7 +20,7 @@ import { AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostClientConnectionService } from '../../agentHostClientConnectionService.js';
 import { IAgentHostProviderService } from '../../agentHostProviderService.js';
-import { IAgentHostTurnService } from '../../agentHostTurnService.js';
+import { IAgentHostTurnService, type IDeferredAgentHostTurn } from '../../agentHostTurnService.js';
 import { IAgentHostServerToolService } from '../../shared/agentServerToolHost.js';
 import { IAgentHostWorktreeIsolation, type IIsolationConfigContribution } from '../../shared/worktreeIsolation.js';
 
@@ -44,9 +44,6 @@ interface IResolvedWorkspace {
 }
 
 class UnsafeProviderWorkingDirectoryError extends Error {
-	constructor(message: string, readonly quarantined: boolean) {
-		super(message);
-	}
 }
 
 export const ISessionWorkspaceConversionService = createDecorator<ISessionWorkspaceConversionService>('sessionWorkspaceConversionService');
@@ -121,20 +118,21 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		}
 
 		pending.phase = 'converting';
+		let continuation: IDeferredAgentHostTurn | undefined;
 		try {
+			continuation = this._beginContinuation(pending);
 			pending.resolvedWorkingDirectory = await this._convert(pending.chat, pending.workspaceFolder, pending.isolation, pending.initiatingClientId, pending.prompt);
 			this._pending.delete(chat);
-			await this._startContinuation(pending, true);
+			this._continueConversion(continuation, pending, true);
 		} catch (error) {
 			this._logService.error(`[SessionWorkspaceConversionService] Failed to convert ${pending.chat.toString()}: ${toErrorMessage(error)}`);
 			if (error instanceof UnsafeProviderWorkingDirectoryError) {
 				this._pending.delete(chat);
-				if (error.quarantined) {
-					this._quarantined.add(chat);
-				}
+				this._quarantined.add(chat);
+				this._failConversion(continuation, pending, error);
 			} else {
 				this._pending.delete(chat);
-				await this._startContinuation(pending, false, error);
+				this._continueConversion(continuation, pending, false, error);
 			}
 		}
 	}
@@ -175,7 +173,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 						finalizationErrors.push(cleanupError);
 					}
 				}
-				throw new UnsafeProviderWorkingDirectoryError(`The provider changed to an untrusted working directory and was disposed: ${finalizationErrors.map(error => toErrorMessage(error)).join('; ')}`, disposal.quarantined);
+				throw new UnsafeProviderWorkingDirectoryError(`The provider changed to an untrusted working directory and was disposed: ${finalizationErrors.map(error => toErrorMessage(error)).join('; ')}`);
 			}
 		}
 
@@ -189,7 +187,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 					finalizationErrors.push(cleanupError);
 				}
 			}
-			throw new UnsafeProviderWorkingDirectoryError(`The workspace-less session state changed after the provider working directory changed, so the provider was disposed${finalizationErrors.length > 0 ? `: ${finalizationErrors.map(error => toErrorMessage(error)).join('; ')}` : ''}`, disposal.quarantined);
+			throw new UnsafeProviderWorkingDirectoryError(`The workspace-less session state changed after the provider working directory changed, so the provider was disposed${finalizationErrors.length > 0 ? `: ${finalizationErrors.map(error => toErrorMessage(error)).join('; ')}` : ''}`);
 		}
 		const worktreeApplied = resolvedWorkspace.isolated && isEqual(authoritativeWorkingDirectory, resolvedWorkspace.workingDirectory);
 		const worktreeCleanupError = resolvedWorkspace.isolated && !worktreeApplied ? await this._removeWorktree(session) : undefined;
@@ -221,7 +219,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			if (quarantineError) {
 				finalizationErrors.push(quarantineError);
 			}
-			throw new UnsafeProviderWorkingDirectoryError(`The provider working directory changed, but the converted session metadata could not be committed atomically: ${finalizationErrors.map(error => toErrorMessage(error)).join('; ')}`, true);
+			throw new UnsafeProviderWorkingDirectoryError(`The provider working directory changed, but the converted session metadata could not be committed atomically: ${finalizationErrors.map(error => toErrorMessage(error)).join('; ')}`);
 		}
 
 		const finalState = this._getUnchangedConversionState(session, chat, previousWorkingDirectory, convertedState);
@@ -234,11 +232,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 					finalizationErrors.push(cleanupError);
 				}
 			}
-			const quarantineError = await this._persistQuarantine(session);
-			if (quarantineError) {
-				finalizationErrors.push(quarantineError);
-			}
-			throw new UnsafeProviderWorkingDirectoryError(`The workspace-less session state changed while converted metadata was being persisted, so the provider was disposed and the session was quarantined${finalizationErrors.length > 0 ? `: ${finalizationErrors.map(error => toErrorMessage(error)).join('; ')}` : ''}`, true);
+			throw new UnsafeProviderWorkingDirectoryError(`The workspace-less session state changed while converted metadata was being persisted, so the provider was disposed and the session was quarantined${finalizationErrors.length > 0 ? `: ${finalizationErrors.map(error => toErrorMessage(error)).join('; ')}` : ''}`);
 		}
 
 		if (worktreeApplied && resolvedWorkspace.project) {
@@ -299,8 +293,12 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		}
 	}
 
-	private async _disposeUnsafeProviderChat(provider: IAgent, chat: URI, session: URI): Promise<{ readonly quarantined: boolean; readonly errors: readonly unknown[] }> {
+	private async _disposeUnsafeProviderChat(provider: IAgent, chat: URI, session: URI): Promise<{ readonly errors: readonly unknown[] }> {
 		const errors: unknown[] = [];
+		const quarantineError = await this._persistQuarantine(session);
+		if (quarantineError) {
+			errors.push(quarantineError);
+		}
 		try {
 			await provider.chats.releaseChat(chat, session);
 		} catch (error) {
@@ -308,15 +306,10 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		}
 		try {
 			await provider.chats.disposeChat(chat, session);
-			return { quarantined: false, errors };
 		} catch (error) {
 			errors.push(error);
-			const quarantineError = await this._persistQuarantine(session);
-			if (quarantineError) {
-				errors.push(quarantineError);
-			}
-			return { quarantined: true, errors };
 		}
+		return { errors };
 	}
 
 	private async _resolveWorkspace(
@@ -466,7 +459,22 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		return { session, state, previousWorkingDirectory: state.workingDirectories[0] };
 	}
 
-	private async _startContinuation(pending: IPendingSessionWorkspaceConversion, converted: boolean, error?: unknown): Promise<void> {
+	private _beginContinuation(pending: IPendingSessionWorkspaceConversion): IDeferredAgentHostTurn {
+		const target = pending.isolation
+			? localize('agentHost.settingUpIsolatedWorkspaceMessage', "The host is creating an isolated workspace from {0}. The agent will continue the user's original task when setup completes.", pending.workspaceFolder.fsPath)
+			: localize('agentHost.settingUpWorkspaceMessage', "The host is setting up {0} as this session's workspace. The agent will continue the user's original task when setup completes.", pending.workspaceFolder.fsPath);
+		const continuation = this._turnService.beginDeferredTurnMessage(pending.chat, withMessageSystemInitiatedLabel({
+			text: target,
+			origin: { kind: MessageKind.SystemNotification },
+		}, localize('agentHost.settingUpWorkspaceLabel', "Setting Up Workspace")));
+		return continuation;
+	}
+
+	private _continueConversion(continuation: IDeferredAgentHostTurn | undefined, pending: IPendingSessionWorkspaceConversion, converted: boolean, error?: unknown): void {
+		if (!continuation) {
+			this._logService.error(`[SessionWorkspaceConversionService] Cannot continue workspace conversion for ${pending.chat.toString()} because its deferred turn did not start.`);
+			return;
+		}
 		const errorMessage = error === undefined ? undefined : toErrorMessage(error).replace(/\.+$/, '');
 		const text = converted
 			? `The current session is now attached to ${(pending.resolvedWorkingDirectory ?? pending.workspaceFolder).fsPath}${pending.isolation ? ' in an isolated worktree' : ''}. Continue the user's original task in this workspace. Do not request another session or workspace conversion.`
@@ -475,12 +483,28 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			? localize('agentHost.workspaceSetLabel', "Workspace Set")
 			: localize('agentHost.workspaceSetupFailedLabel', "Workspace Setup Failed");
 		try {
-			this._turnService.startTurnMessage(pending.chat, withMessageSystemInitiatedLabel({
+			if (!this._turnService.continueDeferredTurnMessage(pending.chat, continuation, withMessageSystemInitiatedLabel({
 				text,
 				origin: { kind: MessageKind.SystemNotification },
-			}, label));
+			}, label))) {
+				this._logService.info(`[SessionWorkspaceConversionService] The deferred workspace conversion turn for ${pending.chat.toString()} ended before it could continue.`);
+			}
 		} catch (continuationError) {
 			this._logService.error(`[SessionWorkspaceConversionService] Failed to start the conversion continuation for ${pending.chat.toString()}: ${toErrorMessage(continuationError)}`);
+			this._failConversion(continuation, pending, continuationError instanceof Error ? continuationError : new Error(toErrorMessage(continuationError)));
+		}
+	}
+
+	private _failConversion(continuation: IDeferredAgentHostTurn | undefined, pending: IPendingSessionWorkspaceConversion, error: Error): void {
+		if (!continuation) {
+			this._logService.error(`[SessionWorkspaceConversionService] Cannot report workspace conversion failure for ${pending.chat.toString()} because its deferred turn did not start.`);
+			return;
+		}
+		if (!this._turnService.failDeferredTurnMessage(pending.chat, continuation, {
+			errorType: 'workspaceConversionFailed',
+			message: toErrorMessage(error),
+		})) {
+			this._logService.info(`[SessionWorkspaceConversionService] The deferred workspace conversion turn for ${pending.chat.toString()} ended before its failure could be reported.`);
 		}
 	}
 

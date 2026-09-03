@@ -13,10 +13,10 @@ import { AgentWorkingDirectoryChangedError, type IAgent } from '../../common/age
 import { schemaProperty } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildDefaultChatUri, customizationId, CustomizationLoadStatus, CustomizationType, isMessageHiddenFromTranscript, MessageKind, readMessageSystemInitiatedLabel, readSessionWorkspaceless, SessionStatus, withSessionWorkspaceless, type Message } from '../../common/state/sessionState.js';
+import { AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildDefaultChatUri, createErrorResponsePart, customizationId, CustomizationLoadStatus, CustomizationType, isMessageHiddenFromTranscript, MessageKind, readMessageSystemInitiatedLabel, readSessionWorkspaceless, SessionStatus, withSessionWorkspaceless, type ErrorInfo, type Message } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
-import type { IAgentHostTurnService } from '../../node/agentHostTurnService.js';
+import type { IAgentHostTurnService, IDeferredAgentHostTurn } from '../../node/agentHostTurnService.js';
 import { SessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import type { IAgentHostServerToolService } from '../../node/shared/agentServerToolHost.js';
 import { NullAgentHostWorktreeIsolation, type IIsolationConfigContribution, type IResolveIsolationConfigRequest, type IResolveWorkingDirectoryRequest, type ISessionWorktree } from '../../node/shared/worktreeIsolation.js';
@@ -123,9 +123,42 @@ suite('SessionWorkspaceConversionService', () => {
 			}
 		}();
 		const continuations: { chat: string; message: Message }[] = [];
+		const deferredContinuations: { chat: string; message: Message; turnId: string }[] = [];
+		const failedContinuations: { chat: string; error: ErrorInfo; turnId: string }[] = [];
+		let deferredTurnCounter = 0;
 		const turnService = new class extends mock<IAgentHostTurnService>() {
-			override startTurnMessage(targetChat: URI, message: Message): void {
+			override beginDeferredTurnMessage(targetChat: URI, message: Message): IDeferredAgentHostTurn {
+				const turnId = `continuation-${++deferredTurnCounter}`;
+				stateManager.dispatchServerAction(targetChat.toString(), {
+					type: ActionType.ChatTurnStarted,
+					turnId,
+					startedAt: new Date(2).toISOString(),
+					message,
+				});
+				deferredContinuations.push({ chat: targetChat.toString(), message, turnId });
+				return { turnId };
+			}
+
+			override continueDeferredTurnMessage(targetChat: URI, turn: IDeferredAgentHostTurn, message: Message): boolean {
+				if (stateManager.getActiveTurnId(targetChat.toString()) !== turn.turnId) {
+					return false;
+				}
 				continuations.push({ chat: targetChat.toString(), message });
+				return true;
+			}
+
+			override failDeferredTurnMessage(targetChat: URI, turn: IDeferredAgentHostTurn, error: ErrorInfo): boolean {
+				if (stateManager.getActiveTurnId(targetChat.toString()) !== turn.turnId) {
+					return false;
+				}
+				failedContinuations.push({ chat: targetChat.toString(), error, turnId: turn.turnId });
+				stateManager.dispatchServerAction(targetChat.toString(), {
+					type: ActionType.ChatError,
+					turnId: turn.turnId,
+					duration: 1,
+					part: createErrorResponsePart(error),
+				});
+				return true;
 			}
 		}();
 		const refreshedServerTools: string[] = [];
@@ -148,7 +181,7 @@ suite('SessionWorkspaceConversionService', () => {
 			workingDirectories: [scratch.toString()],
 			_meta: withSessionWorkspaceless(undefined, true),
 		});
-		return { service, stateManager, database, agent, session, chat, scratch, continuations, trustRequests, refreshedServerTools };
+		return { service, stateManager, database, agent, session, chat, scratch, continuations, deferredContinuations, failedContinuations, trustRequests, refreshedServerTools };
 	}
 
 	function startTurn(stateManager: AgentHostStateManager, chat: URI, turnId = 'turn-1'): void {
@@ -172,7 +205,7 @@ suite('SessionWorkspaceConversionService', () => {
 		return harness.service.updateSessionWorkspace(harness.chat.toString(), 'turn-1');
 	}
 
-	test('converts after the invoking turn and starts a visible system continuation', async () => {
+	test('keeps a visible continuation in progress while converting after the invoking turn', async () => {
 		const trustDecision = new DeferredPromise<boolean>();
 		const harness = createHarness(new NullAgentHostWorktreeIsolation(), () => trustDecision.p);
 		const workspaceFolder = URI.file('/workspace/project');
@@ -210,12 +243,40 @@ suite('SessionWorkspaceConversionService', () => {
 
 		const conversion = updateSessionWorkspace(harness);
 		await Promise.resolve();
+		const stateDuringSetup = harness.stateManager.getSessionState(harness.session.toString());
+		const chatDuringSetup = harness.stateManager.getChatState(harness.chat.toString());
 		assert.deepStrictEqual({
 			pending: harness.service.isPending(harness.chat.toString()),
 			providerCalls,
+			sessionStatus: stateDuringSetup?.status,
+			chatStatus: chatDuringSetup?.status,
+			activity: chatDuringSetup?.activity,
+			activeTurnId: chatDuringSetup?.activeTurn?.id,
+			deferredContinuations: harness.deferredContinuations.map(entry => ({
+				chat: entry.chat,
+				hidden: isMessageHiddenFromTranscript(entry.message),
+				label: readMessageSystemInitiatedLabel(entry.message),
+				origin: entry.message.origin.kind,
+				text: entry.message.text,
+				turnId: entry.turnId,
+			})),
+			continuations: harness.continuations,
 		}, {
 			pending: true,
 			providerCalls: [],
+			sessionStatus: SessionStatus.InProgress,
+			chatStatus: SessionStatus.InProgress,
+			activity: undefined,
+			activeTurnId: 'continuation-1',
+			deferredContinuations: [{
+				chat: harness.chat.toString(),
+				hidden: false,
+				label: 'Setting Up Workspace',
+				origin: MessageKind.SystemNotification,
+				text: 'The host is setting up /workspace/project as this session\'s workspace. The agent will continue the user\'s original task when setup completes.',
+				turnId: 'continuation-1',
+			}],
+			continuations: [],
 		});
 		trustDecision.complete(true);
 		await Promise.resolve();
@@ -233,6 +294,8 @@ suite('SessionWorkspaceConversionService', () => {
 			refreshedServerTools: harness.refreshedServerTools,
 			stateWhenCustomizationsRefreshed,
 			customizations: state?.customizations,
+			activity: harness.stateManager.getChatState(harness.chat.toString())?.activity,
+			activeTurnId: harness.stateManager.getActiveTurnId(harness.chat.toString()),
 			continuations: harness.continuations.map(entry => ({
 				chat: entry.chat,
 				hidden: isMessageHiddenFromTranscript(entry.message),
@@ -260,6 +323,8 @@ suite('SessionWorkspaceConversionService', () => {
 				workspaceless: false,
 			},
 			customizations: [customization],
+			activity: undefined,
+			activeTurnId: 'continuation-1',
 			continuations: [{
 				chat: harness.chat.toString(),
 				hidden: false,
@@ -294,6 +359,7 @@ suite('SessionWorkspaceConversionService', () => {
 		await timeout(120);
 
 		const state = harness.stateManager.getSessionState(harness.session.toString());
+		const summary = harness.stateManager.getSessionSummary(harness.session.toString());
 		assert.deepStrictEqual({
 			worktreeRequests: worktreeIsolation.requests.map(request => ({
 				session: request.sessionUri.toString(),
@@ -304,7 +370,8 @@ suite('SessionWorkspaceConversionService', () => {
 			})),
 			trustRequests: harness.trustRequests,
 			providerCalls,
-			project: state?.project,
+			sessionStateProject: state?.project,
+			summaryProject: summary?.project,
 			workingDirectories: state?.workingDirectories,
 			projectNotifications,
 			isolation: state?.config?.values[SessionConfigKey.Isolation],
@@ -328,7 +395,8 @@ suite('SessionWorkspaceConversionService', () => {
 				trustedParent: workspaceFolder.toString(),
 			}],
 			providerCalls: [worktreeIsolation.worktree.toString()],
-			project: {
+			sessionStateProject: undefined,
+			summaryProject: {
 				uri: workspaceFolder.toString(),
 				displayName: 'project',
 			},
@@ -573,9 +641,14 @@ suite('SessionWorkspaceConversionService', () => {
 		assert.deepStrictEqual({
 			trustRequests: harness.trustRequests,
 			disposedChats,
+			pending: harness.service.isPending(harness.chat.toString()),
+			persistedQuarantine: await harness.database.getMetadata(AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY),
 			workingDirectories: state?.workingDirectories,
 			workspaceless: readSessionWorkspaceless(state?._meta),
 			continuations: harness.continuations,
+			failedContinuations: harness.failedContinuations,
+			activity: harness.stateManager.getChatState(harness.chat.toString())?.activity,
+			activeTurnId: harness.stateManager.getActiveTurnId(harness.chat.toString()),
 		}, {
 			trustRequests: [{
 				clientId: 'client-1',
@@ -588,9 +661,58 @@ suite('SessionWorkspaceConversionService', () => {
 				session: harness.session.toString(),
 				chat: harness.chat.toString(),
 			}],
+			pending: true,
+			persistedQuarantine: 'true',
 			workingDirectories: [harness.scratch.toString()],
 			workspaceless: true,
 			continuations: [],
+			failedContinuations: [{
+				chat: harness.chat.toString(),
+				error: {
+					errorType: 'workspaceConversionFailed',
+					message: 'The provider changed to an untrusted working directory and was disposed: Workspace trust was not granted for \'/workspace/authoritative\'',
+				},
+				turnId: 'continuation-1',
+			}],
+			activity: undefined,
+			activeTurnId: undefined,
+		});
+	});
+
+	test('does not continue a setup turn that the user cancelled during conversion', async () => {
+		const trustDecision = new DeferredPromise<boolean>();
+		const harness = createHarness(new NullAgentHostWorktreeIsolation(), () => trustDecision.p);
+		const provider: IAgent = harness.agent;
+		provider.setWorkingDirectory = async () => { };
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), false, 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+
+		const conversion = updateSessionWorkspace(harness);
+		await Promise.resolve();
+		harness.stateManager.dispatchServerAction(harness.chat.toString(), {
+			type: ActionType.ChatTurnCancelled,
+			turnId: 'continuation-1',
+			duration: 1,
+		});
+		trustDecision.complete(true);
+		await conversion;
+
+		const state = harness.stateManager.getSessionState(harness.session.toString());
+		assert.deepStrictEqual({
+			workingDirectories: state?.workingDirectories,
+			workspaceless: readSessionWorkspaceless(state?._meta),
+			continuations: harness.continuations,
+			failedContinuations: harness.failedContinuations,
+			activity: harness.stateManager.getChatState(harness.chat.toString())?.activity,
+			activeTurnId: harness.stateManager.getActiveTurnId(harness.chat.toString()),
+		}, {
+			workingDirectories: ['file:///workspace/project'],
+			workspaceless: false,
+			continuations: [],
+			failedContinuations: [],
+			activity: undefined,
+			activeTurnId: undefined,
 		});
 	});
 

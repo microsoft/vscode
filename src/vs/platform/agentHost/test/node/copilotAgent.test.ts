@@ -403,18 +403,29 @@ class TestSessionDatabase extends SessionDatabase {
 
 	override async setMetadata(key: string, value: string): Promise<void> {
 		this.metadataWrites.push({ key, value });
-		if (this._metadataWriteGate?.key === key) {
+		await this._beforeMetadataWrite([key]);
+		await super.setMetadata(key, value);
+	}
+
+	override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+		const entries = Object.entries(values);
+		this.metadataWrites.push(...entries.map(([key, value]) => ({ key, value })));
+		await this._beforeMetadataWrite(entries.map(([key]) => key));
+		await super.setMetadataValues(values);
+	}
+
+	private async _beforeMetadataWrite(keys: readonly string[]): Promise<void> {
+		if (this._metadataWriteGate && keys.includes(this._metadataWriteGate.key)) {
 			const gate = this._metadataWriteGate;
 			this._metadataWriteGate = undefined;
 			gate.entered.complete();
 			await gate.wait;
 		}
-		if (this._metadataWriteFailure?.key === key) {
+		if (this._metadataWriteFailure && keys.includes(this._metadataWriteFailure.key)) {
 			const error = this._metadataWriteFailure.error;
 			this._metadataWriteFailure = undefined;
 			throw error;
 		}
-		await super.setMetadata(key, value);
 	}
 }
 
@@ -4314,6 +4325,7 @@ suite('CopilotAgent', () => {
 					metadataWrites: [
 						{ key: 'copilot.workingDirectory', value: next.toString() },
 						{ key: 'copilot.workingDirectories', value: JSON.stringify([next.toString()]) },
+						{ key: 'copilot.customizationDirectory', value: next.toString() },
 						{ key: 'copilot.workingDirectory', value: previous.toString() },
 						{ key: 'copilot.workingDirectories', value: JSON.stringify([previous.toString()]) },
 						{ key: 'copilot.customizationDirectory', value: previous.toString() },

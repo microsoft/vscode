@@ -5694,9 +5694,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _storeWorkingDirectoryMetadataSnapshot(session: URI, metadata: IWorkingDirectoryMetadataSnapshot): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(session);
 		try {
-			await dbRef.object.setMetadata(CopilotAgent._META_CWD, metadata.workingDirectory ?? '');
-			await dbRef.object.setMetadata(CopilotAgent._META_CWDS, metadata.workingDirectories ?? '');
-			await dbRef.object.setMetadata(CopilotAgent._META_CUSTOMIZATION_DIRECTORY, metadata.customizationDirectory ?? '');
+			await dbRef.object.setMetadataValues({
+				[CopilotAgent._META_CWD]: metadata.workingDirectory ?? '',
+				[CopilotAgent._META_CWDS]: metadata.workingDirectories ?? '',
+				[CopilotAgent._META_CUSTOMIZATION_DIRECTORY]: metadata.customizationDirectory ?? '',
+			});
 		} finally {
 			dbRef.dispose();
 		}

@@ -12,16 +12,24 @@ import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTele
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import type { ChatTurnStartedAction } from '../common/state/protocol/actions.js';
-import { parseRequiredSessionUriFromChatUri, type Message, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { createErrorResponsePart, parseRequiredSessionUriFromChatUri, type ErrorInfo, type Message, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { startTurn } from './agentHostTurnStarter.js';
 
 export const IAgentHostTurnService = createDecorator<IAgentHostTurnService>('agentHostTurnService');
 
+/** An active host-authored turn whose provider execution has not started yet. */
+export interface IDeferredAgentHostTurn {
+	readonly turnId: string;
+}
+
 /** Starts host-authored turns through the standard admission and provider-send path. */
 export interface IAgentHostTurnService {
 	readonly _serviceBrand: undefined;
 	startTurnMessage(chat: URI, message: Message): void;
+	beginDeferredTurnMessage(chat: URI, message: Message): IDeferredAgentHostTurn;
+	continueDeferredTurnMessage(chat: URI, turn: IDeferredAgentHostTurn, message: Message): boolean;
+	failDeferredTurnMessage(chat: URI, turn: IDeferredAgentHostTurn, error: ErrorInfo): boolean;
 	handleTurnStarted(channel: ProtocolURI, action: ChatTurnStartedAction, clientId?: string, clientContextOrType?: IAgentHostClientTelemetryContext | AgentHostClientType): void;
 }
 
@@ -29,6 +37,8 @@ export interface IAgentHostTurnService {
 export class AgentHostTurnService implements IAgentHostTurnService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _deferredTurns = new Map<ProtocolURI, ChatTurnStartedAction>();
 
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -38,14 +48,59 @@ export class AgentHostTurnService implements IAgentHostTurnService {
 
 	startTurnMessage(chat: URI, message: Message): void {
 		const channel = chat.toString();
-		const action = {
-			type: ActionType.ChatTurnStarted,
-			turnId: generateUuid(),
-			startedAt: new Date().toISOString(),
-			message,
-		} as const;
-		this._stateManager.dispatchServerAction(channel, action);
+		const action = this._dispatchTurnStarted(channel, message);
 		this.handleTurnStarted(channel, action);
+	}
+
+	beginDeferredTurnMessage(chat: URI, message: Message): IDeferredAgentHostTurn {
+		const channel = chat.toString();
+		if (this._deferredTurns.has(channel) || this._stateManager.getActiveTurnId(channel) !== undefined) {
+			throw new Error(`Cannot defer another turn while a turn is active: ${channel}`);
+		}
+		const action = this._dispatchTurnStarted(channel, message);
+		this._deferredTurns.set(channel, action);
+		return { turnId: action.turnId };
+	}
+
+	continueDeferredTurnMessage(chat: URI, turn: IDeferredAgentHostTurn, message: Message): boolean {
+		const channel = chat.toString();
+		const action = this._getDeferredTurn(channel, turn);
+		if (!action) {
+			return false;
+		}
+		if (this._stateManager.getActiveTurnId(channel) !== action.turnId) {
+			this._deferredTurns.delete(channel);
+			return false;
+		}
+		this.handleTurnStarted(channel, { ...action, message });
+		this._deferredTurns.delete(channel);
+		return true;
+	}
+
+	failDeferredTurnMessage(chat: URI, turn: IDeferredAgentHostTurn, error: ErrorInfo): boolean {
+		const channel = chat.toString();
+		const action = this._getDeferredTurn(channel, turn);
+		if (!action) {
+			return false;
+		}
+		if (this._stateManager.getActiveTurnId(channel) !== action.turnId) {
+			this._deferredTurns.delete(channel);
+			return false;
+		}
+		this._stateManager.dispatchServerAction(channel, {
+			type: ActionType.ChatError,
+			turnId: action.turnId,
+			duration: Math.max(0, Date.now() - Date.parse(action.startedAt)),
+			part: createErrorResponsePart(error),
+		});
+		this._chatContributions.turnEnd({
+			session: parseRequiredSessionUriFromChatUri(channel),
+			channel,
+			turnId: action.turnId,
+			reason: { kind: 'error', error, resumable: false },
+		});
+		this._deferredTurns.delete(channel);
+		return true;
 	}
 
 	handleTurnStarted(channel: ProtocolURI, action: ChatTurnStartedAction, clientId?: string, clientContextOrType?: IAgentHostClientTelemetryContext | AgentHostClientType): void {
@@ -88,5 +143,24 @@ export class AgentHostTurnService implements IAgentHostTurnService {
 			clientContext,
 			turnStopWatch,
 		});
+	}
+
+	private _dispatchTurnStarted(channel: ProtocolURI, message: Message): ChatTurnStartedAction {
+		const action: ChatTurnStartedAction = {
+			type: ActionType.ChatTurnStarted,
+			turnId: generateUuid(),
+			startedAt: new Date().toISOString(),
+			message,
+		};
+		this._stateManager.dispatchServerAction(channel, action);
+		return action;
+	}
+
+	private _getDeferredTurn(channel: ProtocolURI, turn: IDeferredAgentHostTurn): ChatTurnStartedAction | undefined {
+		const action = this._deferredTurns.get(channel);
+		if (action?.turnId !== turn.turnId) {
+			return undefined;
+		}
+		return action;
 	}
 }
