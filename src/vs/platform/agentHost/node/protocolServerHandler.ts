@@ -1522,11 +1522,18 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (params.activeClient && params.activeClient.clientId !== _client.clientId) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `createSession.activeClient.clientId must match the connection's clientId`);
 			}
+			const workingDirectories = params.workingDirectories?.map(directory => {
+				try {
+					return URI.parse(directory, true);
+				} catch {
+					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `createSession.workingDirectories must contain valid URI strings: ${directory}`);
+				}
+			});
 			try {
 				createdSession = await this._agentService.createSession({
 					provider: params.provider,
 					_meta: params._meta,
-					workingDirectories: params.workingDirectories?.map(d => URI.parse(d)),
+					workingDirectories,
 					session: URI.parse(params.channel),
 					config: params.config,
 					activeClient: params.activeClient,

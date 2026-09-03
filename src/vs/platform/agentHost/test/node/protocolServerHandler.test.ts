@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
@@ -1721,6 +1722,40 @@ suite('ProtocolServerHandler', () => {
 			result: null,
 			project: { uri: 'file:///created-project', displayName: 'Created Project' },
 			_meta,
+		});
+	});
+
+	test('createSession rejects a malformed working directory with InvalidParams', async () => {
+		const transport = connectClient('client-create-malformed-directory');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 3);
+		const forwardedBefore = agentService.createSessionConfigs.length;
+
+		transport.simulateMessage(request(3, 'createSession', { channel: URI.parse('copilot:///malformed-directory').toString(), workingDirectories: ['not a URI'] }));
+
+		assert.deepStrictEqual({
+			response: await responsePromise,
+			forwarded: agentService.createSessionConfigs.length - forwardedBefore,
+		}, {
+			response: { jsonrpc: '2.0', id: 3, error: { code: JsonRpcErrorCodes.InvalidParams, message: 'createSession.workingDirectories must contain valid URI strings: not a URI' } },
+			forwarded: 0,
+		});
+	});
+
+	test('createSession forwards a vscode-remote working directory unchanged', async () => {
+		const transport = connectClient('client-create-remote-directory');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 4);
+		const remoteDirectory = URI.from({ scheme: Schemas.vscodeRemote, authority: 'dev-container+6162', path: '/workspaces/primary' }).toString();
+
+		transport.simulateMessage(request(4, 'createSession', { channel: URI.parse('copilot:///remote-directory').toString(), workingDirectories: [remoteDirectory] }));
+
+		assert.deepStrictEqual({
+			response: await responsePromise,
+			forwarded: agentService.createSessionConfigs.at(-1)?.workingDirectories?.map(directory => directory.toString()),
+		}, {
+			response: { jsonrpc: '2.0', id: 4, result: null },
+			forwarded: [remoteDirectory],
 		});
 	});
 
