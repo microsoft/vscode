@@ -629,12 +629,10 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		execSync('git commit -q -m "ignore generated log"', { cwd: workspace });
 		const sessionUri = await createSessionIn(workspace, 'changeset-ignored');
 		const branchUri = buildBranchChangesetUri(sessionUri);
-		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
-		await changesetState(branchUri);
-		context.client.clearReceived();
-		const changed = waitForEmptyChangeset(branchUri);
 
 		await runBangTurn(sessionUri, 'turn-changeset-ignored', writeFileCommand('ignored.log', 'ignored'), 1);
+		const changed = waitForEmptyChangeset(branchUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 		await changed;
 		const state = await changesetState(branchUri);
 
@@ -645,12 +643,10 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		const workspace = createGitWorkspace('ahp-changeset-create-delete-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-create-delete');
 		const branchUri = buildBranchChangesetUri(sessionUri);
-		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
-		await changesetState(branchUri);
-		context.client.clearReceived();
-		const changed = waitForEmptyChangeset(branchUri);
 
 		await runBangTurn(sessionUri, 'turn-changeset-create-delete', '!node -e "const fs=require(\'fs\');fs.writeFileSync(\'temporary.txt\',\'temporary\');fs.unlinkSync(\'temporary.txt\')"', 1);
+		const changed = waitForEmptyChangeset(branchUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 		await changed;
 		const state = await changesetState(branchUri);
 
@@ -661,12 +657,10 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		const workspace = createGitWorkspace('ahp-changeset-edit-restore-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-edit-restore');
 		const branchUri = buildBranchChangesetUri(sessionUri);
-		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
-		await changesetState(branchUri);
-		context.client.clearReceived();
-		const changed = waitForEmptyChangeset(branchUri);
 
 		await runBangTurn(sessionUri, 'turn-changeset-edit-restore', writeFileTwiceBase64Command('seed.txt', 'changed', 'seed\n'), 1);
+		const changed = waitForEmptyChangeset(branchUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 		await changed;
 		const state = await changesetState(branchUri);
 
