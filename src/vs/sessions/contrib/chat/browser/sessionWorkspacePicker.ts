@@ -719,8 +719,8 @@ export class WorkspacePicker extends Disposable {
 		const showFilter = isConsolidatedWorkspacePicker
 			|| items.filter(i => i.kind === ActionListItemKind.Action).length > FILTER_THRESHOLD;
 		return showFilter
-			? { showFilter: true, focusFilterOnOpen: isConsolidatedWorkspacePicker, filterPlaceholder: localize('workspacePicker.filter', "Search Workspaces..."), reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true }
-			: { reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true };
+			? { className: 'sessions-new-chat-picker-list', showFilter: true, focusFilterOnOpen: isConsolidatedWorkspacePicker, filterPlaceholder: localize('workspacePicker.filter', "Search Workspaces..."), reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true }
+			: { className: 'sessions-new-chat-picker-list', reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true };
 	}
 
 	/**
@@ -782,7 +782,7 @@ export class WorkspacePicker extends Disposable {
 				const items = this._buildItems();
 				const listOptions = this._useConsolidatedRemoteWorkspaces()
 					? this._buildListOptions(items, undefined)
-					: { inlineDescription: true, showGroupTitleOnFirstItem: true, hideDefaultKeybindingTooltip: true };
+					: { className: 'sessions-new-chat-picker-list', inlineDescription: true, showGroupTitleOnFirstItem: true, hideDefaultKeybindingTooltip: true };
 				return { items, listOptions };
 			},
 			delegate,
