@@ -106,7 +106,7 @@ export class GlobalPointerMoveMonitor implements IDisposable {
 		this._hooks.add(dom.addDisposableListener(
 			eventSource,
 			dom.EventType.POINTER_UP,
-			(e: PointerEvent) => this.stopMonitoring(true)
+			(e: PointerEvent) => this.stopMonitoring(true, e)
 		));
 	}
 }
