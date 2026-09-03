@@ -21,10 +21,12 @@ class TestAuthenticationService extends AgentHostAuthenticationService {
 	readonly replayedProviders: IAgent[] = [];
 	readonly authenticateCalls: { params: AuthenticateParams; providers: readonly IAgent[] }[] = [];
 	replayGate: DeferredPromise<void> | undefined;
+	afterReplay: (() => void) | undefined;
 
 	override async replay(provider: IAgent): Promise<void> {
 		this.replayedProviders.push(provider);
 		await this.replayGate?.p;
+		this.afterReplay?.();
 	}
 
 	override async authenticate(params: AuthenticateParams, providers: Iterable<IAgent>) {
@@ -39,6 +41,8 @@ class TestProvider extends MockAgent {
 	disposeCount = 0;
 	shutdownCount = 0;
 	shutdownError: Error | undefined;
+	onShutdown: (() => void) | undefined;
+	resourceActive = false;
 	mcpRequests: { chat: URI; serverName: string; method: string; params: Record<string, unknown> | undefined }[] = [];
 
 	async handleMcpRequest(chat: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
@@ -52,6 +56,7 @@ class TestProvider extends MockAgent {
 
 	override async shutdown(): Promise<void> {
 		this.shutdownCount++;
+		this.onShutdown?.();
 		if (this.shutdownError) {
 			throw this.shutdownError;
 		}
@@ -59,6 +64,7 @@ class TestProvider extends MockAgent {
 
 	override dispose(): void {
 		this.disposeCount++;
+		this.resourceActive = false;
 		this._onMcpNotification.dispose();
 		super.dispose();
 	}
@@ -290,33 +296,69 @@ suite('AgentHostProviderService', () => {
 		assert.deepStrictEqual({
 			authenticateProviders: authentication.authenticateCalls[0].providers.map(provider => provider.id),
 			shutdownCounts: [first.shutdownCount, second.shutdownCount],
+			disposeCounts: [first.disposeCount, second.disposeCount],
 		}, {
 			authenticateProviders: ['first', 'second'],
 			shutdownCounts: [1, 1],
+			disposeCounts: [1, 1],
 		});
 	});
 
 	test('starts provider shutdown while authentication replay is in flight', async () => {
 		const { service, authentication } = createService();
 		const provider = new TestProvider('copilot');
+		provider.shutdownError = new Error('shutdown failed');
 		authentication.replayGate = new DeferredPromise<void>();
+		authentication.afterReplay = () => provider.resourceActive = true;
 		service.registerProvider(provider);
 
 		const shutdown = service.shutdown();
+		const shutdownRejected = assert.rejects(shutdown, /shutdown failed/);
 		await Promise.resolve();
 		assert.deepStrictEqual({
 			replayedProviders: authentication.replayedProviders.map(provider => provider.id),
 			shutdownCount: provider.shutdownCount,
+			disposeCount: provider.disposeCount,
 		}, {
 			replayedProviders: ['copilot'],
 			shutdownCount: 1,
+			disposeCount: 0,
 		});
 		const lateProvider = new TestProvider('late');
 		assert.throws(() => service.registerProvider(lateProvider), /shutdown has started/);
 		lateProvider.dispose();
 
 		authentication.replayGate.complete();
-		await shutdown;
-		assert.strictEqual(provider.shutdownCount, 1);
+		await shutdownRejected;
+		assert.deepStrictEqual({
+			shutdownCount: provider.shutdownCount,
+			disposeCount: provider.disposeCount,
+			resourceActive: provider.resourceActive,
+			agents: service.agents.get(),
+		}, {
+			shutdownCount: 1,
+			disposeCount: 1,
+			resourceActive: false,
+			agents: [],
+		});
+	});
+
+	test('rejects provider registration from synchronous shutdown callbacks', async () => {
+		const { service } = createService();
+		const provider = new TestProvider('copilot');
+		const lateProvider = new TestProvider('late');
+		provider.onShutdown = () => assert.throws(() => service.registerProvider(lateProvider), /shutdown has started/);
+		service.registerProvider(provider);
+
+		await service.shutdown();
+
+		assert.deepStrictEqual({
+			providerDisposeCount: provider.disposeCount,
+			lateProviderDisposeCount: lateProvider.disposeCount,
+		}, {
+			providerDisposeCount: 1,
+			lateProviderDisposeCount: 0,
+		});
+		lateProvider.dispose();
 	});
 });
