@@ -250,6 +250,15 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		return action.files.find(file => fileHasBasename(file, basename))!;
 	}
 
+	async function waitForEmptyChangeset(channel: string): Promise<void> {
+		await context.client.waitForNotification(n =>
+			isActionNotification(n, 'changeset/contentChanged')
+			&& getActionEnvelope(n).channel === channel
+			&& (getActionEnvelope(n).action as IContentChangedAction).files.length === 0,
+			60_000,
+		);
+	}
+
 	async function waitForTurnComplete(sessionUri: string, turnId: string): Promise<void> {
 		const chatUri = buildDefaultChatUri(sessionUri);
 		await context.client.waitForNotification(n =>
@@ -623,10 +632,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 		await changesetState(branchUri);
 		context.client.clearReceived();
-		const changed = context.client.waitForNotification(n =>
-			isActionNotification(n, 'changeset/contentChanged') && getActionEnvelope(n).channel === branchUri,
-			60_000,
-		);
+		const changed = waitForEmptyChangeset(branchUri);
 
 		await runBangTurn(sessionUri, 'turn-changeset-ignored', writeFileCommand('ignored.log', 'ignored'), 1);
 		await changed;
@@ -642,10 +648,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 		await changesetState(branchUri);
 		context.client.clearReceived();
-		const changed = context.client.waitForNotification(n =>
-			isActionNotification(n, 'changeset/contentChanged') && getActionEnvelope(n).channel === branchUri,
-			60_000,
-		);
+		const changed = waitForEmptyChangeset(branchUri);
 
 		await runBangTurn(sessionUri, 'turn-changeset-create-delete', '!node -e "const fs=require(\'fs\');fs.writeFileSync(\'temporary.txt\',\'temporary\');fs.unlinkSync(\'temporary.txt\')"', 1);
 		await changed;
@@ -661,10 +664,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 		await changesetState(branchUri);
 		context.client.clearReceived();
-		const changed = context.client.waitForNotification(n =>
-			isActionNotification(n, 'changeset/contentChanged') && getActionEnvelope(n).channel === branchUri,
-			60_000,
-		);
+		const changed = waitForEmptyChangeset(branchUri);
 
 		await runBangTurn(sessionUri, 'turn-changeset-edit-restore', writeFileTwiceBase64Command('seed.txt', 'changed', 'seed\n'), 1);
 		await changed;
