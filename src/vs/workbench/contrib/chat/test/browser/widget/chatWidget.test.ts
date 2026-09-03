@@ -7,6 +7,13 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
+import { acceptAndAwaitSentRequest, ChatWidget, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight } from '../../../browser/widget/chatWidget.js';
+import { ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
+import { ChatAgentLocation } from '../../../common/constants.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
@@ -425,5 +432,83 @@ suite('ChatWidget - acceptAndAwaitSentRequest', () => {
 		const result = sentResult();
 
 		assert.strictEqual(await acceptAndAwaitSentRequest(result), result);
+	});
+});
+
+suite('ChatWidget - setVisible', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('setVisible before render completes without throwing and transitions visibility', () => {
+		const onDidShowEvents: number[] = [];
+		const onDidHideEvents: number[] = [];
+		const listWidgetVisibilities: boolean[] = [];
+		const inputPartVisibilities: boolean[] = [];
+		const inlineInputPartVisibilities: boolean[] = [];
+
+		const mockWidgetState = {
+			_visible: false,
+			visibleChangeCount: 0,
+			listWidget: undefined as { setVisible(visible: boolean): void } | undefined,
+			inputPartDisposable: store.add(new MutableDisposable<IDisposable & { setVisible(visible: boolean): void }>()),
+			inlineInputPartDisposable: store.add(new MutableDisposable<IDisposable & { setVisible(visible: boolean): void }>()),
+			visibilityTimeoutDisposable: store.add(new MutableDisposable()),
+			visibilityAnimationFrameDisposable: store.add(new MutableDisposable()),
+			listContainer: undefined as HTMLElement | undefined,
+			_onDidShow: store.add(new Emitter<void>()),
+			_onDidHide: store.add(new Emitter<void>()),
+			onDidChangeItems: () => { },
+		};
+
+		store.add(mockWidgetState._onDidShow.event(() => onDidShowEvents.push(mockWidgetState.visibleChangeCount)));
+		store.add(mockWidgetState._onDidHide.event(() => onDidHideEvents.push(mockWidgetState.visibleChangeCount)));
+
+		const setVisible = (visible: boolean) => {
+			(ChatWidget.prototype.setVisible as (this: typeof mockWidgetState, v: boolean) => void).call(mockWidgetState, visible);
+		};
+
+		// 1. Invoking setVisible(false) prior to render does not throw
+		assert.doesNotThrow(() => setVisible(false));
+		assert.strictEqual(mockWidgetState._visible, false);
+		assert.strictEqual(mockWidgetState.visibleChangeCount, 1);
+
+		// 2. Invoking setVisible(true) prior to render does not throw and fires onDidShow
+		assert.doesNotThrow(() => setVisible(true));
+		assert.strictEqual(mockWidgetState._visible, true);
+		assert.strictEqual(mockWidgetState.visibleChangeCount, 2);
+		assert.deepStrictEqual(onDidShowEvents, [2]);
+
+		// 3. Invoking setVisible(false) fires onDidHide
+		assert.doesNotThrow(() => setVisible(false));
+		assert.strictEqual(mockWidgetState._visible, false);
+		assert.strictEqual(mockWidgetState.visibleChangeCount, 3);
+		assert.deepStrictEqual(onDidHideEvents, [3]);
+
+		// 4. Simulate render completing by attaching child widgets and listContainer
+		mockWidgetState.listContainer = mainWindow.document.createElement('div');
+		mockWidgetState.listWidget = {
+			setVisible: (v: boolean) => listWidgetVisibilities.push(v),
+		};
+		mockWidgetState.inputPartDisposable.value = {
+			setVisible: (v: boolean) => inputPartVisibilities.push(v),
+			dispose: () => { },
+		};
+		mockWidgetState.inlineInputPartDisposable.value = {
+			setVisible: (v: boolean) => inlineInputPartVisibilities.push(v),
+			dispose: () => { },
+		};
+
+		// 5. Visibility state transitions properly and forwards to child components
+		assert.doesNotThrow(() => setVisible(true));
+		assert.strictEqual(mockWidgetState._visible, true);
+		assert.deepStrictEqual(listWidgetVisibilities, [true]);
+		assert.deepStrictEqual(inputPartVisibilities, [true]);
+		assert.deepStrictEqual(inlineInputPartVisibilities, [true]);
+
+		assert.doesNotThrow(() => setVisible(false));
+		assert.strictEqual(mockWidgetState._visible, false);
+		assert.deepStrictEqual(listWidgetVisibilities, [true, false]);
+		assert.deepStrictEqual(inputPartVisibilities, [true, false]);
+		assert.deepStrictEqual(inlineInputPartVisibilities, [true, false]);
 	});
 });

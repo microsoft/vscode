@@ -2071,8 +2071,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const wasVisible = this._visible;
 		this._visible = visible;
 		this.visibleChangeCount++;
-		this.listWidget.setVisible(visible);
-		this.input.setVisible(visible);
+		this.listWidget?.setVisible(visible);
+		this.inputPartDisposable.value?.setVisible(visible);
+		this.inlineInputPartDisposable.value?.setVisible(visible);
 
 		if (visible) {
 			if (!wasVisible) {
@@ -2084,9 +2085,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					}
 				}, 0);
 
-				this.visibilityAnimationFrameDisposable.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
+				if (this.listContainer) {
+					this.visibilityAnimationFrameDisposable.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
+						this._onDidShow.fire();
+					});
+				} else {
 					this._onDidShow.fire();
-				});
+				}
 			}
 		} else if (wasVisible) {
 			this._onDidHide.fire();

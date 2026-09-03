@@ -198,7 +198,7 @@ class QuickChat extends Disposable {
 	}
 
 	hide(): void {
-		this.widget.setVisible(false);
+		this.widget?.setVisible(false);
 		// Maintain scroll position for a short time so that if the user re-shows the chat
 		// the same scroll position will be used.
 		this.maintainScrollTimer.value = disposableTimeout(() => {
@@ -209,7 +209,7 @@ class QuickChat extends Disposable {
 	}
 
 	show(): void {
-		this.widget.setVisible(true);
+		this.widget?.setVisible(true);
 		// If the mutable disposable is set, then we are keeping the existing scroll position
 		// so we should not update the layout.
 		if (this._deferUpdatingDynamicLayout) {
