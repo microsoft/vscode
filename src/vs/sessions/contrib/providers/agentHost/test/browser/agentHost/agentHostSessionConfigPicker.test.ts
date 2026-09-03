@@ -406,13 +406,10 @@ suite('Agent Host Session Config Picker', () => {
 	});
 
 	test('picker action view items delegate focus to nested controls', () => {
-		let focusTarget: HTMLElement | undefined;
+		let pickerContainer: HTMLElement | undefined;
 		const item = store.add(new PickerActionViewItem({
 			render: container => {
-				const pickerContainer = document.createElement('div');
-				focusTarget = document.createElement('button');
-				focusTarget.tabIndex = 0;
-				pickerContainer.appendChild(focusTarget);
+				pickerContainer = document.createElement('div');
 				container.appendChild(pickerContainer);
 			},
 			dispose: () => { },
@@ -423,6 +420,9 @@ suite('Agent Host Session Config Picker', () => {
 		item.render(container);
 
 		item.setFocusable(true);
+		const focusTarget = document.createElement('button');
+		focusTarget.tabIndex = 0;
+		pickerContainer?.appendChild(focusTarget);
 		item.focus();
 		const focused = {
 			wrapperTabIndex: container.tabIndex,

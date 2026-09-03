@@ -1273,11 +1273,9 @@ export class PickerActionViewItem extends BaseActionViewItem implements IChatInp
 		}
 	}
 
-	override setFocusable(focusable: boolean): void {
-		if (this._focusableElement || (this.element && this._hasTabStop(this.element))) {
-			this.element?.removeAttribute('tabindex');
-		} else {
-			super.setFocusable(focusable);
+	override setFocusable(_focusable: boolean): void {
+		if (this.element) {
+			this.element.tabIndex = -1;
 		}
 	}
 
@@ -1293,15 +1291,6 @@ export class PickerActionViewItem extends BaseActionViewItem implements IChatInp
 				}
 			}
 			if (this._focusFirstTabStop(child)) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	private _hasTabStop(container: HTMLElement): boolean {
-		for (const child of container.children) {
-			if (dom.isHTMLElement(child) && (child.tabIndex >= 0 || this._hasTabStop(child))) {
 				return true;
 			}
 		}
