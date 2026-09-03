@@ -1125,6 +1125,10 @@ per-word capitalization does not survive translation. */
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
+.ai-customization-management-editor .distributed-section-layout.virtualized-section-layout-overflow {
+	padding-right: var(--vscode-spacing-size100);
+}
+
 .vscode-high-contrast .ai-customization-management-editor .customization-section-toggle:focus-visible {
 	outline-color: var(--vscode-contrastActiveBorder);
 }

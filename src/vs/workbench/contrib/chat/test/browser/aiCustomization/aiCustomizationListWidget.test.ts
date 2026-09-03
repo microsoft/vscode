@@ -191,8 +191,15 @@ suite('aiCustomizationListWidget', () => {
 			minimumHeight: 44,
 		})));
 
-		assert.deepStrictEqual(constrained, [44, 44, 44]);
-		assert.strictEqual(root.style.overflow, 'visible');
+		assert.deepStrictEqual({
+			constrained,
+			overflow: root.style.overflow,
+			reservesPageScrollbarLane: root.classList.contains('virtualized-section-layout-overflow'),
+		}, {
+			constrained: [44, 44, 44],
+			overflow: 'visible',
+			reservesPageScrollbarLane: true,
+		});
 	});
 
 	test('virtualized sections distribute remaining height after reserving complete rows', () => {
@@ -210,7 +217,15 @@ suite('aiCustomizationListWidget', () => {
 
 		const heights = layoutVirtualizedSections(root, sections);
 
-		assert.deepStrictEqual(heights, [48, 48, 44, 48]);
+		assert.deepStrictEqual({
+			heights,
+			overflow: root.style.overflow,
+			reservesPageScrollbarLane: root.classList.contains('virtualized-section-layout-overflow'),
+		}, {
+			heights: [48, 48, 44, 48],
+			overflow: '',
+			reservesPageScrollbarLane: false,
+		});
 	});
 
 	test('loading placeholders and replacement lists keep a stable row height and scroll position', () => {

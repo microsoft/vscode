@@ -104,12 +104,10 @@ export function layoutVirtualizedSectionList(list: IVirtualizedSectionList, cont
 
 export function layoutVirtualizedSections(root: HTMLElement, sections: readonly IVirtualizedSectionLayout[]): readonly number[] {
 	const visibleSections = sections.filter(section => !section.container.hidden);
-	if (visibleSections.length === 0) {
-		return sections.map(() => 0);
-	}
-
 	const availableRootHeight = root.clientHeight;
 	if (availableRootHeight <= 0) {
+		root.classList.remove('virtualized-section-layout-overflow');
+		root.style.overflow = '';
 		return sections.map(section => section.container.hidden ? 0 : section.contentHeight);
 	}
 
@@ -131,14 +129,17 @@ export function layoutVirtualizedSections(root: HTMLElement, sections: readonly 
 		fixedHeight += childHeight;
 	}
 
-	const availableListHeight = Math.max(0, availableRootHeight - fixedHeight);
+	const availableListHeightBeforeMinimums = availableRootHeight - fixedHeight;
+	const availableListHeight = Math.max(0, availableListHeightBeforeMinimums);
 	const allocations = new Map<IVirtualizedSectionLayout, number>();
 	const minimumAllocations = new Map(visibleSections.map(section => [
 		section,
 		Math.min(section.contentHeight, section.minimumHeight),
 	]));
 	const minimumListHeight = visibleSections.reduce((height, section) => height + minimumAllocations.get(section)!, 0);
-	root.style.overflow = minimumListHeight - availableListHeight > 1 ? 'visible' : '';
+	const requiresPageScroll = minimumListHeight - availableListHeightBeforeMinimums > 1;
+	root.classList.toggle('virtualized-section-layout-overflow', requiresPageScroll);
+	root.style.overflow = requiresPageScroll ? 'visible' : '';
 	if (availableListHeight <= minimumListHeight) {
 		return sections.map(section => section.container.hidden ? 0 : minimumAllocations.get(section) ?? 0);
 	}
