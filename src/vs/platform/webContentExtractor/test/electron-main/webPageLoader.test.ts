@@ -9,8 +9,10 @@ import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { IAgentNetworkFilterService } from '../../../networkFilter/common/networkFilterService.js';
+import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../networkFilter/common/networkFilterService.js';
+import { AgentNetworkDomainSettingId } from '../../../networkFilter/common/settings.js';
 import { AXNode } from '../../electron-main/cdpAccessibilityDomain.js';
 import { WebPageLoader } from '../../electron-main/webPageLoader.js';
 import { IWebContentExtractorOptions } from '../../common/webContentExtractor.js';
@@ -641,6 +643,74 @@ suite('WebPageLoader', () => {
 			denied: { cancel: true },
 			allowed: { cancel: false },
 		});
+	});
+
+	test('network policy cancels reported parser-differential requests with the real filter', () => {
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['allowed.example']);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['127.0.0.1', 'evil.com']);
+		const networkFilterService = disposables.add(new AgentNetworkFilterService(configService));
+		createWebPageLoader(
+			URI.parse('https://allowed.example/page'),
+			undefined,
+			undefined,
+			uri => networkFilterService.isUriAllowed(uri)
+		);
+
+		const listener = window.webContents.session.webRequest.onBeforeRequest.firstCall.args[0];
+		const urls = [
+			'http://a@b@127.0.0.1/private',
+			'http://a%40b@127.0.0.1/private',
+			'http://[::1]/private',
+			'http://[::ffff:127.0.0.1]/private',
+			'https://evil.com%2fx/',
+			'https://evil.com%5c/',
+		];
+		const callbacks = urls.map(() => sinon.stub());
+		urls.forEach((url, index) => listener({ url, resourceType: 'subFrame' }, callbacks[index]));
+
+		assert.deepStrictEqual(
+			callbacks.map(callback => callback.firstCall?.args[0]),
+			urls.map(() => ({ cancel: true }))
+		);
+	});
+
+	test('network policy blocks reported parser-differential redirects with the real filter', async () => {
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['allowed.example']);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['127.0.0.1', 'evil.com']);
+		const networkFilterService = disposables.add(new AgentNetworkFilterService(configService));
+		const urls = [
+			'http://a@b@127.0.0.1/private',
+			'http://a%40b@127.0.0.1/private',
+			'http://[::1]/private',
+			'http://[::ffff:127.0.0.1]/private',
+			'https://evil.com%2fx/',
+			'https://evil.com%5c/',
+		];
+		const results = [];
+		for (const url of urls) {
+			const loader = createWebPageLoader(
+				URI.parse('https://allowed.example/page'),
+				{ followRedirects: true },
+				undefined,
+				uri => networkFilterService.isUriAllowed(uri)
+			);
+			const loadPromise = loader.load();
+			const event = { preventDefault: sinon.stub() };
+			window.webContents.emit('will-redirect', event, url);
+			results.push({
+				prevented: event.preventDefault.called,
+				result: await loadPromise,
+			});
+		}
+
+		assert.deepStrictEqual(
+			results.map(({ prevented, result }) => ({ prevented, status: result.status })),
+			urls.map(() => ({ prevented: true, status: 'error' }))
+		);
 	});
 
 	test('denies all child window creation from fetched content', () => {

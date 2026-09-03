@@ -101,7 +101,10 @@ export class AgentNetworkFilterService extends Disposable implements IAgentNetwo
 
 		const domain = extractDomainFromUri(uri);
 		if (!domain) {
-			return !matchesScheme(uri, Schemas.http) && !matchesScheme(uri, Schemas.https);
+			return !matchesScheme(uri, Schemas.http)
+				&& !matchesScheme(uri, Schemas.https)
+				&& !matchesScheme(uri, 'ws')
+				&& !matchesScheme(uri, 'wss');
 		}
 
 		let result = this.domainCache.get(domain);

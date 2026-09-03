@@ -25,7 +25,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 suite('OpenBrowserTool', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('blocks IPv6 literals before opening a browser page', async () => {
+	test('blocks reported parser-differential authorities before opening a browser page', async () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, []);
@@ -43,8 +43,13 @@ suite('OpenBrowserTool', () => {
 		);
 
 		const urls = [
+			'http://a@b@127.0.0.1:3000/private',
+			'http://a%40b@127.0.0.1:3000/private',
+			'http://[::1]:3000/private',
 			'http://[::ffff:127.0.0.1]:3000/private',
 			'https://[2001:db8::1]/private',
+			'https://evil.com%2fx/',
+			'https://evil.com%5c/',
 		];
 		const blocked = await Promise.all(urls.map(async url => {
 			try {
@@ -59,7 +64,7 @@ suite('OpenBrowserTool', () => {
 			}
 		}));
 
-		assert.deepStrictEqual(blocked, [true, true]);
+		assert.deepStrictEqual(blocked, urls.map(() => true));
 	});
 
 	test('creates agent-owned pages through the workbench before summarizing', async () => {

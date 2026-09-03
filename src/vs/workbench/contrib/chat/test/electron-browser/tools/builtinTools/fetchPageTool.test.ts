@@ -150,16 +150,19 @@ suite('FetchWebPageTool', () => {
 		assert.strictEqual(Array.isArray(result.toolResultDetails) ? result.toolResultDetails.length : 0, 4, 'Should have 4 valid URLs in toolResultDetails');
 	});
 
-	test('blocks IPv6 literals before web content extraction', async () => {
+	test('blocks reported parser-differential authorities before web content extraction', async () => {
 		const urls = [
 			'http://127.0.0.1/private',
+			'http://a@b@127.0.0.1/private',
+			'http://a%40b@127.0.0.1/private',
 			'http://[::1]/private',
 			'http://[::ffff:127.0.0.1]/private',
+			'https://evil.com%2fx/',
+			'https://evil.com%5c/',
 		];
-		const webContentExtractorService = new TestWebContentExtractorService(new ResourceMap<string>([
-			[URI.parse(urls[1]), 'IPv6 loopback content'],
-			[URI.parse(urls[2]), 'IPv4-mapped IPv6 content'],
-		]));
+		const webContentExtractorService = new TestWebContentExtractorService(new ResourceMap<string>(
+			urls.map(url => [URI.parse(url), 'Blocked private content'] as const)
+		));
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, []);

@@ -127,6 +127,166 @@ suite('AgentNetworkFilterService', () => {
 			]);
 		});
 
+		test('blocks parser-differential authorities denied by policy', async () => {
+			configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['github.com']);
+			configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, [
+				'127.0.0.1',
+				'169.254.169.254',
+				'evil.com',
+				'*.evil.com',
+			]);
+			const service = await createService();
+			assert.deepStrictEqual([
+				service.isUriAllowed(URI.parse('http://127.0.0.1:8931/control')),
+				service.isUriAllowed(URI.parse('http://a@b@127.0.0.1:8931/private')),
+				service.isUriAllowed(URI.parse('http://a%40b@127.0.0.1:8931/private')),
+				service.isUriAllowed(URI.parse('http://[::1]:8931/private')),
+				service.isUriAllowed(URI.parse('http://[::ffff:169.254.169.254]/private')),
+				service.isUriAllowed(URI.parse('https://attacker.evil.com/private')),
+			], [
+				false,
+				false,
+				false,
+				false,
+				false,
+				false,
+			]);
+		});
+
+		test('blocks alternative IPv4 forms denied by policy', async () => {
+			configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, [
+				'127.1',
+				'0300.0250.01.01',
+				'0xa9fea9fe',
+			]);
+			const service = await createService();
+			assert.deepStrictEqual([
+				service.isUriAllowed(URI.parse('http://127.0.0.1/private')),
+				service.isUriAllowed(URI.parse('http://192.168.1.1/private')),
+				service.isUriAllowed(URI.parse('http://169.254.169.254/private')),
+			], [
+				false,
+				false,
+				false,
+			]);
+		});
+
+		test('blocks bare administrator deny patterns outside well-known public suffixes', async () => {
+			configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, [
+				'evil.xyz',
+				'evil.co.uk',
+				'evil.ru',
+				'evil.app',
+				'evil.cn',
+				'evil.info',
+				'evil.biz',
+				'evil.de',
+				'evil.jp',
+				'evil.site',
+				'evil.zip',
+				'metadata.internal',
+				'host.local',
+				'db.corp',
+				'srv.lan',
+				'169.254.169.254',
+				'10.0.0.5',
+				'127.0.0.1',
+				'192.168.1.1',
+				'localhost',
+				'metadata',
+				'metadata.google.internal',
+			]);
+			const service = await createService();
+			assert.deepStrictEqual([
+				service.isUriAllowed(URI.parse('https://evil.xyz/private')),
+				service.isUriAllowed(URI.parse('https://evil.co.uk/private')),
+				service.isUriAllowed(URI.parse('https://evil.ru/private')),
+				service.isUriAllowed(URI.parse('https://evil.app/private')),
+				service.isUriAllowed(URI.parse('https://evil.cn/private')),
+				service.isUriAllowed(URI.parse('https://evil.info/private')),
+				service.isUriAllowed(URI.parse('https://evil.biz/private')),
+				service.isUriAllowed(URI.parse('https://evil.de/private')),
+				service.isUriAllowed(URI.parse('https://evil.jp/private')),
+				service.isUriAllowed(URI.parse('https://evil.site/private')),
+				service.isUriAllowed(URI.parse('https://evil.zip/private')),
+				service.isUriAllowed(URI.parse('https://metadata.internal/private')),
+				service.isUriAllowed(URI.parse('https://host.local/private')),
+				service.isUriAllowed(URI.parse('https://db.corp/private')),
+				service.isUriAllowed(URI.parse('https://srv.lan/private')),
+				service.isUriAllowed(URI.parse('http://169.254.169.254/private')),
+				service.isUriAllowed(URI.parse('http://10.0.0.5/private')),
+				service.isUriAllowed(URI.parse('http://127.0.0.1/private')),
+				service.isUriAllowed(URI.parse('http://192.168.1.1/private')),
+				service.isUriAllowed(URI.parse('http://localhost/private')),
+				service.isUriAllowed(URI.parse('http://metadata/private')),
+				service.isUriAllowed(URI.parse('https://metadata.google.internal/private')),
+			], [
+				false,
+				false,
+				false,
+				false,
+				false,
+				false,
+				false,
+				false,
+				false,
+				false,
+				false,
+				false,
+				false,
+				false,
+				false,
+				false,
+				false,
+				false,
+				false,
+				false,
+				false,
+				false,
+			]);
+		});
+
+		test('blocks wildcard administrator deny patterns outside well-known public suffixes', async () => {
+			configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, [
+				'*.internal',
+				'*.corp',
+				'*.lan',
+				'*.corp.local',
+				'*.co.uk',
+				'*.example.co.uk',
+			]);
+			const service = await createService();
+			assert.deepStrictEqual([
+				service.isUriAllowed(URI.parse('https://service.internal/private')),
+				service.isUriAllowed(URI.parse('https://service.corp/private')),
+				service.isUriAllowed(URI.parse('https://service.lan/private')),
+				service.isUriAllowed(URI.parse('https://service.corp.local/private')),
+				service.isUriAllowed(URI.parse('https://service.co.uk/private')),
+				service.isUriAllowed(URI.parse('https://service.example.co.uk/private')),
+			], [
+				false,
+				false,
+				false,
+				false,
+				false,
+				false,
+			]);
+		});
+
+		test('blocks percent-encoded path separators in denied authorities', async () => {
+			configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['evil.com']);
+			const service = await createService();
+			assert.deepStrictEqual([
+				service.isUriAllowed(URI.parse('https://evil.com/x')),
+				service.isUriAllowed(URI.parse('https://evil.com%2fx/')),
+				service.isUriAllowed(URI.parse('https://evil.com%5c/')),
+			], [
+				false,
+				false,
+				false,
+			]);
+		});
+
 		test('denies IPv6 literals when both domain lists are empty', async () => {
 			const service = await createService();
 			assert.deepStrictEqual([
@@ -175,6 +335,25 @@ suite('AgentNetworkFilterService', () => {
 			]);
 		});
 
+		test('blocks unbracketed IPv6 administrator deny patterns', async () => {
+			configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, [
+				'::1',
+				'0:0:0:0:0:0:0:1',
+				'::ffff:127.0.0.1',
+				'fe80::1',
+			]);
+			const service = await createService();
+			assert.deepStrictEqual([
+				service.isUriAllowed(URI.parse('http://[::1]/private')),
+				service.isUriAllowed(URI.parse('http://[::ffff:127.0.0.1]/private')),
+				service.isUriAllowed(URI.parse('http://[fe80::1]/private')),
+			], [
+				false,
+				false,
+				false,
+			]);
+		});
+
 		test('fails closed for malformed non-empty HTTP authorities', async () => {
 			configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*']);
 			const service = await createService();
@@ -193,6 +372,29 @@ suite('AgentNetworkFilterService', () => {
 				false,
 				false,
 			]);
+		});
+
+		test('fails closed for malformed non-empty WebSocket authorities', async () => {
+			configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*']);
+			const service = await createService();
+			assert.deepStrictEqual([
+				service.isUriAllowed(URI.from({ scheme: 'ws', authority: '[::1', path: '/' })),
+				service.isUriAllowed(URI.from({ scheme: 'wss', authority: '::1]', path: '/' })),
+				service.isUriAllowed(URI.from({ scheme: 'WS', authority: '[::1]extra', path: '/' })),
+			], [
+				false,
+				false,
+				false,
+			]);
+		});
+
+		test('rejects URL authorities whose decoded representation changes the host', async () => {
+			configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['allowed.com']);
+			const service = await createService();
+			assert.strictEqual(
+				service.isUriAllowed(URI.parse('http://169.254.169.254%40allowed.com/private')),
+				false
+			);
 		});
 	});
 
