@@ -6148,7 +6148,7 @@ suite('AgentService (node dispatcher)', () => {
 					marker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION),
 				}, {
 					catalogCalls: 2,
-					listed: [],
+					listed: [providerOnly.toString()],
 					current: {
 						session: providerOnly.toString(),
 						provider: 'copilot',
@@ -6416,6 +6416,10 @@ suite('AgentService (node dispatcher)', () => {
 					isRead: true,
 					isArchived: true,
 					workingDirectories: [],
+					_meta: {
+						workspaceless: true,
+						git: { branchName: 'stale-central' },
+					},
 					chats: [{ uri: buildDefaultChatUri(session), order: 0, kind: 'default', summary: 'Stale chat', titleSource: 'agent' }],
 				}, 'external-generation', 0), undefined), 'applied');
 				await perSession.database(session).setMetadataValues({
@@ -6428,7 +6432,9 @@ suite('AgentService (node dispatcher)', () => {
 				});
 				const svc = createService(database, perSession.service);
 				const agent = disposables.add(new DirectImportAgent('copilot'));
-				agent.catalog = [metadata(session)];
+				agent.catalog = [metadata(session, {
+					git: { branchName: 'current-provider' },
+				})];
 
 				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, true);
 
@@ -6438,12 +6444,14 @@ suite('AgentService (node dispatcher)', () => {
 					titleSource: data?.titleSource,
 					isRead: data?.isRead,
 					isArchived: data?.isArchived,
+					meta: data?._meta,
 					chats: data?.chats.map(chat => ({ summary: chat.summary, titleSource: chat.titleSource })),
 				}, {
 					summary: 'Local title',
 					titleSource: 'user',
 					isRead: false,
 					isArchived: false,
+					meta: { git: { branchName: 'current-provider' } },
 					chats: [{ summary: 'Local chat', titleSource: 'user' }],
 				});
 			});
@@ -6453,6 +6461,19 @@ suite('AgentService (node dispatcher)', () => {
 				const perSession = createPerSessionDataService();
 				const session = AgentSession.uri('copilot', 'central-status-reconciliation');
 				const peer = buildChatUri(session, 'cached-peer');
+				const centralMeta: NonNullable<AgentHostCatalogData['_meta']> = {
+					multiRoot: { workspaceFile: 'file:///workspace/project.code-workspace' },
+					'vscode.folderPicker': { hidden: true, primary: 'file:///workspace' },
+					github: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'] },
+					git: { hasGitHubRemote: true, branchName: 'feature/catalog', incomingChanges: 2 },
+					'vscode.sourceControl': { merge: { commit: '0123456789abcdef' }, latestOutcome: 'merge' },
+					'agentHost/sessionArtifacts': [{ id: 'artifact-1', type: 'pullRequest', label: 'Catalog payload', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/1' }],
+					'agentHost/createdBySession': { session: 'agent-session://copilot/parent', chat: 'agent-chat://copilot/parent/default', turnId: 'turn-1' },
+					workspaceless: true,
+					ehcliAdoptable: true,
+					ehcliAdopted: true,
+					[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: { version: 1, handle: '00000000-0000-4000-8000-000000000001' },
+				};
 				await database.registerSessionV2(session.toString(), {
 					provider: 'copilot',
 					startTime: 1,
@@ -6465,6 +6486,7 @@ suite('AgentService (node dispatcher)', () => {
 					isRead: true,
 					isArchived: true,
 					workingDirectories: [],
+					_meta: centralMeta,
 					chats: [
 						{ uri: buildDefaultChatUri(session), order: 0, kind: 'default', summary: 'Cached default title', titleSource: 'agent' },
 						{ uri: peer, order: 1, kind: 'peer', summary: 'Cached peer title', titleSource: 'user' },
@@ -6472,11 +6494,22 @@ suite('AgentService (node dispatcher)', () => {
 				}, 'external-generation', 0), undefined), 'applied');
 				await database.markSessionV2PayloadDirty(session.toString());
 				const svc = createService(database, perSession.service);
-				const agent = disposables.add(new DirectImportAgent('copilot'));
+				class ReconciliationAgent extends DirectImportAgent {
+					async listLegacyChatBackings(): Promise<readonly IAgentLegacyChat[]> {
+						return [{ uri: URI.parse(peer), providerData: 'cached-peer-provider-data' }];
+					}
+				}
+				const agent = disposables.add(new ReconciliationAgent('copilot'));
 				agent.sessionMetadataOverrides = {
 					modifiedTime: 2,
 					summary: 'Provider title',
 					status: SessionStatus.Idle,
+					project: { uri: URI.file('/provider/project'), displayName: 'Provider project' },
+					workingDirectories: [URI.file('/provider/workspace')],
+					changes: { files: 3, additions: 4, deletions: 1 },
+					_meta: {
+						git: { hasGitHubRemote: false, branchName: 'provider-refresh' },
+					},
 				};
 				await createAgentSession(agent, { session });
 				registerTestAgentProvider(svc, agent);
@@ -6485,12 +6518,17 @@ suite('AgentService (node dispatcher)', () => {
 					_catalogReconciliationService: { runFullPass(): Promise<{ readonly outcomes: readonly { readonly status: string }[] }> };
 				})._catalogReconciliationService.runFullPass();
 				const data = catalogDataOf(await database.getSessionV2(session.toString()));
+				const { multiRoot: _multiRoot, ...centralMetaWithoutMultiRoot } = centralMeta;
 
 				assert.deepStrictEqual({
 					outcomes: report.outcomes.map(outcome => outcome.status),
 					summary: data?.summary,
 					isRead: data?.isRead,
 					isArchived: data?.isArchived,
+					project: data?.project,
+					workingDirectories: data?.workingDirectories,
+					changes: data?.changes,
+					meta: data?._meta,
 					chats: data?.chats.map(chat => ({ summary: chat.summary, titleSource: chat.titleSource })),
 					localDatabaseIds: perSession.databaseIds(),
 				}, {
@@ -6498,6 +6536,13 @@ suite('AgentService (node dispatcher)', () => {
 					summary: 'Cached title',
 					isRead: true,
 					isArchived: true,
+					project: { uri: URI.file('/provider/project').toString(), displayName: 'Provider project' },
+					workingDirectories: [URI.file('/provider/workspace').toString()],
+					changes: { files: 3, additions: 4, deletions: 1 },
+					meta: {
+						...centralMetaWithoutMultiRoot,
+						git: { hasGitHubRemote: false, branchName: 'provider-refresh' },
+					},
 					chats: [
 						{ summary: 'Cached default title', titleSource: 'agent' },
 						{ summary: 'Cached peer title', titleSource: 'user' },
@@ -6562,6 +6607,195 @@ suite('AgentService (node dispatcher)', () => {
 						}],
 					},
 					localDatabaseIds: [],
+				});
+
+				test('Copilot no-local cached peer import retries after provider backing enumeration recovers', async () => {
+					class RecoveringPeerAgent extends DirectImportAgent {
+						calls = 0;
+						async listLegacyChatBackings(session: URI): Promise<readonly IAgentLegacyChat[]> {
+							this.calls++;
+							if (this.calls === 1) {
+								throw new Error('transient backing failure');
+							}
+							return [{ uri: URI.parse(buildChatUri(session, 'cached')), providerData: 'recovered-provider-data' }];
+						}
+					}
+					const database = new TransientRegistryWriteDatabase();
+					const perSession = createPerSessionDataService();
+					const session = AgentSession.uri('copilot', 'recovering-peer-import');
+					const peer = buildChatUri(session, 'cached');
+					await database.registerSessionV2(session.toString(), { provider: 'copilot', startTime: 1, source: 'discovery' }, { checkTombstone: true });
+					assert.strictEqual(await database.upsertSessionV2(catalogEnvelope(session, {
+						modifiedTime: 1,
+						isRead: false,
+						isArchived: false,
+						workingDirectories: [],
+						chats: [
+							{ uri: buildDefaultChatUri(session), order: 0, kind: 'default' },
+							{ uri: peer, order: 1, kind: 'peer' },
+						],
+					}, 'peer-generation', 0), undefined), 'applied');
+					const svc = createService(database, perSession.service);
+					const agent = disposables.add(new RecoveringPeerAgent('copilot'));
+					const read = () => (svc as unknown as {
+						_readOrImportPeerChatCatalogWithoutLocalDatabase(agent: IAgent, session: URI): Promise<readonly IPersistedPeerChat[]>;
+					})._readOrImportPeerChatCatalogWithoutLocalDatabase(agent, session);
+
+					await assert.rejects(read(), /transient backing failure/);
+					const afterFailure = await database.getSessionChatCatalog(session.toString());
+					const recovered = await read();
+
+					assert.deepStrictEqual({
+						afterFailure,
+						recovered,
+						persisted: (await database.getSessionChatCatalog(session.toString()))?.chats,
+						localDatabaseIds: perSession.databaseIds(),
+					}, {
+						afterFailure: undefined,
+						recovered: [{ uri: peer, providerData: 'recovered-provider-data' }],
+						persisted: [{ chat: peer, order: 0, providerData: 'recovered-provider-data' }],
+						localDatabaseIds: [],
+					});
+				});
+
+				test('Claude and Codex persist cached peers when enumeration is unavailable or lacks the URI', async () => {
+					class EnumeratingCodexAgent extends DirectImportAgent {
+						async listLegacyChatBackings(): Promise<readonly IAgentLegacyChat[]> {
+							return [];
+						}
+					}
+					const results = [];
+					for (const provider of ['claude', 'codex'] as const) {
+						const database = new TransientRegistryWriteDatabase();
+						const perSession = createPerSessionDataService();
+						const session = AgentSession.uri(provider, 'optional-peer-data');
+						const peer = buildChatUri(session, 'cached');
+						await database.registerSessionV2(session.toString(), { provider, startTime: 1, source: 'discovery' }, { checkTombstone: true });
+						assert.strictEqual(await database.upsertSessionV2(catalogEnvelope(session, {
+							modifiedTime: 1,
+							isRead: false,
+							isArchived: false,
+							workingDirectories: [],
+							chats: [
+								{ uri: buildDefaultChatUri(session), order: 0, kind: 'default' },
+								{ uri: peer, order: 1, kind: 'peer' },
+							],
+						}, `${provider}-generation`, 0), undefined), 'applied');
+						const svc = createService(database, perSession.service);
+						const agent = disposables.add(provider === 'codex' ? new EnumeratingCodexAgent(provider) : new DirectImportAgent(provider));
+
+						const peers = await (svc as unknown as {
+							_readOrImportPeerChatCatalogWithoutLocalDatabase(agent: IAgent, session: URI): Promise<readonly IPersistedPeerChat[]>;
+						})._readOrImportPeerChatCatalogWithoutLocalDatabase(agent, session);
+						results.push({
+							provider,
+							peers,
+							persisted: (await database.getSessionChatCatalog(session.toString()))?.chats,
+						});
+					}
+
+					assert.deepStrictEqual(results, [
+						{
+							provider: 'claude',
+							peers: [{ uri: buildChatUri(AgentSession.uri('claude', 'optional-peer-data'), 'cached') }],
+							persisted: [{ chat: buildChatUri(AgentSession.uri('claude', 'optional-peer-data'), 'cached'), order: 0 }],
+						},
+						{
+							provider: 'codex',
+							peers: [{ uri: buildChatUri(AgentSession.uri('codex', 'optional-peer-data'), 'cached') }],
+							persisted: [{ chat: buildChatUri(AgentSession.uri('codex', 'optional-peer-data'), 'cached'), order: 0 }],
+						},
+					]);
+				});
+
+				test('transient peer backing enrichment failure does not block cached session restore', async () => {
+					class FailingBackingAgent extends DirectImportAgent {
+						async listLegacyChatBackings(): Promise<readonly IAgentLegacyChat[]> {
+							throw new Error('transient backing failure');
+						}
+					}
+					const database = new TransientRegistryWriteDatabase();
+					const perSession = createPerSessionDataService();
+					const session = AgentSession.uri('copilot', 'cached-peer-restore');
+					const peer = buildChatUri(session, 'cached');
+					await database.registerSessionV2(session.toString(), { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: true });
+					assert.strictEqual(await database.upsertSessionV2(catalogEnvelope(session, {
+						modifiedTime: 1,
+						summary: 'Cached session',
+						isRead: false,
+						isArchived: false,
+						workingDirectories: [],
+						chats: [
+							{ uri: buildDefaultChatUri(session), order: 0, kind: 'default' },
+							{ uri: peer, order: 1, kind: 'peer', summary: 'Cached peer', titleSource: 'user' },
+						],
+					}, 'restore-generation', 0), undefined), 'applied');
+					const svc = createService(database, perSession.service);
+					const agent = disposables.add(new FailingBackingAgent('copilot'));
+					agent.catalog = [metadata(session, { summary: 'Cached session' })];
+					registerTestAgentProvider(svc, agent);
+
+					await svc.restoreSession(session);
+					const state = getStateManager(svc).getSessionState(session.toString());
+
+					assert.deepStrictEqual({
+						peer: state?.chats.find(chat => chat.resource === peer),
+						authoritativeCatalog: await database.getSessionChatCatalog(session.toString()),
+					}, {
+						peer: {
+							resource: peer,
+							title: 'Cached peer',
+							status: SessionStatus.Idle,
+							modifiedAt: state?.chats.find(chat => chat.resource === peer)?.modifiedAt,
+						},
+						authoritativeCatalog: undefined,
+					});
+				});
+
+				test('authoritative empty cached membership accepts a later older-build addition', async () => {
+					class EmptyPeerAgent extends DirectImportAgent {
+						async listLegacyChatBackings(): Promise<readonly IAgentLegacyChat[]> {
+							return [];
+						}
+					}
+					const database = new TransientRegistryWriteDatabase();
+					const perSession = createPerSessionDataService();
+					const session = AgentSession.uri('copilot', 'empty-peer-import');
+					const added = buildChatUri(session, 'added');
+					await database.registerSessionV2(session.toString(), { provider: 'copilot', startTime: 1, source: 'discovery' }, { checkTombstone: true });
+					assert.strictEqual(await database.upsertSessionV2(catalogEnvelope(session, {
+						modifiedTime: 1,
+						isRead: false,
+						isArchived: false,
+						workingDirectories: [],
+						chats: [{ uri: buildDefaultChatUri(session), order: 0, kind: 'default' }],
+					}, 'peer-generation', 0), undefined), 'applied');
+					const svc = createService(database, perSession.service);
+					const agent = disposables.add(new EmptyPeerAgent('copilot'));
+					const withoutDatabase = await (svc as unknown as {
+						_readOrImportPeerChatCatalogWithoutLocalDatabase(agent: IAgent, session: URI): Promise<readonly IPersistedPeerChat[]>;
+					})._readOrImportPeerChatCatalogWithoutLocalDatabase(agent, session);
+					await perSession.database(session).setMetadata('peerChats', JSON.stringify([{ uri: added, providerData: 'added-provider-data' }]));
+					const withDatabase = await (svc as unknown as {
+						_readOrMigrateLegacyPeerChatCatalog(agent: IAgent, session: URI, database: IReference<ISessionDatabase>): Promise<readonly IPersistedPeerChat[]>;
+					})._readOrMigrateLegacyPeerChatCatalog(agent, session, { object: perSession.database(session), dispose: () => { } });
+
+					assert.deepStrictEqual({
+						withoutDatabase,
+						withDatabase,
+						central: await database.getSessionChatCatalog(session.toString()),
+						legacy: await perSession.database(session).getMetadata('peerChats'),
+					}, {
+						withoutDatabase: [],
+						withDatabase: [{ uri: added, providerData: 'added-provider-data' }],
+						central: {
+							revision: 2,
+							legacyMirroredRevision: 2,
+							legacyMirroredPayload: JSON.stringify([{ uri: added, providerData: 'added-provider-data' }]),
+							chats: [{ chat: added, order: 0, providerData: 'added-provider-data' }],
+						},
+						legacy: JSON.stringify([{ uri: added, providerData: 'added-provider-data' }]),
+					});
 				});
 			});
 
@@ -15084,6 +15318,49 @@ suite('AgentService (node dispatcher)', () => {
 					legacyEnumerations: 0,
 					peerMaterializations: 1,
 				},
+			});
+		});
+
+		test('authoritative peer recovery does not read the cached catalog payload', async () => {
+			class CountingCatalogDatabase extends AgentHostDatabase {
+				payloadReads = 0;
+
+				override async getSessionV2(session: string) {
+					this.payloadReads++;
+					return super.getSessionV2(session);
+				}
+			}
+			const db = new TestSessionDatabase();
+			const catalogDatabase = disposables.add(new CountingCatalogDatabase(':memory:'));
+			const session = AgentSession.uri('copilot', 'authoritative-peer');
+			const peer = buildChatUri(session, 'peer');
+			await catalogDatabase.registerRuntimeSession(session.toString(), {
+				provider: 'copilot',
+				startTime: 1,
+				source: 'restore',
+			}, { checkTombstone: false });
+			const replacement = await catalogDatabase.replaceSessionChatCatalog(session.toString(), [{ chat: peer, order: 0 }], undefined);
+			assert.strictEqual(replacement.status, 'applied');
+			if (replacement.status === 'applied') {
+				await catalogDatabase.markSessionChatCatalogLegacyMirrored(session.toString(), replacement.revision, JSON.stringify([{ uri: peer }]));
+			}
+			const localService = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(db),
+				{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			const agent = disposables.add(new MockAgent('copilot'));
+
+			const peers = await (localService as unknown as {
+				_readOrMigrateLegacyPeerChatCatalog(agent: IAgent, session: URI): Promise<readonly IPersistedPeerChat[]>;
+			})._readOrMigrateLegacyPeerChatCatalog(agent, session);
+
+			assert.deepStrictEqual({
+				peers,
+				payloadReads: catalogDatabase.payloadReads,
+			}, {
+				peers: [{ uri: peer }],
+				payloadReads: 0,
 			});
 		});
 

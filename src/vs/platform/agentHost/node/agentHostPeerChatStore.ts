@@ -12,12 +12,15 @@ import type { AgentHostCatalogDatabaseReference } from './agentHostCatalogSyncSe
 import { ChatOrigin } from '../common/state/protocol/state.js';
 import { isDefaultChatUri, parseRequiredSessionUriFromChatUri } from '../common/state/sessionState.js';
 import { fromCatalogChatOrigin, toSerializableJsonValue } from './agentHostCatalogSourceResolver.js';
+import { AGENT_HOST_CATALOG_CHILD_LIMIT } from './agentHostCatalogProjection.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 
 export const PEER_CHATS_METADATA_KEY = 'peerChats';
 export const CHAT_PROVIDER_DATA_METADATA_KEY = 'agentHost.chatProviderData';
 export const CHAT_ORIGIN_METADATA_KEY = 'agentHost.chatOrigin';
 export const CHAT_INHERITED_TURN_METADATA_KEY = 'agentHost.chatInheritedTurnId';
+const CHAT_METADATA_CONCURRENCY = 4;
+const IMPORTED_PEER_CHAT_LIMIT = AGENT_HOST_CATALOG_CHILD_LIMIT - 1;
 
 export interface IPersistedPeerChat {
 	readonly uri: string;
@@ -47,7 +50,8 @@ export class AgentHostPeerChatStore {
 		await this._enqueue(session, async () => {
 			while (true) {
 				const catalog = await this._database.getSessionChatCatalog(session.toString());
-				const legacy = await this.tryReadLegacy(session, false, database);
+				const legacyState = await this._tryReadLegacyPayload(session, false, database);
+				const legacy = legacyState?.entries;
 				if (!catalog) {
 					if (legacy === undefined) {
 						return;
@@ -80,15 +84,17 @@ export class AgentHostPeerChatStore {
 						continue;
 					}
 				}
-				if (legacy !== undefined && JSON.stringify(legacy) !== JSON.stringify(central)) {
-					const replaceResult = await this._replaceCentral(session, legacy, catalog.revision, true, database);
+				if (legacy !== undefined && legacyState?.raw !== catalog.legacyMirroredPayload) {
+					const base = this._parseLegacyMirrorBase(session, catalog.legacyMirroredPayload);
+					const merged = base === undefined ? legacy : this._mergeLegacyChanges(base, central, legacy);
+					const replaceResult = await this._replaceCentral(session, merged, catalog.revision, true, database);
 					if (replaceResult === 'conflict') {
 						continue;
 					}
 					if (replaceResult === 'sessionUnavailable') {
 						return;
 					}
-					result = legacy;
+					result = merged;
 					return;
 				}
 				const local = await this.readLocalChatMetadata(central);
@@ -126,6 +132,10 @@ export class AgentHostPeerChatStore {
 	 * Missing or malformed data returns `undefined`; `[]` is an explicit empty sentinel.
 	 */
 	async tryReadLegacy(session: URI, batched = false, database?: AgentHostCatalogDatabaseReference): Promise<IPersistedPeerChat[] | undefined> {
+		return (await this._tryReadLegacyPayload(session, batched, database))?.entries;
+	}
+
+	private async _tryReadLegacyPayload(session: URI, batched = false, database?: AgentHostCatalogDatabaseReference): Promise<{ readonly raw: string; readonly entries: IPersistedPeerChat[] } | undefined> {
 		const ref = database ?? await this._sessionDataService.tryOpenDatabase(session);
 		if (!ref) {
 			return undefined;
@@ -137,7 +147,7 @@ export class AgentHostPeerChatStore {
 			if (raw === undefined) {
 				return undefined;
 			}
-			return this._parse(session, raw);
+			return { raw, entries: this._parse(session, raw, IMPORTED_PEER_CHAT_LIMIT) };
 		} catch (error) {
 			this._logService.warn(`[AgentService] Ignoring malformed peer-chat catalog for ${session.toString()}: ${toErrorMessage(error)}`);
 			return undefined;
@@ -209,7 +219,7 @@ export class AgentHostPeerChatStore {
 	}
 
 	async readLocalChatMetadata(entries: readonly IPersistedPeerChat[]): Promise<IPersistedPeerChat[]> {
-		const limiter = new Limiter<IPersistedPeerChat>(4);
+		const limiter = new Limiter<IPersistedPeerChat>(CHAT_METADATA_CONCURRENCY);
 		return Promise.all(entries.map(entry => limiter.queue(async () => {
 			try {
 				return await this._readChatMetadata(entry);
@@ -265,13 +275,22 @@ export class AgentHostPeerChatStore {
 				reconciledEntries = reconciled.entries;
 			}
 			const central = catalog ? this._entriesFromCatalog(catalog.chats) : undefined;
-			const legacy = reconciledEntries ? undefined : await this.tryReadLegacy(session);
+			const legacyState = reconciledEntries ? undefined : await this._tryReadLegacyPayload(session);
+			const legacy = legacyState?.entries;
 			if (catalog && legacy !== undefined && catalog.legacyMirroredRevision === catalog.revision && catalog.legacyMirroredPayload === undefined) {
 				if (!await this._database.markSessionChatCatalogLegacyMirrored(session.toString(), catalog.revision, JSON.stringify(legacy))) {
 					continue;
 				}
 			}
-			const current = reconciledEntries ?? legacy ?? central ?? [];
+			const legacyIsCurrentMirror = catalog?.legacyMirroredPayload !== undefined && legacyState?.raw === catalog.legacyMirroredPayload;
+			const base = catalog && legacy !== undefined && !legacyIsCurrentMirror
+				? this._parseLegacyMirrorBase(session, catalog.legacyMirroredPayload)
+				: undefined;
+			const current = reconciledEntries
+				?? (base && central && legacy ? this._mergeLegacyChanges(base, central, legacy) : undefined)
+				?? (legacyIsCurrentMirror ? central : legacy)
+				?? central
+				?? [];
 			const updated = this._parse(session, JSON.stringify(mutate(current)));
 			const result = await this._replaceCentral(session, updated, catalog?.revision);
 			if (result !== 'conflict') {
@@ -318,7 +337,8 @@ export class AgentHostPeerChatStore {
 		let entries = initialEntries;
 		let revision = initialRevision;
 		while (true) {
-			await Promise.all(entries.map(entry => this._writeChatMetadata(entry)));
+			const limiter = new Limiter<void>(CHAT_METADATA_CONCURRENCY);
+			await Promise.all(entries.map(entry => limiter.queue(() => this._writeChatMetadata(entry))));
 			const current = await this._database.getSessionChatCatalog(session.toString());
 			if (!current) {
 				return;
@@ -360,15 +380,16 @@ export class AgentHostPeerChatStore {
 			if (catalog.legacyMirroredRevision === catalog.revision) {
 				return { status: 'available', entries: central, revision: catalog.revision };
 			}
+			const legacyPayload = database ? await this._tryReadLegacyPayload(session, true, database) : undefined;
 			const legacyState = database
-				? { databaseExists: true, entries: await this.tryReadLegacy(session, true, database) }
+				? { databaseExists: true, ...legacyPayload, entries: legacyPayload?.entries }
 				: await this._tryReadLegacyState(session);
 			if (!legacyState.databaseExists) {
 				return { status: 'available', entries: central, revision: catalog.revision };
 			}
 			const legacy = legacyState.entries;
 			const base = this._parseLegacyMirrorBase(session, catalog.legacyMirroredPayload);
-			if (legacy !== undefined && base !== undefined && JSON.stringify(legacy) !== JSON.stringify(base)) {
+			if (legacy !== undefined && base !== undefined && legacyState.raw !== catalog.legacyMirroredPayload && JSON.stringify(legacy) !== JSON.stringify(base)) {
 				const merged = this._mergeLegacyChanges(base, central, legacy);
 				const replaceResult = await this._replaceCentral(session, merged, catalog.revision, false);
 				if (replaceResult === 'conflict') {
@@ -410,14 +431,18 @@ export class AgentHostPeerChatStore {
 		return this._database.markSessionChatCatalogLegacyMirrored(session.toString(), revision, payload);
 	}
 
-	private async _tryReadLegacyState(session: URI): Promise<{ readonly databaseExists: boolean; readonly entries: IPersistedPeerChat[] | undefined }> {
+	private async _tryReadLegacyState(session: URI): Promise<{ readonly databaseExists: boolean; readonly raw?: string; readonly entries: IPersistedPeerChat[] | undefined }> {
 		const ref = await this._sessionDataService.tryOpenDatabase(session);
 		if (!ref) {
 			return { databaseExists: false, entries: undefined };
 		}
 		try {
 			const raw = await ref.object.getMetadata(PEER_CHATS_METADATA_KEY);
-			return { databaseExists: true, entries: raw === undefined ? undefined : this._parse(session, raw) };
+			return {
+				databaseExists: true,
+				...(raw === undefined ? {} : { raw }),
+				entries: raw === undefined ? undefined : this._parse(session, raw, IMPORTED_PEER_CHAT_LIMIT),
+			};
 		} catch (error) {
 			this._logService.warn(`[AgentService] Ignoring malformed peer-chat catalog for ${session.toString()}: ${toErrorMessage(error)}`);
 			return { databaseExists: true, entries: undefined };
@@ -529,15 +554,19 @@ export class AgentHostPeerChatStore {
 		}));
 	}
 
-	private _parse(session: URI, raw: string): IPersistedPeerChat[] {
+	private _parse(session: URI, raw: string, maximumEntries?: number): IPersistedPeerChat[] {
 		const parsed: unknown = JSON.parse(raw);
 		if (!Array.isArray(parsed)) {
 			throw new Error('expected an array');
 		}
+		if (maximumEntries !== undefined && parsed.length > maximumEntries) {
+			throw new Error(`legacy peer-chat catalog exceeds the ${maximumEntries} entry limit`);
+		}
+		const entryCount = parsed.length;
 		const sessionKey = session.toString();
 		const seen = new Set<string>();
 		const result: IPersistedPeerChat[] = [];
-		for (let index = 0; index < parsed.length; index++) {
+		for (let index = 0; index < entryCount; index++) {
 			const value = parsed[index];
 			if (!isRecord(value) || typeof value.uri !== 'string') {
 				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} with no chat URI`);

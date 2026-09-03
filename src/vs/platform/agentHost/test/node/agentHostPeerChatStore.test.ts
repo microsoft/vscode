@@ -9,6 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { ChatOriginKind } from '../../common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { AGENT_HOST_CATALOG_CHILD_LIMIT } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostPeerChatStore, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, PEER_CHATS_METADATA_KEY } from '../../node/agentHostPeerChatStore.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
@@ -45,6 +46,24 @@ class RecordingLogService extends NullLogService {
 
 	override error(message: string | Error): void {
 		this.errors.push(message);
+	}
+}
+
+class ConcurrentMetadataWriteDatabase extends TestSessionDatabase {
+	private inFlightWrites = 0;
+	maxInFlightWrites = 0;
+	metadataValueWrites = 0;
+
+	override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+		this.metadataValueWrites++;
+		this.inFlightWrites++;
+		this.maxInFlightWrites = Math.max(this.maxInFlightWrites, this.inFlightWrites);
+		await Promise.resolve();
+		try {
+			await super.setMetadataValues(values);
+		} finally {
+			this.inFlightWrites--;
+		}
 	}
 }
 
@@ -145,6 +164,53 @@ suite('AgentHostPeerChatStore', () => {
 				entries: [third.toString(), second.toString()],
 				compatibilityAcknowledged: true,
 			},
+		});
+	});
+
+	test('merges an older-build addition made after migration-only authoritative empty', async () => {
+		const unavailable = {
+			...createSessionDataService(),
+			openDatabase: () => {
+				throw new Error('must not create a database');
+			},
+			tryOpenDatabase: async () => undefined,
+		};
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService());
+		await migrationStore.replaceForMigration(session, []);
+		const database = new TestSessionDatabase();
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([{ uri: first.toString() }]));
+		const store = createStore(database);
+
+		const reconciled = await store.reconcileLegacy(session);
+
+		assert.deepStrictEqual({
+			reconciled,
+			central: await store.tryRead(session),
+			legacy: await store.tryReadLegacy(session),
+		}, {
+			reconciled: [{ uri: first.toString() }],
+			central: [{ uri: first.toString() }],
+			legacy: [{ uri: first.toString() }],
+		});
+	});
+
+	test('does not resurrect a stale pre-deletion mirror during unmirrored repair', async () => {
+		const database = new FailingLegacyMirrorDatabase();
+		const store = createStore(database);
+		await store.replace(session, [{ uri: first.toString() }]);
+		database.failLegacyMirrors(1);
+		await store.remove(session, first);
+
+		const reconciled = await store.reconcileLegacy(session);
+
+		assert.deepStrictEqual({
+			reconciled,
+			central: await store.tryRead(session),
+			legacy: await store.tryReadLegacy(session),
+		}, {
+			reconciled: [],
+			central: [],
+			legacy: [],
 		});
 	});
 
@@ -358,6 +424,92 @@ suite('AgentHostPeerChatStore', () => {
 		}, {
 			entries: [],
 			raw: '[]',
+		});
+	});
+
+	test('bounds concurrent compatibility chat-metadata writes', async () => {
+		const database = new ConcurrentMetadataWriteDatabase();
+		const store = createStore(database);
+		const entries = Array.from({ length: 12 }, (_, index) => ({
+			uri: buildChatUri(session, `concurrent-${index}`),
+		}));
+
+		await store.replace(session, entries);
+
+		assert.deepStrictEqual({
+			writes: database.metadataValueWrites,
+			maxInFlight: database.maxInFlightWrites,
+		}, {
+			writes: entries.length,
+			maxInFlight: 4,
+		});
+	});
+
+	test('rejects oversized imported legacy membership without changing central authority', async () => {
+		const database = new ConcurrentMetadataWriteDatabase();
+		const store = createStore(database);
+		await store.replace(session, [{ uri: first.toString(), providerData: 'central' }]);
+		database.metadataValueWrites = 0;
+		const entries = Array.from({ length: AGENT_HOST_CATALOG_CHILD_LIMIT + 2 }, (_, index) => ({
+			uri: buildChatUri(session, `legacy-${index}`),
+			providerData: `${index}`,
+		}));
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify(entries));
+
+		const reconciled = await store.reconcileLegacy(session);
+		const central = await store.tryRead(session, false);
+
+		assert.deepStrictEqual({
+			reconciled,
+			central,
+			chatMetadataWrites: database.metadataValueWrites,
+		}, {
+			reconciled: [{ uri: first.toString(), providerData: 'central' }],
+			central: [{ uri: first.toString(), providerData: 'central' }],
+			chatMetadataWrites: 1,
+		});
+	});
+
+	test('imports at most one fewer peer than the catalog child limit', async () => {
+		const database = new ConcurrentMetadataWriteDatabase();
+		const store = createStore(database);
+		const entries = Array.from({ length: AGENT_HOST_CATALOG_CHILD_LIMIT - 1 }, (_, index) => ({
+			uri: buildChatUri(session, `legacy-${index}`),
+		}));
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify(entries));
+
+		const reconciled = await store.reconcileLegacy(session);
+
+		assert.deepStrictEqual({
+			reconciledLength: reconciled?.length,
+			compatibilityWrites: database.metadataValueWrites,
+			maxInFlightWrites: database.maxInFlightWrites,
+		}, {
+			reconciledLength: AGENT_HOST_CATALOG_CHILD_LIMIT - 1,
+			compatibilityWrites: AGENT_HOST_CATALOG_CHILD_LIMIT - 1,
+			maxInFlightWrites: 4,
+		});
+	});
+
+	test('does not truncate authoritative current membership writes', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		const entries = Array.from({ length: AGENT_HOST_CATALOG_CHILD_LIMIT + 1 }, (_, index) => ({
+			uri: buildChatUri(session, `current-${index}`),
+		}));
+
+		await store.replace(session, entries);
+		await store.reconcileLegacy(session);
+		const additional = { uri: buildChatUri(session, 'current-additional') };
+		await store.upsert(session, URI.parse(additional.uri), undefined);
+		const central = await store.tryRead(session, false);
+
+		assert.deepStrictEqual({
+			length: central?.length,
+			last: central?.at(-1),
+		}, {
+			length: entries.length + 1,
+			last: additional,
 		});
 	});
 

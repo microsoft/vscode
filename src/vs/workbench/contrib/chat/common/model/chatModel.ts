@@ -3404,7 +3404,7 @@ export function updateRanges(variableData: IChatRequestVariableData, promptText:
 			if (offset >= edit.range.endExclusive) {
 				mappedOffset += edit.newLength - oldLength;
 			} else if (offset > edit.range.start) {
-				return Math.max(0, edit.range.start - leadingTrim + Math.min(offset - edit.range.start, edit.newLength));
+				return Math.max(0, mappedOffset - (offset - edit.range.start) + Math.min(offset - edit.range.start, edit.newLength));
 			}
 		}
 		return Math.max(0, mappedOffset);

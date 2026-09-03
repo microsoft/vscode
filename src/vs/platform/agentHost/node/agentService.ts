@@ -19,7 +19,7 @@ import { localize } from '../../../nls.js';
 import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileOperationResult, type FileChangesEvent } from '../../files/common/files.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, IAgent, type IAgentAdoptedWorktree, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
+import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, IAgent, type IAgentAdoptedWorktree, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
@@ -1806,6 +1806,9 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		let status = metadata.status ?? SessionStatus.Idle;
 		let metadataFallbacks: Readonly<Record<string, string>> = {};
+		let meta = metadata._meta;
+		let centralMeta: AgentHostCatalogData['_meta'];
+		const hasLiveState = this._stateManager.getSessionState(registered.session.toString()) !== undefined;
 		const peers = database
 			? await this._readOrMigrateLegacyPeerChatCatalog(agent, registered.session, database)
 			: await this._readOrImportPeerChatCatalogWithoutLocalDatabase(agent, registered.session);
@@ -1815,7 +1818,9 @@ export class AgentService extends Disposable implements IAgentService {
 			if (decoded?.ok) {
 				status = decoded.value.data.isRead ? status | SessionStatus.IsRead : status & ~SessionStatus.IsRead;
 				status = decoded.value.data.isArchived ? status | SessionStatus.IsArchived : status & ~SessionStatus.IsArchived;
-				metadataFallbacks = this._catalogMetadataFallbacks(decoded.value.data);
+				metadataFallbacks = hasLiveState ? {} : this._catalogMetadataFallbacks(decoded.value.data);
+				centralMeta = hasLiveState ? undefined : decoded.value.data._meta;
+				meta = { ...centralMeta, ...metadata._meta };
 			}
 		}
 		return {
@@ -1827,7 +1832,7 @@ export class AgentService extends Disposable implements IAgentService {
 				project: metadata.project ? { uri: metadata.project.uri.toString(), displayName: metadata.project.displayName } : undefined,
 				workingDirectories: metadata.workingDirectories?.map(directory => directory.toString()) ?? [],
 				changes: metadata.changes,
-				meta: registered.external ? withSessionMultiRootMetadata(metadata._meta, undefined) : metadata._meta,
+				meta: registered.external ? withSessionMultiRootMetadata(meta, undefined) : meta,
 				chats: [
 					{
 						uri: buildDefaultChatUri(registered.session),
@@ -2441,6 +2446,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _buildImportedCatalogSyncRequest(provider: IAgent, metadata: IAgentSessionMetadata, external: boolean, seedExternalRead: boolean, database: AgentHostCatalogDatabaseReference | undefined, existingCatalogData?: AgentHostCatalogData): Promise<IAgentHostCatalogSyncRequest> {
 		const shouldSeedExternalRead = external && seedExternalRead;
 		const preserveCentralRead = !database && existingCatalogData !== undefined;
+		const preserveCentralMetadata = preserveCentralRead && !this._stateManager.getSessionState(metadata.session.toString());
 		const baseStatus = metadata.status ?? SessionStatus.Idle;
 		const status = !preserveCentralRead
 			? shouldSeedExternalRead ? baseStatus | SessionStatus.IsRead : baseStatus
@@ -2448,6 +2454,9 @@ export class AgentService extends Disposable implements IAgentService {
 		const peers = database
 			? await this._readOrMigrateLegacyPeerChatCatalog(provider, metadata.session, database)
 			: await this._readOrImportPeerChatCatalogWithoutLocalDatabase(provider, metadata.session);
+		const meta = preserveCentralMetadata
+			? { ...existingCatalogData._meta, ...metadata._meta }
+			: metadata._meta;
 		return this._catalogSourceResolver.buildCatalogSyncRequest(metadata.session, {
 			modifiedTime: metadata.modifiedTime,
 			title: metadata.summary,
@@ -2455,7 +2464,7 @@ export class AgentService extends Disposable implements IAgentService {
 			project: metadata.project ? { uri: metadata.project.uri.toString(), displayName: metadata.project.displayName } : undefined,
 			workingDirectories: metadata.workingDirectories?.map(directory => directory.toString()) ?? [],
 			changes: metadata.changes,
-			meta: external ? withSessionMultiRootMetadata(metadata._meta, undefined) : metadata._meta,
+			meta: external ? withSessionMultiRootMetadata(meta, undefined) : meta,
 			chats: [
 				{
 					uri: buildDefaultChatUri(metadata.session),
@@ -2470,7 +2479,7 @@ export class AgentService extends Disposable implements IAgentService {
 				})),
 			],
 		}, shouldSeedExternalRead ? { [AH_META_IS_READ_DB_KEY]: 'true' } : {}, true, database,
-			preserveCentralRead ? this._catalogMetadataFallbacks(existingCatalogData) : {});
+			preserveCentralMetadata ? this._catalogMetadataFallbacks(existingCatalogData) : {});
 	}
 
 	private _catalogMetadataFallbacks(data: AgentHostCatalogData): Readonly<Record<string, string>> {
@@ -2502,9 +2511,17 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const cached = await this._readCachedChatCatalog(session);
 		const cachedPeers = cached?.filter(chat => chat.kind === 'peer');
-		const legacy = await agent.listLegacyChatBackings?.(session) ?? [];
-		const providerData = new Map(legacy.map(chat => [chat.uri.toString(), chat.providerData]));
-		const entries: IPersistedPeerChat[] = cachedPeers?.length
+		let legacy: readonly IAgentLegacyChat[] | undefined;
+		if (cachedPeers?.length !== 0 && agent.listLegacyChatBackings) {
+			try {
+				legacy = await agent.listLegacyChatBackings(session);
+			} catch (error) {
+				this._logService.warn(`[AgentService] Failed to enumerate peer-chat membership for ${session.toString()}`, error);
+				throw error;
+			}
+		}
+		const providerData = new Map(legacy?.map(chat => [chat.uri.toString(), chat.providerData]) ?? []);
+		const entries: IPersistedPeerChat[] | undefined = cachedPeers
 			? cachedPeers.map(chat => {
 				const matchingProviderData = providerData.get(chat.uri);
 				return {
@@ -2514,13 +2531,14 @@ export class AgentService extends Disposable implements IAgentService {
 					...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
 				};
 			})
-			: legacy.map(chat => ({
+			: legacy?.map(chat => ({
 				uri: chat.uri.toString(),
 				...(chat.providerData !== undefined ? { providerData: chat.providerData } : {}),
 			}));
-		if (entries.length > 0) {
-			await this._peerChatStore.replaceForMigration(session, entries);
+		if (entries === undefined) {
+			return [];
 		}
+		await this._peerChatStore.replaceForMigration(session, entries);
 		return entries;
 	}
 
@@ -6565,8 +6583,23 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Restores authoritative central peer membership after importing cooling-period legacy changes. */
 	private async _restorePeerChats(agent: IAgent, session: URI): Promise<void> {
-		const entries = await this._readOrMigrateLegacyPeerChatCatalog(agent, session);
-		await this._restorePeerChatsFromCatalog(session, entries, await this._readCachedChatCatalog(session));
+		const cached = await this._readCachedChatCatalog(session);
+		let entries: readonly IPersistedPeerChat[];
+		try {
+			entries = await this._readOrMigrateLegacyPeerChatCatalog(agent, session);
+		} catch (error) {
+			const cachedPeers = cached?.filter(chat => chat.kind === 'peer');
+			if (!cachedPeers?.length) {
+				throw error;
+			}
+			this._logService.warn(`[AgentService] Restoring cached peer-chat membership without backing enrichment for ${session.toString()}`, error);
+			entries = await this._peerChatStore.readLocalChatMetadata(cachedPeers.map(chat => ({
+				uri: chat.uri,
+				...(chat.origin !== undefined ? { origin: chat.origin } : {}),
+				...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
+			})));
+		}
+		await this._restorePeerChatsFromCatalog(session, entries, cached);
 		await this._persistOrderedListVisibleSessionState(session, {});
 	}
 
@@ -6616,17 +6649,20 @@ export class AgentService extends Disposable implements IAgentService {
 		if (persisted !== undefined) {
 			return persisted;
 		}
-		const cached = await this._readCentralChatCatalog(session);
+		const cached = await this._readCachedChatCatalog(session);
 		if (cached?.some(chat => chat.kind === 'peer')) {
 			const projectedPeers: IPersistedPeerChat[] = cached.filter(chat => chat.kind === 'peer').map(chat => ({
 				uri: chat.uri,
 				...(chat.origin !== undefined ? { origin: chat.origin } : {}),
 				...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
 			}));
-			const legacy = await agent.listLegacyChatBackings?.(session).catch(error => {
+			let legacy: readonly IAgentLegacyChat[] = [];
+			try {
+				legacy = await agent.listLegacyChatBackings?.(session) ?? [];
+			} catch (error) {
 				this._logService.warn(`[AgentService] Failed to enrich cached peer-chat membership for ${session.toString()}`, error);
-				return [];
-			}) ?? [];
+				throw error;
+			}
 			const legacyProviderData = new Map(legacy.map(chat => [chat.uri.toString(), chat.providerData]));
 			const enrichedPeers = projectedPeers.map(peer => {
 				const providerData = legacyProviderData.get(peer.uri);
@@ -6636,7 +6672,16 @@ export class AgentService extends Disposable implements IAgentService {
 			await this._peerChatStore.replace(session, peers);
 			return peers;
 		}
-		const legacy = await agent.listLegacyChatBackings?.(session) ?? [];
+		let legacy: readonly IAgentLegacyChat[] | undefined;
+		try {
+			legacy = await agent.listLegacyChatBackings?.(session);
+		} catch (error) {
+			this._logService.warn(`[AgentService] Failed to enumerate peer-chat membership for ${session.toString()}`, error);
+			throw error;
+		}
+		if (legacy === undefined) {
+			return [];
+		}
 		const entries: IPersistedPeerChat[] = legacy.map(chat => ({
 			uri: chat.uri.toString(),
 			...(chat.providerData !== undefined ? { providerData: chat.providerData } : {}),
