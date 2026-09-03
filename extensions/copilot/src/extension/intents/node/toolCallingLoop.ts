@@ -10,7 +10,7 @@ import { IAuthenticationChatUpgradeService } from '../../../platform/authenticat
 import { IChatDebugFileLoggerService } from '../../../platform/chat/common/chatDebugFileLoggerService';
 import { IChatHookService, SessionStartHookInput, SessionStartHookOutput, StopHookInput, StopHookOutput, SubagentStartHookInput, SubagentStartHookOutput, SubagentStopHookInput, SubagentStopHookOutput } from '../../../platform/chat/common/chatHookService';
 import { FetchStreamSource, IResponsePart } from '../../../platform/chat/common/chatMLFetcher';
-import { CanceledResult, ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
+import { CanceledResult, ChatFetchResponseType, ChatLocation, ChatResponse, isVisionAttachmentInaccessibleError } from '../../../platform/chat/common/commonTypes';
 import { IHistoricalTurn, ISessionTranscriptService, ToolRequest } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { isAnthropicFamily, isGeminiFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
@@ -989,7 +989,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		if (this.autopilotRetryCount >= ToolCallingLoop.MAX_AUTOPILOT_RETRIES) {
 			return false;
 		}
-		if (isVisionAttachmentInaccessible(response)) {
+		if (isVisionAttachmentInaccessibleError(response)) {
 			return false;
 		}
 		switch (response.type) {
@@ -2434,10 +2434,3 @@ export interface IToolCallLoopResult extends IToolCallSingleResult {
 	toolCallResults: Record<string, LanguageModelToolResult2>;
 }
 
-export function isVisionAttachmentInaccessible(response: ChatResponse): boolean {
-	if (response.type !== ChatFetchResponseType.BadRequest && response.type !== ChatFetchResponseType.Failed) {
-		return false;
-	}
-	const haystack = `${response.reason ?? ''} ${response.reasonDetail ?? ''}`.toLowerCase();
-	return haystack.includes('vision_attachment_not_accessible') || (haystack.includes('attachment') && haystack.includes('not accessible'));
-}
