@@ -222,7 +222,10 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		}
 		const activeSession = this.sessionsService.activeSession.get();
 		if (activeSession === undefined || activeSession.status.get() === SessionStatus.Untitled) {
-			this.sessionsPartService.getSessionView(activeSession?.sessionId)?.selectWorkspace(folderUri, resolved.providerId, { preferDevContainer });
+			this.sessionsPartService.getSessionView(activeSession?.sessionId)?.selectWorkspace(folderUri, {
+				providerId: resolved.providerId,
+				preferDevContainer,
+			});
 		}
 		return true;
 	}

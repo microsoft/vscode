@@ -19,7 +19,7 @@ import { agentsPanelBorder } from '../../common/theme.js';
 import { IChat } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { IChatViewOptions } from './chatView.js';
+import { IChatViewOptions, ISelectWorkspaceOptions } from './chatView.js';
 import { ChatGroupView, IChatGroupContext } from './chatGroupView.js';
 import { ChatDropZone, ChatGroupDropTarget, IChatGroupDropTargetDelegate } from './chatGroupDropTarget.js';
 import { IDraggedSessionChat, isSessionChatDrag } from '../dnd.js';
@@ -792,8 +792,8 @@ export class ChatGroupsView extends Themable {
 		return this._activeGroup?.view.submitInput() ?? Promise.resolve(false);
 	}
 
-	selectWorkspace(folderUri: URI, providerId?: string, options?: { readonly preferDevContainer?: boolean }): void {
-		this._activeGroup?.view.selectWorkspace(folderUri, providerId, options);
+	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): void {
+		this._activeGroup?.view.selectWorkspace(folderUri, options);
 	}
 
 	prefillInput(text: string): void {
