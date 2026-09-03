@@ -3004,7 +3004,7 @@ per-word capitalization does not survive translation. */
 	box-sizing: border-box;
 	padding-inline: var(--vscode-spacing-size160);
 	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-agents-fontSize-body2);
+	font-size: var(--vscode-fontSize-body2);
 }
 
 .plugin-list-widget .plugin-marketplace-home-row .plugin-list-item-install-button.monaco-button {

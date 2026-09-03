@@ -42,9 +42,8 @@ export function setupCollapsibleSection(
 	initiallyCollapsed: boolean,
 	onDidChange: (collapsed: boolean) => void,
 ): HTMLButtonElement {
-	const toggle = headingRow.ownerDocument.createElement('button');
+	const toggle = $('.customization-section-toggle') as HTMLButtonElement;
 	toggle.type = 'button';
-	toggle.classList.add('customization-section-toggle');
 	headingRow.prepend(toggle);
 	content.id ||= `customization-section-content-${++collapsibleSectionIdPool}`;
 	toggle.setAttribute('aria-controls', content.id);
@@ -100,6 +99,28 @@ export function layoutVirtualizedSectionList(list: IVirtualizedSectionList, cont
 	container.style.height = `${height}px`;
 	list.layout(height, width);
 	list.scrollTop = scrollTop;
+}
+
+export function setVirtualizedRowActionsTabbable(container: HTMLElement, tabbable: boolean): void {
+	const visit = (element: Element): void => {
+		if (DOM.isHTMLElement(element)) {
+			const role = element.getAttribute('role');
+			const isAction = DOM.isHTMLButtonElement(element)
+				|| DOM.isHTMLAnchorElement(element) && element.hasAttribute('href')
+				|| role === 'button'
+				|| role === 'switch'
+				|| role === 'checkbox'
+				|| role === 'menuitem';
+			if (isAction) {
+				const disabled = DOM.isHTMLButtonElement(element) && element.disabled || element.getAttribute('aria-disabled') === 'true';
+				element.tabIndex = tabbable && !disabled ? 0 : -1;
+			}
+		}
+		for (const child of element.children) {
+			visit(child);
+		}
+	};
+	visit(container);
 }
 
 export function layoutVirtualizedSections(root: HTMLElement, sections: readonly IVirtualizedSectionLayout[]): readonly number[] {

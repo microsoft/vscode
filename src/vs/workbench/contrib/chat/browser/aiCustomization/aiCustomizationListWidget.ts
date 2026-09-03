@@ -621,6 +621,29 @@ interface ICustomizationItemGroup {
 /**
  * Widget that displays a searchable list of AI customization items.
  */
+export function getCollapsedCustomizationGroupKey(section: AICustomizationManagementSection, groupKey: string): string {
+	return `${section}:${groupKey}`;
+}
+
+export function getCustomizationItemStatusLabel(item: IAICustomizationListItem): string | undefined {
+	switch (item.status) {
+		case 'loading': return localize('customizationStatusLoading', "Loading");
+		case 'loaded': return localize('customizationStatusLoaded', "Loaded");
+		case 'degraded': return localize('customizationStatusDegraded', "Needs attention");
+		case 'error': return localize('customizationStatusError', "Error");
+		default: return undefined;
+	}
+}
+
+export function getCustomizationItemAriaLabel(item: IAICustomizationListItem): string {
+	const displayName = item.displayName ?? formatDisplayName(item.name);
+	const secondaryText = getCustomizationSecondaryText(item.description, item.filename, item.promptType);
+	const statusLabel = getCustomizationItemStatusLabel(item);
+	const accessibleSecondaryText = [secondaryText, statusLabel].filter(Boolean).join('. ');
+	const nameAndDescription = accessibleSecondaryText ? localize('itemAriaLabel', "{0}. {1}", displayName, accessibleSecondaryText) : displayName;
+	return item.disabled ? localize('itemAriaLabelDisabled', "{0}, disabled", nameAndDescription) : nameAndDescription;
+}
+
 export class AICustomizationListWidget extends Disposable {
 
 	readonly element: HTMLElement;
@@ -1535,7 +1558,7 @@ export class AICustomizationListWidget extends Disposable {
 				continue;
 			}
 
-			const collapsed = !this.usesCardLayout() && this.collapsedGroups.has(group.groupKey);
+			const collapsed = !this.usesCardLayout() && this.collapsedGroups.has(this.getCollapsedGroupKey(group.groupKey));
 
 			this.displayEntries.push({
 				type: 'group-header',
@@ -1687,6 +1710,7 @@ export class AICustomizationListWidget extends Disposable {
 		this.cardDisposables.add(contentResizeObserver.observe(content));
 
 		for (const group of visibleGroups) {
+			const collapsedGroupKey = this.getCollapsedGroupKey(group.groupKey);
 			const section = DOM.append(content, $('.plugin-card-section.customization-card-section'));
 			const header = DOM.append(section, $('.plugin-card-section-header'));
 			const text = DOM.append(header, $('.plugin-card-section-text'));
@@ -1711,12 +1735,12 @@ export class AICustomizationListWidget extends Disposable {
 				inventory,
 				group.label,
 				this.cardDisposables,
-				this.collapsedGroups.has(group.groupKey),
+				this.collapsedGroups.has(collapsedGroupKey),
 				collapsed => {
 					if (collapsed) {
-						this.collapsedGroups.add(group.groupKey);
+						this.collapsedGroups.add(collapsedGroupKey);
 					} else {
-						this.collapsedGroups.delete(group.groupKey);
+						this.collapsedGroups.delete(collapsedGroupKey);
 					}
 					this.layoutCardSectionLists();
 					this.cardScrollable.scanDomNode();
@@ -1762,12 +1786,7 @@ export class AICustomizationListWidget extends Disposable {
 			{
 				identityProvider: { getId: entry => entry.item.id },
 				accessibilityProvider: {
-					getAriaLabel: entry => {
-						const displayName = entry.item.displayName ?? formatDisplayName(entry.item.name);
-						const secondaryText = getCustomizationSecondaryText(entry.item.description, entry.item.filename, entry.item.promptType);
-						const nameAndDescription = secondaryText ? localize('itemAriaLabel', "{0}. {1}", displayName, secondaryText) : displayName;
-						return entry.item.disabled ? localize('itemAriaLabelDisabled', "{0}, disabled", nameAndDescription) : nameAndDescription;
-					},
+					getAriaLabel: entry => getCustomizationItemAriaLabel(entry.item),
 					getWidgetAriaLabel: () => label,
 					getSetSize: (_entry, _index, listLength) => listLength,
 					getPosInSet: (_entry, index) => index + 1,
@@ -1998,7 +2017,7 @@ export class AICustomizationListWidget extends Disposable {
 		row.classList.toggle('disabled', item.disabled);
 		const displayName = item.displayName ?? formatDisplayName(item.name);
 		const secondaryText = getCustomizationSecondaryText(item.description, item.filename, item.promptType);
-		const statusLabel = this.getItemStatusLabel(item);
+		const statusLabel = getCustomizationItemStatusLabel(item);
 		const accessibleSecondaryText = [secondaryText, statusLabel].filter(Boolean).join('. ');
 		const accessibleLabel = item.disabled
 			? localize('customizationCardAriaLabelDisabled', "{0}. {1}. Disabled", displayName, accessibleSecondaryText || groupLabel)
@@ -2072,16 +2091,6 @@ export class AICustomizationListWidget extends Disposable {
 		});
 	}
 
-	private getItemStatusLabel(item: IAICustomizationListItem): string | undefined {
-		switch (item.status) {
-			case 'loading': return localize('customizationStatusLoading', "Loading");
-			case 'loaded': return localize('customizationStatusLoaded', "Loaded");
-			case 'degraded': return localize('customizationStatusDegraded', "Needs attention");
-			case 'error': return localize('customizationStatusError', "Error");
-			default: return undefined;
-		}
-	}
-
 	/**
 	 * Filters items based on the current search query and builds grouped display entries.
 	 */
@@ -2096,12 +2105,17 @@ export class AICustomizationListWidget extends Disposable {
 	 * Toggles the collapsed state of a group.
 	 */
 	private toggleGroup(entry: IGroupHeaderEntry): void {
-		if (this.collapsedGroups.has(entry.groupKey)) {
-			this.collapsedGroups.delete(entry.groupKey);
+		const collapsedGroupKey = this.getCollapsedGroupKey(entry.groupKey);
+		if (this.collapsedGroups.has(collapsedGroupKey)) {
+			this.collapsedGroups.delete(collapsedGroupKey);
 		} else {
-			this.collapsedGroups.add(entry.groupKey);
+			this.collapsedGroups.add(collapsedGroupKey);
 		}
 		this.filterItems();
+	}
+
+	private getCollapsedGroupKey(groupKey: string): string {
+		return getCollapsedCustomizationGroupKey(this.currentSection, groupKey);
 	}
 
 	private updateEmptyState(): void {

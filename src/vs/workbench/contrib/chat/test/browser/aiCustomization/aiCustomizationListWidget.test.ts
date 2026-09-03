@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getTargetedCreateActionLabel, usesCustomizationCardLayout } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
+import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getTargetedCreateActionLabel, usesCustomizationCardLayout } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
 import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
@@ -26,7 +26,7 @@ import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/se
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setupCollapsibleSection } from '../../../browser/aiCustomization/customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from '../../../browser/aiCustomization/customizationCardList.js';
 
 suite('aiCustomizationListWidget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -139,6 +139,85 @@ suite('aiCustomizationListWidget', () => {
 		} finally {
 			disposables.dispose();
 		}
+	});
+
+	test('collapsible sections create disclosures outside auxiliary document realms', () => {
+		const disposables = new DisposableStore();
+		const auxiliaryDocument = document.implementation.createHTMLDocument();
+		const heading = auxiliaryDocument.createElement('div');
+		const content = auxiliaryDocument.createElement('div');
+		Object.defineProperty(auxiliaryDocument, 'createElement', {
+			configurable: true,
+			value: () => {
+				throw new Error('Auxiliary documents must not create workbench controls');
+			},
+		});
+
+		try {
+			const toggle = setupCollapsibleSection(heading, content, 'Workspace', disposables, false, () => { });
+			assert.deepStrictEqual({
+				ownerDocument: toggle.ownerDocument === auxiliaryDocument,
+				parent: toggle.parentElement === heading,
+				expanded: toggle.getAttribute('aria-expanded'),
+			}, {
+				ownerDocument: true,
+				parent: true,
+				expanded: 'true',
+			});
+		} finally {
+			disposables.dispose();
+		}
+	});
+
+	test('collapsed groups are scoped to their customization page', () => {
+		assert.deepStrictEqual({
+			agents: getCollapsedCustomizationGroupKey(AICustomizationManagementSection.Agents, PromptsStorage.local),
+			skills: getCollapsedCustomizationGroupKey(AICustomizationManagementSection.Skills, PromptsStorage.local),
+		}, {
+			agents: 'agents:local',
+			skills: 'skills:local',
+		});
+	});
+
+	test('virtualized customization labels include item status', () => {
+		const item: IAICustomizationListItem = {
+			id: 'prompt',
+			uri: URI.file('Q:\\workspace\\.github\\prompts\\review.prompt.md'),
+			name: 'review',
+			displayName: 'Review',
+			filename: 'review.prompt.md',
+			description: 'Review the current changes',
+			source: PromptsStorage.local,
+			promptType: PromptsType.prompt,
+			disabled: false,
+			status: 'degraded',
+		};
+
+		assert.strictEqual(getCustomizationItemAriaLabel(item), 'Review. Review the current changes. Needs attention');
+	});
+
+	test('virtualized row actions use a focused-row tab stop and skip disabled controls', () => {
+		const actions = document.createElement('div');
+		const action = document.createElement('a');
+		action.setAttribute('role', 'button');
+		const toggle = document.createElement('div');
+		toggle.setAttribute('role', 'switch');
+		const disabledAction = document.createElement('a');
+		disabledAction.setAttribute('role', 'button');
+		disabledAction.setAttribute('aria-disabled', 'true');
+		actions.append(action, toggle, disabledAction);
+
+		setVirtualizedRowActionsTabbable(actions, true);
+		const focused = [action.tabIndex, toggle.tabIndex, disabledAction.tabIndex];
+		setVirtualizedRowActionsTabbable(actions, false);
+
+		assert.deepStrictEqual({
+			focused,
+			unfocused: [action.tabIndex, toggle.tabIndex, disabledAction.tabIndex],
+		}, {
+			focused: [0, 0, -1],
+			unfocused: [-1, -1, -1],
+		});
 	});
 
 	test('virtualized section height is redistributed when a sibling collapses', () => {

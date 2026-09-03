@@ -130,11 +130,14 @@ interface IToolsSetRowTemplateData {
 	readonly chevron: HTMLElement;
 	readonly templateDisposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
+	currentIndex: number;
 }
 
 /** Renders a tool-set header row: checkbox/tri-state, name + detail, enabled count, more actions, chevron. */
 class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetRowTemplateData> {
 	readonly templateId = TOOLS_SET_ROW_TEMPLATE_ID;
+	private readonly _templates = new Set<IToolsSetRowTemplateData>();
+	private _focusedIndex = -1;
 
 	constructor(
 		private readonly _sessionType: string,
@@ -166,17 +169,21 @@ class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetR
 
 		const moreButton = DOM.append(container, $('button.tools-list-more-action')) as HTMLButtonElement;
 		moreButton.type = 'button';
+		moreButton.tabIndex = -1;
 		moreButton.classList.add(...ThemeIcon.asClassNameArray(Codicon.ellipsis));
 		templateDisposables.add(DOM.addDisposableGenericMouseDownListener(moreButton, event => DOM.EventHelper.stop(event, true)));
 
 		const chevron = DOM.append(container, $('a.tools-list-chevron.codicon')) as HTMLAnchorElement;
 		chevron.setAttribute('aria-hidden', 'true');
 
-		return { container, checkbox, label, subtext, count, alwaysAvailable, moreButton, chevron, templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()) };
+		const template = { container, checkbox, label, subtext, count, alwaysAvailable, moreButton, chevron, templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()), currentIndex: -1 };
+		this._templates.add(template);
+		return template;
 	}
 
-	renderElement(entry: IToolsSetRowEntry, _index: number, data: IToolsSetRowTemplateData): void {
+	renderElement(entry: IToolsSetRowEntry, index: number, data: IToolsSetRowTemplateData): void {
 		data.elementDisposables.clear();
+		data.currentIndex = index;
 		data.container.removeAttribute('aria-selected');
 		const vm = entry.vm;
 		const ts = vm.toolSet;
@@ -219,6 +226,7 @@ class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetR
 
 		const extension = this._resolveExtension(ts);
 		data.moreButton.style.display = extension ? '' : 'none';
+		data.moreButton.tabIndex = extension && index === this._focusedIndex ? 0 : -1;
 		if (extension) {
 			const moreLabel = localize('toolsSetMoreActions', "More actions for {0}", setName);
 			data.moreButton.setAttribute('aria-label', moreLabel);
@@ -238,7 +246,15 @@ class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetR
 		}));
 	}
 
+	setFocusedIndex(index: number): void {
+		this._focusedIndex = index;
+		for (const template of this._templates) {
+			template.moreButton.tabIndex = template.moreButton.style.display !== 'none' && template.currentIndex === index ? 0 : -1;
+		}
+	}
+
 	disposeTemplate(data: IToolsSetRowTemplateData): void {
+		this._templates.delete(data);
 		data.templateDisposables.dispose();
 	}
 }
@@ -900,20 +916,21 @@ export class ToolsListWidget extends Disposable {
 	private _createToolsSectionList(sectionEl: HTMLElement, label: string, setVms: readonly IToolSetViewModel[]): IToolsSectionList {
 		const listContainer = DOM.append(sectionEl, $('.tools-inventory-list'));
 
+		const setRenderer = new ToolsSetRowRenderer(
+			this._sessionType,
+			this._enablementService,
+			(vm, reader) => vm.forceExpanded || this._expanded.read(reader).has(vm.toolSet.id),
+			setId => this._toggleCollapsed(setId),
+			ts => this._resolveExtensionForToolSet(ts),
+			(anchor, extension) => this._showExtensionContextMenu(anchor, extension),
+		);
 		const list = this._rowStore.add(this._instantiationService.createInstance(
 			WorkbenchList<IToolsRowEntry>,
 			'ToolsSectionList',
 			listContainer,
 			new ToolsRowDelegate(),
 			[
-				new ToolsSetRowRenderer(
-					this._sessionType,
-					this._enablementService,
-					(vm, reader) => vm.forceExpanded || this._expanded.read(reader).has(vm.toolSet.id),
-					setId => this._toggleCollapsed(setId),
-					ts => this._resolveExtensionForToolSet(ts),
-					(anchor, extension) => this._showExtensionContextMenu(anchor, extension),
-				),
+				setRenderer,
 				new ToolsToolRowRenderer(this._sessionType, this._enablementService),
 			],
 			{
@@ -949,6 +966,7 @@ export class ToolsListWidget extends Disposable {
 				list.setSelection([]);
 			}
 		}));
+		this._rowStore.add(list.onDidChangeFocus(event => setRenderer.setFocusedIndex(event.indexes[0] ?? -1)));
 
 		// Captured (via a capture-phase listener on an ancestor of the list, so it runs strictly before
 		// the list's own bubble-phase key handler) so Up/Down at a section's edge can be told apart from

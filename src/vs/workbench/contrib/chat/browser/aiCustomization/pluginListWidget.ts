@@ -15,7 +15,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
@@ -46,7 +46,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setupCollapsibleSection } from './customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from './customizationCardList.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 
@@ -310,13 +310,13 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		}
 		DOM.clearNode(templateData.actions);
 		this._renderActions(element.item, templateData.container, templateData.actions, templateData.disposables);
-		setPluginRowActionsTabbable(templateData.actions, index === this._focusedIndex);
+		setVirtualizedRowActionsTabbable(templateData.actions, index === this._focusedIndex);
 	}
 
 	setFocusedIndex(index: number): void {
 		this._focusedIndex = index;
 		for (const template of this._templates) {
-			setPluginRowActionsTabbable(template.actions, template.currentIndex === index);
+			setVirtualizedRowActionsTabbable(template.actions, template.currentIndex === index);
 		}
 	}
 
@@ -422,13 +422,13 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 		}
 		DOM.clearNode(templateData.actions);
 		this._renderActions(element.item, templateData.actions, templateData.disposables);
-		setPluginRowActionsTabbable(templateData.actions, index === this._focusedIndex);
+		setVirtualizedRowActionsTabbable(templateData.actions, index === this._focusedIndex);
 	}
 
 	setFocusedIndex(index: number): void {
 		this._focusedIndex = index;
 		for (const template of this._templates) {
-			setPluginRowActionsTabbable(template.actions, template.currentIndex === index);
+			setVirtualizedRowActionsTabbable(template.actions, template.currentIndex === index);
 		}
 	}
 
@@ -471,6 +471,7 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 		private readonly agentPluginService: IAgentPluginService,
 		private readonly pluginMarketplaceService: IPluginMarketplaceService,
 		private readonly notificationService: INotificationService,
+		private readonly showRecommendedBadge = true,
 	) { }
 
 	renderTemplate(container: HTMLElement): IPluginMarketplaceItemTemplateData {
@@ -501,7 +502,7 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 		templateData.currentIndex = index;
 
 		templateData.name.textContent = element.item.name;
-		templateData.recommendedBadge.style.display = this.isRecommended(element.item) ? '' : 'none';
+		templateData.recommendedBadge.style.display = this.showRecommendedBadge && this.isRecommended(element.item) ? '' : 'none';
 		templateData.publisher.textContent = '';
 		templateData.publisher.style.display = 'none';
 		templateData.description.textContent = element.item.description || '';
@@ -523,13 +524,13 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 		if (isAlreadyInstalled) {
 			templateData.installButton.label = localize('installed', "Installed");
 			templateData.installButton.enabled = false;
-			templateData.installButton.element.tabIndex = index === this._focusedIndex ? 0 : -1;
+			this.updateInstallButtonTabbability(templateData);
 			return;
 		}
 
 		templateData.installButton.label = localize('install', "Install");
 		templateData.installButton.enabled = true;
-		templateData.installButton.element.tabIndex = index === this._focusedIndex ? 0 : -1;
+		this.updateInstallButtonTabbability(templateData);
 
 		templateData.elementDisposables.add(templateData.installButton.onDidClick(async event => {
 			DOM.EventHelper.stop(event, true);
@@ -548,9 +549,11 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 					readmeUri: element.item.readmeUri,
 				});
 				templateData.installButton.label = localize('installed', "Installed");
+				this.updateInstallButtonTabbability(templateData);
 			} catch (error) {
 				templateData.installButton.label = localize('install', "Install");
 				templateData.installButton.enabled = true;
+				this.updateInstallButtonTabbability(templateData);
 				this.notificationService.error(localize('pluginInstallFailed', "Unable to install plugin: {0}", getErrorMessage(error)));
 			}
 		}));
@@ -559,8 +562,12 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 	setFocusedIndex(index: number): void {
 		this._focusedIndex = index;
 		for (const template of this._templates) {
-			template.installButton.element.tabIndex = template.currentIndex === index ? 0 : -1;
+			this.updateInstallButtonTabbability(template);
 		}
+	}
+
+	private updateInstallButtonTabbability(templateData: IPluginMarketplaceItemTemplateData): void {
+		templateData.installButton.element.tabIndex = templateData.installButton.enabled && templateData.currentIndex === this._focusedIndex ? 0 : -1;
 	}
 
 	private isRecommended(item: IMarketplacePluginItem): boolean {
@@ -572,18 +579,6 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 		templateData.elementDisposables.dispose();
 		templateData.templateDisposables.dispose();
 	}
-}
-
-function setPluginRowActionsTabbable(container: HTMLElement, tabbable: boolean): void {
-	const visit = (element: Element): void => {
-		if (DOM.isHTMLButtonElement(element) || DOM.isHTMLAnchorElement(element) && element.hasAttribute('href')) {
-			element.tabIndex = tabbable ? 0 : -1;
-		}
-		for (const child of element.children) {
-			visit(child);
-		}
-	};
-	visit(container);
 }
 
 //#endregion
@@ -1366,7 +1361,7 @@ export class PluginListWidget extends Disposable {
 		return list;
 	}
 
-	private createPluginSectionList(container: HTMLElement, label: string, entries: readonly IPluginListEntry[]): void {
+	private createPluginSectionList(container: HTMLElement, label: string, entries: readonly IPluginListEntry[], showRecommendedBadge = true): void {
 		const key = container.dataset.virtualizedSectionKey ?? label;
 		const delegate = new PluginItemDelegate();
 		container.style.height = `${entries.length > 0 ? delegate.getHeight(entries[0]) : PLUGIN_ITEM_HEIGHT}px`;
@@ -1377,7 +1372,7 @@ export class PluginListWidget extends Disposable {
 		container.removeAttribute('aria-label');
 		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService, (item, row, actions, disposables) => this.renderInstalledListActions(item, row, actions, disposables), false);
 		const remoteRenderer = new PluginRemoteItemRenderer((item, actions, disposables) => this.renderRemoteListActions(item, actions, disposables));
-		const marketplaceRenderer = new PluginMarketplaceItemRenderer(this.pluginInstallService, this.agentPluginService, this.pluginMarketplaceService, this.notificationService);
+		const marketplaceRenderer = new PluginMarketplaceItemRenderer(this.pluginInstallService, this.agentPluginService, this.pluginMarketplaceService, this.notificationService, showRecommendedBadge);
 		const list = this.cardDisposables.add(this.instantiationService.createInstance(
 			WorkbenchList<IPluginListEntry>,
 			`PluginManagementList.${label}`,
@@ -1427,7 +1422,7 @@ export class PluginListWidget extends Disposable {
 		}
 	}
 
-	private getPluginEntryAriaLabel(element: IPluginListEntry): string {
+	private getPluginEntryAriaLabel(element: IPluginListEntry): string | IObservable<string> {
 		if (element.type === 'group-header' || element.type === 'search-header') {
 			return element.label;
 		}
@@ -1437,9 +1432,9 @@ export class PluginListWidget extends Disposable {
 		if (element.type === 'plugin-item') {
 			const metadata = getInstalledPluginMetadata(element.item);
 			const withMetadata = metadata ? localize('pluginInstalledItemAriaLabelWithMetadata', "{0}. {1}", nameAndDescription, metadata) : nameAndDescription;
-			return isContributionEnabled(element.item.plugin.enablement.get())
+			return derived(this, reader => isContributionEnabled(element.item.plugin.enablement.read(reader))
 				? localize('pluginInstalledItemAriaLabelEnabled', "{0}. Enabled", withMetadata)
-				: localize('pluginInstalledItemAriaLabelDisabled', "{0}. Disabled", withMetadata);
+				: localize('pluginInstalledItemAriaLabelDisabled', "{0}. Disabled", withMetadata));
 		}
 		if (element.type === 'remote-item') {
 			const statusLabel = getRemotePluginStatusLabel(element.item);
@@ -1832,38 +1827,8 @@ export class PluginListWidget extends Disposable {
 		});
 	}
 
-	private appendMarketplacePluginCard(parent: HTMLElement, item: IMarketplacePluginItem, showRecommendedBadge = true): void {
-		const card = DOM.append(parent, $('.plugin-card.plugin-marketplace-card'));
-		const header = DOM.append(card, $('.plugin-card-header'));
-		const titleBlock = this.addSurfaceActivation(header, localize('marketplacePluginCardAriaLabel', "{0}. Available to install from {1}.", item.name, item.marketplace), () => this._onDidSelectPlugin.fire(item), 'plugin-card-title-block');
-		const name = DOM.append(titleBlock, $('.plugin-card-title'));
-		name.textContent = item.name;
-		name.title = item.name;
-		const descriptionLine = DOM.append(titleBlock, $('.plugin-card-subtitle'));
-		descriptionLine.textContent = truncateToFirstLine(item.description || localize('pluginNoDescription', "No description provided."));
-		const actions = DOM.append(header, $('.plugin-card-actions'));
-		const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, ariaLabel: localize('installPluginAria', "Install {0}", item.name) }));
-		install.label = localize('install', "Install");
-		this.cardDisposables.add(install.onDidClick(() => this.installMarketplacePlugin(item, install)));
-		if (showRecommendedBadge && this.pluginMarketplaceService.recommendedPlugins.get().has(getMarketplaceRecommendationKey(item))) {
-			const badges = DOM.append(card, $('.plugin-card-badges'));
-			this.appendCardBadge(badges, localize('recommendedBadge', "Recommended"));
-		}
-		this.cardListControllers.get(parent)?.addItem({
-			row: card,
-			primaryAction: titleBlock,
-			label: item.name,
-			actions: [install.element],
-		});
-	}
-
 	private rememberCardFocusElement(element: HTMLElement): void {
 		this.firstCardFocusElement ??= element;
-	}
-
-	private appendCardBadge(parent: HTMLElement, label: string): void {
-		const badge = DOM.append(parent, $('.inline-badge.plugin-card-badge'));
-		badge.textContent = label;
 	}
 
 	private renderDiscoverySnapshot(parent: HTMLElement): void {
@@ -1886,10 +1851,8 @@ export class PluginListWidget extends Disposable {
 			localize('discoverMorePluginsDescription', "Curated plugins that add tools and expertise."),
 			'plugin-discovery-section',
 		);
-		for (const item of snapshotItems) {
-			this.appendMarketplacePluginCard(grid, item, false);
-		}
-		this.cardListControllers.get(grid)?.finalize();
+		grid.classList.add('plugin-inventory-list');
+		this.createPluginSectionList(grid, localize('featuredPlugins', "Featured"), snapshotItems.map(item => ({ type: 'marketplace-item', item })), false);
 	}
 
 	private renderDiscoveryError(parent: HTMLElement): void {
@@ -1926,7 +1889,7 @@ export class PluginListWidget extends Disposable {
 		}
 
 		this.showCardSurface();
-		const content = this.createCardScrollContent();
+		const content = this.createCardScrollContent('distributed-section-layout');
 		const recommendedKeys = this.pluginMarketplaceService.recommendedPlugins.get();
 		const recommended = marketplaceItems.filter(item => recommendedKeys.has(getMarketplaceRecommendationKey(item)));
 		const allPlugins = marketplaceItems.filter(item => !recommendedKeys.has(getMarketplaceRecommendationKey(item)));
@@ -1937,10 +1900,8 @@ export class PluginListWidget extends Disposable {
 				localize('recommendedGroupDescription', "Plugins recommended by workspace configuration."),
 				'plugin-marketplace-recommended-section'
 			);
-			for (const item of recommended) {
-				this.appendMarketplacePluginCard(recommendedGrid, item);
-			}
-			this.cardListControllers.get(recommendedGrid)?.finalize();
+			recommendedGrid.classList.add('plugin-inventory-list');
+			this.createPluginSectionList(recommendedGrid, localize('recommendedGroup', "Recommended for this workspace"), recommended.map(item => ({ type: 'marketplace-item', item })));
 		}
 		const allGrid = this.renderCardSection(
 			content,
@@ -1948,10 +1909,11 @@ export class PluginListWidget extends Disposable {
 			localize('allMarketplaceGroupDescription', "Plugins available from configured marketplaces."),
 			'plugin-marketplace-all-section'
 		);
-		for (const item of allPlugins) {
-			this.appendMarketplacePluginCard(allGrid, item);
-		}
-		this.cardListControllers.get(allGrid)?.finalize();
+		allGrid.classList.add('plugin-inventory-list');
+		this.createPluginSectionList(allGrid, localize('allMarketplaceGroup', "All plugins"), allPlugins.map(item => ({ type: 'marketplace-item', item })));
+		this.layoutPluginSectionLists();
+		this.cardScrollable.scanDomNode();
+		this.schedulePluginSectionLayout();
 	}
 
 	private getUninstalledMarketplaceItems(items: readonly IMarketplacePluginItem[] = this.marketplaceItems): IMarketplacePluginItem[] {
