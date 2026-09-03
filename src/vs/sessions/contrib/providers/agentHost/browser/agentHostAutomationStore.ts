@@ -5,6 +5,7 @@
 
 import { disposableTimeout, timeout } from '../../../../../base/common/async.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
+import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable, type IReference } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, type IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -23,7 +24,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import type { AutomationRunTrigger, AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationActiveRunError, type AutomationMutationGuard, type IAutomationRunClaim, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, isAutomationActiveRunError, serializeAutomationEditableState, type IUpdateAutomationOptions, type IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { type AutomationCatalogueState, AutomationActiveRunError, type AutomationMutationGuard, type IAutomationRunClaim, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, isAutomationActiveRunError, serializeAutomationEditableState, type IUpdateAutomationOptions, type IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { publishAutomationMigration } from '../../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
 import { ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import type { IAutomation, IAutomationSnapshotImportResult, IGuardedAutomationSnapshotRemovalResult, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -77,6 +78,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	private readonly _catalogReference: IReference<IAgentSubscription<AutomationState>>;
 	private readonly _catalog: IAgentSubscription<AutomationState>;
 	private readonly _catalogChanged;
+	private readonly _catalogError;
 	private readonly _ready = observableValue(this, false);
 	private readonly _runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
 	private readonly _pendingWaits = this._register(new DisposableMap<number, DisposableStore>());
@@ -88,6 +90,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
+	readonly catalogueState: IObservable<AutomationCatalogueState>;
 
 	constructor(
 		private readonly _providerId: string,
@@ -116,6 +119,15 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		));
 		this._catalog = this._catalogReference.object;
 		this._catalogChanged = observableSignalFromEvent(this, this._catalog.onDidChange);
+		this._catalogError = observableSignalFromEvent(this, this._catalog.onDidError ?? Event.None);
+		this.catalogueState = derived(this, reader => {
+			this._catalogChanged.read(reader);
+			this._catalogError.read(reader);
+			if (this._catalog.value instanceof Error) {
+				return 'error';
+			}
+			return this._catalog.verifiedValue ? 'ready' : 'loading';
+		});
 		if (this._catalog.onDidError) {
 			this._register(this._catalog.onDidError(error => this._logService.error(`[AgentHostAutomationStore] Catalogue subscription failed: ${error.message}`)));
 		}

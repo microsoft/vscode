@@ -7,11 +7,11 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, type IReference } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY } from '../../../../../../platform/agentHost/common/automationMigration.js';
@@ -32,14 +32,18 @@ import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/co
 import { TestAutomationStorageService } from '../../../../automations/test/browser/automationTestUtils.js';
 import { AutomationStore } from '../../../../automations/browser/automationService.js';
 import { ReconnectableAgentHostAutomationStore } from '../../browser/reconnectableAgentHostAutomationStore.js';
+import type { AutomationCatalogueState } from '../../../../../../workbench/contrib/chat/common/automations/automationService.js';
 
 class TestAutomationConnection {
 
 	private readonly _onDidAction = new Emitter<ActionEnvelope>();
 	readonly onDidAction = this._onDidAction.event;
 	private readonly _onDidCatalogChange = new Emitter<AutomationState>();
+	private readonly _onDidCatalogError = new Emitter<Error>();
 	private readonly _onDidRootChange = new Emitter<RootState>();
 	private _catalog: AutomationState = { entries: [] };
+	private _catalogError: Error | undefined;
+	private _catalogAvailable: boolean;
 	private _root: RootState;
 	private _serverSeq = 0;
 	private _migrationComplete: boolean;
@@ -53,8 +57,9 @@ class TestAutomationConnection {
 	updateError: Error | undefined;
 	readonly createRequested = new DeferredPromise<void>();
 
-	constructor(migrationComplete: boolean) {
+	constructor(migrationComplete: boolean, catalogAvailable = true) {
 		this._migrationComplete = migrationComplete;
+		this._catalogAvailable = catalogAvailable;
 		this._root = {
 			agents: [],
 			activeSessions: 0,
@@ -92,14 +97,25 @@ class TestAutomationConnection {
 		const connection = this;
 		return {
 			object: {
-				get value() { return connection._catalog; },
-				get verifiedValue() { return connection._catalog; },
+				get value() { return connection._catalogError ?? (connection._catalogAvailable ? connection._catalog : undefined); },
+				get verifiedValue() { return connection._catalogAvailable ? connection._catalog : undefined; },
 				onDidChange: this._onDidCatalogChange.event,
+				onDidError: this._onDidCatalogError.event,
 				onWillApplyAction: Event.None,
 				onDidApplyAction: Event.None,
 			},
 			dispose: () => { },
 		};
+	}
+
+	setCatalogError(error: Error): void {
+		this._catalogError = error;
+		this._onDidCatalogError.fire(error);
+	}
+
+	setCatalogAvailable(): void {
+		this._catalogAvailable = true;
+		this._onDidCatalogChange.fire(this._catalog);
 	}
 
 	dispatch(channel: string, action: Parameters<IAgentConnection['dispatch']>[1]): void {
@@ -269,6 +285,7 @@ class TestAutomationConnection {
 	dispose(): void {
 		this._onDidAction.dispose();
 		this._onDidCatalogChange.dispose();
+		this._onDidCatalogError.dispose();
 		this._onDidRootChange.dispose();
 	}
 }
@@ -392,6 +409,48 @@ suite('AgentHostAutomationStore', () => {
 		};
 	}
 
+	test('reports loading until the authoritative catalogue is ready', () => {
+		const connection = new TestAutomationConnection(false, false);
+		disposables.add(connection);
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+		const loading = store.catalogueState.get();
+		connection.setCatalogAvailable();
+
+		assert.deepStrictEqual({
+			loading,
+			afterSnapshot: store.catalogueState.get(),
+		}, {
+			loading: 'loading',
+			afterSnapshot: 'ready',
+		});
+	});
+
+	test('reports catalogue errors after the ready state was observed', async () => {
+		const connection = new TestAutomationConnection(true);
+		disposables.add(connection);
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+		await store.createAutomation({
+			name: 'Review changes',
+			prompt: 'Review the current changes.',
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+		});
+		const ready = store.catalogueState.get();
+		connection.setCatalogError(new Error('catalogue unavailable'));
+
+		assert.deepStrictEqual({
+			ready,
+			afterError: store.catalogueState.get(),
+		}, {
+			ready: 'ready',
+			afterError: 'error',
+		});
+	});
+
 	test('uses the exact catalogue channel and projects authoritative creates', async () => {
 		const connection = new TestAutomationConnection(true);
 		disposables.add(connection);
@@ -411,6 +470,7 @@ suite('AgentHostAutomationStore', () => {
 		const trigger = create.type === ActionType.AutomationCreateRequested ? create.definition.triggers[0] : undefined;
 
 		assert.deepStrictEqual({
+			catalogueState: store.catalogueState.get(),
 			subscribedChannel: connection.subscribedChannel,
 			dispatchChannel: connection.dispatched[0].channel,
 			definitionMeta: create.type === ActionType.AutomationCreateRequested ? create.definition._meta : undefined,
@@ -424,6 +484,7 @@ suite('AgentHostAutomationStore', () => {
 				enabled: automation.enabled,
 			},
 		}, {
+			catalogueState: 'ready',
 			subscribedChannel: URI.parse(AUTOMATION_CATALOG_URI).toString(),
 			dispatchChannel: AUTOMATION_CATALOG_URI,
 			definitionMeta: undefined,
@@ -1631,6 +1692,131 @@ suite('AgentHostAutomationStore', () => {
 		}, {
 			subscriptions: URI.parse(AUTOMATION_CATALOG_URI).toString(),
 			completionRequests: 1,
+		});
+	});
+
+	test('reports disconnected authority as non-authoritative without a false-ready emission', async () => {
+		const connection = disposables.add(new TestAutomationConnection(true));
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const legacy = disposables.add(new AutomationStore(providerAutomationStorageKey('local-agent-host'), storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const configurationService = new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: true });
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IStorageService, storage);
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IAutomationStorageService, automationStorage);
+		const store = disposables.add(new ReconnectableAgentHostAutomationStore(
+			'local-agent-host',
+			legacy,
+			undefined,
+			instantiationService,
+			new NullLogService(),
+			configurationService,
+		));
+		const emissions: { automationCount: number; catalogueState: AutomationCatalogueState }[] = [];
+		disposables.add(autorun(reader => {
+			emissions.push({
+				automationCount: store.automations.read(reader).length,
+				catalogueState: store.catalogueState.read(reader),
+			});
+		}));
+		const initiallyDisconnected = store.catalogueState.get();
+		const emissionsBeforeConnect = emissions.length;
+		store.setConnection(connection);
+		const connectEmissions = emissions.slice(emissionsBeforeConnect);
+		await store.createAutomation({
+			name: 'Host automation',
+			prompt: 'Review changes.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+		});
+		const connected = store.catalogueState.get();
+		const emissionsBeforeDisconnect = emissions.length;
+		store.clearConnection();
+		const disconnectEmissions = emissions.slice(emissionsBeforeDisconnect);
+
+		assert.deepStrictEqual({
+			initiallyDisconnected,
+			connectEmissions,
+			connected,
+			afterDisconnect: store.catalogueState.get(),
+			disconnectEmissions,
+		}, {
+			initiallyDisconnected: 'loading',
+			connectEmissions: [{ automationCount: 0, catalogueState: 'ready' }],
+			connected: 'ready',
+			afterDisconnect: 'loading',
+			disconnectEmissions: [{ automationCount: 0, catalogueState: 'loading' }],
+		});
+	});
+
+	test('transitions to unsupported and disabled authority atomically', async () => {
+		const connection = disposables.add(new TestAutomationConnection(true));
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const legacy = disposables.add(new AutomationStore(providerAutomationStorageKey('local-agent-host'), storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const configurationService = new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: true });
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IStorageService, storage);
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IAutomationStorageService, automationStorage);
+		const store = disposables.add(new ReconnectableAgentHostAutomationStore(
+			'local-agent-host',
+			legacy,
+			undefined,
+			instantiationService,
+			new NullLogService(),
+			configurationService,
+		));
+		store.setConnection(connection);
+		await store.createAutomation({
+			name: 'Host automation',
+			prompt: 'Review changes.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+		});
+		const emissions: { automationCount: number; catalogueState: AutomationCatalogueState }[] = [];
+		disposables.add(autorun(reader => {
+			emissions.push({
+				automationCount: store.automations.read(reader).length,
+				catalogueState: store.catalogueState.read(reader),
+			});
+		}));
+
+		const beforeUnsupported = emissions.length;
+		connection.initializeResult.set({
+			protocolVersion: '1',
+			serverSeq: 0,
+			snapshots: [],
+		}, undefined);
+		const unsupportedEmissions = emissions.slice(beforeUnsupported);
+
+		connection.initializeResult.set({
+			protocolVersion: '1',
+			serverSeq: 0,
+			snapshots: [],
+			automations: { create: {}, runCancellation: {} },
+		}, undefined);
+		const beforeDisabled = emissions.length;
+		await configurationService.setUserConfiguration(CHAT_AUTOMATIONS_ENABLED_SETTING, false);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([CHAT_AUTOMATIONS_ENABLED_SETTING]),
+			change: { keys: [CHAT_AUTOMATIONS_ENABLED_SETTING], overrides: [] },
+			affectsConfiguration: candidate => candidate === CHAT_AUTOMATIONS_ENABLED_SETTING,
+		});
+		const disabledEmissions = emissions.slice(beforeDisabled);
+
+		assert.deepStrictEqual({
+			unsupportedEmissions,
+			disabledEmissions,
+		}, {
+			unsupportedEmissions: [{ automationCount: 0, catalogueState: 'ready' }],
+			disabledEmissions: [{ automationCount: 0, catalogueState: 'ready' }],
 		});
 	});
 

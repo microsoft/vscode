@@ -19,6 +19,7 @@ import {
 	IAutomationRun,
 } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import {
+	AutomationCatalogueState,
 	type AutomationMutationGuard,
 	IAutomationRunClaim,
 	IAutomationService,
@@ -116,6 +117,7 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 
 	private readonly _automations: ISettableObservable<readonly IAutomationDescriptor[]>;
 	private readonly _runs: ISettableObservable<readonly IAutomationRun[]>;
+	private readonly _catalogueState: ISettableObservable<AutomationCatalogueState>;
 	private _now: () => Date;
 	private readonly _runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
 
@@ -124,6 +126,7 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
+	readonly catalogueState: IObservable<AutomationCatalogueState>;
 
 	constructor(
 		private readonly storageKey: string,
@@ -144,8 +147,10 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 		}
 		this._automations = observableValue<readonly IAutomationDescriptor[]>(this, initial.automations);
 		this._runs = observableValue<readonly IAutomationRun[]>(this, initial.runs);
+		this._catalogueState = observableValue(this, result.kind === 'ledger' ? 'ready' : 'error');
 		this.automations = this._automations;
 		this.runs = this._runs;
+		this.catalogueState = this._catalogueState;
 
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, this.storageKey, this._store)(() => {
 			this.refreshFromStorage();
@@ -502,18 +507,19 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 		}
 	}
 
-	private acceptLedger(ledger: ILedger, revision: number): void {
+	private acceptLedger(ledger: ILedger, revision: number, catalogueState: AutomationCatalogueState = 'ready'): void {
 		if (revision < this._lastSeenRevision) {
 			return;
 		}
-		this.setLedger(ledger, revision);
+		this.setLedger(ledger, revision, catalogueState);
 	}
 
-	private setLedger(ledger: ILedger, revision: number): void {
+	private setLedger(ledger: ILedger, revision: number, catalogueState: AutomationCatalogueState = 'ready'): void {
 		this._lastSeenRevision = revision;
 		transaction(tx => {
 			this._automations.set(ledger.automations, tx);
 			this._runs.set(ledger.runs, tx);
+			this._catalogueState.set(catalogueState, tx);
 		});
 	}
 
@@ -521,11 +527,15 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 		const result = this.readLedger(this.storageService.get(this.storageKey, StorageScope.APPLICATION));
 		if (result.kind === 'unsupportedSchema') {
 			this._canCompleteMigration = false;
+			this._catalogueState.set('error', undefined);
 			return;
 		}
 
 		this._canCompleteMigration = result.kind === 'ledger';
-		this.acceptLedger(result.ledger, result.revision);
+		if (result.kind === 'invalid') {
+			this._catalogueState.set('error', undefined);
+		}
+		this.acceptLedger(result.ledger, result.revision, result.kind === 'ledger' ? 'ready' : 'error');
 	}
 
 	private readLedger(raw: string | undefined): ReadLedgerResult {
