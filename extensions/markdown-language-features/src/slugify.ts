@@ -74,14 +74,20 @@ export const githubSlugifier: ISlugifier = new class implements ISlugifier {
 		return {
 			add: (heading: string): ISlug => {
 				const slug = this.fromHeading(heading);
-				const existingSlugEntry = entries.get(slug.value);
-				if (existingSlugEntry) {
-					++existingSlugEntry.count;
-					return this.fromHeading(slug.value + '-' + existingSlugEntry.count);
+				const entry = entries.get(slug.value);
+				if (!entry) {
+					entries.set(slug.value, { count: 0 });
+					return slug;
 				}
 
-				entries.set(slug.value, { count: 0 });
-				return slug;
+				let count = entry.count;
+				let candidate = slug.value;
+				do {
+					candidate = slug.value + '-' + (++count);
+				} while (entries.has(candidate));
+				entry.count = count;
+				entries.set(candidate, { count: 0 });
+				return this.fromHeading(candidate);
 			}
 		};
 	}
