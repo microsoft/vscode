@@ -1,0 +1,29 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import product from '../../../../../platform/product/common/product.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+
+import '../../browser/automations.contribution.js';
+
+suite('Automations Contribution', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('defaults Automations to enabled in non-Stable builds', () => {
+		const property = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[CHAT_AUTOMATIONS_ENABLED_SETTING];
+
+		assert.deepStrictEqual({
+			default: property.default,
+			included: property.included,
+		}, {
+			default: product.quality !== 'stable',
+			included: product.quality !== 'stable',
+		});
+	});
+});
