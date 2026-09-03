@@ -133,7 +133,7 @@ interface IStoredFormatters {
 interface IHomeFormatterRegistration {
 	readonly formatter: ResourceLabelTemplateFormatter;
 	readonly templateMatcher: RegExp;
-	readonly templateParameterNames: readonly string[];
+	readonly pathSegmentParameter: string | undefined;
 }
 
 interface IResolvedHomeFormatter {
@@ -144,7 +144,7 @@ interface IResolvedHomeFormatter {
 	readonly authorityLength: number;
 }
 
-const homeTemplateParameterRegex = /^\$\{(?<name>[a-zA-Z_][\w]*)\}$/;
+const homeTemplateParameterNameRegex = /^[a-zA-Z_][\w]*$/;
 
 function isTemplateFormatter(formatter: ResourceLabelFormatter | ResourceLabelTemplateFormatter): formatter is ResourceLabelTemplateFormatter {
 	return URI.isUri(formatter.home);
@@ -219,8 +219,8 @@ export class LabelService extends Disposable implements ILabelService {
 				continue;
 			}
 			const parameters = new Map<string, string>();
-			for (const parameterName of registration.templateParameterNames) {
-				parameters.set(parameterName, templateMatch.groups?.[parameterName] ?? '');
+			if (registration.pathSegmentParameter) {
+				parameters.set(registration.pathSegmentParameter, templateMatch.groups?.[registration.pathSegmentParameter] ?? '');
 			}
 			const home = resource.with({ path: templateMatch[0], query: null, fragment: null });
 			const formatting = formatter.formatting({ resource, home, parameters });
@@ -562,29 +562,20 @@ export class LabelService extends Disposable implements ILabelService {
 
 	private createTemplateFormatterRegistration(formatter: ResourceLabelTemplateFormatter): IHomeFormatterRegistration {
 		const { home } = formatter;
-		const parameterNames: string[] = [];
-		const seenParameterNames = new Set<string>();
-		const patternSegments = home.path.split('/');
-		const matcherSegments = patternSegments.map(segment => {
-			const parameterMatch = homeTemplateParameterRegex.exec(segment);
-			if (parameterMatch?.groups?.name) {
-				const parameterName = parameterMatch.groups.name;
-				if (seenParameterNames.has(parameterName)) {
-					throw new Error(`Duplicate resource label home template parameter: ${parameterName}`);
-				}
-				seenParameterNames.add(parameterName);
-				parameterNames.push(parameterName);
-				return `(?<${parameterName}>(?!\\.{1,2}(?:/|$))[^/]+)`;
+		const homePath = home.path.length > 1 ? home.path.replace(/\/+$/, '') : home.path;
+		let matcherPattern = escapeRegExpCharacters(homePath);
+		const pathSegmentParameter = formatter.pathSegmentParameter;
+		if (pathSegmentParameter !== undefined) {
+			if (!homeTemplateParameterNameRegex.test(pathSegmentParameter)) {
+				throw new Error(`Invalid resource label home template parameter: ${pathSegmentParameter}`);
 			}
-			if (segment.includes('${')) {
-				throw new Error(`Resource label home template parameters must occupy an entire path segment: ${segment}`);
-			}
-			return escapeRegExpCharacters(segment);
-		});
+			matcherPattern += `${homePath.endsWith('/') ? '' : '/'}(?<${pathSegmentParameter}>(?!\\.{1,2}(?:/|$))[^/]+)`;
+		}
+		const isRootHome = pathSegmentParameter === undefined && (homePath === '' || homePath === '/');
 		return {
 			formatter,
-			templateMatcher: new RegExp(`^${matcherSegments.join('/')}${home.path === '' || home.path === '/' ? '' : '(?=/|$)'}`),
-			templateParameterNames: parameterNames,
+			templateMatcher: new RegExp(`^${matcherPattern}${isRootHome ? '' : '(?=/|$)'}`),
+			pathSegmentParameter,
 		};
 	}
 

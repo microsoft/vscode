@@ -236,7 +236,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 				}
 			}
 
-			this.updateResourceLabelHomeFormatters(homes, this._labelService, onDidChangeResourceLabelHomes);
+			this.updateResourceLabelHomeFormatters(homes, this._labelService);
 		};
 		this._register(onDidChangeResourceLabelHomes(updateResourceLabelHomes));
 		updateResourceLabelHomes();
