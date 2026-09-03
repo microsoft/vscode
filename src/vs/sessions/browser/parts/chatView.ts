@@ -136,6 +136,14 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	}
 
 	/**
+	 * Notifies the view whether it occupies the first group in the chat grid.
+	 * Session-scoped UI can use this to avoid repeating across split groups.
+	 */
+	setPrimary(_primary: boolean): void {
+		// no-op by default
+	}
+
+	/**
 	 * Shows an indeterminate progress bar at the top of this leaf while the
 	 * given promise is pending, mirroring how each editor group surfaces
 	 * progress on its own {@link ProgressBar} (see `EditorGroupView` /
