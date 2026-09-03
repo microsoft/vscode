@@ -5,7 +5,7 @@
 
 import { $ } from '../../base/browser/dom.js';
 import { IActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
-import type { IManagedHoverOptions } from '../../base/browser/ui/hover/hover.js';
+import type { IManagedHoverContent, IManagedHoverOptions } from '../../base/browser/ui/hover/hover.js';
 import { IAction } from '../../base/common/actions.js';
 import { Codicon } from '../../base/common/codicons.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
@@ -108,7 +108,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			if (previous.label !== current.label || previous.summarized !== current.summarized || !iconsEqual(previous.icon, current.icon)) {
 				this.updateLabel();
 			}
-			if (previous.tooltip !== current.tooltip) {
+			if (previous.hoverContent !== current.hoverContent) {
 				this.updateTooltip();
 			}
 			if (previous.ariaLabel !== current.ariaLabel) {
@@ -130,12 +130,12 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		}));
 	}
 
-	private _getPresentation(): { readonly summarized: boolean; readonly icon: ThemeIcon | undefined; readonly label: string; readonly tooltip: string; readonly ariaLabel: string | undefined; readonly ariaDescription: string | undefined } {
+	private _getPresentation(): { readonly summarized: boolean; readonly icon: ThemeIcon | undefined; readonly label: string; readonly hoverContent: IManagedHoverContent; readonly ariaLabel: string | undefined; readonly ariaDescription: string | undefined } {
 		return {
 			summarized: this.isSummarized,
 			icon: this.isSummarized ? this._summaryIcon : this.entries.at(0)?.icon,
 			label: this.getLabelText(),
-			tooltip: this.getTooltip(),
+			hoverContent: this.getHoverContents(),
 			ariaLabel: this.getAriaLabel(),
 			ariaDescription: this.isSummarized ? undefined : this.entries.at(0)?.ariaDescription,
 		};
@@ -213,6 +213,12 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		}
 		const entry = this.entries.at(0);
 		return entry?.tooltip ?? entry?.label ?? this._pillOptions.title;
+	}
+
+	protected override getHoverContents(): IManagedHoverContent {
+		return this.isSummarized
+			? super.getHoverContents()
+			: this.entries.at(0)?.pillHover ?? super.getHoverContents();
 	}
 
 	protected override getAriaLabel(): string | undefined {

@@ -9,6 +9,7 @@ import { mainWindow, type CodeWindow } from '../../base/browser/window.js';
 import { IActionViewItem } from '../../base/browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../base/browser/ui/button/button.js';
+import type { IManagedHoverContent } from '../../base/browser/ui/hover/hover.js';
 import { DomScrollableElement } from '../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ToolBar } from '../../base/browser/ui/toolbar/toolbar.js';
 import { IAction, IActionRunner } from '../../base/common/actions.js';
@@ -63,6 +64,8 @@ export interface IChatPillEntry {
 	readonly hover?: IActionListItemHover;
 	/** Tooltip for the pill when this is the only entry. */
 	readonly tooltip?: string;
+	/** Rich hover content for the pill when this is the only entry. */
+	readonly pillHover?: IManagedHoverContent;
 	open(): void;
 }
 

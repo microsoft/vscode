@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { getWindow } from '../../../base/browser/dom.js';
 import { ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
+import type { IManagedHoverContent } from '../../../base/browser/ui/hover/hover.js';
 import { timeout } from '../../../base/common/async.js';
 import { Action } from '../../../base/common/actions.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -16,10 +17,12 @@ import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IActionListDelegate, IActionListItem } from '../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../platform/actionWidget/browser/actionWidget.js';
-import { ChatPillSingleEntry, createChatSectionPill } from '../../browser/chatDropdownPill.js';
+import { ChatDropdownPillActionViewItem, ChatPillSingleEntry, createChatSectionPill } from '../../browser/chatDropdownPill.js';
 import { ChatPillsRow, ChatPillsWidget, type IChatPill, type IChatPillEntry, type IChatPillSection } from '../../browser/chatPills.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../browser/labels.js';
 import { workbenchInstantiationService } from './workbenchTestServices.js';
+
+const getDropdownPillHoverContents = Reflect.get(ChatDropdownPillActionViewItem.prototype, 'getHoverContents') as (this: ChatDropdownPillActionViewItem) => IManagedHoverContent;
 
 suite('ChatPills', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -302,6 +305,53 @@ suite('ChatPills', () => {
 			buttonPreserved: true,
 			labelPreserved: true,
 			labelText: '2 Pull Requests',
+		});
+
+		disposables.dispose();
+	});
+
+	test('uses optional rich hover content only for an inline entry', () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const action = disposables.add(new Action('pullRequests', 'Pull Requests'));
+		const richHover: IManagedHoverContent = { element: () => mainWindow.document.createElement('div') };
+		const entry = (id: string, pillHover?: IManagedHoverContent): IChatPillEntry => ({
+			id,
+			label: `Pull Request #${id}`,
+			tooltip: `https://github.com/microsoft/vscode/pull/${id}`,
+			...(pillHover !== undefined ? { pillHover } : {}),
+			open: () => { },
+		});
+		const sections = observableValue<readonly IChatPillSection[]>('chatPills.hoverSections', [{
+			title: 'Pull Requests',
+			entries: [entry('1')],
+		}]);
+		const viewItem = disposables.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, action, {}, sections, {
+			widgetId: 'pullRequests',
+			icon: Codicon.gitPullRequest,
+			title: 'Pull Requests',
+			summaryLabel: count => `${count} Pull Requests`,
+			summaryAriaLabel: count => `Show ${count} pull requests`,
+		}));
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		viewItem.render(container);
+
+		const fallbackHover = getDropdownPillHoverContents.call(viewItem);
+		sections.set([{ title: 'Pull Requests', entries: [entry('1', richHover)] }], undefined);
+		const enrichedHover = getDropdownPillHoverContents.call(viewItem);
+		sections.set([{ title: 'Pull Requests', entries: [entry('1', richHover), entry('2')] }], undefined);
+		const summaryHover = getDropdownPillHoverContents.call(viewItem);
+
+		assert.deepStrictEqual({
+			fallbackHover,
+			usesRichHover: enrichedHover === richHover,
+			summaryHover,
+		}, {
+			fallbackHover: 'https://github.com/microsoft/vscode/pull/1',
+			usesRichHover: true,
+			summaryHover: 'Show 2 pull requests',
 		});
 
 		disposables.dispose();
