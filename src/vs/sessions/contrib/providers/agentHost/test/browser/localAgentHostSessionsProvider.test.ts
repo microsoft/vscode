@@ -6044,6 +6044,89 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('Last Turn Changes ignores a trailing host notice turn', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const workingDirectory = URI.file('/repo');
+		agentHost.addSession(createSession('notice-turn-changes', { summary: 'Notice Turn Changes', workingDirectory }));
+		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+		provider.getSessions();
+		await timeout(0);
+
+		const session = provider.getSessions().find(candidate => candidate.title.get() === 'Notice Turn Changes');
+		assert.ok(session);
+		activeSession.set(session as IActiveSession, undefined);
+		assert.ok(session instanceof AgentHostSessionAdapter);
+
+		const sessionUri = AgentSession.uri('copilotcli', 'notice-turn-changes').toString();
+		const chatUri = buildDefaultChatUri(sessionUri);
+		agentHost.setSessionState('notice-turn-changes', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'Notice Turn Changes',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			defaultChat: chatUri,
+			chats: [{
+				resource: chatUri,
+				title: 'Default',
+				status: ProtocolSessionStatus.Idle,
+				modifiedAt: new Date(0).toISOString(),
+			}],
+			workingDirectories: [workingDirectory.toString()],
+		});
+		session.updateChangesets([{
+			label: 'Last Turn Changes',
+			uriTemplate: `${sessionUri}/changeset/turn/{turnId}`,
+			changeKind: 'turn',
+		}]);
+
+		const changedFile = URI.file('/repo/edited.ts');
+		agentHost.setChangesetState(`${sessionUri}/changeset/turn/agent-turn`, {
+			status: ChangesetStatus.Ready,
+			files: [{
+				id: changedFile.toString(),
+				edit: {
+					after: { uri: changedFile.toString(), content: { uri: changedFile.toString() } },
+					diff: { added: 3, removed: 1 },
+				},
+			}],
+		});
+		agentHost.setChangesetState(`${sessionUri}/changeset/turn/notice-turn`, { status: ChangesetStatus.Ready, files: [] });
+
+		// The agent's turn, followed by a hidden Agent Merge notice turn.
+		agentHost.setChatState(chatUri, {
+			resource: chatUri,
+			title: 'Default',
+			status: ProtocolSessionStatus.Idle,
+			modifiedAt: new Date().toISOString(),
+			turns: [{
+				id: 'agent-turn',
+				message: { text: 'Edit edited.ts', origin: { kind: MessageKind.User } },
+				responseParts: [],
+				usage: undefined,
+				state: TurnState.Complete,
+			}, {
+				id: 'notice-turn',
+				message: {
+					text: '<!-- vscode-request-hidden-from-transcript -->\nAgent Merge is enabled for `feature`.',
+					origin: { kind: MessageKind.SystemNotification },
+				},
+				responseParts: [],
+				usage: undefined,
+				state: TurnState.Complete,
+			}],
+		});
+
+		const changeset = session.changesets.get()?.find(candidate => candidate.id === TURN_CHANGES_CHANGESET_ID);
+		assert.deepStrictEqual({
+			isEnabled: changeset?.isEnabled.get(),
+			changes: changeset?.changes.get().map(change => isIChatSessionFileChange2(change) ? change.uri.toString() : change.modifiedUri.toString()),
+		}, {
+			isEnabled: true,
+			changes: [changedFile.toString()],
+		});
+	}));
+
 	test('registers provider-neutral resource label homes for quick chats and provider state', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const claudeHome = URI.file('/home/test/.agent/chats/claude-session');
 		const rootHome = URI.file('/');

@@ -37,7 +37,7 @@ import { formatUriForFileWidget } from '../common/toolUtils';
 import { getImageMimeType } from './imageToolUtils';
 import { assertFileNotContentExcluded, isFileExternalAndNeedsConfirmation, resolveToolInputPath } from './toolUtils';
 import { IGrepResultService } from './grepResultService';
-import { IRegionContextProviderService } from '../../../platform/languageContextProvider/common/regionContextProvider';
+import { IRegionContextProviderService, type PathInfo, type RegionResult } from '../../../platform/languageContextProvider/common/regionContextProvider';
 
 export const getReadFileV2Description = (orig: vscode.LanguageModelToolInformation): vscode.LanguageModelToolInformation => ({
 	name: ToolName.ReadFile,
@@ -191,11 +191,12 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 				try {
 					const grepResultMatches = this.grepResultService.getGrepResult(options.chatRequestId, uri, startLine, endLine);
 					if (grepResultMatches !== undefined && grepResultMatches.length > 0 && documentSnapshot.version === documentSnapshot.document.version) {
-						const regions = await this.regionContextProvider.getRegions(documentSnapshot.uri, documentSnapshot.languageId, grepResultMatches, { start: startLine, end: endLine});
-						if (regions !== undefined && regions.length > 0 && documentSnapshot.version === documentSnapshot.document.version) {
-							this.sendAdjustedRegionTelemetry(options, startLine, endLine, regions[0].range.start, regions[0].range.end, documentSnapshot);
+						const regionResult: RegionResult | undefined = await this.regionContextProvider.getRegions(documentSnapshot.uri, documentSnapshot.languageId, grepResultMatches, { start: startLine, end: endLine});
+						if (regionResult !== undefined && regionResult.regions.length > 0 && documentSnapshot.version === documentSnapshot.document.version) {
+							const regions = regionResult.regions;
+							this.sendAdjustedRegionTelemetry(options, startLine, endLine, regions[0].range.start, regions[0].range.end, regionResult.paths, documentSnapshot);
 							// const saving = (ranges.end - ranges.start) - (regions[0].range.end - regions[0].range.start);
-							// this.logService.info(`Saving ${saving} lines reading ${documentSnapshot.uri.fsPath}. Requests [${ranges.start}-${ranges.end}], Grep matches: [${grepResultMatches.map(m => m.start.line + 1).join(',')}], region [${regions[0].range.start + 1}-${regions[0].range.end + 1}]`);
+							// this.logService.info(`Saving ${saving} lines reading ${documentSnapshot.uri.fsPath}. Requests [${ranges.start}-${ranges.end}], Grep matches: [${grepResultMatches.map(m => m.start.line + 1).join(',')}], region [${regionResult.regions[0].range.start + 1}-${regionResult.regions[0].range.end + 1}]`);
 						} else {
 							if (documentSnapshot.version === documentSnapshot.document.version) {
 								this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'noGrepRegions', documentSnapshot);
@@ -433,8 +434,11 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 		}
 	}
 
-	private async sendAdjustedRegionTelemetry(options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, originalStart: number, originalEnd: number, adjustedStart: number, adjustedEnd: number, documentSnapshot: TextDocumentSnapshot | NotebookDocumentSnapshot) {
+	private async sendAdjustedRegionTelemetry(options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, originalStart: number, originalEnd: number, adjustedStart: number, adjustedEnd: number, pathInfo: PathInfo, documentSnapshot: TextDocumentSnapshot | NotebookDocumentSnapshot) {
 		const languageId = documentSnapshot.languageId;
+		const smallestPath: string = JSON.stringify(pathInfo.smallest);
+		const largestPath: string | undefined = pathInfo?.largest ? JSON.stringify(pathInfo.largest) : undefined;
+
 		/* __GDPR__
 			"readFileRegionAdjusted" : {
 				"owner": "dbaeumer",
@@ -444,13 +448,17 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 				"adjustedLines": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The number of lines after the requested region has been adjusted", "isMeasurement": true },
 				"deltaStart": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The difference between the original start line and the adjusted start line", "isMeasurement": true },
 				"deltaEnd": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The difference between the original end line and the adjusted end line", "isMeasurement": true },
-				"languageId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The language ID of the document snapshot" }
+				"languageId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The language ID of the document snapshot" },
+				"smallestPath": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The smallest path in the region context" },
+				"largestPath": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The largest path in the region context" }
 			}
 		*/
 		this.telemetryService.sendMSFTTelemetryEvent('readFileRegionAdjusted',
 			{
 				requestId: options.chatRequestId,
 				languageId,
+				smallestPath,
+				largestPath,
 			},
 			{
 				originalLines: originalEnd - originalStart + 1,

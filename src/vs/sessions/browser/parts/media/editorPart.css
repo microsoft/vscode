@@ -46,6 +46,32 @@
 	height: var(--vscode-spacing-size280);
 }
 
+.agent-sessions-workbench .part.editor .browser-welcome-content {
+	gap: var(--vscode-spacing-size40);
+}
+
+.agent-sessions-workbench .part.editor .browser-welcome-icon {
+	display: none;
+}
+
+.agent-sessions-workbench .part.editor .browser-welcome-title,
+.agent-sessions-workbench .part.editor .browser-welcome-subtitle {
+	padding: 0;
+	margin: 0;
+	font-size: var(--vscode-fontSize-body1);
+	line-height: normal;
+}
+
+.agent-sessions-workbench .part.editor .browser-welcome-title {
+	color: var(--vscode-foreground);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.agent-sessions-workbench .part.editor .browser-welcome-subtitle {
+	color: var(--vscode-descriptionForeground);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
 .agent-sessions-workbench.dock-detail-panel .part.editor .search-editor > .query-container {
 	--search-editor-query-layout-offset: var(--vscode-spacing-size80, 8px);
 	display: grid;
