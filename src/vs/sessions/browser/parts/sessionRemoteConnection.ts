@@ -7,7 +7,7 @@ import { TimeoutTimer } from '../../../base/common/async.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { autorun, derived, derivedObservableWithCache, IObservable, IReader, observableSignal, observableValue, transaction } from '../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, observableSignal, observableValue, transaction } from '../../../base/common/observable.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
@@ -17,7 +17,16 @@ import { ISessionsProvidersService } from '../../services/sessions/browser/sessi
 import { IRemoteHostUnavailableEmptyStateContent } from './remoteHostUnavailableEmptyState.js';
 import { ISessionReadOnlyBannerContent } from './sessionReadOnlyBanner.js';
 
-const RECONNECTING_BANNER_DELAY = 1_000;
+/**
+ * How long a host must stay unreachable before the banner appears.
+ *
+ * Sized to outlast a transport blip that the protocol client heals by itself,
+ * because such a reconnect preserves session state and the user would not
+ * otherwise notice it. An unstable tunnel relay can drop and restore the
+ * transport every few seconds; at a shorter threshold that produced a banner
+ * flashing every cycle on a session that worked fine throughout.
+ */
+const RECONNECTING_BANNER_DELAY = 5_000;
 
 function isSameRemoteConnectionStatus(a: SessionRemoteConnectionStatus | undefined, b: SessionRemoteConnectionStatus | undefined): boolean {
 	if (!a || !b) {
@@ -76,25 +85,24 @@ export class SessionRemoteConnection extends Disposable {
 			&& this._attempt.read(reader) === undefined;
 	});
 
-	private readonly _reconnectingSince = derivedObservableWithCache<{ readonly session: IActiveSession; readonly since: number } | undefined>(this, (reader, last) => {
-		const session = this._session.read(reader);
-		const status = this._getEffectiveStatus(reader);
-		const attempt = this._attempt.read(reader);
-		if (!session || status?.kind !== 'reconnecting' || attempt?.kind === 'active') {
-			return undefined;
-		}
-		// Keyed by session only to guard future reuse: a ChatGroupView is currently
-		// created per session, so the cache cannot outlive the session it belongs to.
-		return last?.session === session ? last : { session, since: Date.now() };
-	});
+	/**
+	 * When the current outage began, or `undefined` while the host is reachable.
+	 *
+	 * Held in an explicit value rather than a cached derived: while the host is
+	 * connected nothing reads the reconnecting state, so the derived loses its
+	 * observers and its cache outlives them. A later outage on the same session
+	 * then inherited the previous outage's start time and showed the banner
+	 * immediately — which is what made a flapping transport nag continuously.
+	 */
+	private readonly _reconnectingSince = observableValue<number | undefined>(this, undefined);
 
 	private readonly _reconnectingBannerVisible = derived(this, reader => {
-		const reconnecting = this._reconnectingSince.read(reader);
-		if (reconnecting === undefined) {
+		const since = this._reconnectingSince.read(reader);
+		if (since === undefined) {
 			return false;
 		}
 
-		const remaining = reconnecting.since + RECONNECTING_BANNER_DELAY - Date.now();
+		const remaining = since + RECONNECTING_BANNER_DELAY - Date.now();
 		if (remaining <= 0) {
 			return true;
 		}
@@ -131,9 +139,23 @@ export class SessionRemoteConnection extends Disposable {
 	) {
 		super();
 		this._register(autorun(reader => {
+			// Tracked here rather than in a derived so it is maintained whether or
+			// not anything is currently rendering the reconnecting state.
+			const status = this._getEffectiveStatus(reader);
+			const attempt = this._attempt.read(reader);
+			const outageOpen = !!this._session.read(reader)
+				&& status?.kind === 'reconnecting'
+				&& attempt?.kind !== 'active';
+			const since = this._reconnectingSince.read(reader);
+			if (!outageOpen && since !== undefined) {
+				this._reconnectingSince.set(undefined, undefined);
+			} else if (outageOpen && since === undefined) {
+				this._reconnectingSince.set(Date.now(), undefined);
+			}
+
 			// A host that came back releases the latch, so a later outage gets its
 			// own automatic attempt instead of the session being limited to one.
-			if (this._getEffectiveStatus(reader)?.kind === 'connected' && this._autoConnected.read(reader) !== undefined) {
+			if (status?.kind === 'connected' && this._autoConnected.read(reader) !== undefined) {
 				this._autoConnected.set(undefined, undefined);
 			}
 			if (!this._autoConnectPending.read(reader)) {
