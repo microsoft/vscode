@@ -25,6 +25,8 @@ export const enum FocusTextDiffEditorMode {
 	Toggle
 }
 
+export type DiffEditorViewMode = 'inline' | 'sideBySide' | 'automatic';
+
 /**
  * Backs the diff-editor commands (see {@link registerDiffEditorCommands}). The Agents window
  * overrides this to also drive its multi-diff Changes editor.
@@ -34,6 +36,9 @@ export interface IDiffEditorCommandsService {
 
 	/** Toggles inline vs. side-by-side rendering for the active diff editor. */
 	toggleRenderSideBySide(args: unknown[]): Promise<void>;
+
+	/** Sets the layout mode for the active diff editor. */
+	setViewMode(args: unknown[], mode: DiffEditorViewMode): Promise<void>;
 
 	/** Opens the original or modified side of the active diff editor, whichever has focus, as its own editor. */
 	openActiveDiffSide(): Promise<void>;
@@ -70,6 +75,34 @@ export class DiffEditorCommandsService implements IDiffEditorCommandsService {
 		const key = 'diffEditor.renderSideBySide';
 		const value = this.textResourceConfigurationService.getValue(modifiedResource, key);
 		await this.textResourceConfigurationService.updateValue(modifiedResource, key, !value);
+	}
+
+	async setViewMode(args: unknown[], mode: DiffEditorViewMode): Promise<void> {
+		const activeTextDiffEditor = this.getActiveTextDiffEditor(args);
+		const control = activeTextDiffEditor?.getControl();
+		const modifiedResource = control?.getModifiedEditor().getModel()?.uri;
+		if (!modifiedResource) {
+			return;
+		}
+
+		switch (mode) {
+			case 'inline':
+				await this.textResourceConfigurationService.updateValue(modifiedResource, 'diffEditor.renderSideBySide', false);
+				break;
+			case 'sideBySide':
+				await Promise.all([
+					this.textResourceConfigurationService.updateValue(modifiedResource, 'diffEditor.renderSideBySide', true),
+					this.textResourceConfigurationService.updateValue(modifiedResource, 'diffEditor.useInlineViewWhenSpaceIsLimited', false),
+				]);
+				break;
+			case 'automatic':
+				await Promise.all([
+					this.textResourceConfigurationService.updateValue(modifiedResource, 'diffEditor.renderSideBySide', true),
+					this.textResourceConfigurationService.updateValue(modifiedResource, 'diffEditor.useInlineViewWhenSpaceIsLimited', true),
+				]);
+				control.resetWidthBasedLayout();
+				break;
+		}
 	}
 
 	async openActiveDiffSide(): Promise<void> {
