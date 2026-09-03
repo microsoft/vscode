@@ -316,7 +316,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		this.clearResourcesState();
 	}
 
-	private clearResourcesState(): void {
+	protected clearResourcesState(): void {
 		this.resources = [];
 		this.resourcesStateHash = undefined;
 	}

@@ -91,9 +91,15 @@ export class NativeClipboardService implements IClipboardService {
 	}
 }
 
-// Electron names the X11 PRIMARY selection 'selection'.
+// Electron names the X11 PRIMARY selection 'selection'. Keyed by target so a new
+// member of the union has to be mapped here rather than silently defaulting.
+const electronClipboardTypes: Record<ClipboardTarget, 'selection' | 'clipboard'> = {
+	system: 'clipboard',
+	primary: 'selection'
+};
+
 function toElectronClipboardType(target: ClipboardTarget = 'system'): 'selection' | 'clipboard' {
-	return target === 'primary' ? 'selection' : 'clipboard';
+	return electronClipboardTypes[target];
 }
 
 registerSingleton(IClipboardService, NativeClipboardService, InstantiationType.Delayed);

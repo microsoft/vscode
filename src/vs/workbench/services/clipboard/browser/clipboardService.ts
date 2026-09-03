@@ -5,6 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { assertNever } from '../../../../base/common/assert.js';
 import { ClipboardTarget, IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { BrowserClipboardService as BaseBrowserClipboardService } from '../../../../platform/clipboard/browser/clipboardService.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -39,6 +40,8 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 	override async writeText(text: string, target: ClipboardTarget = 'system'): Promise<void> {
 		this.logService.trace('BrowserClipboardService#writeText called with target:', target, ' with text.length:', text.length);
 		if (this.useInMemoryClipboard) {
+			// Match the base service: writing text invalidates any copied resources.
+			this.clearResourcesState();
 			this.inMemoryClipboard.set(target, text);
 			return;
 		}
@@ -52,11 +55,18 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 			return this.inMemoryClipboard.get(target) ?? '';
 		}
 
-		if (target === 'primary') {
-			this.logService.trace('BrowserClipboardService#super.readText');
-			return super.readText(target);
+		switch (target) {
+			case 'primary':
+				this.logService.trace('BrowserClipboardService#super.readText');
+				return super.readText(target);
+			case 'system':
+				return this.readSystemClipboardWithPrompt();
+			default:
+				assertNever(target);
 		}
+	}
 
+	private async readSystemClipboardWithPrompt(): Promise<string> {
 		try {
 			const readText = await getActiveWindow().navigator.clipboard.readText();
 			this.logService.trace('BrowserClipboardService#readText with readText.length:', readText.length);
@@ -73,7 +83,7 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 						label: localize('retry', "Retry"),
 						run: async () => {
 							listener.dispose();
-							resolve(await this.readText(target));
+							resolve(await this.readSystemClipboardWithPrompt());
 						}
 					}, {
 						label: localize('learnMore', "Learn More"),
