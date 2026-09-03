@@ -137,12 +137,15 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 interface ISelectNoWorkspaceHarness {
 	readonly _pendingPreferredUpgrade: MutableDisposable<IDisposable>;
 	readonly _newSessionCreation: MutableDisposable<IDisposable>;
-	readonly sessionsService: { openQuickChat(): void };
+	readonly _isWorkspacePickerQuickChat: IObservable<boolean>;
+	readonly _workspacePickerQuickChatSessionId: ReturnType<typeof observableValue<string | undefined>>;
+	readonly sessionsService: { openQuickChat(): { readonly sessionId: string } };
+	_openQuickChat(options?: undefined, keepWorkspacePickerVisible?: boolean): { readonly sessionId: string } | undefined;
 }
 
 interface INoWorkspaceOptionHarness {
 	readonly _useConsolidatedRemoteWorkspaces: IObservable<boolean>;
-	readonly _isQuickChatComposer: IObservable<boolean>;
+	readonly _isWorkspacePickerQuickChat: IObservable<boolean>;
 	readonly sessionsManagementService: { isQuickChatTargetAvailable(): boolean };
 	_selectNoWorkspace(): void;
 }
@@ -155,6 +158,7 @@ interface IWorkspaceRootsHarness {
 const renderWorkspacePicker = Reflect.get(NewChatWidget.prototype, '_renderWorkspacePicker') as (this: IRenderWorkspacePickerHarness, container: HTMLElement) => IDisposable;
 const renderSessionTypePicker = Reflect.get(NewChatWidget.prototype, '_renderSessionTypePicker') as (this: IRenderSessionTypePickerHarness, container: HTMLElement, isQuickChat: boolean) => void;
 const selectNoWorkspace = Reflect.get(NewChatWidget.prototype, '_selectNoWorkspace') as (this: ISelectNoWorkspaceHarness) => void;
+const openQuickChat = Reflect.get(NewChatWidget.prototype, '_openQuickChat') as ISelectNoWorkspaceHarness['_openQuickChat'];
 const getNoWorkspaceOption = Reflect.get(NewChatWidget.prototype, '_getNoWorkspaceOption') as (this: INoWorkspaceOptionHarness) => IWorkspacePickerNoWorkspaceOption | undefined;
 const getWorkspaceRoots = Reflect.get(NewChatWidget.prototype, '_getWorkspaceRoots') as (this: IWorkspaceRootsHarness, session: ISession) => readonly URI[];
 
@@ -291,38 +295,66 @@ suite('NewChatWidget', () => {
 		let quickChatOpenCount = 0;
 		const pendingPreferredUpgrade = disposables.add(new MutableDisposable<IDisposable>());
 		const newSessionCreation = disposables.add(new MutableDisposable<IDisposable>());
+		const workspacePickerQuickChatSessionId = observableValue<string | undefined>('workspacePickerQuickChatSessionId', undefined);
 		pendingPreferredUpgrade.value = toDisposable(() => pendingUpgradeDisposed = true);
 		newSessionCreation.value = toDisposable(() => sessionCreationDisposed = true);
 
-		selectNoWorkspace.call({
+		const harness: ISelectNoWorkspaceHarness = {
 			_pendingPreferredUpgrade: pendingPreferredUpgrade,
 			_newSessionCreation: newSessionCreation,
-			sessionsService: { openQuickChat: () => quickChatOpenCount++ },
-		});
+			_isWorkspacePickerQuickChat: constObservable(false),
+			_workspacePickerQuickChatSessionId: workspacePickerQuickChatSessionId,
+			sessionsService: {
+				openQuickChat: () => {
+					quickChatOpenCount++;
+					return { sessionId: 'quick-chat' };
+				},
+			},
+			_openQuickChat: (options, keepWorkspacePickerVisible) => openQuickChat.call(harness, options, keepWorkspacePickerVisible),
+		};
+		selectNoWorkspace.call(harness);
 
 		assert.deepStrictEqual({
 			pendingUpgradeDisposed,
 			sessionCreationDisposed,
 			quickChatOpenCount,
+			workspacePickerQuickChatSessionId: workspacePickerQuickChatSessionId.get(),
 		}, {
 			pendingUpgradeDisposed: true,
 			sessionCreationDisposed: true,
 			quickChatOpenCount: 1,
+			workspacePickerQuickChatSessionId: 'quick-chat',
 		});
+	});
+
+	test('ordinary quick chats do not retain the workspace picker', () => {
+		const workspacePickerQuickChatSessionId = observableValue<string | undefined>('workspacePickerQuickChatSessionId', 'previous-quick-chat');
+		const harness: ISelectNoWorkspaceHarness = {
+			_pendingPreferredUpgrade: disposables.add(new MutableDisposable()),
+			_newSessionCreation: disposables.add(new MutableDisposable()),
+			_isWorkspacePickerQuickChat: constObservable(false),
+			_workspacePickerQuickChatSessionId: workspacePickerQuickChatSessionId,
+			sessionsService: { openQuickChat: () => ({ sessionId: 'ordinary-quick-chat' }) },
+			_openQuickChat: (options, keepWorkspacePickerVisible) => openQuickChat.call(harness, options, keepWorkspacePickerVisible),
+		};
+
+		openQuickChat.call(harness);
+
+		assert.strictEqual(workspacePickerQuickChatSessionId.get(), undefined);
 	});
 
 	test('offers No workspace only when enabled and quick chats are available', () => {
 		const cases = [
-			{ enabled: false, available: true, isQuickChat: false },
-			{ enabled: true, available: false, isQuickChat: false },
-			{ enabled: true, available: true, isQuickChat: false },
-			{ enabled: true, available: false, isQuickChat: true },
+			{ enabled: false, available: true, isWorkspacePickerQuickChat: false },
+			{ enabled: true, available: false, isWorkspacePickerQuickChat: false },
+			{ enabled: true, available: true, isWorkspacePickerQuickChat: false },
+			{ enabled: true, available: false, isWorkspacePickerQuickChat: true },
 		];
 
 		const options = cases.map(testCase => {
 			const option = getNoWorkspaceOption.call({
 				_useConsolidatedRemoteWorkspaces: constObservable(testCase.enabled),
-				_isQuickChatComposer: constObservable(testCase.isQuickChat),
+				_isWorkspacePickerQuickChat: constObservable(testCase.isWorkspacePickerQuickChat),
 				sessionsManagementService: { isQuickChatTargetAvailable: () => testCase.available },
 				_selectNoWorkspace: () => { },
 			});
