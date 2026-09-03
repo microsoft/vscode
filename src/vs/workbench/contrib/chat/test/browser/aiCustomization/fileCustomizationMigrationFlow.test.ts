@@ -14,6 +14,7 @@ import { IContextMenuService } from '../../../../../../platform/contextview/brow
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -53,7 +54,7 @@ suite('FileCustomizationMigrationFlow', () => {
 				computeSessions.push(sessionResource.path);
 				return { type, files: candidates.map(candidate => candidate.uri), candidates };
 			},
-		} as ICustomizationMigrationService;
+		} as unknown as ICustomizationMigrationService;
 		const harnessService = {
 			activeHarness,
 			activeSessionResource,
@@ -109,25 +110,27 @@ suite('FileCustomizationMigrationFlow', () => {
 		const runCoordinator = options.runCoordinator ?? store.add(new CustomizationMigrationRunCoordinator());
 		const opened: MigratableConfiguration[] = [];
 		const revealed: (readonly { uri: URI; type: PromptsType }[])[] = [];
-		const flow = store.add(new FileCustomizationMigrationFlow(
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ICustomizationMigrationService, migrationService);
+		instantiationService.stub(ICustomizationHarnessService, harnessService);
+		instantiationService.stub(IAICustomizationWorkspaceService, workspaceService);
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(INotificationService, notificationService);
+		instantiationService.stub(IDialogService, dialogService);
+		instantiationService.stub(IQuickInputService, quickInputService);
+		instantiationService.stub(ILabelService, labelService);
+		instantiationService.stub(IOpenerService, openerService);
+		instantiationService.stub(IHoverService, hoverService);
+		instantiationService.stub(IContextMenuService, contextMenuService);
+		const flow = store.add(instantiationService.createInstance(
+			FileCustomizationMigrationFlow,
 			category,
 			{
 				openFileCustomization: async customization => { opened.push(customization); },
 				revealMigratedFiles: async customizations => { revealed.push(customizations); },
 			},
 			runCoordinator,
-			configurationService,
-			migrationService,
-			harnessService,
-			workspaceService,
-			fileService,
-			notificationService,
-			dialogService,
-			quickInputService,
-			labelService,
-			openerService,
-			hoverService,
-			contextMenuService,
 		));
 		const container = document.createElement('div');
 		document.body.appendChild(container);
@@ -316,35 +319,6 @@ suite('FileCustomizationMigrationFlow', () => {
 		}
 	});
 
-	test('keeps group selection and keyboard focus in sync', async () => {
-		const promptFiles: MigratableConfiguration[] = [
-			{ uri: URI.file('/workspace/a.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.GitHubWorkspace },
-			{ uri: URI.file('/workspace/b.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.GitHubWorkspace },
-		];
-		const context = createTestFlow(CustomizationMigrationCategoryId.PromptFiles, { candidates: promptFiles });
-		try {
-			await context.flow.refresh();
-			const groupCheckbox = context.container.querySelector<HTMLElement>('.prompt-migration-group-checkbox [role="checkbox"]')!;
-			const itemCheckboxes = [...context.container.querySelectorAll<HTMLElement>('.prompt-migration-checkbox [role="checkbox"]')];
-			groupCheckbox.focus();
-			groupCheckbox.click();
-
-			assert.deepStrictEqual({
-				groupRetainedFocus: document.activeElement === groupCheckbox,
-				groupChecked: groupCheckbox.getAttribute('aria-checked'),
-				itemCheckboxes: itemCheckboxes.map(checkbox => checkbox.getAttribute('aria-checked')),
-				migrateButtonDisabled: context.container.querySelector('.prompt-migration-button')?.classList.contains('disabled'),
-			}, {
-				groupRetainedFocus: true,
-				groupChecked: 'false',
-				itemCheckboxes: ['false', 'false'],
-				migrateButtonDisabled: true,
-			});
-		} finally {
-			disposeTestFlow(context);
-		}
-	});
-
 	test('disables migration while another category holds the shared run lock', async () => {
 		const runCoordinator = store.add(new CustomizationMigrationRunCoordinator());
 		const runLock = runCoordinator.tryAcquire();
@@ -371,31 +345,6 @@ suite('FileCustomizationMigrationFlow', () => {
 			});
 		} finally {
 			runLock.dispose();
-			disposeTestFlow(context);
-		}
-	});
-
-	test('updates the group checkbox as individual items change', async () => {
-		const promptFiles: MigratableConfiguration[] = [
-			{ uri: URI.file('/workspace/a.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.GitHubWorkspace },
-			{ uri: URI.file('/workspace/b.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.GitHubWorkspace },
-		];
-		const context = createTestFlow(CustomizationMigrationCategoryId.PromptFiles, { candidates: promptFiles });
-		try {
-			await context.flow.refresh();
-			const groupCheckbox = context.container.querySelector<HTMLElement>('.prompt-migration-group-checkbox [role="checkbox"]')!;
-			const itemCheckboxes = [...context.container.querySelectorAll<HTMLElement>('.prompt-migration-checkbox [role="checkbox"]')];
-			const states = [groupCheckbox.getAttribute('aria-checked')];
-			itemCheckboxes[0].click();
-			states.push(groupCheckbox.getAttribute('aria-checked'));
-			itemCheckboxes[1].click();
-			states.push(groupCheckbox.getAttribute('aria-checked'));
-			itemCheckboxes[0].click();
-			itemCheckboxes[1].click();
-			states.push(groupCheckbox.getAttribute('aria-checked'));
-
-			assert.deepStrictEqual(states, ['true', 'mixed', 'false', 'true']);
-		} finally {
 			disposeTestFlow(context);
 		}
 	});

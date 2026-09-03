@@ -8,6 +8,7 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { isPromptFileMigrationCandidate, isUserDataMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { ICustomizationMigrationBanner } from './customizationMigrationPage.js';
 
 export const enum CustomizationMigrationCategoryId {
 	PromptFiles = 'promptFiles',
@@ -25,14 +26,6 @@ export interface ICustomizationMigrationConfirmation {
 	readonly detail: string;
 	readonly primaryButton: string;
 	readonly deleteOriginalsLabel: string;
-}
-
-/**
- * Prominent explanation shown above the migration list.
- */
-export interface ICustomizationMigrationBanner {
-	readonly message: string;
-	readonly consequence?: string;
 }
 
 /**
@@ -63,7 +56,8 @@ export interface ICustomizationMigrationCategory {
 	getCardDescription(customizations: readonly MigratableConfiguration[], harnessLabel: string): string;
 	getPageDescription(customizations: readonly MigratableConfiguration[], harnessLabel: string): string;
 	/** When present, replaces the page description with a prominent banner. */
-	getBanner?(customizations: readonly MigratableConfiguration[], harnessLabel: string, destinationLabel?: string): ICustomizationMigrationBanner;
+	getBanner?(customizations: readonly MigratableConfiguration[], harnessLabel: string, destinationLabel?: string): ICustomizationMigrationBanner | undefined;
+	getMigrateButtonLabel(selectedCount: number): string;
 	getConfirmation(customizations: readonly MigratableConfiguration[], harnessLabel: string, destinationLabel?: string): ICustomizationMigrationConfirmation;
 	getMigratedMessage(migratedCount: number): string;
 	getMigratedWithReviewMessage?(migratedCount: number, unsupportedHeaderKeys: string): string;
@@ -162,6 +156,12 @@ const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 			"Prompt files are not supported for this harness. Found {0} user prompt files that local VS Code can still run, but {1} ignores. Convert them to skills to keep them available.",
 			userCount, harnessLabel,
 		);
+	},
+
+	getMigrateButtonLabel(selectedCount) {
+		return selectedCount > 0
+			? localize('customizationMigrationConvertWithCount', "Convert {0} to Skills", selectedCount)
+			: localize('customizationMigrationConvert', "Convert to Skills");
 	},
 
 	getBanner(_customizations, harnessLabel) {
@@ -345,6 +345,12 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 				"Found {0} instruction files in user data that local VS Code can still use, but {1} ignores. Move them to the harness instructions folder to keep them available.",
 				instructionsCount, harnessLabel,
 			);
+	},
+
+	getMigrateButtonLabel(selectedCount) {
+		return selectedCount > 0
+			? localize('customizationMigrationPageButtonWithCount', "Migrate {0}", selectedCount)
+			: localize('customizationMigrationPageButton', "Migrate");
 	},
 
 	getConfirmation(customizations, harnessLabel, destinationLabel) {
