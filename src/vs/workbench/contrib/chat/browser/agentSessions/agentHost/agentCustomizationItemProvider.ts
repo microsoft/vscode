@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { autorun, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
@@ -134,10 +135,10 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		};
 	}
 
-	private toDirectoryItems(customization: DirectoryCustomization, source: AICustomizationSource, isRemote: boolean): ICustomizationItem[] {
+	private toDirectoryItems(customization: DirectoryCustomization, source: AICustomizationSource, isRemote: boolean, workingDirectories: readonly string[]): ICustomizationItem[] {
 		const items: ICustomizationItem[] = [];
 		for (const child of customization.children ?? []) {
-			const item = this.toDirectoryChildItem(child, source, isRemote);
+			const item = this.toDirectoryChildItem(child, getDirectoryChildSource(workingDirectories, child.uri, source), isRemote);
 			if (item) {
 				items.push(item);
 			}
@@ -320,7 +321,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		for (const sessionCustomization of directoryCustomizations) {
 			const source = isUnderAnyRoot(workingDirectories, sessionCustomization.uri) ? AICustomizationSources.local : AICustomizationSources.user;
 			const isRemote = sessionCustomization.clientId !== undefined;
-			for (const child of this.toDirectoryItems(sessionCustomization, source, isRemote)) {
+			for (const child of this.toDirectoryItems(sessionCustomization, source, isRemote, workingDirectories)) {
 				items.set(child.itemKey ?? child.uri.toString(), {
 					...child,
 					status: toStatusString(sessionCustomization.load),
@@ -424,6 +425,17 @@ function isParentOrEqual(folderURI: string, childURI: string): boolean {
 /** True when `childURI` is contained by (or equal to) any of the workspace roots. */
 function isUnderAnyRoot(roots: readonly string[], childURI: string): boolean {
 	return roots.some(root => isParentOrEqual(root, childURI));
+}
+
+function getDirectoryChildSource(roots: readonly string[], childURI: string, fallback: AICustomizationSource): AICustomizationSource {
+	try {
+		if (URI.parse(childURI).scheme !== Schemas.file) {
+			return fallback;
+		}
+	} catch {
+		return fallback;
+	}
+	return isUnderAnyRoot(roots, childURI) ? AICustomizationSources.local : AICustomizationSources.user;
 }
 
 function toStatusString(load: CustomizationLoadState | undefined): 'loading' | 'loaded' | 'degraded' | 'error' | undefined {
