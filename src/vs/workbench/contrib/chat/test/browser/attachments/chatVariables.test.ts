@@ -21,7 +21,7 @@ import { TestThemeService } from '../../../../../../platform/theme/test/common/t
 import { IDynamicVariable, toAttachedContextDynamicVariable } from '../../../common/attachments/chatVariables.js';
 import { IChatWidget } from '../../../browser/chat.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../../browser/attachments/chatVariables.js';
-import { ChatDynamicVariableModel, dynamicVariableDecorationType } from '../../../browser/attachments/chatDynamicVariables.js';
+import { ChatDynamicVariableModel, dynamicVariableDecorationType, dynamicVariableIconDecorationType } from '../../../browser/attachments/chatDynamicVariables.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IToolData, ToolDataSource, ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
@@ -239,6 +239,10 @@ suite('ChatDynamicVariableModel', () => {
 		store.add(codeEditorService.registerDecorationType('test', dynamicVariableDecorationType, {
 			rangeBehavior: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		}));
+		store.add(codeEditorService.registerDecorationType('test', dynamicVariableIconDecorationType, {
+			color: { id: 'chat.slashCommandForeground' },
+			rangeBehavior: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		}));
 		const editor = store.add(createTestCodeEditor(textModel, {
 			serviceCollection: new ServiceCollection([ICodeEditorService, codeEditorService]),
 		}));
@@ -285,10 +289,12 @@ suite('ChatDynamicVariableModel', () => {
 		const issueText = 'microsoft/vscode#334284';
 		const pullRequestText = 'microsoft/vscode#333953';
 		const { editor, model } = createDynamicVariableModel(`${issueText} ${pullRequestText}`);
-		let decorations: readonly IDecorationOptions[] = [];
+		let iconDecorations: readonly IDecorationOptions[] = [];
 		const setDecorationsByType = editor.setDecorationsByType.bind(editor);
 		editor.setDecorationsByType = ((description: string, key: string, options: IDecorationOptions[]) => {
-			decorations = options;
+			if (key === dynamicVariableIconDecorationType) {
+				iconDecorations = options;
+			}
 			return setDecorationsByType(description, key, options);
 		}) as typeof editor.setDecorationsByType;
 
@@ -302,18 +308,27 @@ suite('ChatDynamicVariableModel', () => {
 			icon: Codicon.gitPullRequest,
 		}));
 
-		assert.deepStrictEqual(decorations.map(decoration => decoration.renderOptions?.before), [{
-			contentText: '\ueb0c',
-			color: { id: 'chat.slashCommandForeground' },
-			fontFamily: 'codicon',
-			margin: '0 2px 0 0',
-			verticalAlign: 'middle',
+		assert.deepStrictEqual(iconDecorations.map(decoration => ({
+			range: decoration.range,
+			before: decoration.renderOptions?.before,
+		})), [{
+			range: new Range(1, 1, 1, 1),
+			before: {
+				color: { id: 'chat.slashCommandForeground' },
+				contentText: '\ueb0c',
+				fontFamily: 'codicon',
+				margin: '0 2px 0 0',
+				verticalAlign: 'middle',
+			},
 		}, {
-			contentText: '\uea64',
-			color: { id: 'chat.slashCommandForeground' },
-			fontFamily: 'codicon',
-			margin: '0 2px 0 0',
-			verticalAlign: 'middle',
+			range: new Range(1, issueText.length + 2, 1, issueText.length + 2),
+			before: {
+				color: { id: 'chat.slashCommandForeground' },
+				contentText: '\uea64',
+				fontFamily: 'codicon',
+				margin: '0 2px 0 0',
+				verticalAlign: 'middle',
+			},
 		}]);
 	});
 

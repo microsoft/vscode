@@ -27,6 +27,7 @@ import { IChatWidget } from '../chat.js';
 import { IChatWidgetContrib } from '../widget/chatWidget.js';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
+export const dynamicVariableIconDecorationType = 'chat-dynamic-variable-icon';
 
 const issueIconCharacter = '\ueb0c';
 const pullRequestIconCharacter = '\uea64';
@@ -294,6 +295,9 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		const decorationIds = this.host.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, validVariables.map((r): IDecorationOptions => ({
 			range: r.range,
 			hoverMessage: this.getHoverForReference(r),
+		})));
+		this.host.inputEditor.setDecorationsByType('chat', dynamicVariableIconDecorationType, validVariables.map((r): IDecorationOptions => ({
+			range: Range.fromPositions(Range.getStartPosition(r.range)),
 			renderOptions: getReferenceIconRenderOptions(r),
 		})));
 
@@ -362,8 +366,8 @@ function getReferenceIconRenderOptions(reference: IDynamicVariable): IDecoration
 			: undefined;
 	return contentText ? {
 		before: {
-			contentText,
 			color: themeColorFromId(chatSlashCommandForeground),
+			contentText,
 			fontFamily: 'codicon',
 			margin: '0 2px 0 0',
 			verticalAlign: 'middle',
