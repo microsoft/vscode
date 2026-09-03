@@ -38,7 +38,7 @@ export class TerminalProfileConfigurationTelemetry extends Disposable {
 
 		this._register(configurationService.onDidChangeConfiguration(event => {
 			for (const setting of terminalProfileSettings) {
-				if (!event.affectsConfiguration(setting.settingId)) {
+				if (!event.affectsConfiguration(setting.settingId, {})) {
 					continue;
 				}
 
@@ -69,7 +69,7 @@ export class TerminalProfileConfigurationTelemetry extends Disposable {
 			os: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The operating system targeted by the changed setting.' };
 			configured: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the setting resolves to a configured profile after the change.' };
 			changeType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the effective profile setting was added, changed, or removed.' };
-			source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The configuration target that caused the change.' };
+			source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The broad configuration change source reported by the configuration service.' };
 		};
 
 		const configured = this._isConfigured(configurationService, setting.settingId);

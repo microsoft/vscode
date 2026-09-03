@@ -37,7 +37,7 @@ suite('TerminalProfileConfigurationTelemetry', () => {
 	async function changeSetting(settingId: string, value: unknown, source = ConfigurationTarget.USER): Promise<void> {
 		await configurationService.setUserConfiguration(settingId, value);
 		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: key => key === settingId,
+			affectsConfiguration: (key, overrides) => key === settingId && overrides !== undefined,
 			affectedKeys: new Set([settingId]),
 			change: { keys: [settingId], overrides: [] },
 			source,
@@ -75,7 +75,7 @@ suite('TerminalProfileConfigurationTelemetry', () => {
 	test('reports added, changed, and removed settings and ignores unrelated settings', async () => {
 		await changeSetting(TerminalSettingId.DefaultProfileLinux, 'bash');
 		await changeSetting(TerminalSettingId.DefaultProfileLinux, 'zsh', ConfigurationTarget.WORKSPACE);
-		await changeSetting(TerminalSettingId.DefaultProfileLinux, null, ConfigurationTarget.USER_REMOTE);
+		await changeSetting(TerminalSettingId.DefaultProfileLinux, null);
 		await changeSetting(TerminalSettingId.FontSize, 16);
 
 		assert.deepStrictEqual(telemetryService.events, [
@@ -109,7 +109,7 @@ suite('TerminalProfileConfigurationTelemetry', () => {
 					os: 'linux',
 					configured: false,
 					changeType: 'removed',
-					source: 'USER_REMOTE',
+					source: 'USER',
 				},
 			},
 		]);
