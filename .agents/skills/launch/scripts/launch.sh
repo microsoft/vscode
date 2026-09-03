@@ -221,7 +221,7 @@ fi
 if [[ "$AGENTS" == "1" ]]; then
 	ARGS=("--agents" "${ARGS[@]}")
 	if [[ -n "$SESSION_TITLE" ]]; then
-		SESSION_TITLE_BASE64=$(node -e 'process.stdout.write(Buffer.from(process.argv[1], "utf8").toString("base64url"))' "$SESSION_TITLE")
+		SESSION_TITLE_BASE64=$(node -e 'process.stdout.write(Buffer.from(process.argv[1], "utf8").toString("base64url"))' -- "$SESSION_TITLE")
 		ARGS+=("--session-title-base64=$SESSION_TITLE_BASE64")
 	fi
 fi
