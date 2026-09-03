@@ -205,10 +205,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/53fe36871b8b384e93c928b25acad531c2bcec683521d22307d025265ed19d9c)
 
 #### sessions/chat/input/chatInput/ResponsiveModelResizeCycleMinimal/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/8afa4c4eeb9f78079ea98efe10b841be3ba1104fe5fcf7f0e936113243017792)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/7d2eab7f21ede7f8933a0db844c8344feb2de18a6e5ee90e1f503ea81c5de2f7)
 
 #### sessions/chat/input/chatInput/ResponsiveModelResizeCycleMinimal/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/0fe9bb7434b473795187b0545ccaed6aa77af4b7e9f90890dc8885c7f31ddebb)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/08e61c2de8423d971391af944c439860a399a04fcded1508058b6ee5568356de)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionAttachedContext/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/19b1ebb2ae6b03f3500181ac7d35fe20ccf4f0a3bcac413211f00f3db200a69b)
