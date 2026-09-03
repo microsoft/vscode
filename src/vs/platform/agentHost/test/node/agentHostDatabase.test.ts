@@ -8,6 +8,7 @@ import * as fs from 'fs/promises';
 import { createHash } from 'crypto';
 import { tmpdir } from 'os';
 import type { Database } from '@vscode/sqlite3';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { stableStringify } from '../../../../base/common/objects.js';
 import { join } from '../../../../base/common/path.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -321,6 +322,51 @@ suite('AgentHostDatabase sessions_v2', () => {
 				legacyMirroredPayload: 'observed-legacy-payload',
 				chats: [
 					{ chat: 'ahp-chat://second', order: 0, inheritedTurnId: 'turn-1' },
+				],
+			},
+		});
+	});
+
+	test('sequences chat catalog reads behind queued replacements', async () => {
+		const sequencedDatabase = new AgentHostDatabase(':memory:');
+		database = sequencedDatabase;
+		const session = 'session://sequenced-chat-catalog';
+		await sequencedDatabase.registerRuntimeSession(session, {
+			provider: 'copilot',
+			startTime: 1,
+			source: 'explicit',
+		}, { checkTombstone: false });
+		const release = new DeferredPromise<void>();
+		const queued = new DeferredPromise<void>();
+		const blocker = sequencedDatabase['_transactionSequencer'].queue(async () => {
+			await queued.complete();
+			await release.p;
+		});
+		await queued.p;
+		const replacement = sequencedDatabase.replaceSessionChatCatalog(session, [
+			{ chat: 'ahp-chat://first', order: 0 },
+			{ chat: 'ahp-chat://second', order: 1 },
+		], undefined);
+		let readSettled = false;
+		const read = sequencedDatabase.getSessionChatCatalog(session).finally(() => readSettled = true);
+		await new Promise(resolve => setTimeout(resolve, 0));
+		const settledWhileWriteQueued = readSettled;
+		await release.complete();
+		await blocker;
+
+		assert.deepStrictEqual({
+			settledWhileWriteQueued,
+			replacement: await replacement,
+			catalog: await read,
+		}, {
+			settledWhileWriteQueued: false,
+			replacement: { status: 'applied', revision: 1 },
+			catalog: {
+				revision: 1,
+				legacyMirroredRevision: 0,
+				chats: [
+					{ chat: 'ahp-chat://first', order: 0 },
+					{ chat: 'ahp-chat://second', order: 1 },
 				],
 			},
 		});
@@ -841,6 +887,34 @@ suite('AgentHostDatabase sessions_v2', () => {
 		});
 	});
 
+	test('legacy reconciliation returns the exact identity after merging modified time', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const session = 'session://legacy-reconciliation-identity';
+		await database.registerSessionV2(session, {
+			provider: 'copilot',
+			startTime: 20,
+			modifiedTime: 40,
+			source: 'restore',
+		}, { checkTombstone: true });
+
+		const reconciled = await database.reconcileSessionV2RegistrationFromLegacy(session, {
+			session,
+			provider: 'copilot',
+			startTime: 10,
+			modifiedTime: 30,
+			external: true,
+			source: 'discovery',
+		});
+
+		assert.deepStrictEqual({
+			reconciled,
+			stored: await database.getSessionV2Registration(session),
+		}, {
+			reconciled: { session, provider: 'copilot', startTime: 10, modifiedTime: 40, external: true, source: 'discovery' },
+			stored: { session, provider: 'copilot', startTime: 10, modifiedTime: 40, external: true, source: 'discovery' },
+		});
+	});
+
 	test('runtime mutations atomically mirror current identity and provenance to legacy', async () => {
 		database = new AgentHostDatabase(':memory:');
 		const session = 'session://runtime-mirror';
@@ -849,6 +923,9 @@ suite('AgentHostDatabase sessions_v2', () => {
 			session,
 			reason: 'providerAbsent',
 			fingerprint: 'enumeration-v1',
+		}, {
+			identity: undefined,
+			catalog: undefined,
 		});
 
 		await database.registerRuntimeSession(session, { provider: 'copilot', startTime: 10, source: 'restore' }, { checkTombstone: true });
@@ -1086,6 +1163,13 @@ suite('AgentHostDatabase sessions_v2', () => {
 			session,
 			reason: 'staleExternal',
 			fingerprint: '123',
+		}, {
+			identity: await database.getSessionV2Registration(session),
+			catalog: {
+				sessionGeneration: 'generation-1',
+				sourceRevision: 1,
+				payloadHash: createEnvelope(session, 'generation-1', 1).payloadHash,
+			},
 		});
 
 		const excluded = {
@@ -1138,6 +1222,13 @@ suite('AgentHostDatabase sessions_v2', () => {
 			session: excluded,
 			reason: 'staleExternal',
 			fingerprint: '1',
+		}, {
+			identity: await database.getSessionV2Registration(excluded),
+			catalog: {
+				sessionGeneration: 'generation-1',
+				sourceRevision: 1,
+				payloadHash: createEnvelope(excluded, 'generation-1', 1).payloadHash,
+			},
 		});
 		const excludedUpsert = await database.upsertSessionV2(createEnvelope(excluded, 'generation-1', 2), 'generation-1');
 
@@ -1161,6 +1252,42 @@ suite('AgentHostDatabase sessions_v2', () => {
 			excludedUpsert: 'missingSession',
 			registeredIdentity: { session: registered, provider: 'copilot', startTime: 2, modifiedTime: 2, external: true, source: 'discovery' },
 			staleMarker: undefined,
+		});
+	});
+
+	test('discovery registration racing exclusion preserves the newly registered identity and payload', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const session = 'copilot:/exclusion-registration-race';
+		const observed = {
+			identity: await database.getSessionV2Registration(session),
+			catalog: undefined,
+		};
+		const envelope = createEnvelope(session, 'discovery-generation', 1);
+
+		await database.registerSessionV2(session, {
+			provider: 'copilot',
+			startTime: 10,
+			modifiedTime: 20,
+			source: 'discovery',
+		}, { checkTombstone: true });
+		await database.upsertSessionV2(envelope, undefined);
+		const exclusion = await database.excludeSessionV2({
+			provider: 'copilot',
+			session,
+			reason: 'staleExternal',
+			fingerprint: '1',
+		}, observed);
+
+		assert.deepStrictEqual({
+			exclusion,
+			identity: await database.getSessionV2Registration(session),
+			payload: (await database.getSessionV2(session))?.payloadHash,
+			marker: await database.getSessionsV2Exclusion('copilot', session),
+		}, {
+			exclusion: 'stale',
+			identity: { session, provider: 'copilot', startTime: 10, modifiedTime: 20, external: true, source: 'discovery' },
+			payload: envelope.payloadHash,
+			marker: undefined,
 		});
 	});
 });

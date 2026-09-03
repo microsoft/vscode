@@ -188,7 +188,7 @@ function plainObject<T>(validator: IValidator<T>): ValidatorBase<T> {
 			: { message: 'Expected a plain object.' });
 }
 
-const changesValidator = plainObject(vObj({
+export const agentHostCatalogChangesValidator = plainObject(vObj({
 	additions: vOptionalProp(safeInteger()),
 	deletions: vOptionalProp(safeInteger()),
 	files: vOptionalProp(safeInteger()),
@@ -336,7 +336,7 @@ export const agentHostCatalogDataValidator = plainObject(vObj({
 	project: vOptionalProp(projectValidator),
 	isChatBacking: vOptionalProp(vBoolean()),
 	workingDirectories: workingDirectoriesValidator,
-	changes: vOptionalProp(changesValidator),
+	changes: vOptionalProp(agentHostCatalogChangesValidator),
 	_meta: vOptionalProp(metadataValidator),
 	chats: chatsValidator,
 }));

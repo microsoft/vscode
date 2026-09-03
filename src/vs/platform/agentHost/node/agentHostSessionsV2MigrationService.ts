@@ -58,11 +58,12 @@ export interface IAgentHostSessionsV2MigrationReport<T> {
 	readonly excluded: number;
 	readonly incomplete: number;
 	readonly failed: number;
+	readonly staleExclusions: number;
 	readonly marked: boolean;
 	readonly imported: readonly IAgentHostSessionsV2ImportedCandidate<T>[];
 }
 
-type AgentHostSessionsV2MigrationStatus = 'skipped' | 'synchronized' | 'excluded' | 'incomplete' | 'failed';
+type AgentHostSessionsV2MigrationStatus = 'skipped' | 'synchronized' | 'excluded' | 'incomplete' | 'failed' | 'staleExclusion';
 
 interface IAgentHostSessionsV2MigrationOutcome<T> {
 	readonly status: AgentHostSessionsV2MigrationStatus;
@@ -139,6 +140,7 @@ export class AgentHostSessionsV2MigrationService<T> {
 				return (!candidate.current && !!candidate.legacy)
 					|| (!!candidate.current && (
 						candidate.current.external === undefined
+						|| (!!candidate.legacy && candidate.legacy.external !== undefined && candidate.legacy.modifiedTime > candidate.current.modifiedTime)
 						|| (!!candidate.legacy && candidate.legacy.external !== undefined && !this._registrationsEqual(candidate.current, candidate.legacy))
 						|| !candidate.catalog
 						|| candidate.catalog.payloadVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION
@@ -161,10 +163,11 @@ export class AgentHostSessionsV2MigrationService<T> {
 			excluded: outcomes.filter(outcome => outcome.status === 'excluded').length,
 			incomplete: outcomes.filter(outcome => outcome.status === 'incomplete').length,
 			failed: outcomes.filter(outcome => outcome.status === 'failed').length,
+			staleExclusions: outcomes.filter(outcome => outcome.status === 'staleExclusion').length,
 			marked: false,
 			imported: outcomes.flatMap(outcome => outcome.imported ? [outcome.imported] : []),
 		};
-		if (report.incomplete === 0 && report.failed === 0) {
+		if (report.incomplete === 0 && report.failed === 0 && report.staleExclusions === 0) {
 			if (!wasBackfilled) {
 				await this._database.markSessionsV2Backfilled(provider, AGENT_HOST_CATALOG_PAYLOAD_VERSION);
 			}
@@ -199,15 +202,15 @@ export class AgentHostSessionsV2MigrationService<T> {
 			}
 			const permanentExclusion = getPermanentExclusion(candidate);
 			if (permanentExclusion) {
-				await this._exclude(provider, candidate, permanentExclusion);
-				return { status: 'excluded' };
+				return { status: await this._exclude(provider, candidate, permanentExclusion) };
 			}
 			const hasMatchingReceipt = candidate.catalog ? await this._hasMatchingReceipt(candidate.session, candidate.catalog) : false;
 			let effectiveCandidate = candidate;
-			if (candidate.current && candidate.legacy && candidate.legacy.external !== undefined && !this._registrationsEqual(candidate.current, candidate.legacy)
+			if (candidate.current && candidate.legacy && candidate.legacy.external !== undefined
+				&& (candidate.legacy.modifiedTime > candidate.current.modifiedTime || !this._registrationsEqual(candidate.current, candidate.legacy))
 				&& !this._isLaterExplicitCurrentIncarnation(candidate.current, candidate.legacy, hasMatchingReceipt)) {
-				await this._database.reconcileSessionV2RegistrationFromLegacy(session, candidate.legacy);
-				effectiveCandidate = { ...candidate, current: candidate.legacy };
+				const reconciled = await this._database.reconcileSessionV2RegistrationFromLegacy(session, candidate.legacy);
+				effectiveCandidate = { ...candidate, current: reconciled };
 				if (candidate.legacy.external !== undefined && hasMatchingReceipt) {
 					return { status: 'synchronized' };
 				}
@@ -218,13 +221,11 @@ export class AgentHostSessionsV2MigrationService<T> {
 
 			const resolution = await resolve(effectiveCandidate);
 			if (resolution.status === 'excluded') {
-				await this._exclude(provider, candidate, resolution);
-				return { status: 'excluded' };
+				return { status: await this._exclude(provider, effectiveCandidate, resolution) };
 			}
 			if (resolution.status === 'incomplete') {
-				if (enumerated && !candidate.provider && !candidate.catalog && (candidate.current || candidate.legacy)) {
-					await this._exclude(provider, candidate, { reason: 'providerAbsent', fingerprint: 'enumeration-v1' });
-					return { status: 'excluded' };
+				if (enumerated && !effectiveCandidate.provider && !effectiveCandidate.catalog && (effectiveCandidate.current || effectiveCandidate.legacy)) {
+					return { status: await this._exclude(provider, effectiveCandidate, { reason: 'providerAbsent', fingerprint: 'enumeration-v1' }) };
 				}
 				return { status: 'incomplete' };
 			}
@@ -290,13 +291,21 @@ export class AgentHostSessionsV2MigrationService<T> {
 		}
 	}
 
-	private async _exclude(provider: AgentProvider, candidate: IAgentHostSessionsV2Candidate<T>, exclusion: IAgentHostSessionsV2Exclusion): Promise<void> {
-		await this._database.excludeSessionV2({
+	private async _exclude(provider: AgentProvider, candidate: IAgentHostSessionsV2Candidate<T>, exclusion: IAgentHostSessionsV2Exclusion): Promise<'excluded' | 'staleExclusion'> {
+		const result = await this._database.excludeSessionV2({
 			provider,
 			session: candidate.session.toString(),
 			reason: exclusion.reason,
 			fingerprint: exclusion.fingerprint,
+		}, {
+			identity: candidate.current,
+			catalog: candidate.catalog && {
+				sessionGeneration: candidate.catalog.sessionGeneration,
+				sourceRevision: candidate.catalog.sourceRevision,
+				payloadHash: candidate.catalog.payloadHash,
+			},
 		});
+		return result === 'excluded' ? 'excluded' : 'staleExclusion';
 	}
 
 	private async _hasMatchingReceipt(session: URI, catalog: IAgentHostDatabaseSessionV2Receipt): Promise<boolean> {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Limiter } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readAgentDevContainerWorktreeMetadata } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, stringifySessionArtifacts } from '../common/sessionArtifacts.js';
@@ -10,7 +11,7 @@ import { META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { ChangesSummary, ChatOrigin, ChatOriginKind } from '../common/state/protocol/state.js';
 import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ISessionGitHubState, ISessionGitState, ISessionSourceControlState, parseSessionCreationReference, parseSessionFolderPickerDecision, parseSessionMultiRootMetadata, readSessionCreationReference, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionFolderPickerDecision, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionStatus, SessionSummary } from '../common/state/sessionState.js';
-import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, AgentHostCatalogData, AgentHostCatalogJsonValue, AgentHostCatalogMetadata, agentHostCatalogGitValidator } from './agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, AgentHostCatalogData, AgentHostCatalogJsonValue, AgentHostCatalogMetadata, agentHostCatalogChangesValidator, agentHostCatalogGitValidator } from './agentHostCatalogProjection.js';
 import { IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, AgentHostTitleSource, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import { WORKTREE_META_REPOSITORY_ROOT } from './shared/worktreeIsolation.js';
@@ -127,20 +128,25 @@ export class AgentHostCatalogSourceResolver {
 			ref.dispose();
 		}
 		const metadata = { ...persisted, ...metadataOverrides };
-		const chatMetadata = new Map(await Promise.all(state.chats.map(async chat => {
-			const ref = await this._dependencies.tryOpenDatabase?.(URI.parse(chat.uri));
-			if (!ref) {
+		const chatMetadataLimiter = new Limiter<readonly [string, Readonly<Record<string, string | undefined>> | undefined]>(4);
+		const chatMetadata = new Map(await Promise.all(state.chats.map(chat => chatMetadataLimiter.queue(async () => {
+			try {
+				const ref = await this._dependencies.tryOpenDatabase?.(URI.parse(chat.uri));
+				if (!ref) {
+					return [chat.uri, undefined] as const;
+				}
+				try {
+					return [chat.uri, await ref.object.getMetadataObject({
+						[SESSION_CUSTOM_TITLE_KEY]: true,
+						[SESSION_CUSTOM_TITLE_SOURCE_KEY]: true,
+					})] as const;
+				} finally {
+					ref.dispose();
+				}
+			} catch {
 				return [chat.uri, undefined] as const;
 			}
-			try {
-				return [chat.uri, await ref.object.getMetadataObject({
-					[SESSION_CUSTOM_TITLE_KEY]: true,
-					[SESSION_CUSTOM_TITLE_SOURCE_KEY]: true,
-				})] as const;
-			} finally {
-				ref.dispose();
-			}
-		})));
+		}))));
 		const persistedTitle = sessionMetadata.title.read(metadata);
 		const persistedTitleSource = sessionMetadata.titleSource.read(metadata);
 		const defaultChat = state.chats.find(chat => chat.kind === 'default');
@@ -453,7 +459,7 @@ function readPersistedChanges(value: string | undefined): ChangesSummary | undef
 		return undefined;
 	}
 	try {
-		return JSON.parse(value) as ChangesSummary;
+		return agentHostCatalogChangesValidator.validate(JSON.parse(value)).content;
 	} catch {
 		return undefined;
 	}

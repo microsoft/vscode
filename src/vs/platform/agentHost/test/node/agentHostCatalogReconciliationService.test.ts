@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Event } from '../../../../base/common/event.js';
-import { type IReference } from '../../../../base/common/lifecycle.js';
+import { type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -14,7 +14,7 @@ import type { ISessionDataService } from '../../common/sessionDataService.js';
 import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, IAgentHostCatalogReconciliationOptions } from '../../node/agentHostCatalogReconciliationService.js';
 import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncService.js';
 import { AgentHostCatalogData, AGENT_HOST_CATALOG_PAYLOAD_VERSION } from '../../node/agentHostCatalogProjection.js';
-import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
+import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
 import type { IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import type { IAgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { TestSessionDatabase } from '../common/sessionTestHelpers.js';
@@ -83,6 +83,9 @@ class RecordingCatalogDatabase extends AgentHostDatabase {
 	failUpsert = false;
 	failUpsertCount = 0;
 	failMarkAll = 0;
+	markAllCalls = 0;
+	dirtyAfterUpsertCount = 0;
+	nonCanonicalPayloadReads = 0;
 
 	constructor() {
 		super(':memory:');
@@ -94,15 +97,51 @@ class RecordingCatalogDatabase extends AgentHostDatabase {
 			this.failUpsertCount = Math.max(0, this.failUpsertCount - 1);
 			throw new Error('central unavailable');
 		}
-		return super.upsertSessionV2(envelope, expectedSessionGeneration);
+		const result = await super.upsertSessionV2(envelope, expectedSessionGeneration);
+		if (this.dirtyAfterUpsertCount > 0 && (result === 'applied' || result === 'replayed')) {
+			this.dirtyAfterUpsertCount--;
+			await super.markSessionV2PayloadDirty(envelope.session);
+		}
+		return result;
 	}
 
 	override async markAllSessionsV2PayloadsDirty(): Promise<void> {
+		this.markAllCalls++;
 		if (this.failMarkAll > 0) {
 			this.failMarkAll--;
 			throw new Error('dirty marker unavailable');
 		}
 		return super.markAllSessionsV2PayloadsDirty();
+	}
+
+	override async getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined> {
+		const result = await super.getSessionV2(session);
+		if (result && this.nonCanonicalPayloadReads > 0) {
+			this.nonCanonicalPayloadReads--;
+			return { ...result, payload: ` ${result.payload}` };
+		}
+		return result;
+	}
+}
+
+class TestScheduler {
+	private readonly _entries: { readonly callback: () => void; readonly delay: number; active: boolean }[] = [];
+
+	readonly schedule = (callback: () => void, delay: number): IDisposable => {
+		const entry = { callback, delay, active: true };
+		this._entries.push(entry);
+		return { dispose: () => entry.active = false };
+	};
+
+	get activeDelays(): readonly number[] {
+		return this._entries.filter(entry => entry.active).map(entry => entry.delay);
+	}
+
+	run(delay: number): void {
+		const entry = this._entries.find(candidate => candidate.active && candidate.delay === delay);
+		assert.ok(entry, `No active ${delay}ms timer`);
+		entry.active = false;
+		entry.callback();
 	}
 }
 
@@ -232,6 +271,188 @@ suite('AgentHostCatalogReconciliationService', () => {
 			converged: [{ session: 'agenthost:one', status: 'skipped', reason: 'synchronized' }],
 			after: { state: 'acknowledged', payload: undefined },
 			catalogTitle: 'one',
+		});
+	});
+
+	test('replays a compatible pending snapshot before resolving an unavailable provider', async () => {
+		const harness = await createHarness(['one']);
+		const session = registered('one');
+		harness.central.failUpsert = true;
+		await harness.sync.synchronize(session.session, { data: catalogData('pending'), legacyMetadata: { customTitle: 'pending' } });
+		harness.central.failUpsert = false;
+		let sourceResolutions = 0;
+		const report = await harness.createService(async () => {
+			sourceResolutions++;
+			return { status: 'providerUnavailable' };
+		}).runPass();
+
+		assert.deepStrictEqual({
+			outcomes: report.outcomes,
+			sourceResolutions,
+			catalogTitle: summaryOf((await harness.central.getSessionV2(session.session.toString()))!.payload),
+		}, {
+			outcomes: [{ session: 'agenthost:one', status: 'retry', reason: 'superseded' }],
+			sourceResolutions: 0,
+			catalogTitle: 'pending',
+		});
+	});
+
+	test('does not clear a dirty epoch added while replaying a pending payload', async () => {
+		const harness = await createHarness(['one']);
+		const session = registered('one');
+		harness.central.failUpsert = true;
+		await harness.sync.synchronize(session.session, { data: catalogData('pending'), legacyMetadata: { customTitle: 'pending' } });
+		harness.central.failUpsert = false;
+		harness.central.dirtyAfterUpsertCount = 1;
+
+		const report = await harness.createService().runPass();
+		const cached = await harness.central.getSessionV2(session.session.toString());
+
+		assert.deepStrictEqual({
+			outcomes: report.outcomes,
+			payloadDirty: cached?.payloadDirty,
+		}, {
+			outcomes: [{ session: 'agenthost:one', status: 'retry', reason: 'superseded' }],
+			payloadDirty: 3,
+		});
+	});
+
+	test('replaces a non-canonical central payload before clearing its dirty marker', async () => {
+		const harness = await createHarness(['one']);
+		const session = registered('one');
+		await harness.sync.synchronize(session.session, { data: catalogData('one'), legacyMetadata: { customTitle: 'one' } });
+		harness.central.nonCanonicalPayloadReads = 3;
+
+		const report = await harness.createService().runPass();
+		const repaired = await harness.central.getSessionV2(session.session.toString());
+
+		assert.deepStrictEqual({
+			outcomes: report.outcomes,
+			payloadStartsWithWhitespace: repaired?.payload.startsWith(' '),
+			sourceRevision: repaired?.sourceRevision,
+			payloadDirty: repaired?.payloadDirty,
+		}, {
+			outcomes: [{ session: 'agenthost:one', status: 'succeeded', reason: 'synchronized', sourceRevision: 1 }],
+			payloadStartsWithWhitespace: false,
+			sourceRevision: 1,
+			payloadDirty: 0,
+		});
+	});
+
+	test('runFullPass drains its initial dirty population once across bounded batches', async () => {
+		const harness = await createHarness(['one', 'two', 'three']);
+		const resolutions = new Map<string, number>();
+		const report = await harness.createService(async session => {
+			const key = session.session.toString();
+			resolutions.set(key, (resolutions.get(key) ?? 0) + 1);
+			return key === 'agenthost:two'
+				? { status: 'providerUnavailable' }
+				: { status: 'available', request: { data: catalogData(session.session.path), legacyMetadata: { customTitle: session.session.path } } };
+		}, { batchSize: 1 }).runFullPass();
+
+		assert.deepStrictEqual({
+			outcomes: report.outcomes,
+			resolutions: [...resolutions],
+		}, {
+			outcomes: [
+				{ session: 'agenthost:one', status: 'succeeded', reason: 'synchronized', sourceRevision: 0 },
+				{ session: 'agenthost:three', status: 'succeeded', reason: 'synchronized', sourceRevision: 0 },
+				{ session: 'agenthost:two', status: 'retry', reason: 'providerUnavailable' },
+			],
+			resolutions: [
+				['agenthost:one', 1],
+				['agenthost:three', 1],
+				['agenthost:two', 1],
+			],
+		});
+	});
+
+	test('runFullPass drains joined schedule and runPass requests with one trailing pass', async () => {
+		const harness = await createHarness(['one']);
+		let firstSourceStarted!: () => void;
+		const firstStarted = new Promise<void>(resolve => firstSourceStarted = resolve);
+		let releaseFirstSource!: () => void;
+		const firstSourceGate = new Promise<void>(resolve => releaseFirstSource = resolve);
+		let sourceResolutions = 0;
+		const service = harness.createService(async () => {
+			sourceResolutions++;
+			if (sourceResolutions === 1) {
+				firstSourceStarted();
+				await firstSourceGate;
+			}
+			return { status: 'providerUnavailable' };
+		});
+
+		const fullPass = service.runFullPass();
+		await firstStarted;
+		service.schedule();
+		const joinedPass = service.runPass();
+		releaseFirstSource();
+		const [fullReport, joinedReport] = await Promise.all([fullPass, joinedPass]);
+
+		assert.deepStrictEqual({
+			fullOutcomes: fullReport.outcomes,
+			joinedOutcomes: joinedReport.outcomes,
+			sourceResolutions,
+			markAllCalls: harness.central.markAllCalls,
+		}, {
+			fullOutcomes: [
+				{ session: 'agenthost:one', status: 'retry', reason: 'providerUnavailable' },
+				{ session: 'agenthost:one', status: 'retry', reason: 'providerUnavailable' },
+			],
+			joinedOutcomes: [
+				{ session: 'agenthost:one', status: 'retry', reason: 'providerUnavailable' },
+				{ session: 'agenthost:one', status: 'retry', reason: 'providerUnavailable' },
+			],
+			sourceResolutions: 2,
+			markAllCalls: 1,
+		});
+	});
+
+	test('whenIdle waits for a trailing pass requested during runFullPass', async () => {
+		const harness = await createHarness(['one']);
+		let firstSourceStarted!: () => void;
+		const firstStarted = new Promise<void>(resolve => firstSourceStarted = resolve);
+		let releaseFirstSource!: () => void;
+		const firstSourceGate = new Promise<void>(resolve => releaseFirstSource = resolve);
+		let trailingSourceStarted!: () => void;
+		const trailingStarted = new Promise<void>(resolve => trailingSourceStarted = resolve);
+		let releaseTrailingSource!: () => void;
+		const trailingSourceGate = new Promise<void>(resolve => releaseTrailingSource = resolve);
+		let sourceResolutions = 0;
+		const service = harness.createService(async () => {
+			sourceResolutions++;
+			if (sourceResolutions === 1) {
+				firstSourceStarted();
+				await firstSourceGate;
+			} else {
+				trailingSourceStarted();
+				await trailingSourceGate;
+			}
+			return { status: 'providerUnavailable' };
+		});
+
+		const fullPass = service.runFullPass();
+		await firstStarted;
+		service.schedule();
+		let idleSettled = false;
+		const idle = service.whenIdle().then(() => idleSettled = true);
+		releaseFirstSource();
+		await trailingStarted;
+		const settledBeforeTrailingRelease = idleSettled;
+		releaseTrailingSource();
+		await Promise.all([fullPass, idle]);
+
+		assert.deepStrictEqual({
+			settledBeforeTrailingRelease,
+			idleSettled,
+			sourceResolutions,
+			markAllCalls: harness.central.markAllCalls,
+		}, {
+			settledBeforeTrailingRelease: false,
+			idleSettled: true,
+			sourceResolutions: 2,
+			markAllCalls: 1,
 		});
 	});
 
@@ -423,6 +644,100 @@ suite('AgentHostCatalogReconciliationService', () => {
 			{ session: 'agenthost:clean', status: 'skipped', reason: 'synchronized' },
 			{ session: 'agenthost:stuck', status: 'retry', reason: 'providerUnavailable' },
 		]);
+	});
+
+	test('schedule replaces a pending periodic timer with a prompt background repair', async () => {
+		const harness = await createHarness(['one']);
+		const scheduler = new TestScheduler();
+		const service = harness.createService(undefined, {
+			backgroundDelayMs: 10,
+			intervalMs: 300,
+			schedule: scheduler.schedule,
+		});
+
+		service.start();
+		await service.runPass();
+		assert.deepStrictEqual(scheduler.activeDelays, [300]);
+
+		service.schedule();
+
+		assert.deepStrictEqual(scheduler.activeDelays, [10]);
+	});
+
+	test('whenIdle drains scheduled work without re-dirtying clean rows', async () => {
+		const harness = await createHarness(['one']);
+		const scheduler = new TestScheduler();
+		const service = harness.createService(undefined, {
+			backgroundDelayMs: 10,
+			intervalMs: 300,
+			schedule: scheduler.schedule,
+		});
+
+		service.schedule();
+		await service.whenIdle();
+		const databaseOpenAttemptsAfterInitialPass = harness.getDatabaseOpenAttempts();
+		service.schedule();
+		await service.whenIdle();
+
+		assert.deepStrictEqual({
+			databaseOpenAttemptsAfterInitialPass,
+			finalDatabaseOpenAttempts: harness.getDatabaseOpenAttempts(),
+			activeDelays: scheduler.activeDelays,
+		}, {
+			databaseOpenAttemptsAfterInitialPass: 1,
+			finalDatabaseOpenAttempts: 1,
+			activeDelays: [300],
+		});
+	});
+
+	test('scheduled start rearms periodic work after an in-flight direct pass', async () => {
+		const harness = await createHarness(['one']);
+		const scheduler = new TestScheduler();
+		let sourceStarted!: () => void;
+		const started = new Promise<void>(resolve => sourceStarted = resolve);
+		let releaseSource!: () => void;
+		const sourceGate = new Promise<void>(resolve => releaseSource = resolve);
+		let sourceResolutions = 0;
+		const service = harness.createService(async session => {
+			sourceResolutions++;
+			if (sourceResolutions === 1) {
+				sourceStarted();
+				await sourceGate;
+			}
+			return { status: 'available', request: { data: catalogData(session.session.path), legacyMetadata: { customTitle: session.session.path } } };
+		}, {
+			intervalMs: 300,
+			schedule: scheduler.schedule,
+		});
+
+		const direct = service.runPass();
+		await started;
+		service.start();
+		releaseSource();
+		await direct;
+
+		assert.deepStrictEqual({
+			sourceResolutions,
+			activeDelays: scheduler.activeDelays,
+		}, {
+			sourceResolutions: 1,
+			activeDelays: [300],
+		});
+	});
+
+	test('uses the same ordinal comparator for ordering and cursor boundaries', async () => {
+		const harness = await createHarness(['a', 'B', 'b']);
+		const visited: string[] = [];
+		const service = harness.createService(async session => {
+			visited.push(session.session.toString());
+			return { status: 'providerUnavailable' };
+		}, { batchSize: 1 });
+
+		await service.runPass();
+		await service.runPass();
+		await service.runPass();
+
+		assert.deepStrictEqual(visited, ['agenthost:B', 'agenthost:a', 'agenthost:b']);
 	});
 
 	test('serializes source verification and repair behind an in-flight writer', async () => {

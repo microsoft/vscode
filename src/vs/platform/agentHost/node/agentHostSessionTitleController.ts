@@ -76,6 +76,8 @@ interface ITitlePromptContext {
 
 export interface IAgentHostSessionTitleControllerOptions {
 	readonly sessionDataService: ISessionDataService;
+	readonly queueCatalogSync?: (session: ProtocolURI, metadataOverrides: Readonly<Record<string, string>>) => void;
+	readonly persistSurfacedSessionTitle?: (session: ProtocolURI, title: string) => Promise<void>;
 	readonly getGitHubCopilotToken?: () => string | undefined;
 	readonly getGitHubToken?: () => string | undefined;
 	readonly getGitHubHost?: () => string | undefined;
@@ -98,7 +100,7 @@ export interface IAgentHostSessionTitleController {
 	cancelTitleGeneration(session: ProtocolURI): void;
 	clearSession(session: ProtocolURI, chatChannels: readonly ProtocolURI[]): void;
 	markTitleAuto(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, title: string): void;
-	markTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI): void;
+	markTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI, title?: string): void;
 	prepareInstructionForAgent(channel: ProtocolURI, chatChannel: ProtocolURI): Promise<string | undefined>;
 }
 
@@ -257,6 +259,10 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			this._persistSessionFlag(independentChat, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AUTO);
 			this._persistSessionFlag(channel, customChatTitleMetadataKey(independentChat), title);
 			this._persistSessionFlag(channel, customChatTitleSourceMetadataKey(independentChat), AGENT_HOST_TITLE_SOURCE_AUTO);
+			this._options.queueCatalogSync?.(channel, {
+				[customChatTitleMetadataKey(independentChat)]: title,
+				[customChatTitleSourceMetadataKey(independentChat)]: AGENT_HOST_TITLE_SOURCE_AUTO,
+			});
 			return;
 		}
 		const defaultChat = this._stateManager.getSessionState(channel)?.defaultChat;
@@ -480,7 +486,9 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			'',
 			title => this._applyExternalSessionTitle(session, title),
 			() => true,
-			title => this._persistAutoTitle(session, undefined, title),
+			title => this._options.persistSurfacedSessionTitle
+				? this._options.persistSurfacedSessionTitle(session, title)
+				: this._persistAutoTitle(session, undefined, title),
 		);
 	}
 
@@ -515,12 +523,19 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		this._persistAutoTitle(channel, independentChat, title);
 	}
 
-	markTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI): void {
-		const key = this._independentChatChannel(channel, chatChannel) ?? channel;
+	markTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI, title?: string): void {
+		const independentChat = this._independentChatChannel(channel, chatChannel);
+		const key = independentChat ?? channel;
 		this._cancelTitleGeneration(key);
 		this._autoTitles.delete(key);
 		this._provisionalTitles.delete(key);
 		this._renamedTitles.add(key);
+		if (independentChat && title !== undefined) {
+			this._options.queueCatalogSync?.(channel, {
+				[customChatTitleMetadataKey(independentChat)]: title,
+				[customChatTitleSourceMetadataKey(independentChat)]: AGENT_HOST_TITLE_SOURCE_USER,
+			});
+		}
 	}
 
 	async prepareInstructionForAgent(channel: ProtocolURI, chatChannel: ProtocolURI): Promise<string | undefined> {
@@ -554,7 +569,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		fallbackTitle: string,
 		apply: (title: string) => void,
 		currentTitleMatchesFallback: () => boolean,
-		persist: (title: string) => void,
+		persist: (title: string) => void | Promise<void>,
 	): void {
 		void this._startTitleGeneration(key, prompt, fallbackTitle, apply, currentTitleMatchesFallback, persist);
 	}
@@ -566,7 +581,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		fallbackTitle: string,
 		apply: (title: string) => void,
 		currentTitleMatchesFallback: () => boolean,
-		persist: (title: string) => void,
+		persist: (title: string) => void | Promise<void>,
 	): Promise<void> {
 		this._cancelTitleGeneration(key);
 		const source = new CancellationTokenSource();
@@ -589,7 +604,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		fallbackTitle: string,
 		apply: (title: string) => void,
 		currentTitleMatchesFallback: () => boolean,
-		persist: (title: string) => void,
+		persist: (title: string) => void | Promise<void>,
 		token: CancellationToken,
 	): Promise<void> {
 		const generatedTitle = await this._generateTitleFromPrompt(prompt, token);
@@ -604,7 +619,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		if (generatedTitle !== fallbackTitle) {
 			apply(generatedTitle);
 		}
-		persist(generatedTitle);
+		await persist(generatedTitle);
 	}
 
 	private async _generateTitleFromPrompt(prompt: ITitlePromptContext, token: CancellationToken): Promise<string | undefined> {

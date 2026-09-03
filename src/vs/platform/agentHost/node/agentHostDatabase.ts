@@ -60,6 +60,13 @@ export interface IAgentHostDatabaseSessionsV2Exclusion {
 	readonly fingerprint: string;
 }
 
+export interface IAgentHostDatabaseSessionsV2ExclusionExpectation {
+	readonly identity: IAgentHostDatabaseSession | undefined;
+	readonly catalog: Pick<IAgentHostDatabaseSessionV2Receipt, 'sessionGeneration' | 'sourceRevision' | 'payloadHash'> | undefined;
+}
+
+export type AgentHostDatabaseSessionV2ExclusionResult = 'excluded' | 'stale';
+
 /** Durable catalog envelope written alongside the opaque, self-describing payload. */
 export interface IAgentHostDatabaseSessionV2Envelope {
 	readonly session: string;
@@ -141,8 +148,8 @@ export interface IAgentHostDatabase extends IDisposable {
 	markSessionsV2Excluded(exclusion: IAgentHostDatabaseSessionsV2Exclusion): Promise<void>;
 	/** Durably records multiple non-deletion exclusions in one transaction. */
 	markSessionsV2ExcludedBatch?(exclusions: readonly IAgentHostDatabaseSessionsV2Exclusion[]): Promise<void>;
-	/** Atomically excludes and removes a current v2 identity. */
-	excludeSessionV2(exclusion: IAgentHostDatabaseSessionsV2Exclusion): Promise<void>;
+	/** Atomically excludes and removes the observed current v2 identity. */
+	excludeSessionV2(exclusion: IAgentHostDatabaseSessionsV2Exclusion, expected: IAgentHostDatabaseSessionsV2ExclusionExpectation): Promise<AgentHostDatabaseSessionV2ExclusionResult>;
 	/** Reads a session's current-v2 exclusion, when present. */
 	getSessionsV2Exclusion(provider: AgentProvider, session: string): Promise<IAgentHostDatabaseSessionsV2Exclusion | undefined>;
 	/** Lists one provider's current-v2 exclusions without opening session databases. */
@@ -180,8 +187,8 @@ export interface IAgentHostDatabase extends IDisposable {
 	unregisterSessionV2(session: string): Promise<void>;
 	/** Importer-only: updates unresolved provenance in v2 without changing legacy. */
 	updateSessionV2External(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void>;
-	/** Importer-only: replaces v2 identity with newer legacy compatibility input. */
-	reconcileSessionV2RegistrationFromLegacy(session: string, legacy: IAgentHostDatabaseSession): Promise<void>;
+	/** Importer-only: replaces v2 identity with newer legacy compatibility input and returns the resulting identity. */
+	reconcileSessionV2RegistrationFromLegacy(session: string, legacy: IAgentHostDatabaseSession): Promise<IAgentHostDatabaseSession | undefined>;
 	/** Returns a current v2 registry identity, including one whose payload is incomplete. */
 	getSessionV2Registration(session: string): Promise<IAgentHostDatabaseSession | undefined>;
 	/** Lists current v2 registry identities, including rows whose payloads are incomplete. */
@@ -662,11 +669,19 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
-	excludeSessionV2(exclusion: IAgentHostDatabaseSessionsV2Exclusion): Promise<void> {
+	excludeSessionV2(exclusion: IAgentHostDatabaseSessionsV2Exclusion, expected: IAgentHostDatabaseSessionsV2ExclusionExpectation): Promise<AgentHostDatabaseSessionV2ExclusionResult> {
 		return this._transactionSequencer.queue(async () => {
 			const database = await this._ensureDatabase();
 			await exec(database, 'BEGIN IMMEDIATE');
 			try {
+				const observed = await get(database, `SELECT
+					session_uri, provider, start_time, modified_time, external, registration_source,
+					session_generation, source_revision, payload_hash, verified
+				FROM sessions_v2 WHERE session_uri = ?`, [exclusion.session]);
+				if (!this._matchesSessionsV2ExclusionExpectation(observed, expected)) {
+					await exec(database, 'COMMIT');
+					return 'stale';
+				}
 				await run(database, `INSERT INTO metadata (key, value) VALUES (?, ?)
 					ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [
 					sessionsV2ExcludedKey(exclusion.provider, exclusion.session),
@@ -677,8 +692,9 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [exclusion.session]);
 				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [exclusion.session]);
 				await exec(database, 'COMMIT');
+				return 'excluded';
 			} catch (error) {
-				await this._rollback(database, error, `Failed to exclude sessions_v2 identity ${exclusion.session}`);
+				return this._rollback(database, error, `Failed to exclude sessions_v2 identity ${exclusion.session}`);
 			}
 		});
 	}
@@ -887,7 +903,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
-	async reconcileSessionV2RegistrationFromLegacy(session: string, legacy: IAgentHostDatabaseSession): Promise<void> {
+	async reconcileSessionV2RegistrationFromLegacy(session: string, legacy: IAgentHostDatabaseSession): Promise<IAgentHostDatabaseSession | undefined> {
 		return this._transactionSequencer.queue(async () => {
 			const database = await this._ensureDatabase();
 			await exec(database, 'BEGIN IMMEDIATE');
@@ -895,24 +911,51 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await run(database, `UPDATE sessions_v2 SET
 						provider = ?,
 						start_time = ?,
-						external = ?,
-						registration_source = ?
+					modified_time = MAX(modified_time, ?),
+					external = ?,
+					registration_source = ?
 					WHERE session_uri = ?
 						AND NOT EXISTS (SELECT 1 FROM metadata WHERE key = ? AND value = 'true')
 						AND NOT EXISTS (SELECT 1 FROM metadata WHERE key = ?)`, [
 					legacy.provider,
 					legacy.startTime,
+					legacy.modifiedTime,
 					legacy.external === undefined ? null : legacy.external ? 1 : 0,
 					legacy.source,
 					session,
 					tombstoneKey(session),
 					sessionsV2ExcludedKey(legacy.provider, session),
 				]);
+				const row = await get(database, `SELECT session_uri, provider, start_time, modified_time, external, registration_source
+					FROM sessions_v2 WHERE session_uri = ?`, [session]);
 				await exec(database, 'COMMIT');
+				return row ? this._toSessionRegistration(row) : undefined;
 			} catch (error) {
-				await this._rollback(database, error, `Failed to reconcile sessions_v2 identity ${session} from legacy`);
+				return this._rollback(database, error, `Failed to reconcile sessions_v2 identity ${session} from legacy`);
 			}
 		});
+	}
+
+	private _matchesSessionsV2ExclusionExpectation(row: Record<string, unknown> | undefined, expected: IAgentHostDatabaseSessionsV2ExclusionExpectation): boolean {
+		if (!row) {
+			return expected.identity === undefined && expected.catalog === undefined;
+		}
+		const identity = expected.identity;
+		if (!identity
+			|| row.provider !== identity.provider
+			|| row.start_time !== identity.startTime
+			|| row.modified_time !== identity.modifiedTime
+			|| (row.external === null ? undefined : row.external === 1) !== identity.external
+			|| row.registration_source !== identity.source) {
+			return false;
+		}
+		const catalog = row.verified === 1 ? expected.catalog : undefined;
+		return expected.catalog === undefined
+			? row.verified !== 1
+			: catalog !== undefined
+			&& row.session_generation === catalog.sessionGeneration
+			&& row.source_revision === catalog.sourceRevision
+			&& row.payload_hash === catalog.payloadHash;
 	}
 
 	async unregisterSessionV2(session: string): Promise<void> {
@@ -1104,7 +1147,8 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	}
 
 	async getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined> {
-		const rows = await all(await this._ensureDatabase(), `SELECT
+		return this._transactionSequencer.queue(async () => {
+			const rows = await all(await this._ensureDatabase(), `SELECT
 				catalog.revision,
 				catalog.legacy_mirrored_revision,
 				(SELECT value FROM metadata WHERE key = ?) AS legacy_mirrored_payload,
@@ -1117,22 +1161,23 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			LEFT JOIN session_chats AS chat ON chat.session_uri = catalog.session_uri
 			WHERE catalog.session_uri = ?
 			ORDER BY chat.chat_order`, [sessionChatCatalogLegacyMirrorKey(session), session]);
-		const catalog = rows[0];
-		if (!catalog) {
-			return undefined;
-		}
-		return {
-			revision: catalog.revision as number,
-			legacyMirroredRevision: catalog.legacy_mirrored_revision as number,
-			...(catalog.legacy_mirrored_payload === null ? {} : { legacyMirroredPayload: catalog.legacy_mirrored_payload as string }),
-			chats: rows.filter(row => row.chat_uri !== null).map(row => ({
-				chat: row.chat_uri as string,
-				order: row.chat_order as number,
-				...(row.provider_data === null ? {} : { providerData: row.provider_data as string }),
-				...(row.origin === null ? {} : { origin: row.origin as string }),
-				...(row.inherited_turn_id === null ? {} : { inheritedTurnId: row.inherited_turn_id as string }),
-			})),
-		};
+			const catalog = rows[0];
+			if (!catalog) {
+				return undefined;
+			}
+			return {
+				revision: catalog.revision as number,
+				legacyMirroredRevision: catalog.legacy_mirrored_revision as number,
+				...(catalog.legacy_mirrored_payload === null ? {} : { legacyMirroredPayload: catalog.legacy_mirrored_payload as string }),
+				chats: rows.filter(row => row.chat_uri !== null).map(row => ({
+					chat: row.chat_uri as string,
+					order: row.chat_order as number,
+					...(row.provider_data === null ? {} : { providerData: row.provider_data as string }),
+					...(row.origin === null ? {} : { origin: row.origin as string }),
+					...(row.inherited_turn_id === null ? {} : { inheritedTurnId: row.inherited_turn_id as string }),
+				})),
+			};
+		});
 	}
 
 	async replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {

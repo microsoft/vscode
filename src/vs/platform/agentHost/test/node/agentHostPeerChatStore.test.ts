@@ -40,6 +40,14 @@ class FailingLegacyMirrorDatabase extends TestSessionDatabase {
 	}
 }
 
+class RecordingLogService extends NullLogService {
+	readonly errors: (string | Error)[] = [];
+
+	override error(message: string | Error): void {
+		this.errors.push(message);
+	}
+}
+
 suite('AgentHostPeerChatStore', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -58,8 +66,8 @@ suite('AgentHostPeerChatStore', () => {
 		await orchestrator.close();
 	});
 
-	function createStore(database: TestSessionDatabase): AgentHostPeerChatStore {
-		return new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), new NullLogService());
+	function createStore(database: TestSessionDatabase, logService = new NullLogService()): AgentHostPeerChatStore {
+		return new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), logService);
 	}
 
 	test('heals malformed metadata on the next write', async () => {
@@ -245,6 +253,53 @@ suite('AgentHostPeerChatStore', () => {
 		}, {
 			entries: [],
 			raw: '[]',
+		});
+	});
+
+	test('republishes central membership when the acknowledged legacy mirror is missing or malformed', async () => {
+		const initialDatabase = new TestSessionDatabase();
+		const initialStore = createStore(initialDatabase);
+		await initialStore.replace(session, [{ uri: first.toString(), providerData: 'central' }]);
+
+		const missingDatabase = new TestSessionDatabase();
+		const missingStore = createStore(missingDatabase);
+		const missingResult = await missingStore.reconcileLegacy(session);
+		const missingMirror = await missingDatabase.getMetadata(PEER_CHATS_METADATA_KEY);
+
+		await missingDatabase.setMetadata(PEER_CHATS_METADATA_KEY, '{"not":"an array"}');
+		const malformedResult = await missingStore.reconcileLegacy(session);
+
+		assert.deepStrictEqual({
+			missingResult,
+			missingMirror,
+			malformedResult,
+			repairedMirror: await missingDatabase.getMetadata(PEER_CHATS_METADATA_KEY),
+		}, {
+			missingResult: [{ uri: first.toString(), providerData: 'central' }],
+			missingMirror: JSON.stringify([{ uri: first.toString(), providerData: 'central' }]),
+			malformedResult: [{ uri: first.toString(), providerData: 'central' }],
+			repairedMirror: JSON.stringify([{ uri: first.toString(), providerData: 'central' }]),
+		});
+	});
+
+	test('returns central membership when republishing a missing legacy mirror fails', async () => {
+		const initialDatabase = new TestSessionDatabase();
+		const initialStore = createStore(initialDatabase);
+		await initialStore.replace(session, [{ uri: first.toString(), providerData: 'central' }]);
+
+		const database = new FailingLegacyMirrorDatabase();
+		database.failLegacyMirrors(1);
+		const logService = new RecordingLogService();
+		const store = createStore(database, logService);
+
+		assert.deepStrictEqual({
+			reconciled: await store.reconcileLegacy(session),
+			legacy: await store.tryReadLegacy(session),
+			errors: logService.errors.map(error => error instanceof Error ? error.message : error),
+		}, {
+			reconciled: [{ uri: first.toString(), providerData: 'central' }],
+			legacy: undefined,
+			errors: ['legacy mirror failed'],
 		});
 	});
 

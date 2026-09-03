@@ -147,10 +147,11 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 		this._sessionsV2Exclusions.set(`${exclusion.provider}:${exclusion.session}`, exclusion);
 	}
 
-	async excludeSessionV2(exclusion: IAgentHostDatabaseSessionsV2Exclusion): Promise<void> {
+	async excludeSessionV2(exclusion: IAgentHostDatabaseSessionsV2Exclusion): Promise<'excluded'> {
 		this._throwWriteFailure();
 		this._sessionsV2Exclusions.set(`${exclusion.provider}:${exclusion.session}`, exclusion);
 		this.sessions.delete(exclusion.session);
+		return 'excluded';
 	}
 
 	async getSessionsV2Exclusion(provider: string, session: string): Promise<IAgentHostDatabaseSessionsV2Exclusion | undefined> {
@@ -229,8 +230,9 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 		return this.updateSessionExternal(updates);
 	}
 
-	async reconcileSessionV2RegistrationFromLegacy(session: string, legacy: IAgentHostDatabaseSession): Promise<void> {
+	async reconcileSessionV2RegistrationFromLegacy(session: string, legacy: IAgentHostDatabaseSession): Promise<IAgentHostDatabaseSession | undefined> {
 		this.sessions.set(session, legacy);
+		return legacy;
 	}
 
 	getSessionV2Registration(session: string): Promise<IAgentHostDatabaseSession | undefined> {

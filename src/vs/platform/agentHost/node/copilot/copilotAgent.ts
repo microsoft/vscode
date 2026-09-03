@@ -3659,6 +3659,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 				if (customTitle !== undefined && existing[SESSION_CUSTOM_TITLE_KEY] === undefined) {
 					missing[SESSION_CUSTOM_TITLE_KEY] = customTitle;
+				}
+				if (customTitle !== undefined
+					&& (existing[SESSION_CUSTOM_TITLE_KEY] === undefined || existing[SESSION_CUSTOM_TITLE_KEY] === customTitle)
+					&& existing[SESSION_CUSTOM_TITLE_SOURCE_KEY] === undefined) {
 					missing[SESSION_CUSTOM_TITLE_SOURCE_KEY] = 'user';
 				}
 				if (Object.keys(missing).length > 0) {

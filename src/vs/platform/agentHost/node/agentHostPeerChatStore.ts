@@ -67,6 +67,13 @@ export class AgentHostPeerChatStore {
 					result = reconciled.status === 'available' ? reconciled.entries : undefined;
 					return;
 				}
+				if (legacy === undefined) {
+					try {
+						await this._publishCompatibilityState(session, central, catalog.revision);
+					} catch (error) {
+						this._logService.error(error, `[AgentHostPeerChatStore] Failed to publish peer-chat compatibility state for ${session.toString()}`);
+					}
+				}
 				if (legacy !== undefined && catalog.legacyMirroredPayload === undefined) {
 					if (!await this._database.markSessionChatCatalogLegacyMirrored(session.toString(), catalog.revision, JSON.stringify(legacy))) {
 						continue;

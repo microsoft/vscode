@@ -11,7 +11,7 @@ import { ILogService } from '../../log/common/log.js';
 import type { ISessionCatalogSyncAcknowledgement, ISessionCatalogSyncPendingSnapshot, ISessionDataService } from '../common/sessionDataService.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 import { AgentHostCatalogSyncResult, AgentHostCatalogSyncService, catalogLegacyMetadataMatches, IAgentHostCatalogSyncRequest, matchesAcknowledgedCatalogReceipt } from './agentHostCatalogSyncService.js';
-import type { AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseSessionV2Receipt } from './agentHostDatabase.js';
+import type { AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Receipt } from './agentHostDatabase.js';
 import type { IRegisteredSession } from './agentSessionRegistry.js';
 import type { IAgentHostStorageService } from './agentHostStorageService.js';
 
@@ -22,6 +22,11 @@ const DEFAULT_FULL_VERIFICATION_INTERVAL_MS = 60 * 60 * 1000;
 const DEFAULT_BACKGROUND_DELAY_MS = 1000;
 const RECONCILIATION_CURSOR_STORAGE_KEY = 'agentHost.catalogReconciliation.cursor';
 type AgentHostCatalogSyncPendingReason = Extract<AgentHostCatalogSyncResult, { status: 'pending' }>['reason'];
+type ScheduledPassKind = 'background' | 'periodic';
+
+function compareSessionKeys(first: string, second: string): number {
+	return first < second ? -1 : first > second ? 1 : 0;
+}
 
 export type AgentHostCatalogReconciliationOutcome =
 	| { readonly session: string; readonly status: 'skipped'; readonly reason: 'synchronized' }
@@ -62,10 +67,10 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	private readonly _schedule: (callback: () => void, delay: number) => IDisposable;
 	private readonly _now: () => number;
 	private readonly _scheduledPass = this._register(new MutableDisposable<IDisposable>());
+	private _scheduledPassKind: ScheduledPassKind | undefined;
 	private _payloadDirtyMark: Promise<void> | undefined;
 	private _initialPayloadDirtyMarkPending = true;
 	private _lastFullVerification = 0;
-	private _scheduledBackgroundPass = false;
 	private _running: Promise<IAgentHostCatalogReconciliationReport> | undefined;
 	private _rerunRequested = false;
 	private _periodic = false;
@@ -100,15 +105,10 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 			void this.runPass();
 			return;
 		}
-		if (this._scheduledPass.value) {
+		if (this._scheduledPassKind === 'background') {
 			return;
 		}
-		this._scheduledBackgroundPass = true;
-		this._scheduledPass.value = this._schedule(() => {
-			this._scheduledPass.clear();
-			this._scheduledBackgroundPass = false;
-			this.start();
-		}, this._backgroundDelayMs);
+		this._schedulePass('background', this._backgroundDelayMs);
 	}
 
 	start(): void {
@@ -117,16 +117,12 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		}
 		this._periodic = true;
 		this._scheduledPass.clear();
-		this._scheduledBackgroundPass = false;
-		const wasRunning = this._running !== undefined;
+		this._scheduledPassKind = undefined;
 		const pass = this.runPass();
-		if (wasRunning) {
-			return;
-		}
 		void pass.then(
 			report => this._logOutcomes(report.outcomes),
 			error => this._logService.error('[AgentHostCatalogReconciliation] Background pass failed', error),
-		).finally(() => this._scheduleNextPass());
+		);
 	}
 
 	runPass(): Promise<IAgentHostCatalogReconciliationReport> {
@@ -137,25 +133,32 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 			this._rerunRequested = true;
 			return this._running;
 		}
-		this._running = this._runPassLoop().finally(() => {
-			this._running = undefined;
-		});
-		return this._running;
+		return this._startRun(() => this._runPassLoop(() => this._runSinglePass(this._cancellation.token)));
 	}
 
 	async runFullPass(): Promise<IAgentHostCatalogReconciliationReport> {
+		while (this._running) {
+			await this._running;
+		}
 		await this._prepareFullVerification();
-		return this.runPass();
+		if (this._running) {
+			return this.runFullPass();
+		}
+		if (this._cancellation.token.isCancellationRequested) {
+			return { outcomes: [], cursor: this._readCursor() };
+		}
+		return this._startRun(() => this._runPassLoop(() => this._runFullPass(this._cancellation.token)));
 	}
 
 	async whenIdle(): Promise<void> {
-		await this._prepareFullVerification();
-		if (this._scheduledBackgroundPass) {
+		if (this._scheduledPassKind === 'background') {
 			this._scheduledPass.clear();
-			this._scheduledBackgroundPass = false;
-			this.start();
-		} else {
+			this._scheduledPassKind = undefined;
 			await this.runPass();
+		} else {
+			while (this._running) {
+				await this._running;
+			}
 		}
 		while (this._running) {
 			await this._running;
@@ -169,8 +172,20 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		super.dispose();
 	}
 
-	private async _runPassLoop(): Promise<IAgentHostCatalogReconciliationReport> {
-		let report = await this._runSinglePass(this._cancellation.token);
+	private _startRun(run: () => Promise<IAgentHostCatalogReconciliationReport>): Promise<IAgentHostCatalogReconciliationReport> {
+		this._rerunRequested = false;
+		const running = run().finally(() => {
+			if (this._running === running) {
+				this._running = undefined;
+				this._scheduleNextPass();
+			}
+		});
+		this._running = running;
+		return running;
+	}
+
+	private async _runPassLoop(initialPass: () => Promise<IAgentHostCatalogReconciliationReport>): Promise<IAgentHostCatalogReconciliationReport> {
+		let report = await initialPass();
 		const outcomes = [...report.outcomes];
 		while (this._rerunRequested && !this._cancellation.token.isCancellationRequested) {
 			this._rerunRequested = false;
@@ -186,6 +201,43 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 			await this._markAllPayloadsDirty();
 			this._lastFullVerification = this._now();
 		}
+		const { sessions, receiptBySession } = await this._listDirtySessions();
+		if (sessions.length === 0) {
+			this._storageService.delete(this._cursorStorageKey);
+			return { outcomes: [], cursor: undefined };
+		}
+
+		const selected = this._selectBatch(sessions, this._readCursor());
+		const outcomes = await this._runBatch(selected, receiptBySession, token);
+		const cursor = selected.at(-1)?.session.toString();
+		if (cursor && !token.isCancellationRequested) {
+			this._storageService.set(this._cursorStorageKey, cursor);
+		}
+		return { outcomes, cursor };
+	}
+
+	private async _runFullPass(token: CancellationToken): Promise<IAgentHostCatalogReconciliationReport> {
+		const { sessions, receiptBySession } = await this._listDirtySessions();
+		const outcomes: AgentHostCatalogReconciliationOutcome[] = [];
+		let cursor: string | undefined;
+		for (let index = 0; index < sessions.length && !token.isCancellationRequested; index += this._batchSize) {
+			const selected = sessions.slice(index, index + this._batchSize);
+			outcomes.push(...await this._runBatch(selected, receiptBySession, token));
+			cursor = selected.at(-1)?.session.toString();
+			if (cursor && !token.isCancellationRequested) {
+				this._storageService.set(this._cursorStorageKey, cursor);
+			}
+		}
+		if (sessions.length === 0) {
+			this._storageService.delete(this._cursorStorageKey);
+		}
+		return { outcomes, cursor };
+	}
+
+	private async _listDirtySessions(): Promise<{
+		readonly sessions: readonly IRegisteredSession[];
+		readonly receiptBySession: ReadonlyMap<string, IAgentHostDatabaseSessionV2Receipt>;
+	}> {
 		const [listedSessions, initialReceipts] = await Promise.all([
 			this._listSessions(),
 			this._catalogDatabase.listSessionsV2Receipts(),
@@ -193,24 +245,21 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		const receiptBySession = new Map(initialReceipts.map(receipt => [receipt.session, receipt]));
 		const sessions = [...listedSessions]
 			.filter(session => receiptBySession.get(session.session.toString())?.payloadDirty !== 0)
-			.sort((a, b) => a.session.toString().localeCompare(b.session.toString()));
-		if (sessions.length === 0) {
-			this._storageService.delete(this._cursorStorageKey);
-			return { outcomes: [], cursor: undefined };
-		}
+			.sort((first, second) => compareSessionKeys(first.session.toString(), second.session.toString()));
+		return { sessions, receiptBySession };
+	}
 
-		const selected = this._selectBatch(sessions, this._readCursor());
+	private _runBatch(
+		selected: readonly IRegisteredSession[],
+		receiptBySession: ReadonlyMap<string, IAgentHostDatabaseSessionV2Receipt>,
+		token: CancellationToken,
+	): Promise<readonly AgentHostCatalogReconciliationOutcome[]> {
 		const limiter = new Limiter<AgentHostCatalogReconciliationOutcome>(this._concurrency);
-		const outcomes = await Promise.all(selected.map(registered => limiter.queue(() => this._reconcileSession(
+		return Promise.all(selected.map(registered => limiter.queue(() => this._reconcileSession(
 			registered,
 			receiptBySession.get(registered.session.toString()),
 			token,
 		))));
-		const cursor = selected.at(-1)?.session.toString();
-		if (cursor && !token.isCancellationRequested) {
-			this._storageService.set(this._cursorStorageKey, cursor);
-		}
-		return { outcomes, cursor };
 	}
 
 	private async _reconcileSession(registered: IRegisteredSession, receipt: IAgentHostDatabaseSessionV2Receipt | undefined, token: CancellationToken): Promise<AgentHostCatalogReconciliationOutcome> {
@@ -229,22 +278,12 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 				return { session: sessionKey, status: 'retry', reason: 'missingDatabase' };
 			}
 			try {
-				const sourceResult = await this._resolveSource(registered);
-				if (sourceResult.status === 'providerUnavailable') {
-					return { session: sessionKey, status: 'retry', reason: 'providerUnavailable' };
-				}
-				if (token.isCancellationRequested) {
-					return { session: sessionKey, status: 'retry', reason: 'cancelled' };
-				}
-				const legacyMetadataMatches = await catalogLegacyMetadataMatches(database.object, sourceResult.request.legacyMetadata);
-				const expected = encodeAgentHostCatalogPayload(sourceResult.request.data);
-				return await this._catalogSyncService.runExclusive(session, async synchronize => {
+				const replay = await this._catalogSyncService.runExclusive<AgentHostCatalogReconciliationOutcome | undefined>(session, async () => {
 					const latestReceipt = await this._catalogDatabase.getSessionV2(sessionKey);
 					if (receipt ? latestReceipt?.payloadDirty !== receipt.payloadDirty : latestReceipt !== undefined) {
 						return { session: sessionKey, status: 'retry', reason: 'superseded' };
 					}
 					const snapshot = await database.object.getCatalogSyncSnapshot();
-					let replayedRevision: number | undefined;
 					// A pending snapshot written by a *different* build carries that
 					// build's projection, which this build cannot replay verbatim.
 					// It is still evidence that the central row is stale, so the
@@ -259,7 +298,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 					}
 					if (replayable) {
 						const current = await database.object.getCatalogSyncSnapshot();
-						const replay = current?.state !== 'pending'
+						const outcome = current?.state !== 'pending'
 							? {
 								session: sessionKey,
 								status: 'succeeded',
@@ -267,17 +306,38 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 								sourceRevision: current?.sourceRevision ?? snapshot.sourceRevision,
 							} satisfies Extract<AgentHostCatalogReconciliationOutcome, { status: 'succeeded' }>
 							: await this._replayPending(session, current, acknowledgement => database.object.acknowledgeCatalogSyncSnapshot(acknowledgement), token);
-						if (replay.status !== 'succeeded') {
-							if (replay.status !== 'retry' || (replay.reason !== 'staleIncarnation' && replay.reason !== 'missingCatalog')) {
-								return replay;
+						if (outcome.status === 'succeeded') {
+							if (!await this._markPayloadClean(sessionKey, latestReceipt)) {
+								return { session: sessionKey, status: 'retry', reason: 'superseded' };
 							}
-						} else {
-							replayedRevision = replay.sourceRevision;
+							return outcome;
+						}
+						if (outcome.status !== 'retry' || (outcome.reason !== 'staleIncarnation' && outcome.reason !== 'missingCatalog')) {
+							return outcome;
 						}
 					}
+					return undefined;
+				});
+				if (replay) {
+					return replay;
+				}
 
-					if (token.isCancellationRequested) {
-						return { session: sessionKey, status: 'retry', reason: 'cancelled' };
+				if (token.isCancellationRequested) {
+					return { session: sessionKey, status: 'retry', reason: 'cancelled' };
+				}
+				const sourceResult = await this._resolveSource(registered);
+				if (sourceResult.status === 'providerUnavailable') {
+					return { session: sessionKey, status: 'retry', reason: 'providerUnavailable' };
+				}
+				if (token.isCancellationRequested) {
+					return { session: sessionKey, status: 'retry', reason: 'cancelled' };
+				}
+				const legacyMetadataMatches = await catalogLegacyMetadataMatches(database.object, sourceResult.request.legacyMetadata);
+				const expected = encodeAgentHostCatalogPayload(sourceResult.request.data);
+				return await this._catalogSyncService.runExclusive(session, async synchronize => {
+					const latestReceipt = await this._catalogDatabase.getSessionV2(sessionKey);
+					if (receipt ? latestReceipt?.payloadDirty !== receipt.payloadDirty : latestReceipt !== undefined) {
+						return { session: sessionKey, status: 'retry', reason: 'superseded' };
 					}
 					const currentSnapshot = await database.object.getCatalogSyncSnapshot();
 					if (token.isCancellationRequested) {
@@ -288,13 +348,44 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 					if (legacyMetadataMatches
 						&& expected.ok
 						&& currentSnapshot?.payloadHash === expected.value.payloadHash
-						&& matchesAcknowledgedCatalogReceipt(currentSnapshot, central)) {
+						&& matchesAcknowledgedCatalogReceipt(currentSnapshot, central)
+						&& this._isValidCentralPayload(central)) {
 						if (!await this._markPayloadClean(sessionKey, receipt)) {
 							return { session: sessionKey, status: 'retry', reason: 'superseded' };
 						}
-						return replayedRevision === undefined
-							? { session: sessionKey, status: 'skipped', reason: 'synchronized' }
-							: { session: sessionKey, status: 'succeeded', reason: 'pendingReplayed', sourceRevision: replayedRevision };
+						return { session: sessionKey, status: 'skipped', reason: 'synchronized' };
+					}
+					if (legacyMetadataMatches
+						&& expected.ok
+						&& currentSnapshot?.payloadHash === expected.value.payloadHash
+						&& matchesAcknowledgedCatalogReceipt(currentSnapshot, central)
+						&& central) {
+						const replacement: ISessionCatalogSyncPendingSnapshot = {
+							sessionGeneration: central.sessionGeneration,
+							sourceRevision: central.sourceRevision + 1,
+							projectionVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+							payload: expected.value.payload,
+							payloadHash: expected.value.payloadHash,
+							state: 'pending',
+						};
+						await database.object.setMetadataValuesAndCatalogSyncSnapshot(sourceResult.request.legacyMetadata, replacement);
+						const pending = await database.object.getCatalogSyncSnapshot();
+						if (pending?.state !== 'pending'
+							|| pending.sessionGeneration !== replacement.sessionGeneration
+							|| pending.sourceRevision !== replacement.sourceRevision
+							|| pending.projectionVersion !== replacement.projectionVersion
+							|| pending.payloadHash !== replacement.payloadHash
+							|| pending.payload !== replacement.payload) {
+							return { session: sessionKey, status: 'retry', reason: 'superseded' };
+						}
+						const outcome = await this._replayPending(session, pending, acknowledgement => database.object.acknowledgeCatalogSyncSnapshot(acknowledgement), token);
+						if (outcome.status !== 'succeeded') {
+							return outcome;
+						}
+						if (!await this._markPayloadClean(sessionKey, latestReceipt)) {
+							return { session: sessionKey, status: 'retry', reason: 'superseded' };
+						}
+						return { session: sessionKey, status: 'succeeded', reason: 'synchronized', sourceRevision: outcome.sourceRevision };
 					}
 
 					if (token.isCancellationRequested) {
@@ -319,6 +410,16 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 			this._logService.warn(`[AgentHostCatalogReconciliation] Failed to reconcile ${sessionKey}`, error);
 			return { session: sessionKey, status: 'failed', reason: 'unexpected', error: error instanceof Error ? error.message : String(error) };
 		}
+	}
+
+	private _isValidCentralPayload(central: IAgentHostDatabaseSessionV2 | undefined): boolean {
+		if (!central || central.payloadVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION) {
+			return false;
+		}
+		const decoded = decodeAgentHostCatalogPayload(central.payload);
+		return decoded.ok
+			&& decoded.value.payload === central.payload
+			&& hashAgentHostCatalogPayload(central.payload) === central.payloadHash;
 	}
 
 	private async _replayPending(
@@ -438,7 +539,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	}
 
 	private _selectBatch(sessions: readonly IRegisteredSession[], cursor: string | undefined): readonly IRegisteredSession[] {
-		const start = cursor === undefined ? 0 : Math.max(0, sessions.findIndex(session => session.session.toString() > cursor));
+		const start = cursor === undefined ? 0 : Math.max(0, sessions.findIndex(session => compareSessionKeys(session.session.toString(), cursor) > 0));
 		const ordered = start === 0 ? sessions : [...sessions.slice(start), ...sessions.slice(0, start)];
 		return ordered.slice(0, this._batchSize);
 	}
@@ -449,13 +550,20 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	}
 
 	private _scheduleNextPass(): void {
-		if (!this._periodic || this._cancellation.token.isCancellationRequested) {
+		if (!this._periodic || this._running || this._scheduledPassKind || this._cancellation.token.isCancellationRequested) {
 			return;
 		}
+		this._schedulePass('periodic', this._intervalMs);
+	}
+
+	private _schedulePass(kind: ScheduledPassKind, delay: number): void {
+		this._scheduledPass.clear();
+		this._scheduledPassKind = kind;
 		this._scheduledPass.value = this._schedule(() => {
 			this._scheduledPass.clear();
+			this._scheduledPassKind = undefined;
 			this.start();
-		}, this._intervalMs);
+		}, delay);
 	}
 
 	private _logOutcomes(outcomes: readonly AgentHostCatalogReconciliationOutcome[]): void {

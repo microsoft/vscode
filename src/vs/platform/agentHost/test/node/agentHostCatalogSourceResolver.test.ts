@@ -120,6 +120,66 @@ suite('AgentHostCatalogSourceResolver', () => {
 		}]);
 	});
 
+	test('bounds chat-local metadata reads and isolates open and read failures', async () => {
+		const chats = Array.from({ length: 10 }, (_, index) => ({
+			uri: `agenthost-chat:catalog-source/peer-${index}`,
+			kind: 'peer' as const,
+			title: `Live ${index}`,
+		}));
+		const metadata = Object.fromEntries(chats.flatMap((chat, index) => [
+			[customChatTitleMetadataKey(chat.uri), `Fallback ${index}`],
+			[customChatTitleSourceMetadataKey(chat.uri), 'user'],
+		]));
+		let active = 0;
+		let maximumActive = 0;
+		const resolver = new AgentHostCatalogSourceResolver({
+			openDatabase: () => ({
+				object: {
+					getMetadataObject: async <T extends Record<string, unknown>>(keys: T): Promise<{ [K in keyof T]: string | undefined }> =>
+						Object.fromEntries(Object.keys(keys).map(key => [key, metadata[key]])) as { [K in keyof T]: string | undefined },
+				},
+				dispose: () => { },
+			}),
+			tryOpenDatabase: async chatUri => {
+				active++;
+				maximumActive = Math.max(maximumActive, active);
+				await new Promise(resolve => setTimeout(resolve, 1));
+				active--;
+				if (chatUri.toString() === chats[2].uri) {
+					throw new Error('open failed');
+				}
+				return {
+					object: {
+						getMetadataObject: async <T extends Record<string, unknown>>(keys: T): Promise<{ [K in keyof T]: string | undefined }> => {
+							if (chatUri.toString() === chats[7].uri) {
+								throw new Error('read failed');
+							}
+							return Object.fromEntries(Object.keys(keys).map(key => [key, undefined])) as { [K in keyof T]: string | undefined };
+						},
+					},
+					dispose: () => { },
+				};
+			},
+			isUnpersistedChatBacking: () => false,
+			worktreeProjectFromRepositoryRoot: () => undefined,
+		});
+
+		const result = await resolver.buildCatalogSyncRequest(session, {
+			...sourceState(),
+			chats,
+		}, {}, true);
+
+		assert.deepStrictEqual({
+			maximumActive,
+			titles: result.data.chats.map(chat => chat.summary),
+			sources: result.data.chats.map(chat => chat.titleSource),
+		}, {
+			maximumActive: 4,
+			titles: chats.map((_, index) => `Fallback ${index}`),
+			sources: chats.map(() => 'user'),
+		});
+	});
+
 	test('uses the default chat title as the session title when no explicit session title exists', async () => {
 		const metadata = { ...persistedMetadata() };
 		delete metadata[SESSION_CUSTOM_TITLE_KEY];
@@ -318,6 +378,15 @@ suite('AgentHostCatalogSourceResolver', () => {
 				[META_CHANGES_SUMMARY]: JSON.stringify({ additions: 10, deletions: 20, files: 30 }),
 			},
 		});
+	});
+
+	test('omits malformed persisted changes metadata', async () => {
+		const result = await createResolver({
+			...persistedMetadata(),
+			[META_CHANGES_SUMMARY]: JSON.stringify({ additions: 'many', files: 1 }),
+		}).buildCatalogSyncRequest(session, sourceState(), {}, true);
+
+		assert.strictEqual(result.data.changes, undefined);
 	});
 
 	test('re-projects persisted sources to the identical canonical payload hash', async () => {
