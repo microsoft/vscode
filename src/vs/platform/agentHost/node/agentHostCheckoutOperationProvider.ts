@@ -37,6 +37,7 @@ export class AgentHostCheckoutOperationContribution extends Disposable implement
 		const state = this._stateManager.getSessionState(sessionKey);
 		if (
 			state?.lifecycle !== SessionLifecycle.Creating ||
+			this._stateManager.isUnusedDraft(sessionKey) !== true ||
 			changesetKind !== ChangesetKind.Uncommitted
 		) {
 			return undefined;
