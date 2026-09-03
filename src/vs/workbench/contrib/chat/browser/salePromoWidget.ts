@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { EventType as GestureEventType, Gesture } from '../../../../base/browser/touch.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -19,20 +22,15 @@ import './media/salePromoWidget.css';
 
 export const ARM_SALE_PROMO_COMMAND_ID = '_chat.armSalePromo';
 export const DISARM_SALE_PROMO_COMMAND_ID = '_chat.disarmSalePromo';
-
-interface ISalePromoButton {
-	readonly label: string;
-	readonly commandId: string;
-	readonly args?: unknown[];
-}
+export const CHAT_PROMO_TRY_MODEL_COMMAND_ID = '_chat.tryPromoModel';
+export const CHAT_PROMO_DISMISS_COMMAND_ID = '_chat.dismissPromo';
 
 interface ISalePromoCardInput {
 	readonly title: string;
 	readonly subtitle?: string;
-	readonly providerIcon?: string;
-	readonly dismissCommandId?: string;
-	readonly dismissArgs?: unknown[];
-	readonly buttons?: readonly ISalePromoButton[];
+	readonly promoId: string;
+	readonly tryLabel: string;
+	readonly modelIdentifier: string;
 }
 
 /**
@@ -45,10 +43,11 @@ export class SalePromoWidgetContribution extends Disposable implements IWorkbenc
 	private static idCounter = 0;
 
 	private pendingPayload: string | undefined;
-	private pipEl: HTMLElement | undefined;
-	private pipOriginalClass: string | undefined;
+	private pipAnchor: HTMLElement | undefined;
 	private readonly iconHoverBlock = this._register(new MutableDisposable());
 	private readonly pipRetry = this._register(new MutableDisposable());
+	private readonly pipObserver = this._register(new MutableDisposable());
+	private readonly pipInput = this._register(new MutableDisposable());
 
 	constructor(
 		@ICommandService private readonly commandService: ICommandService,
@@ -61,6 +60,7 @@ export class SalePromoWidgetContribution extends Disposable implements IWorkbenc
 		this._register(CommandsRegistry.registerCommand(ARM_SALE_PROMO_COMMAND_ID, (_accessor, payload?: string) => this.armSalePromo(payload)));
 		this._register(CommandsRegistry.registerCommand(DISARM_SALE_PROMO_COMMAND_ID, () => this.disarmSalePromo()));
 		this._register(dom.addDisposableListener(this.layoutService.mainContainer, 'click', e => this.onWorkbenchClick(e), true));
+		this._register(dom.addDisposableListener(this.layoutService.mainContainer, 'keydown', e => this.onWorkbenchKeyDown(e), true));
 	}
 
 	private armSalePromo(payload?: string): void {
@@ -77,6 +77,7 @@ export class SalePromoWidgetContribution extends Disposable implements IWorkbenc
 		this.pendingPayload = undefined;
 		this.iconHoverBlock.clear();
 		this.pipRetry.clear();
+		this.pipInput.clear();
 		this.clearPip();
 	}
 
@@ -101,6 +102,7 @@ export class SalePromoWidgetContribution extends Disposable implements IWorkbenc
 	private renderPip(): void {
 		this.clearPip();
 		this.pipRetry.clear();
+		this.pipInput.clear();
 		const anchor = findChatIconAnchor(this.layoutService.mainContainer);
 		if (!anchor) {
 			const win = this.layoutService.mainContainer.ownerDocument.defaultView;
@@ -108,47 +110,92 @@ export class SalePromoWidgetContribution extends Disposable implements IWorkbenc
 				return;
 			}
 			const retry = win.setTimeout(() => {
-				if (this.pendingPayload && !this.pipEl) {
+				if (this.pendingPayload && !this.pipAnchor) {
 					this.renderPip();
 				}
 			}, 250);
 			this.pipRetry.value = toDisposable(() => win.clearTimeout(retry));
 			return;
 		}
-		const icon = anchor.querySelector('.codicon-copilot, .codicon-copilot-warning, .codicon-copilot-unavailable, .codicon-copilot-snooze');
-		if (!(icon instanceof HTMLElement)) {
+
+		this.pipAnchor = anchor;
+		this.applyPipIcon(anchor);
+
+		const observer = new MutationObserver(() => {
+			if (!this.pendingPayload) {
+				return;
+			}
+			if (!this.pipAnchor?.isConnected) {
+				this.renderPip();
+				return;
+			}
+			this.applyPipIcon(this.pipAnchor);
+		});
+		observer.observe(anchor, { childList: true, subtree: true });
+		this.pipObserver.value = toDisposable(() => observer.disconnect());
+
+		const input = new DisposableStore();
+		this.pipInput.value = input;
+		input.add(Gesture.addTarget(anchor));
+		input.add(dom.addDisposableListener(anchor, GestureEventType.Tap, e => this.onPipActivate(e), true));
+	}
+
+	private applyPipIcon(anchor: HTMLElement): void {
+		const icon = findCopilotIcon(anchor);
+		if (!(icon instanceof HTMLElement) || icon.classList.contains('codicon-copilot-dot')) {
 			return;
 		}
-		this.pipOriginalClass = icon.className;
+		if (!icon.dataset['salePromoBaseClass']) {
+			icon.dataset['salePromoBaseClass'] = icon.className;
+		}
 		icon.classList.remove('codicon-copilot', 'codicon-copilot-warning', 'codicon-copilot-unavailable', 'codicon-copilot-snooze');
 		for (const cls of ThemeIcon.asClassNameArray(Codicon.copilotDot)) {
 			icon.classList.add(cls);
 		}
-		this.pipEl = icon;
 	}
 
 	private clearPip(): void {
-		if (this.pipEl && this.pipOriginalClass) {
-			this.pipEl.className = this.pipOriginalClass;
+		this.pipObserver.clear();
+		if (this.pipAnchor) {
+			const icon = findCopilotIcon(this.pipAnchor);
+			if (icon instanceof HTMLElement) {
+				const base = icon.dataset['salePromoBaseClass'];
+				if (base) {
+					icon.className = base;
+					delete icon.dataset['salePromoBaseClass'];
+				} else {
+					icon.classList.remove(...ThemeIcon.asClassNameArray(Codicon.copilotDot));
+				}
+			}
 		}
-		this.pipEl = undefined;
-		this.pipOriginalClass = undefined;
+		this.pipAnchor = undefined;
 	}
 
 	private onWorkbenchClick(e: MouseEvent): void {
+		this.onPipActivate(e);
+	}
+
+	private onWorkbenchKeyDown(e: KeyboardEvent): void {
+		const keyEvent = new StandardKeyboardEvent(e);
+		if (keyEvent.keyCode !== KeyCode.Enter && keyEvent.keyCode !== KeyCode.Space) {
+			return;
+		}
+		this.onPipActivate(e);
+	}
+
+	private onPipActivate(e: Event): void {
 		if (!this.pendingPayload) {
 			return;
 		}
 		const target = e.target;
-		if (!(target instanceof HTMLElement)) {
+		if (!(target instanceof Node)) {
 			return;
 		}
 		const anchor = findChatIconAnchor(this.layoutService.mainContainer);
 		if (!anchor || !anchor.contains(target)) {
 			return;
 		}
-		e.preventDefault();
-		e.stopPropagation();
+		dom.EventHelper.stop(e, true);
 		this.showSalePromo(this.pendingPayload);
 	}
 
@@ -181,14 +228,10 @@ export class SalePromoWidgetContribution extends Disposable implements IWorkbenc
 
 	private persistOnIconClick(info: ISalePromoCardInput): void {
 		this.disarmSalePromo();
-		if (!info.dismissCommandId) {
-			return;
-		}
-		void this.commandService.executeCommand(info.dismissCommandId, ...(info.dismissArgs ?? []));
+		void this.commandService.executeCommand(CHAT_PROMO_DISMISS_COMMAND_ID, info.promoId);
 	}
 
 	private buildContent(info: ISalePromoCardInput, disposables: DisposableStore): HTMLElement {
-		const { buttons, title, subtitle, providerIcon } = info;
 		const container = dom.$('.sale-promo-widget');
 		const titleId = `sale-promo-widget-title-${SalePromoWidgetContribution.idCounter++}`;
 		container.setAttribute('role', 'dialog');
@@ -197,15 +240,14 @@ export class SalePromoWidgetContribution extends Disposable implements IWorkbenc
 		const body = dom.append(container, dom.$('.body'));
 		const header = dom.append(body, dom.$('.header'));
 		const hero = dom.append(header, dom.$('.hero'));
-		const themeIcon = (providerIcon ? ThemeIcon.fromId(providerIcon) : undefined) ?? Codicon.sparkle;
-		const iconEl = dom.append(hero, dom.$(ThemeIcon.asCSSSelector(themeIcon)));
+		const iconEl = dom.append(hero, dom.$(ThemeIcon.asCSSSelector(Codicon.sparkle)));
 		iconEl.classList.add('provider-icon');
 		iconEl.setAttribute('aria-hidden', 'true');
 		const copy = dom.append(hero, dom.$('.copy'));
 		const titleRow = dom.append(copy, dom.$('.title-row'));
 		const titleEl = dom.append(titleRow, dom.$('.title'));
 		titleEl.id = titleId;
-		titleEl.textContent = title;
+		titleEl.textContent = info.title;
 
 		const closeButton = dom.append(titleRow, dom.$('button.close')) as HTMLButtonElement;
 		closeButton.setAttribute('aria-label', localize('salePromo.close', "Close"));
@@ -215,29 +257,29 @@ export class SalePromoWidgetContribution extends Disposable implements IWorkbenc
 			this.hoverService.hideHover(true);
 		}));
 
-		if (subtitle) {
+		if (info.subtitle) {
 			const subtitleEl = dom.append(copy, dom.$('.subtitle'));
-			subtitleEl.textContent = subtitle;
+			subtitleEl.textContent = info.subtitle;
 		}
 
-		if (buttons?.length) {
-			const buttonBar = dom.append(body, dom.$('.button-bar'));
-			for (const { label, commandId, args } of buttons) {
-				const button = dom.append(buttonBar, dom.$('button.update-button-primary')) as HTMLButtonElement;
-				button.textContent = label;
-				disposables.add(dom.addDisposableListener(button, 'click', () => {
-					this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>(
-						'workbenchActionExecuted',
-						{ id: commandId, from: 'salePromoWidget' }
-					);
-					this.hoverService.hideHover(true);
-					void this.commandService.executeCommand(commandId, ...(args ?? []));
-				}));
-			}
-		}
+		const buttonBar = dom.append(body, dom.$('.button-bar'));
+		const button = dom.append(buttonBar, dom.$('button.primary')) as HTMLButtonElement;
+		button.textContent = info.tryLabel;
+		disposables.add(dom.addDisposableListener(button, 'click', () => {
+			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>(
+				'workbenchActionExecuted',
+				{ id: CHAT_PROMO_TRY_MODEL_COMMAND_ID, from: 'salePromoWidget' }
+			);
+			this.hoverService.hideHover(true);
+			void this.commandService.executeCommand(CHAT_PROMO_TRY_MODEL_COMMAND_ID, info.modelIdentifier);
+		}));
 
 		return container;
 	}
+}
+
+function findCopilotIcon(anchor: HTMLElement): Element | null {
+	return anchor.querySelector('.codicon-copilot-dot, .codicon-copilot, .codicon-copilot-warning, .codicon-copilot-unavailable, .codicon-copilot-snooze');
 }
 
 function findChatIconAnchor(container: HTMLElement): HTMLElement | undefined {
@@ -264,7 +306,11 @@ function parseSalePromoPayload(payload?: string): ISalePromoCardInput | undefine
 
 	try {
 		const parsed = JSON.parse(payload) as ISalePromoCardInput;
-		if (parsed && typeof parsed.title === 'string' && parsed.title) {
+		if (parsed
+			&& typeof parsed.title === 'string' && parsed.title
+			&& typeof parsed.promoId === 'string' && parsed.promoId
+			&& typeof parsed.tryLabel === 'string' && parsed.tryLabel
+			&& typeof parsed.modelIdentifier === 'string' && parsed.modelIdentifier) {
 			return parsed;
 		}
 	} catch {

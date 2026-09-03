@@ -143,12 +143,12 @@
 	white-space: nowrap;
 }
 
-.sale-promo-widget .update-button-primary {
+.sale-promo-widget .primary {
 	background-color: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
 	border: var(--vscode-strokeThickness) solid var(--vscode-button-border, transparent);
 }
 
-.sale-promo-widget .update-button-primary:hover {
+.sale-promo-widget .primary:hover {
 	background-color: var(--vscode-button-hoverBackground);
 }
