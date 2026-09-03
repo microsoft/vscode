@@ -24,14 +24,14 @@ import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agen
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostUri } from '../common/agentHostUri.js';
 import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
-import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
+import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest, JsonRpcResponse } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isDefaultChatUri, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
 import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCompatibility.js';
 import { SUPPORTED_PROTOCOL_VERSIONS } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
-import { isClientTransport, NonReconnectableTransportError, type IProtocolTransport } from '../common/state/sessionTransport.js';
+import { isClientTransport, NonReconnectableTransportError, type AgentHostTransportFailureReason, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../common/state/protocol/errors.js';
 import { ChatSourceKind, ContentEncoding, ResourceRequestParams, type CompletionsParams, type CompletionsResult, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
@@ -70,8 +70,8 @@ const PING_INTERVAL_MS = 5_000;
 /**
  * Total inbound silence (ping interval + this) before a non-local connection
  * is declared dead and force-closed so the renderer's reconnect logic kicks
- * in. Reset on every received message; the only way to reach this is for the
- * ping to itself go unanswered.
+ * in. Reset on every received message. After a deferred close resumes, this
+ * is also the full budget granted before the next liveness check.
  *
  * Matches {@link ProtocolConstants.TimeoutTime} from the regular remote
  * extension host stack.
@@ -156,6 +156,8 @@ interface IReconnectState {
 	attempt: number;
 	/** Timer for the next scheduled attempt, if any. */
 	timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+	/** Deadline for the next scheduled attempt, if any. */
+	nextAttemptAt: number | undefined;
 }
 
 /**
@@ -248,7 +250,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _onDidReceiveOtlpLogs = this._register(new Emitter<OtlpExportLogsParams>());
 	readonly onDidReceiveOtlpLogs = this._onDidReceiveOtlpLogs.event;
 
-	private readonly _onDidClose = this._register(new Emitter<void>());
+	private readonly _onDidClose = this._register(new Emitter<AgentHostTransportFailureReason | undefined>());
 	readonly onDidClose = this._onDidClose.event;
 
 	private readonly _onDidFatalClose = this._register(new Emitter<ProtocolError>());
@@ -256,6 +258,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private readonly _onDidChangeConnectionState = this._register(new Emitter<AgentHostClientState>());
 	readonly onDidChangeConnectionState = this._onDidChangeConnectionState.event;
+	private readonly _onDidScheduleReconnect = this._register(new Emitter<void>());
+	readonly onDidScheduleReconnect = this._onDidScheduleReconnect.event;
 
 	/**
 	 * Discriminated state union. Read via narrowing (`_state.kind === ...`);
@@ -272,6 +276,20 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _nextRequestId = 1;
 
 	/**
+	 * Reverse requests awaiting a response, scoped to their incoming transport.
+	 * An active count proves the host is waiting for client work rather than
+	 * being silently dead.
+	 */
+	private readonly _pendingReverseRequests = new WeakMap<IProtocolTransport, number>();
+
+	/**
+	 * Whether a liveness close has been deferred while the client was unable to
+	 * receive traffic from the host.
+	 */
+	private _livenessDeferred = false;
+	private _livenessDeferredSince: number | undefined;
+
+	/**
 	 * Timestamp of the most recent message of any kind received from the
 	 * server. Used only for diagnostic logging when the close timer fires.
 	 */
@@ -284,9 +302,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * silence and sends an application-level `ping` so we have something
 	 * to time out on. {@link _closeTimer} fires after another
 	 * {@link LIVENESS_TIMEOUT_MS} of continued silence and force-closes
-	 * the transport so the renderer's reconnect logic kicks in. Both are
-	 * reset on every received message, so busy connections generate no
-	 * ping traffic at all.
+	 * the transport so the renderer's reconnect logic kicks in. If the host
+	 * has an unanswered reverse request or the local event loop has high load,
+	 * both timers re-arm instead. Once the deferral clears, it grants a full
+	 * liveness window before closing.
+	 * Both are reset on every received message, so busy connections generate
+	 * no ping traffic at all.
 	 *
 	 * Detects silently-dead transports (e.g. SSH/tunnel after laptop
 	 * sleep + network change) that don't produce a socket close event of
@@ -327,6 +348,13 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	get connectionState(): AgentHostClientState {
 		return this._state.kind;
+	}
+
+	/** Deadline for the next scheduled reconnect attempt, if one is pending. */
+	get nextReconnectAt(): number | undefined {
+		return this._state.kind === AgentHostClientState.Reconnecting
+			? this._state.reconnect.nextAttemptAt
+			: undefined;
 	}
 
 	/**
@@ -456,6 +484,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (this._state.kind === next.kind) {
 			return;
 		}
+		if (this._state.kind === AgentHostClientState.Reconnecting) {
+			const reconnect = this._state.reconnect;
+			if (reconnect.timeoutHandle !== undefined) {
+				clearTimeout(reconnect.timeoutHandle);
+				reconnect.timeoutHandle = undefined;
+			}
+			reconnect.nextAttemptAt = undefined;
+		}
 		this._state = next;
 		this._onDidChangeConnectionState.fire(next.kind);
 	}
@@ -470,7 +506,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private _newReconnectState(): IReconnectState {
-		return { gate: this._newReconnectGate(), outbox: [], attempt: 0, timeoutHandle: undefined };
+		return { gate: this._newReconnectGate(), outbox: [], attempt: 0, timeoutHandle: undefined, nextAttemptAt: undefined };
 	}
 
 	override dispose(): void {
@@ -538,7 +574,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				throw error;
 			}
 			if (error instanceof NonReconnectableTransportError) {
-				this._handleFatalClose(protocolError);
+				this._handleFatalClose(protocolError, error.reason);
 				throw error;
 			}
 			if (this._state.kind === AgentHostClientState.Reconnecting) {
@@ -663,6 +699,24 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return true;
 	}
 
+	/**
+	 * Skips the remaining backoff and retries immediately. Returns `false` when
+	 * there is no pending retry to accelerate.
+	 */
+	reconnectNow(): boolean {
+		if (this._state.kind !== AgentHostClientState.Reconnecting || this._state.reconnect.timeoutHandle === undefined) {
+			return false;
+		}
+		const reconnect = this._state.reconnect;
+		clearTimeout(reconnect.timeoutHandle);
+		reconnect.timeoutHandle = undefined;
+		reconnect.nextAttemptAt = undefined;
+		reconnect.attempt = 0;
+		this._onDidScheduleReconnect.fire();
+		void this._attemptReconnect();
+		return true;
+	}
+
 	private _scheduleReconnect(userInitiated = false): void {
 		if (this._state.kind !== AgentHostClientState.Reconnecting || !this._transportFactory) {
 			return;
@@ -686,12 +740,15 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		const attempt = reconnect.attempt + 1;
 		const delay = computeReconnectDelay(this._reconnectPolicy, attempt);
 		this._logService.info(`[RemoteAgentHostProtocol] Reconnecting to ${this._address} in ${delay}ms (attempt ${attempt}).`);
+		reconnect.nextAttemptAt = Date.now() + delay;
 		reconnect.timeoutHandle = setTimeout(() => {
 			if (this._state.kind === AgentHostClientState.Reconnecting) {
 				this._state.reconnect.timeoutHandle = undefined;
+				this._state.reconnect.nextAttemptAt = undefined;
 			}
 			void this._attemptReconnect();
 		}, delay);
+		this._onDidScheduleReconnect.fire();
 	}
 
 	private async _attemptReconnect(): Promise<void> {
@@ -762,7 +819,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 			if (err instanceof NonReconnectableTransportError) {
 				const protocolError = new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, err.message);
-				this._handleFatalClose(protocolError);
+				this._handleFatalClose(protocolError, err.reason);
 				return;
 			}
 			if (err instanceof InitialAuthenticationError) {
@@ -1667,12 +1724,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 	}
 
-	private _handleFatalClose(error: ProtocolError): void {
+	private _handleFatalClose(error: ProtocolError, reason?: AgentHostTransportFailureReason): void {
 		this._onDidFatalClose.fire(error);
-		this._handleClose(error);
+		this._handleClose(error, reason);
 	}
 
-	private _handleClose(error: ProtocolError): void {
+	private _handleClose(error: ProtocolError, reason?: AgentHostTransportFailureReason): void {
 		if (this._state.kind === AgentHostClientState.Closed) {
 			return;
 		}
@@ -1698,7 +1755,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._implicitReadGrants.clear();
 		this._resourceService.connectionClosed(this._resourceIdentity);
 		this._transitionTo({ kind: AgentHostClientState.Closed, error });
-		this._onDidClose.fire();
+		this._onDidClose.fire(reason);
 	}
 
 	private async _raceClose<T>(promise: Promise<T>): Promise<T> {
@@ -1732,12 +1789,34 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		// onto a new transport with a stale id — stray response at best, id
 		// collision with a new server-issued reverse RPC at worst.
 		const transport = this._transport;
+		this._pendingReverseRequests.set(transport, (this._pendingReverseRequests.get(transport) ?? 0) + 1);
+		const sendResponse = (response: JsonRpcResponse) => {
+			try {
+				transport.send(response);
+			} finally {
+				const pending = this._pendingReverseRequests.get(transport);
+				if (pending === 1) {
+					this._pendingReverseRequests.delete(transport);
+					// The peer now waits on bytes that still drain plus its own
+					// post-response work, and a close timer armed before this
+					// request arrived could fire moments from now. Grant a full
+					// window from this point instead. Guarded on the transport
+					// still being current so a late response cannot extend the
+					// life of timers that belong to a replacement transport.
+					if (transport === this._transport) {
+						this._resetLivenessTimers();
+					}
+				} else if (pending !== undefined) {
+					this._pendingReverseRequests.set(transport, pending - 1);
+				}
+			}
+		};
 		const sendResult = (result: unknown) => {
-			transport.send({ jsonrpc: '2.0', id, result });
+			sendResponse({ jsonrpc: '2.0', id, result });
 		};
 		const sendError = (err: unknown) => {
 			if (err instanceof AgentHostResourcePermissionError) {
-				transport.send({
+				sendResponse({
 					jsonrpc: '2.0',
 					id,
 					error: {
@@ -1755,7 +1834,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				case FileSystemProviderErrorCode.NoPermissions: code = AhpErrorCodes.PermissionDenied; break;
 				case FileSystemProviderErrorCode.FileExists: code = AhpErrorCodes.AlreadyExists; break;
 			}
-			transport.send({ jsonrpc: '2.0', id, error: { code, message: err instanceof Error ? err.message : String(err) } });
+			sendResponse({ jsonrpc: '2.0', id, error: { code, message: err instanceof Error ? err.message : String(err) } });
 		};
 
 		const p = (params ?? {}) as Record<string, unknown>;
@@ -2024,6 +2103,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 *    the transport so the renderer's reconnect logic kicks in. Catches
 	 *    silently-dead transports (e.g. SSH/tunnel after laptop sleep +
 	 *    network change) that don't emit a socket close event of their own.
+	 *    It defers while the host awaits a reverse-request response or the
+	 *    local event loop has high load. Once either deferral clears, it grants
+	 *    a fresh full liveness window.
 	 *
 	 * After laptop sleep + wake the JS event loop is paused, so a timer
 	 * armed before sleep fires immediately after wake. That's fine —
@@ -2033,6 +2115,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * No-op while {@link _state.kind} is {@link AgentHostClientState.Incompatible},
 	 * {@link AgentHostClientState.Reconnecting}, or {@link AgentHostClientState.Closed}:
 	 * the transport is not available for normal liveness traffic in those states.
+	 * An inbound message also clears any deferred liveness state.
 	 */
 	private _resetLivenessTimers(): void {
 		this._cancelLivenessTimers();
@@ -2048,6 +2131,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _cancelLivenessTimers(): void {
 		this._pingTimer.cancel();
 		this._closeTimer.cancel();
+		this._livenessDeferred = false;
+		this._livenessDeferredSince = undefined;
 	}
 
 	private _onPingTimer(): void {
@@ -2062,6 +2147,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		void this.ping().catch(() => undefined);
 	}
 
+	/** Rechecks deferrals promptly, then force-closes only after a fresh liveness window expires. */
 	private _onCloseTimer(): void {
 		if (this._state.kind === AgentHostClientState.Incompatible
 			|| this._state.kind === AgentHostClientState.Closed
@@ -2072,15 +2158,16 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			// The main process reports actual child-process exits explicitly.
 			return;
 		}
-		// {@link ILoadEstimator} guards against the *local* side of the
-		// confusion: if our own JS event loop has been pegged we suppress
-		// the close — the silence is on our end, not the remote's, and
-		// tearing down the transport would just abort in-flight requests.
-		// Re-arm only the close timer at {@link PING_INTERVAL_MS} so we
-		// re-evaluate promptly once load normalizes (rather than waiting a
-		// full PING_INTERVAL + LIVENESS_TIMEOUT window).
-		if (this._loadEstimator.hasHighLoad()) {
-			this._closeTimer.cancelAndSet(() => this._onCloseTimer(), PING_INTERVAL_MS);
+		const pendingReverseRequests = this._pendingReverseRequests.get(this._transport) ?? 0;
+		if (pendingReverseRequests > 0 || this._loadEstimator.hasHighLoad()) {
+			this._deferLivenessCheck(pendingReverseRequests);
+			return;
+		}
+		if (this._livenessDeferred) {
+			this._livenessDeferred = false;
+			this._livenessDeferredSince = undefined;
+			this._pingTimer.cancelAndSet(() => this._onPingTimer(), PING_INTERVAL_MS);
+			this._closeTimer.cancelAndSet(() => this._onCloseTimer(), PING_INTERVAL_MS + LIVENESS_TIMEOUT_MS);
 			return;
 		}
 		const silence = Date.now() - this._lastReadTime;
@@ -2101,6 +2188,20 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			return;
 		}
 		this._handleClose(connectionTimeoutError(this._address, silence));
+	}
+
+	private _deferLivenessCheck(pendingReverseRequests: number): void {
+		const now = Date.now();
+		if (!this._livenessDeferred) {
+			this._livenessDeferred = true;
+			this._livenessDeferredSince = now;
+		}
+		const deferredSince = this._livenessDeferredSince ?? now;
+		this._logService.trace(
+			`[RemoteAgentHostProtocol] Liveness: deferring close for ${now - deferredSince}ms; ${pendingReverseRequests} reverse request(s) outstanding.`,
+		);
+		this._pingTimer.cancelAndSet(() => this._onPingTimer(), PING_INTERVAL_MS);
+		this._closeTimer.cancelAndSet(() => this._onCloseTimer(), PING_INTERVAL_MS);
 	}
 
 	/**

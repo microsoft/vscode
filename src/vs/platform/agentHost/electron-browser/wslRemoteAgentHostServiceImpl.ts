@@ -19,7 +19,7 @@ import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../common/agentService.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import { ReconnectingRelayTransport } from '../common/relayTransport.js';
-import { NonReconnectableTransportError } from '../common/state/sessionTransport.js';
+import { AgentHostTransportFailureReason, NonReconnectableTransportError } from '../common/state/sessionTransport.js';
 import { AgentHostProtocolClient } from '../browser/agentHostProtocolClient.js';
 import { agentsWindowAgentHostClientInfo } from '../common/agentHostClientInfo.js';
 import {
@@ -70,7 +70,7 @@ export class WSLRelayClientFactory implements IWSLRelayClientFactory {
 			try {
 				const runningDistros = await mainService.listRunningDistros().catch((): string[] => []);
 				if (!runningDistros.includes(config.distro)) {
-					throw new NonReconnectableTransportError(`WSL distro '${config.distro}' is not running.`);
+					throw new NonReconnectableTransportError(`WSL distro '${config.distro}' is not running.`, AgentHostTransportFailureReason.HostNotRunning);
 				}
 				const result = await mainService.reconnect(config.distro, config.name, config.remoteAgentHostCommand, false);
 				return {
@@ -263,7 +263,7 @@ class WSLConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 	private async _ensureDistroIsRunning(distro: string): Promise<void> {
 		const runningDistros = await this._mainService.listRunningDistros();
 		if (!runningDistros.includes(distro)) {
-			throw new NonReconnectableTransportError(`WSL distro '${distro}' is not running.`);
+			throw new NonReconnectableTransportError(`WSL distro '${distro}' is not running.`, AgentHostTransportFailureReason.HostNotRunning);
 		}
 	}
 

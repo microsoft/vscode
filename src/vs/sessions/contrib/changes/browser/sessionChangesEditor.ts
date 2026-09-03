@@ -83,6 +83,7 @@ class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 		@ICommandService private readonly commandService: ICommandService,
 		@IChangesViewService private readonly changesViewService: IChangesViewService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEditorService private readonly editorService: IEditorService,
 	) { }
 
 	createResourceLabel(element: HTMLElement, kind: MultiDiffEditorItemLabelKind): IResourceLabel {
@@ -110,6 +111,14 @@ class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 			return this.instantiationService.createInstance(ChangesetReviewActionViewItem, action, options);
 		}
 		return undefined;
+	}
+
+	openDiffEditor(original: URI, modified: URI): void {
+		void this.editorService.openEditor({
+			original: { resource: original },
+			modified: { resource: modified },
+			options: { pinned: true },
+		});
 	}
 }
 
@@ -436,9 +445,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			return;
 		}
 
-		const control = widget.getActiveControl();
-		if (control) {
-			control.focus();
+		if (widget.focus()) {
 			return;
 		}
 
@@ -446,10 +453,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		// part was just revealed from a hidden state), so getActiveControl() is
 		// undefined. Focus it as soon as it becomes available.
 		this._pendingFocus.value = widget.onDidChangeActiveControl(() => {
-			const activeControl = widget.getActiveControl();
-			if (activeControl) {
+			if (widget.focus()) {
 				this._pendingFocus.clear();
-				activeControl.focus();
 			}
 		});
 	}

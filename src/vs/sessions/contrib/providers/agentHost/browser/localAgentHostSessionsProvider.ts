@@ -46,7 +46,6 @@ import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../.
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, type IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
-import { ResourceLabelHomeStore } from '../../../../../workbench/services/label/common/resourceLabelHomeStore.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { ChatModelSource, IGitHubInfo, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
@@ -124,8 +123,6 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	private _automationSessionResources = new ResourceSet();
 	private readonly _devContainerAvailableDrafts = new Set<string>();
 	private readonly _devContainerDrafts = new Set<string>();
-	private readonly _resourceLabelHomes: ResourceLabelHomeStore;
-
 	override get order(): number {
 		return -1;
 	}
@@ -193,7 +190,6 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		@IPathService pathService: IPathService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService);
-		this._resourceLabelHomes = this._register(instantiationService.createInstance(ResourceLabelHomeStore));
 		const legacyAutomations = this._register(instantiationService.createInstance(AutomationStore, providerAutomationStorageKey(this.id)));
 		const automations = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, legacyAutomations, {
 			toHost: resource => resource,
@@ -215,6 +211,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		// authentication settling below) reconciles them.
 		this._enableSessionCachePersistence(LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY, LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY_LEGACY);
 
+		const onDidChangeResourceLabelHomes = Event.any(this._onDidChangeSessionsImmediately, this._onDidChangeDraftSessions.event);
 		const updateResourceLabelHomes = () => {
 			const homes = this.getResourceLabelHomes();
 			const userHome = pathService.userHome({ preferLocal: true });
@@ -238,10 +235,10 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 					}
 				}
 			}
-			this._resourceLabelHomes.set(homes);
+
+			this.updateResourceLabelHomeFormatters(homes, this._labelService, onDidChangeResourceLabelHomes);
 		};
-		this._register(this._onDidChangeSessionsImmediately(updateResourceLabelHomes));
-		this._register(this._onDidChangeDraftSessions.event(updateResourceLabelHomes));
+		this._register(onDidChangeResourceLabelHomes(updateResourceLabelHomes));
 		updateResourceLabelHomes();
 		this._register(autorun(reader => {
 			this._automationSessionResources = new ResourceSet(this.automations.runs.read(reader).flatMap(run => run.sessionResource ? [run.sessionResource] : []));

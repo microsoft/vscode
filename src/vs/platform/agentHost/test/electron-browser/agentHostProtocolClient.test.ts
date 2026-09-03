@@ -31,7 +31,7 @@ import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, ty
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, customizationId, withSessionExternal, withSessionWorkspaceless } from '../../common/state/sessionState.js';
-import { NonReconnectableTransportError, type IClientTransport, type IProtocolTransport } from '../../common/state/sessionTransport.js';
+import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -280,6 +280,7 @@ suite('AgentHostProtocolClient', () => {
 		onGrantImplicitRead?: (identity: AgentHostResourceIdentity, uri: URI) => void;
 		/** Test hook that observes disposal of the implicit-read grant. */
 		onRevokeImplicitRead?: (identity: AgentHostResourceIdentity, uri: URI) => void;
+		onRead?: (identity: AgentHostResourceIdentity, uri: URI) => Promise<{ bytes: VSBuffer }>;
 		readBytes?: VSBuffer;
 	}
 
@@ -307,6 +308,9 @@ suite('AgentHostProtocolClient', () => {
 			async list(addr, uri) { await gateRead(addr, uri); return { entries: [] }; },
 			async read(addr, uri) {
 				await gateRead(addr, uri);
+				if (opts.onRead) {
+					return await opts.onRead(addr, uri);
+				}
 				if (opts.readBytes) {
 					return { bytes: opts.readBytes };
 				}
@@ -2272,7 +2276,7 @@ suite('AgentHostProtocolClient', () => {
 		 * client plus a `transports` array recording each transport handed
 		 * out, so tests can drive handshake/reconnect interactions.
 		 */
-		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
+		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
 			const transports: TestClientProtocolTransport[] = [];
 			const factory = () => {
 				const t = disposables.add(new TestClientProtocolTransport());
@@ -2280,7 +2284,7 @@ suite('AgentHostProtocolClient', () => {
 				return t;
 			};
 			const client = disposables.add(new AgentHostProtocolClient(
-				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined ? { clientInfo, reconnectPolicy } : undefined, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService,
+				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined ? { clientInfo, reconnectPolicy, loadEstimator } : undefined, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService,
 			));
 			return { client, transports };
 		}
@@ -2336,6 +2340,7 @@ suite('AgentHostProtocolClient', () => {
 		test('does not retry a non-reconnectable initial transport failure', async () => {
 			const { client, transports } = createFactoryClient();
 			const fatalErrors: string[] = [];
+			const closeReason = Event.toPromise(client.onDidClose);
 			disposables.add(client.onDidFatalClose(error => fatalErrors.push(error.message)));
 			const connectPromise = client.connect();
 			transports[0].connectDeferred.error(new NonReconnectableTransportError('terminal failure'));
@@ -2346,10 +2351,29 @@ suite('AgentHostProtocolClient', () => {
 				state: client.connectionState,
 				transportCount: transports.length,
 				fatalErrors,
+				closeReason: await closeReason,
 			}, {
 				state: AgentHostClientState.Closed,
 				transportCount: 1,
 				fatalErrors: ['terminal failure'],
+				closeReason: AgentHostTransportFailureReason.Unknown,
+			});
+		});
+
+		test('reports a host-not-running terminal transport failure when it closes', async () => {
+			const { client, transports } = createFactoryClient();
+			const closeReason = Event.toPromise(client.onDidClose);
+			const connectPromise = client.connect();
+			transports[0].connectDeferred.error(new NonReconnectableTransportError('WSL distro is not running.', AgentHostTransportFailureReason.HostNotRunning));
+
+			await assert.rejects(connectPromise, /not running/);
+
+			assert.deepStrictEqual({
+				state: client.connectionState,
+				closeReason: await closeReason,
+			}, {
+				state: AgentHostClientState.Closed,
+				closeReason: AgentHostTransportFailureReason.HostNotRunning,
 			});
 		});
 
@@ -2417,6 +2441,74 @@ suite('AgentHostProtocolClient', () => {
 
 				assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
 			});
+		});
+
+		test('reports the deadline for each scheduled reconnect backoff', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const reconnectPolicy: IRemoteAgentHostReconnectPolicy = {
+					autoRestore: true,
+					initialDelayMs: 60_000,
+					maxDelayMs: 60_000,
+					maxAttempts: 3,
+				};
+				const { client, transports } = createFactoryClient(createPermissionService(), undefined, NullTelemetryService, reconnectPolicy);
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+				const reconnectDeadlines: (number | undefined)[] = [];
+				// The client stays `reconnecting` across rounds, so the schedule
+				// event — not the state event — reports each new deadline.
+				const stateListener = client.onDidScheduleReconnect(() => {
+					reconnectDeadlines.push(client.nextReconnectAt);
+				});
+
+				transports[0].fireClose();
+				const firstDeadline = client.nextReconnectAt;
+				assert.ok(firstDeadline !== undefined);
+				await timeout(reconnectPolicy.initialDelayMs);
+				transports[1].connectDeferred.error(new Error('reconnect failed'));
+				await flushMicrotasks();
+				const secondDeadline = client.nextReconnectAt;
+				assert.ok(secondDeadline !== undefined);
+
+				assert.deepStrictEqual(reconnectDeadlines, [firstDeadline, secondDeadline]);
+				stateListener.dispose();
+				client.dispose();
+			});
+		});
+
+		test('reconnectNow clears a pending backoff and retries immediately', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const reconnectPolicy: IRemoteAgentHostReconnectPolicy = {
+					autoRestore: true,
+					initialDelayMs: 60_000,
+					maxDelayMs: 60_000,
+					maxAttempts: 3,
+				};
+				const { client, transports } = createFactoryClient(createPermissionService(), undefined, NullTelemetryService, reconnectPolicy);
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				transports[0].fireClose();
+				assert.strictEqual(client.reconnectNow(), true);
+				await timeout(reconnectPolicy.initialDelayMs - 1);
+
+				assert.deepStrictEqual({
+					nextReconnectAt: client.nextReconnectAt,
+					transportCount: transports.length,
+				}, {
+					nextReconnectAt: undefined,
+					transportCount: 2,
+				});
+				client.dispose();
+			});
+		});
+
+		test('reconnectNow returns false when no reconnect backoff is pending', () => {
+			const { client } = createFactoryClient();
+
+			assert.strictEqual(client.reconnectNow(), false);
 		});
 
 		test('does not automatically reconnect when the policy disables automatic restore', async () => {
@@ -3306,7 +3398,9 @@ suite('AgentHostProtocolClient', () => {
 		test('watchdog dead-transport detection triggers soft reconnect', async function () {
 			this.timeout(60_000);
 			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
-				const { client, transports } = createFactoryClient();
+				// Inject a no-load estimator: the shared LoadEstimator singleton
+				// installs a 1s interval that never drains under fake timers.
+				const { client, transports } = createFactoryClient(createPermissionService(), undefined, NullTelemetryService, undefined, { hasHighLoad: () => false });
 				const connectPromise = client.connect();
 				await completeHandshake(transports[0], connectPromise);
 
@@ -3323,6 +3417,185 @@ suite('AgentHostProtocolClient', () => {
 				const err = await pending;
 				assert.ok(err instanceof ProtocolError);
 				assert.match((err as ProtocolError).message, /Connection appears dead/);
+			});
+		});
+
+		test('watchdog grants a full liveness window after a pending reverse request is answered', async function () {
+			this.timeout(60_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const readDeferred = new DeferredPromise<{ bytes: VSBuffer }>();
+				const { client, transports } = createFactoryClient(createResourceServiceStub({
+					onRead: () => readDeferred.p,
+				}), undefined, NullTelemetryService, undefined, { hasHighLoad: () => false });
+				try {
+					const connectPromise = client.connect();
+					await completeHandshake(transports[0], connectPromise);
+
+					transports[0].fireMessage({
+						jsonrpc: '2.0',
+						id: 1,
+						method: 'resourceRead',
+						params: { channel: 'ahp-root://', uri: URI.file('/workspace/customization.json').toString() },
+					});
+
+					await timeout(25_000);
+					assert.strictEqual(client.connectionState, AgentHostClientState.Connected,
+						'watchdog must not close while the host awaits a reverse-request response');
+
+					readDeferred.complete({ bytes: VSBuffer.fromString('{}') });
+					await flushMicrotasks();
+
+					// The window now runs from the moment the response was handed
+					// to the transport, so it expires at ~t+25s rather than at the
+					// next 5s poll plus 25s.
+					await timeout(20_000);
+					assert.strictEqual(client.connectionState, AgentHostClientState.Connected,
+						'watchdog must grant a full liveness window once the pending reverse request is answered');
+
+					await timeout(10_000);
+					assert.strictEqual(client.connectionState, AgentHostClientState.Reconnecting,
+						'watchdog must close after the fresh liveness window expires without inbound traffic');
+				} finally {
+					client.dispose();
+				}
+			});
+		});
+
+		test('watchdog grants a full liveness window when a reverse request is answered before the first close tick', async function () {
+			this.timeout(60_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const readDeferred = new DeferredPromise<{ bytes: VSBuffer }>();
+				const { client, transports } = createFactoryClient(createResourceServiceStub({
+					onRead: () => readDeferred.p,
+				}), undefined, NullTelemetryService, undefined, { hasHighLoad: () => false });
+				try {
+					const connectPromise = client.connect();
+					await completeHandshake(transports[0], connectPromise);
+
+					transports[0].fireMessage({
+						jsonrpc: '2.0',
+						id: 1,
+						method: 'resourceRead',
+						params: { channel: 'ahp-root://', uri: URI.file('/workspace/customization.json').toString() },
+					});
+
+					// Answer just before the close timer armed by the inbound
+					// request fires, so no deferral is ever observed. The peer is
+					// still owed the drain plus its own post-response work, so the
+					// close must not fire moments later.
+					await timeout(24_000);
+					readDeferred.complete({ bytes: VSBuffer.fromString('{}') });
+					await flushMicrotasks();
+
+					await timeout(5_000);
+					assert.strictEqual(client.connectionState, AgentHostClientState.Connected,
+						'watchdog must not close right after a response it never observed as deferred');
+
+					await timeout(15_000);
+					assert.strictEqual(client.connectionState, AgentHostClientState.Connected,
+						'the granted window must run from the response, not from the last inbound message');
+
+					await timeout(10_000);
+					assert.strictEqual(client.connectionState, AgentHostClientState.Reconnecting,
+						'watchdog must still close once the granted window expires');
+				} finally {
+					client.dispose();
+				}
+			});
+		});
+
+		test('watchdog retains deferral until all concurrent reverse requests are answered', async function () {
+			this.timeout(60_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const firstRead = new DeferredPromise<{ bytes: VSBuffer }>();
+				const secondRead = new DeferredPromise<{ bytes: VSBuffer }>();
+				const { client, transports } = createFactoryClient(createResourceServiceStub({
+					onRead: (_identity, uri) => uri.path === '/workspace/one.json' ? firstRead.p : secondRead.p,
+				}), undefined, NullTelemetryService, undefined, { hasHighLoad: () => false });
+				try {
+					const connectPromise = client.connect();
+					await completeHandshake(transports[0], connectPromise);
+
+					transports[0].fireMessage({ jsonrpc: '2.0', id: 1, method: 'resourceRead', params: { channel: 'ahp-root://', uri: URI.file('/workspace/one.json').toString() } });
+					transports[0].fireMessage({ jsonrpc: '2.0', id: 2, method: 'resourceRead', params: { channel: 'ahp-root://', uri: URI.file('/workspace/two.json').toString() } });
+
+					await timeout(25_000);
+					firstRead.complete({ bytes: VSBuffer.fromString('{}') });
+					await flushMicrotasks();
+					await timeout(5_000);
+
+					assert.strictEqual(client.connectionState, AgentHostClientState.Connected,
+						'watchdog must remain deferred while another reverse request is outstanding');
+
+					secondRead.complete({ bytes: VSBuffer.fromString('{}') });
+					await flushMicrotasks();
+
+					// The window runs from the final response, so it expires ~25s
+					// after this point rather than after the next poll.
+					await timeout(20_000);
+					assert.strictEqual(client.connectionState, AgentHostClientState.Connected,
+						'watchdog must grant a fresh liveness window after the final reverse request completes');
+
+					await timeout(10_000);
+					assert.strictEqual(client.connectionState, AgentHostClientState.Reconnecting,
+						'watchdog must close once every concurrent reverse request has completed and the fresh window expires');
+				} finally {
+					client.dispose();
+				}
+			});
+		});
+
+		test('watchdog clears reverse-request deferral after an error response', async function () {
+			this.timeout(60_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient(createResourceServiceStub({
+					onRead: async () => { throw new Error('resource read failed'); },
+				}), undefined, NullTelemetryService, undefined, { hasHighLoad: () => false });
+				try {
+					const connectPromise = client.connect();
+					await completeHandshake(transports[0], connectPromise);
+
+					transports[0].fireMessage({ jsonrpc: '2.0', id: 1, method: 'resourceRead', params: { channel: 'ahp-root://', uri: URI.file('/workspace/error.json').toString() } });
+					await flushMicrotasks();
+
+					assert.deepStrictEqual(transports[0].sentMessages.at(-1), {
+						jsonrpc: '2.0',
+						id: 1,
+						error: { code: -32000, message: 'resource read failed' },
+					});
+
+					await timeout(25_000);
+					assert.strictEqual(client.connectionState, AgentHostClientState.Reconnecting,
+						'watchdog must close when a reverse request has completed with an error');
+				} finally {
+					client.dispose();
+				}
+			});
+		});
+
+		test('watchdog grants a full liveness window after high load clears', async function () {
+			this.timeout(60_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				let hasHighLoad = true;
+				const { client, transports } = createFactoryClient(createPermissionService(), undefined, NullTelemetryService, undefined, { hasHighLoad: () => hasHighLoad });
+				try {
+					const connectPromise = client.connect();
+					await completeHandshake(transports[0], connectPromise);
+
+					await timeout(25_000);
+					hasHighLoad = false;
+					await timeout(5_000);
+					await timeout(20_000);
+
+					assert.strictEqual(client.connectionState, AgentHostClientState.Connected,
+						'watchdog must grant a fresh liveness window once high load clears');
+
+					await timeout(5_000);
+					assert.strictEqual(client.connectionState, AgentHostClientState.Reconnecting,
+						'watchdog must close after the fresh liveness window expires without inbound traffic');
+				} finally {
+					client.dispose();
+				}
 			});
 		});
 	});

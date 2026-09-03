@@ -30,15 +30,18 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('includes the customization target in the modal title', () => {
 		const input = store.add(new AICustomizationManagementEditorInput());
-		const names = [input.getName()];
-		input.setTargetLabel('Copilot');
-		names.push(input.getName());
-		input.setTargetLabel(undefined);
-		names.push(input.getName());
-		assert.deepStrictEqual(names, [
-			'Agent Customizations',
-			'Agent Customizations - Copilot',
-			'Agent Customizations',
+		const labels = [[input.getName(), input.getDescription()]];
+		input.setTargetLabels('Copilot');
+		labels.push([input.getName(), input.getDescription()]);
+		input.setTargetLabels('Copilot', 'vscode');
+		labels.push([input.getName(), input.getDescription()]);
+		input.setTargetLabels(undefined);
+		labels.push([input.getName(), input.getDescription()]);
+		assert.deepStrictEqual(labels, [
+			['Agent Customizations', undefined],
+			['Agent Customizations', '(Copilot)'],
+			['Agent Customizations', '(Copilot · vscode)'],
+			['Agent Customizations', undefined],
 		]);
 	});
 

@@ -151,8 +151,9 @@ export class OpenBrowserTool implements IToolImpl {
 				return withNotice(alreadyShared);
 			}
 
-			// If there are unshared (but shareable) pages on the same host, prompt user to share one
-			const unshared = findExistingPagesByHost(this.browserViewService, params.url, { includeBlank: false, sharingState: BrowserViewSharingState.NotShared, activeSessionId });
+			// If there are unshared pages on the same host, prompt user to share one
+			const unshared = findExistingPagesByHost(this.browserViewService, params.url, { includeBlank: false, activeSessionId })
+				.filter(editor => editor.model?.sharingState === BrowserViewSharingState.Available);
 			if (unshared.length > 0) {
 				const shareResult = await this._promptForUnsharedPages(invocation, unshared, params, token);
 				if (shareResult) {
@@ -170,6 +171,16 @@ export class OpenBrowserTool implements IToolImpl {
 	 * prompt should be skipped or the user chose to open a new page.
 	 */
 	private async _promptForUnsharedPages(invocation: IToolInvocation, candidateEditors: BrowserEditorInput[], params: IOpenBrowserToolParams, token: CancellationToken): Promise<IToolResult | undefined> {
+		const directlyShareableEditors: BrowserEditorInput[] = [];
+		for (const editor of candidateEditors) {
+			const model = await editor.resolve();
+			if (model.sharingState === BrowserViewSharingState.Available && model.isDirectlyShareable) {
+				directlyShareableEditors.push(editor);
+			}
+		}
+		if (directlyShareableEditors.length === 0) {
+			return undefined;
+		}
 
 		const chatSessionResource = invocation.context?.sessionResource;
 		const chatRequestId = invocation.chatRequestId;
@@ -184,7 +195,7 @@ export class OpenBrowserTool implements IToolImpl {
 			return undefined;
 		}
 
-		const carousel = this._buildShareCarousel(candidateEditors, params.url, invocation.chatStreamToolCallId ?? invocation.callId);
+		const carousel = this._buildShareCarousel(directlyShareableEditors, params.url, invocation.chatStreamToolCallId ?? invocation.callId);
 		this.chatService.appendProgress(request, carousel);
 
 		const externalAnswerListener = this.chatService.onDidReceiveQuestionCarouselAnswer(event => {
@@ -220,7 +231,7 @@ export class OpenBrowserTool implements IToolImpl {
 		}
 
 		// User selected an existing tab
-		const editor = candidateEditors.find(e => e.id === selectedOptionId);
+		const editor = directlyShareableEditors.find(e => e.id === selectedOptionId);
 		if (!editor) {
 			this.logService.warn(`[OpenBrowserTool] Selected option '${selectedOptionId}' not found.`);
 			return undefined;
@@ -299,14 +310,17 @@ export class OpenBrowserTool implements IToolImpl {
 
 	private async _shareExistingPage(sessionId: string, editor: BrowserEditorInput): Promise<IToolResult> {
 		const model = await editor.resolve();
+		let sharedModel = model;
 		if (model.sharingState !== BrowserViewSharingState.Shared) {
-			if (!(await model.setSharedWithAgent(true))) {
+			const result = await model.setSharedWithAgent(true);
+			if (!result) {
 				return { content: [{ kind: 'text', value: 'The user declined to share the page.' }] };
 			}
+			sharedModel = result;
 		}
 
-		const summary = await this.playwrightService.getSummary(sessionId, editor.id);
-		return this._pageResult(editor.id, summary, localize('browser.open.sharedResult', "User shared {0}", createBrowserPageLink(editor.id)));
+		const summary = await this.playwrightService.getSummary(sessionId, sharedModel.id);
+		return this._pageResult(sharedModel.id, summary, localize('browser.open.sharedResult', "User shared {0}", createBrowserPageLink(sharedModel.id)));
 	}
 
 	private _pageResult(pageId: string, summary: string, resultMessage: string): IToolResult {

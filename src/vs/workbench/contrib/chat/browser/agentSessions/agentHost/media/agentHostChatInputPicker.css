@@ -99,6 +99,10 @@
 	display: none;
 }
 
+.interactive-session .compact-picker .agent-host-chat-input-picker-sandbox-icon {
+	display: none;
+}
+
 .interactive-session .compact-picker .agent-host-chat-input-picker-slot {
 	width: 22px;
 	height: 22px;
@@ -158,4 +162,9 @@
 
 .agent-host-chat-input-picker-slot .action-label .codicon + .agent-host-chat-input-picker-label {
 	margin-left: 6px;
+}
+
+.agent-host-chat-input-picker-sandbox-icon {
+	flex-shrink: 0;
+	margin-left: var(--vscode-spacing-size60);
 }
