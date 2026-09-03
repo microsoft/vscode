@@ -8,12 +8,17 @@ import type { Snapshot } from '@typescript/native/unstable/async';
 import * as ts from '@typescript/native/unstable/ast';
 
 import type { ILogService } from '../../../../platform/log/common/logService';
-import { type IRegionContextProviderService, type Region, type LineRange } from '../../../../platform/languageContextProvider/common/regionContextProvider';
+import { Region, type IRegionContextProviderService, type RegionResult, type LineRange } from '../../../../platform/languageContextProvider/common/regionContextProvider';
 import { TypeScript7Api } from './ts7Api';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import tss from './typescripts';
 
 type StructuralEntity = { kind: string; name?: string; rangeNode: ts.Node | [ts.Node, ts.Node]; includeJsDoc?: boolean; continueWith?: ts.Node };
+
+type ScopeInfo = {
+	regions: Region[];
+	path: number[];
+};
 
 interface RegionContextApi {
 	clearSourceFileCache(): void;
@@ -34,7 +39,7 @@ export class TS7RegionContextProvider implements Omit<IRegionContextProviderServ
 		this.nativeApi = this.disposables.add(nativeApi);
 	}
 
-	async getRegions(document: vscode.Uri, languageId: string, ranges: vscode.Range[], requested?: LineRange): Promise<Region[] | undefined> {
+	async getRegions(document: vscode.Uri, languageId: string, ranges: vscode.Range[], requested?: LineRange): Promise<RegionResult | undefined> {
 		if (document.scheme !== 'file' || (languageId !== 'typescript' && languageId !== 'javascript')) {
 			return undefined;
 		}
@@ -60,13 +65,27 @@ export class TS7RegionContextProvider implements Omit<IRegionContextProviderServ
 			}
 
 			if (ranges.length === 1) {
-				return this.findEnclosingScopes(sourceFile, ranges[0].start.line, ranges[0].start.character, requested);
+				const scope = await this.findEnclosingScopes(sourceFile, ranges[0].start.line, ranges[0].start.character, requested);
+				return scope === undefined ? undefined : {
+					regions: scope.regions,
+					paths: { smallest: scope.path }
+				};
 			} else {
+				let smallest: { path: number[]; region: Region }	 | undefined;
+				let largest: { path: number[]; region: Region } | undefined;
 				const containersList: Region[][] = [];
 				for (const range of ranges) {
-					const containers = await this.findEnclosingScopes(sourceFile, range.start.line, range.start.character, requested);
-					if (containers !== undefined && containers.length > 0) {
-						containersList.push(containers.reverse());
+					const scope = await this.findEnclosingScopes(sourceFile, range.start.line, range.start.character, requested);
+					if (scope !== undefined && scope.regions.length > 0) {
+						const { regions, path } = scope;
+						const region = regions[0];
+						if (smallest === undefined || Region.getSpan(region) < Region.getSpan(smallest.region)) {
+							smallest = { region, path };
+						}
+						if (largest === undefined || Region.getSpan(region) > Region.getSpan(largest.region)) {
+							largest = { path, region };
+						}
+						containersList.push(regions.reverse());
 					}
 				}
 				if (containersList.length === 0) {
@@ -109,14 +128,17 @@ export class TS7RegionContextProvider implements Omit<IRegionContextProviderServ
 					}
 				}
 
-				return commonContainers.reverse();
+				return {
+					regions: commonContainers.reverse(),
+					paths: { smallest: smallest?.path ?? [], largest: largest?.path }
+				};
 			}
 		} finally {
 			await snapshot.dispose();
 		}
 	}
 
-	private async findEnclosingScopes(sourceFile: ts.SourceFile, line: number, column: number, requested?: LineRange | undefined): Promise<Region[] | undefined> {
+	private async findEnclosingScopes(sourceFile: ts.SourceFile, line: number, column: number, requested?: LineRange | undefined): Promise<ScopeInfo | undefined> {
 		const position = sourceFile.getPositionOfLineAndCharacter(line, column);
 		const tokenInfo = tss.getRelevantTokens(sourceFile, position);
 		const node = tokenInfo.touching ?? tokenInfo.token;
@@ -152,7 +174,7 @@ export class TS7RegionContextProvider implements Omit<IRegionContextProviderServ
 				current = continueWith ?? current;
 			}
 		}
-		return result.length > 0 ? result : undefined;
+		return result.length > 0 ? { regions: result, path: tss.StableSyntaxKinds.getPath(node) } : undefined;
 	}
 
 	private getStructuralEntity(sourceFile: ts.SourceFile, node: ts.Node, requested?: LineRange | undefined): StructuralEntity | undefined {
