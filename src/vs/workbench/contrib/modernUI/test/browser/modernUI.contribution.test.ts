@@ -32,6 +32,7 @@ import { WorkbenchState } from '../../../../../platform/workspace/common/workspa
 import { ColorThemeData } from '../../../../services/themes/common/colorThemeData.js';
 import { generateColorThemeCSS } from '../../../../services/themes/browser/colorThemeCss.js';
 import '../../../../browser/media/floatingPanels.css';
+import '../../../../../base/browser/ui/menu/menubar.css';
 import '../../../../browser/parts/activitybar/media/activityaction.css';
 import '../../../../browser/parts/media/paneCompositePart.css';
 import { ModernUIContribution } from '../../browser/modernUI.contribution.js';
@@ -962,6 +963,50 @@ suite('ModernUIContribution', () => {
 			left: { actionWidth: 36, actionCenterOffset: 0, windowMargin: 4, seamGap: 0 },
 			right: { actionWidth: 36, actionCenterOffset: 0, windowMargin: 4, seamGap: 0 },
 			railWidths: [44, 44],
+		});
+	});
+
+	test('keeps floating rail overlays anchored to the viewport', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui floating-panels';
+		root.style.display = 'inline-flex';
+		root.style.setProperty('--activity-bar-width', '36px');
+		root.style.setProperty('--vscode-spacing-sizeNone', '0px');
+		root.style.setProperty('--vscode-spacing-size20', '2px');
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-spacing-size60', '6px');
+		root.style.setProperty('--vscode-spacing-size80', '8px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const activityBar = appendElement(root, 'part activitybar left');
+		const content = appendElement(activityBar, 'content');
+		const menubar = appendElement(content, 'menubar compact');
+		const menuButton = appendElement(menubar, 'menubar-menu-button open');
+		const menu = appendElement(menuButton, 'menubar-menu-items-holder monaco-menu-container');
+		// `Menubar.showCustomMenu` places the compact menu in viewport coordinates.
+		menu.style.top = '120px';
+		menu.style.left = '240px';
+		menu.style.width = '200px';
+		menu.style.height = '160px';
+
+		const activityBarBounds = activityBar.getBoundingClientRect();
+		const menuBounds = menu.getBoundingClientRect();
+
+		assert.deepStrictEqual({
+			position: getWindow(menu).getComputedStyle(menu).position,
+			top: menuBounds.top,
+			left: menuBounds.left,
+			width: menuBounds.width,
+			leavesRail: menuBounds.left > activityBarBounds.right,
+		}, {
+			// Centering the icon column must not make the rail the containing block of the
+			// menu, or it lands somewhere else and the rail's `overflow: hidden` clips it.
+			position: 'fixed',
+			top: 120,
+			left: 240,
+			width: 200,
+			leavesRail: true,
 		});
 	});
 

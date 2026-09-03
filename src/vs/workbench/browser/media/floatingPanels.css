@@ -308,9 +308,14 @@
  * Center the full-size action targets in the card's lane (see `--modern-ui-activitybar-lane`).
  * The card's two 1px borders shrink its content box, so they come off the lane before it is
  * halved — otherwise the items sit 1px off-center.
+ *
+ * This has to stay a plain layout offset: a `transform` here would turn the content area into
+ * the containing block of its `position: fixed` descendants, which would strand the compact
+ * menu bar's menu (`.menubar-menu-items-holder`, placed in viewport coordinates) inside the
+ * rail, where the part's `overflow: hidden` clips it away.
  */
 .monaco-workbench.floating-panels .part.activitybar > .content {
-	transform: translateX(calc((var(--modern-ui-activitybar-lane) - 2px) / 2));
+	padding-left: calc((var(--modern-ui-activitybar-lane) - 2px) / 2);
 }
 
 /*
