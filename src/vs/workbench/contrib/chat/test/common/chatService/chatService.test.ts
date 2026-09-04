@@ -52,7 +52,7 @@ import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReferenc
 import { backfillTransferredModel, backfillRestoredPickerState, ChatService } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatServiceTelemetry } from '../../../common/chatService/chatServiceTelemetry.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind, ISessionTypeSelectionTelemetry, SessionTypeSelectionReason } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
@@ -73,6 +73,17 @@ import { ChatRequestSlashPromptPart } from '../../../common/requestParser/chatPa
 import { NullLanguageModelsService } from '../languageModels.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
+
+function sessionTypeSelectionTelemetry(reason: SessionTypeSelectionReason, values?: Partial<Omit<ISessionTypeSelectionTelemetry, 'reason'>>): ISessionTypeSelectionTelemetry {
+	return {
+		reason,
+		settingDefaultToCopilotHarness: false,
+		settingPreferCopilotHarness: false,
+		settingLocalAgentEnabled: true,
+		managedSandboxEnforced: false,
+		...values,
+	};
+}
 const chatAgentWithUsedContext: IChatAgent = {
 	id: chatAgentWithUsedContextId,
 	name: chatAgentWithUsedContextId,
@@ -590,7 +601,7 @@ suite('ChatService', () => {
 		const forkedData = sourceRef.object.toJSON();
 		forkedData.sessionId = 'forked-session';
 
-		const forkedRef = testDisposables.add(testService.loadSessionFromData(forkedData, 'ChatServiceTest#forkedSession', 'currentSession'));
+		const forkedRef = testDisposables.add(testService.loadSessionFromData(forkedData, 'ChatServiceTest#forkedSession', sessionTypeSelectionTelemetry('currentSession')));
 		const response = await testService.sendRequest(forkedRef.object.sessionResource, 'hello');
 		ChatSendResult.assertSent(response);
 		await response.data.responseCompletePromise;
@@ -1796,7 +1807,7 @@ suite('ChatService', () => {
 		const testService = createChatService();
 
 		// Load the untitled session to create the initial model
-		const untitledRef = await testService.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None, undefined, 'rememberedSelection');
+		const untitledRef = await testService.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None, undefined, sessionTypeSelectionTelemetry('rememberedSelection'));
 		assert.ok(untitledRef, 'Should load untitled session');
 		testDisposables.add(untitledRef);
 
@@ -2209,7 +2220,7 @@ suite('ChatService', () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
 
 		const testService = createChatService();
-		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, undefined, 'computedDefault');
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, undefined, sessionTypeSelectionTelemetry('computedDefault'));
 		assert.ok(ref);
 		testDisposables.add(ref);
 
@@ -2225,13 +2236,32 @@ suite('ChatService', () => {
 			isAgentHostSession: event.isAgentHostSession,
 			requestIndex: event.requestIndex,
 			sessionTypeSelectionReason: event.sessionTypeSelectionReason,
+			sessionTypeSelectionSettingDefaultToCopilotHarness: event.sessionTypeSelectionSettingDefaultToCopilotHarness,
+			sessionTypeSelectionSettingPreferCopilotHarness: event.sessionTypeSelectionSettingPreferCopilotHarness,
+			sessionTypeSelectionSettingLocalAgentEnabled: event.sessionTypeSelectionSettingLocalAgentEnabled,
+			sessionTypeSelectionManagedSandboxEnforced: event.sessionTypeSelectionManagedSandboxEnforced,
 			isVirtualWorkspace: event.isVirtualWorkspace,
 			settingDefaultToCopilotHarness: event.settingDefaultToCopilotHarness,
 			settingPreferCopilotHarness: event.settingPreferCopilotHarness,
 			settingLocalAgentEnabled: event.settingLocalAgentEnabled,
 			managedSandboxEnforced: event.managedSandboxEnforced,
 			hasRequestId: typeof event.requestId === 'string',
-		})), [{ sessionType: 'remote-agent-host', isAgentHostSession: true, requestIndex: 0, sessionTypeSelectionReason: 'computedDefault', isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, managedSandboxEnforced: true, hasRequestId: true }, { sessionType: 'remote-agent-host', isAgentHostSession: true, requestIndex: 1, sessionTypeSelectionReason: 'computedDefault', isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, managedSandboxEnforced: true, hasRequestId: true }]);
+		})), [0, 1].map(requestIndex => ({
+			sessionType: 'remote-agent-host',
+			isAgentHostSession: true,
+			requestIndex,
+			sessionTypeSelectionReason: 'computedDefault',
+			sessionTypeSelectionSettingDefaultToCopilotHarness: false,
+			sessionTypeSelectionSettingPreferCopilotHarness: false,
+			sessionTypeSelectionSettingLocalAgentEnabled: true,
+			sessionTypeSelectionManagedSandboxEnforced: false,
+			isVirtualWorkspace: true,
+			settingDefaultToCopilotHarness: true,
+			settingPreferCopilotHarness: true,
+			settingLocalAgentEnabled: false,
+			managedSandboxEnforced: true,
+			hasRequestId: true,
+		})));
 	});
 
 	test('user action telemetry distinguishes agent host sessions from local sessions', () => {

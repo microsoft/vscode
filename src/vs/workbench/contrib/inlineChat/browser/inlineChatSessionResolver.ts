@@ -7,10 +7,11 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { URI } from '../../../../base/common/uri.js';
 import { withChatSurfaceMeta } from '../../../../platform/agentHost/common/meta/agentChatSurfaceMeta.js';
+import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatModelReference, IChatService } from '../../chat/common/chatService/chatService.js';
-import { ChatAgentLocation, ChatConfiguration, getLocalFallbackSessionTypeSelectionReason } from '../../chat/common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, getLocalFallbackSessionTypeSelectionReason, getSessionTypeSelectionTelemetry } from '../../chat/common/constants.js';
 import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../chat/common/chatSessionsService.js';
 
 export const IInlineChatSessionResolver = createDecorator<IInlineChatSessionResolver>('inlineChatSessionResolver');
@@ -46,6 +47,7 @@ export class InlineChatSessionResolver implements IInlineChatSessionResolver {
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@IChatService private readonly _chatService: IChatService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 	) { }
 
 	async resolve(token: CancellationToken, languageId: string | undefined, targetUri: URI): Promise<IInlineChatSessionResolution | undefined> {
@@ -83,9 +85,12 @@ export class InlineChatSessionResolver implements IInlineChatSessionResolver {
 			return { modelRef, lockToAgent: contribution };
 		}
 
+		const fallbackReason = didAttemptAgentHost ? getLocalFallbackSessionTypeSelectionReason(SessionType.AgentHostCopilot, false) : undefined;
 		modelRef = this._chatService.startNewLocalSession(ChatAgentLocation.EditorInline, {
 			canUseTools: false /* SEE https://github.com/microsoft/vscode/issues/279946 */,
-			sessionTypeSelectionReason: didAttemptAgentHost ? getLocalFallbackSessionTypeSelectionReason(SessionType.AgentHostCopilot, false) : undefined,
+			sessionTypeSelectionTelemetry: fallbackReason
+				? getSessionTypeSelectionTelemetry(this._configurationService, fallbackReason, this._agentHostEnablementService.managedSandboxEnforced.get())
+				: undefined,
 		});
 		if (token.isCancellationRequested) {
 			modelRef.dispose();

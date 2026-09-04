@@ -11,7 +11,7 @@ import { ChatRequestModel, IChatRequestVariableData } from '../model/chatModel.j
 import { ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart } from '../requestParser/chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatCopyKind, IChatSendRequestOptions, IChatUserActionEvent } from './chatService.js';
 import { isImageVariableEntry } from '../attachments/chatVariableEntries.js';
-import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
+import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel, ISessionTypeSelectionTelemetry } from '../constants.js';
 import { ILanguageModelsService } from '../languageModels.js';
 import { chatSessionResourceToId, getChatSessionType } from '../model/chatUri.js';
 import { isAgentHostSessionResource } from '../chatSessionsService.js';
@@ -190,6 +190,10 @@ export type ChatProviderInvokedEvent = ChatSessionModeEvent & {
 	sessionType: string | undefined;
 	harness: string | undefined;
 	sessionTypeSelectionReason: string | undefined;
+	sessionTypeSelectionSettingDefaultToCopilotHarness: boolean | undefined;
+	sessionTypeSelectionSettingPreferCopilotHarness: boolean | undefined;
+	sessionTypeSelectionSettingLocalAgentEnabled: boolean | undefined;
+	sessionTypeSelectionManagedSandboxEnforced: boolean | undefined;
 	isVirtualWorkspace: boolean;
 	settingDefaultToCopilotHarness: boolean;
 	settingPreferCopilotHarness: boolean;
@@ -220,6 +224,10 @@ export type ChatProviderInvokedClassification = ChatSessionModeClassification & 
 	sessionType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session type scheme (e.g. vscodeLocalChatSession for local, or remote session scheme).' };
 	harness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For remote agent host sessions, the underlying harness/provider (e.g. copilotcli, claude, codex) so remote activity can be split by harness. Undefined for non-remote sessions.' };
 	sessionTypeSelectionReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why the session type was selected when the session was created. Undefined for restored or reused sessions.' };
+	sessionTypeSelectionSettingDefaultToCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of chat.defaultToCopilotHarness captured with sessionTypeSelectionReason. Undefined for restored or reused sessions.' };
+	sessionTypeSelectionSettingPreferCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of chat.editor.preferCopilotHarness captured with sessionTypeSelectionReason. Undefined for restored or reused sessions.' };
+	sessionTypeSelectionSettingLocalAgentEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of chat.editor.localAgent.enabled captured with sessionTypeSelectionReason. Undefined for restored or reused sessions.' };
+	sessionTypeSelectionManagedSandboxEnforced: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the managed Copilot SDK sandbox floor was enforced when sessionTypeSelectionReason was computed. Undefined for restored or reused sessions.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the chat request was made in a virtual workspace.' };
 	settingDefaultToCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of the chat.defaultToCopilotHarness setting when the request started. The harness decision also depends on managedSandboxEnforced, which can select the Copilot harness even when this is false.' };
 	settingPreferCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of the chat.editor.preferCopilotHarness setting when the request started. The harness decision also depends on managedSandboxEnforced, which can select the Copilot harness even when this is false.' };
@@ -344,7 +352,7 @@ export class ChatRequestTelemetry {
 		agentSlashCommandPart: ChatRequestAgentSubcommandPart | undefined;
 		commandPart: ChatRequestSlashCommandPart | undefined;
 		requestIndex: number;
-		sessionTypeSelectionReason: string | undefined;
+		sessionTypeSelectionTelemetry: ISessionTypeSelectionTelemetry | undefined;
 		sessionResource: URI;
 		location: ChatAgentLocation;
 		options: IChatSendRequestOptions | undefined;
@@ -375,7 +383,11 @@ export class ChatRequestTelemetry {
 		this.isComplete = true;
 		this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
 			requestIndex: this.opts.requestIndex,
-			sessionTypeSelectionReason: this.opts.sessionTypeSelectionReason,
+			sessionTypeSelectionReason: this.opts.sessionTypeSelectionTelemetry?.reason,
+			sessionTypeSelectionSettingDefaultToCopilotHarness: this.opts.sessionTypeSelectionTelemetry?.settingDefaultToCopilotHarness,
+			sessionTypeSelectionSettingPreferCopilotHarness: this.opts.sessionTypeSelectionTelemetry?.settingPreferCopilotHarness,
+			sessionTypeSelectionSettingLocalAgentEnabled: this.opts.sessionTypeSelectionTelemetry?.settingLocalAgentEnabled,
+			sessionTypeSelectionManagedSandboxEnforced: this.opts.sessionTypeSelectionTelemetry?.managedSandboxEnforced,
 			timeToFirstProgress,
 			totalTime,
 			result,

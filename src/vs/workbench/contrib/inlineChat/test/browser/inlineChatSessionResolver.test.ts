@@ -13,6 +13,8 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { readChatSurfaceMeta } from '../../../../../platform/agentHost/common/meta/agentChatSurfaceMeta.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IChatModelReference, IChatService, IChatSessionStartOptions } from '../../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
@@ -80,7 +82,7 @@ class TestChatService extends mock<IChatService>() {
 	readonly localReference = new TestModelReference();
 	readonly acquisitionStarted = new DeferredPromise<void>();
 	readonly acquisitionCalls: Array<{ location: ChatAgentLocation; debugOwner: string | undefined }> = [];
-	readonly localSessionCalls: Array<{ location: ChatAgentLocation; options: IChatSessionStartOptions | undefined }> = [];
+	readonly localSessionCalls: Array<{ location: ChatAgentLocation; options: { canUseTools: boolean | undefined; sessionTypeSelectionReason: string | undefined } }> = [];
 
 	override async acquireOrLoadSession(_sessionResource: URI, location: ChatAgentLocation, _token: CancellationToken, debugOwner?: string): Promise<IChatModelReference | undefined> {
 		this.acquisitionCalls.push({ location, debugOwner });
@@ -92,7 +94,13 @@ class TestChatService extends mock<IChatService>() {
 	}
 
 	override startNewLocalSession(location: ChatAgentLocation, options?: IChatSessionStartOptions): IChatModelReference {
-		this.localSessionCalls.push({ location, options });
+		this.localSessionCalls.push({
+			location,
+			options: {
+				canUseTools: options?.canUseTools,
+				sessionTypeSelectionReason: options?.sessionTypeSelectionTelemetry?.reason,
+			}
+		});
 		return this.localReference;
 	}
 }
@@ -113,6 +121,7 @@ suite('InlineChatSessionResolver', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatSessionsService, chatSessionsService);
 		instantiationService.stub(IChatService, chatService);
+		instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) });
 		resolver = instantiationService.createInstance(InlineChatSessionResolver);
 	});
 

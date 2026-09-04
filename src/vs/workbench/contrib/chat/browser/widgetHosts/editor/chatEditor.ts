@@ -31,7 +31,7 @@ import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatModel, IChatModelInputState, IExportableChatData, ISerializableChatData } from '../../../common/model/chatModel.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatModeKind, IResolvedNewChatSessionType, SessionTypeSelectionReason } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind, IResolvedNewChatSessionType, ISessionTypeSelectionTelemetry } from '../../../common/constants.js';
 import { clearChatEditor } from '../../actions/chatClear.js';
 import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
@@ -51,8 +51,8 @@ export interface IChatEditorOptions extends IEditorOptions {
 	 * provider resolution would otherwise apply.
 	 */
 	explicitSessionType?: string;
-	/** Creation-only metadata describing why the new session type was selected. */
-	sessionTypeSelectionReason?: SessionTypeSelectionReason;
+	/** Creation-only telemetry describing why and how the new session type was selected. */
+	sessionTypeSelectionTelemetry?: ISessionTypeSelectionTelemetry;
 	target?: { data: IExportableChatData | ISerializableChatData };
 	title?: {
 		preferred?: string;

@@ -11,12 +11,15 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatService, ResponseModelState } from '../../common/chatService/chatService.js';
 import type { ISerializableChatData } from '../../common/model/chatModel.js';
 import { isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { IChatSessionRequestHistoryItem, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { getSessionTypeSelectionTelemetry } from '../../common/constants.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { ChatTreeItem, ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
@@ -102,7 +105,8 @@ export class ForkConversationAction extends Action2 {
 				}
 			}
 
-			const modelRef = chatService.loadSessionFromData(cleanData, 'ChatForkActions#forkCleanSession', 'currentSession');
+			const selectionTelemetry = getSessionTypeSelectionTelemetry(accessor.get(IConfigurationService), 'currentSession', accessor.get(IAgentHostEnablementService).managedSandboxEnforced.get());
+			const modelRef = chatService.loadSessionFromData(cleanData, 'ChatForkActions#forkCleanSession', selectionTelemetry);
 
 			// Defer navigation until after the slash command flow completes.
 			const newSessionResource = modelRef.object.sessionResource;
@@ -226,7 +230,8 @@ export class ForkConversationAction extends Action2 {
 			}
 		}
 
-		const modelRef = chatService.loadSessionFromData(forkedData, 'ChatForkActions#forkSession', 'currentSession');
+		const selectionTelemetry = getSessionTypeSelectionTelemetry(accessor.get(IConfigurationService), 'currentSession', accessor.get(IAgentHostEnablementService).managedSandboxEnforced.get());
+		const modelRef = chatService.loadSessionFromData(forkedData, 'ChatForkActions#forkSession', selectionTelemetry);
 
 		if (!modelRef) {
 			return;
@@ -244,7 +249,8 @@ export class ForkConversationAction extends Action2 {
 	protected async _openForkedSession(instantiationService: IInstantiationService, parentSessionResource: URI, forkedSessionResource: URI): Promise<void> {
 		await instantiationService.invokeFunction(async accessor => {
 			const chatWidgetService = accessor.get(IChatWidgetService);
-			await chatWidgetService.openSession(forkedSessionResource, ChatViewPaneTarget, { sessionTypeSelectionReason: 'currentSession' });
+			const selectionTelemetry = getSessionTypeSelectionTelemetry(accessor.get(IConfigurationService), 'currentSession', accessor.get(IAgentHostEnablementService).managedSandboxEnforced.get());
+			await chatWidgetService.openSession(forkedSessionResource, ChatViewPaneTarget, { sessionTypeSelectionTelemetry: selectionTelemetry });
 		});
 	}
 

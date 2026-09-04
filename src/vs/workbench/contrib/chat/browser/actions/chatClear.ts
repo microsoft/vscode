@@ -25,7 +25,10 @@ export async function clearChatEditor(accessor: ServicesAccessor, chatEditorInpu
 			currentSessionType,
 		});
 		const resource = getNewChatSessionResource(resolved.sessionType);
-		const options: IChatEditorOptions = { pinned: true, sessionTypeSelectionReason: resolved.selectionReason };
+		const options: IChatEditorOptions = {
+			pinned: true,
+			sessionTypeSelectionTelemetry: resolved.selectionTelemetry,
+		};
 
 		// A chat editor can only be open in one group
 		const identifier = editorService.findEditors(chatEditorInput.resource)[0];
