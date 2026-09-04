@@ -224,7 +224,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		this._requireOperation(id, AutomationOperation.Update);
 		const current = this._requireAutomation(id);
 		const updated = this._applyPatch(current, patch);
-		const state = await this._replaceDescriptor(updated);
+		const state = await this._replaceDescriptor(updated, false, undefined, patch.sessionTemplate === null);
 		return this._requireProjectedAutomation(state);
 	}
 
@@ -781,13 +781,13 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		return state;
 	}
 
-	private async _replaceDescriptor(descriptor: IAutomationDescriptor, imported = false, importPending?: boolean): Promise<AutomationEntry> {
+	private async _replaceDescriptor(descriptor: IAutomationDescriptor, imported = false, importPending?: boolean, resetSessionTemplate = false): Promise<AutomationEntry> {
 		const resource = automationResource(descriptor.id);
 		const current = this._findAutomationEntry(descriptor.id);
 		if (!current) {
 			throw new Error(`Automation does not exist: ${descriptor.id}`);
 		}
-		const definition = this._definitionFromDescriptor(descriptor, current.definition, imported, importPending);
+		const definition = this._definitionFromDescriptor(descriptor, current.definition, imported, importPending, resetSessionTemplate);
 		const expected = this._requireProjectedAutomation({ ...current, definition });
 		const state = await this._dispatchAndWait(
 			{
@@ -828,22 +828,27 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		return state;
 	}
 
-	private _definitionFromDescriptor(descriptor: IAutomationDescriptor, existing?: AutomationDefinition, imported = false, importPending?: boolean): AutomationDefinition {
+	private _definitionFromDescriptor(descriptor: IAutomationDescriptor, existing?: AutomationDefinition, imported = false, importPending?: boolean, resetSessionTemplate = false): AutomationDefinition {
 		const sessionTemplate = descriptor.sessionTemplate;
 		const modelId = sessionTemplate ? sessionTemplate.modelId : descriptor.modelId;
 		const provider = descriptor.target.sessionTypeId ?? this._providerFromModelId(modelId);
 		const existingSession = existing && existing.session.provider === provider ? existing.session : undefined;
-		const projectedConfig = sessionTemplate
-			? {
+		let projectedConfig: Record<string, unknown>;
+		if (sessionTemplate) {
+			projectedConfig = {
 				...pickAutomationDefinitionOwnedConfigValues(existingSession?.config),
-				...sessionTemplate.config,
-			}
-			: applyLegacyAutomationSessionConfig(
+				...omitAutomationSessionTemplateConfigValues({ ...sessionTemplate.config }),
+			};
+		} else if (resetSessionTemplate) {
+			projectedConfig = pickAutomationDefinitionOwnedConfigValues(existingSession?.config);
+		} else {
+			projectedConfig = applyLegacyAutomationSessionConfig(
 				provider,
 				existingSession?.config,
 				descriptor.mode,
 				descriptor.permissionLevel,
 			);
+		}
 		const config = imported ? migrateLegacyAutomationSessionConfig(provider, projectedConfig) : projectedConfig;
 		if (descriptor.target.kind === 'workspace') {
 			setOptional(config, SessionConfigKey.Isolation, descriptor.target.isolation.kind === 'default' ? undefined : descriptor.target.isolation.kind);
@@ -867,7 +872,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			session: {
 				provider,
 				model: modelId ? { id: this._toHostModelId(modelId, provider) } : undefined,
-				agent: sessionTemplate ? sessionTemplate.agent : existingSession?.agent,
+				agent: resetSessionTemplate ? undefined : sessionTemplate ? sessionTemplate.agent : existingSession?.agent,
 				workingDirectories: descriptor.target.kind === 'workspace'
 					? [(this._boundaryMapper?.toHost(descriptor.target.folderUri) ?? descriptor.target.folderUri).toString()]
 					: undefined,

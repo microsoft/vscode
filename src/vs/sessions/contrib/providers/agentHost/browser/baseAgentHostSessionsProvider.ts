@@ -3653,8 +3653,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private _resolveAutomationSessionTemplate(sessionTypeId: string, configuration: IAutomationSessionConfiguration | undefined): IAutomationSessionTemplate | undefined {
-		if (!configuration || configuration.sessionTemplate) {
-			return configuration?.sessionTemplate;
+		if (!configuration) {
+			return undefined;
+		}
+		if (configuration.sessionTemplate) {
+			const template = configuration.sessionTemplate;
+			const config = omitAutomationSessionTemplateConfigValues({ ...template.config });
+			return {
+				...(template.modelId ? { modelId: template.modelId } : {}),
+				...(template.agent ? { agent: template.agent } : {}),
+				...(Object.keys(config).length > 0 ? { config } : {}),
+			};
 		}
 		const config = applyLegacyAutomationSessionConfig(sessionTypeId, undefined, configuration.mode, configuration.permissionLevel);
 		if (!configuration.modelId && Object.keys(config).length === 0) {

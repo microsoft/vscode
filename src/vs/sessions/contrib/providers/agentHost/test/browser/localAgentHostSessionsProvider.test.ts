@@ -4564,7 +4564,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 				mode: 'plan',
 				permissionLevel: 'assisted',
 			},
-			initialConfig: sessionTemplate.config,
+			initialConfig: {
+				mode: 'plan',
+				autoApprove: 'assisted',
+				providerOption: { enabled: true },
+				clearedOption: true,
+			},
 			modelId: sessionTemplate.modelId,
 			agentUri: sessionTemplate.agent.uri,
 		});

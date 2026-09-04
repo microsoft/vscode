@@ -148,7 +148,12 @@ function createWorkspace(requiresWorkspaceTrust: boolean): ISessionWorkspace {
 	};
 }
 
-function createAutomationDraftService(captureSupported = true, captureError?: Error, capturePromise?: Promise<IAutomationSessionConfiguration | null | undefined>) {
+function createAutomationDraftService(
+	captureSupported = true,
+	captureError?: Error,
+	capturePromise?: Promise<IAutomationSessionConfiguration | null | undefined>,
+	targetAvailability: { readonly workspace?: boolean; readonly quickChat?: boolean } = {},
+) {
 	const automationSession = observableValue<ISession | undefined>('automationSession', undefined);
 	const created: Array<{ kind: 'workspace' | 'quickChat'; providerId: string | undefined; sessionTypeId: string; folderUri?: string; sessionTemplate?: IAutomationSessionTemplate }> = [];
 	const discarded: string[] = [];
@@ -173,6 +178,8 @@ function createAutomationDraftService(captureSupported = true, captureError?: Er
 		automationSession,
 		createAutomationSession: (folderUri, options) => createDraft('workspace', options?.providerId, options?.sessionTypeId ?? 'default', folderUri, options?.sessionTemplate),
 		createAutomationQuickChat: options => createDraft('quickChat', options?.providerId, options?.sessionTypeId ?? 'default', undefined, options?.sessionTemplate),
+		isNewSessionTargetAvailable: () => targetAvailability.workspace !== false,
+		isQuickChatTargetAvailable: () => targetAvailability.quickChat !== false,
 		supportsAutomationSessionConfiguration: () => captureSupported,
 		getAutomationSessionConfiguration: async session => {
 			if (captureError) {
@@ -268,6 +275,49 @@ suite('Automation session draft synchronization', () => {
 				sessionTemplate,
 			}],
 			captured: { kind: 'captured', configuration: { sessionTemplate } },
+		});
+	});
+
+	test('preserves saved configuration when workspace and quick-chat targets are unavailable', async () => {
+		const workspaceConfiguration: IAutomationSessionConfiguration = {
+			sessionTemplate: { config: { mode: 'plan' } },
+		};
+		const quickChatConfiguration: IAutomationSessionConfiguration = {
+			sessionTemplate: { config: { mode: 'autopilot', autoApprove: 'assisted' } },
+		};
+		const { service, created } = createAutomationDraftService(true, undefined, undefined, { workspace: false, quickChat: false });
+		const synchronizer = disposables.add(new AutomationSessionDraftSynchronizer(service, async () => true, () => { }));
+
+		synchronizer.update({
+			kind: 'workspace',
+			folderUri: URI.parse('file:///workspace'),
+			providerId: 'provider',
+			sessionTypeId: 'type',
+			sessionConfiguration: workspaceConfiguration,
+		});
+		const workspaceCapture = await synchronizer.getSessionConfiguration();
+		const workspaceAvailability = synchronizer.availability.get();
+
+		synchronizer.update({
+			kind: 'quickChat',
+			providerId: 'provider',
+			sessionTypeId: 'type',
+			sessionConfiguration: quickChatConfiguration,
+		});
+		const quickChatCapture = await synchronizer.getSessionConfiguration();
+
+		assert.deepStrictEqual({
+			created,
+			workspaceCapture,
+			workspaceAvailability,
+			quickChatCapture,
+			quickChatAvailability: synchronizer.availability.get(),
+		}, {
+			created: [],
+			workspaceCapture: { kind: 'preserved', configuration: workspaceConfiguration },
+			workspaceAvailability: 'unavailable',
+			quickChatCapture: { kind: 'preserved', configuration: quickChatConfiguration },
+			quickChatAvailability: 'unavailable',
 		});
 	});
 
@@ -510,6 +560,8 @@ suite('Automation session draft synchronization', () => {
 		let errorCount = 0;
 		const service = upcastPartial<ISessionsManagementService>({
 			automationSession,
+			isNewSessionTargetAvailable: () => true,
+			isQuickChatTargetAvailable: () => true,
 			supportsAutomationSessionConfiguration: () => true,
 			createAutomationSession: (_folderUri, options) => {
 				if (createCount++ === 0) {

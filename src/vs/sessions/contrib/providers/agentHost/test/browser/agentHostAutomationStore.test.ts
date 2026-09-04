@@ -595,7 +595,43 @@ suite('AgentHostAutomationStore', () => {
 		);
 	});
 
-	test('clears stale platform approval config with an explicit template reset', async () => {
+	test('filters session-owned values from canonical templates', async () => {
+		const connection = disposables.add(new TestAutomationConnection(true));
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore(
+			'local-agent-host',
+			connection,
+			undefined,
+			undefined,
+			new NullLogService(),
+			storage,
+			NullTelemetryService,
+			new TestAutomationStorageService(storage),
+		));
+
+		await store.createAutomation({
+			name: 'Review changes',
+			prompt: 'Review the current changes.',
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+			sessionTemplate: {
+				config: {
+					mode: 'plan',
+					providerOption: true,
+					[SessionConfigKey.Permissions]: { allow: ['Shell(echo *)'], deny: [] },
+					[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'source ~/.bashrc' }],
+				},
+			},
+		});
+
+		const create = connection.dispatched[0].action;
+		assert.deepStrictEqual(
+			create.type === ActionType.AutomationCreateRequested ? create.definition.session.config : undefined,
+			{ mode: 'plan', providerOption: true },
+		);
+	});
+
+	test('clears provider configuration and agent with an explicit template reset', async () => {
 		const connection = disposables.add(new TestAutomationConnection(true));
 		const storage = disposables.add(new InMemoryStorageService());
 		const store = disposables.add(new AgentHostAutomationStore(
@@ -613,15 +649,33 @@ suite('AgentHostAutomationStore', () => {
 			prompt: 'Review the current changes.',
 			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
 			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'claude' },
+			sessionTemplate: {
+				agent: { uri: 'file:///agents/reviewer.agent.md' },
+				config: { mode: 'plan', providerOption: true },
+			},
 		});
-		connection.setFirstAutomationSessionConfig({ [SessionConfigKey.AutoApprove]: 'autoApprove' });
+		const permissions = {
+			allow: ['Shell(echo *)'],
+			deny: [],
+		};
+		connection.setFirstAutomationSessionConfig({
+			[SessionConfigKey.Permissions]: permissions,
+			[SessionConfigKey.Mode]: 'plan',
+			providerOption: true,
+		});
 
 		await store.updateAutomation(automation.id, { sessionTemplate: null });
 
 		const update = connection.dispatched.at(-1)?.action;
 		assert.deepStrictEqual(
-			update?.type === ActionType.AutomationUpdateRequested ? update.changes.session?.config : undefined,
-			undefined,
+			update?.type === ActionType.AutomationUpdateRequested ? update.changes.session : undefined,
+			{
+				provider: 'claude',
+				model: undefined,
+				agent: undefined,
+				workingDirectories: undefined,
+				config: { [SessionConfigKey.Permissions]: permissions },
+			},
 		);
 	});
 

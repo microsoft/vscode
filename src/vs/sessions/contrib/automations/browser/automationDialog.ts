@@ -66,6 +66,7 @@ import { ISessionContext, SessionContext } from '../../../services/sessions/brow
 import { VisibleSession } from '../../../services/sessions/browser/visibleSessions.js';
 import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
 import { SessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
+import { Menus } from '../../../browser/menus.js';
 
 const $ = DOM.$;
 
@@ -229,7 +230,7 @@ export type AutomationSessionDraftTarget =
 
 type AutomationSessionDraftService = Pick<
 	ISessionsManagementService,
-	'automationSession' | 'createAutomationSession' | 'createAutomationQuickChat' | 'discardAutomationSession' | 'getAutomationSessionConfiguration' | 'supportsAutomationSessionConfiguration'
+	'automationSession' | 'createAutomationSession' | 'createAutomationQuickChat' | 'discardAutomationSession' | 'getAutomationSessionConfiguration' | 'supportsAutomationSessionConfiguration' | 'isNewSessionTargetAvailable' | 'isQuickChatTargetAvailable'
 >;
 
 export type AutomationSessionConfigurationCapture =
@@ -364,6 +365,20 @@ export class AutomationSessionDraftSynchronizer extends Disposable {
 				if (this.disposed || generation !== this.generation) {
 					return;
 				}
+			}
+			const targetAvailable = target.kind === 'quickChat'
+				? this.sessionsManagementService.isQuickChatTargetAvailable({
+					providerId: target.providerId,
+					sessionTypeId: target.sessionTypeId,
+				})
+				: this.sessionsManagementService.isNewSessionTargetAvailable(target.folderUri, {
+					providerId: target.providerId,
+					sessionTypeId: target.sessionTypeId,
+				});
+			if (!targetAvailable) {
+				this.discardSession();
+				this.availability.set('unavailable', undefined);
+				return;
 			}
 			const sessionConfiguration = this.configurationForTarget(target);
 			this.session = target.kind === 'quickChat'
@@ -1233,7 +1248,7 @@ export function renderForm(
 		suppressModelPersistence: true,
 		menus: {
 			executeToolbar: MenuId.AutomationsDialogInput,
-			inputToolbar: MenuId.AutomationsDialogInputToolbar,
+			inputToolbar: Menus.AutomationsDialogInputToolbar,
 			telemetrySource: 'automations.dialog',
 		},
 		widgetViewKindTag: 'automations-dialog',
