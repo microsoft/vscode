@@ -163,7 +163,7 @@ export class GitHubContextValuePick implements IChatContextValueItem {
 			return undefined;
 		}
 
-		const repoId = repository?.repoId ?? await this.getRepositoryId(repository?.folderUri);
+		const repoId = repository?.repoId ?? this.getRepositoryId(repository?.folderUri);
 		const selection = await this.commandService.executeCommand<IGitHubContextSelection | undefined>(this._commandId, repoId);
 		if (!selection) {
 			return undefined;
@@ -192,12 +192,11 @@ export class GitHubContextValuePick implements IChatContextValueItem {
 		const knownRepositories = Array.from(this.gitService.repositories);
 		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
 		if (workspaceFolders.length > 1) {
-			const workspaceRepositories = await Promise.all(workspaceFolders.map(folder =>
-				knownRepositories.find(repository => isEqual(repository.rootUri, folder.uri))
-				?? this.gitService.openRepository(folder.uri)
-			));
-			return workspaceFolders.map((folder, index): IGitHubRepositoryPick => {
-				const info = workspaceRepositories[index] && getGitHubRemoteInfo(workspaceRepositories[index].state.get());
+			return workspaceFolders.map((folder): IGitHubRepositoryPick => {
+				const repository = knownRepositories.find(repository =>
+					isEqual(this.workspaceContextService.getWorkspaceFolder(repository.rootUri)?.uri, folder.uri)
+				);
+				const info = repository && getGitHubRemoteInfo(repository.state.get());
 				return info ? {
 					label: folder.name,
 					description: `${info.owner}/${info.repo}`,
@@ -225,12 +224,13 @@ export class GitHubContextValuePick implements IChatContextValueItem {
 			.map(repoId => ({ label: repoId, repoId }));
 	}
 
-	private async getRepositoryId(folderUri: URI | undefined): Promise<string | undefined> {
+	private getRepositoryId(folderUri: URI | undefined): string | undefined {
 		if (!folderUri) {
 			return undefined;
 		}
-		const repository = Array.from(this.gitService.repositories).find(repository => isEqual(repository.rootUri, folderUri))
-			?? await this.gitService.openRepository(folderUri);
+		const repository = Array.from(this.gitService.repositories).find(repository =>
+			isEqual(this.workspaceContextService.getWorkspaceFolder(repository.rootUri)?.uri, folderUri)
+		);
 		const info = repository && getGitHubRemoteInfo(repository.state.get());
 		return info ? `${info.owner}/${info.repo}` : undefined;
 	}

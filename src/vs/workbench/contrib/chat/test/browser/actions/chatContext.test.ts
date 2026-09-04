@@ -45,32 +45,15 @@ function repository(remoteUrl: string, rootUri = URI.file(`/workspace/${remoteUr
 }
 
 class TestGitService extends mock<IGitService>() {
+	readonly openRepositoryCalls: URI[] = [];
+
 	constructor(override readonly repositories: readonly IGitRepository[]) {
 		super();
 	}
 
 	override async openRepository(uri: URI): Promise<IGitRepository | undefined> {
+		this.openRepositoryCalls.push(uri);
 		return this.repositories.find(repository => repository.rootUri.toString() === uri.toString());
-	}
-}
-
-class WorkspaceLoadingGitService extends mock<IGitService>() {
-	private readonly openedRepositories: IGitRepository[] = [];
-
-	constructor(private readonly availableRepositories: readonly IGitRepository[]) {
-		super();
-	}
-
-	override get repositories(): readonly IGitRepository[] {
-		return this.openedRepositories;
-	}
-
-	override async openRepository(uri: URI): Promise<IGitRepository | undefined> {
-		const repository = this.availableRepositories.find(repository => repository.rootUri.toString() === uri.toString());
-		if (repository && !this.openedRepositories.includes(repository)) {
-			this.openedRepositories.push(repository);
-		}
-		return repository;
 	}
 }
 
@@ -103,6 +86,10 @@ function workspaceContextService(folders: readonly { readonly uri: URI; readonly
 					name: folder.name ?? folder.uri.path.split('/').pop() ?? folder.uri.path,
 				})),
 			});
+		}
+
+		override getWorkspaceFolder(resource: URI): IWorkspaceFolder | null {
+			return this.getWorkspace().folders.find(folder => resource.toString().startsWith(folder.uri.toString())) ?? null;
 		}
 	}();
 }
@@ -206,9 +193,10 @@ suite('ChatContext', () => {
 			repository('git@github.com:microsoft/vscode.git', URI.file('/workspace/vscode')),
 			repository('https://github.com/microsoft/typescript.git', URI.file('/workspace/typescript')),
 		];
+		const gitService = new TestGitService(repositories);
 		const pick = new TestGitHubContextValuePick(
 			'pullRequest',
-			new WorkspaceLoadingGitService(repositories),
+			gitService,
 			new class extends mock<IQuickInputService>() { }(),
 			commandService,
 			workspaceContextService([
@@ -222,12 +210,14 @@ suite('ChatContext', () => {
 		assert.deepStrictEqual({
 			repositoryPicks: pick.repositoryPicks,
 			commandRepoId: commandService.command?.repoId,
+			openRepositoryCalls: gitService.openRepositoryCalls,
 		}, {
 			repositoryPicks: [
 				{ label: 'VS Code', description: 'microsoft/vscode', repoId: 'microsoft/vscode', folderUri: repositories[0].rootUri },
 				{ label: 'TypeScript', description: 'microsoft/typescript', repoId: 'microsoft/typescript', folderUri: repositories[1].rootUri },
 			],
 			commandRepoId: 'microsoft/vscode',
+			openRepositoryCalls: [],
 		});
 	});
 
@@ -239,7 +229,7 @@ suite('ChatContext', () => {
 		];
 		const pick = new TestGitHubContextValuePick(
 			'issue',
-			new WorkspaceLoadingGitService(repositories),
+			new TestGitService(repositories),
 			new class extends mock<IQuickInputService>() { }(),
 			commandService,
 			workspaceContextService([
@@ -263,7 +253,7 @@ suite('ChatContext', () => {
 		const docsRoot = URI.file('/workspace/docs');
 		const pick = new TestGitHubContextValuePick(
 			'pullRequest',
-			new WorkspaceLoadingGitService([
+			new TestGitService([
 				repository('https://github.com/microsoft/vscode.git', repositoryRoot),
 			]),
 			new class extends mock<IQuickInputService>() { }(),
