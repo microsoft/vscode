@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { allowedMarkdownHtmlAttributes } from '../../../../../../base/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
+import { MarkedKatexSupport } from '../../../../markdown/browser/markedKatexSupport.js';
+import { allowedChatMarkdownHtmlTags, ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
 suite('ChatMarkdownRenderer', () => {
@@ -154,6 +156,19 @@ suite('ChatMarkdownRenderer', () => {
 		md.supportHtml = true;
 		const result = store.add(testRenderer.render(md));
 		await assertSnapshot(result.element.outerHTML);
+	});
+
+	test('raw style elements are not allowed by the math sanitizer', () => {
+		const md = new MarkdownString('<style>.example { background-image: none; }</style><div class="example">content</div>');
+		md.supportHtml = true;
+		const result = store.add(testRenderer.render(md, {
+			sanitizerConfig: MarkedKatexSupport.getSanitizerOptions({
+				allowedTags: allowedChatMarkdownHtmlTags,
+				allowedAttributes: allowedMarkdownHtmlAttributes,
+			}),
+		}));
+
+		assert.strictEqual(result.element.querySelector('style'), null);
 	});
 
 	test('code block ending at end of content does not leak body tag', async () => {

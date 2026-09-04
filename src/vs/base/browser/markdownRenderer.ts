@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from '../common/errors.js';
+import { isUNC } from '../common/extpath.js';
 import { escapeDoubleQuotes, IMarkdownString, isPortableLinkTarget, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
 import { markdownEscapeEscapedIcons } from '../common/iconLabels.js';
 import { defaultGenerator } from '../common/idGenerator.js';
@@ -363,13 +364,6 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 			} catch (err) { }
 
 			el.setAttribute('src', massageHref(markdown, href, true));
-
-			if (options.sanitizerConfig?.remoteImageIsAllowed) {
-				const uri = URI.parse(href);
-				if (uri.scheme !== Schemas.file && uri.scheme !== Schemas.data && !options.sanitizerConfig.remoteImageIsAllowed(uri)) {
-					el.replaceWith(DOM.$('', undefined, el.outerHTML));
-				}
-			}
 		}
 	}
 
@@ -566,6 +560,27 @@ type MdStrConfig = {
 	readonly baseUri?: UriComponents;
 };
 
+function isLocalFileUri(uri: URI): boolean {
+	return uri.scheme === Schemas.file && !uri.authority && !isUNC(uri.fsPath);
+}
+
+function isMediaSourceAllowed(mdStrConfig: MdStrConfig, source: string, remoteImageIsAllowed: (uri: URI) => boolean): boolean {
+	let uri: URI;
+	try {
+		const baseUri = mdStrConfig.baseUri ? URI.from(mdStrConfig.baseUri) : undefined;
+		const hasScheme = /^\w[\w\d+.-]*:/.test(source);
+		if (!hasScheme && baseUri?.scheme === Schemas.file && !isLocalFileUri(baseUri)) {
+			return false;
+		}
+		const href = baseUri ? resolveWithBaseUri(baseUri, source) : source;
+		uri = URI.parse(href);
+	} catch {
+		return false;
+	}
+
+	return isLocalFileUri(uri) || uri.scheme === Schemas.data || remoteImageIsAllowed(uri);
+}
+
 function sanitizeRenderedMarkdown(
 	renderedMarkdown: string,
 	originalMdStrConfig: MdStrConfig,
@@ -640,6 +655,7 @@ export const allowedMarkdownHtmlAttributes = Object.freeze<Array<string | domSan
 
 function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSanitizerConfig): domSanitize.DomSanitizerConfig {
 	const isTrusted = mdStrConfig.isTrusted ?? false;
+	const remoteImageIsAllowed = options.remoteImageIsAllowed;
 	const allowedLinkSchemes = [
 		Schemas.http,
 		Schemas.https,
@@ -688,6 +704,7 @@ function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSaniti
 			]
 		},
 		allowRelativeMediaPaths: !!mdStrConfig.baseUri,
+		mediaSourceIsAllowed: remoteImageIsAllowed ? source => isMediaSourceAllowed(mdStrConfig, source, remoteImageIsAllowed) : undefined,
 		replaceWithPlaintext: options.replaceWithPlaintext,
 	};
 }
