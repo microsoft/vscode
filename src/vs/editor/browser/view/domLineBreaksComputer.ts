@@ -69,6 +69,9 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 	const additionalIndent = (wrappingIndent === WrappingIndent.DeepIndent ? 2 : wrappingIndent === WrappingIndent.Indent ? 1 : 0);
 	const additionalIndentSize = Math.round(tabSize * additionalIndent);
 	const additionalIndentLength = Math.ceil(fontInfo.spaceWidth * additionalIndentSize);
+	// Stretching full-width characters to two cells makes their width independent of the font, so the
+	// width the font reports for them must not be used anywhere below.
+	const fullwidthCharacterWidth = useTwoCellFullwidthCharacters ? 2 * fontInfo.spaceWidth : undefined;
 
 	const containerDomNode = document.createElement('div');
 	applyFontInfo(containerDomNode, fontInfo);
@@ -85,7 +88,6 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 		const injectedTexts = context.getLineInjectedText(lineNumber);
 		const lineContent = LineInjectedText.applyInjectedText(context.getLineContent(lineNumber), injectedTexts);
 		const fixedWidthRanges = LineInjectedText.getFixedWidthInjectedTextRanges(injectedTexts);
-		const fullwidthCharacterWidth = useTwoCellFullwidthCharacters ? 2 * fontInfo.spaceWidth : undefined;
 
 		let firstNonWhitespaceIndex = 0;
 		let wrappedTextIndentLength = 0;
@@ -118,7 +120,7 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 				const indentWidth = Math.ceil(fontInfo.spaceWidth * wrappedTextIndentLength);
 
 				// Force sticking to beginning of line if no character would fit except for the indentation
-				if (indentWidth + fontInfo.typicalFullwidthCharacterWidth > overallWidth) {
+				if (indentWidth + (fullwidthCharacterWidth ?? fontInfo.typicalFullwidthCharacterWidth) > overallWidth) {
 					firstNonWhitespaceIndex = 0;
 					wrappedTextIndentLength = 0;
 				} else {
