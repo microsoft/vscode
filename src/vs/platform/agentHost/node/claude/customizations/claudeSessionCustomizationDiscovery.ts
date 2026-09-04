@@ -514,27 +514,38 @@ export class ClaudeCustomizationWatcher extends Disposable {
 			}
 		};
 
-		const primary = roots[0];
-		if (primary) {
-			const projectClaude = URI.joinPath(primary, '.claude');
+		const watchRootCustomizations = (root: URI) => {
+			const projectClaude = URI.joinPath(root, '.claude');
 			watch(projectClaude, true);
 			addClaudeTriggers(projectClaude);
+
+			const projectAgents = URI.joinPath(root, '.agents');
+			watch(projectAgents, true);
+			triggers.push(URI.joinPath(projectAgents, 'skills'), URI.joinPath(projectAgents, 'agents'));
+
+			const projectGithub = URI.joinPath(root, '.github');
+			watch(projectGithub, true);
+			triggers.push(URI.joinPath(projectGithub, 'skills'), URI.joinPath(projectGithub, 'agents'));
+		};
+
+		const primary = roots[0];
+		if (primary) {
+			watchRootCustomizations(primary);
 			watch(primary, false);
 			triggers.push(URI.joinPath(primary, '.mcp.json'));
 		}
 		for (const additional of roots.slice(1)) {
-			const projectClaude = URI.joinPath(additional, '.claude');
-			watch(projectClaude, true);
-			triggers.push(
-				URI.joinPath(projectClaude, 'agents'),
-				URI.joinPath(projectClaude, 'skills'),
-				URI.joinPath(projectClaude, 'settings.json'),
-				URI.joinPath(projectClaude, 'settings.local.json'),
-			);
+			watchRootCustomizations(additional);
 		}
 		const userClaude = URI.joinPath(userHome, '.claude');
 		watch(userClaude, true);
 		addClaudeTriggers(userClaude);
+		const userAgents = URI.joinPath(userHome, '.agents');
+		watch(userAgents, true);
+		triggers.push(URI.joinPath(userAgents, 'skills'), URI.joinPath(userAgents, 'agents'));
+		const userGithub = URI.joinPath(userHome, '.github');
+		watch(userGithub, true);
+		triggers.push(URI.joinPath(userGithub, 'skills'), URI.joinPath(userGithub, 'agents'));
 
 		// Memory files (CLAUDE.md / CLAUDE.local.md) — reuse the scanner's
 		// canonical list so the watcher never drifts from what it actually
