@@ -150,7 +150,7 @@ suite('Chat Paste Providers', () => {
 				'https://github.com/microsoft/vscode/issues/333845-not-an-issue',
 				'https://github.com/microsoft/vscode/pull/123invalid',
 				'https://github.com/microsoft/vscode/pull/123_invalid',
-			].flatMap(getGitHubIssueOrPullRequestAttachments),
+			].flatMap(link => getGitHubIssueOrPullRequestAttachments(link)),
 		}, {
 			insertText: text,
 			title: 'Paste GitHub Context',
