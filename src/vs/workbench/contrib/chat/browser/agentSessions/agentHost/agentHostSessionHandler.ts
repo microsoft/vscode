@@ -933,8 +933,6 @@ class ActiveClientEntry extends Disposable {
 
 	/** Binds the backend session and reconciles this client's latest snapshot before returning. */
 	async claim(backendSession: URI, cancellationToken: CancellationToken): Promise<void> {
-		this._backendSession = backendSession;
-		this._claimRequested = true;
 		await raceCancellation(this._scope.whenResolved(), cancellationToken);
 		if (cancellationToken.isCancellationRequested) {
 			return;
@@ -942,6 +940,8 @@ class ActiveClientEntry extends Disposable {
 		if (!this._scope.isResolved.get()) {
 			throw new CancellationError();
 		}
+		this._backendSession = backendSession;
+		this._claimRequested = true;
 		this._requestReconciliation(MicrotaskDelay);
 		await raceCancellation(this.whenSettled(), cancellationToken);
 	}
@@ -3120,6 +3120,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		const turnId = request.requestId;
 		const chatURI = this._getChatURI(request.sessionResource);
+		await this._ensureActiveClient(request.sessionResource, session, cancellationToken);
+		if (cancellationToken.isCancellationRequested) {
+			return;
+		}
 		const state = this._getSessionState(session.toString(), chatURI);
 		const latestTurn = state?.turns.at(-1);
 		const activeTurn = state?.activeTurn?.id === turnId ? state.activeTurn : undefined;
@@ -3135,10 +3139,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		const shouldDispatchResume = resumableTurn !== undefined;
 
-		await this._ensureActiveClient(request.sessionResource, session, cancellationToken);
-		if (cancellationToken.isCancellationRequested) {
-			return;
-		}
 		this._clientDispatchedTurnIds.add(turnId);
 
 		return new Promise<Turn | undefined>((resolve, reject) => {
