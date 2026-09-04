@@ -74,6 +74,10 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 	 * catalog-registration time so a restored peer chat shows its title before its turns load.
 	 */
 	async onHydrateChat(context: IHydrationContext, restored: IRestoredChat): Promise<IRestoredChat> {
+		if (restored.title !== undefined) {
+			return restored;
+		}
+
 		const chatRef = await this._sessionDataService.tryOpenDatabase(URI.parse(context.chat));
 		if (chatRef) {
 			try {
@@ -87,10 +91,6 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 				chatRef.dispose();
 			}
 		}
-		if (restored.title !== undefined) {
-			return restored;
-		}
-
 		const ref = await this._sessionDataService.tryOpenDatabase(URI.parse(context.session));
 		if (!ref) {
 			return restored;

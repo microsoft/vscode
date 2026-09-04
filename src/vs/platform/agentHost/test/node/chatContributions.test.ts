@@ -2212,4 +2212,27 @@ suite('AgentHostChatContributions', () => {
 			title: 'Chat-local title',
 		});
 	});
+
+	test('accepts a cached chat title without reading title metadata', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const chat = buildChatUri(contributions.session, 'peer');
+		let metadataReads = 0;
+		const getMetadata = contributions.database.getMetadata.bind(contributions.database);
+		contributions.database.getMetadata = async key => {
+			metadataReads++;
+			return getMetadata(key);
+		};
+
+		try {
+			assert.deepStrictEqual({
+				restored: await contributions.service.hydrateChat({ session: contributions.session, chat }, { title: 'Cached title' }),
+				metadataReads,
+			}, {
+				restored: { title: 'Cached title' },
+				metadataReads: 0,
+			});
+		} finally {
+			contributions.database.getMetadata = getMetadata;
+		}
+	});
 });
