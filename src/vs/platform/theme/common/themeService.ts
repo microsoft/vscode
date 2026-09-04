@@ -232,6 +232,9 @@ export interface IPartsSplash {
 		modernActivityBarBackground: string | undefined;
 		modernActivityBarInactiveBackground: string | undefined;
 		modernActivityBarBorder: string | undefined;
+		modernPanelBorder: string | undefined;
+		modernUIShellBackground: string | undefined;
+		modernUIInactiveShellBackground: string | undefined;
 		sideBarBackground: string | undefined;
 		sideBarBorder: string | undefined;
 		panelBackground: string | undefined;
@@ -242,6 +245,7 @@ export interface IPartsSplash {
 		agentsPanelBackground: string | undefined;
 		agentsPanelBorder: string | undefined;
 		statusBarBackground: string | undefined;
+		statusBarInactiveBackground: string | undefined;
 		statusBarBorder: string | undefined;
 		statusBarNoFolderBackground: string | undefined;
 		windowBorder: string | undefined;

@@ -14,8 +14,8 @@ import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from '../../../common/theme.js';
+import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { MODERN_UI_INACTIVE_SHELL_BACKGROUND, MODERN_UI_SHELL_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from '../../../common/theme.js';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative, platformLocale } from '../../../../base/common/platform.js';
 import { Color } from '../../../../base/common/color.js';
 import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, reset, getWindow, getWindowId, isAncestor, getActiveDocument, isHTMLElement } from '../../../../base/browser/dom.js';
@@ -846,15 +846,17 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				this.element.classList.remove('inactive');
 			}
 
-			const titleBackground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND, (color, theme) => {
+			const makeOpaque = (color: Color, theme: IColorTheme) => {
 				// LCD Rendering Support: the title bar part is a defining its own GPU layer.
 				// To benefit from LCD font rendering, we must ensure that we always set an
 				// opaque background color. As such, we compute an opaque color given we know
 				// the background color is the workbench background.
 				return color.isOpaque() ? color : color.makeOpaque(WORKBENCH_BACKGROUND(theme));
-			}) || '';
+			};
+			const titleBackground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND, makeOpaque) || '';
+			const shellBackground = this.getColor(this.isInactive ? MODERN_UI_INACTIVE_SHELL_BACKGROUND : MODERN_UI_SHELL_BACKGROUND, makeOpaque) || titleBackground;
 			this.element.style.backgroundColor = titleBackground;
-			this.layoutService.getContainer(getWindow(this.element)).style.setProperty('--modern-ui-shell-background', titleBackground);
+			this.layoutService.getContainer(getWindow(this.element)).style.setProperty('--modern-ui-shell-background', shellBackground);
 
 			if (this.appIconBadge) {
 				this.appIconBadge.style.backgroundColor = titleBackground;

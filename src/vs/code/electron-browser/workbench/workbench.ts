@@ -54,7 +54,12 @@
 		let shellForeground;
 		if (data) {
 			baseTheme = data.baseTheme;
-			shellBackground = data.colorInfo.editorBackground;
+			const modernUIShellBackground = window.document.hasFocus()
+				? data.colorInfo.modernUIShellBackground
+				: data.colorInfo.modernUIInactiveShellBackground ?? data.colorInfo.modernUIShellBackground;
+			shellBackground = data.layoutInfo?.modernUI === true
+				? modernUIShellBackground ?? data.colorInfo.titleBarBackground ?? data.colorInfo.editorBackground
+				: data.colorInfo.editorBackground;
 			shellForeground = data.colorInfo.foreground;
 		} else if (configuration.autoDetectHighContrast && configuration.colorScheme.highContrast) {
 			if (configuration.colorScheme.dark) {
@@ -448,6 +453,7 @@
 				const panelDiv = document.createElement('div');
 				setPartBounds(panelDiv, layoutInfo.partBounds.panel);
 				applyFloatingCardStyles(panelDiv, colorInfo.panelBackground ?? colorInfo.editorBackground, layoutInfo.partBounds.panel);
+				panelDiv.style.borderColor = colorInfo.modernPanelBorder ?? colorInfo.surfaceBorder ?? colorInfo.agentsPanelBorder ?? colorInfo.editorGroupBorder ?? 'transparent';
 				splash.appendChild(panelDiv);
 			}
 
@@ -461,6 +467,8 @@
 				statusDiv.style.left = '0';
 				if (modernUI) {
 					statusDiv.style.backgroundColor = 'transparent';
+				} else if (configuration.workspace && !window.document.hasFocus() && colorInfo.statusBarInactiveBackground) {
+					statusDiv.style.backgroundColor = colorInfo.statusBarInactiveBackground;
 				} else if (configuration.workspace && colorInfo.statusBarBackground) {
 					statusDiv.style.backgroundColor = colorInfo.statusBarBackground;
 				} else if (!configuration.workspace && colorInfo.statusBarNoFolderBackground) {
