@@ -59,6 +59,7 @@ suite('SessionDatabase', () => {
 	 * Database instance, enabling reopen tests with :memory: databases.
 	 */
 	class TestableSessionDatabase extends SessionDatabase {
+		private nextMutationGate: { readonly started: DeferredPromise<void>; readonly release: DeferredPromise<void> } | undefined;
 		private nextMetadataAndTurnUsageMutationGate: { readonly started: DeferredPromise<void>; readonly release: DeferredPromise<void> } | undefined;
 
 		static override async open(path: string, migrations: readonly ISessionDatabaseMigration[] = sessionDatabaseMigrations): Promise<TestableSessionDatabase> {
@@ -97,6 +98,25 @@ suite('SessionDatabase', () => {
 					resolve(row?.present === 1);
 				});
 			});
+		}
+
+		blockNextMutation(): { readonly started: DeferredPromise<void>; readonly release: DeferredPromise<void> } {
+			const gate = {
+				started: new DeferredPromise<void>(),
+				release: new DeferredPromise<void>(),
+			};
+			this.nextMutationGate = gate;
+			return gate;
+		}
+
+		protected override _queueMutation<T>(operation: (db: Database) => Promise<T>): Promise<T> {
+			const gate = this.nextMutationGate;
+			this.nextMutationGate = undefined;
+			return super._queueMutation(gate ? async db => {
+				gate.started.complete();
+				await gate.release.p;
+				return operation(db);
+			} : operation);
 		}
 
 		blockNextMetadataAndTurnUsageMutation(): { readonly started: DeferredPromise<void>; readonly release: DeferredPromise<void> } {
@@ -718,6 +738,38 @@ suite('SessionDatabase', () => {
 					['provider-turn', '{"content":"Now working in vscode"}'],
 				],
 				hasTransitions: 'true',
+			});
+		});
+
+		test('transition reads wait for earlier turn event ID mappings', async () => {
+			const testDatabase = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			await testDatabase.setTurnWorkspaceTransition('host-turn', '{"content":"Now working in vscode"}');
+			const gate = testDatabase.blockNextMutation();
+			const eventIdWrite = testDatabase.setTurnEventId('host-turn', 'provider-turn');
+			await gate.started.p;
+
+			const transitionsRead = testDatabase.getTurnWorkspaceTransitions();
+			let readSettled = false;
+			void transitionsRead.then(
+				() => readSettled = true,
+				() => readSettled = true,
+			);
+			await new Promise<void>(resolve => setImmediate(resolve));
+			await testDatabase.waitForRaw();
+			const readSettledBeforeWrite = readSettled;
+			gate.release.complete();
+			const transitions = await transitionsRead;
+			await eventIdWrite;
+
+			assert.deepStrictEqual({
+				readSettledBeforeWrite,
+				transitions: [...transitions.entries()],
+			}, {
+				readSettledBeforeWrite: false,
+				transitions: [
+					['host-turn', '{"content":"Now working in vscode"}'],
+					['provider-turn', '{"content":"Now working in vscode"}'],
+				],
 			});
 		});
 

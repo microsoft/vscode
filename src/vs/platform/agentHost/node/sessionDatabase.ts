@@ -290,7 +290,7 @@ export class SessionDatabase implements ISessionDatabase {
 	 * their statements directly after acquiring this sequencer to avoid
 	 * reentrant acquisition.
 	 */
-	private _queueMutation<T>(operation: (db: Database) => Promise<T>): Promise<T> {
+	protected _queueMutation<T>(operation: (db: Database) => Promise<T>): Promise<T> {
 		return this._mutationSequencer.queue(async () => operation(await this._ensureDb()));
 	}
 
@@ -557,8 +557,7 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	async getTurnWorkspaceTransitions(): Promise<Map<string, string>> {
-		return this._turnUsageSequencer.queue(async () => {
-			const db = await this._ensureDb();
+		return this._turnUsageSequencer.queue(() => this._queueMutation(async db => {
 			const rows = await dbAll(
 				db,
 				`SELECT w.turn_id AS turn_id, t.event_id AS event_id, w.transition AS transition
@@ -575,7 +574,7 @@ export class SessionDatabase implements ISessionDatabase {
 				}
 			}
 			return result;
-		});
+		}));
 	}
 
 	setTurnCheckpointRef(turnId: string, ref: string): Promise<void> {
