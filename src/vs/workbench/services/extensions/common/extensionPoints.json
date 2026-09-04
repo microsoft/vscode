@@ -23,6 +23,7 @@
 	"grammars",
 	"iconThemes",
 	"icons",
+	"ignoreFiles",
 	"jsonValidation",
 	"jsonValidationRegistry",
 	"keybindings",

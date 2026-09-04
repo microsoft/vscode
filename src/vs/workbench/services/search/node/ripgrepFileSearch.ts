@@ -11,12 +11,13 @@ import * as extpath from '../../../../base/common/extpath.js';
 import { isMacintosh as isMac } from '../../../../base/common/platform.js';
 import * as strings from '../../../../base/common/strings.js';
 import { IFileQuery, IFolderQuery } from '../common/search.js';
-import { anchorGlob } from './ripgrepSearchUtils.js';
+import { anchorGlob, getAdditionalIgnoreFilePaths } from './ripgrepSearchUtils.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 
 export async function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression, numThreads?: number) {
-	const rgArgs = getRgArgs(config, folderQuery, includePattern, excludePattern, numThreads);
 	const cwd = folderQuery.folder.fsPath;
+	const ignoreFilePaths = folderQuery.disregardIgnoreFiles === false ? await getAdditionalIgnoreFilePaths(cwd, config.ignoreFileNames) : [];
+	const rgArgs = getRgArgs(config, folderQuery, includePattern, excludePattern, numThreads, ignoreFilePaths);
 	const resolvedRgDiskPath = await rgDiskPath();
 	return {
 		cmd: cp.spawn(resolvedRgDiskPath, rgArgs.args, { cwd }),
@@ -27,7 +28,7 @@ export async function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQu
 	};
 }
 
-function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression, numThreads?: number) {
+export function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression, numThreads?: number, ignoreFilePaths: readonly string[] = []) {
 	const args = ['--files', '--hidden', '--case-sensitive', '--no-require-git'];
 
 	if (config.ignoreGlobCase || folderQuery.ignoreGlobCase) {
@@ -59,10 +60,16 @@ function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern
 		}
 	});
 	if (folderQuery.disregardIgnoreFiles !== false) {
-		// Don't use .gitignore or .ignore
+		// Don't use ignore files
 		args.push('--no-ignore');
 	} else if (folderQuery.disregardParentIgnoreFiles !== false) {
 		args.push('--no-ignore-parent');
+	}
+	if (folderQuery.disregardIgnoreFiles === false && config.ignoreFileNames && !config.ignoreFileNames.includes('.gitignore')) {
+		args.push('--no-ignore-vcs');
+	}
+	for (const ignoreFilePath of ignoreFilePaths) {
+		args.push('--ignore-file', ignoreFilePath);
 	}
 
 	// Follow symlinks

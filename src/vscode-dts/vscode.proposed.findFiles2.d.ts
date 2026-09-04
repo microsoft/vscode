@@ -34,16 +34,14 @@ declare module 'vscode' {
 		maxResults?: number;
 
 		/**
-		 * Which file locations have ignore (`.gitignore` or `.ignore`) files to follow.
+		 * Which file locations have ignore files to follow.
 		 *
 		 * When any of these fields are `undefined`, the value will either be assumed (e.g. if only one is valid),
 		 * or it will follow settings based on the corresponding `search.use*IgnoreFiles` setting.
 		 *
 		 * Will log an error if an invalid combination is set.
 		 *
-		 * Although `.ignore` files are uncommon, they can be leveraged if there are patterns
-		 * that should not be known to git, but should be known to the search providers.
-		 * They should be in the same locations where `.gitignore` files are found, and they follow the same format.
+		 * Ignore file names can be contributed by enabled extensions. All ignore files follow the gitignore format.
 		 */
 		useIgnoreFiles?: {
 			/**

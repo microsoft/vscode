@@ -30,6 +30,7 @@ export const SEARCH_RESULT_LANGUAGE_ID = 'search-result';
 
 export const SEARCH_EXCLUDE_CONFIG = 'search.exclude';
 export const DEFAULT_MAX_SEARCH_RESULTS = 20000;
+export const DEFAULT_SEARCH_IGNORE_FILE_NAMES: readonly string[] = ['.ignore'];
 
 // Warning: this pattern is used in the search editor to detect offsets. If you
 // change this, also change the search-result built-in extension
@@ -99,6 +100,7 @@ export interface ICommonQueryProps<U extends UriComponents> {
 	includePattern?: glob.IExpression;
 	excludePattern?: glob.IExpression;
 	ignoreGlobCase?: boolean;
+	ignoreFileNames?: string[];
 	extraFileResources?: U[];
 
 	onlyOpenEditors?: boolean;

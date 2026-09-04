@@ -16,7 +16,7 @@ import { Progress } from '../../../../platform/progress/common/progress.js';
 import { DEFAULT_MAX_SEARCH_RESULTS, ITextSearchPreviewOptions, SearchError, SearchErrorCode, serializeSearchError, TextSearchMatch } from '../common/search.js';
 import { Range, TextSearchComplete2, TextSearchContext2, TextSearchMatch2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResult2 } from '../common/searchExtTypes.js';
 import { AST as ReAST, RegExpParser, RegExpVisitor } from 'vscode-regexpp';
-import { anchorGlob, IOutputChannel, Maybe, rangeToSearchRange, searchRangeToRange } from './ripgrepSearchUtils.js';
+import { anchorGlob, getAdditionalIgnoreFilePaths, IOutputChannel, Maybe, rangeToSearchRange, searchRangeToRange } from './ripgrepSearchUtils.js';
 import type { RipgrepTextSearchOptions } from '../common/searchExtTypesInternal.js';
 import { newToOldPreviewOptions } from '../common/searchExtConversionTypes.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
@@ -58,6 +58,8 @@ export class RipgrepTextSearchEngine {
 		}
 
 		const resolvedRgDiskPath = await rgDiskPath();
+		const cwd = options.folderOptions.folder.fsPath;
+		const ignoreFilePaths = options.folderOptions.useIgnoreFiles.local ? await getAdditionalIgnoreFilePaths(cwd, options.folderOptions.ignoreFileNames) : [];
 
 		return new Promise((resolve, reject) => {
 			token.onCancellationRequested(() => cancel());
@@ -66,9 +68,7 @@ export class RipgrepTextSearchEngine {
 				...options,
 				numThreads: this._numThreads
 			};
-			const rgArgs = getRgArgs(query, extendedOptions);
-
-			const cwd = options.folderOptions.folder.fsPath;
+			const rgArgs = getRgArgs(query, extendedOptions, ignoreFilePaths);
 
 			const escapedArgs = rgArgs
 				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
@@ -403,7 +403,7 @@ function getNumLinesAndLastNewlineLength(text: string): { numLines: number; last
 }
 
 // exported for testing
-export function getRgArgs(query: TextSearchQuery2, options: RipgrepTextSearchOptions): string[] {
+export function getRgArgs(query: TextSearchQuery2, options: RipgrepTextSearchOptions, ignoreFilePaths: readonly string[] = []): string[] {
 	const args = ['--hidden', '--no-require-git'];
 	args.push(query.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
@@ -450,8 +450,14 @@ export function getRgArgs(query: TextSearchQuery2, options: RipgrepTextSearchOpt
 			args.push('--no-ignore-parent');
 		}
 	} else {
-		// Don't use .gitignore or .ignore
+		// Don't use ignore files
 		args.push('--no-ignore');
+	}
+	if (options.folderOptions.useIgnoreFiles.local && options.folderOptions.ignoreFileNames && !options.folderOptions.ignoreFileNames.includes('.gitignore')) {
+		args.push('--no-ignore-vcs');
+	}
+	for (const ignoreFilePath of ignoreFilePaths) {
+		args.push('--ignore-file', ignoreFilePath);
 	}
 
 	if (options.folderOptions.followSymlinks) {
