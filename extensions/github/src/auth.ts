@@ -34,6 +34,10 @@ export async function getSession(): Promise<AuthenticationSession> {
 	return await authentication.getSession('github', scopes, { createIfNone: true });
 }
 
+export async function getExistingSession(): Promise<AuthenticationSession | undefined> {
+	return await authentication.getSession('github', scopes, { silent: true });
+}
+
 let _octokit: Promise<Octokit> | undefined;
 
 export function getOctokit(): Promise<Octokit> {
@@ -70,6 +74,7 @@ export class OctokitService {
 		this._disposables.add(this._onDidChangeSessions);
 		this._disposables.add(authentication.onDidChangeSessions(e => {
 			if (e.provider.id === 'github') {
+				_octokit = undefined;
 				this._octokitGraphql = undefined;
 				this._onDidChangeSessions.fire();
 			}
