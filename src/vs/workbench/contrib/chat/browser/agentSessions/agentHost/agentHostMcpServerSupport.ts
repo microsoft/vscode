@@ -627,7 +627,8 @@ function projectMcpServerConfiguration(launch: McpServerLaunch): IMcpServerConfi
 			return {
 				type: McpServerType.REMOTE,
 				transport: launch.transport === 'sse' ? 'sse' : 'http',
-				url: launch.uri.toString(),
+				// Forward the exact configured URL so pre-encoded characters survive (microsoft/vscode#289129).
+				url: launch.url ?? launch.uri.toString(),
 				headers: launch.headers.length > 0 ? Object.fromEntries(launch.headers) : undefined,
 			};
 	}
