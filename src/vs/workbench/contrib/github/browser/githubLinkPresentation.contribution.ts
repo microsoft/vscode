@@ -15,6 +15,7 @@ import { FragmentState, PullRequestCheck, PullRequestCore, PullRequestRef, PullR
 import { GitHubRequestError } from '../../../../platform/github/common/githubTransport.js';
 import { GitHubAccountHandle, GitHubRequestErrorKind } from '../../../../platform/github/common/githubTypes.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService, NeverShowAgainScope, Severity } from '../../../../platform/notification/common/notification.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 
 const githubRepositoryProviderId = 'workbench.github.repositoryLinkPresentation';
@@ -31,6 +32,7 @@ export class GitHubLinkPresentationContribution extends Disposable implements IW
 	static readonly ID = 'workbench.contrib.githubLinkPresentations';
 
 	private readonly _registrations = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _authenticationNotification = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _provider: GitHubLinkPresentationProvider;
 
 	constructor(
@@ -38,11 +40,44 @@ export class GitHubLinkPresentationContribution extends Disposable implements IW
 		@ILinkPresentationService private readonly _linkPresentationService: ILinkPresentationService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@ILogService logService: ILogService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
-		this._provider = this._register(new GitHubLinkPresentationProvider(gitHubService, logService));
-		this._register(_defaultAccountService.onDidChangeDefaultAccount(() => this._registerProviders()));
+		this._provider = this._register(new GitHubLinkPresentationProvider(gitHubService, logService, () => this._showAuthenticationRequiredNotification()));
+		this._register(_defaultAccountService.onDidChangeDefaultAccount(() => {
+			this._authenticationNotification.clear();
+			this._registerProviders();
+		}));
 		this._registerProviders();
+	}
+
+	private _showAuthenticationRequiredNotification(): void {
+		if (this._authenticationNotification.value) {
+			return;
+		}
+
+		const handleDisposables = new DisposableStore();
+		const handle = this._notificationService.prompt(
+			Severity.Info,
+			localize('github.authenticationRequired', "Sign in to GitHub to load pull request status and other GitHub link details."),
+			[{
+				label: localize('github.authenticationRequired.signIn', "Sign In"),
+				run: async () => {
+					await this._defaultAccountService.signIn({ additionalScopes: ['repo'] });
+				},
+			}],
+			{
+				sticky: true,
+				neverShowAgain: {
+					id: 'github.linkPresentation.authenticationRequired',
+					isSecondary: true,
+					scope: NeverShowAgainScope.PROFILE,
+				},
+			},
+		);
+		handleDisposables.add(handle.onDidClose(() => this._authenticationNotification.clear()));
+		handleDisposables.add({ dispose: () => handle.close() });
+		this._authenticationNotification.value = handleDisposables;
 	}
 
 	private _registerProviders(): void {
@@ -82,6 +117,7 @@ class GitHubLinkPresentationProvider extends Disposable implements ILinkPresenta
 	constructor(
 		private readonly _gitHubService: IGitHubService,
 		private readonly _logService: ILogService,
+		private readonly _onAuthenticationRequired: () => void,
 	) {
 		super();
 		this._hydrator = this._register(new GitHubLinkPresentationHydrator(_gitHubService, _logService));
@@ -92,7 +128,7 @@ class GitHubLinkPresentationProvider extends Disposable implements ILinkPresenta
 		if (!target) {
 			throw new Error(`Unsupported GitHub link presentation resource: ${resource.toString(true)}`);
 		}
-		return new GitHubLinkPresentationWatcher(target, this._gitHubService, this._hydrator, this._logService);
+		return new GitHubLinkPresentationWatcher(target, this._gitHubService, this._hydrator, this._logService, this._onAuthenticationRequired);
 	}
 }
 
@@ -189,6 +225,7 @@ class GitHubLinkPresentationWatcher extends Disposable implements ILinkPresentat
 		private readonly _gitHubService: IGitHubService,
 		private readonly _hydrator: GitHubLinkPresentationHydrator,
 		private readonly _logService: ILogService,
+		private readonly _onAuthenticationRequired: () => void,
 	) {
 		super();
 		this._register(_gitHubService.credentials.onDidInvalidate(() => this._initialize()));
@@ -223,19 +260,19 @@ class GitHubLinkPresentationWatcher extends Disposable implements ILinkPresentat
 						owner: target.owner,
 						repo: target.repo,
 					}, { priority: 'visible' }));
-					store.add(autorun(reader => this._presentation.set(
-						repositoryPresentation(target, subscription.resource.state.read(reader)),
-						undefined,
-					)));
+					store.add(autorun(reader => {
+						const state = subscription.resource.state.read(reader);
+						this._setPresentation(repositoryPresentation(target, state), state.status === 'error' ? state.error : undefined);
+					}));
 					break;
 				}
 				case 'issue': {
 					const ref: GitHubIssueRef = { ...account, owner: target.owner, repo: target.repo, number: target.number };
 					const subscription = store.add(this._gitHubService.query.subscribeIssue(ref, { priority: 'visible' }));
-					store.add(autorun(reader => this._presentation.set(
-						issuePresentation(target, subscription.resource.state.read(reader)),
-						undefined,
-					)));
+					store.add(autorun(reader => {
+						const state = subscription.resource.state.read(reader);
+						this._setPresentation(issuePresentation(target, state), state.status === 'error' ? state.error : undefined);
+					}));
 					break;
 				}
 				case 'pullRequest': {
@@ -245,10 +282,10 @@ class GitHubLinkPresentationWatcher extends Disposable implements ILinkPresentat
 						core: true,
 						checks: { includeOptional: true },
 					}));
-					store.add(autorun(reader => this._presentation.set(
-						pullRequestPresentation(target, subscription.resource.snapshot.read(reader)),
-						undefined,
-					)));
+					store.add(autorun(reader => {
+						const snapshot = subscription.resource.snapshot.read(reader);
+						this._setPresentation(pullRequestPresentation(target, snapshot), snapshot.core.status === 'error' ? snapshot.core.error : undefined);
+					}));
 					break;
 				}
 			}
@@ -257,8 +294,22 @@ class GitHubLinkPresentationWatcher extends Disposable implements ILinkPresentat
 				return;
 			}
 			this._logService.trace(`[GitHubLinkPresentation] Failed to resolve ${formatTarget(this._target)}`, error);
-			this._presentation.set(failurePresentation(this._target.kind, error instanceof GitHubRequestError ? error.kind : undefined), undefined);
+			const errorKind = error instanceof GitHubRequestError ? error.kind : undefined;
+			this._setPresentation(failurePresentation(this._target.kind, errorKind), {
+				kind: errorKind ?? 'unknown',
+				message: error instanceof Error ? error.message : String(error),
+			});
 		}
+	}
+
+	private _setPresentation(presentation: ILinkPresentation | undefined, error: { readonly kind: GitHubRequestErrorKind; readonly message: string } | undefined): void {
+		if (error) {
+			this._logService.warn(`[GitHubLinkPresentation] ${formatTarget(this._target)} failed with '${error.kind}': ${error.message}`);
+		}
+		if (error?.kind === 'authentication') {
+			this._onAuthenticationRequired();
+		}
+		this._presentation.set(presentation, undefined);
 	}
 }
 

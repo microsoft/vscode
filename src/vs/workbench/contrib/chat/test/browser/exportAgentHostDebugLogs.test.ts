@@ -5,16 +5,20 @@
 
 import assert from 'assert';
 import { VSBuffer, streamToBuffer } from '../../../../../base/common/buffer.js';
+import { isDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import type { IAgentHostDebugLogsArtifact, IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
 import { buildChatUri, buildDefaultChatUri, getSessionChatResource } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { TestClipboardService } from '../../../../../platform/clipboard/test/common/testClipboardService.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { collectRotatedLogFiles, createHostArtifactStream, findOutputChannelLogFiles, getAgentHostDebugLogsExportName, resolveAgentHostDebugLogsChat, toActiveAgentHostSession } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
+import { INotification } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { collectRotatedLogFiles, createHostArtifactStream, findOutputChannelLogFiles, getAgentHostDebugLogsExportName, notifyAgentHostDebugLogsExported, resolveAgentHostDebugLogsChat, toActiveAgentHostSession } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
 
 function artifactOfSize(size: number): IAgentHostDebugLogsArtifact {
 	return {
@@ -34,6 +38,49 @@ function chunkedReader(contents: VSBuffer, chunkSize: number): (position: number
 		return { data, eof: position + data.byteLength >= contents.byteLength };
 	};
 }
+
+suite('notifyAgentHostDebugLogsExported', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('copies the exact desktop archive and web export folder paths', async () => {
+		const notifications: INotification[] = [];
+		const notificationService = new class extends TestNotificationService {
+			override notify(notification: INotification) {
+				notifications.push(notification);
+				return super.notify(notification);
+			}
+		};
+		const clipboardService = new TestClipboardService();
+		const desktopArchive = URI.file('/exports/ah-logs.zip');
+		const webExportFolder = URI.file('/exports/ah-logs');
+
+		notifyAgentHostDebugLogsExported(notificationService, clipboardService, false, desktopArchive);
+		const desktopAction = notifications[0].actions?.primary?.[0];
+		assert.ok(desktopAction);
+		if (isDisposable(desktopAction)) {
+			disposables.add(desktopAction);
+		}
+		await desktopAction.run();
+		const desktopClipboardText = await clipboardService.readText();
+
+		notifyAgentHostDebugLogsExported(notificationService, clipboardService, false, webExportFolder);
+		const webAction = notifications[1].actions?.primary?.[0];
+		assert.ok(webAction);
+		if (isDisposable(webAction)) {
+			disposables.add(webAction);
+		}
+		await webAction.run();
+		const webClipboardText = await clipboardService.readText();
+
+		assert.deepStrictEqual({
+			desktopClipboardText,
+			webClipboardText,
+		}, {
+			desktopClipboardText: desktopArchive.fsPath,
+			webClipboardText: webExportFolder.fsPath,
+		});
+	});
+});
 
 suite('createHostArtifactStream', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

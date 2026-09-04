@@ -80,12 +80,12 @@ MenuRegistry.appendMenuItem(addTabMenu, {
 	group: 'navigation',
 });
 
-function renderHeader(ctx: ComponentFixtureContext, breadcrumbs: boolean, primaryAction: boolean, secondaryAction = false, layoutActions = false, showTabs: 'multiple' | 'single' | 'none' = 'multiple', addTab = false): void {
+function renderHeader(ctx: ComponentFixtureContext, breadcrumbs: boolean, primaryAction: boolean, secondaryAction = false, layoutActions = false, showTabs: 'multiple' | 'single' | 'none' = 'multiple', addTab = false, tabHeight: 'default' | 'compact' = 'default'): void {
 	ctx.container.classList.add('agent-sessions-workbench', 'dock-detail-panel');
 
 	renderEditorTabBarFixture(ctx, {
 		modernUI: true,
-		partOptions: { showTabs },
+		partOptions: { showTabs, tabHeight },
 		breadcrumbs: breadcrumbs ? { filePath: 'on', icons: true } : undefined,
 		showHeader: true,
 		headerMenuIds: {
@@ -98,7 +98,8 @@ function renderHeader(ctx: ComponentFixtureContext, breadcrumbs: boolean, primar
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/editorHeader/' }, {
-	FullHeader: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true, true, true) }),
+	FullHeader: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true, true, true), additionalThemes: ['darkHighContrast'] }),
+	CompactFullHeader: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true, true, true, 'multiple', false, 'compact'), additionalThemes: ['darkHighContrast'] }),
 	BreadcrumbsAndAction: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true) }),
 	BreadcrumbsAndSecondaryAction: defineComponentFixture({ render: ctx => renderHeader(ctx, true, false, true) }),
 	BreadcrumbsOnly: defineComponentFixture({ render: ctx => renderHeader(ctx, true, false) }),

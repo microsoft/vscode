@@ -32,6 +32,21 @@ export interface IAgentMergeClientState {
 }
 
 /**
+ * Opt-in policy offered on a remote host's recovery surface: when enabled,
+ * opening a chat whose host is not running starts the host instead of
+ * waiting for the user to click. Scoped to the host *kind* rather than an
+ * individual host, so the label names the kind ("WSL", not "Ubuntu-24.04")
+ * and toggling it from any one host applies to all hosts of that kind.
+ * Providers choose how the value is backed.
+ */
+export interface IAgentHostAutoConnect {
+	/** Checkbox label, e.g. "Automatically Start WSL When Opening Chats". */
+	readonly label: string;
+	readonly enabled: IObservable<boolean>;
+	setEnabled(enabled: boolean): void;
+}
+
+/**
  * Declares that a provider is one of many interchangeable members of a single
  * user-facing host. Members collapse into one `IAgentHostFilterEntry` that
  * scopes the sessions list to all of them; hosts that are a place of their own
@@ -126,6 +141,17 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * it. Present on remote providers that manage their own transport.
 	 */
 	disconnect?(): Promise<void>;
+	/**
+	 * Skips a pending reconnect backoff and retries at once. Present on remote
+	 * providers whose transport is restored by a protocol client.
+	 */
+	reconnectNow?(): void;
+	/**
+	 * Kind-scoped auto-start policy surfaced on the recovery screen. Present
+	 * on remote providers whose host can be started locally; omitted where
+	 * starting is not something VS Code can do.
+	 */
+	readonly autoConnect?: IAgentHostAutoConnect;
 
 	/**
 	 * When `true`, the workspace picker keeps this provider's browse
@@ -145,6 +171,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	isDevContainerEnabled?(sessionId: string): boolean;
 	/** Set whether this draft should run on a Dev Container Agent Host. */
 	setDevContainerEnabled?(sessionId: string, enabled: boolean): void;
+	/** Enable Dev Container execution once availability resolves for this draft. */
+	preferDevContainer?(sessionId: string): void;
 
 	// -- Dynamic Session Config --
 
@@ -160,6 +188,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	isSessionConfigResolving(sessionId: string): IObservable<boolean>;
 	/** Sets one dynamic configuration property and re-resolves the schema. */
 	setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void>;
+	/** Tracks a draft configuration side effect that must finish before the first request. */
+	trackSessionConfigOperation(sessionId: string, operation: Promise<void>): void;
 	/**
 	 * Replaces the full set of running-session config values atomically.
 	 *

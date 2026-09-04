@@ -212,7 +212,6 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				for (let redirectCount = 0; redirectCount <= maximumRedirects; redirectCount++) {
 					const headers: Record<string, string> = {
 						'Accept': authenticated ? 'application/vnd.github+json' : 'text/plain, application/octet-stream',
-						'Cache-Control': 'no-store',
 						'X-GitHub-Api-Version': defaultApiVersion,
 					};
 					if (authenticated) {
@@ -322,7 +321,6 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				headers: {
 					'Accept': 'application/json',
 					'Authorization': `Bearer ${token}`,
-					'Cache-Control': 'no-store',
 					'Content-Type': 'application/json',
 					'X-GitHub-Api-Version': defaultApiVersion,
 				},
@@ -415,7 +413,6 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			const headers: Record<string, string> = {
 				'Accept': request.accept ?? 'application/vnd.github+json',
 				'Authorization': `Bearer ${token}`,
-				'Cache-Control': 'no-store',
 				'X-GitHub-Api-Version': request.apiVersion ?? defaultApiVersion,
 			};
 			if (cached) {

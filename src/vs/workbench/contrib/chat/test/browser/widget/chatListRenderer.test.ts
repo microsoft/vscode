@@ -23,7 +23,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IChatOutputRendererService } from '../../../browser/chatOutputItemRenderer.js';
-import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { isChatTurnStatusPillsEnabled } from '../../../browser/widget/chatTurnPills.js';
 import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
@@ -46,6 +46,27 @@ import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatMo
 
 suite('ChatListRenderer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('recognizes anchors and their nested content as link targets', () => {
+		const anchor = mainWindow.document.createElement('a');
+		const icon = mainWindow.document.createElement('span');
+		const label = mainWindow.document.createElement('span');
+		anchor.append(icon, label);
+
+		assert.deepStrictEqual({
+			anchor: isAnchorTarget(anchor),
+			icon: isAnchorTarget(icon),
+			label: isAnchorTarget(label),
+			plainText: isAnchorTarget(mainWindow.document.createElement('span')),
+			textNode: isAnchorTarget(mainWindow.document.createTextNode('text')),
+		}, {
+			anchor: true,
+			icon: true,
+			label: true,
+			plainText: false,
+			textNode: false,
+		});
+	});
 
 	suite('shouldScheduleInitialHeightChange', () => {
 		test('only schedules first measurement updates when needed to avoid clipping', () => {
@@ -234,6 +255,48 @@ suite('ChatListRenderer', () => {
 				} as const;
 
 				assert.deepStrictEqual(moveResponseOutcomeToolsAfterFinalResponse([tool, finalResponse]), [finalResponse]);
+			});
+
+			test('deduplicates repeated session outcomes by target', () => {
+				const tool: IChatToolInvocationSerialized = {
+					kind: 'toolInvocationSerialized',
+					toolCallId: 'create-session',
+					toolId: 'create_session',
+					invocationMessage: 'Creating session...',
+					originMessage: undefined,
+					pastTenseMessage: 'Created session',
+					isComplete: true,
+					isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+					presentation: undefined,
+					source: ToolDataSource.Internal,
+					toolSpecificData: {
+						kind: 'sessionCreated',
+						openLink: 'agent-host-session://local/session',
+						label: 'Implement issue',
+					},
+				};
+				const repeatedTarget: IChatToolInvocationSerialized = {
+					...tool,
+					toolCallId: 'send-message',
+					toolId: 'send_message',
+					invocationMessage: 'Sending message...',
+					pastTenseMessage: 'Sent message',
+				};
+				const otherTarget: IChatToolInvocationSerialized = {
+					...repeatedTarget,
+					toolCallId: 'send-other-message',
+					toolSpecificData: {
+						kind: 'sessionCreated',
+						openLink: 'agent-host-session://local/other-session',
+						label: 'Investigate other issue',
+					},
+				};
+				const finalResponse = { kind: 'markdownContent', content: new MarkdownString('Done') } as const;
+
+				assert.deepStrictEqual(
+					moveResponseOutcomeToolsAfterFinalResponse([tool, repeatedTarget, otherTarget, finalResponse]),
+					[finalResponse, tool, otherTarget],
+				);
 			});
 
 			test('leaves created-session tools in place when there is no final response', () => {

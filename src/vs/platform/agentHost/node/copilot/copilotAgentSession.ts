@@ -7,7 +7,7 @@ import type { CopilotSession, CurrentToolMetadata, ElicitationContext, Elicitati
 import { realpath as fsRealpath } from 'fs';
 import { cp, rm } from 'fs/promises';
 import { promisify } from 'util';
-import { DeferredPromise, firstParallel, raceCancellation, RunOnceScheduler, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, firstParallel, raceCancellation, raceTimeout, RunOnceScheduler, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -40,7 +40,7 @@ import { gitHubMcpServerUrl } from '../../common/githubEndpoints.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { AgentSession, AgentSignal, AuthenticateParams, IMcpNotification, type AgentTurnProviderCallState, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot } from '../../common/agent.js';
+import { AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, type AgentTurnProviderCallState, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot } from '../../common/agent.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
@@ -398,6 +398,8 @@ function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boole
 }
 
 const realpath = promisify(fsRealpath);
+// A non-settling control RPC must not permanently block the per-chat sequencer.
+const CONTROL_PLANE_RPC_TIMEOUT_MS = 30_000;
 
 function hasParentPathSegment(filePath: string): boolean {
 	return filePath.split(/[\\/]/).includes('..');
@@ -486,6 +488,15 @@ export interface ICopilotAgentSessionOptions {
 	readonly platform?: NodeJS.Platform;
 	/** Resolves symlinks for plugin resource permission checks. */
 	readonly realpath?: (path: string) => Promise<string>;
+	/** Overrides the control-plane RPC timeout for deterministic tests. */
+	readonly controlPlaneRpcTimeoutMs?: number;
+}
+
+/** Keeps provider-owned state consistent with a live SDK working-directory mutation. */
+export interface ICopilotWorkingDirectoryChangeTransaction {
+	prepare(): Promise<void>;
+	rollback(): Promise<void>;
+	reconcile(authoritativeWorkingDirectory: URI): Promise<void>;
 }
 
 /**
@@ -758,6 +769,8 @@ export class CopilotAgentSession extends Disposable {
 	readonly sessionId: string;
 	readonly resourceUri: URI;
 	private readonly _ownerSessionUri: URI;
+	private readonly _controlPlaneRpcTimeoutMs: number;
+	private _controlPlaneDesynchronized = false;
 	get ownerSessionUri(): URI { return this._ownerSessionUri; }
 	/** @deprecated Compatibility alias for SDK callbacks; this is the exact persistence resource. */
 	get sessionUri(): URI { return this.resourceUri; }
@@ -868,6 +881,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _currentTurn = this._register(new MutableDisposable<CopilotTurn>());
 	private _resumingTurnAwaitingProviderStart: CopilotTurn | undefined;
+	private _abortingTurn: CopilotTurn | undefined;
 	private _developmentRecoverableError: { readonly turnId: string; remainingFailures: number; readonly totalFailures: number } | undefined;
 	private readonly _developmentErrorInjectionEnabled: boolean;
 	private _dropLateRootTurnEvents = false;
@@ -914,7 +928,7 @@ export class CopilotAgentSession extends Disposable {
 				destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
 				include: {
 					events: includeSessionLogs,
-					processLogs: false,
+					processLogs: true,
 					shellLogs: includeSessionLogs,
 				},
 			});
@@ -975,6 +989,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _sessionUsageMetricsRefreshThrottler = this._register(new Throttler());
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
+	private _workingDirectoryMutationInProgress = false;
+	private _requiresRestartAfterWorkingDirectoryChange = false;
 	private readonly _slashCommandProvider: CopilotSlashCommandProvider;
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
 	private _lastAppliedMode: CopilotSdkMode | undefined;
@@ -1052,8 +1068,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _shellManager: ShellManager | undefined;
 	/** Streams runtime-executed shell output into output-only (non-pty) terminal channels. */
 	private readonly _nonPtyShellTerminals: NonPtyShellTerminalStreams;
-	private readonly _workingDirectory: URI | undefined;
-	private readonly _customizationDirectory: URI | undefined;
+	private _workingDirectory: URI | undefined;
+	private _customizationDirectory: URI | undefined;
 	private readonly _serverToolHost: IAgentServerToolHost | undefined;
 	/** Bridges SDK-reported MCP server state into AHP customization actions. */
 	private readonly _mcpCustomizations: McpCustomizationController;
@@ -1125,6 +1141,7 @@ export class CopilotAgentSession extends Disposable {
 		this._developmentErrorInjectionEnabled = options.enableDevelopmentErrorInjection ?? !product.commit;
 		this.sessionId = options.rawSessionId;
 		this._ownerSessionUri = options.sessionUri;
+		this._controlPlaneRpcTimeoutMs = options.controlPlaneRpcTimeoutMs ?? CONTROL_PLANE_RPC_TIMEOUT_MS;
 		this.resourceUri = options.resource ?? options.sessionUri;
 		this._slashCommandProvider = new CopilotSlashCommandProvider(() => this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: true, includeClientCommands: true }).then(c => c.commands), this._logService);
 		this._chatChannelUri = options.chatChannelUri;
@@ -1853,9 +1870,24 @@ export class CopilotAgentSession extends Disposable {
 		return this._appliedSnapshot;
 	}
 
+	get requiresRestartAfterWorkingDirectoryChange(): boolean {
+		return this._requiresRestartAfterWorkingDirectoryChange;
+	}
+
 	get requiresMcpLaunchConfigurationRefresh(): boolean {
 		this._markMcpLaunchConfigurationDirty();
 		return this._mcpLaunchConfigurationDirty;
+	}
+
+	/**
+	 * Set when a control-plane RPC timed out. Timing out abandons the await but
+	 * cannot cancel the in-flight SDK request, so the model/agent/history state
+	 * this session believes it applied may not match the SDK's. The next send
+	 * discards and resumes the SDK session so a late-settling request lands on a
+	 * session nothing is using rather than mutating live state.
+	 */
+	get requiresControlPlaneResync(): boolean {
+		return this._controlPlaneDesynchronized;
 	}
 
 	get appliedDisabledRootMcpServers(): readonly string[] {
@@ -2262,10 +2294,10 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const resource = this._protectedResourceFromMcpAuthRequest(request);
 		const requiredScopes = this._scopesFromChallenge(request.wwwAuthenticateParams?.scope);
-		const oauthClient: McpAuthRequirement['oauthClient'] = request.staticClientConfig?.publicClient
-			? { clientId: request.staticClientConfig.clientId }
-			: request.staticClientConfig?.clientSecret
-				? { clientId: request.staticClientConfig.clientId, clientSecret: request.staticClientConfig.clientSecret }
+		const oauthClient: McpAuthRequirement['oauthClient'] = request.staticClientConfig?.clientSecret
+			? { clientId: request.staticClientConfig.clientId, clientSecret: request.staticClientConfig.clientSecret }
+			: request.staticClientConfig && request.staticClientConfig.publicClient !== false
+				? { clientId: request.staticClientConfig.clientId }
 				: undefined;
 		const auth: McpAuthRequirement = {
 			reason: this._mcpAuthRequiredReason(request.reason),
@@ -2399,7 +2431,115 @@ export class CopilotAgentSession extends Disposable {
 
 	// ---- session operations -------------------------------------------------
 
+	async setWorkingDirectory(workingDirectory: URI, transaction: ICopilotWorkingDirectoryChangeTransaction): Promise<void> {
+		if (!this._wrapper) {
+			throw new Error('Cannot change the working directory before the session is initialized');
+		}
+		if (this.hasActiveTurn) {
+			throw new Error('Cannot change the working directory while a turn is active');
+		}
+		if (this._workingDirectoryMutationInProgress) {
+			throw new Error('Cannot change the working directory while another working directory change is in progress');
+		}
+		const previousWorkingDirectory = this._workingDirectory;
+		if (!previousWorkingDirectory) {
+			throw new Error('Cannot change the working directory for a session without an existing working directory');
+		}
+		this._shellManager?.assertCanSetWorkingDirectory();
+
+		this._workingDirectoryMutationInProgress = true;
+		try {
+			try {
+				await transaction.prepare();
+			} catch (prepareError) {
+				try {
+					await transaction.rollback();
+				} catch (rollbackError) {
+					throw new Error(`Working directory preparation failed: ${getErrorMessage(prepareError)}; failed to roll back the prepared working directory: ${getErrorMessage(rollbackError)}`);
+				}
+				throw prepareError;
+			}
+
+			if (this.hasActiveTurn) {
+				const activeTurnError = new Error('Cannot change the working directory while a turn is active');
+				try {
+					await transaction.rollback();
+				} catch (rollbackError) {
+					throw new Error(`${activeTurnError.message}; failed to roll back the prepared working directory: ${getErrorMessage(rollbackError)}`);
+				}
+				throw activeTurnError;
+			}
+
+			let result: Awaited<ReturnType<CopilotSession['rpc']['metadata']['setWorkingDirectory']>>;
+			try {
+				result = await this._wrapper.session.rpc.metadata.setWorkingDirectory({ workingDirectory: workingDirectory.fsPath });
+			} catch (sdkError) {
+				try {
+					await transaction.rollback();
+				} catch (rollbackError) {
+					throw new Error(`Failed to change the SDK working directory: ${getErrorMessage(sdkError)}; failed to roll back the prepared working directory: ${getErrorMessage(rollbackError)}`);
+				}
+				throw sdkError;
+			}
+
+			const requestedUri = normalizePath(URI.file(workingDirectory.fsPath));
+			const actualUri = normalizePath(URI.file(result.workingDirectory));
+			let runtimeAlignmentError: string | undefined;
+			try {
+				const updateResult = await this._wrapper.session.rpc.options.update({ workingDirectory: actualUri.fsPath });
+				if (!updateResult.success) {
+					runtimeAlignmentError = 'the SDK rejected the runtime working directory update';
+				}
+			} catch (error) {
+				runtimeAlignmentError = `failed to update the SDK runtime working directory: ${getErrorMessage(error)}`;
+			}
+			if (extUriBiasedIgnorePathCase.isEqual(actualUri, requestedUri)) {
+				let shellAlignmentError: string | undefined;
+				try {
+					this._shellManager?.setWorkingDirectory(workingDirectory);
+				} catch (error) {
+					shellAlignmentError = `failed to align the local shell working directory: ${getErrorMessage(error)}`;
+				} finally {
+					this._workingDirectory = workingDirectory;
+					this._customizationDirectory = workingDirectory;
+					this._requiresRestartAfterWorkingDirectoryChange = true;
+				}
+				const alignmentErrors = [runtimeAlignmentError, shellAlignmentError].filter(isDefined);
+				if (alignmentErrors.length > 0) {
+					throw new AgentWorkingDirectoryChangedError(workingDirectory, `The SDK working directory changed to '${workingDirectory.fsPath}', but runtime alignment failed: ${alignmentErrors.join('; ')}`);
+				}
+				return;
+			}
+
+			const mismatchError = new Error(`The SDK returned working directory '${result.workingDirectory}' instead of '${workingDirectory.fsPath}'`);
+			const alignmentErrors = runtimeAlignmentError ? [runtimeAlignmentError] : [];
+			try {
+				this._shellManager?.setWorkingDirectory(actualUri);
+			} catch (shellError) {
+				alignmentErrors.push(`failed to align the local shell working directory: ${getErrorMessage(shellError)}`);
+			} finally {
+				this._workingDirectory = actualUri;
+				this._customizationDirectory = actualUri;
+				this._requiresRestartAfterWorkingDirectoryChange = true;
+			}
+			try {
+				await transaction.reconcile(actualUri);
+			} catch (reconcileError) {
+				alignmentErrors.push(`failed to reconcile the authoritative working directory: ${getErrorMessage(reconcileError)}`);
+			}
+			if (alignmentErrors.length > 0) {
+				throw new AgentWorkingDirectoryChangedError(actualUri, `${mismatchError.message}; ${alignmentErrors.join('; ')}`);
+			}
+			throw new AgentWorkingDirectoryChangedError(actualUri, mismatchError.message);
+		} finally {
+			this._workingDirectoryMutationInProgress = false;
+		}
+	}
+
 	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, hostInstructions?: readonly string[], clientContext = createUnknownAgentHostClientTelemetryContext(clientType), agentMergeTurn = false): Promise<void> {
+		if (this._workingDirectoryMutationInProgress) {
+			throw new Error('Cannot start a turn while the working directory is changing');
+		}
 		this._resetAbortToken();
 		this._agentMergeTurn = agentMergeTurn;
 		if (turnId && this._currentTurn.value?.id !== turnId) {
@@ -3104,6 +3244,8 @@ export class CopilotAgentSession extends Disposable {
 		this._logService.info(`[Copilot:${this.sessionId}] Aborting session...`);
 		const abortingTurn = this._currentTurn.value;
 		const resumingTurn = this._resumingTurnAwaitingProviderStart;
+		const abortTarget = abortingTurn ?? resumingTurn;
+		this._abortingTurn = abortTarget;
 		if (abortingTurn) {
 			this._dropLateRootTurnEvents = true;
 		}
@@ -3112,6 +3254,9 @@ export class CopilotAgentSession extends Disposable {
 		try {
 			await this._wrapper.session.abort();
 		} catch (error) {
+			if (this._abortingTurn === abortTarget) {
+				this._abortingTurn = undefined;
+			}
 			this._resetAbortToken();
 			throw error;
 		}
@@ -3177,7 +3322,7 @@ export class CopilotAgentSession extends Disposable {
 	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier']): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
 		this._lastSeenModelId = model;
-		await this._wrapper.session.setModel(model, { reasoningEffort, contextTier });
+		await this._awaitControlPlaneRpc('session.setModel', this._wrapper.session.setModel(model, { reasoningEffort, contextTier }));
 	}
 
 	/**
@@ -3415,6 +3560,20 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
+	/** Bounds a short SDK control-plane RPC so it cannot wedge the owning chat queue. */
+	private async _awaitControlPlaneRpc<T>(operation: string, rpc: Promise<T>): Promise<T> {
+		const result = await raceTimeout(rpc.then(value => ({ value })), this._controlPlaneRpcTimeoutMs);
+		if (!result) {
+			// The request is still in flight and may still mutate SDK state, so
+			// mark the session for resync rather than continuing to use it.
+			this._controlPlaneDesynchronized = true;
+			const error = new Error(`[Copilot:${this.sessionId}] ${operation} timed out after ${this._controlPlaneRpcTimeoutMs}ms`);
+			this._logService.error(error, `[Copilot:${this.sessionId}] Control-plane RPC timed out: ${operation}`);
+			throw error;
+		}
+		return result.value;
+	}
+
 	/**
 	 * Selects (or clears) a custom agent on the live SDK session.
 	 * Mirrors the SDK's `rpc.agent.select` / `rpc.agent.deselect` pair.
@@ -3424,7 +3583,7 @@ export class CopilotAgentSession extends Disposable {
 			const name = agentName;
 			this._logService.info(`[Copilot:${this.sessionId}] Selecting custom agent: ${name}`);
 			try {
-				await this._wrapper.session.rpc.agent.select({ name });
+				await this._awaitControlPlaneRpc('rpc.agent.select', this._wrapper.session.rpc.agent.select({ name }));
 			} catch (err) {
 				this._logService.error(err, `[Copilot:${this.sessionId}] rpc.agent.select failed: name=${name}`);
 				throw err;
@@ -3432,7 +3591,7 @@ export class CopilotAgentSession extends Disposable {
 		} else {
 			this._logService.info(`[Copilot:${this.sessionId}] Clearing custom agent selection`);
 			try {
-				await this._wrapper.session.rpc.agent.deselect();
+				await this._awaitControlPlaneRpc('rpc.agent.deselect', this._wrapper.session.rpc.agent.deselect());
 			} catch (err) {
 				this._logService.error(err, `[Copilot:${this.sessionId}] rpc.agent.deselect failed`);
 				throw err;
@@ -5157,6 +5316,8 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onIdle(e => {
 			this._logService.info(`[Copilot:${sessionId}] Session idle`);
+			const abortingTurn = this._abortingTurn;
+			this._abortingTurn = undefined;
 			if (e.data.aborted) {
 				this._resetAbortToken();
 			}
@@ -5180,7 +5341,7 @@ export class CopilotAgentSession extends Disposable {
 			//    drop it before the provider starts.
 			//  - any other pending turn is a queued message started after the
 			//    abort; leave it open for its own non-abort idle.
-			if (e.data.aborted) {
+			if (e.data.aborted && (!abortingTurn || turn === abortingTurn)) {
 				this._cancelActiveRepoInfoTelemetry();
 				if (turn.isRunning || turn === this._resumingTurnAwaitingProviderStart) {
 					this._logService.trace(`[Copilot:${sessionId}] Idle from abort; tearing down cancelled turn ${turn.id}`);
@@ -5194,6 +5355,13 @@ export class CopilotAgentSession extends Disposable {
 					this._logService.trace(`[Copilot:${sessionId}] Idle from abort; leaving ${turn.state} turn ${turn.id} open`);
 				}
 				return;
+			}
+			if (e.data.aborted && !turn.isRunning) {
+				this._logService.trace(`[Copilot:${sessionId}] Idle from abort; leaving ${turn.state} replacement turn ${turn.id} open`);
+				return;
+			}
+			if (e.data.aborted) {
+				this._logService.trace(`[Copilot:${sessionId}] Idle from abort reached running replacement turn ${turn.id}; completing replacement`);
 			}
 			if (turn === this._resumingTurnAwaitingProviderStart && !turn.providerTurnStarted) {
 				this._logService.trace(`[Copilot:${sessionId}] Ignoring idle from the failed execution while resumed turn ${turn.id} awaits provider start`);
@@ -6470,7 +6638,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	async truncateAtEventId(eventId: string, keepTurnId?: string): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Truncating via SDK RPC at eventId=${eventId}`);
-		const result = await this._wrapper.session.rpc.history.truncate({ eventId });
+		const result = await this._awaitControlPlaneRpc('rpc.history.truncate', this._wrapper.session.rpc.history.truncate({ eventId }));
 		this._logService.info(`[Copilot:${this.sessionId}] SDK truncation removed ${result.eventsRemoved} events`);
 
 		// Clean up stale turns from our DB so getNextTurnEventId doesn't
