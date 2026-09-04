@@ -35,7 +35,7 @@ import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browse
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { IAgentHostAutoConnect, IAgentHostConnectProgress, IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostAutoConnect, IAgentHostConnectProgress, IAgentHostConnectionLabels, IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { IGitHubInfo, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -76,6 +76,7 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
 	/** Optional kind-scoped policy for automatically starting the host. */
 	readonly autoConnect?: IAgentHostAutoConnect;
+	readonly connectionLabels?: IAgentHostConnectionLabels;
 	/**
 	 * Set when the host addresses sessions under a scheme that differs from its agent provider, as
 	 * the cloud sandbox host does (sessions are `ahp-session:/<id>` while the agent is `copilot`).
@@ -90,6 +91,13 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly omitHostFromWorkspaceLabel?: boolean;
 	/** Type icon for this host's workspaces. See {@link ISessionWorkspace.typeIcon}. */
 	readonly workspaceTypeIcon?: ThemeIcon;
+	/**
+	 * Forces this host's sessions read-only whenever it is not connected. Set by hosts that cannot
+	 * accept work offline — a cloud sandbox has to be resumed before it can be sent to, so a
+	 * composer would take input that nothing will ever deliver. Hosts left with the default keep
+	 * their sessions writable while disconnected, queuing the input for the reconnect.
+	 */
+	readonly readOnlyWhenDisconnected?: boolean;
 	/** See {@link IAgentHostAdapterOptions.defaultChangesetKind}. */
 	readonly defaultChangesetKind?: ChangesetKind.Branch | ChangesetKind.Uncommitted | ChangesetKind.Session;
 	/**
@@ -135,16 +143,20 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	readonly canConnectOnDemand: boolean;
 	readonly onDidReportConnectProgress: Event<IAgentHostConnectProgress> | undefined;
 	readonly autoConnect?: IAgentHostAutoConnect;
+	readonly connectionLabels?: IAgentHostConnectionLabels;
 	readonly automations: ISessionsProviderAutomations;
 	private readonly _automationStore: ReconnectableAgentHostAutomationStore;
 
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
 	/**
-	 * Forces this host's sessions read-only. Distinct from `disconnected`: a disconnected host may
-	 * come back, so its sessions stay writable and queue on reconnect, whereas this marks a host
-	 * that is gone and whose sessions exist only as replayed history.
+	 * Whether every session on this host is read-only, which hides the composer.
+	 *
+	 * Only ever true for hosts configured with
+	 * {@link IRemoteAgentHostSessionsProviderConfig.readOnlyWhenDisconnected}, and only while they
+	 * are disconnected: elsewhere a dropped host keeps its sessions writable so the input queues
+	 * for the reconnect.
 	 */
-	private readonly _readOnly = observableValue<boolean>('providerReadOnly', false);
+	private readonly _readOnly: IObservable<boolean>;
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
 
 	protected override get remoteConnectionStatus(): IObservable<RemoteAgentHostConnectionStatus> {
@@ -241,7 +253,19 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._devContainerWorktreeScope = config.devContainerWorktreeScope;
 		this.onDidReportConnectProgress = config.onDidReportConnectProgress;
 		this.autoConnect = config.autoConnect;
+		this.connectionLabels = config.connectionLabels;
 		this.canConnectOnDemand = !!config.connectOnDemand;
+		this._readOnly = config.readOnlyWhenDisconnected
+			// Deliberately not `!isConnected`: that would include `reconnecting`, which is the
+			// protocol client restoring a dropped transport while the host itself is up. Input
+			// sent then is delivered once the transport returns, so hiding the composer would
+			// interrupt a conversation mid-sentence over a blip the user should not notice.
+			? derived(this, reader => {
+				const status = this._connectionStatus.read(reader);
+				return RemoteAgentHostConnectionStatus.isDisconnected(status)
+					|| RemoteAgentHostConnectionStatus.isIncompatible(status);
+			})
+			: constObservable(false);
 		this._register(this._onDidChangeResourceLabelHomes(() => this.updateResourceLabelHomes()));
 		this.updateResourceLabelHomes();
 		const displayName = config.name || config.address;
@@ -499,17 +523,6 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	/** Update the connection status for this provider. */
 	setConnectionStatus(status: RemoteAgentHostConnectionStatus): void {
 		this._connectionStatus.set(status, undefined);
-	}
-
-	/**
-	 * Forces every session on this host to be read-only.
-	 *
-	 * Set when the host is permanently unreachable and its sessions are being served from
-	 * persisted history: the conversation is genuine, but there is no host left to send to, so the
-	 * composer must be hidden rather than accept input that can never be delivered.
-	 */
-	setReadOnly(readOnly: boolean): void {
-		this._readOnly.set(readOnly, undefined);
 	}
 
 	/**

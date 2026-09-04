@@ -39,7 +39,7 @@ import { IChatService, type ChatSendResult, type IChatSendRequestOptions } from 
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { ChatModelSource, SessionRemoteConnectionFailureReason, SessionStatus, type ISession } from '../../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatModelSource, SessionRemoteConnectionFailureReason, SessionStatus, type ISession } from '../../../../../services/sessions/common/session.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -242,7 +242,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; noConnection?: boolean; isWebPlatform?: boolean; workspaceTrusted?: boolean; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string }): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; noConnection?: boolean; isWebPlatform?: boolean; workspaceTrusted?: boolean; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string }): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IFileDialogService, {});
@@ -307,6 +307,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		sessionSchemeAlias: overrides?.sessionSchemeAlias,
 		defaultChangesetKind: overrides?.defaultChangesetKind,
 		devContainerWorktreeScope: overrides?.devContainerWorktreeScope,
+		readOnlyWhenDisconnected: overrides?.readOnlyWhenDisconnected,
 	};
 
 	const baseCtor = overrides?.ctor ?? RemoteAgentHostSessionsProvider;
@@ -481,6 +482,31 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				{ kind: 'incompatible' },
 			],
 		});
+	});
+
+	test('keeps the composer during a self-healing reconnect on a host that is read-only when disconnected', () => {
+		// `reconnecting` is the protocol client restoring a dropped transport while the host is
+		// still up, so input sent then is delivered once it returns. Treating it as read-only
+		// would pull the composer — and the user's focus — mid-conversation over a blip.
+		const provider = createProvider(disposables, connection, { readOnlyWhenDisconnected: true });
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+		provider.seedSessions([createSession('sandbox-session')]);
+		const chat = provider.getSessions()[0].mainChat.get();
+		const interactivity = [chat.interactivity.get()];
+
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.reconnecting);
+		interactivity.push(chat.interactivity.get());
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
+		interactivity.push(chat.interactivity.get());
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+		interactivity.push(chat.interactivity.get());
+
+		assert.deepStrictEqual(interactivity, [
+			ChatInteractivity.Full,
+			ChatInteractivity.Full,
+			ChatInteractivity.ReadOnly,
+			ChatInteractivity.Full,
+		]);
 	});
 
 	test('does not present an active chat as busy while its remote host is unavailable', () => {
