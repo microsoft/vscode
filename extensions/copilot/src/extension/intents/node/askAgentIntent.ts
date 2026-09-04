@@ -44,13 +44,39 @@ const getTools = (instaService: IInstantiationService, request: vscode.ChatReque
 		const lookForTags = new Set<string>(['vscode_codesearch']);
 		const endpointProvider = accessor.get<IEndpointProvider>(IEndpointProvider);
 		const model = await endpointProvider.getChatEndpoint(request);
-
-		// Special case...
-		// Since AskAgent currently has no tool picker, have to duplicate the toolReference logic here.
-		// When it's no longer experimental, it should be a custom mode, have a tool picker, etc.
-		// And must return boolean to avoid falling back on other logic that we don't want, like the `extension_installed_by_tool` check.
-		return toolsService.getEnabledTools(request, model, tool => tool.tags.some(tag => lookForTags.has(tag)) || request.toolReferences.some(ref => ref.name === tool.name));
+		return toolsService.getEnabledTools(request, model, tool => askAgentToolFilter(tool, request));
 	});
+
+/**
+ * Filters tools for the ask agent. Since AskAgent currently has no tool picker,
+ * we duplicate the toolReference logic here. When it's no longer experimental,
+ * it should be a custom mode, have a tool picker, etc.
+ *
+ * MCP tools are registered dynamically as the MCP server connects and discovers
+ * its tools. The `toolReferences` in the request are a snapshot taken when the
+ * request was parsed, which can happen before the MCP server finished
+ * discovering all of its tools. When the user referenced an MCP server (any of
+ * its tools appear in `toolReferences`), include all currently registered MCP
+ * tools so that availability reflects the live registration state rather than
+ * the possibly-stale snapshot. See #334569.
+ *
+ * Must return boolean to avoid falling back on other logic that we don't want,
+ * like the `extension_installed_by_tool` check.
+ */
+export function askAgentToolFilter(tool: vscode.LanguageModelToolInformation, request: vscode.ChatRequest): boolean {
+	const lookForTags = new Set<string>(['vscode_codesearch']);
+	if (tool.tags.some(tag => lookForTags.has(tag)) || request.toolReferences.some(ref => ref.name === tool.name)) {
+		return true;
+	}
+	if (tool.tags.includes('mcp')) {
+		// The user referenced an MCP server. MCP tools are registered with the
+		// `mcp_` prefix (see McpToolName.Prefix), so check the reference names
+		// rather than looking up the tool, which may not be registered yet when
+		// the request snapshot was taken.
+		return request.toolReferences.some(ref => ref.name.startsWith('mcp_'));
+	}
+	return false;
+}
 
 export class AskAgentIntent implements IIntent {
 
