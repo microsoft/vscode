@@ -131,6 +131,35 @@ suite('claudeToolCallRegistry — Phase 8.5 input/info tracking', () => {
 		assert.deepStrictEqual(log.warns, []);
 	});
 
+	test('clearPending spares an inner tool of a background subagent and still drains the rest', () => {
+		const registry = new ClaudeToolCallRegistry();
+		const log = new CapturingLog();
+		registry.begin('tu_inner', 'Bash', 'turn-1');
+		registry.finalize('tu_inner');
+		registry.begin('tu_orphan', 'Read', 'turn-1');
+		registry.finalize('tu_orphan');
+		const subagents = { getParentSpawn: (id: string) => id === 'tu_inner' ? { background: true } : undefined };
+
+		registry.clearPending(log as unknown as ILogService, subagents);
+
+		assert.ok(registry.lookup('tu_inner'), 'a background subagent outlives the turn, so its result is still coming');
+		assert.strictEqual(registry.lookup('tu_orphan'), undefined);
+		assert.strictEqual(log.warns.length, 1);
+		assert.ok(log.warns[0].includes('tu_orphan'));
+	});
+
+	test('clearPending still drains an inner tool whose parent subagent is foreground', () => {
+		const registry = new ClaudeToolCallRegistry();
+		const log = new CapturingLog();
+		registry.begin('tu_inner', 'Bash', 'turn-1');
+		registry.finalize('tu_inner');
+		const subagents = { getParentSpawn: () => ({ background: false }) };
+
+		registry.clearPending(log as unknown as ILogService, subagents);
+
+		assert.strictEqual(registry.lookup('tu_inner'), undefined);
+		assert.strictEqual(log.warns.length, 1);
+	});
 	test('seedParsedInput populates info from a pre-parsed object (inner subagent path)', () => {
 		const registry = new ClaudeToolCallRegistry();
 		registry.begin('tu_seed', 'Bash', 'turn-1');
