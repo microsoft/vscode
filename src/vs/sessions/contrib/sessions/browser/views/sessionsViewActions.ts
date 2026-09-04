@@ -506,7 +506,7 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 	}
 });
 
-const NEW_QUICK_CHAT_COMMAND_ID = 'sessionsView.newQuickChat';
+export const NEW_QUICK_CHAT_COMMAND_ID = 'sessionsView.newQuickChat';
 
 // Gate on AI features being enabled and the local agent host (which serves
 // quick chats) being available.
@@ -538,6 +538,12 @@ registerAction2(class NewQuickChatAction extends Action2 {
 					group: 'navigation',
 					order: 0,
 					when: ContextKeyExpr.and(QuickChatEnabledContext, ContextKeyExpr.equals(SessionSectionTypeContext.key, 'quickchats')),
+				},
+				{
+					id: Menus.NewSessionDropdown,
+					group: '1_new',
+					order: 2,
+					when: QuickChatEnabledContext,
 				},
 			]
 		});
