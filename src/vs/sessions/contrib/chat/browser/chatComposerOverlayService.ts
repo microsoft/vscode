@@ -69,7 +69,6 @@ class ChatComposerOverlay extends Disposable {
 			canSendRequest,
 			loading,
 			historyKey: constObservable(undefined),
-			renderSessionTypePickerInControls: false,
 			renderChatPet: false,
 			supportsBackground: true,
 			deferredNotificationsEnabled: constObservable(false),

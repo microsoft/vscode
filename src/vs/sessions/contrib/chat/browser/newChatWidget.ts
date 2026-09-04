@@ -1218,20 +1218,3 @@ export class NewChatWidget extends Disposable {
 }
 
 // #endregion
-
-/** Renders the workspace picker row shared by New Session composer surfaces. */
-export function renderNewSessionWorkspacePicker(container: HTMLElement, workspacePicker: WorkspacePicker): { row: HTMLElement; disposable: IDisposable } {
-	const row = dom.append(container, dom.$('.session-workspace-picker'));
-	const label = dom.append(row, dom.$('.session-workspace-picker-label'));
-	const updateLabel = () => {
-		label.textContent = workspacePicker.selectedFolderUri
-			? localize('newSessionIn', "New session in")
-			: localize('newSessionChooseWorkspace', "Start by picking a");
-	};
-	updateLabel();
-	workspacePicker.render(row);
-	return {
-		row,
-		disposable: workspacePicker.onDidSelectWorkspace(updateLabel),
-	};
-}

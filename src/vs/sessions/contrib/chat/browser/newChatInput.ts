@@ -364,16 +364,6 @@ export interface INewChatInputSendRequest {
 	readonly background?: boolean;
 }
 
-/** Renders the heading shared by workspace-less New Chat composers. */
-export function renderQuickChatHeader(parent: HTMLElement): HTMLElement {
-	const header = dom.append(parent, dom.$('.new-session-quick-chat-header.session-workspace-picker'));
-	const label = dom.append(header, dom.$('.session-workspace-picker-label'));
-	label.textContent = localize('newChatHeader', "New Chat");
-	const withLabel = dom.append(header, dom.$('.session-workspace-picker-label.session-workspace-picker-with-label'));
-	withLabel.textContent = localize('newSessionWith', "with");
-	return dom.append(header, dom.$('.new-chat-quick-chat-header-picker-host'));
-}
-
 /**
  * Randomized, friendly placeholders shown in the new-session chat input
  * to add a bit of personality. One is picked per widget instance, avoiding
