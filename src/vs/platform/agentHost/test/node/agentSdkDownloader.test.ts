@@ -389,8 +389,10 @@ suite('AgentSdkDownloader', () => {
 
 	test('loadSdkRoot: cache hit returns immediately without re-downloading', async () => {
 		const downloader = makeDownloader();
+		assert.strictEqual(await downloader.hasSdkDownloadHistory(ClaudeSdkPackage), false);
 		await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
 		assert.strictEqual(server.requestCount, 1);
+		assert.strictEqual(await downloader.hasSdkDownloadHistory(ClaudeSdkPackage), true);
 
 		// Second call hits the cache.
 		await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());

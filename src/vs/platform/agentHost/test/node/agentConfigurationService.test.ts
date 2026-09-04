@@ -13,6 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, clientOwnedApprovalRootConfigKeys, createSchema, platformRootSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { AGENT_CUSTOMIZATION_SETTINGS_META_KEY, getAgentCustomizationSettingsEntries } from '../../common/agentCustomizationSettings.js';
+import { AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY } from '../../common/agentSdkSetup.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigState } from '../../common/state/protocol/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -293,6 +294,7 @@ suite('AgentConfigurationService', () => {
 		firstService.updateRootConfig({
 			[AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days,
 			[AgentHostMcpServersConfigKey]: { operatorServer: { command: 'node' } },
+			[AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY]: ['claude'],
 		});
 		await firstService.whenIdle();
 
@@ -302,9 +304,11 @@ suite('AgentConfigurationService', () => {
 		assert.deepStrictEqual({
 			showExternalSessions: restartedService.getRootValue(platformRootSchema, AgentHostShowExternalSessionsConfigKey),
 			mcpServers: restartedService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey),
+			agentSdkAutoDownload: restartedService.getRootValue(platformRootSchema, AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY),
 		}, {
 			showExternalSessions: AgentHostExternalSessionsMode.Last30Days,
 			mcpServers: { operatorServer: { command: 'node' } },
+			agentSdkAutoDownload: ['claude'],
 		});
 		fs.rmSync(directory, { recursive: true, force: true });
 	});

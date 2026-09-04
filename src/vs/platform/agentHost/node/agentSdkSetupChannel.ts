@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
-import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, AgentSdkDownloadStatus, IAgentSdkSetupInfo, agentSdkSetupStatusKey, isAgentSdkSetupRequestFor } from '../common/agentSdkSetup.js';
+import { AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY, AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, AgentSdkDownloadStatus, IAgentSdkSetupInfo, agentSdkSetupStatusKey, isAgentSdkSetupRequestFor } from '../common/agentSdkSetup.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentSdkDownloader, IAgentSdkPackage } from './agentSdkDownloader.js';
 
@@ -21,7 +21,7 @@ export interface IAgentSdkSetupChannelAgent {
 	/** Whether the SDK can be loaded without a network fetch. */
 	isSdkLocal(): Promise<boolean>;
 
-	/** Fetch the SDK. Only ever called for the explicit gesture. */
+	/** Fetch the SDK. */
 	downloadSdk(): Promise<void>;
 
 	/** Restart chat discovery, which defers itself while there is no SDK to read a catalog from. */
@@ -40,7 +40,7 @@ export class AgentSdkSetupChannel extends Disposable {
 	/** Consumed request nonce per request key, so a root-config change we caused isn't re-handled. */
 	private readonly _lastRequests = new Map<string, string>();
 
-	private _explicitDownloadInFlight = false;
+	private _setupDownloadInFlight = false;
 	private _lazyDownloadInFlight = false;
 
 	constructor(
@@ -54,10 +54,11 @@ export class AgentSdkSetupChannel extends Disposable {
 		// cleared as it is consumed so a later identical press still lands.
 		this._register(this._configurationService.onDidRootConfigChange(() => this._handleRequest()));
 		this._register(this._downloader.onDidDownloadProgress(progress => {
-			if (progress.packageId !== this._agent.sdkPackage.id || this._explicitDownloadInFlight) {
+			if (progress.packageId !== this._agent.sdkPackage.id || this._setupDownloadInFlight) {
 				return;
 			}
 			if (progress.phase === 'started') {
+				this._enableAutoDownload();
 				this._lazyDownloadInFlight = true;
 				this.publishWith(false);
 			} else if (progress.phase === 'completed') {
@@ -67,12 +68,12 @@ export class AgentSdkSetupChannel extends Disposable {
 				this.publishWith(false);
 			}
 		}));
-		queueMicrotask(async () => this.publishWith(await this._agent.isSdkLocal()));
+		queueMicrotask(() => { void this._initialize(); });
 	}
 
 	/** The synchronous half, for callers that have just paid for the probe. */
 	publishWith(sdkIsLocal: boolean): void {
-		const download: AgentSdkDownloadStatus = this._explicitDownloadInFlight || this._lazyDownloadInFlight
+		const download: AgentSdkDownloadStatus = this._setupDownloadInFlight || this._lazyDownloadInFlight
 			? 'downloading'
 			: sdkIsLocal ? 'ready' : 'notDownloaded';
 		const info: Omit<IAgentSdkSetupInfo, 'agent'> = { ...this._agent.setupInfo, download };
@@ -82,7 +83,8 @@ export class AgentSdkSetupChannel extends Disposable {
 	private _handleRequest(): void {
 		const values = this._configurationService.getRootConfigValues?.() ?? {};
 		if (this._takeRequest(values, AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY)) {
-			void this._download();
+			this._enableAutoDownload();
+			void this._download(true);
 		}
 		if (this._takeRequest(values, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY)) {
 			this._logService.info(`[AgentSdkSetup] ${this._agent.id}: reloading the agent's configuration at the user's request`);
@@ -103,28 +105,65 @@ export class AgentSdkSetupChannel extends Disposable {
 		return true;
 	}
 
-	/**
-	 * The explicit download gesture. Acquiring progress interest is what makes the
-	 * fetch visible: the downloader only emits frames for a session that asked or an
-	 * explicitly-registered interest, and this download belongs to no session.
-	 */
-	private async _download(): Promise<void> {
-		if (this._explicitDownloadInFlight || this._lazyDownloadInFlight) {
+	private async _initialize(): Promise<void> {
+		const sdkIsLocal = await this._agent.isSdkLocal();
+		// Existing cache directories migrate the former workbench-owned consent.
+		if (!this._isAutoDownloadEnabled() && await this._downloader.hasSdkDownloadHistory(this._agent.sdkPackage)) {
+			this._enableAutoDownload();
+		}
+		if (!sdkIsLocal && this._isAutoDownloadEnabled()) {
+			void this._download(false);
 			return;
 		}
-		const progressInterest = this._downloader.acquireDownloadProgressInterest(this._agent.sdkPackage);
-		this._explicitDownloadInFlight = true;
+		this.publishWith(sdkIsLocal);
+	}
+
+	private _isAutoDownloadEnabled(): boolean {
+		return this._readAutoDownloadPackages().includes(this._agent.sdkPackage.id);
+	}
+
+	private _enableAutoDownload(): void {
+		const current = this._readAutoDownloadPackages();
+		if (!current.includes(this._agent.sdkPackage.id)) {
+			this._configurationService.updateRootConfig({
+				[AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY]: [...current, this._agent.sdkPackage.id],
+			});
+		}
+	}
+
+	private _readAutoDownloadPackages(): readonly string[] {
+		const value = this._configurationService.getRootConfigValues?.()[AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY];
+		return Array.isArray(value) ? value.filter(packageId => typeof packageId === 'string') : [];
+	}
+
+	/**
+	 * Downloads requested by setup rather than an agent turn. Explicit requests
+	 * acquire progress interest; automatic startup downloads do not.
+	 */
+	private async _download(explicitlyRequested: boolean): Promise<void> {
+		if (this._setupDownloadInFlight || this._lazyDownloadInFlight) {
+			return;
+		}
+		const progressInterest = explicitlyRequested ? this._downloader.acquireDownloadProgressInterest(this._agent.sdkPackage) : undefined;
+		this._setupDownloadInFlight = true;
 		this.publishWith(false);
+		let downloaded = false;
 		try {
-			this._logService.info(`[AgentSdkSetup] ${this._agent.id}: downloading the agent SDK at the user's request`);
+			this._logService.info(`[AgentSdkSetup] ${this._agent.id}: downloading the agent SDK ${explicitlyRequested ? 'at the user\'s request' : 'under standing consent'}`);
 			await this._agent.downloadSdk();
+			downloaded = true;
+			try {
+				await this._lookAgain();
+			} catch (error) {
+				this._logService.error(error, `[AgentSdkSetup] ${this._agent.id}: refresh after agent SDK download failed`);
+			}
 		} catch (error) {
 			this._logService.error(error, `[AgentSdkSetup] ${this._agent.id}: agent SDK download failed`);
 		} finally {
-			this._explicitDownloadInFlight = false;
-			progressInterest.dispose();
+			this._setupDownloadInFlight = false;
+			progressInterest?.dispose();
+			this.publishWith(downloaded);
 		}
-		await this._lookAgain();
 	}
 
 	private async _finishLazyDownload(): Promise<void> {

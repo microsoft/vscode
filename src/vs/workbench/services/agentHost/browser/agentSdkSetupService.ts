@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, IAgentSdkSetupInfo, readAgentSdkSetupInfos, readConsentedSdkAgents, resolveConsentedSdkDownloads, resolveNewSdkDownloadConsents, writeConsentedSdkAgents } from '../../../../platform/agentHost/common/agentSdkSetup.js';
+import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, IAgentSdkSetupInfo, readAgentSdkSetupInfos } from '../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { ActionType } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../../../../platform/agentHost/common/state/sessionState.js';
@@ -15,16 +15,8 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ICodexAccountService } from './codexAccountService.js';
-
-/**
- * The agents whose SDK the user has agreed to fetch, recorded by Download or
- * first use. `APPLICATION` + `USER` so consent follows the person; see
- * {@link resolveConsentedSdkDownloads} for version and agent boundaries.
- */
-const AGENT_SDK_DOWNLOAD_CONSENT_KEY = 'agentHost.agentSdkDownloadConsent';
 
 /** The Copilot sign-in flow, shared with `AgentHostSignedOutModelsNotification`. */
 const CHAT_SETUP_COMMAND_ID = 'workbench.action.chat.triggerSetup';
@@ -39,14 +31,12 @@ export const IAgentSdkSetupService = createDecorator<IAgentSdkSetupService>('age
 export type AgentSdkSetupState = 'downloadOffered' | 'noAccount' | 'resolved';
 
 /**
- * One step of the setup funnel: `downloadOffered` → a download (clicked,
- * started by a turn, or taken under standing consent) → `noAccount` → a route
- * out of it → `resolved`. The banner reports states; this service reports routes.
+ * One step of the setup funnel: `downloadOffered` → a download → `noAccount` →
+ * a route out of it → `resolved`. The banner reports states; this service reports routes.
  */
 type AgentSdkSetupFunnelStep =
 	| AgentSdkSetupState
 	| 'downloadClicked'
-	| 'consentedDownload'
 	| 'docsClicked'
 	| 'gitHubSignInClicked'
 	| 'signInClicked'
@@ -59,7 +49,7 @@ interface IAgentSdkSetupFunnelEvent {
 
 type AgentSdkSetupFunnelClassification = {
 	agent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent whose setup this step belongs to, e.g. claude or codex.' };
-	step: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Which step of the agent SDK setup funnel was reached (downloadOffered, downloadClicked, consentedDownload, noAccount, docsClicked, gitHubSignInClicked, signInClicked, reloadClicked, resolved).' };
+	step: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Which step of the agent SDK setup funnel was reached (downloadOffered, downloadClicked, noAccount, docsClicked, gitHubSignInClicked, signInClicked, reloadClicked, resolved).' };
 	owner: 'TylerLeonhardt';
 	comment: 'Tracks how far a signed-out user gets through setting up their own Claude or Codex account.';
 };
@@ -71,10 +61,7 @@ export interface IAgentSdkSetupService {
 	readonly setups: readonly IAgentSdkSetupInfo[];
 	readonly onDidChangeSetups: Event<readonly IAgentSdkSetupInfo[]>;
 
-	/**
-	 * Ask `agent` to fetch its SDK, and record standing consent to do so again
-	 * for later version bumps.
-	 */
+	/** Ask `agent` to fetch its SDK and remember that choice on the Agent Host. */
 	requestDownload(agent: string): void;
 
 	/** Open the setup instructions `agent` published, if it published any. */
@@ -115,13 +102,6 @@ class AgentSdkSetupService extends Disposable implements IAgentSdkSetupService {
 	private _setups: readonly IAgentSdkSetupInfo[] = [];
 
 	/**
-	 * Agents whose SDK we have already re-requested under standing consent, so a
-	 * download that fails (and so reports `notDownloaded` again) is retried on the
-	 * next window rather than immediately, forever.
-	 */
-	private readonly _consentedRequests = new Set<string>();
-
-	/**
 	 * Agents we have asked to fetch and the host has not answered yet. Cleared on
 	 * that answer rather than on success, so a failed download — which republishes
 	 * `notDownloaded` after the `downloading` we cleared on — re-offers the button.
@@ -134,7 +114,6 @@ class AgentSdkSetupService extends Disposable implements IAgentSdkSetupService {
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
-		@IStorageService private readonly _storageService: IStorageService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -160,8 +139,6 @@ class AgentSdkSetupService extends Disposable implements IAgentSdkSetupService {
 	}
 
 	requestDownload(agent: string): void {
-		this._storeConsent(agent);
-		this._consentedRequests.add(agent);
 		this._reportStep(agent, 'downloadClicked');
 		this._dispatchDownloadRequest(agent);
 	}
@@ -241,48 +218,13 @@ class AgentSdkSetupService extends Disposable implements IAgentSdkSetupService {
 
 	private _updateSetups(setups: readonly IAgentSdkSetupInfo[]): void {
 		this._setups = setups;
-		const newlyConsented = resolveNewSdkDownloadConsents(this._readConsentedAgents(), setups);
-		for (const agent of newlyConsented) {
-			this._storeConsent(agent);
-		}
 		for (const setup of setups) {
-			// First use and explicit requests are both one attempt for this window.
-			if (setup.download === 'downloading') {
-				this._consentedRequests.add(setup.agent);
-			}
 			// Any status but `notDownloaded` is the host answering our request.
 			if (setup.download !== 'notDownloaded') {
 				this._pendingRequests.delete(setup.agent);
 			}
 		}
-		this._applyConsent();
 		this._onDidChangeSetups.fire(setups);
-	}
-
-	private _storeConsent(agent: string): void {
-		const consented = new Set(this._readConsentedAgents());
-		if (consented.has(agent)) {
-			return;
-		}
-		consented.add(agent);
-		this._storageService.store(AGENT_SDK_DOWNLOAD_CONSENT_KEY, writeConsentedSdkAgents(consented), StorageScope.APPLICATION, StorageTarget.USER);
-	}
-
-	private _readConsentedAgents(): ReadonlySet<string> {
-		return readConsentedSdkAgents(this._storageService.get(AGENT_SDK_DOWNLOAD_CONSENT_KEY, StorageScope.APPLICATION));
-	}
-
-	/**
-	 * Honour standing consent without asking again. Runs on every status change
-	 * because a host that starts (or a remote that connects) publishes
-	 * `notDownloaded` only once it is up — there is no earlier moment to catch.
-	 */
-	private _applyConsent(): void {
-		for (const agent of resolveConsentedSdkDownloads(this._readConsentedAgents(), this._setups, this._consentedRequests)) {
-			this._consentedRequests.add(agent);
-			this._reportStep(agent, 'consentedDownload');
-			this._dispatchDownloadRequest(agent);
-		}
 	}
 }
 

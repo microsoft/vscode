@@ -195,6 +195,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(IAgentSdkDownloader, {
 		_serviceBrand: undefined,
 		onDidDownloadProgress: Event.None,
+		hasSdkDownloadHistory: async () => false,
 		acquireDownloadProgressInterest: () => toDisposable(() => { }),
 		loadSdkRoot: async () => { throw new Error('test stub: downloader.loadSdkRoot should not be called'); },
 		isAvailable: () => true,

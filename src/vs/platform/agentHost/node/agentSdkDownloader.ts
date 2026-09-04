@@ -164,6 +164,9 @@ export interface IAgentSdkDownloader {
 	 */
 	readonly onDidDownloadProgress: Event<IAgentSdkDownloadProgress>;
 
+	/** Whether this host has previously created a cache for the package. */
+	hasSdkDownloadHistory(pkg: IAgentSdkPackage): Promise<boolean>;
+
 	/**
 	 * Keep download progress visible for a user-initiated flow that does not
 	 * have a session progress token, such as ChatGPT sign-in. Dispose the
@@ -285,6 +288,15 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 			return true;
 		}
 		return !!this._productService.agentSdks?.[pkg.id] && resolveSdkTarget(pkg) !== undefined;
+	}
+
+	hasSdkDownloadHistory(pkg: IAgentSdkPackage): Promise<boolean> {
+		return this._fileService.exists(URI.file(path.join(
+			this._environmentService.userDataPath,
+			'agent-host',
+			'sdk-cache',
+			pkg.id,
+		)));
 	}
 
 	acquireDownloadProgressInterest(pkg: IAgentSdkPackage): IDisposable {

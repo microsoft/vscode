@@ -17,6 +17,7 @@ import type { RootState } from './state/protocol/state.js';
 const AGENT_SDK_SETUP_STATUS_KEY_PREFIX = 'vscode.agentSdkSetup.status.';
 
 export const AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY = 'vscode.agentSdkSetup.downloadRequest';
+export const AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY = 'agentSdkAutoDownload';
 
 /**
  * Ask an agent to look again at a setup the user completed outside the app
@@ -119,63 +120,4 @@ export function readAgentSdkSetupInfos(state: RootState | undefined): readonly I
 		}
 	}
 	return infos;
-}
-
-/**
- * The agents whose SDK the user has agreed to fetch, decoded from storage. A
- * malformed or absent record reads as "nobody consented", which costs at worst
- * one extra press of a button the user was about to press anyway.
- */
-export function readConsentedSdkAgents(stored: string | undefined): ReadonlySet<string> {
-	if (!stored) {
-		return new Set();
-	}
-	try {
-		const parsed: unknown = JSON.parse(stored);
-		return new Set(Array.isArray(parsed) ? parsed.filter(agent => typeof agent === 'string') : []);
-	} catch {
-		return new Set();
-	}
-}
-
-export function writeConsentedSdkAgents(agents: ReadonlySet<string>): string {
-	return JSON.stringify([...agents]);
-}
-
-/**
- * Downloads already in progress were accepted by starting an agent turn, which
- * is equivalent to accepting the explicit download offer.
- */
-export function resolveNewSdkDownloadConsents(
-	consentedAgents: ReadonlySet<string>,
-	setups: readonly IAgentSdkSetupInfo[],
-): readonly string[] {
-	return setups
-		.filter(setup => setup.download === 'downloading' && !consentedAgents.has(setup.agent))
-		.map(setup => setup.agent);
-}
-
-/**
- * Which agents should be asked to fetch their SDK without being offered a
- * button, given standing consent. The SDK version is pinned per build
- * and the cache keyed by version, so every update invalidates it — daily on
- * Insiders. Consent is to "this product downloads the Claude SDK", not to one
- * tarball, so re-asking would nag people who already said yes.
- *
- * It does not carry to a *different* agent: the button says "we need to
- * download the Codex Agent SDK", and pressing it is not permission to fetch
- * Claude's.
- *
- * `alreadyRequested` stops a failing download retrying forever: a failed fetch
- * republishes `notDownloaded`, and every status change re-runs this. A window is
- * the retry unit.
- */
-export function resolveConsentedSdkDownloads(
-	consentedAgents: ReadonlySet<string>,
-	setups: readonly IAgentSdkSetupInfo[],
-	alreadyRequested: ReadonlySet<string>,
-): readonly string[] {
-	return setups
-		.filter(setup => setup.download === 'notDownloaded' && consentedAgents.has(setup.agent) && !alreadyRequested.has(setup.agent))
-		.map(setup => setup.agent);
 }

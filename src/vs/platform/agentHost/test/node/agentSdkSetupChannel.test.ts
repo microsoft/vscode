@@ -5,11 +5,12 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { agentSdkSetupStatusKey, type AgentSdkDownloadStatus } from '../../common/agentSdkSetup.js';
+import { AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY, AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, agentSdkSetupStatusKey, type AgentSdkDownloadStatus } from '../../common/agentSdkSetup.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentSdkSetupChannel, type IAgentSdkSetupChannelAgent } from '../../node/agentSdkSetupChannel.js';
 import { IAgentSdkDownloader, type IAgentSdkDownloadProgress, type IAgentSdkPackage } from '../../node/agentSdkDownloader.js';
@@ -21,9 +22,20 @@ const sdkPackage: IAgentSdkPackage = {
 	hasSeparateMuslLinuxPackage: true,
 };
 
-class TestConfigurationService extends mock<IAgentConfigurationService>() {
-	override readonly onDidRootConfigChange = Event.None;
+class TestConfigurationService extends mock<IAgentConfigurationService>() implements IDisposable {
+	private readonly _onDidRootConfigChange = new Emitter<void>();
+	override readonly onDidRootConfigChange = this._onDidRootConfigChange.event;
 	readonly statuses: AgentSdkDownloadStatus[] = [];
+	readonly values: Record<string, unknown> = {};
+
+	override getRootConfigValues(): Readonly<Record<string, unknown>> {
+		return this.values;
+	}
+
+	override updateRootConfig(patch: Record<string, unknown>): void {
+		Object.assign(this.values, patch);
+		this._onDidRootConfigChange.fire();
+	}
 
 	override publishRootTransientValues(patch: Readonly<Record<string, unknown>>): void {
 		const value = patch[agentSdkSetupStatusKey('claude')];
@@ -34,6 +46,10 @@ class TestConfigurationService extends mock<IAgentConfigurationService>() {
 		if (download === 'notDownloaded' || download === 'downloading' || download === 'ready') {
 			this.statuses.push(download);
 		}
+	}
+
+	dispose(): void {
+		this._onDidRootConfigChange.dispose();
 	}
 }
 
@@ -52,29 +68,49 @@ suite('AgentSdkSetupChannel', () => {
 		};
 	}
 
-	function createChannel(): {
+	function createChannel(options: {
+		configuration?: TestConfigurationService;
+		autoDownload?: boolean;
+		hasDownloadHistory?: boolean;
+		downloadSdk?: () => Promise<void>;
+	} = {}): {
 		channel: AgentSdkSetupChannel;
 		configuration: TestConfigurationService;
 		downloads: Emitter<IAgentSdkDownloadProgress>;
 		lookedAgain: string[];
+		downloadCalls: () => number;
+		progressInterests: string[];
 	} {
-		const configuration = new TestConfigurationService();
+		const configuration = options.configuration ?? store.add(new TestConfigurationService());
+		if (options.autoDownload) {
+			configuration.updateRootConfig({ [AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY]: ['claude'] });
+		}
 		const downloads = store.add(new Emitter<IAgentSdkDownloadProgress>());
 		const lookedAgain: string[] = [];
+		const progressInterests: string[] = [];
+		let downloadCalls = 0;
 		const downloader = new class extends mock<IAgentSdkDownloader>() {
 			override readonly onDidDownloadProgress = downloads.event;
+			override hasSdkDownloadHistory = async () => options.hasDownloadHistory ?? false;
+			override acquireDownloadProgressInterest = () => {
+				progressInterests.push('claude');
+				return toDisposable(() => { });
+			};
 		}();
 		const agent: IAgentSdkSetupChannelAgent = {
 			id: 'claude',
 			sdkPackage,
 			setupInfo: {},
 			isSdkLocal: async () => false,
-			downloadSdk: async () => { },
+			downloadSdk: async () => {
+				downloadCalls++;
+				await options.downloadSdk?.();
+			},
 			restartChatDiscovery: () => { lookedAgain.push('discovery'); },
 			refreshModels: async () => { lookedAgain.push('models'); },
 		};
 		const channel = store.add(new AgentSdkSetupChannel(agent, configuration, downloader, new NullLogService()));
-		return { channel, configuration, downloads, lookedAgain };
+		return { channel, configuration, downloads, lookedAgain, downloadCalls: () => downloadCalls, progressInterests };
 	}
 
 	test('a first-turn download replaces the offer with downloading and then ready', async () => {
@@ -88,9 +124,11 @@ suite('AgentSdkSetupChannel', () => {
 		assert.deepStrictEqual({
 			statuses: configuration.statuses,
 			lookedAgain,
+			autoDownload: configuration.values[AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY],
 		}, {
 			statuses: ['notDownloaded', 'downloading', 'ready'],
 			lookedAgain: ['discovery', 'models'],
+			autoDownload: ['claude'],
 		});
 	});
 
@@ -100,7 +138,13 @@ suite('AgentSdkSetupChannel', () => {
 		downloads.fire(progress('started'));
 		downloads.fire(progress('failed'));
 
-		assert.deepStrictEqual(configuration.statuses, ['notDownloaded', 'downloading', 'notDownloaded']);
+		assert.deepStrictEqual({
+			statuses: configuration.statuses,
+			autoDownload: configuration.values[AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY],
+		}, {
+			statuses: ['notDownloaded', 'downloading', 'notDownloaded'],
+			autoDownload: ['claude'],
+		});
 	});
 
 	test('another agent download does not change this agent status', async () => {
@@ -109,6 +153,84 @@ suite('AgentSdkSetupChannel', () => {
 
 		downloads.fire(progress('started', 'codex'));
 
-		assert.deepStrictEqual(configuration.statuses, ['notDownloaded']);
+		assert.deepStrictEqual({
+			statuses: configuration.statuses,
+			autoDownload: configuration.values[AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY],
+		}, {
+			statuses: ['notDownloaded'],
+			autoDownload: undefined,
+		});
+	});
+
+	test('standing consent downloads a missing SDK on host startup', async () => {
+		const ctx = createChannel({ autoDownload: true });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			statuses: ctx.configuration.statuses,
+			downloads: ctx.downloadCalls(),
+			progressInterests: ctx.progressInterests,
+			lookedAgain: ctx.lookedAgain,
+		}, {
+			statuses: ['downloading', 'ready'],
+			downloads: 1,
+			progressInterests: [],
+			lookedAgain: ['discovery', 'models'],
+		});
+	});
+
+	test('existing cache history migrates consent to the host and downloads the new version', async () => {
+		const ctx = createChannel({ hasDownloadHistory: true });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			autoDownload: ctx.configuration.values[AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY],
+			downloads: ctx.downloadCalls(),
+			statuses: ctx.configuration.statuses,
+		}, {
+			autoDownload: ['claude'],
+			downloads: 1,
+			statuses: ['downloading', 'ready'],
+		});
+	});
+
+	test('an explicit request records host consent and surfaces progress', async () => {
+		const ctx = createChannel();
+		await timeout(0);
+
+		ctx.configuration.updateRootConfig({
+			[AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY]: { agent: 'claude', request: 'request-1' },
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			autoDownload: ctx.configuration.values[AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY],
+			downloads: ctx.downloadCalls(),
+			progressInterests: ctx.progressInterests,
+			statuses: ctx.configuration.statuses,
+		}, {
+			autoDownload: ['claude'],
+			downloads: 1,
+			progressInterests: ['claude'],
+			statuses: ['notDownloaded', 'downloading', 'ready'],
+		});
+	});
+
+	test('a failed automatic download waits for the next host lifetime to retry', async () => {
+		const ctx = createChannel({
+			autoDownload: true,
+			downloadSdk: async () => { throw new Error('offline'); },
+		});
+		await timeout(0);
+		ctx.configuration.updateRootConfig({ unrelated: true });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			downloads: ctx.downloadCalls(),
+			statuses: ctx.configuration.statuses,
+		}, {
+			downloads: 1,
+			statuses: ['downloading', 'notDownloaded'],
+		});
 	});
 });

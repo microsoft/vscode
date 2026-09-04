@@ -222,6 +222,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(IAgentSdkDownloader, {
 		_serviceBrand: undefined,
 		isAvailable: () => true,
+		hasSdkDownloadHistory: async () => false,
 		isSdkResolvableWithoutDownload: async () => true,
 	});
 	instantiationService.stub(IAgentHostCheckpointService, options.checkpointService ?? NULL_CHECKPOINT_SERVICE);

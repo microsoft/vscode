@@ -37,6 +37,7 @@ export class RecordingAgentSdkDownloader implements IAgentSdkDownloader {
 
 	/** Whether the SDK is already on disk. Defaults to {@link available}. */
 	resolvableWithoutDownload: boolean | undefined;
+	hasDownloadHistory = false;
 
 	/** What `loadSdkRoot` resolves to. Unset means "no download was expected here". */
 	loadSdkRootResult: (() => Promise<string>) | undefined;
@@ -51,6 +52,10 @@ export class RecordingAgentSdkDownloader implements IAgentSdkDownloader {
 
 	isAvailable(): boolean {
 		return this.available;
+	}
+
+	async hasSdkDownloadHistory(): Promise<boolean> {
+		return this.hasDownloadHistory;
 	}
 
 	async isSdkResolvableWithoutDownload(): Promise<boolean> {

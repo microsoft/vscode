@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { agentSdkSetupStatusKey, isAgentSdkSetupRequestFor, readAgentSdkSetupInfos, readConsentedSdkAgents, resolveConsentedSdkDownloads, resolveNewSdkDownloadConsents, writeConsentedSdkAgents, type IAgentSdkSetupInfo } from '../../common/agentSdkSetup.js';
+import { agentSdkSetupStatusKey, isAgentSdkSetupRequestFor, readAgentSdkSetupInfos } from '../../common/agentSdkSetup.js';
 
 suite('Agent SDK setup channel', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -74,66 +74,4 @@ suite('Agent SDK setup channel', () => {
 		assert.strictEqual(isAgentSdkSetupRequestFor('claude', 'claude'), false);
 	});
 
-	suite('standing consent', () => {
-		const claude: IAgentSdkSetupInfo = { agent: 'claude', download: 'notDownloaded' };
-		const codex: IAgentSdkSetupInfo = { agent: 'codex', download: 'notDownloaded' };
-		const none: ReadonlySet<string> = new Set();
-		const both: ReadonlySet<string> = new Set(['claude', 'codex']);
-
-		test('a consented user whose cache a version bump invalidated re-downloads with no gate', () => {
-			assert.deepStrictEqual(resolveConsentedSdkDownloads(both, [claude, codex], none), ['claude', 'codex']);
-		});
-
-		test('a user who never consented still sees the offer', () => {
-			assert.deepStrictEqual(resolveConsentedSdkDownloads(new Set(), [claude, codex], none), []);
-		});
-
-		test('starting a turn accepts its in-progress download for future version bumps', () => {
-			assert.deepStrictEqual(resolveNewSdkDownloadConsents(none, [
-				{ ...claude, download: 'downloading' },
-				codex,
-			]), ['claude']);
-		});
-
-		test('an already-consented in-progress download is not recorded again', () => {
-			assert.deepStrictEqual(resolveNewSdkDownloadConsents(new Set(['claude']), [
-				{ ...claude, download: 'downloading' },
-			]), []);
-		});
-
-		test('consenting to one agent is not consent to fetch another', () => {
-			// The button that records this says "download the Codex Agent SDK".
-			assert.deepStrictEqual(resolveConsentedSdkDownloads(new Set(['codex']), [claude, codex], none), ['codex']);
-		});
-
-		test('an SDK already on disk, or already fetching, is left alone', () => {
-			assert.deepStrictEqual(resolveConsentedSdkDownloads(both, [
-				{ ...claude, download: 'ready' },
-				{ ...codex, download: 'downloading' },
-			], none), []);
-		});
-
-		test('a download that failed is not retried until the next window', () => {
-			// The failure republishes `notDownloaded`, and every status change re-runs
-			// this — without the guard that is an unbounded retry loop.
-			assert.deepStrictEqual(resolveConsentedSdkDownloads(both, [claude, codex], new Set(['claude'])), ['codex']);
-		});
-
-		test('the consent record survives a round trip, and a corrupt one consents to nobody', () => {
-			assert.deepStrictEqual({
-				roundTrip: [...readConsentedSdkAgents(writeConsentedSdkAgents(both))],
-				absent: [...readConsentedSdkAgents(undefined)],
-				corrupt: [...readConsentedSdkAgents('{not json')],
-				wrongShape: [...readConsentedSdkAgents('{"claude":true}')],
-				// A stray non-string entry drops out rather than poisoning the set.
-				mixed: [...readConsentedSdkAgents('["claude",7]')],
-			}, {
-				roundTrip: ['claude', 'codex'],
-				absent: [],
-				corrupt: [],
-				wrongShape: [],
-				mixed: ['claude'],
-			});
-		});
-	});
 });
