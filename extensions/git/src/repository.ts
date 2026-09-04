@@ -41,6 +41,20 @@ function getIconUri(iconName: string, theme: string): Uri {
 	return Uri.file(path.join(iconsRootPath, theme, `${iconName}.svg`));
 }
 
+type SourceControlLineChanges = {
+	readonly insertions: number;
+	readonly deletions: number;
+};
+
+type SourceControlResourceDecorationsWithLineChanges = SourceControlResourceDecorations & {
+	readonly lineChanges?: SourceControlLineChanges;
+};
+
+function getResourcePathKey(uri: Uri): string {
+	const fsPath = path.normalize(uri.fsPath);
+	return isWindows ? fsPath.toLowerCase() : fsPath;
+}
+
 export const enum RepositoryState {
 	Idle,
 	Disposed
@@ -272,7 +286,11 @@ export class Resource implements SourceControlResourceState {
 		const tooltip = this.tooltip;
 		const strikeThrough = this.strikeThrough;
 		const faded = this.faded;
-		return { strikeThrough, faded, tooltip, light, dark };
+		const lineChanges = this._lineChanges && (this._lineChanges.insertions > 0 || this._lineChanges.deletions > 0)
+			? this._lineChanges
+			: undefined;
+		const decorations: SourceControlResourceDecorationsWithLineChanges = { strikeThrough, faded, tooltip, light, dark, lineChanges };
+		return decorations;
 	}
 
 	get letter(): string {
@@ -319,6 +337,7 @@ export class Resource implements SourceControlResourceState {
 		private _useIcons: boolean,
 		private _renameResourceUri?: Uri,
 		private _repositoryKind?: 'repository' | 'submodule' | 'worktree',
+		private _lineChanges?: SourceControlLineChanges,
 	) { }
 
 	async open(): Promise<void> {
@@ -342,7 +361,7 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	clone(resourceGroupType?: ResourceGroupType) {
-		return new Resource(this._commandResolver, resourceGroupType ?? this._resourceGroupType, this._resourceUri, this._type, this._useIcons, this._renameResourceUri, this._repositoryKind);
+		return new Resource(this._commandResolver, resourceGroupType ?? this._resourceGroupType, this._resourceUri, this._type, this._useIcons, this._renameResourceUri, this._repositoryKind, this._lineChanges);
 	}
 }
 
@@ -3008,6 +3027,36 @@ export class Repository implements Disposable {
 		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
 		const useIcons = !config.get<boolean>('decorations.enabled', true);
 
+		let indexDiffChanges: DiffChange[] = [];
+		let workingTreeDiffChanges: DiffChange[] = [];
+
+		if (!didHitLimit) {
+			try {
+				[indexDiffChanges, workingTreeDiffChanges] = await Promise.all([
+					this.repository.diffIndexWithHEADStats({ similarityThreshold }),
+					this.repository.diffWithHEADStats({ similarityThreshold })
+				]);
+			} catch {
+				// Best effort only: line stats should not block status updates.
+			}
+		}
+
+		const toLineChangesMap = (changes: DiffChange[]): Map<string, SourceControlLineChanges> => {
+			const lineChangesMap = new Map<string, SourceControlLineChanges>();
+
+			for (const change of changes) {
+				lineChangesMap.set(getResourcePathKey(change.uri), {
+					insertions: change.insertions,
+					deletions: change.deletions
+				});
+			}
+
+			return lineChangesMap;
+		};
+
+		const indexLineChanges = toLineChangesMap(indexDiffChanges);
+		const workingTreeLineChanges = toLineChangesMap(workingTreeDiffChanges);
+
 		if (didHitLimit && !shouldIgnore && !this.didWarnAboutLimit) {
 			const knownHugeFolderPaths = await this.findKnownHugeFolderPathsToIgnore();
 			const gitWarn = l10n.t('The git repository at "{0}" has too many active changes, only a subset of Git features will be enabled.', this.repository.root);
@@ -3051,6 +3100,8 @@ export class Repository implements Disposable {
 
 		status.forEach(raw => {
 			const uri = Uri.file(path.join(this.repository.root, raw.path));
+			const indexLineChangesForResource = indexLineChanges.get(getResourcePathKey(uri));
+			const workingTreeLineChangesForResource = workingTreeLineChanges.get(getResourcePathKey(uri));
 			const renameUri = raw.rename
 				? Uri.file(path.join(this.repository.root, raw.rename))
 				: undefined;
@@ -3076,19 +3127,19 @@ export class Repository implements Disposable {
 			}
 
 			switch (raw.x) {
-				case 'M': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_MODIFIED, useIcons, undefined, this.kind)); break;
-				case 'A': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_ADDED, useIcons, undefined, this.kind)); break;
-				case 'D': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_DELETED, useIcons, undefined, this.kind)); break;
-				case 'R': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_RENAMED, useIcons, renameUri, this.kind)); break;
-				case 'C': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_COPIED, useIcons, renameUri, this.kind)); break;
+				case 'M': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_MODIFIED, useIcons, undefined, this.kind, indexLineChangesForResource)); break;
+				case 'A': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_ADDED, useIcons, undefined, this.kind, indexLineChangesForResource)); break;
+				case 'D': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_DELETED, useIcons, undefined, this.kind, indexLineChangesForResource)); break;
+				case 'R': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_RENAMED, useIcons, renameUri, this.kind, indexLineChangesForResource)); break;
+				case 'C': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_COPIED, useIcons, renameUri, this.kind, indexLineChangesForResource)); break;
 			}
 
 			switch (raw.y) {
-				case 'M': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.MODIFIED, useIcons, renameUri, this.kind)); break;
-				case 'D': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.DELETED, useIcons, renameUri, this.kind)); break;
-				case 'A': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_ADD, useIcons, renameUri, this.kind)); break;
-				case 'R': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_RENAME, useIcons, renameUri, this.kind)); break;
-				case 'T': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.TYPE_CHANGED, useIcons, renameUri, this.kind)); break;
+				case 'M': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.MODIFIED, useIcons, renameUri, this.kind, workingTreeLineChangesForResource)); break;
+				case 'D': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.DELETED, useIcons, renameUri, this.kind, workingTreeLineChangesForResource)); break;
+				case 'A': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_ADD, useIcons, renameUri, this.kind, workingTreeLineChangesForResource)); break;
+				case 'R': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_RENAME, useIcons, renameUri, this.kind, workingTreeLineChangesForResource)); break;
+				case 'T': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.TYPE_CHANGED, useIcons, renameUri, this.kind, workingTreeLineChangesForResource)); break;
 			}
 
 			return undefined;
