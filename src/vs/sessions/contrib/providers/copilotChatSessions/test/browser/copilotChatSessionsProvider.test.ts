@@ -569,7 +569,7 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 	});
 
-	test('selects a repository without waiting for unresolved local GitHub metadata', async () => {
+	test('uses the selected folder without waiting for unresolved local GitHub metadata', async () => {
 		const calls: { commandId: string; repoId: unknown }[] = [];
 		const harness: IGitHubContextBrowseHarness = {
 			commandService: new class extends mock<ICommandService>() {
@@ -610,14 +610,13 @@ suite('CopilotChatSessionsProvider', () => {
 			issue: { uri: issue?.uri.toString(), label: issue?.label },
 		}, {
 			calls: [
-				{ commandId: 'github.copilot.chat.cloudSessions.openRepository', repoId: undefined },
-				{ commandId: 'openIssue', repoId: 'microsoft/vscode' },
+				{ commandId: 'openIssue', repoId: root },
 			],
 			issue: { uri: 'https://github.com/microsoft/vscode/issues/1', label: 'microsoft/vscode#1' },
 		});
 	});
 
-	test('selects a repository when the selected folder has no matching Git root', async () => {
+	test('passes the selected folder through when it has no matching Git root', async () => {
 		const calls: { commandId: string; repoId: unknown }[] = [];
 		const harness: IGitHubContextBrowseHarness = {
 			commandService: new class extends mock<ICommandService>() {
@@ -648,8 +647,7 @@ suite('CopilotChatSessionsProvider', () => {
 		await browseForGitHubContext.call(harness, 'openIssue', Codicon.issues, workspace);
 
 		assert.deepStrictEqual(calls, [
-			{ commandId: 'github.copilot.chat.cloudSessions.openRepository', repoId: undefined },
-			{ commandId: 'openIssue', repoId: 'microsoft/vscode' },
+			{ commandId: 'openIssue', repoId: root },
 		]);
 	});
 

@@ -262,6 +262,15 @@ export async function resolveGitHubContextRepository(gitService: IGitService, re
 	return undefined;
 }
 
+export async function resolveOrPickGitHubContextRepository(
+	gitService: IGitService,
+	repository: string | vscode.Uri | undefined,
+	pickRepository: () => Promise<string | undefined>,
+): Promise<string | undefined> {
+	const repositoryId = await resolveGitHubContextRepository(gitService, repository);
+	return repository && !repositoryId ? pickRepository() : repositoryId;
+}
+
 /** Context key gating the chat-input "Create pull request" toolbar action: true while the viewed cloud task is settled and has no PR yet. */
 const CAN_CREATE_PULL_REQUEST_CONTEXT_KEY = 'github.copilot.chat.cloudTaskCanCreatePullRequest';
 /** Context key gating the chat-input "Open pull request" toolbar action: true once the viewed cloud task has a pull request. */
@@ -783,9 +792,9 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			});
 		};
 		this._register(vscode.commands.registerCommand(OPEN_ISSUE_COMMAND_ID, async (repository?: string | vscode.Uri) =>
-			openGitHubContext('issue', await resolveGitHubContextRepository(this._gitService, repository))));
+			openGitHubContext('issue', await resolveOrPickGitHubContextRepository(this._gitService, repository, openRepositoryCommand))));
 		this._register(vscode.commands.registerCommand(OPEN_PULL_REQUEST_COMMAND_ID, async (repository?: string | vscode.Uri) =>
-			openGitHubContext('pullRequest', await resolveGitHubContextRepository(this._gitService, repository))));
+			openGitHubContext('pullRequest', await resolveOrPickGitHubContextRepository(this._gitService, repository, openRepositoryCommand))));
 
 		this._register(vscode.commands.registerCommand(CLEAR_CACHES_COMMAND_ID, () => {
 			this.logService.debug('copilotCloudSessionsProvider#clearCaches: clearing all cloud agent caches');

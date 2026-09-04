@@ -12,7 +12,7 @@ import { mock } from '../../../../util/common/test/simpleMock';
 import { ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
 import { ITaskApiClient, ListTaskEventsOptions, ListTasksOptions } from '../../common/taskApiTypes';
 import { ChatSessionContentBuilder, extractTaskErrorDetail, formatTaskStoppedMessage } from '../copilotCloudSessionContentBuilder';
-import { formatNewSessionContextReference, getCloudSessionItemMetadata, getCloudSessionResources, normalizeInitialSessionOptions, parseGitHubContextUrl, resolveGitHubContextRepository, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
+import { formatNewSessionContextReference, getCloudSessionItemMetadata, getCloudSessionResources, normalizeInitialSessionOptions, parseGitHubContextUrl, resolveGitHubContextRepository, resolveOrPickGitHubContextRepository, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
 import { TaskApiBackend, parseRepoFromTaskUrl, isCloudCodingAgentTask } from '../taskApiBackend';
 import { isActiveTaskState, isFailedTaskState } from '../../vscode/copilotCodingAgentUtils';
 import { NullCloudBackendInstrumentation } from '../cloudBackendTelemetry';
@@ -96,6 +96,21 @@ describe('copilotCloudSessionsProvider helpers', () => {
 			folder: 'microsoft/vscode-docs',
 			repository: 'microsoft/vscode',
 		});
+	});
+
+	it('offers repository selection only when a selected folder cannot be resolved', async () => {
+		const gitService = new TestGitService();
+		gitService.getRepositoryFetchUrls = vi.fn(async () => undefined);
+		const pickRepository = vi.fn(async () => 'microsoft/vscode');
+
+		expect({
+			selectedFolder: await resolveOrPickGitHubContextRepository(gitService, vscode.Uri.file('/workspace/vscode'), pickRepository),
+			noFolder: await resolveOrPickGitHubContextRepository(gitService, undefined, pickRepository),
+		}).toEqual({
+			selectedFolder: 'microsoft/vscode',
+			noFolder: undefined,
+		});
+		expect(pickRepository).toHaveBeenCalledTimes(1);
 	});
 
 	it('coerces object-shaped initialSessionOptions into option entries', () => {

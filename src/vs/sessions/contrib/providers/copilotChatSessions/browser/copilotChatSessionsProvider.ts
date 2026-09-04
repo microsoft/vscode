@@ -2755,14 +2755,16 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			}
 		}
 
-		const repoId = repositoryIds.size === 1
+		const repository = repositoryIds.size === 1
 			? repositoryIds.values().next().value
+			: currentWorkspace?.folders.length === 1 && currentWorkspace.folders[0].root.scheme === Schemas.file
+				? currentWorkspace.folders[0].root
 			: await this.commandService.executeCommand<string>(OPEN_REPO_COMMAND);
-		if (!repoId) {
+		if (!repository) {
 			return undefined;
 		}
 
-		const selection = await this.commandService.executeCommand<IGitHubContextSelection>(commandId, repoId);
+		const selection = await this.commandService.executeCommand<IGitHubContextSelection>(commandId, repository);
 		if (!selection) {
 			return undefined;
 		}
