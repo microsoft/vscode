@@ -1636,10 +1636,10 @@ suite('CopilotAgentSession', () => {
 			included: [false, false],
 			calls: [{
 				destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
-				include: { events: true, processLogs: true, shellLogs: true },
+				include: { events: true, processLogs: true, previousProcessLogLimit: 1, shellLogs: true },
 			}, {
 				destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
-				include: { events: false, processLogs: true, shellLogs: false },
+				include: { events: false, processLogs: true, previousProcessLogLimit: 1, shellLogs: false },
 			}],
 		});
 	});

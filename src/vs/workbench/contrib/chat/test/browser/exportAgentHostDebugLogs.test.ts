@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { VSBuffer, streamToBuffer } from '../../../../../base/common/buffer.js';
 import { isDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -18,7 +19,7 @@ import { InMemoryFileSystemProvider } from '../../../../../platform/files/common
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotification } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
-import { collectRotatedLogFiles, createHostArtifactStream, findOutputChannelLogFiles, getAgentHostDebugLogsExportName, notifyAgentHostDebugLogsExported, resolveAgentHostDebugLogsChat, toActiveAgentHostSession } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
+import { collectRotatedLogFiles, createHostArtifactStream, findOutputChannelLogFiles, getAgentHostDebugLogsExportName, notifyAgentHostDebugLogsExported, prepareAgentHostDebugLogsExport, resolveAgentHostDebugLogsChat, toActiveAgentHostSession } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
 
 function artifactOfSize(size: number): IAgentHostDebugLogsArtifact {
 	return {
@@ -78,6 +79,42 @@ suite('notifyAgentHostDebugLogsExported', () => {
 		}, {
 			desktopClipboardText: desktopArchive.fsPath,
 			webClipboardText: webExportFolder.fsPath,
+		});
+	});
+});
+
+suite('prepareAgentHostDebugLogsExport', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('selects the destination while logs are collected', async () => {
+		const calls: string[] = [];
+		const destination = new DeferredPromise<URI | undefined>();
+		const collection = new DeferredPromise<{ files: []; hostArtifact: undefined }>();
+
+		const resultPromise = prepareAgentHostDebugLogsExport(
+			() => {
+				calls.push('selectDestination');
+				return destination.p;
+			},
+			() => {
+				calls.push('collectLogs');
+				return collection.p;
+			},
+		);
+
+		assert.deepStrictEqual(calls, ['selectDestination', 'collectLogs']);
+		destination.complete(URI.file('/exports/ah-logs.zip'));
+		collection.complete({ files: [], hostArtifact: undefined });
+
+		const [collectionResult, destinationResult] = await resultPromise;
+		assert.deepStrictEqual({
+			collectionStatus: collectionResult.status,
+			destinationStatus: destinationResult.status,
+			destination: destinationResult.status === 'fulfilled' ? destinationResult.value?.fsPath : undefined,
+		}, {
+			collectionStatus: 'fulfilled',
+			destinationStatus: 'fulfilled',
+			destination: URI.file('/exports/ah-logs.zip').fsPath,
 		});
 	});
 });
