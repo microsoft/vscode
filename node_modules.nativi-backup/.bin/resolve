@@ -1,0 +1,1 @@
+../resolve/bin/resolve

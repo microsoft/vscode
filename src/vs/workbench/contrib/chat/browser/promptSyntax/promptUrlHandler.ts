@@ -124,10 +124,10 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 			uriLabel = `${uriLabel.substring(0, 35)}...${uriLabel.substring(uriLabel.length - 15)}`;
 		}
 
-		// The label is truncated, so carry the full URI in the attributes; escaped for attribute context.
+		// The label is truncated, so carry the full URI in `title`; escaped for the attribute context.
 		const uriAttribute = urlString.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 		const detail = new MarkdownString('', { supportHtml: true });
-		detail.appendMarkdown(localize('confirmOpenDetail2', "This will access {0}.\n\n", `<a href="${uriAttribute}" title="${uriAttribute}" aria-label="${uriAttribute}">${uriLabel}</a>`));
+		detail.appendMarkdown(localize('confirmOpenDetail2', "This will access {0}.\n\n", `<a href="${uriAttribute}" title="${uriAttribute}">${uriLabel}</a>`));
 		detail.appendMarkdown(localize('confirmOpenDetail3', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"));
 
 		let message: string;
