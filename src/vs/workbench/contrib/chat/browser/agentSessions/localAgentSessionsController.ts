@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from '../../../../../base/common/arrays.js';
+import { Throttler } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -53,19 +54,29 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 	}
 
 	private _items = new ResourceMap<LocalChatSessionItem>();
+	private readonly _refreshThrottler = this._register(new Throttler());
+
 	get items(): readonly IChatSessionItem[] {
 		return Array.from(this._items.values());
 	}
 
-	async refresh(token: CancellationToken): Promise<void> {
+	refresh(token: CancellationToken): Promise<void> {
+		return this._refreshThrottler.queue(() => this.doRefresh(token));
+	}
+
+	private async doRefresh(token: CancellationToken): Promise<void> {
 		const newItems = await this.provideChatSessionItems(token);
+		if (token.isCancellationRequested || this._isDisposed) {
+			return;
+		}
 
 		const newResources = new ResourceSet(newItems.map(i => i.resource));
 		const addedOrUpdated: LocalChatSessionItem[] = [];
 		const removed: URI[] = [];
 
 		for (const item of newItems) {
-			if (!this._items.has(item.resource)) {
+			const existing = this._items.get(item.resource);
+			if (!existing || !existing.isEqual(item)) {
 				addedOrUpdated.push(item);
 			}
 		}
@@ -95,7 +106,7 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 			}
 
 			await this.refresh(CancellationToken.None);
-			if (this._isDisposed) {
+			if (this._isDisposed || this.chatService.getSession(model.sessionResource) !== model) {
 				return;
 			}
 
@@ -121,18 +132,18 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 				this._modelListeners.deleteAndDispose(sessionResource);
 			}
 
-			const removedSessionResources = e.sessionResources.filter(resource => getChatSessionType(resource) === this.chatSessionType);
-			if (removedSessionResources.length) {
-				for (const resource of removedSessionResources) {
-					this._items.delete(resource);
-				}
-				this._onDidChangeChatSessionItems.fire({ removed: removedSessionResources });
+			if (e.sessionResources.some(resource => getChatSessionType(resource) === this.chatSessionType)) {
+				void this.refresh(CancellationToken.None);
 			}
 		}));
 	}
 
 	private async tryUpdateLiveSessionItem(model: IChatModel): Promise<void> {
 		const updated = this.toChatSessionItem(await chatModelToChatDetail(model));
+		// Model may have been unloaded/replaced while we awaited detail conversion.
+		if (this.chatService.getSession(model.sessionResource) !== model) {
+			return;
+		}
 		if (!updated) {
 			// The session no longer qualifies as a list item (e.g. it has no requests
 			// yet, or its requests were removed). Drop any stale item we were showing.
