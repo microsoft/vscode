@@ -1130,7 +1130,8 @@ export interface ResourceMkdirResult {
  * ```jsonc
  * // Client → Server
  * { "jsonrpc": "2.0", "id": 3, "method": "authenticate",
- *   "params": { "channel": "ahp-root://", "resource": "https://api.github.com", "token": "gho_xxxx" } }
+ *   "params": { "channel": "ahp-root://", "resource": "https://api.github.com",
+ *     "token": "gho_xxxx", "expiresIn": 3540 } }
  *
  * // Server → Client (success)
  * { "jsonrpc": "2.0", "id": 3, "result": {} }
@@ -1150,6 +1151,23 @@ export interface AuthenticateParams extends BaseParams {
 	resource: string;
 	/** Bearer token obtained from the resource's authorization server */
 	token: string;
+	/**
+	 * The access token's remaining lifetime, in seconds, when this
+	 * `authenticate` request is sent. This corresponds to `expires_in` in an
+	 * OAuth 2.0 token response (RFC 6749 section 5.1).
+	 *
+	 * If the client retained the original token response, it MUST subtract the
+	 * elapsed time before forwarding this value. Omit this field when the
+	 * authorization server did not supply an expiry or the expiry is otherwise
+	 * unknown. When supplied, the value MUST be a positive integer.
+	 *
+	 * This field is irrelevant when `token` is empty to revoke authentication
+	 * and SHOULD be omitted in that case.
+	 *
+	 * @integer
+	 * @minimum 1
+	 */
+	expiresIn?: number;
 	/**
 	 * OAuth scopes the token grants, when known. Lets the server determine
 	 * whether a specific challenge — e.g. the `requiredScopes` on a live

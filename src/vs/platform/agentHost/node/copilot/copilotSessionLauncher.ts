@@ -30,6 +30,7 @@ import { IAgentHostSessionOpenTelemetry } from '../agentHostSessionOpenTelemetry
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
+import { CopilotGitHubTokenProvider } from './copilotGitHubTokenProvider.js';
 import { toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
@@ -258,7 +259,7 @@ interface ICopilotSessionLaunchBase {
 	 */
 	readonly activeClientToolSet: ActiveClientToolSet;
 	readonly shellManager: ShellManager | undefined;
-	readonly githubToken: string | undefined;
+	readonly githubCredentials: CopilotGitHubSessionCredentials;
 
 	/**
 	 * Whether this is a workspace-less session. Threaded into the
@@ -268,6 +269,10 @@ interface ICopilotSessionLaunchBase {
 	 */
 	readonly workspaceless?: boolean;
 }
+
+export type CopilotGitHubSessionCredentials =
+	| { readonly kind: 'token'; readonly token: string | undefined }
+	| { readonly kind: 'provider'; readonly provider: CopilotGitHubTokenProvider };
 
 export interface ICopilotCreateSessionLaunchPlan extends ICopilotSessionLaunchBase {
 	readonly kind: 'create';
@@ -1021,14 +1026,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
 				.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),
 			tools: promptOverrides.tools,
-			// Pass the GitHub token at the session level. The SDK's
-			// client-level `gitHubToken` authenticates the CLI process,
-			// but each session also needs its own token resolved into a
-			// GitHub identity (login, Copilot plan, endpoints) to drive
-			// model routing and quota — without this the session
-			// errors with "Session was not created with authentication
-			// info or custom provider" on first send. See #318693.
-			gitHubToken: plan.githubToken,
+			...(plan.githubCredentials.kind === 'provider'
+				? { gitHubTokenProvider: plan.githubCredentials.provider.provideToken }
+				: { gitHubToken: plan.githubCredentials.token }),
 			// Enable infinite sessions so the SDK provisions a workspace
 			// directory (containing `plan.md`, `checkpoints/`, `files/`).
 			// The workspace is required for plan mode to work — without

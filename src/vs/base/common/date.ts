@@ -15,6 +15,17 @@ const month = day * 30;
 const year = day * 365;
 
 /**
+ * Returns the positive number of whole seconds until `expiresAt`, rounded up.
+ */
+export function getRemainingTimeInSeconds(expiresAt: number | undefined, now = Date.now()): number | undefined {
+	if (expiresAt === undefined) {
+		return undefined;
+	}
+	const remaining = Math.ceil((expiresAt - now) / 1000);
+	return remaining > 0 ? remaining : undefined;
+}
+
+/**
  * Create a localized difference of the time between now and the specified date.
  * @param date The date to generate the difference from.
  * @param appendAgoLabel Whether to append the " ago" to the end.
