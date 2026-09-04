@@ -30,12 +30,22 @@ export class PendingRequestRegistry<TResult, TMeta = void> {
 	 */
 	private readonly _earlyResults = new Map<string, TResult>();
 
-	/** Atomically park a deferred and optional metadata, then invoke `fire` to prevent synchronous responses racing registration. */
+	/**
+	 * Atomically park a deferred and optional metadata, then invoke `fire` so a
+	 * synchronous response cannot race registration.
+	 *
+	 * A duplicate call for a still-parked key awaits that request and does not
+	 * fire again, because only one response is produced and it must settle both.
+	 */
 	registerAndFire(key: string, fire: () => void, ...metadata: MetadataArgument<TMeta>): Promise<TResult> {
 		if (this._earlyResults.has(key)) {
 			const buffered = this._earlyResults.get(key) as TResult;
 			this._earlyResults.delete(key);
 			return Promise.resolve(buffered);
+		}
+		const existing = this._entries.get(key);
+		if (existing && !existing.deferred.isSettled) {
+			return existing.deferred.p;
 		}
 		const deferred = new DeferredPromise<TResult>();
 		this._entries.set(key, { deferred, metadata: metadata[0] as TMeta });

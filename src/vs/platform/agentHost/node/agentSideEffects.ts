@@ -753,8 +753,16 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		if (signal.kind === 'client_tool_invoked') {
-			// No turn to attach the call to, so nothing can ever answer it.
-			this._logService.warn(`[AgentSideEffects] Dropping client tool invocation ${signal.toolCallId} on ${sessionKey}: no active turn`);
+			// The provider parked a deferred before firing this, so it must be answered.
+			const message = localize('agentHost.clientTool.noTurn', "No active turn to run the tool \"{0}\".", signal.toolName);
+			this._logService.warn(`[AgentSideEffects] Failing client tool invocation ${signal.toolCallId} on ${sessionKey}: no active turn`);
+			this._notifyClientToolCallComplete(
+				sessionKey,
+				signal.chat.toString(),
+				signal.toolCallId,
+				{ success: false, pastTenseMessage: message, error: { message, code: CLIENT_TOOL_UNAVAILABLE_ERROR_CODE } },
+				'server-envelope',
+			);
 			return;
 		}
 		if (signal.kind === 'action') {

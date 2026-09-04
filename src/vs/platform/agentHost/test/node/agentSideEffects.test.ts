@@ -7079,6 +7079,24 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(executionRequests(), [{ toolCallId: 'tc-1', clientId: 'client-1' }]);
 		});
 
+		test('an invocation with no active turn is failed back to the provider', () => {
+			agent.drivesClientToolExecution = true;
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			// No turn to attach the call to, but the provider is already awaiting it.
+
+			invoke('tc-1', 'runTask', '{}');
+
+			assert.deepStrictEqual(
+				agent.clientToolCallCompleteCalls.map(call => ({
+					toolCallId: call.toolCallId,
+					success: call.result.success,
+					code: call.result.error?.code,
+				})),
+				[{ toolCallId: 'tc-1', success: false, code: 'toolUnavailable' }],
+				'the parked invocation must be answered rather than left waiting',
+			);
+		});
 		test('a call with no connected owner fails once and is forwarded once', () => {
 			agent.drivesClientToolExecution = true;
 			setupSession();

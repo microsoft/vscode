@@ -24,6 +24,32 @@ suite('PendingRequestRegistry', () => {
 		assert.strictEqual(await promise, true);
 	});
 
+	test('duplicate registerAndFire awaits the parked request, fires once, and one response settles both', async () => {
+		const registry = new PendingRequestRegistry<string>();
+		let fired = 0;
+
+		// The SDK re-invokes the same tool_use_id before the first is answered.
+		const first = registry.registerAndFire('tool_use_1', () => { fired++; });
+		const second = registry.registerAndFire('tool_use_1', () => { fired++; });
+
+		assert.strictEqual(fired, 1, 'the duplicate must not fire a second invocation');
+
+		// Only one response is ever produced, and it must settle both awaiters.
+		assert.strictEqual(registry.respond('tool_use_1', 'done'), true);
+		assert.strictEqual(await first, 'done');
+		assert.strictEqual(await second, 'done', 'the original invocation must not hang');
+	});
+
+	test('registerAndFire parks a fresh request once the previous one settled', async () => {
+		const registry = new PendingRequestRegistry<string>();
+		const first = registry.registerAndFire('k', () => { });
+		registry.respond('k', 'one');
+		assert.strictEqual(await first, 'one');
+
+		const second = registry.registerAndFire('k', () => { });
+		registry.respond('k', 'two');
+		assert.strictEqual(await second, 'two');
+	});
 	test('respond on an unknown key returns false; on a known key resolves the deferred and removes the entry', async () => {
 		const registry = new PendingRequestRegistry<string>();
 		assert.strictEqual(registry.respond('missing', 'x'), false);
