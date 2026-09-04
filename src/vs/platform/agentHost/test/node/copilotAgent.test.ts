@@ -41,7 +41,7 @@ import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent } from '../../common/agent.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -50,6 +50,7 @@ import { ChatOriginKind, CustomizationEnablementKind, CustomizationType, Session
 import { ActionType, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -634,6 +635,60 @@ class TestCopilotClient implements ITestCopilotClient {
 	resumeSession: ITestCopilotClient['resumeSession'] = async () => { throw new Error('not implemented'); };
 }
 
+const TEST_MCP_RESOURCE = 'https://mcp.example.com';
+const TEST_MCP_SCOPES = ['read'] as const;
+type TestMcpAuthConfig = Pick<Parameters<ITestCopilotClient['createSession']>[0], 'onMcpAuthRequest'>;
+type TestMcpAuthHandler = NonNullable<TestMcpAuthConfig['onMcpAuthRequest']>;
+type TestMcpAuthResult = Awaited<ReturnType<TestMcpAuthHandler>>;
+
+class McpAuthChallengeCopilotClient extends TestCopilotClient {
+	readonly authenticationResponses: TestMcpAuthResult[] = [];
+	readonly requestedSessionIds: string[] = [];
+	private readonly _authenticationRequestWaiters: Array<{ readonly count: number; readonly deferred: DeferredPromise<void> }> = [];
+
+	constructor(sessions: TestCopilotSessionMetadata[]) {
+		super(sessions);
+		this.createSession = config => this._createSession(config.sessionId ?? 'generated-session', config);
+		this.resumeSession = (sessionId, config) => this._createSession(sessionId, config);
+	}
+
+	whenAuthenticationRequests(count: number): Promise<void> {
+		if (this.requestedSessionIds.length >= count) {
+			return Promise.resolve();
+		}
+		const deferred = new DeferredPromise<void>();
+		this._authenticationRequestWaiters.push({ count, deferred });
+		return deferred.p;
+	}
+
+	private async _createSession(sessionId: string, config: TestMcpAuthConfig): Promise<CopilotSession> {
+		this.requestedSessionIds.push(sessionId);
+		for (let i = this._authenticationRequestWaiters.length - 1; i >= 0; i--) {
+			const waiter = this._authenticationRequestWaiters[i];
+			if (this.requestedSessionIds.length >= waiter.count) {
+				this._authenticationRequestWaiters.splice(i, 1);
+				waiter.deferred.complete();
+			}
+		}
+		const handler = config.onMcpAuthRequest;
+		assert.ok(handler);
+		const response = await handler({
+			requestId: `mcp-auth-${sessionId}`,
+			serverName: 'example',
+			serverUrl: TEST_MCP_RESOURCE,
+			reason: 'initial',
+			wwwAuthenticateParams: { scope: TEST_MCP_SCOPES.join(' ') },
+			resourceMetadata: JSON.stringify({
+				resource: TEST_MCP_RESOURCE,
+				resource_name: 'Example MCP',
+				authorization_servers: ['https://auth.example.com'],
+			}),
+		}, { sessionId });
+		this.authenticationResponses.push(response);
+		return new MockCopilotSession(sessionId) as unknown as CopilotSession;
+	}
+}
+
 class RecordingTelemetryService extends NullTelemetryServiceShape {
 	readonly events: Array<{ eventName: string; data: unknown }> = [];
 	readonly errorEvents: Array<{ eventName: string; data: unknown }> = [];
@@ -672,7 +727,6 @@ interface ICredentialUpdateSession {
 }
 
 class MockCopilotSession {
-	readonly sessionId = 'test-session-1';
 	readonly workingDirectoryCalls: string[] = [];
 	readonly workingDirectoryErrors: Array<Error | undefined> = [];
 	readonly workingDirectoryResults: string[] = [];
@@ -703,6 +757,8 @@ class MockCopilotSession {
 	};
 	private readonly _handlers = new Set<SessionEventHandler>();
 	private readonly _typedHandlers = new Map<SessionEventType, Set<(event: SessionEventPayload<SessionEventType>) => void>>();
+
+	constructor(readonly sessionId = 'test-session-1') { }
 
 	on(_handler: SessionEventHandler): () => void;
 	on<K extends SessionEventType>(_eventType: K, _handler: TypedSessionEventHandler<K>): () => void;
@@ -968,9 +1024,10 @@ function getCreatedClientOptions(agent: CopilotAgent): readonly CopilotClientOpt
 	return agent.createdClientOptions;
 }
 
-function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry; otelService?: IAgentHostOTelService; customizationEnablementService?: ICustomizationEnablementService; worktreeIsolation?: IAgentHostWorktreeIsolation; rootConfig?: Record<string, unknown>; now?: () => number }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; worktreeIsolation: IAgentHostWorktreeIsolation; managedSettingsService: IAgentHostManagedSettingsService; fileService: FileService; stateManager: AgentHostStateManager } {
+function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry; otelService?: IAgentHostOTelService; customizationEnablementService?: ICustomizationEnablementService; worktreeIsolation?: IAgentHostWorktreeIsolation; rootConfig?: Record<string, unknown>; now?: () => number }): { agent: CopilotAgent; instantiationService: IInstantiationService; authenticationService: AgentHostAuthenticationService; configurationService: IAgentConfigurationService; worktreeIsolation: IAgentHostWorktreeIsolation; managedSettingsService: IAgentHostManagedSettingsService; fileService: FileService; stateManager: AgentHostStateManager } {
 	const services = new ServiceCollection();
 	const logService = options?.logService ?? new NullLogService();
+	const authenticationService = disposables.add(new AgentHostAuthenticationService(logService));
 	const fileService = options?.fileService ?? disposables.add(new FileService(logService));
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
@@ -981,6 +1038,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	const managedSettingsService = disposables.add(new AgentHostManagedSettingsService());
 	const telemetryService = options?.telemetryService ?? NullTelemetryService;
 	services.set(ILogService, logService);
+	services.set(IAgentHostAuthenticationService, authenticationService);
 	services.set(IFileService, fileService);
 	services.set(IAgentConfigurationService, configService);
 	services.set(IAgentHostManagedSettingsService, managedSettingsService);
@@ -1045,7 +1103,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 			? instantiationService.createInstance(ResumePathCopilotAgent, options.copilotClient)
 			: instantiationService.createInstance(TestableCopilotAgent, options.copilotClient, options.now ?? Date.now)
 		: instantiationService.createInstance(CopilotAgent);
-	return { agent, instantiationService, configurationService: configService, worktreeIsolation, managedSettingsService, fileService, stateManager };
+	return { agent, instantiationService, authenticationService, configurationService: configService, worktreeIsolation, managedSettingsService, fileService, stateManager };
 }
 
 function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry; otelService?: IAgentHostOTelService }): CopilotAgent {
@@ -1215,6 +1273,330 @@ suite('CopilotAgent', () => {
 		assert.deepStrictEqual({ initializedSession, result }, {
 			initializedSession: AgentSession.uri('copilotcli', 'session').toString(),
 			result: [GITHUB_MCP_SERVER_NAME],
+		});
+	});
+
+	suite('MCP authentication during session initialization', () => {
+		const authenticationParams = (scopes: readonly string[] = TEST_MCP_SCOPES): AuthenticateParams => ({
+			resource: TEST_MCP_RESOURCE,
+			scopes,
+			token: 'mcp-token',
+		});
+		const authenticateMcp = async (authenticationService: AgentHostAuthenticationService, agent: CopilotAgent, scopes?: readonly string[]): Promise<boolean> => {
+			const result = await authenticationService.authenticate(authenticationParams(scopes), [agent]);
+			return result.authenticated;
+		};
+
+		test('one token authenticates every concurrently initializing new session', async () => {
+			const client = new McpAuthChallengeCopilotClient([]);
+			const { agent, authenticationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				sessionDataService: disposables.add(new TestSessionDataService()),
+			});
+			const sessions = ['mcp-auth-create-1', 'mcp-auth-create-2'].map(id => AgentSession.uri('copilotcli', id));
+			try {
+				await agent.authenticate('https://api.github.com', 'github-token');
+				const creations = sessions.map(session => {
+					const chat = defaultChatUri(session);
+					return agent.chats.createChat(chat, exactChatContext(session, chat, session), {
+						workingDirectories: [URI.file('/workspace')],
+						deferBacking: false,
+					});
+				});
+				await client.whenAuthenticationRequests(2);
+
+				const insufficientScopesHandled = await authenticateMcp(authenticationService, agent, []);
+				const handled = await authenticateMcp(authenticationService, agent);
+				await Promise.all(creations);
+
+				assert.deepStrictEqual({
+					insufficientScopesHandled,
+					handled,
+					requestedSessionCount: client.requestedSessionIds.length,
+					uniqueRequestedSessionCount: new Set(client.requestedSessionIds).size,
+					authenticationResponses: client.authenticationResponses,
+					liveSessions: sessions.map(session => hasLiveChat(agent, defaultChatUri(session))),
+				}, {
+					insufficientScopesHandled: false,
+					handled: true,
+					requestedSessionCount: 2,
+					uniqueRequestedSessionCount: 2,
+					authenticationResponses: [
+						{ kind: 'token', accessToken: 'mcp-token' },
+						{ kind: 'token', accessToken: 'mcp-token' },
+					],
+					liveSessions: [true, true],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('a later new session accepts a repeated delivery of the persisted token', async () => {
+			const client = new McpAuthChallengeCopilotClient([]);
+			const { agent, authenticationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				sessionDataService: disposables.add(new TestSessionDataService()),
+			});
+			const create = (id: string) => {
+				const session = AgentSession.uri('copilotcli', id);
+				const chat = defaultChatUri(session);
+				return agent.chats.createChat(chat, exactChatContext(session, chat, session), {
+					workingDirectories: [URI.file('/workspace')],
+					deferBacking: false,
+				});
+			};
+			try {
+				await agent.authenticate('https://api.github.com', 'github-token');
+				const firstCreation = create('mcp-auth-reuse-1');
+				await client.whenAuthenticationRequests(1);
+				const firstHandled = await authenticateMcp(authenticationService, agent);
+				await firstCreation;
+
+				const secondCreation = create('mcp-auth-reuse-2');
+				await client.whenAuthenticationRequests(2);
+				const secondHandled = await authenticateMcp(authenticationService, agent);
+				await secondCreation;
+
+				assert.deepStrictEqual({
+					firstHandled,
+					secondHandled,
+					requestedSessionCount: client.requestedSessionIds.length,
+					authenticationResponses: client.authenticationResponses,
+				}, {
+					firstHandled: true,
+					secondHandled: true,
+					requestedSessionCount: 2,
+					authenticationResponses: [
+						{ kind: 'token', accessToken: 'mcp-token' },
+						{ kind: 'token', accessToken: 'mcp-token' },
+					],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('routes authentication while materializing a provisional session', async () => {
+			const client = new McpAuthChallengeCopilotClient([]);
+			const { agent, authenticationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				sessionDataService: disposables.add(new TestSessionDataService()),
+			});
+			const session = AgentSession.uri('copilotcli', 'mcp-auth-materialize');
+			const chat = defaultChatUri(session);
+			const workingDirectory = URI.file('/workspace');
+			try {
+				await agent.authenticate('https://api.github.com', 'github-token');
+				const created = await provisionSession(agent, {
+					session,
+					workingDirectories: [workingDirectory],
+				});
+				const send = agent.chats.sendMessage(
+					chat,
+					'hello',
+					[workingDirectory],
+					undefined,
+					'turn-1',
+					'client-1',
+					exactChatContext(session, chat, session),
+				);
+				await client.whenAuthenticationRequests(1);
+
+				const handled = await authenticateMcp(authenticationService, agent);
+				await send;
+
+				assert.deepStrictEqual({
+					provisionalBeforeSend: created.provisional,
+					handled,
+					authenticationResponses: client.authenticationResponses,
+					live: hasLiveChat(agent, chat),
+				}, {
+					provisionalBeforeSend: true,
+					handled: true,
+					authenticationResponses: [{ kind: 'token', accessToken: 'mcp-token' }],
+					live: true,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('routes authentication while cold-resuming a persisted session', async () => {
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/mcp-auth-resume-`);
+			const sessionId = 'mcp-auth-resume';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const chat = defaultChatUri(session);
+			const client = new McpAuthChallengeCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const { agent, authenticationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				useRealResumePath: true,
+				sessionDataService: disposables.add(new TestSessionDataService()),
+			});
+			chatBackings(agent).set(chat.toString(), { sdkSessionId: sessionId });
+			chatScopes(agent).set(chat.toString(), session);
+			try {
+				await agent.authenticate('https://api.github.com', 'github-token');
+				const messages = agent.chats.getMessages(chat, exactChatContext(session, chat, session));
+				await client.whenAuthenticationRequests(1);
+
+				const handled = await authenticateMcp(authenticationService, agent);
+				const turns = await messages;
+
+				assert.deepStrictEqual({
+					handled,
+					requestedSessionIds: client.requestedSessionIds,
+					authenticationResponses: client.authenticationResponses,
+					turns,
+					live: hasLiveChat(agent, chat),
+				}, {
+					handled: true,
+					requestedSessionIds: [sessionId],
+					authenticationResponses: [{ kind: 'token', accessToken: 'mcp-token' }],
+					turns: [],
+					live: true,
+				});
+			} finally {
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('routes authentication while resuming a persisted peer chat', async () => {
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/mcp-auth-peer-resume-`);
+			const session = AgentSession.uri('copilotcli', 'mcp-auth-peer-owner');
+			const chat = URI.parse(buildChatUri(session, 'peer'));
+			const sdkSessionId = 'mcp-auth-peer-sdk';
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const dbRef = sessionDataService.openDatabase(session);
+			try {
+				await dbRef.object.setMetadata('copilot.workingDirectory', URI.file(workingDirectory).toString());
+			} finally {
+				dbRef.dispose();
+			}
+			const client = new McpAuthChallengeCopilotClient([sdkSession(sdkSessionId, workingDirectory)]);
+			const { agent, authenticationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				useRealResumePath: true,
+				sessionDataService,
+			});
+			chatBackings(agent).set(chat.toString(), { sdkSessionId });
+			chatScopes(agent).set(chat.toString(), session);
+			try {
+				await agent.authenticate('https://api.github.com', 'github-token');
+				const messages = agent.chats.getMessages(chat, exactChatContext(session, chat));
+				await client.whenAuthenticationRequests(1);
+
+				const handled = await authenticateMcp(authenticationService, agent);
+				const turns = await messages;
+
+				assert.deepStrictEqual({
+					handled,
+					requestedSessionIds: client.requestedSessionIds,
+					authenticationResponses: client.authenticationResponses,
+					turns,
+					live: hasLiveChat(agent, chat),
+				}, {
+					handled: true,
+					requestedSessionIds: [sdkSessionId],
+					authenticationResponses: [{ kind: 'token', accessToken: 'mcp-token' }],
+					turns: [],
+					live: true,
+				});
+			} finally {
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('shutdown cancels an MCP authentication-blocked initialization', async () => {
+			const client = new McpAuthChallengeCopilotClient([]);
+			const agent = createTestAgent(disposables, {
+				copilotClient: client,
+				sessionDataService: disposables.add(new TestSessionDataService()),
+			});
+			const session = AgentSession.uri('copilotcli', 'mcp-auth-shutdown');
+			const chat = defaultChatUri(session);
+			try {
+				await agent.authenticate('https://api.github.com', 'github-token');
+				const creation = assert.rejects(
+					() => agent.chats.createChat(chat, exactChatContext(session, chat, session), {
+						workingDirectories: [URI.file('/workspace')],
+						deferBacking: false,
+					}),
+					(error: unknown) => isCancellationError(error),
+				);
+				await client.whenAuthenticationRequests(1);
+
+				await agent.shutdown();
+				await creation;
+
+				assert.deepStrictEqual({
+					authenticationResponses: client.authenticationResponses,
+					live: hasLiveChat(agent, chat),
+					stopCallCount: client.stopCallCount,
+				}, {
+					authenticationResponses: [{ kind: 'cancelled' }],
+					live: false,
+					stopCallCount: 1,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('shutdown prevents registration after post-initialization metadata work', async () => {
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/mcp-auth-post-init-shutdown-`);
+			const sessionId = 'mcp-auth-post-init-shutdown';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const chat = defaultChatUri(session);
+			const primary = URI.file(workingDirectory);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const dbRef = sessionDataService.openDatabase(session);
+			try {
+				await dbRef.object.setMetadata('copilot.workingDirectory', primary.toString());
+				await dbRef.object.setMetadata('copilot.workingDirectories', JSON.stringify([primary.toString()]));
+			} finally {
+				dbRef.dispose();
+			}
+			const releaseMetadataWrite = new DeferredPromise<void>();
+			const metadataWriteStarted = new DeferredPromise<void>();
+			sessionDataService.gateNextMetadataWrite(session, 'copilot.workingDirectories', releaseMetadataWrite.p, metadataWriteStarted);
+			const client = new McpAuthChallengeCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const { agent, authenticationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				useRealResumePath: true,
+				sessionDataService,
+			});
+			chatBackings(agent).set(chat.toString(), { sdkSessionId: sessionId });
+			chatScopes(agent).set(chat.toString(), session);
+			try {
+				await agent.authenticate('https://api.github.com', 'github-token');
+				const messages = assert.rejects(
+					() => agent.chats.getMessages(chat, exactChatContext(session, chat, session)),
+					(error: unknown) => isCancellationError(error),
+				);
+				await client.whenAuthenticationRequests(1);
+				await authenticateMcp(authenticationService, agent);
+				await metadataWriteStarted.p;
+
+				const shutdown = agent.shutdown();
+				releaseMetadataWrite.complete();
+				await messages;
+				await shutdown;
+
+				assert.deepStrictEqual({
+					live: hasLiveChat(agent, chat),
+					stopCallCount: client.stopCallCount,
+				}, {
+					live: false,
+					stopCallCount: 1,
+				});
+			} finally {
+				releaseMetadataWrite.complete();
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
 		});
 	});
 

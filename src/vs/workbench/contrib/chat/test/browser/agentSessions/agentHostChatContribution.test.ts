@@ -14290,14 +14290,18 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
-		test('deduplicates concurrent silent authentication across sessions', async () => {
+		test('delivers concurrent silent authentication to every session', async () => {
 			const sessionsGate = new DeferredPromise<void>();
+			const secondSessionRequest = new DeferredPromise<void>();
 			let sessionRequests = 0;
 			const { sessionHandler, agentHostService, instantiationService } = createContribution(disposables, {
 				authServiceOverride: {
 					getOrActivateProviderIdForServer: async () => 'notion',
 					getSessions: async () => {
 						sessionRequests++;
+						if (sessionRequests === 2) {
+							secondSessionRequest.complete();
+						}
 						await sessionsGate.p;
 						return [{
 							id: 'notion-session',
@@ -14356,6 +14360,7 @@ suite('AgentHostChatContribution', () => {
 			await timeout(0);
 			const requestsBeforeResolution = sessionRequests;
 			sessionsGate.complete();
+			await secondSessionRequest.p;
 			await timeout(0);
 
 			assert.deepStrictEqual({
@@ -14364,12 +14369,19 @@ suite('AgentHostChatContribution', () => {
 				authenticateCalls: agentHostService.authenticateCalls,
 			}, {
 				requestsBeforeResolution: 1,
-				sessionRequests: 1,
-				authenticateCalls: [{
-					resource: 'https://mcp.notion.com/mcp',
-					scopes: [],
-					token: 'notion-token',
-				}],
+				sessionRequests: 2,
+				authenticateCalls: [
+					{
+						resource: 'https://mcp.notion.com/mcp',
+						scopes: [],
+						token: 'notion-token',
+					},
+					{
+						resource: 'https://mcp.notion.com/mcp',
+						scopes: [],
+						token: 'notion-token',
+					},
+				],
 			});
 		});
 
