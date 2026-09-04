@@ -2509,11 +2509,23 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.customizations.structuredPreview.enabled', "Controls whether the Chat Customizations editor shows a structured preview for markdown customization files (agents, skills, instructions, prompts). When disabled, the editor always opens the raw markdown in the embedded code editor."),
 			default: false,
 		},
-		[ChatConfiguration.ChatCustomizationsMigrationEnabled]: {
+		[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: {
 			type: 'boolean',
 			tags: ['experimental'],
-			description: nls.localize('chat.customizations.migration.enabled', "Controls whether the Chat Customizations editor offers to migrate customizations into formats and locations supported by the active agent-host harness. When disabled, migration cards and sidebar shortcuts are hidden."),
+			description: nls.localize('chat.customizations.promptMigration.enabled', "Controls whether the Chat Customizations editor offers to convert prompt files into skills for agent-host harnesses, which ignore prompt files. When disabled, the migration card and sidebar shortcut are hidden."),
 			default: true,
+		},
+		[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: {
+			type: 'boolean',
+			tags: ['experimental'],
+			description: nls.localize('chat.customizations.userDataMigration.enabled', "Controls whether the Chat Customizations editor offers to move agents and instructions stored in user data to the active agent-host harness, which ignores the user data location. When disabled, the migration card and sidebar shortcut are hidden."),
+			default: false,
+		},
+		[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: {
+			type: 'boolean',
+			tags: ['experimental'],
+			description: nls.localize('chat.customizations.locationsMigration.enabled', "Controls whether the Chat Customizations editor offers to move agents, instructions, and skills from configured locations that are not supported by the active agent-host harness. When disabled, the migration card and sidebar shortcut are hidden."),
+			default: false,
 		},
 		[ChatConfiguration.ChatCustomizationsMigrationHint]: {
 			type: 'string',
