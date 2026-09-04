@@ -76,6 +76,8 @@ export const vscodeNodeContributions: IExtensionContributionFactory[] = [
 	asContributionFactory(FetcherTelemetryContribution),
 	asContributionFactory(PowerStateLogger),
 	asContributionFactory(ContextKeysContribution),
+	// Initialize BYOK policy early because it owns a context key used by startup UI.
+	asContributionFactory(BYOKContrib),
 	asContributionFactory(ByokUtilityModelNotificationContribution),
 	asContributionFactory(CopilotDebugCommandContribution),
 	asContributionFactory(DebugCommandsContribution),
@@ -106,7 +108,6 @@ export const vscodeNodeContributions: IExtensionContributionFactory[] = [
 	asContributionFactory(OTelContrib),
 	asContributionFactory(SessionStoreTracker),
 	sessionSyncContribution,
-	asContributionFactory(BYOKContrib),
 ];
 
 /**
