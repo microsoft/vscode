@@ -15,12 +15,8 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbenc
 import '../../browser/media/chatView.css';
 
 /**
- * Wraps the fixture context so the chat input renders inside the sessions window
- * DOM ancestry the sessions CSS expects:
- * `.agent-sessions-workbench > .part.sessionspart > .interactive-session`.
- * This is what scopes the `.interactive-input-part` 32px horizontal padding that
- * the `isSessionsWindow` layout path accounts for. Returns a derived context whose
- * `container` is the `.part.sessionspart` element the input should render into.
+ * Wraps the fixture context in `.agent-sessions-workbench > .part.sessionspart`, returning the sessions part as the input container by default.
+ * With a background, adds `.has-chat-background` and returns a nested `.chat-view` as the input container.
  */
 function sessionsWindowContext(context: ComponentFixtureContext, withBackground = false): ComponentFixtureContext {
 	context.container.classList.add('agent-sessions-workbench');
