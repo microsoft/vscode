@@ -67,7 +67,6 @@ import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginS
 import { MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/pluginInstallService.js';
 import { AICustomizationManagementEditor } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
-import { CustomizationMigrationCategoryId } from '../../../../contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
 import { IAICustomizationItemSource, IAICustomizationListItem } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
 import { AICustomizationItemsModel, IAICustomizationItemsModel, ItemsModelSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedMcpServerDetail.js';
@@ -713,8 +712,6 @@ interface IRenderEditorOptions {
 	readonly customizationSearchQuery?: string;
 	readonly mcpSearchQuery?: string;
 	readonly toolsSearchQuery?: string;
-	readonly migrationPartialSelection?: boolean;
-	readonly emptyMigrationUserSection?: boolean;
 	readonly emptyWorkspaceSection?: boolean;
 	readonly emptyUserSection?: boolean;
 	readonly emptyToolExtensions?: boolean;
@@ -730,7 +727,6 @@ interface IRenderEditorOptions {
 	readonly openFirstItem?: boolean;
 	readonly openItemLabel?: string;
 	readonly editorDisplayMode?: 'preview' | 'raw';
-	readonly migrationCategory?: CustomizationMigrationCategoryId;
 	readonly migrationDashboard?: boolean;
 }
 
@@ -778,7 +774,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const fixtureFiles = (options.files ?? allFiles)
 		.filter(file => !(file.type === selectedPromptType && options.emptyWorkspaceSection && file.storage === PromptsStorage.local))
 		.filter(file => !(file.type === selectedPromptType && options.emptyUserSection && file.storage === PromptsStorage.user))
-		.filter(file => !(options.emptyMigrationUserSection && file.type === PromptsType.prompt && file.storage === PromptsStorage.user))
 		.map(file => ({ ...file }));
 	const fileContents = createFixtureContentMap(fixtureFiles, agentInstructions);
 	fileContents.set(URI.file('/workspace/.vscode/mcp.json'), '{\n\t"servers": {\n\t\t"Remote Browser": {\n\t\t\t"type": "http",\n\t\t\t"url": "https://mcp.example.com"\n\t\t}\n\t}\n}\n');
@@ -996,6 +991,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					}
 					promptFilesDidChangeEmitter.fire();
 					return createFixtureFileStat(resource, buffer.byteLength, false);
+				}
+				override async createFile(resource: URI, buffer: VSBuffer) {
+					return this.writeFile(resource, buffer);
 				}
 				override async del(resource: URI) {
 					fileContents.delete(resource);
@@ -2145,24 +2143,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
-	PromptMigration: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
-		}),
-	}),
-
-	PromptMigrationNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
-			width: 550,
-			height: 500,
-		}),
-	}),
-
 	MigrationDashboard: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		render: ctx => renderEditor(ctx, {
@@ -2178,24 +2158,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			migrationDashboard: true,
 			width: 550,
 			height: 500,
-		}),
-	}),
-
-	PromptMigrationPartialSelection: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
-			migrationPartialSelection: true,
-		}),
-	}),
-
-	PromptMigrationEmptyUser: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
-			emptyMigrationUserSection: true,
 		}),
 	}),
 

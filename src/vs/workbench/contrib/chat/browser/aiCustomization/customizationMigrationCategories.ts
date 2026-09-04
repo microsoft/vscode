@@ -14,7 +14,6 @@ import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigrationCandidate, CustomizationMigrationType, getCustomizationMigrationEnablementSetting, IMcpServerCustomizationMigrationFailure, isConfiguredLocationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import type { ICustomizationMigrationDashboardItem } from './customizationMigrationDashboard.js';
 
 export const enum CustomizationMigrationCategoryId {
 	PromptFiles = 'promptFiles',
@@ -80,7 +79,6 @@ export interface ICustomizationMigrationCategory {
 	getShortcutAriaLabel(count: number): string;
 	getCardDescription(customizations: readonly CustomizationMigrationCandidate[], harnessLabel: string): string;
 	getPageDescription(customizations: readonly CustomizationMigrationCandidate[], harnessLabel: string): string;
-	getDashboardItem?(customizations: readonly CustomizationMigrationCandidate[], harnessLabel: string, destinationLabel?: string): Omit<ICustomizationMigrationDashboardItem, 'id' | 'label' | 'description' | 'count' | 'destinations' | 'actionLabel' | 'actionAriaLabel'>;
 	/** When present, replaces the page description with a prominent banner. */
 	getModifiedSettingIds?(configurationService: IConfigurationService): readonly string[];
 	getBanner?(customizations: readonly CustomizationMigrationCandidate[], harnessLabel: string, destinationLabel: string | undefined, modifiedSettingIds: readonly string[]): ICustomizationMigrationBanner;
@@ -143,21 +141,6 @@ const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 		return customizations.length === 1
 			? localize('promptMigrationCardDescriptionSingle', "{0} will ignore this prompt file. Convert it to a skill to keep it available.", harnessLabel)
 			: localize('promptMigrationCardDescription', "{0} will ignore these prompt files. Convert them to skills to keep them available.", harnessLabel);
-	},
-
-	getDashboardItem(customizations) {
-		const { workspaceCount, userCount } = countPromptStorages(customizations);
-		const workspaceSummary = workspaceCount === 1
-			? localize('promptMigrationDashboardWorkspaceSingle', "1 workspace file")
-			: localize('promptMigrationDashboardWorkspace', "{0} workspace files", workspaceCount);
-		const userSummary = userCount === 1
-			? localize('promptMigrationDashboardUserSingle', "1 user file")
-			: localize('promptMigrationDashboardUser', "{0} user files", userCount);
-		return {
-			itemSummary: workspaceCount > 0 && userCount > 0
-				? localize('promptMigrationDashboardWorkspaceAndUser', "{0} · {1}", workspaceSummary, userSummary)
-				: workspaceCount > 0 ? workspaceSummary : userSummary,
-		};
 	},
 
 	getConfirmation(customizations) {
@@ -269,21 +252,6 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 				"{0} will ignore these instruction files. Move them to portable Copilot folders to keep them available.",
 				harnessLabel,
 			);
-	},
-
-	getDashboardItem(customizations) {
-		const { agentCount, instructionsCount } = countUserDataTypes(customizations);
-		const agentSummary = agentCount === 1
-			? localize('userDataMigrationDashboardAgentSingle', "1 agent")
-			: localize('userDataMigrationDashboardAgents', "{0} agents", agentCount);
-		const instructionSummary = instructionsCount === 1
-			? localize('userDataMigrationDashboardInstructionSingle', "1 instruction")
-			: localize('userDataMigrationDashboardInstructions', "{0} instructions", instructionsCount);
-		return {
-			itemSummary: agentCount > 0 && instructionsCount > 0
-				? localize('userDataMigrationDashboardAgentsAndInstructions', "{0} · {1}", agentSummary, instructionSummary)
-				: agentCount > 0 ? agentSummary : instructionSummary,
-		};
 	},
 
 	getConfirmation(customizations, harnessLabel, destinationLabel) {
