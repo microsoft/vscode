@@ -1716,7 +1716,7 @@ export class ChatService extends Disposable implements IChatService {
 					}
 
 					const promptTextResult = getPromptText(request.message);
-					variableData = updateRanges(variableData, promptTextResult);
+					variableData = updateRanges(variableData, promptTextResult.diff); // TODO bit of a hack
 					const message = promptTextResult.message;
 
 					// --- Step 4: Build the agent request object ---
@@ -2195,7 +2195,7 @@ export class ChatService extends Disposable implements IChatService {
 				agentId: request.response.agent?.id ?? '',
 				message: promptTextResult.message,
 				command: request.response.slashCommand?.name,
-				variables: updateRanges(request.variableData, promptTextResult),
+				variables: updateRanges(request.variableData, promptTextResult.diff), // TODO bit of a hack
 				location: ChatAgentLocation.Chat,
 				editedFileEvents: request.editedFileEvents,
 				modeInstructions: request.modeInfo?.modeInstructions,
