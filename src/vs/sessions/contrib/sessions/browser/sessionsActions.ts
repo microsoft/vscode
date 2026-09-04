@@ -5,21 +5,25 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService, isConfigured } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InputFocusedContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { WorkbenchListFocusContextKey } from '../../../../platform/list/browser/listService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
@@ -61,6 +65,10 @@ import { getSessionConversationActionId, isSessionConversationSideChat, SESSION_
 import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import './media/newSessionActionViewItem.css';
+
+export const NEW_SESSION_BUTTON_STYLE_SETTING = 'sessions.newSessionButton.style';
+export const NEW_SESSION_BUTTON_STYLE_TREATMENT = 'agentSessionsNewSessionButtonStyle';
+export type NewSessionButtonStyle = 'default' | 'lightweight' | 'lightweightWithKeybindingBackground';
 
 // -- Show Sessions Picker --
 
@@ -1262,6 +1270,8 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 	/** Hook invoked right before the action runs (e.g. for telemetry). */
 	protected onRun(): void { }
 
+	protected configureButton(_button: Button): void { }
+
 	override render(container: HTMLElement): void {
 		super.render(container);
 
@@ -1279,6 +1289,7 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 			supportIcons: true,
 		}));
 		button.element.classList.add('agent-sessions-compact-new-button');
+		this.configureButton(button);
 		const onboardingTargetId = this.onboardingTargetId;
 		if (onboardingTargetId) {
 			this._register(markOnboardingTarget(button.element, onboardingTargetId));
@@ -1356,6 +1367,7 @@ class NewSessionActionViewItem extends CompactButtonActionViewItem {
 	constructor(
 		action: IAction,
 		private readonly telemetrySource: SessionsInteractionSource,
+		private readonly newSessionButtonStyle: IObservable<NewSessionButtonStyle>,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IHoverService hoverService: IHoverService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -1374,6 +1386,14 @@ class NewSessionActionViewItem extends CompactButtonActionViewItem {
 
 	protected override get onboardingTargetId(): string {
 		return 'sessions.newSession.button';
+	}
+
+	protected override configureButton(button: Button): void {
+		this._register(autorun(reader => {
+			const style = this.newSessionButtonStyle.read(reader);
+			button.element.classList.toggle('lightweight', style === 'lightweight' || style === 'lightweightWithKeybindingBackground');
+			button.element.classList.toggle('lightweight-keybinding-background', style === 'lightweightWithKeybindingBackground');
+		}));
 	}
 
 	protected override getHoverContent(keybindingLabel: string | undefined): string {
@@ -1405,6 +1425,8 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 	private static readonly NEW_SESSION_TITLEBAR_TREATMENT = 'agentSessionsTitleBarNewSession';
 
 	private readonly titleBarEnabledContext: IContextKey<boolean>;
+	private readonly newSessionButtonStyle = observableValue<NewSessionButtonStyle>(this, 'default');
+	private newSessionButtonStyleRequest = 0;
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
@@ -1412,10 +1434,19 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IProductService private readonly productService: IProductService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
 		this.titleBarEnabledContext = SessionsTitleBarNewSessionEnabledContext.bindTo(contextKeyService);
+		const configuredStyle = observableConfigValue<NewSessionButtonStyle>(NEW_SESSION_BUTTON_STYLE_SETTING, 'default', this.configurationService);
+		const assignmentsChanged = observableSignalFromEvent(this, this.assignmentService.onDidRefetchAssignments);
+		this._register(autorun(reader => {
+			configuredStyle.read(reader);
+			assignmentsChanged.read(reader);
+			void this.updateNewSessionButtonStyle().catch(onUnexpectedError);
+		}));
 
 		const onDidRegister = this._register(new Emitter<void>());
 		const menus: MenuId[] = [Menus.SidebarSessionsHeader, Menus.TitleBarLeftLayout];
@@ -1425,7 +1456,7 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 				if (!(action instanceof MenuItemAction)) {
 					return undefined;
 				}
-				return instantiationService.createInstance(NewSessionActionViewItem, action, source);
+				return instantiationService.createInstance(NewSessionActionViewItem, action, source, this.newSessionButtonStyle);
 			}, onDidRegister.event));
 		}
 		onDidRegister.fire();
@@ -1433,6 +1464,33 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 		// Resolve the titlebar experiment now and on refetch.
 		this._register(this.assignmentService.onDidRefetchAssignments(() => this.updateTitleBarTreatment()));
 		this.updateTitleBarTreatment();
+	}
+
+	private async updateNewSessionButtonStyle(): Promise<void> {
+		const request = ++this.newSessionButtonStyleRequest;
+		const inspection = this.configurationService.inspect<NewSessionButtonStyle>(NEW_SESSION_BUTTON_STYLE_SETTING);
+		let value: string | undefined;
+		if (isConfigured(inspection)) {
+			value = inspection.value;
+		} else {
+			try {
+				value = await this.assignmentService.getTreatment<string>(NEW_SESSION_BUTTON_STYLE_TREATMENT);
+			} catch (error) {
+				this.logService.warn('[NewSessionActionViewItemContribution] Failed to resolve the New Session button style treatment; using default.', error);
+			}
+		}
+		if (request !== this.newSessionButtonStyleRequest) {
+			return;
+		}
+		this.newSessionButtonStyle.set(this.normalizeNewSessionButtonStyle(value), undefined);
+	}
+
+	private normalizeNewSessionButtonStyle(value: string | undefined): NewSessionButtonStyle {
+		if (value === undefined || value === 'default' || value === 'lightweight' || value === 'lightweightWithKeybindingBackground') {
+			return value ?? 'default';
+		}
+		this.logService.warn(`[NewSessionActionViewItemContribution] Unsupported New Session button style treatment '${value}'; using 'default'.`);
+		return 'default';
 	}
 
 	private async updateTitleBarTreatment(): Promise<void> {
