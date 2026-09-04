@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -569,5 +570,131 @@ suite('CustomizationMigrationService', () => {
 		const result = await migration;
 
 		assert.deepStrictEqual(result.failures.map(failure => failure.reason), ['noLongerEligible']);
+	});
+
+	test('migrates when the write itself republishes an equivalent support snapshot', async () => {
+		const root = URI.file('/republish');
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const targetUri = URI.joinPath(root, '.mcp.json');
+		const fileService = store.add(new FileService(new NullLogService()));
+		const fileProvider = store.add(new SupportChangingFileSystemProvider());
+		store.add(fileService.registerProvider(Schemas.file, fileProvider));
+		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"node"}}}'));
+		await fileService.writeFile(targetUri, VSBuffer.fromString('{"mcpServers":{}}'));
+		fileProvider.targetUri = targetUri;
+		const activeSessionResource = observableValue('activeSessionResource', URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }));
+		const activeHarness = observableValue('activeHarness', SessionType.AgentHostCopilot);
+		const harnessService = new class extends TestCustomizationHarnessService {
+			override readonly activeSessionResource = activeSessionResource;
+			override readonly activeHarness = activeHarness;
+		}();
+		const snapshot: IAgentHostMcpServerSupportSnapshot = {
+			servers: [{
+				id: 'mcp.config.ws0.server',
+				name: 'server',
+				collectionId: 'mcp.config.ws0',
+				source: {
+					group: undefined,
+					kind: AgentHostMcpServerSourceKind.VscodeWorkspaceFolder,
+					label: 'Workspace',
+					collectionUri: sourceUri,
+					definitionLocation: undefined,
+					remoteAuthority: null,
+					extensionId: undefined,
+					pluginUri: undefined,
+				},
+				enablement: { enabled: true, state: AgentHostMcpServerEnablementState.EnabledWorkspace },
+				applicability: AgentHostMcpServerApplicability.Applicable,
+				delivery: AgentHostMcpServerDelivery.ClientForwarded,
+				compatibility: { kind: 'supported' },
+				projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
+			}],
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		};
+		const snapshotObservable = observableValue('snapshot', snapshot);
+		// The support scope watches MCP definitions, so migrating republishes an equal-but-new snapshot.
+		fileProvider.afterTargetWrite = () => snapshotObservable.set({
+			...snapshot,
+			servers: snapshot.servers.map(server => ({ ...server })),
+			coverage: { ...snapshot.coverage },
+		}, undefined);
+		const activeClientService = {
+			acquireMcpServerSupportScope: () => ({
+				support: snapshotObservable,
+				isResolved: constObservable(true),
+				whenResolved: () => Promise.resolve(),
+				dispose: () => { },
+			}),
+		} as Partial<IAgentHostActiveClientService> as IAgentHostActiveClientService;
+		const agentHostCustomizationService = {
+			onDidChangeCustomizations: Event.None,
+			getWorkingDirectories: () => [root.toString()],
+		} as Partial<IAgentHostCustomizationService> as IAgentHostCustomizationService;
+		const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, fileService, new NullLogService()));
+
+		const migration = await service.computeMigration(activeSessionResource.get(), CustomizationMigrationType.McpServers);
+		const result = await service.migrateMcpServers(activeSessionResource.get(), migration.candidates);
+
+		assert.deepStrictEqual({
+			migratedCount: result.migratedCount,
+			failures: result.failures.map(failure => failure.reason),
+			source: JSON.parse((await fileService.readFile(sourceUri)).value.toString()),
+			target: JSON.parse((await fileService.readFile(targetUri)).value.toString()),
+		}, {
+			migratedCount: 1,
+			failures: [],
+			source: { servers: {} },
+			target: { mcpServers: { server: { type: 'stdio', command: 'node' } } },
+		});
+	});
+
+	test('abandons MCP computation when the caller cancels', async () => {
+		const root = URI.file('/cancel');
+		const activeSessionResource = observableValue('activeSessionResource', URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }));
+		const activeHarness = observableValue('activeHarness', SessionType.AgentHostCopilot);
+		const harnessService = new class extends TestCustomizationHarnessService {
+			override readonly activeSessionResource = activeSessionResource;
+			override readonly activeHarness = activeHarness;
+		}();
+		const acquired = new DeferredPromise<void>();
+		const neverResolves = new DeferredPromise<void>();
+		let scopeDisposed = false;
+		const activeClientService = {
+			acquireMcpServerSupportScope: () => {
+				acquired.complete();
+				return {
+					support: constObservable<IAgentHostMcpServerSupportSnapshot>({
+						servers: [],
+						discoveryComplete: true,
+						coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+					}),
+					isResolved: constObservable(false),
+					whenResolved: () => neverResolves.p,
+					dispose: () => { scopeDisposed = true; },
+				};
+			},
+		} as Partial<IAgentHostActiveClientService> as IAgentHostActiveClientService;
+		const agentHostCustomizationService = {
+			onDidChangeCustomizations: Event.None,
+			getWorkingDirectories: () => [root.toString()],
+		} as Partial<IAgentHostCustomizationService> as IAgentHostCustomizationService;
+		const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, new NullLogService()));
+		const tokenSource = store.add(new CancellationTokenSource());
+
+		const migration = service.computeMigration(activeSessionResource.get(), CustomizationMigrationType.McpServers, tokenSource.token);
+		await acquired.p;
+		tokenSource.cancel();
+		const result = await migration;
+
+		assert.deepStrictEqual({
+			candidates: result.candidates,
+			servers: result.servers,
+			scopeDisposed,
+		}, {
+			candidates: [],
+			servers: [],
+			scopeDisposed: true,
+		});
 	});
 });

@@ -18,7 +18,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { ConfigurationResolverExpression } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { CustomizationMigrationType, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationFailure, IMcpServerCustomizationMigrationResult, McpServerCustomizationMigrationFailureReason } from '../../common/promptSyntax/service/customizationMigrationService.js';
-import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupportSnapshot } from '../agentSessions/agentHost/agentHostMcpServerSupport.js';
+import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot } from '../agentSessions/agentHost/agentHostMcpServerSupport.js';
 
 const LOG_PREFIX = '[MCP Customization Migration]';
 
@@ -44,7 +44,18 @@ interface IMcpTargetDocument extends IJsonDocument {
 }
 
 interface IMcpServerCustomizationMigrationExecutionOptions {
-	readonly isContextCurrent?: () => boolean;
+	readonly isContextCurrent?: (candidates: readonly IMcpServerCustomizationMigrationCandidate[]) => boolean;
+}
+
+/**
+ * Whether the Agent Host would still forward this server's exact configuration from the client.
+ */
+export function isMcpServerMigrationDeliverable(server: IAgentHostMcpServerSupport): server is IAgentHostMcpServerSupport & { readonly projectedConfiguration: IMcpServerConfiguration } {
+	return server.enablement.enabled
+		&& server.applicability === AgentHostMcpServerApplicability.Applicable
+		&& server.delivery === AgentHostMcpServerDelivery.ClientForwarded
+		&& server.compatibility.kind === 'supported'
+		&& server.projectedConfiguration !== undefined;
 }
 
 /**
@@ -81,11 +92,7 @@ export class McpServerCustomizationMigrator {
 					error,
 				});
 			};
-			if (!server.enablement.enabled
-				|| server.applicability !== AgentHostMcpServerApplicability.Applicable
-				|| server.delivery !== AgentHostMcpServerDelivery.ClientForwarded
-				|| server.compatibility.kind !== 'supported'
-				|| !server.projectedConfiguration) {
+			if (!isMcpServerMigrationDeliverable(server)) {
 				excluded(McpServerCustomizationMigrationFailureReason.NoLongerEligible);
 				continue;
 			}
@@ -198,7 +205,7 @@ async function executeMigration(
 
 	let migratedCount = 0;
 	for (const group of groups.values()) {
-		if (options.isContextCurrent?.() === false) {
+		if (options.isContextCurrent?.(group.candidates) === false) {
 			logService.trace(`${LOG_PREFIX} Skipping ${group.sourceUri.toString()}: execution context changed before the group started.`);
 			failures.push(...group.candidates.map(candidate => createFailure(candidate, McpServerCustomizationMigrationFailureReason.NoLongerEligible)));
 			continue;
@@ -289,7 +296,7 @@ async function migrateGroup(
 		logService.trace(`${LOG_PREFIX} Nothing left to migrate from ${group.sourceUri.toString()}.`);
 		return { migratedCount: 0, failures };
 	}
-	if (options.isContextCurrent?.() === false) {
+	if (options.isContextCurrent?.(candidatesToMigrate) === false) {
 		logService.trace(`${LOG_PREFIX} Aborting ${group.sourceUri.toString()} before any write: execution context changed.`);
 		return {
 			migratedCount: 0,
@@ -331,7 +338,7 @@ async function migrateGroup(
 		logService.trace(`${LOG_PREFIX} Target ${group.targetUri.toString()} already contains every selected entry.`);
 	}
 
-	if (options.isContextCurrent?.() === false) {
+	if (options.isContextCurrent?.(candidatesToMigrate) === false) {
 		logService.trace(`${LOG_PREFIX} Aborting ${group.sourceUri.toString()} after the target write: execution context changed.`);
 		if (writtenTarget) {
 			await rollbackTarget(group.targetUri, target, writtenTarget, targetContent, fileService);
