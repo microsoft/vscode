@@ -376,6 +376,32 @@ function sanitizeRelativePath(path: string): string {
 const COMMIT_FORMAT = '%H%n%aN%n%aE%n%at%n%ct%n%P%n%D%n%B';
 const STASH_FORMAT = '%H%n%P%n%gd%n%gs%n%at%n%ct';
 
+/**
+ * A full git object id is exactly 40 hexadecimal characters (SHA-1) or exactly
+ * 64 (SHA-256) - never a length in between - so the two lengths are matched as
+ * alternatives rather than as a `{40,64}` range.
+ *
+ * The 64 character alternative is always listed first. Regular expression
+ * alternation is ordered, so with the shorter alternative first a SHA-256 id
+ * would match only its first 40 characters in any context where no delimiter
+ * follows it to force the engine to backtrack.
+ *
+ * The alternation is wrapped so that interpolating this into a larger pattern
+ * cannot let it escape its intended position - `^${OBJECT_ID}$` would otherwise
+ * split at the top level and defeat both anchors.
+ */
+const OBJECT_ID = '(?:[0-9a-f]{64}|[0-9a-f]{40})';
+
+/**
+ * Matches a string that consists solely of a full git object id.
+ */
+export const objectIdRegex = new RegExp(`^${OBJECT_ID}$`, 'i');
+
+/**
+ * Matches the object id in the `.git/HEAD` file of a detached HEAD.
+ */
+const detachedHeadRegex = new RegExp(`^(?<commit>${OBJECT_ID})$`, 'm');
+
 export interface ICloneOptions {
 	readonly parentPath: string;
 	readonly targetName?: string;
@@ -923,7 +949,7 @@ export function parseGitRemotes(raw: string): MutableRemote[] {
 	return remotes;
 }
 
-const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)(?:\n((?:.*)files? changed(?:.*))$)?/gm;
+const commitRegex = new RegExp(`(${OBJECT_ID})\\n(.*)\\n(.*)\\n(.*)\\n(.*)\\n(.*)\\n(.*)(?:\\n([^]*?))?(?:\\x00)(?:\\n((?:.*)files? changed(?:.*))$)?`, 'gm');
 
 export function parseGitCommits(data: string): Commit[] {
 	const commits: Commit[] = [];
@@ -1031,9 +1057,9 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
 }
 
-const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(WIP\s)?on\s([^:]+):\s(.*)\n(\d+)\n(\d+)(?:\x00)/gmi;
+const stashRegex = new RegExp(`(${OBJECT_ID})\\n(.*)\\nstash@{(\\d+)}\\n(WIP\\s)?on\\s([^:]+):\\s(.*)\\n(\\d+)\\n(\\d+)(?:\\x00)`, 'gmi');
 
-function parseGitStashes(raw: string): Stash[] {
+export function parseGitStashes(raw: string): Stash[] {
 	const result: Stash[] = [];
 
 	let match, hash, parents, index, wip, branchName, description, authorDate, commitDate;
@@ -1216,9 +1242,12 @@ export interface BlameInformation {
 	}[];
 }
 
-function parseGitBlame(data: string): BlameInformation[] {
+export function parseGitBlame(data: string): BlameInformation[] {
 	const lineSeparator = /\r?\n/;
-	const commitRegex = /^([0-9a-f]{40})/gm;
+	// Nothing follows the object id in this pattern, so the ordering of the
+	// alternatives documented on OBJECT_ID is what keeps a SHA-256 id from
+	// being matched as only its first 40 characters.
+	const objectIdLineRegex = new RegExp(`^${OBJECT_ID}`, 'gm');
 
 	const blameInformation = new Map<string, BlameInformation>();
 
@@ -1232,7 +1261,7 @@ function parseGitBlame(data: string): BlameInformation[] {
 
 	for (const line of data.split(lineSeparator)) {
 		// Commit
-		const commitMatch = line.match(commitRegex);
+		const commitMatch = line.match(objectIdLineRegex);
 		if (!commitHash && commitMatch) {
 			const segments = line.split(' ');
 
@@ -1277,8 +1306,8 @@ function parseGitBlame(data: string): BlameInformation[] {
 const REFS_FORMAT = '%(refname)%00%(objectname)%00%(*objectname)';
 const REFS_WITH_DETAILS_FORMAT = `${REFS_FORMAT}%00%(parent)%00%(*parent)%00%(authorname)%00%(*authorname)%00%(committerdate:unix)%00%(*committerdate:unix)%00%(subject)%00%(*subject)`;
 
-function parseRefs(data: string): (Ref | Branch)[] {
-	const refRegex = /^(refs\/[^\0]+)\0([0-9a-f]{40})\0([0-9a-f]{40})?(?:\0(.*))?$/gm;
+export function parseRefs(data: string): (Ref | Branch)[] {
+	const refRegex = new RegExp(`^(refs/[^\\0]+)\\0(${OBJECT_ID})\\0(${OBJECT_ID})?(?:\\0(.*))?$`, 'gm');
 
 	const headRegex = /^refs\/heads\/([^ ]+)$/;
 	const remoteHeadRegex = /^refs\/remotes\/([^/]+)\/([^ ]+)$/;
@@ -1341,6 +1370,31 @@ function parseRefs(data: string): (Ref | Branch)[] {
 	} while (true);
 
 	return refs;
+}
+
+const lsRemoteHeadRegex = new RegExp(`^(${OBJECT_ID})\\trefs/heads/([^ ]+)$`);
+const lsRemoteTagRegex = new RegExp(`^(${OBJECT_ID})\\trefs/tags/([^ ]+)$`);
+
+/**
+ * Parses the output of `git ls-remote`, whose lines are `<object id>\t<ref>`.
+ */
+export function parseLsRemote(data: string): Ref[] {
+	const fn = (line: string): Ref | null => {
+		let match: RegExpExecArray | null;
+
+		if (match = lsRemoteHeadRegex.exec(line)) {
+			return { name: match[2], commit: match[1], type: RefType.Head };
+		} else if (match = lsRemoteTagRegex.exec(line)) {
+			return { name: match[2], commit: match[1], type: RefType.Tag };
+		}
+
+		return null;
+	};
+
+	return data.split('\n')
+		.filter(line => !!line)
+		.map(fn)
+		.filter(ref => !!ref) as Ref[];
 }
 
 export interface PullOptions {
@@ -2922,7 +2976,7 @@ export class Repository {
 		}
 
 		// Detached
-		const commitMatch = raw.match(/^(?<commit>[0-9a-f]{40})$/m);
+		const commitMatch = raw.match(detachedHeadRegex);
 		if (commitMatch?.groups?.commit) {
 			return { name: undefined, commit: commitMatch.groups.commit, type: RefType.Head };
 		}
@@ -2996,22 +3050,7 @@ export class Repository {
 
 		const result = await this.exec(args, { cancellationToken: opts?.cancellationToken });
 
-		const fn = (line: string): Ref | null => {
-			let match: RegExpExecArray | null;
-
-			if (match = /^([0-9a-f]{40})\trefs\/heads\/([^ ]+)$/.exec(line)) {
-				return { name: match[1], commit: match[2], type: RefType.Head };
-			} else if (match = /^([0-9a-f]{40})\trefs\/tags\/([^ ]+)$/.exec(line)) {
-				return { name: match[2], commit: match[1], type: RefType.Tag };
-			}
-
-			return null;
-		};
-
-		return result.stdout.split('\n')
-			.filter(line => !!line)
-			.map(fn)
-			.filter(ref => !!ref) as Ref[];
+		return parseLsRemote(result.stdout);
 	}
 
 	async getStashes(): Promise<Stash[]> {
