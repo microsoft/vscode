@@ -15,6 +15,9 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
+import product from '../../../../platform/product/common/product.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { type ConfigurationKeyValuePairs, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../workbench/common/configuration.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService, inheritableSessionTarget } from '../../../services/sessions/common/sessionsManagement.js';
@@ -45,9 +48,8 @@ import { OpenSessionLinkOpenerContribution } from './openSessionLinkOpener.contr
 import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorAreaFocusContext, IsSessionsWindowContext, SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
-import { NEW_SESSION_ACTION_ID } from '../common/constants.js';
+import { NEW_SESSION_ACTION_ID, NO_WORKSPACE_OPTION_SETTING } from '../common/constants.js';
 import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext, SessionsTitleBarNewSessionEnabledContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionsChatViewStateService, SessionsChatViewStateService } from './chatViewStateService.js';
@@ -60,6 +62,7 @@ const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_COMMAND_ID = 'workbench.action.chat.
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_LAYOUT_COMMAND_ID = 'workbench.action.chat.changeAgentSessionsBackgroundLayout';
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN = ContextKeyExpr.and(IsSessionsWindowContext, SessionsChatBackgroundAvailableContext);
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_LAYOUT_WHEN = ContextKeyExpr.and(CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN, SessionsChatBackgroundImageConfiguredContext);
+const LEGACY_NO_WORKSPACE_OPTION_SETTING = 'chat.agentSessions.consolidatedRemoteWorkspaces';
 
 type RecentChatBackgroundTypeItem = IQuickPickItem & {
 	readonly kind: 'recentImage';
@@ -368,6 +371,21 @@ AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp());
 // register configuration
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	properties: {
+		[LEGACY_NO_WORKSPACE_OPTION_SETTING]: {
+			type: 'boolean',
+			default: product.quality !== 'stable',
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+			deprecationMessage: localize('chat.agentSessions.consolidatedRemoteWorkspaces.deprecated', "Deprecated. Use the No workspace option setting instead."),
+		},
+		[NO_WORKSPACE_OPTION_SETTING]: {
+			type: 'boolean',
+			default: product.quality !== 'stable',
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('sessions.chat.noWorkspaceOption.enabled', "Controls whether the No workspace option is available when creating sessions without a backing workspace in the Agents Window."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
 		[AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING]: {
 			type: 'boolean',
 			default: true,
@@ -418,3 +436,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 	},
 });
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.ConfigurationMigration).registerConfigurationMigrations([{
+	key: LEGACY_NO_WORKSPACE_OPTION_SETTING,
+	includeApplication: true,
+	migrateFn: (value, accessor) => {
+		const pairs: ConfigurationKeyValuePairs = [[LEGACY_NO_WORKSPACE_OPTION_SETTING, { value: undefined }]];
+		if (accessor(NO_WORKSPACE_OPTION_SETTING) === undefined) {
+			pairs.push([NO_WORKSPACE_OPTION_SETTING, { value }]);
+		}
+		return pairs;
+	},
+}]);
