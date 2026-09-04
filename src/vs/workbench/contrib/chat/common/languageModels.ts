@@ -1858,6 +1858,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 			throw new Error(`Vendor ${vendorId} not found.`);
 		}
 
+		// The configuration cache is populated asynchronously; wait for the initial
+		// load so groups that exist on disk are found during extension activation.
+		await this._languageModelsConfigurationService.whenReady;
 		const languageModelProviderGroups = this._languageModelsConfigurationService.getLanguageModelsProviderGroups();
 		const existing = languageModelProviderGroups.find(g => g.vendor === vendorId && g.name === providerGroupName);
 
