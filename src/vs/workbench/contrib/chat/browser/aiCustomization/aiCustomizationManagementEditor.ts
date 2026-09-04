@@ -1569,16 +1569,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const selectedCustomizations = this.createCustomizationMigrationItemMap(customizations);
 		const remainingCustomizations = this.getMigrationCandidates(category)
 			.filter(customization => !this.hasCustomizationMigrationItem(selectedCustomizations, customization));
-		return this.getClearableConfiguredLocationSettingIds(category)
+		return this.getModifiedConfiguredLocationSettingIds(category)
 			.filter(settingId =>
 				customizations.some(customization => this.configuredLocationSettingAppliesTo(settingId, customization))
 				&& !remainingCustomizations.some(customization => this.configuredLocationSettingAppliesTo(settingId, customization))
 			);
 	}
 
-	private getClearableConfiguredLocationSettingIds(category: ICustomizationMigrationCategory): readonly string[] {
-		return category.getModifiedSettingIds?.(this.configurationService)
-			.filter(settingId => this.configurationService.inspect(settingId).policyValue === undefined) ?? [];
+	private getModifiedConfiguredLocationSettingIds(category: ICustomizationMigrationCategory): readonly string[] {
+		return category.getModifiedSettingIds?.(this.configurationService) ?? [];
 	}
 
 	private configuredLocationSettingAppliesTo(settingId: string, customization: MigratableConfiguration): boolean {
@@ -1816,9 +1815,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const label = DOM.append(itemText, $('span.prompt-migration-settings-item-label'));
 		label.textContent = localize('customizationMigrationClearSettingsLabel', "Clear unused location settings");
 		const description = DOM.append(itemText, $('span.prompt-migration-settings-item-description'));
-		description.textContent = this.getClearableConfiguredLocationSettingIds(category).length > 0
-			? localize('customizationMigrationClearSettingsDescription', "Remove deprecated settings that are no longer needed after the selected customizations migrate successfully.")
-			: localize('customizationMigrationManagedSettingsDescription', "These settings are managed and cannot be cleared.");
+		description.textContent = localize('customizationMigrationClearSettingsDescription', "Remove deprecated settings that are no longer needed after the selected customizations migrate successfully.");
 
 		this.migrationPageDisposables.add(DOM.addDisposableListener(itemText, 'click', () => {
 			if (!this.migrationClearSettingsCheckbox?.enabled) {
@@ -2067,9 +2064,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const selectedCount = candidates.filter(customization => this.isCustomizationSelectedForMigration(customization)).length;
 		this.migrationMigrateButton.enabled = selectedCount > 0 && !this.customizationMigrationInProgress;
 		if (this.migrationClearSettingsCheckbox) {
-			const hasClearableSettings = this.getClearableConfiguredLocationSettingIds(category).length > 0;
+			const hasModifiedSettings = this.getModifiedConfiguredLocationSettingIds(category).length > 0;
 			const canClearSettings = category.id === CustomizationMigrationCategoryId.ConfiguredLocations
-				&& hasClearableSettings
+				&& hasModifiedSettings
 				&& !this.customizationMigrationInProgress
 				&& !this.customizationMigrationLoading
 				&& !this.customizationMigrationLoadError;

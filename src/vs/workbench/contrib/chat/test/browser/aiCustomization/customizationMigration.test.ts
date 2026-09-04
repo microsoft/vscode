@@ -8,7 +8,7 @@ import { createCommandUri, isMarkdownString } from '../../../../../../base/commo
 import { URI } from '../../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
+import { dirname, isEqual } from '../../../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -348,7 +348,7 @@ suite('customizationMigration', () => {
 		});
 	});
 
-	test('preserves the containing folder when migrating a skill', async () => {
+	test('migrates the complete skill directory without overwriting an existing directory', async () => {
 		const skill: IPromptPath = {
 			uri: URI.file('/workspace/custom-skills/release/SKILL.md'),
 			name: 'Release',
@@ -364,17 +364,29 @@ suite('customizationMigration', () => {
 		const fileSystemProvider = store.add(new InMemoryFileSystemProvider());
 		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 		await fileService.writeFile(skill.uri, VSBuffer.fromString('---\nname: release\n---\nRelease safely.'));
+		await fileService.writeFile(URI.joinPath(dirname(skill.uri), 'references', 'release.md'), VSBuffer.fromString('Release reference'));
+		await fileService.writeFile(URI.joinPath(dirname(skill.uri), 'scripts', 'release.sh'), VSBuffer.fromString('#!/bin/sh'));
+		await fileService.writeFile(URI.joinPath(dirname(skill.uri), 'assets', 'release.svg'), VSBuffer.fromString('<svg></svg>'));
+		const existingSkillFolder = URI.joinPath(targetRoot.uri, 'release');
+		await fileService.writeFile(URI.joinPath(existingSkillFolder, 'README.md'), VSBuffer.fromString('Existing directory'));
 
 		const result = await migrateCustomizations([skill], targetFolders, fileService);
-		const migratedUri = URI.joinPath(targetRoot.uri, 'release', 'SKILL.md');
+		const migratedSkillFolder = URI.joinPath(targetRoot.uri, 'release-2');
+		const migratedUri = URI.joinPath(migratedSkillFolder, 'SKILL.md');
 
 		assert.deepStrictEqual({
 			result: {
 				...result,
 				migratedCustomizations: result.migratedCustomizations.map(customization => ({ uri: customization.uri.path, type: customization.type })),
 			},
-			content: (await fileService.readFile(migratedUri)).value.toString(),
-			sourceExists: await fileService.exists(skill.uri),
+			migratedContents: await Promise.all([
+				migratedUri,
+				URI.joinPath(migratedSkillFolder, 'references', 'release.md'),
+				URI.joinPath(migratedSkillFolder, 'scripts', 'release.sh'),
+				URI.joinPath(migratedSkillFolder, 'assets', 'release.svg'),
+			].map(async uri => (await fileService.readFile(uri)).value.toString())),
+			sourceFolderExists: await fileService.exists(dirname(skill.uri)),
+			existingDirectoryContent: (await fileService.readFile(URI.joinPath(existingSkillFolder, 'README.md'))).value.toString(),
 		}, {
 			result: {
 				migratedCount: 1,
@@ -382,8 +394,61 @@ suite('customizationMigration', () => {
 				unsupportedHeaderKeys: [],
 				migratedCustomizations: [{ uri: migratedUri.path, type: PromptsType.skill }],
 			},
-			content: '---\nname: release\n---\nRelease safely.',
-			sourceExists: false,
+			migratedContents: [
+				'---\nname: release\n---\nRelease safely.',
+				'Release reference',
+				'#!/bin/sh',
+				'<svg></svg>',
+			],
+			sourceFolderExists: false,
+			existingDirectoryContent: 'Existing directory',
+		});
+	});
+
+	test('rolls back the complete skill directory when deleting its source fails', async () => {
+		const skill: IPromptPath = {
+			uri: URI.file('/workspace/custom-skills/release/SKILL.md'),
+			name: 'Release',
+			storage: PromptsStorage.local,
+			type: PromptsType.skill,
+			source: PromptFileSource.ConfigWorkspace,
+		};
+		const targetRoot: ICustomizationSourceFolder = { uri: URI.file('/workspace/.github/skills'), label: '.github/skills', source: PromptsStorage.local };
+		const targetFolders: CustomizationMigrationTargetFolders = new Map([
+			[PromptsType.skill, new Map([[PromptsStorage.local, targetRoot]])],
+		]);
+		const fileService = store.add(new FileService(new NullLogService()));
+		const fileSystemProvider = store.add(new DeleteFailingFileSystemProvider());
+		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		const sourceFolder = dirname(skill.uri);
+		await fileService.writeFile(skill.uri, VSBuffer.fromString('---\nname: release\n---\nRelease safely.'));
+		await fileService.writeFile(URI.joinPath(sourceFolder, 'references', 'release.md'), VSBuffer.fromString('Release reference'));
+		fileSystemProvider.deleteFailureResource = sourceFolder;
+
+		const migrationErrors: Error[] = [];
+		const result = await migrateCustomizations([skill], targetFolders, fileService, error => migrationErrors.push(error));
+
+		assert.deepStrictEqual({
+			result,
+			sourceContents: await Promise.all([
+				skill.uri,
+				URI.joinPath(sourceFolder, 'references', 'release.md'),
+			].map(async uri => (await fileService.readFile(uri)).value.toString())),
+			targetEntries: await fileSystemProvider.readdir(targetRoot.uri),
+			migrationErrorCount: migrationErrors.length,
+		}, {
+			result: {
+				migratedCount: 0,
+				failedCustomizationFileNames: ['SKILL.md'],
+				unsupportedHeaderKeys: [],
+				migratedCustomizations: [],
+			},
+			sourceContents: [
+				'---\nname: release\n---\nRelease safely.',
+				'Release reference',
+			],
+			targetEntries: [],
+			migrationErrorCount: 1,
 		});
 	});
 
