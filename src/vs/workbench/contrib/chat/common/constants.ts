@@ -399,6 +399,13 @@ export interface ISessionTypeSelectionTelemetry {
 	readonly managedSandboxEnforced: boolean;
 }
 
+/**
+ * A bare reason is only accepted where the session model is created synchronously, so completing it
+ * with the current settings is equivalent to capturing them at the call site. Paths that await before
+ * creating the model must pass a full {@link ISessionTypeSelectionTelemetry} captured at selection time.
+ */
+export type SessionTypeSelectionTelemetryInput = ISessionTypeSelectionTelemetry | SessionTypeSelectionReason;
+
 export function getSessionTypeSelectionTelemetry(configurationService: IConfigurationService, reason: SessionTypeSelectionReason, managedSandboxEnforced = false): ISessionTypeSelectionTelemetry {
 	return {
 		reason,

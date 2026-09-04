@@ -53,7 +53,7 @@ import { IChatTransferService } from '../model/chatTransferService.js';
 import { chatSessionResourceToId, getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../model/chatUri.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPromptTextVariableEntry } from '../attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../attachments/chatVariables.js';
-import { ChatAgentLocation, ISessionTypeSelectionTelemetry, ChatConfiguration, ChatModeKind } from '../constants.js';
+import { ChatAgentLocation, getSessionTypeSelectionTelemetry, ISessionTypeSelectionTelemetry, SessionTypeSelectionTelemetryInput, ChatConfiguration, ChatModeKind } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
 import { ModelSelectionReason } from '../modelSelection.js';
 import { ILanguageModelToolsService, ToolAndToolSetEnablementMap } from '../tools/languageModelToolsService.js';
@@ -566,8 +566,19 @@ export class ChatService extends Disposable implements IChatService {
 			sessionResource,
 			canUseTools: options?.canUseTools ?? true,
 			disableBackgroundKeepAlive: options?.disableBackgroundKeepAlive,
-			sessionTypeSelectionTelemetry: options?.sessionTypeSelectionTelemetry,
+			sessionTypeSelectionTelemetry: this.completeSessionTypeSelectionTelemetry(options?.sessionTypeSelectionTelemetry),
 		}, options?.debugOwner ?? 'ChatService#startNewLocalSession');
+	}
+
+	/**
+	 * Completes a bare selection reason with the settings that drove it. Only safe for callers that
+	 * create the model synchronously, where sampling here is equivalent to sampling at the call site.
+	 */
+	private completeSessionTypeSelectionTelemetry(input: SessionTypeSelectionTelemetryInput | undefined): ISessionTypeSelectionTelemetry | undefined {
+		if (typeof input !== 'string') {
+			return input;
+		}
+		return getSessionTypeSelectionTelemetry(this.configurationService, input, this.agentHostEnablementService.managedSandboxEnforced.get());
 	}
 
 	private _startSession(props: IStartSessionProps): ChatModel {
@@ -671,7 +682,7 @@ export class ChatService extends Disposable implements IChatService {
 			this._chatSessionStore.getMetadataForSessionSync(sessionResource)?.title;
 	}
 
-	loadSessionFromData(data: IExportableChatData | ISerializableChatData, debugOwner?: string, sessionTypeSelectionTelemetry?: ISessionTypeSelectionTelemetry): IChatModelReference {
+	loadSessionFromData(data: IExportableChatData | ISerializableChatData, debugOwner?: string, sessionTypeSelectionTelemetry?: SessionTypeSelectionTelemetryInput): IChatModelReference {
 		const sessionId = (data as ISerializableChatData).sessionId ?? generateUuid();
 		const sessionResource = LocalChatSessionUri.forSession(sessionId);
 		return this._sessionModels.acquireOrCreate({
@@ -679,7 +690,7 @@ export class ChatService extends Disposable implements IChatService {
 			location: data.initialLocation ?? ChatAgentLocation.Chat,
 			sessionResource,
 			canUseTools: true,
-			sessionTypeSelectionTelemetry,
+			sessionTypeSelectionTelemetry: this.completeSessionTypeSelectionTelemetry(sessionTypeSelectionTelemetry),
 		}, debugOwner ?? 'ChatService#loadSessionFromData');
 	}
 

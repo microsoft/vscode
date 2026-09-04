@@ -25,7 +25,7 @@ import { IWorkspaceSymbol } from '../../../search/common/search.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
 import { IChatRequestVariableValue } from '../attachments/chatVariables.js';
 import { ReadonlyChatSessionOptionsMap } from '../chatSessionsService.js';
-import { ChatAgentLocation, ISessionTypeSelectionTelemetry, ChatModeKind } from '../constants.js';
+import { ChatAgentLocation, ISessionTypeSelectionTelemetry, SessionTypeSelectionTelemetryInput, ChatModeKind } from '../constants.js';
 import { IChatEditingSession } from '../editing/chatEditingService.js';
 import { IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from '../model/chatModel.js';
 import type { IChatModelReferenceDebugSnapshot } from '../model/chatModelStore.js';
@@ -2015,7 +2015,7 @@ export interface IChatService {
 	/**
 	 * Loads a session from exported chat data
 	 */
-	loadSessionFromData(data: IExportableChatData | ISerializableChatData, debugOwner?: string, sessionTypeSelectionTelemetry?: ISessionTypeSelectionTelemetry): IChatModelReference;
+	loadSessionFromData(data: IExportableChatData | ISerializableChatData, debugOwner?: string, sessionTypeSelectionTelemetry?: SessionTypeSelectionTelemetryInput): IChatModelReference;
 
 	getChatModelReferenceDebugInfo(): IChatModelReferenceDebugSnapshot;
 
@@ -2122,7 +2122,7 @@ export interface IChatSessionStartOptions {
 	canUseTools?: boolean;
 	disableBackgroundKeepAlive?: boolean;
 	debugOwner?: string;
-	sessionTypeSelectionTelemetry?: ISessionTypeSelectionTelemetry;
+	sessionTypeSelectionTelemetry?: SessionTypeSelectionTelemetryInput;
 }
 
 export const ChatStopCancellationNoopEventName = 'chat.stopCancellationNoop';

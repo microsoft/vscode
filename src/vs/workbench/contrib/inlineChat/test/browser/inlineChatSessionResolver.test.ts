@@ -13,8 +13,6 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { readChatSurfaceMeta } from '../../../../../platform/agentHost/common/meta/agentChatSurfaceMeta.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { constObservable } from '../../../../../base/common/observable.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IChatModelReference, IChatService, IChatSessionStartOptions } from '../../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
@@ -82,7 +80,7 @@ class TestChatService extends mock<IChatService>() {
 	readonly localReference = new TestModelReference();
 	readonly acquisitionStarted = new DeferredPromise<void>();
 	readonly acquisitionCalls: Array<{ location: ChatAgentLocation; debugOwner: string | undefined }> = [];
-	readonly localSessionCalls: Array<{ location: ChatAgentLocation; options: { canUseTools: boolean | undefined; sessionTypeSelectionReason: string | undefined } }> = [];
+	readonly localSessionCalls: Array<{ location: ChatAgentLocation; options: IChatSessionStartOptions | undefined }> = [];
 
 	override async acquireOrLoadSession(_sessionResource: URI, location: ChatAgentLocation, _token: CancellationToken, debugOwner?: string): Promise<IChatModelReference | undefined> {
 		this.acquisitionCalls.push({ location, debugOwner });
@@ -94,13 +92,7 @@ class TestChatService extends mock<IChatService>() {
 	}
 
 	override startNewLocalSession(location: ChatAgentLocation, options?: IChatSessionStartOptions): IChatModelReference {
-		this.localSessionCalls.push({
-			location,
-			options: {
-				canUseTools: options?.canUseTools,
-				sessionTypeSelectionReason: options?.sessionTypeSelectionTelemetry?.reason,
-			}
-		});
+		this.localSessionCalls.push({ location, options });
 		return this.localReference;
 	}
 }
@@ -121,7 +113,6 @@ suite('InlineChatSessionResolver', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatSessionsService, chatSessionsService);
 		instantiationService.stub(IChatService, chatService);
-		instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) });
 		resolver = instantiationService.createInstance(InlineChatSessionResolver);
 	});
 
@@ -147,7 +138,7 @@ suite('InlineChatSessionResolver', () => {
 			lockToAgent: undefined,
 			contributionLookups: [],
 			creationCalls: [],
-			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: undefined } }],
+			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionTelemetry: undefined } }],
 		});
 	});
 
@@ -201,7 +192,7 @@ suite('InlineChatSessionResolver', () => {
 			usesLocalReference: true,
 			lockToAgent: undefined,
 			creationCalls: [],
-			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: undefined } }],
+			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionTelemetry: undefined } }],
 		});
 	});
 
@@ -219,7 +210,7 @@ suite('InlineChatSessionResolver', () => {
 			usesLocalReference: true,
 			lockToAgent: undefined,
 			creationCalls: [],
-			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: undefined } }],
+			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionTelemetry: undefined } }],
 		});
 	});
 
@@ -239,7 +230,7 @@ suite('InlineChatSessionResolver', () => {
 			lockToAgent: undefined,
 			creationCalls: 1,
 			acquisitionCalls: [],
-			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: 'agentHostUnavailable' } }],
+			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionTelemetry: 'agentHostUnavailable' } }],
 		});
 	});
 
@@ -253,7 +244,7 @@ suite('InlineChatSessionResolver', () => {
 		}, {
 			usesLocalReference: true,
 			acquisitionCalls: [{ location: ChatAgentLocation.EditorInline, debugOwner: 'InlineChatSessionResolver#resolve' }],
-			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: 'agentHostUnavailable' } }],
+			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionTelemetry: 'agentHostUnavailable' } }],
 		});
 	});
 
@@ -273,7 +264,7 @@ suite('InlineChatSessionResolver', () => {
 			}, {
 				usesLocalReference: true,
 				lockToAgent: undefined,
-				localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: 'agentHostUnavailable' } }],
+				localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionTelemetry: 'agentHostUnavailable' } }],
 				reportedErrors: ['Agent Host unavailable'],
 			});
 		} finally {
@@ -295,7 +286,7 @@ suite('InlineChatSessionResolver', () => {
 				reportedErrors,
 			}, {
 				usesLocalReference: true,
-				localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: 'agentHostUnavailable' } }],
+				localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionTelemetry: 'agentHostUnavailable' } }],
 				reportedErrors: ['Agent Host acquisition failed'],
 			});
 		} finally {

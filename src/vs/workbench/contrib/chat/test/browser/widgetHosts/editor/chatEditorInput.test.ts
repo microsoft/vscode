@@ -31,11 +31,15 @@ import { IChatEditorOptions } from '../../../../browser/widgetHosts/editor/chatE
 import { IAgentHostEnablementService } from '../../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IChatService, IChatSessionStartOptions } from '../../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
-import { ChatAgentLocation, ISessionTypeSelectionTelemetry, SessionTypeSelectionReason } from '../../../../common/constants.js';
+import { ChatAgentLocation, ISessionTypeSelectionTelemetry, SessionTypeSelectionReason, SessionTypeSelectionTelemetryInput } from '../../../../common/constants.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
 import { TestContextService, TestStorageService } from '../../../../../../test/common/workbenchTestServices.js';
+
+function selectionReasonOf(input: SessionTypeSelectionTelemetryInput | undefined): SessionTypeSelectionReason | undefined {
+	return typeof input === 'string' ? input : input?.reason;
+}
 
 suite('ChatEditorInput', () => {
 
@@ -94,7 +98,7 @@ suite('ChatEditorInput', () => {
 				sessionResource: input.sessionResource,
 				startLocation: startCall?.location,
 				debugOwner: startCall?.options?.debugOwner,
-				selectionReason: startCall?.options?.sessionTypeSelectionTelemetry?.reason,
+				selectionReason: selectionReasonOf(startCall?.options?.sessionTypeSelectionTelemetry),
 				didTryDefaultLoad,
 			}, {
 				model,
@@ -125,7 +129,7 @@ suite('ChatEditorInput', () => {
 				return undefined;
 			},
 			startNewLocalSession(_location: ChatAgentLocation, options?: IChatSessionStartOptions) {
-				startedReason = options?.sessionTypeSelectionTelemetry?.reason;
+				startedReason = selectionReasonOf(options?.sessionTypeSelectionTelemetry);
 				return { object: model, dispose: () => { } };
 			},
 		} as Partial<IChatService> as IChatService;
@@ -256,7 +260,7 @@ suite('ChatEditorInput', () => {
 				sessionResource: input.sessionResource,
 				startLocation: startCall?.location,
 				debugOwner: startCall?.options?.debugOwner,
-				selectionReason: startCall?.options?.sessionTypeSelectionTelemetry?.reason,
+				selectionReason: selectionReasonOf(startCall?.options?.sessionTypeSelectionTelemetry),
 			}, {
 				model,
 				sessionResource: localResource,

@@ -17,8 +17,12 @@ import { ForkConversationAction } from '../../../browser/actions/chatForkActions
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../browser/chat.js';
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
-import { ChatAgentLocation, SessionTypeSelectionReason } from '../../../common/constants.js';
+import { ChatAgentLocation, SessionTypeSelectionReason, SessionTypeSelectionTelemetryInput } from '../../../common/constants.js';
 import { IChatModel, ISerializableChatData } from '../../../common/model/chatModel.js';
+
+function selectionReasonOf(input: SessionTypeSelectionTelemetryInput | undefined): SessionTypeSelectionReason | undefined {
+	return typeof input === 'string' ? input : input?.reason;
+}
 
 class TestForkConversationAction extends ForkConversationAction {
 	openForkedSession(instantiationService: TestInstantiationService, parentSessionResource: URI, forkedSessionResource: URI): Promise<void> {
@@ -89,7 +93,7 @@ suite('ForkConversationAction', () => {
 		instantiationService.stub(IChatService, upcastPartial<IChatService>({
 			getSession: resource => resource.toString() === sourceSessionResource.toString() ? sourceModel : undefined,
 			loadSessionFromData: (_data, debugOwner, selectionTelemetry) => {
-				loadCall = { debugOwner, selectionReason: selectionTelemetry?.reason };
+				loadCall = { debugOwner, selectionReason: selectionReasonOf(selectionTelemetry) };
 				return modelRef;
 			},
 		}));
