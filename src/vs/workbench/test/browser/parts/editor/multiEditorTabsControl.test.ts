@@ -111,6 +111,10 @@ suite('MultiEditorTabsControl', () => {
 		container.querySelector('.tabs-container')!.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { altKey, bubbles: true }));
 	}
 
+	function mouseDownOnTabAction(tabIndex: number, altKey: boolean): void {
+		container.querySelectorAll('.tabs-container > .tab')[tabIndex].querySelector('.tab-actions .action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { altKey, bubbles: true, cancelable: true }));
+	}
+
 	function alt(pressed: boolean): void {
 		mainWindow.dispatchEvent(new KeyboardEvent(pressed ? EventType.KEY_DOWN : EventType.KEY_UP, { key: 'Alt', altKey: pressed }));
 	}
@@ -163,6 +167,21 @@ suite('MultiEditorTabsControl', () => {
 		// The `keyup` for Alt went to another application, so only the
 		// next mouse event reveals that Alt is no longer pressed
 		moveMouseOverTabs(false);
+		actions.push(tabActions());
+
+		assert.deepStrictEqual(actions, [
+			['closeOthers', 'close'],
+			['close', 'close']
+		]);
+	});
+
+	test('Alt is revalidated when pressing the tab action without moving the mouse (#331979)', () => {
+		hoverTab(0);
+		alt(true);
+
+		const actions = [tabActions()];
+
+		mouseDownOnTabAction(0, false);
 		actions.push(tabActions());
 
 		assert.deepStrictEqual(actions, [

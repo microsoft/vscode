@@ -454,11 +454,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Re-validate the Alt state from mouse events over the tabs: the `keyup` for
 		// Alt may have been missed while another application had focus, in which case
-		// the tab action would otherwise remain swapped to "Close Others"
+		// the tab action would otherwise remain swapped to "Close Others". Listen in
+		// the capture phase because the tab action stops the mouse down event.
 		for (const eventType of [EventType.MOUSE_MOVE, EventType.MOUSE_DOWN]) {
 			this._register(addDisposableListener(tabsContainer, eventType, (e: MouseEvent) => {
 				this.setAltPressed(e.altKey);
-			}));
+			}, true));
 		}
 
 		// Prevent auto-pasting (https://github.com/microsoft/vscode/issues/201696)
