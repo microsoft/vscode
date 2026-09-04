@@ -290,11 +290,11 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	const linuxManagedSettingsPath = '/etc/github-copilot/managed-settings.json';
 
 	function macOsFileDeployCommand(body: string): string {
-		return `sudo mkdir -p "/Library/Application Support/GitHubCopilot" && sudo sh -c 'cat > "$1" && chown root "$1" && chmod 0644 "$1"' sh "${macOsManagedSettingsPath}" <<'JSON'\n${body}\nJSON`;
+		return `sudo mkdir -p "/Library/Application Support/GitHubCopilot" && sudo sh -c 'tmp=$(mktemp "\${1}.tmp.XXXXXX") && trap "rm -f -- \\"$tmp\\"" EXIT && cat > "$tmp" && chown root "$tmp" && chmod 0644 "$tmp" && mv -f -- "$tmp" "$1"' sh "${macOsManagedSettingsPath}" <<'JSON'\n${body}\nJSON`;
 	}
 
 	function linuxFileDeployCommand(body: string): string {
-		return `sudo mkdir -p /etc/github-copilot && sudo sh -c 'cat > "$1" && chown root "$1" && chmod 0644 "$1"' sh ${linuxManagedSettingsPath} <<'JSON'\n${body}\nJSON`;
+		return `sudo mkdir -p /etc/github-copilot && sudo sh -c 'tmp=$(mktemp "\${1}.tmp.XXXXXX") && trap "rm -f -- \\"$tmp\\"" EXIT && cat > "$tmp" && chown root "$tmp" && chmod 0644 "$tmp" && mv -f -- "$tmp" "$1"' sh ${linuxManagedSettingsPath} <<'JSON'\n${body}\nJSON`;
 	}
 
 	function macOsFileRemoveCommand(): string {
