@@ -8,7 +8,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { createAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -42,7 +42,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 		const connection = {
 			onDidAction: Event.None,
 			rootState: { value: undefined },
-			resourceUris: identityAgentHostResourceUriMapper,
+			resourceUris: createAgentHostResourceUriMapper('remote-test'),
 			getSubscription: () => ({ object: subscription, dispose: () => { } }),
 		} as unknown as IAgentConnection;
 		let backend = URI.parse('agent-host:/provisional-a');
@@ -75,17 +75,21 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 		const session = URI.parse('untitled:chat-session');
 
 		const provisional = service.getWorkingDirectories(session);
+		const verifiedBeforeHydration = service.getVerifiedWorkingDirectories(session);
 		subscription.verifiedValue = { workingDirectories: ['file:///verified'], customizations: [] } as unknown as SessionState;
 		subscription.value = subscription.verifiedValue;
 		subscriptionChanged.fire();
 		const verified = service.getWorkingDirectories(session);
+		const verifiedRoots = service.getVerifiedWorkingDirectories(session);
 		subscription.value = { workingDirectories: ['file:///optimistic'], customizations: [] } as unknown as SessionState;
 		subscriptionChanged.fire();
 		const optimistic = service.getWorkingDirectories(session);
+		const verifiedDuringOptimisticChange = service.getVerifiedWorkingDirectories(session);
 		customizationChangeCount = 0;
 		subscription.value = new Error('transient');
 		subscriptionError.fire(subscription.value);
 		const afterError = service.getWorkingDirectories(session);
+		const verifiedAfterError = service.getVerifiedWorkingDirectories(session);
 		const changesAfterError = customizationChangeCount;
 		backend = URI.parse('agent-host:/provisional-b');
 		provisionalRoots = [URI.file('/replacement')];
@@ -93,14 +97,36 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 		subscription.verifiedValue = undefined;
 		provisionalChanged.fire(session);
 		const replacement = service.getWorkingDirectories(session);
+		const verifiedAfterReplacement = service.getVerifiedWorkingDirectories(session);
+		const summarizeRoots = (roots: readonly string[]) => roots.map(root => {
+			const uri = URI.parse(root);
+			return { scheme: uri.scheme, authority: uri.authority, path: uri.path };
+		});
 
-		assert.deepStrictEqual({ provisional, verified, optimistic, afterError, changesAfterError, replacement }, {
-			provisional: ['file:///provisional'],
-			verified: ['file:///verified'],
-			optimistic: ['file:///optimistic'],
-			afterError: ['file:///verified'],
+		assert.deepStrictEqual({
+			provisional: summarizeRoots(provisional),
+			verifiedBeforeHydration,
+			verified: summarizeRoots(verified),
+			verifiedRoots: summarizeRoots(verifiedRoots),
+			optimistic: summarizeRoots(optimistic),
+			verifiedDuringOptimisticChange: summarizeRoots(verifiedDuringOptimisticChange),
+			afterError: summarizeRoots(afterError),
+			verifiedAfterError: summarizeRoots(verifiedAfterError),
+			changesAfterError,
+			replacement: summarizeRoots(replacement),
+			verifiedAfterReplacement,
+		}, {
+			provisional: [{ scheme: 'vscode-agent-host', authority: 'remote-test', path: '/provisional' }],
+			verifiedBeforeHydration: [],
+			verified: [{ scheme: 'vscode-agent-host', authority: 'remote-test', path: '/verified' }],
+			verifiedRoots: [{ scheme: 'vscode-agent-host', authority: 'remote-test', path: '/verified' }],
+			optimistic: [{ scheme: 'vscode-agent-host', authority: 'remote-test', path: '/optimistic' }],
+			verifiedDuringOptimisticChange: [{ scheme: 'vscode-agent-host', authority: 'remote-test', path: '/verified' }],
+			afterError: [{ scheme: 'vscode-agent-host', authority: 'remote-test', path: '/verified' }],
+			verifiedAfterError: [{ scheme: 'vscode-agent-host', authority: 'remote-test', path: '/verified' }],
 			changesAfterError: 1,
-			replacement: ['file:///replacement'],
+			replacement: [{ scheme: 'vscode-agent-host', authority: 'remote-test', path: '/replacement' }],
+			verifiedAfterReplacement: [],
 		});
 	});
 });

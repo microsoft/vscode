@@ -443,14 +443,17 @@ suite('CustomizationMigrationService', () => {
 				dispose: () => { },
 			}),
 		} as Partial<IAgentHostActiveClientService> as IAgentHostActiveClientService;
+		let verifiedRoots: readonly string[] = [];
 		const agentHostCustomizationService = {
 			onDidChangeCustomizations: Event.None,
 			getWorkingDirectories: () => [root.toString()],
+			getVerifiedWorkingDirectories: () => verifiedRoots,
 		} as Partial<IAgentHostCustomizationService> as IAgentHostCustomizationService;
 		const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, fileService, new NullLogService()));
-
 		const migration = await service.computeMigration(activeSessionResource.get(), CustomizationMigrationType.McpServers);
 		const hint = await service.computeMigrationHint(activeSessionResource.get());
+		const unverifiedResult = await service.migrateMcpServers(activeSessionResource.get(), migration.candidates);
+		verifiedRoots = [root.toString()];
 		snapshot = {
 			...snapshot,
 			servers: snapshot.servers.map(server => ({ ...server, compatibility: { kind: 'unsupported', reasons: [AgentHostMcpSupportReason.LaunchNotRepresentable] } })),
@@ -465,6 +468,10 @@ suite('CustomizationMigrationService', () => {
 				target: candidate.targetUri.path,
 			})),
 			hint,
+			unverifiedResult: {
+				migratedCount: unverifiedResult.migratedCount,
+				failures: unverifiedResult.failures.map(failure => failure.reason),
+			},
 			result: {
 				migratedCount: result.migratedCount,
 				failures: result.failures.map(failure => failure.reason),
@@ -473,6 +480,7 @@ suite('CustomizationMigrationService', () => {
 		}, {
 			candidates: [{ name: 'server', source: '/workspace/.vscode/mcp.json', target: '/workspace/.mcp.json' }],
 			hint: 'Found 1 workspace MCP server that can be migrated for Copilot.',
+			unverifiedResult: { migratedCount: 0, failures: ['noLongerEligible'] },
 			result: { migratedCount: 0, failures: ['noLongerEligible'] },
 			source: '{"servers":{"server":{"command":"node"}}}',
 		});
@@ -509,6 +517,7 @@ suite('CustomizationMigrationService', () => {
 		const agentHostCustomizationService = {
 			onDidChangeCustomizations: Event.None,
 			getWorkingDirectories: () => roots,
+			getVerifiedWorkingDirectories: () => roots,
 		} as Partial<IAgentHostCustomizationService> as IAgentHostCustomizationService;
 		const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, new NullLogService()));
 		const requested = [{

@@ -60,6 +60,11 @@ export interface IAgentHostCustomizationService {
 	getWorkingDirectories(sessionResource: URI): readonly string[];
 
 	/**
+	 * The server-confirmed working-directory roots for a session.
+	 */
+	getVerifiedWorkingDirectories(sessionResource: URI): readonly string[];
+
+	/**
 	 * Returns the MCP servers exposed by an agent-host session. Each entry
 	 * carries the current status, a {@link IAgentHostMcpServer.setEnabled}
 	 * method that dispatches the protocol-level toggle on behalf of the
@@ -115,6 +120,9 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 		return undefined;
 	}
 	getWorkingDirectories(_sessionResource: URI): readonly string[] {
+		return [];
+	}
+	getVerifiedWorkingDirectories(_sessionResource: URI): readonly string[] {
 		return [];
 	}
 	getMcpServers(_sessionResource: URI): readonly IAgentHostMcpServer[] {
@@ -195,6 +203,10 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 
 	getWorkingDirectories(sessionResource: URI): readonly string[] {
 		return this._resolveTarget(sessionResource)?.workingDirectories ?? [];
+	}
+
+	getVerifiedWorkingDirectories(sessionResource: URI): readonly string[] {
+		return [];
 	}
 
 	getMcpServers(sessionResource: URI): readonly IAgentHostMcpServer[] {
@@ -490,21 +502,14 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		const subscriptionValue = subscription?.value;
 		const verifiedSessionState = subscription?.verifiedValue;
 		const sessionState = subscriptionValue && !(subscriptionValue instanceof Error) ? subscriptionValue : verifiedSessionState;
+		const verifiedWorkingDirectories = this._getVerifiedWorkingDirectories(sessionResource, target, verifiedSessionState);
 		let workingDirectories: readonly string[];
-		if (verifiedSessionState) {
-			const verifiedWorkingDirectories = verifiedSessionState.workingDirectories ?? [];
-			this._verifiedWorkingDirectories.set(sessionResource, {
-				backendSession: target.backendSession.toString(),
-				roots: verifiedWorkingDirectories,
-			});
-		}
 		if (sessionState) {
-			workingDirectories = sessionState.workingDirectories ?? [];
+			workingDirectories = this._mapWorkingDirectories(target, sessionState.workingDirectories ?? []);
 		} else {
-			const verified = this._verifiedWorkingDirectories.get(sessionResource);
-			workingDirectories = verified?.backendSession === target.backendSession.toString()
-				? verified.roots
-				: this._provisionalSessionService.getProvisionalWorkingDirectories(sessionResource)?.map(root => root.toString()) ?? [];
+			workingDirectories = verifiedWorkingDirectories
+				?? this._provisionalSessionService.getProvisionalWorkingDirectories(sessionResource)?.map(root => target.connection.resourceUris.fromAgentHost(root).toString())
+				?? [];
 		}
 		const rootState = target.connection.rootState.value;
 		const channel = target.backendSession.toString();
@@ -545,6 +550,36 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 				});
 			}
 		};
+	}
+
+	override getVerifiedWorkingDirectories(sessionResource: URI): readonly string[] {
+		const target = this._resolveSessionTarget(sessionResource);
+		if (!target) {
+			return [];
+		}
+		const verifiedSessionState = this._ensureSessionStateSubscription(sessionResource, target)?.sub.verifiedValue;
+		return this._getVerifiedWorkingDirectories(sessionResource, target, verifiedSessionState) ?? [];
+	}
+
+	private _getVerifiedWorkingDirectories(
+		sessionResource: URI,
+		target: IAgentHostSessionResolution,
+		verifiedSessionState: SessionState | undefined,
+	): readonly string[] | undefined {
+		if (verifiedSessionState) {
+			const roots = this._mapWorkingDirectories(target, verifiedSessionState.workingDirectories ?? []);
+			this._verifiedWorkingDirectories.set(sessionResource, {
+				backendSession: target.backendSession.toString(),
+				roots,
+			});
+			return roots;
+		}
+		const verified = this._verifiedWorkingDirectories.get(sessionResource);
+		return verified?.backendSession === target.backendSession.toString() ? verified.roots : undefined;
+	}
+
+	private _mapWorkingDirectories(target: IAgentHostSessionResolution, roots: readonly string[]): readonly string[] {
+		return roots.map(root => target.connection.resourceUris.fromAgentHost(URI.parse(root)).toString());
 	}
 
 	private _ensureSessionStateSubscription(sessionResource: URI, target: IAgentHostSessionResolution): (IDisposable & { readonly connection: IAgentConnection; readonly backendSession: URI; readonly sub: IAgentSubscription<SessionState> }) | undefined {

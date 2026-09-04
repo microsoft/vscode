@@ -36,6 +36,10 @@ interface IJsonDocument {
 	readonly exists: boolean;
 }
 
+interface IMcpTargetDocument extends IJsonDocument {
+	readonly wrapped: boolean;
+}
+
 interface IMcpServerCustomizationMigrationExecutionOptions {
 	readonly isContextCurrent?: () => boolean;
 }
@@ -221,13 +225,13 @@ async function migrateGroup(
 		);
 	}
 
-	let target: IJsonDocument;
+	let target: IMcpTargetDocument;
 	try {
 		target = await readTargetDocument(group.targetUri, fileService);
 	} catch (error) {
 		throw new McpServerMigrationError(McpServerCustomizationMigrationFailureReason.InvalidTarget, toError(error));
 	}
-	const targetServers = getObjectProperty(target.value, 'mcpServers')!;
+	const targetServers = getTargetServers(target);
 	const candidatesToMigrate: IMcpServerCustomizationMigrationCandidate[] = [];
 	const failures: IMcpServerCustomizationMigrationFailure[] = [];
 
@@ -274,7 +278,11 @@ async function migrateGroup(
 	let targetChanged = false;
 	for (const candidate of candidatesToMigrate) {
 		if (!Object.hasOwn(targetServers, candidate.name)) {
-			targetContent = setJsonValue(targetContent, ['mcpServers', candidate.name], canonicalizeConfiguration(candidate.projectedConfiguration));
+			targetContent = setJsonValue(
+				targetContent,
+				target.wrapped ? ['mcpServers', candidate.name] : [candidate.name],
+				canonicalizeConfiguration(candidate.projectedConfiguration),
+			);
 			targetChanged = true;
 		}
 	}
@@ -396,7 +404,7 @@ async function verifyMigration(
 	const source = await readSourceDocument(group.sourceUri, fileService);
 	const sourceServers = getObjectProperty(source.value, 'servers');
 	const target = await readTargetDocument(group.targetUri, fileService);
-	const targetServers = getObjectProperty(target.value, 'mcpServers')!;
+	const targetServers = getTargetServers(target);
 	for (const candidate of candidates) {
 		if (sourceServers?.[candidate.name] !== undefined
 			|| !equals(canonicalizeSourceConfiguration(targetServers[candidate.name]), canonicalizeConfiguration(candidate.projectedConfiguration))) {
@@ -419,20 +427,20 @@ async function readSourceDocument(resource: URI, fileService: IFileService): Pro
 	return { content, value, exists: true };
 }
 
-async function readTargetDocument(resource: URI, fileService: IFileService): Promise<IJsonDocument> {
+async function readTargetDocument(resource: URI, fileService: IFileService): Promise<IMcpTargetDocument> {
 	try {
 		const file = await fileService.readFile(resource);
 		const content = file.value.toString();
-		let value: unknown;
-		try {
-			value = JSON.parse(content);
-		} catch {
-			throw new Error(`MCP configuration ${resource.toString()} must contain strict JSON.`);
+		const errors: ParseError[] = [];
+		const value = parse(content, errors, { allowTrailingComma: true, allowEmptyContent: false });
+		if (errors.length > 0 || !isJsonObject(value)) {
+			throw new Error(`MCP configuration ${resource.toString()} contains invalid JSON.`);
 		}
-		if (!isJsonObject(value) || !getObjectProperty(value, 'mcpServers')) {
-			throw new Error(`MCP configuration ${resource.toString()} must contain an mcpServers object.`);
+		const wrapped = Object.hasOwn(value, 'mcpServers');
+		if (wrapped && !getObjectProperty(value, 'mcpServers')) {
+			throw new Error(`MCP configuration ${resource.toString()} does not contain a valid mcpServers object.`);
 		}
-		return { content, value, exists: true };
+		return { content, value, exists: true, wrapped };
 	} catch (error) {
 		if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
 			throw error;
@@ -442,8 +450,13 @@ async function readTargetDocument(resource: URI, fileService: IFileService): Pro
 			content: `${JSON.stringify(value, undefined, '\t')}\n`,
 			value,
 			exists: false,
+			wrapped: true,
 		};
 	}
+}
+
+function getTargetServers(target: IMcpTargetDocument): Record<string, unknown> {
+	return target.wrapped ? getObjectProperty(target.value, 'mcpServers')! : target.value;
 }
 
 async function writeDocument(resource: URI, content: string, document: IJsonDocument, fileService: IFileService): Promise<IFileStatWithMetadata> {

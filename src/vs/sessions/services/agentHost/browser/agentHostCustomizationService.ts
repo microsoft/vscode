@@ -91,6 +91,14 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		};
 	}
 
+	override getVerifiedWorkingDirectories(sessionResource: URI): readonly string[] {
+		const session = this._getSession(sessionResource);
+		if (!session) {
+			return [];
+		}
+		return this._getAHSProvider(session)?.getVerifiedWorkingDirectories(session.sessionId) ?? [];
+	}
+
 	override getCustomAgents(sessionResource: URI): readonly AgentCustomization[] {
 		const session = this._getSession(sessionResource);
 		if (session) {

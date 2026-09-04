@@ -266,7 +266,7 @@ suite('McpServerCustomizationMigration', () => {
 		});
 	});
 
-	test('rejects changed source configuration and strict-invalid targets without writes', async () => {
+	test('rejects changed source configuration and invalid targets without writes', async () => {
 		const root = URI.file('/invalid');
 		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
 		const targetUri = URI.joinPath(root, '.mcp.json');
@@ -276,10 +276,38 @@ suite('McpServerCustomizationMigration', () => {
 		assert.deepStrictEqual(result.failures.map(failure => failure.reason), [McpServerCustomizationMigrationFailureReason.SourceChanged]);
 
 		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"node"}}}'));
-		await fileService.writeFile(targetUri, VSBuffer.fromString('{\n// comments are not accepted\n"mcpServers": {}\n}'));
+		await fileService.writeFile(targetUri, VSBuffer.fromString('{"mcpServers":[]}'));
 		result = await new McpServerCustomizationMigrator(fileService).migrate([candidate(root, 'server')]);
 		assert.deepStrictEqual(result.failures.map(failure => failure.reason), [McpServerCustomizationMigrationFailureReason.InvalidTarget]);
 		assert.deepStrictEqual(parse((await fileService.readFile(sourceUri)).value.toString()), { servers: { server: { command: 'node' } } });
+	});
+
+	test('preserves a flat JSONC target while adding migrated servers', async () => {
+		const root = URI.file('/flat-target');
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const targetUri = URI.joinPath(root, '.mcp.json');
+		const fileService = createFileService();
+		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"node"}}}'));
+		await fileService.writeFile(targetUri, VSBuffer.fromString(`{
+			// preserved
+			"existing": { "command": "existing" },
+		}`));
+
+		const result = await new McpServerCustomizationMigrator(fileService).migrate([candidate(root, 'server')]);
+		const target = (await fileService.readFile(targetUri)).value.toString();
+
+		assert.deepStrictEqual({
+			result,
+			target: parse(target),
+			commentPreserved: target.includes('// preserved'),
+		}, {
+			result: { migratedCount: 1, failures: [] },
+			target: {
+				existing: { command: 'existing' },
+				server: { type: 'stdio', command: 'node' },
+			},
+			commentPreserved: true,
+		});
 	});
 
 	test('retains a newly created target when the source write fails', async () => {

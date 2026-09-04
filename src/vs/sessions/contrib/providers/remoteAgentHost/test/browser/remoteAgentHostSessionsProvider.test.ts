@@ -15,7 +15,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostConnectionsService, type IAgentHostSessionResolutionPolicy, type IAgentHostSessionSchemeAlias } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, createAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -72,6 +72,7 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	});
 
 	override readonly clientId = 'test-client-1';
+	override readonly resourceUris = createAgentHostResourceUriMapper('test-remote');
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public disposedSessions: URI[] = [];
 	public dispatchedActions: { channel: string; action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
@@ -787,9 +788,27 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('clearConnection clears pending new session config and capabilities', () => {
 		connection.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo]);
-		const provider = createProvider(disposables, connection);
+		class TestRemoteAgentHostSessionsProvider extends RemoteAgentHostSessionsProvider {
+			seedWorkingDirectories(sessionId: string, state: SessionState): void {
+				this._lastSessionStates.set(sessionId, state);
+				this._lastVerifiedWorkingDirectories.set(sessionId, state.workingDirectories ?? []);
+			}
+		}
+		const provider = createProvider(disposables, connection, { ctor: TestRemoteAgentHostSessionsProvider }) as TestRemoteAgentHostSessionsProvider;
 		fireSessionAdded(connection, 'running-session', { title: 'Running Session' });
 		const runningSession = provider.getSessions()[0];
+		const rootsSessionId = 'remote-roots';
+		provider.seedWorkingDirectories(rootsSessionId, {
+			provider: 'copilotcli',
+			title: 'Running Session',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			workingDirectories: ['file:///home/user/project'],
+		});
+		const connectedRoot = URI.parse(provider.getWorkingDirectories(rootsSessionId)[0]);
+		const connectedVerifiedRoot = URI.parse(provider.getVerifiedWorkingDirectories(rootsSessionId)[0]);
 
 		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
 		const supportsMultipleChatsBeforeDisconnect = runningSession.capabilities.get().supportsMultipleChats;
@@ -801,12 +820,20 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			sessionTypes: provider.sessionTypes,
 			supportsMultipleChatsBeforeDisconnect,
 			supportsMultipleChatsAfterDisconnect: runningSession.capabilities.get().supportsMultipleChats,
+			connectedRoot: { scheme: connectedRoot.scheme, path: connectedRoot.path },
+			connectedVerifiedRoot: { scheme: connectedVerifiedRoot.scheme, path: connectedVerifiedRoot.path },
+			disconnectedRoots: provider.getWorkingDirectories(rootsSessionId),
+			disconnectedVerifiedRoots: provider.getVerifiedWorkingDirectories(rootsSessionId),
 		}, {
 			resolved: undefined,
 			config: undefined,
 			sessionTypes: [],
 			supportsMultipleChatsBeforeDisconnect: true,
 			supportsMultipleChatsAfterDisconnect: false,
+			connectedRoot: { scheme: 'vscode-agent-host', path: '/home/user/project' },
+			connectedVerifiedRoot: { scheme: 'vscode-agent-host', path: '/home/user/project' },
+			disconnectedRoots: [],
+			disconnectedVerifiedRoots: [],
 		});
 	});
 
