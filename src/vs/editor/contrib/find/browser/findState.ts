@@ -8,6 +8,16 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Range } from '../../../common/core/range.js';
 import { MATCHES_LIMIT } from './findModel.js';
 
+function searchScopesEqual(a: Range[] | null, b: Range[] | null): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b || a.length !== b.length) {
+		return false;
+	}
+	return a.every(rangeA => b.some(rangeB => Range.equalsRange(rangeA, rangeB)));
+}
+
 export interface FindReplaceStateChangedEvent {
 	moveCursor: boolean;
 	updateHistory: boolean;
@@ -252,11 +262,7 @@ export class FindReplaceState<T extends { update: (value: T) => void } = { updat
 			this._preserveCase = newState.preserveCase;
 		}
 		if (typeof newState.searchScope !== 'undefined') {
-			if (!newState.searchScope?.every((newSearchScope) => {
-				return this._searchScope?.some(existingSearchScope => {
-					return !Range.equalsRange(existingSearchScope, newSearchScope);
-				});
-			})) {
+			if (!searchScopesEqual(newState.searchScope, this._searchScope)) {
 				this._searchScope = newState.searchScope;
 				changeEvent.searchScope = true;
 				somethingChanged = true;
