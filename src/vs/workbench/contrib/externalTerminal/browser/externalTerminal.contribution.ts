@@ -6,7 +6,7 @@
 import * as nls from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { URI } from '../../../../base/common/uri.js';
-import { MenuId, MenuRegistry, IMenuItem } from '../../../../platform/actions/common/actions.js';
+import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ITerminalGroupService, ITerminalService as IIntegratedTerminalService } from '../../terminal/browser/terminal.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -15,9 +15,9 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { Schemas } from '../../../../base/common/network.js';
 import { distinct } from '../../../../base/common/arrays.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { dirname, basename } from '../../../../base/common/path.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
@@ -93,56 +93,83 @@ function registerOpenTerminalCommand(id: string, explorerKind: 'integrated' | 'e
 registerOpenTerminalCommand(OPEN_IN_TERMINAL_COMMAND_ID, 'external');
 registerOpenTerminalCommand(OPEN_IN_INTEGRATED_TERMINAL_COMMAND_ID, 'integrated');
 
+function shouldShowOnLocal(mode: 'integrated' | 'external'): ContextKeyExpression | undefined {
+	return ContextKeyExpr.and(
+		ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+		ContextKeyExpr.or(ContextKeyExpr.equals('config.terminal.explorerKind', mode), ContextKeyExpr.equals('config.terminal.explorerKind', 'both')));
+}
+
+const enum TerminalMenuVariant {
+	External,
+	Windows
+}
+
 export class ExternalTerminalContribution extends Disposable implements IWorkbenchContribution {
-	private _openInIntegratedTerminalMenuItem: IMenuItem;
-	private _openInTerminalMenuItem: IMenuItem;
+	private _openInIntegratedTerminalDisposable: IDisposable | undefined;
+	private _openInTerminalDisposable: IDisposable | undefined;
+	private _openInTerminalVariant: TerminalMenuVariant | undefined;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 
-		const shouldShowIntegratedOnLocal = ContextKeyExpr.and(
-			ResourceContextKey.Scheme.isEqualTo(Schemas.file),
-			ContextKeyExpr.or(ContextKeyExpr.equals('config.terminal.explorerKind', 'integrated'), ContextKeyExpr.equals('config.terminal.explorerKind', 'both')));
+		this.registerMenuItemOpenInIntegratedTerminal();
+		this.registerMenuItemOpenInTerminal(TerminalMenuVariant.External);
 
+		this._register(toDisposable(() => {
+			this._openInIntegratedTerminalDisposable?.dispose();
+			this._openInTerminalDisposable?.dispose();
+			this._openInTerminalVariant = undefined;
+		}));
 
-		const shouldShowExternalKindOnLocal = ContextKeyExpr.and(
-			ResourceContextKey.Scheme.isEqualTo(Schemas.file),
-			ContextKeyExpr.or(ContextKeyExpr.equals('config.terminal.explorerKind', 'external'), ContextKeyExpr.equals('config.terminal.explorerKind', 'both')));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('terminal.explorerKind') || e.affectsConfiguration('terminal.external')) {
+				this._refreshOpenInTerminalMenuItemVariant();
+			}
+		}));
 
-		this._openInIntegratedTerminalMenuItem = {
+		this._refreshOpenInTerminalMenuItemVariant();
+	}
+
+	private registerMenuItemOpenInIntegratedTerminal(): void {
+		this._openInIntegratedTerminalDisposable?.dispose();
+
+		const openInIntegratedTerminalMenuItem = {
 			group: 'navigation',
 			order: 30,
 			command: {
 				id: OPEN_IN_INTEGRATED_TERMINAL_COMMAND_ID,
 				title: nls.localize('scopedConsoleAction.Integrated', "Open in Integrated Terminal")
 			},
-			when: ContextKeyExpr.or(shouldShowIntegratedOnLocal, ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote))
+			when: ContextKeyExpr.or(
+				shouldShowOnLocal('integrated'),
+				ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)
+			)
 		};
 
+		this._openInIntegratedTerminalDisposable = MenuRegistry.appendMenuItem(MenuId.ExplorerContext, openInIntegratedTerminalMenuItem);
+	}
 
-		this._openInTerminalMenuItem = {
+	private registerMenuItemOpenInTerminal(variant: TerminalMenuVariant): void {
+		this._openInTerminalDisposable?.dispose();
+
+		const title = variant === TerminalMenuVariant.External
+			? nls.localize('scopedConsoleAction.external', "Open in External Terminal")
+			: nls.localize('scopedConsoleAction.wt', "Open in Windows Terminal");
+
+		const openInTerminalMenuItem = {
 			group: 'navigation',
 			order: 31,
 			command: {
 				id: OPEN_IN_TERMINAL_COMMAND_ID,
-				title: nls.localize('scopedConsoleAction.external', "Open in External Terminal")
+				title
 			},
-			when: shouldShowExternalKindOnLocal
+			when: shouldShowOnLocal('external')
 		};
 
-
-		MenuRegistry.appendMenuItem(MenuId.ExplorerContext, this._openInTerminalMenuItem);
-		MenuRegistry.appendMenuItem(MenuId.ExplorerContext, this._openInIntegratedTerminalMenuItem);
-
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('terminal.explorerKind') || e.affectsConfiguration('terminal.external')) {
-				this._refreshOpenInTerminalMenuItemTitle();
-			}
-		}));
-
-		this._refreshOpenInTerminalMenuItemTitle();
+		this._openInTerminalDisposable = MenuRegistry.appendMenuItem(MenuId.ExplorerContext, openInTerminalMenuItem);
+		this._openInTerminalVariant = variant;
 	}
 
 	private isWindows(): boolean {
@@ -156,10 +183,16 @@ export class ExternalTerminalContribution extends Disposable implements IWorkben
 		return false;
 	}
 
-	private _refreshOpenInTerminalMenuItemTitle(): void {
-		if (this.isWindows()) {
-			this._openInTerminalMenuItem.command.title = nls.localize('scopedConsoleAction.wt', "Open in Windows Terminal");
+	private _refreshOpenInTerminalMenuItemVariant(): void {
+		const nextVariant = this.isWindows()
+			? TerminalMenuVariant.Windows
+			: TerminalMenuVariant.External;
+
+		if (nextVariant === this._openInTerminalVariant) {
+			return;
 		}
+
+		this.registerMenuItemOpenInTerminal(nextVariant);
 	}
 }
 

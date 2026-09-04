@@ -1088,7 +1088,27 @@ menusExtensionPoint.setHandler(extensions => {
 			}
 
 			for (const menuItem of entry[1]) {
+				if (menu.id === MenuId.ViewContainerTitle && !menuItem.when?.includes('viewContainer == workbench.view.debug')) {
+					// Not a perfect check but enough to communicate that this proposed extension point is currently only for the debug view container
+					collector.error(localize('viewContainerTitle.when', "The {0} menu contribution must check {1} in its {2} clause.", '`viewContainer/title`', '`viewContainer == workbench.view.debug`', '"when"'));
+					continue;
+				}
+
 				let item: IMenuItem | ISubmenuItem;
+
+				let group: string | undefined;
+				let order: number | undefined;
+				const when = ContextKeyExpr.deserialize(menuItem.when);
+
+				if (menuItem.group) {
+					const idx = menuItem.group.lastIndexOf('@');
+					if (idx > 0) {
+						group = menuItem.group.substr(0, idx);
+						order = Number(menuItem.group.substr(idx + 1)) || undefined;
+					} else {
+						group = menuItem.group;
+					}
+				}
 
 				if (schema.isMenuItem(menuItem)) {
 					const command = MenuRegistry.getCommand(menuItem.command);
@@ -1105,7 +1125,7 @@ menusExtensionPoint.setHandler(extensions => {
 						collector.info(localize('dupe.command', "Menu item references the same command as default and alt-command"));
 					}
 
-					item = { command, alt, group: undefined, order: undefined, when: undefined };
+					item = { command, alt, group, order, when };
 				} else {
 					if (menu.supportsSubmenus === false) {
 						collector.error(localize('unsupported.submenureference', "Menu item references a submenu for a menu which doesn't have submenu support."));
@@ -1133,26 +1153,9 @@ menusExtensionPoint.setHandler(extensions => {
 
 					submenuRegistrations.add(submenu.id.id);
 
-					item = { submenu: submenu.id, icon: submenu.icon, title: submenu.label, group: undefined, order: undefined, when: undefined };
+					item = { submenu: submenu.id, icon: submenu.icon, title: submenu.label, group, order, when };
 				}
 
-				if (menuItem.group) {
-					const idx = menuItem.group.lastIndexOf('@');
-					if (idx > 0) {
-						item.group = menuItem.group.substr(0, idx);
-						item.order = Number(menuItem.group.substr(idx + 1)) || undefined;
-					} else {
-						item.group = menuItem.group;
-					}
-				}
-
-				if (menu.id === MenuId.ViewContainerTitle && !menuItem.when?.includes('viewContainer == workbench.view.debug')) {
-					// Not a perfect check but enough to communicate that this proposed extension point is currently only for the debug view container
-					collector.error(localize('viewContainerTitle.when', "The {0} menu contribution must check {1} in its {2} clause.", '`viewContainer/title`', '`viewContainer == workbench.view.debug`', '"when"'));
-					continue;
-				}
-
-				item.when = ContextKeyExpr.deserialize(menuItem.when);
 				_menuRegistrations.add(MenuRegistry.appendMenuItem(menu.id, item));
 			}
 		}
