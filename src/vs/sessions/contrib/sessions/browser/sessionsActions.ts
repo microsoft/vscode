@@ -39,6 +39,7 @@ import { ISessionsPartService } from '../../../services/sessions/browser/session
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { $, addDisposableListener, append, EventHelper, EventType, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
 import { EventType as TouchEventType, GestureEvent } from '../../../../base/browser/touch.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button, ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -1280,6 +1281,10 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
  */
 export class NewSessionActionViewItem extends CompactButtonActionViewItem {
 
+	/** The two halves, kept so toolbar focus can be routed into them. */
+	private _primaryButton: Button | undefined;
+	private _dropdownButton: Button | undefined;
+
 	constructor(
 		action: IAction,
 		private readonly telemetrySource: SessionsInteractionSource,
@@ -1333,10 +1338,14 @@ export class NewSessionActionViewItem extends CompactButtonActionViewItem {
 
 		const button = this._register(new ButtonWithDropdown(this.element, {
 			...defaultButtonStyles,
-			buttonSecondaryBackground: asCssVariable(agentsNewSessionButtonBackground),
+			// The outer container owns the stroke and background so both halves sit
+			// flush inside it. Leaving these unset keeps Button from writing inline
+			// border/background styles that the stylesheet would have to fight.
+			buttonBorder: undefined,
+			buttonSecondaryBorder: undefined,
+			buttonSecondaryBackground: undefined,
 			buttonSecondaryForeground: asCssVariable(agentsNewSessionButtonForeground),
 			buttonSecondaryHoverBackground: asCssVariable(agentsNewSessionButtonHoverBackground),
-			buttonSecondaryBorder: asCssVariable(agentsNewSessionButtonBorder),
 			buttonSeparator: asCssVariable(agentsNewSessionButtonBorder),
 			secondary: true,
 			supportIcons: true,
@@ -1345,6 +1354,31 @@ export class NewSessionActionViewItem extends CompactButtonActionViewItem {
 			actions: { getActions: () => getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true })) },
 		}));
 		button.element.classList.add('agent-sessions-compact-new-button');
+		this._primaryButton = button.primaryButton;
+		this._dropdownButton = button.dropdownButton;
+		// The toolbar owns focus via a roving tabindex on the containing item, so the
+		// halves must not be tab stops of their own; `focus`/`setFocusable` below route
+		// focus into them and Left/Right Arrow moves between them.
+		button.primaryButton.element.tabIndex = -1;
+		button.dropdownButton.element.tabIndex = -1;
+		this._register(addDisposableListener(button.primaryButton.element, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.RightArrow)) {
+				button.primaryButton.element.tabIndex = -1;
+				button.dropdownButton.element.tabIndex = 0;
+				button.dropdownButton.element.focus();
+				event.stopPropagation();
+			}
+		}));
+		this._register(addDisposableListener(button.dropdownButton.element, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.LeftArrow)) {
+				button.dropdownButton.element.tabIndex = -1;
+				button.primaryButton.element.tabIndex = 0;
+				button.primaryButton.element.focus();
+				event.stopPropagation();
+			}
+		}));
 		const onboardingTargetId = this.onboardingTargetId;
 		if (onboardingTargetId) {
 			this._register(markOnboardingTarget(button.primaryButton.element, onboardingTargetId));
@@ -1422,6 +1456,45 @@ export class NewSessionActionViewItem extends CompactButtonActionViewItem {
 			button.primaryButton.element.setAttribute('aria-label', this.getAriaLabel(keybindingAriaLabel));
 		};
 		this._register(Event.runAndSubscribe(this.keybindingService.onDidUpdateKeybindings, updateButton));
+	}
+
+	/**
+	 * Route toolbar focus into the split button rather than the containing item, so
+	 * arrow navigation lands on the "New" half (or the chevron when arriving from the
+	 * right) instead of an element with no visible focus indicator.
+	 */
+	override focus(fromRight?: boolean): void {
+		if (!this._primaryButton || !this._dropdownButton) {
+			super.focus();
+			return;
+		}
+		this.element?.classList.add('focused');
+		if (fromRight) {
+			this._dropdownButton.element.tabIndex = 0;
+			this._dropdownButton.element.focus();
+		} else {
+			this._primaryButton.element.tabIndex = 0;
+			this._primaryButton.element.focus();
+		}
+	}
+
+	override blur(): void {
+		if (this._primaryButton && this._dropdownButton) {
+			this._primaryButton.element.tabIndex = -1;
+			this._dropdownButton.element.tabIndex = -1;
+		}
+		super.blur();
+	}
+
+	override setFocusable(focusable: boolean): void {
+		if (!this._primaryButton || !this._dropdownButton) {
+			super.setFocusable(focusable);
+			return;
+		}
+		this._primaryButton.element.tabIndex = focusable ? 0 : -1;
+		if (!focusable) {
+			this._dropdownButton.element.tabIndex = -1;
+		}
 	}
 }
 

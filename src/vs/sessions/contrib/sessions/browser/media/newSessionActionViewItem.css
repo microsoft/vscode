@@ -56,7 +56,7 @@ so the widget never picks up the base `monaco-text-button` class. */
 	padding: 2px 6px 2px 8px;
 	font-size: var(--vscode-fontSize-label1, 12px);
 	line-height: 18px;
-	border: none !important;
+	border: none;
 	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
 	background-color: transparent;
 	color: inherit;
@@ -69,14 +69,12 @@ so the widget never picks up the base `monaco-text-button` class. */
 	display: flex;
 	align-items: center;
 	padding: 2px 0;
-	background-color: transparent !important;
-	border: none !important;
 }
 
+/* The line itself is coloured inline from the `buttonSeparator` style. */
 .agent-sessions-compact-new-button.monaco-button-dropdown .monaco-button-dropdown-separator > div {
 	width: 1px;
 	height: 14px;
-	background-color: var(--vscode-agentsNewSessionButton-border, var(--vscode-button-border, rgba(128, 128, 128, 0.35))) !important;
 }
 
 .agent-sessions-compact-new-button.monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
@@ -86,7 +84,7 @@ so the widget never picks up the base `monaco-text-button` class. */
 	padding: 2px 4px;
 	font-size: var(--vscode-fontSize-label1, 12px);
 	line-height: 18px;
-	border: none !important;
+	border: none;
 	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
 	background-color: transparent;
 	color: inherit;

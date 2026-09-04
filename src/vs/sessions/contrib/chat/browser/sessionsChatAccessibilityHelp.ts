@@ -17,6 +17,7 @@ import { ISessionsPartService } from '../../../services/sessions/browser/session
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID } from './promptTemplatePlaceholder.js';
 import { ARCHIVE_SESSION_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { NEW_SESSION_TO_SIDE_ACTION_ID } from '../common/constants.js';
 export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 120;
 	readonly name = 'sessionsChat';
@@ -45,6 +46,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.workspace', "Shift+Tab to navigate to the workspace picker and choose a workspace for your session. When consolidated remote workspaces are enabled, opening the picker focuses its search input so you can immediately type to filter workspaces."));
 		content.push(localize('sessionsChat.githubContext', "Use Add Context to attach files, images, and, when available, GitHub issues or pull requests."));
 		content.push(localize('sessionsChat.devContainer', "When Dev Container Agent Host sessions are enabled, Docker is available, and the selected local folder contains a Dev Container configuration, a Dev Container checkbox appears before New Worktree. Select it to run the session on an Agent Host inside that folder's Dev Container."));
+		content.push(localize('sessionsChat.newSessionToSide', "The New button in the Sessions header is a split button. Activate it to start a session in the current slot, or open one beside it{0}. Focus New and press Right Arrow to reach its dropdown, which also offers New Quick Chat and New Chat in This Session.", `<keybinding:${NEW_SESSION_TO_SIDE_ACTION_ID}>`));
 		content.push(localize('sessionsChat.pullRequestSession', "In a repository section where New Session is a split button, focus New Session and press Right Arrow to reach its dropdown, then activate New Session from Pull Request to open a searchable pull request picker. Pull requests are grouped by review and assignment status. Use the arrow keys to navigate, Enter to create the session, and Escape to close the picker."));
 		content.push(localize('sessionsChat.githubReferences', "Pull request and issue pills above the chat input open their GitHub item in the GitHub Pull Requests extension when it is available. Pills that represent several items open a keyboard-accessible picker."));
 		content.push(localize('sessionsChat.failingChecksPullRequest', "When a session pull request has failing checks, use Reveal in its banner item to open that pull request, or use Fix Checks to ask the agent to address the failures."));
