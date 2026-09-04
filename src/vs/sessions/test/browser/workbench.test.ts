@@ -22,6 +22,7 @@ import { GroupDirection, GroupOrientation } from '../../../workbench/services/ed
 import { SESSIONS_LIST_MINIMUM_WIDTH } from '../../browser/parts/sidebarPart.js';
 import { Menus } from '../../browser/menus.js';
 import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../../workbench/browser/parts/notifications/notificationsViewer.js';
+import { NullTelemetryServiceShape } from '../../../platform/telemetry/common/telemetryUtils.js';
 
 interface IViewSize { width: number; height: number }
 
@@ -29,6 +30,20 @@ interface IViewSize { width: number; height: number }
 class TestDockedEditorInput extends DockedEditorInput {
 	override get typeId(): string { return 'test.dockedEditor'; }
 	override get resource(): undefined { return undefined; }
+}
+
+function isTelemetryData(data: unknown): data is Record<string, unknown> {
+	return typeof data === 'object' && data !== null;
+}
+
+class TestTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
+
+	override publicLog2(eventName?: string, data?: unknown): void {
+		if (eventName && isTelemetryData(data)) {
+			this.events.push({ name: eventName, data });
+		}
+	}
 }
 
 suite('Sessions - Workbench', () => {
@@ -70,12 +85,14 @@ suite('Sessions - Workbench', () => {
 	const toggleSecondarySideBar = Workbench.prototype.toggleSecondarySideBar as (this: ITestWorkbench) => void;
 	const restoreSessionsPartOnActivation = Reflect.get(Workbench.prototype, '_restoreSessionsPartOnActivation') as (this: ITestWorkbench) => void;
 	const restoreEditorPartOnActivation = Reflect.get(Workbench.prototype, '_restoreEditorPartOnActivation') as (this: ITestWorkbench) => void;
+	const layoutGrid = Reflect.get(Workbench.prototype, '_layoutGrid') as (this: IContainerResizeTestHarness) => void;
 	const layoutSinglePaneGrid = Reflect.get(SinglePaneWorkbench.prototype, '_layoutGrid') as (this: IContainerResizeTestHarness) => void;
 	const preserveSessionsEditorRatio = Reflect.get(SinglePaneWorkbench.prototype, '_preserveSessionsEditorRatio') as (this: IProportionalResizeTestHarness, previousSessionsWidth: number, previousEditorWidth: number) => void;
 	const registerNotificationRowHeight = Reflect.get(Workbench.prototype, 'registerNotificationRowHeight') as (this: {
 		layoutPolicy: { isPhoneLayout: IObservable<boolean> };
 		_register<T extends IDisposable>(disposable: T): T;
 	}) => void;
+	const logWindowLayout = Reflect.get(Workbench.prototype, 'logWindowLayout') as (this: ITestWorkbench, telemetryService: TestTelemetryService) => void;
 
 	// --- Harness ------------------------------------------------------------
 
@@ -378,6 +395,18 @@ suite('Sessions - Workbench', () => {
 
 	// --- Notifications ------------------------------------------------------
 
+	test('logs the selected Agents window layout', () => {
+		const telemetryService = new TestTelemetryService();
+
+		logWindowLayout.call(createHost(), telemetryService);
+		logWindowLayout.call(createHost({ single: true }), telemetryService);
+
+		assert.deepStrictEqual(telemetryService.events, [
+			{ name: 'agents/windowLayout', data: { layout: 'classic' } },
+			{ name: 'agents/windowLayout', data: { layout: 'sidePane' } },
+		]);
+	});
+
 	test('uses touch-sized notification rows on phone layouts', () => {
 		setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
 		const registeredDisposables = new DisposableStore();
@@ -647,6 +676,35 @@ suite('Sessions - Workbench', () => {
 			visibilityChanges: [false],
 			resizes: [],
 		});
+	});
+
+	test('sidebar visibility does not change the grid width passed to layout', () => {
+		const layoutCalls: IViewSize[] = [];
+		const host: IContainerResizeTestHarness = {
+			partVisibility: { sidebar: true, editor: false, auxiliaryBar: false },
+			mobileTopBarElement: undefined,
+			layoutPolicy: { viewportClass: { get: () => 'desktop' } },
+			_mainContainerDimension: { width: 1200, height: 800 },
+			sessionsPartView: { minimumWidth: 300 },
+			editorPartView: { minimumWidth: 300 },
+			workbenchGrid: {
+				getViewSize: () => ({ width: 0, height: 0 }),
+				resizeView: () => { },
+				isViewVisible: () => true,
+				layout: (width, height) => { layoutCalls.push({ width, height }); },
+			},
+			_runWithEditorResizeSyncSuspended: fn => fn(),
+		};
+		Object.setPrototypeOf(host, Workbench.prototype);
+
+		layoutGrid.call(host);
+		host.partVisibility.sidebar = false;
+		layoutGrid.call(host);
+
+		assert.deepStrictEqual(layoutCalls, [
+			{ width: 1196, height: 796 },
+			{ width: 1196, height: 796 },
+		]);
 	});
 
 	test('single-pane sidebar visibility leaves a detail-only pane width unchanged', () => {

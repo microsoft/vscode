@@ -27,6 +27,16 @@ export class AgentHostStartError extends Error {
 	}
 }
 
+/** Reports a provider CWD error after the new directory became irreversible and authoritative. */
+export class AgentWorkingDirectoryChangedError extends Error {
+	constructor(
+		readonly workingDirectory: URI,
+		message: string,
+	) {
+		super(message);
+	}
+}
+
 export function isInvalidUtilityProcessConfigurationMessage(message: string): boolean {
 	return /^Invalid value for (?:args|env|execArgv)$/.test(message);
 }
@@ -249,6 +259,11 @@ export const CODEX_AGENT_PROVIDER_ID = 'codex' as const;
  */
 export type IAgentCapabilities = AgentCapabilities;
 
+/** Agent Host-only capabilities that are not serialized to protocol clients. */
+export interface IAgentHostCapabilities {
+	readonly workspaceConversion: boolean;
+}
+
 /** Metadata describing an agent backend, discovered over IPC. */
 export interface IAgentDescriptor {
 	readonly provider: AgentProvider;
@@ -448,6 +463,8 @@ export interface IAgentChatContext {
 	readonly customizations?: readonly Customization[];
 	/** Per-operation host instructions that providers add to model context without persisting as user content. */
 	readonly hostInstructions?: readonly string[];
+	/** Whether the current turn is an automated Agent Merge repair turn. */
+	readonly agentMergeTurn?: boolean;
 }
 
 export type AgentChatOperationContext = URI | IAgentChatContext;
@@ -1106,6 +1123,9 @@ export interface IAgent {
 	/** Unique provider identifier. */
 	readonly id: AgentProvider;
 
+	/** Capabilities consumed only inside the Agent Host process. */
+	readonly agentHostCapabilities: IAgentHostCapabilities;
+
 	/** Provider descriptor and capabilities. */
 	getDescriptor(): IAgentDescriptor;
 
@@ -1140,6 +1160,14 @@ export interface IAgent {
 
 	/** Optional history mutation for providers with a native truncation operation. */
 	truncateChat?(chat: URI, turnId: string | undefined, context?: URI | IAgentChatContext): Promise<void>;
+
+	/**
+	 * Changes the working directory of an exact chat's existing provider-native
+	 * backing. Callers MUST gate this operation on
+	 * {@link IAgentHostCapabilities.workspaceConversion}; implementations that do
+	 * not advertise the capability MUST reject the call.
+	 */
+	setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI): Promise<void>;
 
 	/** Return bounded diagnostics for an in-flight turn when supported. */
 	getTurnDiagnosticSnapshot?(chat: URI, turnId: string): IAgentTurnDiagnosticSnapshot | undefined;
@@ -1227,6 +1255,16 @@ export interface IAgent {
 	listLegacyChatBackings?(configurationResource: URI): Promise<readonly IAgentLegacyChat[]>;
 
 	// ---- Metadata -----------------------------------------------------------
+
+	/**
+	 * Warms a short-lived, in-memory cache of per-session metadata from a single
+	 * bulk provider call, so a subsequent burst of {@link getChatMetadata} calls
+	 * (e.g. a `listSessions` pass over a large catalogue) can be served without
+	 * one provider round-trip per session. Returns a disposable that clears the
+	 * cache; callers dispose it once the burst is complete. Optional: providers
+	 * without a cheap bulk read simply omit it and pay per session.
+	 */
+	prewarmSessionMetadata?(): Promise<IDisposable>;
 
 	/** Retrieve metadata for an exact registered chat. Ambient catalogue reads never set {@link IAgentChatMetadataOptions.activation}. */
 	getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined>;

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { arrayEquals } from '../../../../base/common/equals.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
@@ -12,7 +11,10 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { getHighestPriorityPullRequestIcon } from '../../../../workbench/common/chatPullRequest.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+
+export { getHighestPriorityPullRequestIcon };
 
 export interface ISessionType {
 	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'agent-host-claude'). */
@@ -79,6 +81,22 @@ export const enum SessionStatus {
 	Completed = 3,
 	/** Session encountered an error. */
 	Error = 4,
+}
+
+/**
+ * Connection state of the remote agent host backing a session.
+ */
+export type SessionRemoteConnectionStatus =
+	| { readonly kind: 'connected' }
+	| { readonly kind: 'connecting' }
+	| { readonly kind: 'reconnecting'; readonly nextAttemptAt?: number }
+	| { readonly kind: 'disconnected'; readonly reason: SessionRemoteConnectionFailureReason }
+	| { readonly kind: 'incompatible' };
+
+/** Machine-readable reasons a remote session's host is disconnected. */
+export const enum SessionRemoteConnectionFailureReason {
+	Unknown = 'unknown',
+	HostNotRunning = 'hostNotRunning',
 }
 
 /** Whether a session still has active work, including work blocked on user input. */
@@ -372,32 +390,6 @@ export function getGitHubPullRequestRefs(gitHubInfo: IGitHubInfo | undefined): r
 	}];
 }
 
-const pullRequestIconPriority = new Map<string, number>([
-	[Codicon.gitPullRequestError.id, 6],
-	[Codicon.gitPullRequestComment.id, 5],
-	[Codicon.gitPullRequest.id, 4],
-	[Codicon.gitPullRequestDraft.id, 3],
-	[Codicon.gitPullRequestDone.id, 2],
-	[Codicon.gitPullRequestClosed.id, 1],
-]);
-
-/** Returns the most important status icon across a session's pull requests. */
-export function getHighestPriorityPullRequestIcon(icons: readonly (ThemeIcon | undefined)[]): ThemeIcon | undefined {
-	let result: ThemeIcon | undefined;
-	let resultPriority = -1;
-	for (const icon of icons) {
-		if (!icon) {
-			continue;
-		}
-		const priority = pullRequestIconPriority.get(icon.id) ?? 0;
-		if (priority > resultPriority) {
-			result = icon;
-			resultPriority = priority;
-		}
-	}
-	return result;
-}
-
 /** A GitHub issue referenced by a session. */
 export interface IGitHubIssueRef {
 	/** GitHub repository owner of the issue. */
@@ -484,11 +476,10 @@ export interface ISessionChangeset {
 
 	/**
 	 * Invoke an operation declared in {@link operations}. `target` must be
-	 * provided for resource-scoped operations and omitted for changeset-
-	 * scoped ones — implementations are expected to validate this against
-	 * the corresponding {@link ISessionChangesetOperation.scopes}.
+	 * provided for resource-scoped operations and omitted for changeset-scoped
+	 * ones. `_meta` carries optional operation-specific request metadata.
 	 */
-	invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget): Promise<void>;
+	invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget, _meta?: Record<string, unknown>): Promise<void>;
 
 	/**
 	 * Sets the review state for a list of resources when the changeset supports review.
@@ -753,6 +744,8 @@ export interface ISession {
 	readonly isAutomation?: IObservable<boolean>;
 	/** Whether this session was discovered in an application other than the current host. Absent means `false`. */
 	readonly isExternal?: IObservable<boolean>;
+	/** Connection state of the backing remote host. Absent when the session has no remote host. */
+	readonly remoteConnectionStatus?: IObservable<SessionRemoteConnectionStatus>;
 	/** Session turn that created this session, when it was created by another agent session. */
 	readonly createdBySession?: IObservable<ISessionCreationReference | undefined>;
 

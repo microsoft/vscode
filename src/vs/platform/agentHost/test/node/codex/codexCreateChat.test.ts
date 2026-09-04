@@ -176,7 +176,7 @@ function createSessionDatabaseReference(database: ISessionDatabase) {
 }
 
 async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: ICreateAgentOptions = {}): Promise<CodexAgent> {
-	const models = [{ id: 'gpt-test', name: 'GPT Test', model_picker_enabled: true, supported_endpoints: ['/responses'] }] as CCAModel[];
+	const models = [{ id: 'gpt-test', name: 'GPT Test', model_picker_enabled: true, supported_endpoints: ['/responses'], vendor: 'OpenAI' }] as CCAModel[];
 	const instantiationService = new TestInstantiationService();
 	const logService = new NullLogService();
 	const fileService = disposables.add(new FileService(logService));
@@ -332,7 +332,22 @@ suite('CodexAgent createChat', () => {
 	test('advertises chat fork and side-chat support', async () => {
 		const agent = await createAgent(disposables);
 
-		assert.deepStrictEqual(agent.getDescriptor().capabilities?.multipleChats, { fork: true, sideChat: true });
+		assert.deepStrictEqual({
+			multipleChats: agent.getDescriptor().capabilities?.multipleChats,
+			agentHostCapabilities: agent.agentHostCapabilities,
+		}, {
+			multipleChats: { fork: true, sideChat: true },
+			agentHostCapabilities: { workspaceConversion: false },
+		});
+	});
+
+	test('setWorkingDirectory rejects because Codex does not advertise workspace conversion', async () => {
+		const agent = await createAgent(disposables);
+
+		await assert.rejects(
+			() => agent.setWorkingDirectory(URI.parse('codex:/chat'), URI.parse('codex:/session'), URI.file('/workspace')),
+			/Codex does not support changing the working directory/,
+		);
 	});
 
 	test('fresh: binds the exact target chat during creation, never leaving the runtime unbound', async () => {

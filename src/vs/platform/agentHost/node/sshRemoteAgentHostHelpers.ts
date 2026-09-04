@@ -9,6 +9,7 @@ import { CancellationError } from '../../../base/common/errors.js';
 import { vArray, vObj, vString, vUnknown } from '../../../base/common/validation.js';
 import { TelemetryConfiguration } from '../../telemetry/common/telemetry.js';
 import { getAgentHostEndpointIdentityKey, IAgentHostEndpointMetadata, parseAgentHostEndpointRegistry } from '../common/agentHostEndpointRegistry.js';
+export { redactToken } from '../common/remoteAgentHostBootstrapProgress.js';
 
 /**
  * Validate that a quality string is safe for bare interpolation in shell commands.
@@ -278,11 +279,6 @@ export function isValidFallbackCLIPath(candidate: string, serverDataFolderName: 
 		return /^[0-9a-f]{40}$/.test(suffix);
 	}
 	return false;
-}
-
-/** Redact connection tokens from log output. */
-export function redactToken(text: string): string {
-	return text.replace(/\?tkn=[^\s&]+/g, '?tkn=***');
 }
 
 /**

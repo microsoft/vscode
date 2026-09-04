@@ -4,10 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { errorResult, invokeFunctionResultToToolResult } from '../../../electron-browser/tools/browserToolHelpers.js';
+import { IAgentNetworkFilterService } from '../../../../../../platform/networkFilter/common/networkFilterService.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IBrowserViewWorkbenchService } from '../../../common/browserView.js';
+import { errorResult, getBrowserPagesContext, invokeFunctionResultToToolResult } from '../../../electron-browser/tools/browserToolHelpers.js';
 
-suite('browserToolHelpers - failure reporting', () => {
+suite('browserToolHelpers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('a failed invocation reports the failure and names it in the completed state', () => {
@@ -38,5 +42,38 @@ suite('browserToolHelpers - failure reporting', () => {
 
 		assert.strictEqual(result.toolResultError, 'No page ID provided.');
 		assert.ok(result.toolResultMessage);
+	});
+
+	test('errorResult with an empty message still reports a failure', () => {
+		// `throw ''` and `new Error()` both reach here as an empty string.
+		const result = errorResult('');
+
+		assert.ok(result.toolResultError, 'an empty error message is still a failure');
+		assert.ok(result.content.some(part => part.kind === 'text' && part.value), 'the model needs a non-empty reason');
+	});
+
+	test('browser context explains active network filtering', () => {
+		const editorService = upcastPartial<IEditorService>({
+			activeEditor: undefined,
+			visibleEditors: [],
+		});
+		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
+			getContextualBrowserViews: () => new Map(),
+		});
+
+		const enabled = getBrowserPagesContext(editorService, browserViewService, upcastPartial<IAgentNetworkFilterService>({
+			isEnabled: () => true,
+		}));
+		const disabled = getBrowserPagesContext(editorService, browserViewService, upcastPartial<IAgentNetworkFilterService>({
+			isEnabled: () => false,
+		}));
+
+		assert.deepStrictEqual({
+			enabled,
+			disabled,
+		}, {
+			enabled: 'No browser pages are currently shared with you.\n\nNetwork domain policy is active. Blocked requests may fail with `net::ERR_BLOCKED_BY_CLIENT`.',
+			disabled: undefined,
+		});
 	});
 });

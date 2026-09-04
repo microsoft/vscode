@@ -16,6 +16,11 @@ export type { ManagedSettingsData } from '../../../base/common/policy.js';
 
 export type RawManagedSettingsData = Readonly<Record<string, unknown>>;
 
+/** Whether a raw managed-settings document contains at least one top-level setting. */
+export function hasRawManagedSettings(data: RawManagedSettingsData | undefined): boolean {
+	return data !== undefined && Object.keys(data).length > 0;
+}
+
 /** Windows registry root for GitHub Copilot policies. */
 export const GITHUB_COPILOT_WIN32_REGISTRY_PATH = 'SOFTWARE\\Policies\\GitHubCopilot';
 
@@ -64,6 +69,9 @@ export const COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY = 'forceRemoteSettingsRef
  */
 export const COPILOT_SANDBOX_ENABLED_KEY = 'sandbox.enabled';
 
+/** Managed-settings key that permits explicitly bypassing the sandbox. */
+export const COPILOT_SANDBOX_ALLOW_BYPASS_KEY = 'sandbox.allowBypass';
+
 /**
  * Managed-settings controls consumed by the delivery pipeline itself rather than by a
  * configuration policy. Native MDM must watch these even though no setting declares them.
@@ -71,6 +79,7 @@ export const COPILOT_SANDBOX_ENABLED_KEY = 'sandbox.enabled';
 export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinitions = {
 	[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
+	[COPILOT_SANDBOX_ALLOW_BYPASS_KEY]: { type: 'boolean' },
 };
 
 /** Policy-only configuration delivery slot for {@link COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY}. */
@@ -213,6 +222,11 @@ export function managedModelValue(): (policyData: IPolicyData) => ManagedSetting
 	return managedModelValueCallback;
 }
 
+/** Forces a boolean setting off while the user is governed by managed settings. */
+export function managedSettingsDisabledValue(policyData: IPolicyData): boolean | undefined {
+	return policyData.managedSettingsActive === true ? false : undefined;
+}
+
 /**
  * `value` callback shared by the third-party agent harness policies (`Claude3PIntegration`,
  * `Codex3PIntegration`): forces the harness off when the account disables chat preview features,
@@ -223,9 +237,7 @@ export function managedModelValue(): (policyData: IPolicyData) => ManagedSetting
  * every managed control the enterprise set.
  */
 export function thirdPartyAgentEnabledValue(policyData: IPolicyData): boolean | undefined {
-	return policyData.chat_preview_features_enabled === false || policyData.managedSettingsActive === true
-		? false
-		: undefined;
+	return policyData.chat_preview_features_enabled === false ? false : managedSettingsDisabledValue(policyData);
 }
 
 export const INativeManagedSettingsService = createDecorator<INativeManagedSettingsService>('nativeManagedSettingsService');

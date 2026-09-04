@@ -13,9 +13,10 @@ import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/con
 import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
-import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
-import { findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
@@ -27,6 +28,42 @@ suite('Sessions - Chat View', () => {
 	interface ISubSessionTipRenderer {
 		_renderSubSessionTip(): void;
 	}
+
+	test('retries an unresolved chat when its content provider is registered', () => {
+		const resource = URI.parse('remote-agent:/session');
+		const loads: URI[] = [];
+		const modelRef = { value: undefined as object | undefined };
+		const view = Object.assign(Object.create(ChatView.prototype), {
+			_currentChatResource: resource,
+			_currentSessionObs: { get: () => undefined },
+			_modelRef: modelRef,
+			_loadChat: (chatResource: URI) => loads.push(chatResource),
+		}) as {
+			_retryUnresolvedChatLoad(addedSessionTypes: readonly string[]): void;
+		};
+
+		view._retryUnresolvedChatLoad(['other-agent']);
+		view._retryUnresolvedChatLoad(['remote-agent']);
+		modelRef.value = {};
+		view._retryUnresolvedChatLoad(['remote-agent']);
+
+		assert.deepStrictEqual(loads, [resource]);
+	});
+
+	test('shows the external session banner only in the primary chat group', () => {
+		const session = Object.create(null) as ISession;
+		const bannerSessions: Array<ISession | undefined> = [];
+		const view = Object.assign(Object.create(ChatView.prototype), {
+			_isPrimary: true,
+			_currentSessionObs: observableValue<ISession | undefined>(disposables, session),
+			_externalSessionBanner: { setSession: (value: ISession | undefined) => bannerSessions.push(value) },
+		}) as ChatView;
+
+		view.setPrimary(false);
+		view.setPrimary(true);
+
+		assert.deepStrictEqual(bannerSessions, [undefined, session]);
+	});
 
 	test('forwards new chat visibility to the aquarium host', () => {
 		const forwarded: boolean[] = [];
@@ -62,28 +99,39 @@ suite('Sessions - Chat View', () => {
 		const picker = dom.append(item, dom.$('.action-label.model-picker-split.compact'));
 		const name = dom.append(picker, dom.$('.model-picker-section.model-picker-name'));
 		name.style.minWidth = '22px';
-		dom.append(name, dom.$('span.codicon'));
+		const icon = dom.append(name, dom.$('span.codicon'));
+		icon.style.width = '12px';
+		icon.style.height = '12px';
 		const config = dom.append(picker, dom.$('.model-picker-section.model-picker-config'));
 		const configLabel = dom.append(config, dom.$('span.chat-input-picker-label'));
 		configLabel.textContent = 'High';
 
+		const nameBounds = name.getBoundingClientRect();
+		const iconBounds = icon.getBoundingClientRect();
 		assert.deepStrictEqual({
 			configVisible: dom.getWindow(configLabel).getComputedStyle(configLabel).display !== 'none',
 			configWidth: config.getBoundingClientRect().width > 0,
-			nameWidth: name.getBoundingClientRect().width,
+			name: { width: nameBounds.width, height: nameBounds.height },
+			iconOffset: {
+				x: iconBounds.left - nameBounds.left,
+				y: iconBounds.top - nameBounds.top,
+			},
 		}, {
 			configVisible: true,
 			configWidth: true,
-			nameWidth: 22,
+			name: { width: 22, height: 22 },
+			iconOffset: { x: 5, y: 5 },
 		});
 	});
 
-	test('keeps compact empty-state picker icons inside their action item', () => {
-		const toolbar = dom.append(document.body, dom.$('.sessions-chat-config-toolbar'));
-		disposables.add(toDisposable(() => toolbar.remove()));
+	test('centers compact empty-state picker icons inside their action item', () => {
+		const inputPart = dom.append(document.body, dom.$('.interactive-input-part'));
+		disposables.add(toDisposable(() => inputPart.remove()));
+		const toolbar = dom.append(inputPart, dom.$('.sessions-chat-config-toolbar'));
 		const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
 		const item = dom.append(actionBar, dom.$('.action-item.compact-picker'));
-		const label = dom.append(item, dom.$('a.action-label'));
+		const slot = dom.append(item, dom.$('.sessions-chat-picker-slot'));
+		const label = dom.append(slot, dom.$('a.action-label'));
 		const icon = dom.append(label, dom.$('span.codicon'));
 		icon.style.width = '12px';
 		icon.style.height = '12px';
@@ -92,17 +140,22 @@ suite('Sessions - Chat View', () => {
 		const labelBounds = label.getBoundingClientRect();
 		const iconBounds = icon.getBoundingClientRect();
 		assert.deepStrictEqual({
-			labelOffset: labelBounds.left - itemBounds.left,
-			iconOffset: iconBounds.left - itemBounds.left,
+			item: { width: itemBounds.width, height: itemBounds.height },
+			label: { width: labelBounds.width, height: labelBounds.height },
+			iconOffset: {
+				x: iconBounds.left - labelBounds.left,
+				y: iconBounds.top - labelBounds.top,
+			},
 			iconEscapes: iconBounds.left < itemBounds.left || iconBounds.right > itemBounds.right,
 		}, {
-			labelOffset: 0,
-			iconOffset: 8,
+			item: { width: 22, height: 22 },
+			label: { width: 22, height: 22 },
+			iconOffset: { x: 5, y: 5 },
 			iconEscapes: false,
 		});
 	});
 
-	test('keeps compact bottom-row picker glyphs inside their action item', () => {
+	test('centers compact bottom-row picker glyphs inside their action item', () => {
 		const workbench = dom.append(document.body, dom.$('.agent-sessions-workbench'));
 		disposables.add(toDisposable(() => workbench.remove()));
 		workbench.style.setProperty('--vscode-codiconFontSize-compact', '12px');
@@ -110,28 +163,118 @@ suite('Sessions - Chat View', () => {
 		const row = dom.append(widget, dom.$('.new-chat-bottom-container'));
 		const actionBar = dom.append(row, dom.$('.monaco-action-bar'));
 		const item = dom.append(actionBar, dom.$('.action-item.compact-picker'));
-		const label = dom.append(item, dom.$('a.action-label'));
+		const slot = dom.append(item, dom.$('.sessions-chat-picker-slot.compact-picker'));
+		const label = dom.append(slot, dom.$('a.action-label'));
 		const icon = dom.append(label, dom.$('span.codicon'));
 		icon.style.width = '12px';
 		icon.style.height = '12px';
 
 		const itemBounds = item.getBoundingClientRect();
+		const slotBounds = slot.getBoundingClientRect();
 		const labelBounds = label.getBoundingClientRect();
 		const iconBounds = icon.getBoundingClientRect();
 		assert.deepStrictEqual({
-			itemWidth: itemBounds.width,
-			labelWidth: labelBounds.width,
-			labelOffset: labelBounds.left - itemBounds.left,
-			iconWidth: iconBounds.width,
-			iconOffset: iconBounds.left - itemBounds.left,
+			item: { width: itemBounds.width, height: itemBounds.height },
+			slot: { width: slotBounds.width, height: slotBounds.height },
+			label: { width: labelBounds.width, height: labelBounds.height },
+			icon: { width: iconBounds.width, height: iconBounds.height },
+			iconOffset: {
+				x: iconBounds.left - labelBounds.left,
+				y: iconBounds.top - labelBounds.top,
+			},
 			iconEscapes: iconBounds.left < itemBounds.left || iconBounds.right > itemBounds.right,
 		}, {
-			itemWidth: 22,
-			labelWidth: 22,
-			labelOffset: 0,
-			iconWidth: 12,
-			iconOffset: 8,
+			item: { width: 22, height: 22 },
+			slot: { width: 22, height: 22 },
+			label: { width: 22, height: 22 },
+			icon: { width: 12, height: 12 },
+			iconOffset: { x: 5, y: 5 },
 			iconEscapes: false,
+		});
+	});
+
+	test('uses the compact control box for bottom-row status icons', () => {
+		const workbench = dom.append(document.body, dom.$('.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		workbench.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+		const widget = dom.append(workbench, dom.$('.new-chat-widget-container.revealed'));
+		const row = dom.append(widget, dom.$('.new-chat-bottom-container'));
+		const statusToolbar = dom.append(row, dom.$('.new-chat-status-toolbar'));
+		const actionBar = dom.append(statusToolbar, dom.$('.monaco-action-bar'));
+		const item = dom.append(actionBar, dom.$('.action-item.new-chat-status-icon-action'));
+		const label = dom.append(item, dom.$('a.action-label.codicon.codicon-warning'));
+
+		const itemBounds = item.getBoundingClientRect();
+		const labelBounds = label.getBoundingClientRect();
+		assert.deepStrictEqual({
+			item: { width: itemBounds.width, height: itemBounds.height },
+			label: { width: labelBounds.width, height: labelBounds.height },
+			iconFontSize: dom.getWindow(label).getComputedStyle(label).fontSize,
+		}, {
+			item: { width: 22, height: 22 },
+			label: { width: 22, height: 22 },
+			iconFontSize: '12px',
+		});
+	});
+
+	test('leaves text-only bottom-row status actions at their intrinsic width', () => {
+		const workbench = dom.append(document.body, dom.$('.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		const widget = dom.append(workbench, dom.$('.new-chat-widget-container.revealed'));
+		const row = dom.append(widget, dom.$('.new-chat-bottom-container'));
+		const statusToolbar = dom.append(row, dom.$('.new-chat-status-toolbar'));
+		const actionBar = dom.append(statusToolbar, dom.$('.monaco-action-bar'));
+		const item = dom.append(actionBar, dom.$('.action-item'));
+		const label = dom.append(item, dom.$('a.action-label'));
+		label.textContent = 'Status';
+
+		assert.deepStrictEqual({
+			itemIsSquareIconAction: item.classList.contains('new-chat-status-icon-action'),
+			itemWiderThanCompactControl: item.getBoundingClientRect().width > 22,
+			labelIsNotClipped: label.scrollWidth <= label.clientWidth,
+			text: label.textContent,
+		}, {
+			itemIsSquareIconAction: false,
+			itemWiderThanCompactControl: true,
+			labelIsNotClipped: true,
+			text: 'Status',
+		});
+	});
+
+	test('centers compact in-session picker glyphs inside their action item', () => {
+		const workbench = dom.append(document.body, dom.$('.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		workbench.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+		const session = dom.append(workbench, dom.$('.interactive-session'));
+		const toolbar = dom.append(session, dom.$('.chat-secondary-input-toolbar'));
+		const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
+		const actionsContainer = dom.append(actionBar, dom.$('.actions-container'));
+		actionsContainer.style.display = 'flex';
+		const item = dom.append(actionsContainer, dom.$('.action-item.compact-picker'));
+		const slot = dom.append(item, dom.$('.sessions-chat-picker-slot'));
+		const label = dom.append(slot, dom.$('a.action-label'));
+		const icon = dom.append(label, dom.$('span.codicon'));
+		dom.append(label, dom.$('span.sessions-chat-dropdown-label', undefined, 'Autopilot'));
+
+		const itemBounds = item.getBoundingClientRect();
+		const slotBounds = slot.getBoundingClientRect();
+		const labelBounds = label.getBoundingClientRect();
+		const iconBounds = icon.getBoundingClientRect();
+		assert.deepStrictEqual({
+			item: { width: itemBounds.width, height: itemBounds.height },
+			slot: { width: slotBounds.width, height: slotBounds.height },
+			label: { width: labelBounds.width, height: labelBounds.height },
+			icon: {
+				width: iconBounds.width,
+				height: iconBounds.height,
+				x: iconBounds.left - labelBounds.left,
+				y: iconBounds.top - labelBounds.top,
+			},
+		}, {
+			item: { width: 22, height: 22 },
+			slot: { width: 22, height: 22 },
+			label: { width: 22, height: 22 },
+			icon: { width: 12, height: 12, x: 5, y: 5 },
 		});
 	});
 
@@ -358,6 +501,47 @@ suite('Sessions - Chat View', () => {
 			backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.3))',
 			plainBackgroundColor: 'rgba(255, 255, 255, 0.3)',
 			plainBackgroundImage: 'none',
+		});
+	});
+
+	test('keeps the request edit input opaque over the chat background', () => {
+		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+		workbench.style.setProperty('--session-view-background', '#202020');
+		workbench.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgba(255, 255, 255, 0.3)');
+		const appendEditInput = (part: HTMLElement) => {
+			const chatView = dom.append(part, dom.$('.chat-view'));
+			const session = dom.append(chatView, dom.$('.interactive-session'));
+			const request = dom.append(session, dom.$('.interactive-item-container.interactive-request.editing'));
+			const editContainer = dom.append(request, dom.$('.chat-edit-input-container'));
+			const inlineInputPart = dom.append(editContainer, dom.$('.interactive-input-part'));
+			const composerInputPart = dom.append(session, dom.$('.interactive-input-part.editing'));
+			return {
+				inline: dom.append(inlineInputPart, dom.$('.chat-input-container')),
+				composer: dom.append(composerInputPart, dom.$('.chat-input-container')),
+			};
+		};
+		const background = appendEditInput(dom.append(workbench, dom.$('.part.sessionspart.has-chat-background')));
+		const plain = appendEditInput(dom.append(workbench, dom.$('.part.sessionspart')));
+		dom.getWindow(workbench).document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+
+		const inlineStyle = dom.getWindow(background.inline).getComputedStyle(background.inline);
+		const composerStyle = dom.getWindow(background.composer).getComputedStyle(background.composer);
+		const plainInlineStyle = dom.getWindow(plain.inline).getComputedStyle(plain.inline);
+		assert.deepStrictEqual({
+			inlineBackgroundColor: inlineStyle.backgroundColor,
+			inlineBackgroundImage: inlineStyle.backgroundImage,
+			composerBackgroundColor: composerStyle.backgroundColor,
+			composerBackgroundImage: composerStyle.backgroundImage,
+			plainInlineBackgroundColor: plainInlineStyle.backgroundColor,
+			plainInlineBackgroundImage: plainInlineStyle.backgroundImage,
+		}, {
+			inlineBackgroundColor: 'rgb(32, 32, 32)',
+			inlineBackgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.3))',
+			composerBackgroundColor: 'rgb(32, 32, 32)',
+			composerBackgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.3))',
+			plainInlineBackgroundColor: 'rgba(255, 255, 255, 0.3)',
+			plainInlineBackgroundImage: 'none',
 		});
 	});
 
@@ -627,6 +811,24 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('shows transcript preparation completion until visible content appears', () => {
+		assert.deepStrictEqual({
+			hiddenComplete: shouldShowTranscriptPreparationCompletion(1, 0, ResponseModelState.Complete, 'Session ready'),
+			hiddenPending: shouldShowTranscriptPreparationCompletion(1, 0, ResponseModelState.Pending, 'Session ready'),
+			hiddenFailed: shouldShowTranscriptPreparationCompletion(1, 0, ResponseModelState.Failed, 'Session ready'),
+			hiddenCancelled: shouldShowTranscriptPreparationCompletion(1, 0, ResponseModelState.Cancelled, 'Session ready'),
+			visibleRequest: shouldShowTranscriptPreparationCompletion(2, 1, ResponseModelState.Complete, 'Session ready'),
+			noReadyMessage: shouldShowTranscriptPreparationCompletion(1, 0, ResponseModelState.Complete, undefined),
+		}, {
+			hiddenComplete: true,
+			hiddenPending: false,
+			hiddenFailed: false,
+			hiddenCancelled: false,
+			visibleRequest: false,
+			noReadyMessage: false,
+		});
+	});
+
 	test('shows the session-list status message in the pre-request progress surface', () => {
 		assert.deepStrictEqual({
 			fallback: getTranscriptProgress(true, 'Working...'),
@@ -670,6 +872,27 @@ suite('Sessions - Chat View', () => {
 			variableData: { variables: [] },
 			attachedContext: [attachment],
 		}]), attachment);
+
+		const bootstrap = {
+			isRequestHiddenFromTranscript: true,
+			variableData: { variables: [] },
+			attachedContext: [attachment],
+		};
+		const requestOnlyHiddenNotice = {
+			isRequestHiddenFromTranscript: true,
+			variableData: { variables: [] },
+		};
+		const visibleRequest = {
+			isRequestHiddenFromTranscript: false,
+			variableData: { variables: [] },
+		};
+		assert.deepStrictEqual({
+			afterNotice: findInitialTranscriptContextEntry([bootstrap, requestOnlyHiddenNotice]),
+			afterVisibleRequest: findInitialTranscriptContextEntry([bootstrap, visibleRequest]),
+		}, {
+			afterNotice: attachment,
+			afterVisibleRequest: undefined,
+		});
 	});
 
 	test('the sub-session tip yields the space to a notification and comes back', () => {

@@ -393,6 +393,10 @@
 	transition: opacity 0.1s ease-in-out;
 }
 
+.interactive-item-container.interactive-response.chat-system-notification-response:not(.chat-response-loading) .chat-footer-toolbar {
+	display: none;
+}
+
 /* Style the internal toolbar element to use flexbox */
 .interactive-item-container .chat-footer-toolbar .monaco-toolbar {
 	display: flex;
@@ -1859,7 +1863,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	across every view-line on each typed character. Scoped to non-compact
 	inputs because the inline-block + container query sizing breaks the
 	placeholder rendering in compact contexts (inline chat, quick chat). */
-.interactive-session .interactive-input-part:not(.compact) .chat-editor-container .monaco-editor [class^="ced-chat-session-detail"] {
+.interactive-session .interactive-input-part:not(.compact) .chat-editor-container .monaco-editor .ced-chat-session-detail-4 {
 	display: inline-block;
 	max-width: 100%;
 	/* fallback for environments without container query units */
@@ -2111,8 +2115,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-/* When only the icon remains, keep the expanded control's leading inset so
- * the glyph does not move as the label disappears. */
+/* Compact picker controls match the 22px toolbar control tier. */
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.icon-only,
 .interactive-session .chat-secondary-input-toolbar .chat-input-picker-item .action-label.icon-only,
 .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.icon-only,
@@ -2127,22 +2130,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	justify-content: center;
 
 	.codicon {
+		width: var(--vscode-codiconFontSize-compact);
+		height: var(--vscode-codiconFontSize-compact);
+		line-height: var(--vscode-codiconFontSize-compact);
 		justify-content: center;
 	}
 }
-
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.icon-only:not(.model-picker-split),
-.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.icon-only {
-	padding-left: var(--vscode-spacing-size60);
-	justify-content: flex-start;
-}
-
-.interactive-session .chat-secondary-input-toolbar .chat-input-picker-item .action-label.icon-only,
-.interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label.icon-only {
-	padding-left: var(--vscode-spacing-size80);
-	justify-content: flex-start;
-}
-
 
 /* Icon-only chips in the primary input toolbar (add context, configure tools,
 	MCP servers) all sit on the compact tier, so the row reads as one dense strip
@@ -2375,13 +2368,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Separate floating controls from transcript content without masking the list,
-	so the treatment remains stable while content streams or scrolls. */
-.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
+	so the treatment remains stable while content streams or scrolls. During the
+	pet's run cycle, the overlay paints the same fade beneath the pet. */
+.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before,
+.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before {
 	content: '';
 	position: absolute;
 	inset-inline: 0;
-	top: calc(-1 * var(--vscode-spacing-size160));
-	bottom: 0;
 	z-index: 0;
 	pointer-events: none;
 	background: linear-gradient(
@@ -2391,13 +2384,29 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	);
 }
 
+.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
+	top: calc(-1 * var(--vscode-spacing-size160));
+	bottom: 0;
+}
+
+.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before {
+	bottom: calc(100% - var(--vscode-spacing-size40));
+	height: calc(var(--vscode-chat-persistent-content-height, 0px) + var(--vscode-spacing-size160));
+}
+
+.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer ~ .chat-input-persistent-content.chat-persistent-content-visible::before {
+	content: none;
+}
+
 .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content > * {
 	position: relative;
 	z-index: 1;
 }
 
 .hc-black .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before,
-.hc-light .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
+.hc-light .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before,
+.hc-black .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before,
+.hc-light .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before {
 	background: var(--vscode-chat-list-background, var(--vscode-editor-background));
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
 	box-sizing: border-box;
@@ -3248,11 +3257,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.monaco-icon-label {
 		padding: 0 var(--vscode-spacing-size40);
-		gap: 2px;
 
 		&::before {
 			width: var(--vscode-codiconFontSize);
-			padding-right: 0;
 		}
 	}
 }

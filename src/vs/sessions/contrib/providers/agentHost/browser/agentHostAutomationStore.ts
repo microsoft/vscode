@@ -25,6 +25,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import type { AutomationRunTrigger, AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationActiveRunError, type AutomationMutationGuard, type IAutomationRunClaim, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, isAutomationActiveRunError, serializeAutomationEditableState, type IUpdateAutomationOptions, type IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { publishAutomationMigration } from '../../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
+import { ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import type { IAutomation, IAutomationSnapshotImportResult, IGuardedAutomationSnapshotRemovalResult, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IAutomationStorageService } from '../../../automations/common/automationStorageService.js';
 
@@ -833,7 +834,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		const config = { ...existing?.session.config };
 		const provider = descriptor.target.sessionTypeId ?? this._providerFromModelId(descriptor.modelId);
 		setOptional(config, SessionConfigKey.Mode, descriptor.mode);
-		setOptional(config, SessionConfigKey.AutoApprove, descriptor.permissionLevel);
+		setOptional(config, SessionConfigKey.AutoApprove, descriptor.permissionLevel === ChatPermissionLevel.Autopilot ? ChatPermissionLevel.Assisted : descriptor.permissionLevel);
 		if (descriptor.target.kind === 'workspace') {
 			setOptional(config, SessionConfigKey.Isolation, descriptor.target.isolation.kind === 'default' ? undefined : descriptor.target.isolation.kind);
 			setOptional(config, SessionConfigKey.Branch, descriptor.target.isolation.kind === 'worktree' ? descriptor.target.isolation.branch : undefined);

@@ -13,7 +13,7 @@ import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService, SpecedToolAliases } from '../../tools/languageModelToolsService.js';
 import { PromptsType, Target } from '../promptTypes.js';
-import { ISequenceValue, IHeaderAttribute, IScalarValue, parseCommaSeparatedList, ParsedPromptFile, PromptHeader, IValue, PromptHeaderAttributes } from '../promptFileParser.js';
+import { ISequenceValue, IHeaderAttribute, IScalarValue, isPromptFileTildePath, parseCommaSeparatedList, ParsedPromptFile, PromptHeader, IValue, PromptHeaderAttributes } from '../promptFileParser.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IPromptsService } from '../service/promptsService.js';
@@ -26,6 +26,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { HOOKS_BY_TARGET } from '../hookTypes.js';
 import { GithubPromptHeaderAttributes } from './promptFileAttributes.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IPathService } from '../../../../../services/path/common/pathService.js';
 
 export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -47,6 +48,7 @@ export class PromptValidator {
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ILogService private readonly logger: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IPathService private readonly pathService: IPathService,
 	) { }
 
 	public async validate(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
@@ -165,8 +167,12 @@ export class PromptValidator {
 
 		// Validate file references
 		const fileReferenceChecks: Promise<void>[] = [];
+		let userHome: URI | undefined;
 		for (const ref of body.fileReferences) {
-			const resolved = body.resolveFilePath(ref.content);
+			if (isPromptFileTildePath(ref.content)) {
+				userHome ??= await this.pathService.userHome();
+			}
+			const resolved = body.resolveFilePath(ref.content, userHome);
 			if (!resolved) {
 				report(toMarker(localize('promptValidator.invalidFileReference', "Invalid file reference '{0}'.", ref.content), ref.range, MarkerSeverity.Warning));
 				continue;

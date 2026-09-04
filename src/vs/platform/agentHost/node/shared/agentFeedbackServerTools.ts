@@ -651,6 +651,9 @@ export const feedbackServerToolGroup: IServerToolGroup = {
 	isEnabled(): boolean {
 		return true;
 	},
+	isEnabledForSession(): boolean {
+		return true;
+	},
 	canRequireConfirmation(toolName): boolean {
 		return feedbackToolRequiresConfirmation(toolName);
 	},
