@@ -5,12 +5,10 @@
 
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
-import type { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -27,7 +25,7 @@ import { IListService, ListService } from '../../../../../platform/list/browser/
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
-import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -710,55 +708,6 @@ interface IRenderEditorOptions {
 	readonly migrationCategory?: CustomizationMigrationCategoryId;
 }
 
-function renderFixtureMarkdown(markdown: string): HTMLElement {
-	const container = DOM.$('div.fixture-rendered-markdown');
-	const lines = markdown.split(/\r?\n/);
-	let index = 0;
-
-	while (index < lines.length) {
-		const line = lines[index].trimEnd();
-		if (!line.trim()) {
-			index++;
-			continue;
-		}
-
-		if (line.startsWith('## ')) {
-			const heading = DOM.append(container, DOM.$('h2'));
-			heading.textContent = line.slice(3);
-			index++;
-			continue;
-		}
-
-		if (line.startsWith('- ')) {
-			const list = DOM.append(container, DOM.$('ul'));
-			while (index < lines.length && lines[index].trimStart().startsWith('- ')) {
-				DOM.append(list, DOM.$('li')).textContent = lines[index].trimStart().slice(2);
-				index++;
-			}
-			continue;
-		}
-
-		if (line.startsWith('```')) {
-			index++;
-			const codeLines: string[] = [];
-			while (index < lines.length && !lines[index].startsWith('```')) {
-				codeLines.push(lines[index]);
-				index++;
-			}
-			const pre = DOM.append(container, DOM.$('pre'));
-			DOM.append(pre, DOM.$('code')).textContent = codeLines.join('\n');
-			index++;
-			continue;
-		}
-
-		const paragraph = DOM.append(container, DOM.$('p'));
-		paragraph.textContent = line.replace(/\*\*/g, '');
-		index++;
-	}
-
-	return container;
-}
-
 // ============================================================================
 // Render helper — creates the full management editor
 // ============================================================================
@@ -1043,15 +992,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override async reveal() { return false; }
 			}());
 			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() { }());
-			reg.defineInstance(IMarkdownRendererService, new class extends mock<IMarkdownRendererService>() {
-				override render(markdown: IMarkdownString | string) {
-					const rendered: IRenderedMarkdown = {
-						element: renderFixtureMarkdown(typeof markdown === 'string' ? markdown : markdown.value),
-						dispose() { },
-					};
-					return rendered;
-				}
-			}());
+			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.defineInstance(IWebviewService, new class extends mock<IWebviewService>() { }());
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
 				override readonly onChange = Event.None;
@@ -1686,14 +1627,7 @@ function renderEmbeddedPluginDetail(ctx: ComponentFixtureContext, item: IAgentPl
 			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() {
 				override async request(): Promise<IRequestContext> { throw new Error('Fixture request unavailable'); }
 			}());
-			reg.defineInstance(IMarkdownRendererService, new class extends mock<IMarkdownRendererService>() {
-				override render(markdown: IMarkdownString | string) {
-					return {
-						element: renderFixtureMarkdown(typeof markdown === 'string' ? markdown : markdown.value),
-						dispose() { },
-					};
-				}
-			}());
+			reg.define(IMarkdownRendererService, MarkdownRendererService);
 		},
 	});
 
