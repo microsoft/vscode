@@ -66,8 +66,8 @@ function expectedSandboxConfig(options?: {
 		addCurrentWorkingDirectory: true,
 		allowDevToolAccess: true,
 		auth: {
-			git: false,
-			gh: false,
+			git: true,
+			gh: true,
 		},
 		userPolicy: {
 			filesystem: {
@@ -78,7 +78,7 @@ function expectedSandboxConfig(options?: {
 			},
 			network: {
 				allowOutbound: options?.allowOutbound === true,
-				allowLocalNetwork: true,
+				allowLocalNetwork: false,
 			},
 		},
 	};
@@ -228,7 +228,7 @@ suite('buildSandboxConfigForSdk', () => {
 			for (const platform of ['darwin', 'linux'] as const) {
 				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On, undefined, { allowedHosts: ['github.com'], blockedHosts: ['evil.example'] }))?.userPolicy?.network, {
 					allowOutbound: false,
-					allowLocalNetwork: true,
+					allowLocalNetwork: false,
 				}, platform);
 			}
 		});
@@ -237,7 +237,7 @@ suite('buildSandboxConfigForSdk', () => {
 			for (const platform of ['darwin', 'linux'] as const) {
 				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On, undefined, { allowedHosts: ['a.example'], blockedHosts: ['b.example'] }, true))?.userPolicy?.network, {
 					allowOutbound: true,
-					allowLocalNetwork: true,
+					allowLocalNetwork: false,
 				}, platform);
 			}
 		});
@@ -245,7 +245,7 @@ suite('buildSandboxConfigForSdk', () => {
 		test('ignores empty host lists', () => {
 			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, undefined, { allowedHosts: [], blockedHosts: [] }))?.userPolicy?.network, {
 				allowOutbound: false,
-				allowLocalNetwork: true,
+				allowLocalNetwork: false,
 			});
 		});
 	});
