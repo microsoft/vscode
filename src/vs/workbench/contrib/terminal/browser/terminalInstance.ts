@@ -1061,6 +1061,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	detachFromElement(): void {
 		this._wrapperElement.remove();
 		this._container = undefined;
+		// Stop listening on the old container so drops there don't reach this instance after another terminal attaches.
+		this._dndObserver.clear();
 	}
 
 	attachToElement(container: HTMLElement): void {
@@ -1085,7 +1087,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.xterm?.refresh();
 
 		setTimeout(() => {
-			if (this._store.isDisposed) {
+			if (this._store.isDisposed || this._container !== container) {
 				return;
 			}
 			this._initDragAndDrop(container);
