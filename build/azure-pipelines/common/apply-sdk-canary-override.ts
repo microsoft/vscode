@@ -166,6 +166,12 @@ function resolveLatestCanary(): string {
 	}
 	const latest = canaries[canaries.length - 1].v;
 	console.log(`[canary-override] Resolved 'latest-canary' -> @github/copilot-sdk@${latest} (from ${canaries.length} canary versions on the feed).`);
+	// Surface the concrete version on the build so the GitHub orchestrator can
+	// read it back (build tags API) for accurate reporting, without itself
+	// needing feed-read access. Idempotent across the per-platform jobs. Use `=`
+	// (not `:`) as the separator: build tags land in the Add Build Tag REST URL
+	// path, and ASP.NET rejects `:` there as a "dangerous" path character.
+	console.log(`##vso[build.addbuildtag]sdk-canary=${latest}`);
 	return latest;
 }
 
@@ -182,7 +188,6 @@ function collectOverrides(): Override[] {
 	const overrides: Override[] = [];
 	if (sdkVersion) {
 		assertSafeSpec('SDK canary version', sdkVersion);
-		console.log(`##vso[build.addbuildtag]sdk-canary=${sdkVersion}`);
 		overrides.push({ name: '@github/copilot-sdk', version: sdkVersion });
 	}
 
