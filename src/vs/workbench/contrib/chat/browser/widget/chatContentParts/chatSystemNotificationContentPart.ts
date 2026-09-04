@@ -11,6 +11,7 @@ import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatSystemNotificationPart } from '../../../common/chatService/chatService.js';
@@ -41,6 +42,7 @@ export class ChatSystemNotificationContentPart extends Disposable implements ICh
 		private readonly notification: IChatSystemNotificationPart,
 		renderer: IMarkdownRenderer,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 
@@ -76,6 +78,7 @@ export class ChatSystemNotificationContentPart extends Disposable implements ICh
 		owner.setAttribute('aria-label', notification.accessibilityLabel ?? renderAsPlaintext(notification.content));
 		dom.append(owner, dom.$('span.chat-workspace-transition-line')).setAttribute('aria-hidden', 'true');
 		const label = dom.append(owner, dom.$('span.chat-workspace-transition-label'));
+		this._register(this.hoverService.setupDelayedHover(label, { content: renderAsPlaintext(notification.content) }));
 		const workspaceNameIndex = notification.workspaceName ? notification.content.value.lastIndexOf(notification.workspaceName) : -1;
 		const iconIndex = workspaceNameIndex >= 0 ? workspaceNameIndex : 0;
 		label.append(notification.content.value.slice(0, iconIndex));
