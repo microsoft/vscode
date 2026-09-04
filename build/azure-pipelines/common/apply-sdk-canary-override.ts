@@ -17,25 +17,16 @@ import { execFileSync } from 'child_process';
  * node_modules cache key, derived from these manifests + lockfiles, naturally
  * misses).
  *
- * Driven by environment variables so it is a no-op in normal builds:
- *   VSCODE_SDK_CANARY_VERSION - version to pin `@github/copilot-sdk` to (empty =
- *                               no override / normal build). The sentinel
- *                               `latest-canary` resolves to the newest
- *                               `@github/copilot-sdk` canary on the feed here,
- *                               inside the build.
- *   VSCODE_CLI_CANARY_VERSION - version to pin `@github/copilot` to. When empty
- *                               (and an SDK version is set) the CLI version is
- *                               inferred from the SDK's own `@github/copilot`
- *                               dependency so the two stay compatible. When set
- *                               explicitly, it is validated against that same
- *                               dependency range and the build fails fast on a
- *                               confirmed incompatible SDK/CLI pair.
+ * Product builds use the exact versions in copilot-product-build-versions.json
+ * by default. Queue-time environment variables can select `none`, `auto`,
+ * `latest-canary`, or explicit versions for validation and recovery.
  *
  * npm registry + auth must already be configured in the ambient environment
  * (the orchestrator authenticates to the private feed before invoking this).
  */
 
 const ROOT = path.join(import.meta.dirname, '../../../');
+const PRODUCT_VERSIONS_PATH = path.join(ROOT, 'build/azure-pipelines/copilot-product-build-versions.json');
 
 /**
  * On Windows `npm` is a `.cmd` shim. Two things matter:
@@ -55,10 +46,17 @@ const NPM = IS_WINDOWS ? 'npm.cmd' : 'npm';
  * shell could otherwise interpret.
  */
 const SAFE_SPEC = /^[\w.+~^><=|* -]+$/;
+const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
 function assertSafeSpec(label: string, value: string): void {
 	if (!SAFE_SPEC.test(value)) {
 		throw new Error(`[canary-override] Refusing unsafe ${label} "${value}": only semver versions, ranges and dist-tags are allowed.`);
+	}
+}
+
+function assertExactVersion(label: string, value: string): void {
+	if (!EXACT_VERSION.test(value)) {
+		throw new Error(`[canary-override] ${label} "${value}" must be an exact semantic version.`);
 	}
 }
 
@@ -68,6 +66,31 @@ const TARGET_DIRS = ['', 'remote'];
 interface Override {
 	readonly name: string;
 	readonly version: string;
+}
+
+interface ProductBuildVersions {
+	readonly '@github/copilot-sdk': string;
+	readonly '@github/copilot': string;
+}
+
+function readProductBuildVersions(): ProductBuildVersions {
+	const versions: unknown = JSON.parse(fs.readFileSync(PRODUCT_VERSIONS_PATH, 'utf8'));
+	if (typeof versions !== 'object' || versions === null || Array.isArray(versions)) {
+		throw new Error(`[canary-override] ${path.relative(ROOT, PRODUCT_VERSIONS_PATH)} must contain an object.`);
+	}
+	const sdkVersion: unknown = Reflect.get(versions, '@github/copilot-sdk');
+	const cliVersion: unknown = Reflect.get(versions, '@github/copilot');
+	if (typeof sdkVersion !== 'string' || typeof cliVersion !== 'string') {
+		throw new Error(`[canary-override] ${path.relative(ROOT, PRODUCT_VERSIONS_PATH)} must define exact @github/copilot-sdk and @github/copilot versions.`);
+	}
+	assertSafeSpec('checked-in SDK version', sdkVersion);
+	assertSafeSpec('checked-in CLI version', cliVersion);
+	assertExactVersion('checked-in SDK version', sdkVersion);
+	assertExactVersion('checked-in CLI version', cliVersion);
+	return {
+		'@github/copilot-sdk': sdkVersion,
+		'@github/copilot': cliVersion,
+	};
 }
 
 /**
@@ -150,9 +173,7 @@ function assertCliSatisfiesSdk(sdkVersion: string, cliVersion: string): void {
  * orchestrator that queues the build never needs feed-read access.
  *
  * Canary versions look like `X.Y.Z-canary.<N>.g<sha>`; "newest" is the highest
- * `[X, Y, Z, N]` tuple (numeric, so `canary.9` < `canary.10`). The resolved
- * concrete version is also emitted as an ADO build tag (`sdk-canary=<version>`)
- * so the orchestrator can read it back for accurate Slack reporting.
+ * `[X, Y, Z, N]` tuple (numeric, so `canary.9` < `canary.10`).
  */
 function resolveLatestCanary(): string {
 	const versionsRaw = execFileSync(NPM, ['view', '@github/copilot-sdk', 'versions', '--json'], { encoding: 'utf8', shell: IS_WINDOWS });
@@ -178,20 +199,17 @@ function resolveLatestCanary(): string {
 	}
 	const latest = canaries[canaries.length - 1].v;
 	console.log(`[canary-override] Resolved 'latest-canary' -> @github/copilot-sdk@${latest} (from ${canaries.length} canary versions on the feed).`);
-	// Surface the concrete version on the build so the GitHub orchestrator can
-	// read it back (build tags API) for accurate reporting, without itself
-	// needing feed-read access. Idempotent across the per-platform jobs. Use `=`
-	// (not `:`) as the separator: build tags land in the Add Build Tag REST URL
-	// path, and ASP.NET rejects `:` there as a "dangerous" path character.
-	console.log(`##vso[build.addbuildtag]sdk-canary=${latest}`);
 	return latest;
 }
 
 function collectOverrides(): Override[] {
-	let sdkVersion = (process.env['VSCODE_SDK_CANARY_VERSION'] ?? '').trim();
-	if (!sdkVersion) {
+	const productVersions = readProductBuildVersions();
+	const sdkSelection = (process.env['VSCODE_SDK_CANARY_VERSION'] ?? 'checked-in').trim();
+	if (sdkSelection === 'none') {
+		console.log('[canary-override] Product Copilot override disabled — using OSS dependency versions.');
 		return [];
 	}
+	let sdkVersion = sdkSelection === 'checked-in' ? productVersions['@github/copilot-sdk'] : sdkSelection;
 	// `latest-canary` sentinel: resolve the newest published @github/copilot-sdk
 	// canary here, inside the build, where private-feed npm auth already exists —
 	// so the GitHub-side orchestrator that queues this build never needs
@@ -200,11 +218,14 @@ function collectOverrides(): Override[] {
 		sdkVersion = resolveLatestCanary();
 	}
 	assertSafeSpec('SDK canary version', sdkVersion);
+	// Idempotent across the per-platform jobs. Use `=` (not `:`) as the
+	// separator because ASP.NET rejects `:` in the Add Build Tag URL path.
+	console.log(`##vso[build.addbuildtag]sdk-canary=${sdkVersion}`);
 	const overrides: Override[] = [{ name: '@github/copilot-sdk', version: sdkVersion }];
 
-	// Explicit CLI version wins (but must be compatible with the SDK); empty
-	// means "infer a compatible CLI from the SDK".
-	const explicitCli = (process.env['VSCODE_CLI_CANARY_VERSION'] ?? '').trim();
+	// Explicit or checked-in CLI versions win; `auto` infers from the SDK.
+	const cliSelection = (process.env['VSCODE_CLI_CANARY_VERSION'] ?? 'checked-in').trim();
+	const explicitCli = cliSelection === 'checked-in' ? productVersions['@github/copilot'] : cliSelection === 'auto' ? '' : cliSelection;
 	let cliVersion: string | undefined;
 	if (explicitCli) {
 		assertSafeSpec('CLI canary version', explicitCli);
