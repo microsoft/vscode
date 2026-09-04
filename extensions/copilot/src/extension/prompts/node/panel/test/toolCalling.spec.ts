@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Raw } from '@vscode/prompt-tsx';
+import { Raw, type PromptSizing } from '@vscode/prompt-tsx';
 import { describe, expect, test } from 'vitest';
 import type * as vscode from 'vscode';
 import { IChatHookService, type IPreToolUseHookResult } from '../../../../../platform/chat/common/chatHookService';
@@ -15,16 +15,17 @@ import { CancellationToken } from '../../../../../util/vs/base/common/cancellati
 import { Event } from '../../../../../util/vs/base/common/event';
 import { constObservable } from '../../../../../util/vs/base/common/observable';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
+import { ServiceCollection } from '../../../../../util/vs/platform/instantiation/common/serviceCollection';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry';
 import { SpyingTelemetryService } from '../../../../../platform/telemetry/node/spyingTelemetryService';
-import { LanguageModelDataPart, LanguageModelTextPart, LanguageModelToolResult } from '../../../../../vscodeTypes';
+import { LanguageModelDataPart, LanguageModelTextPart, LanguageModelToolMCPSource, LanguageModelToolResult } from '../../../../../vscodeTypes';
 import { ChatVariablesCollection } from '../../../../prompt/common/chatVariablesCollection';
 import type { Conversation } from '../../../../prompt/common/conversation';
 import type { IBuildPromptContext, IToolCallRound } from '../../../../prompt/common/intents';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
 import { ToolName } from '../../../../tools/common/toolNames';
 import { IToolsService, type IToolValidationResult } from '../../../../tools/common/toolsService';
-import { renderPromptElement } from '../../base/promptRenderer';
+import { IPromptEndpoint, renderPromptElement } from '../../base/promptRenderer';
 import { ChatToolCalls } from '../toolCalling';
 
 class CapturingChatHookService implements IChatHookService {
@@ -223,6 +224,70 @@ class ParallelAwareToolsService implements IToolsService {
 }
 
 describe('ChatToolCalls (toolCalling.tsx)', () => {
+	test('waits for an eager MCP tool call before returning prompt children', async () => {
+		const toolName = 'mcp_delayed_compile';
+		const toolCallId = 'mcp-call-1';
+		const mcpSource = Object.create(LanguageModelToolMCPSource.prototype) as LanguageModelToolMCPSource;
+		Object.defineProperties(mcpSource, {
+			label: { value: 'JSTS Upgrade Assistant', enumerable: true },
+			name: { value: 'jstsupgradeas', enumerable: true },
+		});
+		const toolInfo: vscode.LanguageModelToolInformation = {
+			name: toolName,
+			description: 'compile package',
+			source: mcpSource,
+			inputSchema: undefined,
+			tags: [],
+		};
+
+		const testingServiceCollection = createExtensionUnitTestingServices();
+		const toolsService = new ParallelAwareToolsService(toolInfo);
+		testingServiceCollection.define(IToolsService, toolsService);
+
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpointProvider = accessor.get(IEndpointProvider);
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
+		const promptInstantiationService = instantiationService.createChild(new ServiceCollection([IPromptEndpoint, endpoint]));
+		const promptContext: IBuildPromptContext = {
+			query: 'test',
+			history: [],
+			chatVariables: new ChatVariablesCollection(),
+			conversation: { sessionId: 'session-123' } as unknown as Conversation,
+			request: {} as vscode.ChatRequest,
+			tools: {
+				toolReferences: [],
+				toolInvocationToken: {} as vscode.ChatParticipantToolToken,
+				availableTools: [toolInfo],
+			},
+		};
+		const element = promptInstantiationService.createInstance(ChatToolCalls, {
+			promptContext,
+			toolCallRounds: [{
+				id: 'round-1',
+				response: 'compiling',
+				toolInputRetry: 0,
+				toolCalls: [{ name: toolName, arguments: '{}', id: toolCallId }],
+			}],
+			toolCallResults: undefined,
+		});
+		const sizing: PromptSizing = {
+			tokenBudget: 1000,
+			countTokens: async () => 0,
+			endpoint: { modelMaxPromptTokens: 1000 },
+		};
+		let renderCompleted = false;
+		const renderPromise = element.render(undefined, sizing).then(() => renderCompleted = true);
+
+		await toolsService.waitForStartedCalls(1);
+		await Promise.resolve();
+		expect(renderCompleted).toBe(false);
+
+		toolsService.resolveCall(toolCallId);
+		await renderPromise;
+		expect(renderCompleted).toBe(true);
+	});
+
 	test('starts multiple sub-agent tool calls in parallel', async () => {
 		const toolName = ToolName.CoreRunSubagent;
 		const firstCallId = 'subagent-call-1';

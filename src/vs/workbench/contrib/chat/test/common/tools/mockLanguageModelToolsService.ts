@@ -67,6 +67,10 @@ export class MockLanguageModelToolsService extends Disposable implements ILangua
 
 	}
 
+	async waitForToolCallsForRequest(requestId: string): Promise<void> {
+
+	}
+
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	setToolAutoConfirmation(toolId: string, scope: any): void {
 

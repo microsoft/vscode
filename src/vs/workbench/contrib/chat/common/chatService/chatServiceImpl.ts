@@ -117,6 +117,12 @@ class CancellableRequest implements IDisposable {
 		this.cancellationTokenSource.cancel();
 	}
 
+	async waitForToolCalls(): Promise<void> {
+		if (this.requestId) {
+			await this.toolsService.waitForToolCallsForRequest(this.requestId);
+		}
+	}
+
 	setYieldRequested(): void {
 		this._yieldRequested.set(true, undefined);
 	}
@@ -1878,7 +1884,7 @@ export class ChatService extends Disposable implements IChatService {
 						}
 					}
 
-					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
+					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token).finally(() => pendingRequest?.waitForToolCalls());
 					rawResult = agentResult;
 					agentOrCommandFollowups = this.chatAgentService.getFollowups(agent.id, requestProps, agentResult, history, followupsCancelToken);
 				} else if (commandPart && this.chatSlashCommandService.hasCommand(commandPart.slashCommand.command, getChatSessionType(model.sessionResource))) {
