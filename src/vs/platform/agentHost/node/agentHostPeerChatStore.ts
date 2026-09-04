@@ -29,6 +29,13 @@ export interface IPersistedPeerChat {
 	readonly inheritedTurnId?: string;
 }
 
+interface IReplaceCentralOptions {
+	readonly publishCompatibility?: boolean;
+	readonly database?: AgentHostCatalogDatabaseReference;
+	readonly previousEntries?: readonly IPersistedPeerChat[];
+	readonly legacyMergeBase?: readonly IPersistedPeerChat[];
+}
+
 export class AgentHostPeerChatStore {
 
 	private readonly _writes = new Map<string, Promise<void>>();
@@ -56,7 +63,7 @@ export class AgentHostPeerChatStore {
 					if (legacy === undefined) {
 						return;
 					}
-					const replaceResult = await this._replaceCentral(session, legacy, undefined, true, database);
+					const replaceResult = await this._replaceCentral(session, legacy, undefined, { database, legacyMergeBase: legacy });
 					if (replaceResult === 'conflict') {
 						continue;
 					}
@@ -87,7 +94,7 @@ export class AgentHostPeerChatStore {
 				if (legacy !== undefined && legacyState?.raw !== catalog.legacyMirroredPayload) {
 					const base = this._parseLegacyMirrorBase(session, catalog.legacyMirroredPayload);
 					const merged = base === undefined ? legacy : this._mergeLegacyChanges(base, central, legacy);
-					const replaceResult = await this._replaceCentral(session, merged, catalog.revision, true, database);
+					const replaceResult = await this._replaceCentral(session, merged, catalog.revision, { database, legacyMergeBase: legacy });
 					if (replaceResult === 'conflict') {
 						continue;
 					}
@@ -99,7 +106,7 @@ export class AgentHostPeerChatStore {
 				}
 				const local = await this.readLocalChatMetadata(central);
 				if (JSON.stringify(local) !== JSON.stringify(central)) {
-					const replaceResult = await this._replaceCentral(session, local, catalog.revision, true, database);
+					const replaceResult = await this._replaceCentral(session, local, catalog.revision, { database });
 					if (replaceResult === 'conflict') {
 						continue;
 					}
@@ -282,7 +289,10 @@ export class AgentHostPeerChatStore {
 					continue;
 				}
 			}
-			const legacyIsCurrentMirror = catalog?.legacyMirroredPayload !== undefined && legacyState?.raw === catalog.legacyMirroredPayload;
+			const legacyIsCurrentMirror = central !== undefined
+				&& catalog?.legacyMirroredPayload !== undefined
+				&& legacyState?.raw === catalog.legacyMirroredPayload
+				&& catalog.legacyMirroredPayload === JSON.stringify(central);
 			const base = catalog && legacy !== undefined && !legacyIsCurrentMirror
 				? this._parseLegacyMirrorBase(session, catalog.legacyMirroredPayload)
 				: undefined;
@@ -292,14 +302,17 @@ export class AgentHostPeerChatStore {
 				?? central
 				?? [];
 			const updated = this._parse(session, JSON.stringify(mutate(current)));
-			const result = await this._replaceCentral(session, updated, catalog?.revision);
+			const result = await this._replaceCentral(session, updated, catalog?.revision, {
+				previousEntries: legacyIsCurrentMirror ? central : undefined,
+				legacyMergeBase: legacy !== undefined && !legacyIsCurrentMirror ? legacy : undefined,
+			});
 			if (result !== 'conflict') {
 				return;
 			}
 		}
 	}
 
-	private async _replaceCentral(session: URI, updated: readonly IPersistedPeerChat[], expectedRevision: number | undefined, publishCompatibility = true, database?: AgentHostCatalogDatabaseReference): Promise<'applied' | 'conflict' | 'sessionUnavailable'> {
+	private async _replaceCentral(session: URI, updated: readonly IPersistedPeerChat[], expectedRevision: number | undefined, options: IReplaceCentralOptions = {}): Promise<'applied' | 'conflict' | 'sessionUnavailable'> {
 		const result = await this._database.replaceSessionChatCatalog(session.toString(), this._catalogRows(updated), expectedRevision);
 		if (result.status !== 'applied') {
 			if (result.status !== 'conflict') {
@@ -307,9 +320,12 @@ export class AgentHostPeerChatStore {
 			}
 			return result.status === 'conflict' ? 'conflict' : 'sessionUnavailable';
 		}
-		if (publishCompatibility) {
+		if (options.legacyMergeBase && !await this._database.recordSessionChatCatalogLegacyMirrorPayload(session.toString(), result.revision, JSON.stringify(options.legacyMergeBase))) {
+			return 'conflict';
+		}
+		if (options.publishCompatibility !== false) {
 			try {
-				await this._publishCompatibilityState(session, updated, result.revision, database);
+				await this._publishCompatibilityState(session, updated, result.revision, options.database, options.previousEntries);
 			} catch (error) {
 				this._logService.error(error, `[AgentHostPeerChatStore] Failed to publish peer-chat compatibility state for ${session.toString()}`);
 			}
@@ -333,17 +349,23 @@ export class AgentHostPeerChatStore {
 		}));
 	}
 
-	private async _publishCompatibilityState(session: URI, initialEntries: readonly IPersistedPeerChat[], initialRevision: number, database?: AgentHostCatalogDatabaseReference): Promise<void> {
+	private async _publishCompatibilityState(session: URI, initialEntries: readonly IPersistedPeerChat[], initialRevision: number, database?: AgentHostCatalogDatabaseReference, initialPreviousEntries?: readonly IPersistedPeerChat[]): Promise<void> {
 		let entries = initialEntries;
 		let revision = initialRevision;
+		let previousEntries = initialPreviousEntries;
 		while (true) {
 			const limiter = new Limiter<void>(CHAT_METADATA_CONCURRENCY);
-			await Promise.all(entries.map(entry => limiter.queue(() => this._writeChatMetadata(entry))));
+			const previousByUri = previousEntries && new Map(previousEntries.map(entry => [entry.uri, entry]));
+			const changedEntries = previousByUri
+				? entries.filter(entry => JSON.stringify(previousByUri.get(entry.uri)) !== JSON.stringify(entry))
+				: entries;
+			await Promise.all(changedEntries.map(entry => limiter.queue(() => this._writeChatMetadata(entry))));
 			const current = await this._database.getSessionChatCatalog(session.toString());
 			if (!current) {
 				return;
 			}
 			if (current.revision !== revision) {
+				previousEntries = entries;
 				entries = this._entriesFromCatalog(current.chats);
 				revision = current.revision;
 				continue;
@@ -355,6 +377,7 @@ export class AgentHostPeerChatStore {
 			if (!superseding) {
 				return;
 			}
+			previousEntries = entries;
 			entries = this._entriesFromCatalog(superseding.chats);
 			revision = superseding.revision;
 		}
@@ -391,7 +414,7 @@ export class AgentHostPeerChatStore {
 			const base = this._parseLegacyMirrorBase(session, catalog.legacyMirroredPayload);
 			if (legacy !== undefined && base !== undefined && legacyState.raw !== catalog.legacyMirroredPayload && JSON.stringify(legacy) !== JSON.stringify(base)) {
 				const merged = this._mergeLegacyChanges(base, central, legacy);
-				const replaceResult = await this._replaceCentral(session, merged, catalog.revision, false);
+				const replaceResult = await this._replaceCentral(session, merged, catalog.revision, { publishCompatibility: false, legacyMergeBase: legacy });
 				if (replaceResult === 'conflict') {
 					continue;
 				}
@@ -399,9 +422,6 @@ export class AgentHostPeerChatStore {
 					return { status: 'sessionUnavailable' };
 				}
 				const revision = catalog.revision + 1;
-				if (!await this._database.recordSessionChatCatalogLegacyMirrorPayload(session.toString(), revision, JSON.stringify(legacy))) {
-					continue;
-				}
 				try {
 					await this._publishCompatibilityState(session, merged, revision, database);
 				} catch (error) {

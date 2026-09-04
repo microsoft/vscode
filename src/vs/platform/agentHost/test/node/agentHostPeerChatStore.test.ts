@@ -89,6 +89,31 @@ suite('AgentHostPeerChatStore', () => {
 		return new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), logService);
 	}
 
+	function createPerResourceStore(): {
+		readonly store: AgentHostPeerChatStore;
+		readonly databaseFor: (resource: URI) => ConcurrentMetadataWriteDatabase;
+	} {
+		const databases = new Map<string, ConcurrentMetadataWriteDatabase>();
+		const databaseFor = (resource: URI) => {
+			const key = resource.toString();
+			let database = databases.get(key);
+			if (!database) {
+				database = new ConcurrentMetadataWriteDatabase();
+				databases.set(key, database);
+			}
+			return database;
+		};
+		const service = {
+			...createSessionDataService(),
+			openDatabase: (resource: URI) => ({ object: databaseFor(resource), dispose: () => { } }),
+			tryOpenDatabase: async (resource: URI) => ({ object: databaseFor(resource), dispose: () => { } }),
+		};
+		return {
+			store: new AgentHostPeerChatStore(orchestrator, service, new NullLogService()),
+			databaseFor,
+		};
+	}
+
 	test('migration-only membership does not create compatibility databases and mirrors after adoption', async () => {
 		const database = new TestSessionDatabase();
 		let opens = 0;
@@ -443,6 +468,134 @@ suite('AgentHostPeerChatStore', () => {
 			writes: entries.length,
 			maxInFlight: 4,
 		});
+	});
+
+	test('writes chat-local compatibility metadata only for changed entries during mutations', async () => {
+		const { store, databaseFor } = createPerResourceStore();
+		const added = URI.parse(buildChatUri(session, 'added'));
+		await store.replace(session, [
+			{ uri: first.toString(), providerData: 'first' },
+			{ uri: second.toString(), providerData: 'second' },
+			{ uri: third.toString(), providerData: 'third' },
+		]);
+		databaseFor(first).metadataValueWrites = 0;
+		databaseFor(second).metadataValueWrites = 0;
+		databaseFor(third).metadataValueWrites = 0;
+
+		await store.upsert(session, first, 'first');
+		const reorderedWrites = databaseFor(first).metadataValueWrites + databaseFor(second).metadataValueWrites + databaseFor(third).metadataValueWrites;
+		await store.upsert(session, second, 'updated');
+		const updatedWrites = databaseFor(first).metadataValueWrites + databaseFor(second).metadataValueWrites + databaseFor(third).metadataValueWrites - reorderedWrites;
+		await store.remove(session, third);
+		const removedWrites = databaseFor(first).metadataValueWrites + databaseFor(second).metadataValueWrites + databaseFor(third).metadataValueWrites - reorderedWrites - updatedWrites;
+		await store.upsert(session, added, 'added');
+		const addedWrites = databaseFor(added).metadataValueWrites;
+		const central = await store.tryRead(session);
+
+		assert.deepStrictEqual({
+			reorderedWrites,
+			updatedWrites,
+			removedWrites,
+			addedWrites,
+			local: central && await store.readLocalChatMetadata(central),
+			legacy: await store.tryReadLegacy(session),
+		}, {
+			reorderedWrites: 0,
+			updatedWrites: 1,
+			removedWrites: 0,
+			addedWrites: 1,
+			local: [
+				{ uri: first.toString(), providerData: 'first' },
+				{ uri: second.toString(), providerData: 'updated' },
+				{ uri: added.toString(), providerData: 'added' },
+			],
+			legacy: [
+				{ uri: first.toString(), providerData: 'first' },
+				{ uri: second.toString(), providerData: 'updated' },
+				{ uri: added.toString(), providerData: 'added' },
+			],
+		});
+	});
+
+	test('fully publishes legacy metadata imported during an interactive mutation', async () => {
+		const { store, databaseFor } = createPerResourceStore();
+		await store.replace(session, [{ uri: first.toString(), providerData: 'current' }]);
+		await databaseFor(session).setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([
+			{ uri: first.toString(), providerData: 'legacy-update' },
+		]));
+
+		await store.upsert(session, second, 'added');
+		const central = await store.tryRead(session);
+		const local = central && await store.readLocalChatMetadata(central);
+		const reconciled = await store.reconcileLegacy(session);
+
+		assert.deepStrictEqual({
+			central,
+			local,
+			reconciled,
+		}, {
+			central: [
+				{ uri: first.toString(), providerData: 'legacy-update' },
+				{ uri: second.toString(), providerData: 'added' },
+			],
+			local: [
+				{ uri: first.toString(), providerData: 'legacy-update' },
+				{ uri: second.toString(), providerData: 'added' },
+			],
+			reconciled: [
+				{ uri: first.toString(), providerData: 'legacy-update' },
+				{ uri: second.toString(), providerData: 'added' },
+			],
+		});
+	});
+
+	test('fully publishes when the recorded mirror does not match central authority', async () => {
+		const { store, databaseFor } = createPerResourceStore();
+		await store.replace(session, [{ uri: first.toString(), providerData: 'initial' }]);
+		const initial = await orchestrator.getSessionChatCatalog(session.toString());
+		assert.ok(initial);
+		const updated = await orchestrator.replaceSessionChatCatalog(session.toString(), [
+			{ chat: first.toString(), order: 0, providerData: 'central-update' },
+		], initial.revision);
+		assert.strictEqual(updated.status, 'applied');
+		const stalePayload = JSON.stringify([{ uri: first.toString(), providerData: 'initial' }]);
+		await databaseFor(session).setMetadata(PEER_CHATS_METADATA_KEY, stalePayload);
+		assert.strictEqual(await orchestrator.markSessionChatCatalogLegacyMirrored(session.toString(), updated.revision, stalePayload), true);
+
+		await store.upsert(session, second, 'added');
+		const central = await store.tryRead(session);
+
+		assert.deepStrictEqual(central && await store.readLocalChatMetadata(central), [
+			{ uri: first.toString(), providerData: 'central-update' },
+			{ uri: second.toString(), providerData: 'added' },
+		]);
+	});
+
+	test('advances the merge base before retrying a failed compatibility mirror', async () => {
+		const database = new FailingLegacyMirrorDatabase();
+		const store = createStore(database);
+		await store.replace(session, [
+			{ uri: first.toString() },
+			{ uri: second.toString() },
+		]);
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([{ uri: second.toString() }]));
+		database.failLegacyMirrors(1);
+		await store.reconcileLegacy(session);
+		const merged = await orchestrator.getSessionChatCatalog(session.toString());
+		assert.ok(merged);
+		const concurrent = await orchestrator.replaceSessionChatCatalog(session.toString(), [
+			{ chat: second.toString(), order: 0 },
+			{ chat: first.toString(), order: 1 },
+		], merged.revision);
+		assert.strictEqual(concurrent.status, 'applied');
+		database.failLegacyMirrors(1);
+
+		await store.reconcileLegacy(session);
+
+		assert.deepStrictEqual(await store.tryRead(session, false), [
+			{ uri: second.toString() },
+			{ uri: first.toString() },
+		]);
 	});
 
 	test('rejects oversized imported legacy membership without changing central authority', async () => {
