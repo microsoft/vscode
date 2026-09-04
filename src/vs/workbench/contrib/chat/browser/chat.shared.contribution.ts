@@ -469,7 +469,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ConsolidatedRemoteWorkspaces]: {
 			type: 'boolean',
-			default: false,
+			default: product.quality !== 'stable',
 			scope: ConfigurationScope.APPLICATION,
 			description: nls.localize('chat.agentSessions.consolidatedRemoteWorkspaces', "Controls whether GitHub and remote workspaces are combined under Remote in the Agents Window workspace picker, with search always available and, when supported, a No workspace option."),
 			tags: ['experimental'],
@@ -2497,6 +2497,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.customizations.userDataMigration.enabled', "Controls whether the Chat Customizations editor offers to move agents and instructions stored in user data to the active agent-host harness, which ignores the user data location. When disabled, the migration card and sidebar shortcut are hidden."),
 			default: false,
 		},
+		[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: {
+			type: 'boolean',
+			tags: ['experimental'],
+			description: nls.localize('chat.customizations.locationsMigration.enabled', "Controls whether the Chat Customizations editor offers to move agents, instructions, and skills from configured locations that are not supported by the active agent-host harness. When disabled, the migration card and sidebar shortcut are hidden."),
+			default: false,
+		},
 		[ChatConfiguration.ChatCustomizationsMigrationHint]: {
 			type: 'string',
 			enum: [CustomizationMigrationHintMode.Never, CustomizationMigrationHintMode.Once, CustomizationMigrationHintMode.Always],
@@ -2505,7 +2511,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.customizations.migrationHint.once', "Show a customization migration hint once per chat session."),
 				nls.localize('chat.customizations.migrationHint.always', "Show a customization migration hint for every chat request."),
 			],
-			description: nls.localize('chat.customizations.migrationHint', "Controls whether chat shows information about customizations that are not used by the active Agent Host harness and how often it shows them."),
+			description: nls.localize('chat.customizations.migrationHint', "Controls whether chat shows information about customizations that are not used by the active Agent Host harness."),
 			default: CustomizationMigrationHintMode.Never,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
@@ -3191,7 +3197,7 @@ class CustomizationMigrationHintContribution extends Disposable implements IWork
 	) {
 		super();
 		this._register(chatService.registerCustomizationMigrationHintProvider(
-			sessionResource => customizationMigrationService.computeMigrationHint(sessionResource)
+			(sessionResource, token) => customizationMigrationService.computeMigrationHint(sessionResource, token)
 		));
 	}
 }

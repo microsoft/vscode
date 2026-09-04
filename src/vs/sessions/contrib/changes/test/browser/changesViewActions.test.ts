@@ -9,14 +9,13 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
+import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { SessionsDiffRenderSideBySideContext } from '../../../editor/common/diffEditorOptionsService.js';
+import { SessionsDiffViewModeContext } from '../../../editor/common/diffEditorOptionsService.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
@@ -28,6 +27,7 @@ import { IActiveSession } from '../../../../services/sessions/common/sessionsMan
 import { ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
 import { CustomViewVisibleContext, IsPhoneLayoutContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
+import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID, unlockChatPetCreatePullRequestAchievement } from '../../browser/changesView.js';
 import { SessionsChangesAccessibilityHelp } from '../../browser/sessionsChangesAccessibilityHelp.js';
 import '../../browser/changesViewActions.js';
@@ -189,58 +189,70 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('always show inline diff is contributed to the editor header layout overflow menu for multi-file and single-file diffs', () => {
-		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
-			.filter(isIMenuItem)
-			.find(item => item.command.id === 'toggle.diff.renderSideBySide');
+	test('Diff View submenu is contributed for text and multi-diff editors in both Agents layouts', () => {
+		const getSubmenu = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
+			.filter(isISubmenuItem)
+			.find(item => item.submenu === Menus.SessionsDiffEditorView);
+		const singlePane = getSubmenu(Menus.SessionsEditorTitle);
+		const classic = getSubmenu(MenuId.EditorTitle);
 
-		assert.ok(item, 'expected the preferred diff view action in the editor header layout overflow menu');
-		const when = item.when?.serialize() ?? '';
-		const toggled = item.command.toggled;
-		const toggledCondition = isICommandActionToggleInfo(toggled) ? toggled.condition : toggled;
-		const nonTextDiffContext = new Context(1, null);
-		nonTextDiffContext.setValue(IsSessionsWindowContext.key, true);
-		nonTextDiffContext.setValue(SinglePaneDiffEditorInputActiveContext.key, true);
-		nonTextDiffContext.setValue(SinglePaneLayoutEnabledContext.key, true);
-		nonTextDiffContext.setValue(IsAuxiliaryWindowContext.key, false);
-		nonTextDiffContext.setValue(IsTopRightEditorGroupContext.key, true);
-		nonTextDiffContext.setValue(MainEditorAreaVisibleContext.key, true);
-		const toggleContext = new Context(1, null);
-		toggleContext.setValue(SessionsDiffRenderSideBySideContext.key, true);
-		const toggledWhenSideBySide = toggledCondition?.evaluate(toggleContext);
-		toggleContext.setValue(SessionsDiffRenderSideBySideContext.key, false);
+		assert.ok(singlePane);
+		assert.ok(classic);
+		const singlePaneWhen = singlePane.when?.serialize() ?? '';
+		const classicWhen = classic.when?.serialize() ?? '';
 		assert.deepStrictEqual({
-			id: item.command.id,
-			title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
-			group: item.group,
-			order: item.order,
-			icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
-			tooltip: typeof item.command.tooltip === 'string' ? item.command.tooltip : item.command.tooltip?.value,
-			hasStateSpecificTitle: isICommandActionToggleInfo(toggled),
-			toggledWhenSideBySide,
-			toggledWhenInline: toggledCondition?.evaluate(toggleContext),
-			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
-			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
-			hasTextCompareEditorGate: when.includes(TextCompareEditorActiveContext.key),
-			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
-			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
-			matchesNonTextDiffContext: item.when?.evaluate(nonTextDiffContext) ?? false,
+			singlePaneTitle: typeof singlePane.title === 'string' ? singlePane.title : singlePane.title.value,
+			singlePaneGroup: singlePane.group,
+			singlePaneHasTextDiffGate: singlePaneWhen.includes(TextCompareEditorActiveContext.key),
+			singlePaneHasChangesGate: singlePaneWhen.includes(SessionChangesEditor.ID),
+			singlePaneHasMultiDiffGate: singlePaneWhen.includes(MultiDiffEditor.ID),
+			singlePaneHasLayoutGate: singlePaneWhen.includes(SinglePaneLayoutEnabledContext.key),
+			classicTitle: typeof classic.title === 'string' ? classic.title : classic.title.value,
+			classicHasSessionsGate: classicWhen.includes(IsSessionsWindowContext.key),
+			classicHasTextDiffGate: classicWhen.includes(TextCompareEditorActiveContext.key),
+			classicHasChangesGate: classicWhen.includes(SessionChangesEditor.ID),
+			classicHasMultiDiffGate: classicWhen.includes(MultiDiffEditor.ID),
+			classicHasLayoutGate: classicWhen.includes(SinglePaneLayoutEnabledContext.key),
 		}, {
-			id: 'toggle.diff.renderSideBySide',
-			title: 'Always Show Inline Diff',
-			group: 'secondary/1_diff',
-			order: 20,
-			icon: Codicon.diffSidebyside.id,
-			tooltip: 'Always uses inline layout.',
-			hasStateSpecificTitle: false,
-			toggledWhenSideBySide: false,
-			toggledWhenInline: true,
-			hasSessionsWindowGate: true,
-			hasActiveEditorGate: true,
-			hasTextCompareEditorGate: true,
-			hasSinglePaneConfigGate: true,
-			hasEditorAreaVisibleGate: true,
-			matchesNonTextDiffContext: false,
+			singlePaneTitle: 'Diff View',
+			singlePaneGroup: '1_diff',
+			singlePaneHasTextDiffGate: true,
+			singlePaneHasChangesGate: true,
+			singlePaneHasMultiDiffGate: true,
+			singlePaneHasLayoutGate: true,
+			classicTitle: 'Diff View',
+			classicHasSessionsGate: true,
+			classicHasTextDiffGate: true,
+			classicHasChangesGate: true,
+			classicHasMultiDiffGate: true,
+			classicHasLayoutGate: true,
+		});
+	});
+
+	test('Agents Diff View submenu exposes inline, side-by-side, and automatic modes', () => {
+		const items = MenuRegistry.getMenuItems(Menus.SessionsDiffEditorView)
+			.filter(isIMenuItem)
+			.map(item => ({
+				id: item.command.id,
+				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+				group: item.group,
+				order: item.order,
+			}));
+		const modeContext = new Context(1, null);
+		modeContext.setValue(SessionsDiffViewModeContext.key, 'sideBySide');
+
+		assert.deepStrictEqual({
+			items,
+			selectedMode: modeContext.getValue(SessionsDiffViewModeContext.key),
+		}, {
+			items: [
+				{ id: 'diffEditor.setViewMode.inline', title: 'Inline', group: '1_view', order: 1 },
+				{ id: 'diffEditor.setViewMode.sideBySide', title: 'Side by Side', group: '1_view', order: 2 },
+				{ id: 'diffEditor.setViewMode.automatic', title: 'Automatic (Currently Side by Side)', group: '1_view', order: 3 },
+				{ id: 'diffEditor.setViewMode.automatic', title: 'Automatic (Currently Inline)', group: '1_view', order: 3 },
+				{ id: 'diffEditor.viewMode.inlineTemporary', title: 'Inline (Temporary)', group: '1_view', order: 4 },
+			],
+			selectedMode: 'sideBySide',
 		});
 	});
 
@@ -258,8 +270,7 @@ suite('Changes View Actions', () => {
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
 			hasTextCompareEditorGate: when.includes(TextCompareEditorActiveContext.key),
-			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
-			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
+			hasMultiDiffEditorGate: when.includes(MultiDiffEditor.ID),
 		}, {
 			id: 'toggle.diff.renderSideBySide',
 			title: 'Toggle Preferred Diff View',
@@ -267,8 +278,7 @@ suite('Changes View Actions', () => {
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
 			hasTextCompareEditorGate: true,
-			hasSinglePaneConfigGate: true,
-			hasEditorAreaVisibleGate: true,
+			hasMultiDiffEditorGate: true,
 		});
 	});
 
@@ -286,11 +296,11 @@ suite('Changes View Actions', () => {
 	}
 
 	test('Changes accessibility help describes the single-pane diff action', () => {
-		assert.strictEqual(getChangesAccessibilityHelp(true).includes('Use Always Show Inline Diff in the editor header\'s More Actions menu'), true);
+		assert.strictEqual(getChangesAccessibilityHelp(true).includes('Use Diff View in the editor title area\'s More Actions menu'), true);
 	});
 
 	test('Changes accessibility help describes the classic diff action', () => {
-		assert.strictEqual(getChangesAccessibilityHelp(false).includes('Use Inline View in the editor title area\'s More Actions menu'), true);
+		assert.strictEqual(getChangesAccessibilityHelp(false).includes('Use Diff View in the editor title area\'s More Actions menu'), true);
 	});
 
 	test('view mode toggles are moved to the editor header layout overflow for non-text single-file diffs', () => {

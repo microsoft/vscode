@@ -955,6 +955,36 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('openNewSession restores a pending No workspace draft', async () => {
+		const openSession = stubSession({ sessionId: 'open', providerId: 'test' });
+		const quickChat = stubSession({
+			sessionId: 'quick',
+			providerId: 'test',
+			isQuickChat: constObservable(true),
+			workspace: constObservable(undefined),
+		});
+		const provider = new class extends TestSessionsProvider {
+			override readonly supportsQuickChats = true;
+			constructor() { super(openSession); }
+			override createQuickChat(): ISession { return quickChat; }
+		};
+		const { service, view } = createSessionsManagementService(openSession, disposables, provider);
+
+		service.createQuickChat();
+		await view.openSession(openSession.resource);
+		await view.openNewSession();
+
+		assert.deepStrictEqual({
+			pendingSession: service.newSession.get()?.sessionId,
+			activeSession: view.activeSession.get()?.sessionId,
+			isQuickChat: view.activeSession.get()?.isQuickChat?.get(),
+		}, {
+			pendingSession: 'quick',
+			activeSession: 'quick',
+			isQuickChat: true,
+		});
+	});
+
 	test('canOpenSession grants a worktree trust from a trusted base repo before prompting', async () => {
 		const repoRoot = URI.file('/repo');
 		const worktree = URI.file('/repo.worktrees/feature');
