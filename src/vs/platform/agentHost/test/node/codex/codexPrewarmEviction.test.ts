@@ -57,6 +57,7 @@ import type { SelectedCapabilityRoot } from '../../../node/codex/protocol/genera
 import { createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
 import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
+import { RecordingAgentSdkDownloader } from '../testAgentSdkDownloader.js';
 
 interface ITestWireRequest {
 	readonly id: number;
@@ -219,13 +220,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(IAgentHostCustomizationEnablementService, options.customizationEnablementService ?? createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 	instantiationService.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
-	instantiationService.stub(IAgentSdkDownloader, {
-		_serviceBrand: undefined,
-		isAvailable: () => true,
-		hasDownloadConsent: () => false,
-		recordDownloadConsent: async () => { },
-		isSdkResolvableWithoutDownload: async () => true,
-	});
+	instantiationService.stub(IAgentSdkDownloader, new RecordingAgentSdkDownloader());
 	instantiationService.stub(IAgentHostCheckpointService, options.checkpointService ?? NULL_CHECKPOINT_SERVICE);
 	instantiationService.stub(IAgentHostOTelService, {
 		_serviceBrand: undefined,
