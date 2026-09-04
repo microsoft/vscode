@@ -45,6 +45,11 @@ suite('Process Utils', () => {
 			deepStrictEqual([...parseTopMemoryOutput('1234  1.5G').entries()], [[1234, 1.5 * 1024 ** 3]]);
 		});
 
+		test('should round fractional byte values', () => {
+			// 0.1M is 104857.6 bytes
+			deepStrictEqual([...parseTopMemoryOutput('1234  0.1M').entries()], [[1234, 104858]]);
+		});
+
 		test('should handle values without a suffix as bytes', () => {
 			deepStrictEqual([...parseTopMemoryOutput('1234  512').entries()], [[1234, 512]]);
 		});
