@@ -171,6 +171,25 @@ suite('AgentNetworkFilterService', () => {
 			]);
 		});
 
+		test('blocks IPv4-mapped IPv6 literals in a deny-only configuration', async () => {
+			configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, [
+				'127.0.0.1',
+				'169.254.169.254',
+			]);
+			const service = await createService();
+			assert.deepStrictEqual([
+				service.isUriAllowed(URI.parse('http://[::ffff:127.0.0.1]/private')),
+				service.isUriAllowed(URI.parse('http://[::ffff:7f00:1]/private')),
+				service.isUriAllowed(URI.parse('http://[::ffff:169.254.169.254]/private')),
+				service.isUriAllowed(URI.parse('http://[::ffff:a9fe:a9fe]/private')),
+			], [
+				false,
+				false,
+				false,
+				false,
+			]);
+		});
+
 		test('blocks bare administrator deny patterns outside well-known public suffixes', async () => {
 			configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, [
 				'evil.xyz',
@@ -270,6 +289,28 @@ suite('AgentNetworkFilterService', () => {
 				false,
 				false,
 				false,
+			]);
+		});
+
+		test('blocks mapped and compatible IPv6 forms of wildcard IPv4 deny patterns', async () => {
+			configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, [
+				'*.127.1',
+				'*.0300.0250.01.01',
+				'*.0xa9fea9fe',
+			]);
+			const service = await createService();
+			assert.deepStrictEqual([
+				service.isUriAllowed(URI.parse('http://[::ffff:127.0.0.1]/private')),
+				service.isUriAllowed(URI.parse('http://[::127.0.0.1]/private')),
+				service.isUriAllowed(URI.parse('http://[::ffff:192.168.1.1]/private')),
+				service.isUriAllowed(URI.parse('http://[::ffff:169.254.169.254]/private')),
+				service.isUriAllowed(URI.parse('http://[::1]/allowed')),
+			], [
+				false,
+				false,
+				false,
+				false,
+				true,
 			]);
 		});
 

@@ -257,6 +257,24 @@ suite('domainMatcher', () => {
 			]);
 		});
 
+		test('canonicalizes wildcard IPv4 administrator patterns', () => {
+			assert.deepStrictEqual([
+				matchesDomainPattern('[::ffff:7f00:1]', '*.127.0.0.1'),
+				matchesDomainPattern('[::7f00:1]', '*.127.0.0.1'),
+				matchesDomainPattern('127.0.0.1', '*.127.1'),
+				matchesDomainPattern('[::ffff:7f00:1]', '*.0x7f000001'),
+				matchesDomainPattern('[::ffff:7f00:1]', '*.0177.0.0.1'),
+				matchesDomainPattern('[::1]', '*.127.0.0.1'),
+			], [
+				true,
+				true,
+				true,
+				true,
+				true,
+				false,
+			]);
+		});
+
 		test('matches unbracketed IPv6 administrator patterns', () => {
 			assert.deepStrictEqual([
 				matchesDomainPattern('[::1]', '::1'),
@@ -268,6 +286,30 @@ suite('domainMatcher', () => {
 				true,
 				true,
 				true,
+			]);
+		});
+
+		test('matches IPv4-mapped IPv6 literals against IPv4 patterns', () => {
+			assert.deepStrictEqual([
+				matchesDomainPattern('[::ffff:7f00:1]', '127.0.0.1'),
+				matchesDomainPattern('[::ffff:a9fe:a9fe]', '169.254.169.254'),
+			], [
+				true,
+				true,
+			]);
+		});
+
+		test('matches IPv4 literals and embedded IPv4 patterns symmetrically', () => {
+			assert.deepStrictEqual([
+				matchesDomainPattern('127.0.0.1', '[::ffff:127.0.0.1]'),
+				matchesDomainPattern('[::7f00:1]', '127.0.0.1'),
+				matchesDomainPattern('127.0.0.1', '[::127.0.0.1]'),
+				matchesDomainPattern('[::1]', '0.0.0.1'),
+			], [
+				true,
+				true,
+				true,
+				false,
 			]);
 		});
 	});
